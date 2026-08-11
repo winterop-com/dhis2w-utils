@@ -141,6 +141,45 @@ async def test_a_strict_facade_refuses_the_code_a_lenient_one_warns_about(
     assert refused.json()["issue"][0]["code"] == "code-invalid"
 
 
+async def test_a_body_declared_in_a_media_type_this_server_does_not_read_is_415(
+    capture_client: httpx.AsyncClient, aggregate_response: dict[str, Any]
+) -> None:
+    refused = await capture_client.post(
+        "/QuestionnaireResponse", content=json.dumps(aggregate_response), headers={"Content-Type": "text/plain"}
+    )
+    found = await capture_client.get("/QuestionnaireResponse")
+
+    assert refused.status_code == 415
+    assert refused.headers["content-type"] == FHIR_JSON
+    issue = refused.json()["issue"][0]
+    assert refused.json()["resourceType"] == "OperationOutcome"
+    assert issue["code"] == "not-supported"
+    assert "text/plain" in issue["diagnostics"]
+    assert found.json()["total"] == 0
+
+
+@pytest.mark.parametrize(
+    "content_type",
+    [FHIR_JSON, "application/json", f"{FHIR_JSON}; charset=utf-8", "application/scim+json"],
+)
+async def test_every_json_spelling_of_the_content_type_is_accepted(
+    content_type: str, capture_client: httpx.AsyncClient, aggregate_response: dict[str, Any]
+) -> None:
+    created = await capture_client.post(
+        "/QuestionnaireResponse", content=json.dumps(aggregate_response), headers={"Content-Type": content_type}
+    )
+
+    assert created.status_code == 201
+
+
+async def test_a_body_declaring_no_content_type_is_read_as_the_json_it_has_to_be(
+    capture_client: httpx.AsyncClient, aggregate_response: dict[str, Any]
+) -> None:
+    created = await capture_client.post("/QuestionnaireResponse", content=json.dumps(aggregate_response))
+
+    assert created.status_code == 201
+
+
 async def test_a_bundle_is_refused_with_the_one_response_per_request_rule(
     capture_client: httpx.AsyncClient,
 ) -> None:

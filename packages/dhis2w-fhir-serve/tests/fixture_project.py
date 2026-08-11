@@ -511,7 +511,10 @@ SEX_VALUE_SET_BODY: dict[str, Any] = {
 }
 
 #: The data-dictionary pair over the attributes the registration form asks, as `D2TEA_CS` publishes
-#: it: the DHIS2 code, the value type, and whether DHIS2 declares the attribute unique.
+#: it: the DHIS2 code, the value type, and whether DHIS2 declares the attribute unique. The
+#: household attribute carries no `dhis2-code` on purpose - DHIS2 does not require a code on a
+#: tracked entity attribute, and a consumer of this system has to render that absence honestly
+#: rather than invent one.
 TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
     "resourceType": "CodeSystem",
     "id": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM.rsplit("/", 1)[-1],
@@ -541,7 +544,6 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
             "code": REGISTRATION_PROGRAM_ONLY_ATTRIBUTE,
             "display": "Household size",
             "property": [
-                {"code": "dhis2-code", "valueString": "TEA_HOUSEHOLD_SIZE"},
                 {"code": "value-type", "valueCode": "INTEGER_POSITIVE"},
                 {"code": "unique", "valueBoolean": False},
             ],

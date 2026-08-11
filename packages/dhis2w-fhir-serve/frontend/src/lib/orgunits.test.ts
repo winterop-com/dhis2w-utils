@@ -32,6 +32,7 @@ import {
     readGeometry,
     referencedUnitId,
     reportableFormsAt,
+    unitExtent,
     visibleBrowseRows,
 } from '@/lib/orgunits'
 import { bundleResources, type Bundle, type Location, type Questionnaire, type ResourceList } from '@/lib/fhir'
@@ -418,11 +419,11 @@ describe('reading the whole registry geometry', () => {
         // Kagbere CHC publishes neither, which is what the map's ancestor fallback exists for.
         expect(geometry.boundaries.some((boundary) => boundary.unitId === 'EJoI3HuIUEV')).toBe(false)
         expect(geometry.points.some((point) => point.unitId === 'EJoI3HuIUEV')).toBe(false)
+        // Bo and Badjia publish a position beside their polygons - the exporter's centroid - and
+        // the boundary wins, so neither is in the point set at all.
         expect(geometry.points.map((point) => point.unitId)).toEqual([
             'DiszpKrYNg8',
             'MgFYJDBqSSs',
-            'O6uvpzGd5pu',
-            'YuQRtpLP10I',
             'lc3eMKXaEfw',
             'vWbkYPRmKyS',
         ])
@@ -453,6 +454,14 @@ describe('reading the whole registry geometry', () => {
         const geometry = readGeometry(locations)
 
         expect(geometry.points.some((point) => point.unitId === 'vWbkYPRmKyS')).toBe(true)
+    })
+
+    it('draws a unit with a boundary as the boundary alone, dropping its centroid position', () => {
+        const geometry = readGeometry(locations)
+
+        // Bo states both: a Polygon attachment and a position inside it. One unit, one mark.
+        expect(geometry.boundaries.some((boundary) => boundary.unitId === 'O6uvpzGd5pu')).toBe(true)
+        expect(geometry.points.some((point) => point.unitId === 'O6uvpzGd5pu')).toBe(false)
     })
 
     it('reads a point in longitude-then-latitude order, the order GeoJSON itself uses', () => {
@@ -760,5 +769,98 @@ describe('an organisation unit as a reference', () => {
         expect(carriesUnitOnExtension('tracker')).toBe(true)
         expect(carriesUnitOnExtension('tracker-event')).toBe(true)
         expect(carriesUnitOnExtension(null)).toBe(false)
+    })
+})
+
+describe('the extent one unit is framed on', () => {
+    const tree = buildOrgUnitTree(locations)
+    const geometry = readGeometry(locations)
+
+    it('frames a unit with geometry of its own on that geometry alone', () => {
+        // Bo publishes a Polygon; the fit is that polygon's rectangle, not its subtree's union.
+        const extent = unitExtent(tree, 'O6uvpzGd5pu', geometry)
+
+        expect(extent.coverage).toBe('own')
+        expect(extent.unitIds).toEqual(['O6uvpzGd5pu'])
+        expect(extent.framedOnUnitId).toBeNull()
+        expect(extent.bounds).toEqual([-12.2, 7.5, -11.2, 8.4])
+    })
+
+    it('frames a geometry-less parent on the union of its located descendants', () => {
+        // The real Sierra Leone shape of the problem: a level-1 unit with no polygon of its own
+        // over districts that have them. The fixture root carries geometry, so the case is built
+        // by hand - a bare parent over one bounded child and one pinned grandchild.
+        const bare: Location[] = [
+            { resourceType: 'Location', id: 'P0000000001', name: 'Parent' },
+            {
+                resourceType: 'Location',
+                id: 'C0000000001',
+                name: 'Bounded child',
+                partOf: { reference: 'Location/P0000000001' },
+                extension: [
+                    {
+                        url: 'http://hl7.org/fhir/StructureDefinition/location-boundary-geojson',
+                        valueAttachment: {
+                            data: btoa(
+                                JSON.stringify({
+                                    type: 'Feature',
+                                    geometry: {
+                                        type: 'Polygon',
+                                        coordinates: [
+                                            [
+                                                [10, 10],
+                                                [12, 10],
+                                                [12, 12],
+                                                [10, 12],
+                                                [10, 10],
+                                            ],
+                                        ],
+                                    },
+                                }),
+                            ),
+                        },
+                    },
+                ],
+            },
+            {
+                resourceType: 'Location',
+                id: 'G0000000001',
+                name: 'Pinned grandchild',
+                partOf: { reference: 'Location/C0000000001' },
+                position: { longitude: 20, latitude: 5 },
+            },
+        ]
+        const bareTree = buildOrgUnitTree(bare)
+        const bareGeometry = readGeometry(bare)
+
+        const extent = unitExtent(bareTree, 'P0000000001', bareGeometry)
+
+        expect(extent.coverage).toBe('descendants')
+        expect(new Set(extent.unitIds)).toEqual(new Set(['C0000000001', 'G0000000001']))
+        // The union rectangle covers the child's polygon and the grandchild's pin together.
+        expect(extent.bounds).toEqual([10, 5, 20, 12])
+    })
+
+    it('frames a bare leaf on the nearest located ancestor', () => {
+        // Kagbere CHC publishes nothing; Bombali above it publishes a Polygon.
+        const extent = unitExtent(tree, 'EJoI3HuIUEV', geometry)
+
+        expect(extent.coverage).toBe('ancestor')
+        expect(extent.framedOnUnitId).toBe('fdc6uOvgoji')
+        expect(extent.unitIds).toEqual(['fdc6uOvgoji'])
+        expect(extent.bounds).toEqual([-12.6, 8.8, -11.7, 9.6])
+    })
+
+    it('falls back to the whole registry for a fully bare branch, and to nothing for a bare registry', () => {
+        // Adonkia CHP: no geometry, no located descendant, and its parent is not published at all.
+        const orphaned = unitExtent(tree, 'Rp268JB6Ne4', geometry)
+        expect(orphaned.coverage).toBe('registry')
+        expect(orphaned.unitIds).toEqual([])
+        expect(orphaned.bounds).toEqual(boundsOf(geometry.boundaries, geometry.points))
+
+        const bare: Location[] = [{ resourceType: 'Location', id: 'P0000000001', name: 'Alone' }]
+        const none = unitExtent(buildOrgUnitTree(bare), 'P0000000001', readGeometry(bare))
+        expect(none.coverage).toBe('none')
+        expect(none.bounds).toBeNull()
     })
 })

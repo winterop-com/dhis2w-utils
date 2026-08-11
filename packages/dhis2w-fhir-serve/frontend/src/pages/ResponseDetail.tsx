@@ -179,7 +179,7 @@ export function ResponseDetail() {
                             <section className="space-y-2">
                                 <h3 className="flex items-center gap-2 text-base font-semibold">
                                     <TriangleAlert className="text-status-refused size-4" aria-hidden />
-                                    Recorded on capture
+                                    Warnings recorded on capture
                                 </h3>
                                 <ul className="text-muted-foreground space-y-1 rounded-lg border p-4 text-sm">
                                     {summary.warnings.map((warning) => (
@@ -293,7 +293,12 @@ function ReceiptFacts({
                     : `Received ${formatInstant(summary.received_at)} - the submission as it arrived, not a view of what DHIS2 now holds.`}
             </p>
             {stored.questionnaire !== undefined && (
-                <p className="text-muted-foreground font-mono text-xs break-all">{stored.questionnaire}</p>
+                <p className="text-xs">
+                    <span className="text-muted-foreground">Questionnaire </span>
+                    <span className="text-muted-foreground font-mono break-all">
+                        {stored.questionnaire}
+                    </span>
+                </p>
             )}
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
                 <Fact label="Receipt id" value={stored.id ?? '-'} mono />
@@ -354,8 +359,9 @@ function AnswersSection({
             {formMissing && (
                 <p className="text-muted-foreground rounded-lg border px-4 py-3 text-sm">
                     This server no longer serves the form this receipt answers, so there are no
-                    question texts to show - a guide recompiled since the capture does this. The
-                    link ids and the values are the receipt's own, and they are unchanged.
+                    question texts to show - an implementation guide recompiled since the capture
+                    does this. The link ids and the values are the receipt's own, and they are
+                    unchanged.
                 </p>
             )}
 

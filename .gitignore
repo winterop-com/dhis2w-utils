@@ -113,3 +113,6 @@ dhis2-security-*/
 # copied into each run folder
 !packages/dhis2w-core/src/dhis2w_core/security_core/report/assets/*.png
 !packages/dhis2w-core/src/dhis2w_core/security_core/sharing/assets/*.png
+# Committed capture UI documentation screenshots — re-shot on demand by
+# packages/dhis2w-fhir-serve/frontend/e2e/docs-screenshots.spec.ts
+!docs/img/fhir/*.png

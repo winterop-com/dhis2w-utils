@@ -140,6 +140,29 @@ Branch + PR is the default. Ask before creating branches or PRs.
 - NEVER use emojis in commits, PR titles, or PR descriptions.
 - Always run `make lint && make test` before opening a PR.
 
+## UI copy rules (owner-set, violations are review-blockers)
+
+Every user-facing string - nav labels, headings, hints, captions, legends, empty
+states, tooltips - follows these rules. They exist because each was violated once.
+
+- **No shorthand nouns.** "Organisation units", never "org units"; never bare
+  "unit(s)" for an organisation unit. The full term is not that much bigger.
+- **No theatrical headings.** "Hierarchy", not "The hierarchy"; "Map", not
+  "On the map". A panel heading names its content plainly or is omitted when the
+  content's own title serves (a detail panel headed by the thing's name needs no
+  generic label).
+- **Say the fact, not the verb.** "Not yet sent to DHIS2", not "awaiting forward" -
+  a reader must not need to know a command name to understand a status.
+- **Never state one fact twice in two casings.** A "Level 1" badge beside a
+  "level-1" chip is one fact wearing two costumes; pick the human spelling once,
+  keep the machine spelling for machine contexts (codes, ids - mono).
+- **Name the actual subject.** "This DHIS2 instance stores no boundary", not
+  "DHIS2 holds no geometry" - the platform, an instance, the API, and the
+  organisation are different things, and "DHIS2" unqualified can mean a hundred of
+  them. Say which one. No trailing philosophical clauses.
+- **Copy review is a review dimension.** Any change adding or moving user-facing
+  text gets read as prose - by someone whose only job in that pass is the words.
+
 ## Naming
 
 Full descriptive names, no abbreviations. `repository` not `repo`. `profile_store` not `ps`. Applies to classes, attributes, locals, parameters.

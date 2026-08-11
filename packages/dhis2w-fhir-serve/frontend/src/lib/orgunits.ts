@@ -765,13 +765,19 @@ export function hasGeometry(geometry: OrgUnitGeometry): boolean {
  * something this map has no mark for is counted in `unreadableGeometries` and the other units keep
  * their shapes.
  *
- * THE DEDUPE RULE: `position` WINS. A unit can state where it is twice - `Location.position`, and
- * a Point inside the geometry attachment - and on a DHIS2-generated registry those are two
- * renderings of one DHIS2 field, so they agree. When they do not, the R4 element wins: `position`
- * is the standard place a Location says where it is, it is what every other FHIR client reads, and
- * a map that drew the extension instead would disagree with all of them over the same document.
- * The attachment's points are therefore used only for a unit that states no `position` - which is
- * exactly the case they are needed for, and never adds a second dot on top of the first.
+ * TWO DEDUPE RULES, ONE PER PAIR OF SOURCES. A unit can state where it is more than once, and each
+ * pair resolves to one mark:
+ *
+ *   - `position` WINS OVER THE ATTACHMENT'S POINT. Both are renderings of one DHIS2 field on a
+ *     generated registry, so they agree; when they do not, the R4 element wins - `position` is the
+ *     standard place a Location says where it is, it is what every other FHIR client reads, and a
+ *     map that drew the extension instead would disagree with all of them over the same document.
+ *     The attachment's points are used only for a unit that states no `position`.
+ *   - THE BOUNDARY WINS OVER `position`. DHIS2 keeps one geometry per unit, but its exporter also
+ *     fills `coordinates` with the polygon's centroid, which a generated registry renders as
+ *     `position` beside the boundary attachment. Drawing both puts a facility-sized dot in the
+ *     middle of every district's own polygon - so a unit whose attachment holds a polygon is a
+ *     boundary and nothing else, mirroring the rule above: one unit, one mark.
  */
 export function readGeometry(locations: Location[]): OrgUnitGeometry {
     const boundaries: OrgUnitBoundary[] = []
@@ -781,7 +787,10 @@ export function readGeometry(locations: Location[]): OrgUnitGeometry {
         const attachment = attachmentGeometryOf(location)
         if (attachment !== null) {
             if (attachment.unreadable) unreadableGeometries += 1
-            if (attachment.boundary !== null) boundaries.push(attachment.boundary)
+            if (attachment.boundary !== null) {
+                boundaries.push(attachment.boundary)
+                continue
+            }
         }
         const position = pointOf(location)
         if (position !== null) points.push(position)
@@ -812,6 +821,65 @@ export function boundsOf(boundaries: OrgUnitBoundary[], points: OrgUnitPoint[]):
     }
     for (const point of points) extend(point.longitude, point.latitude)
     return west === Infinity ? null : [west, south, east, north]
+}
+
+/** What a unit's extent actually covers, so a caption can say what is being shown. */
+export type ExtentCoverage = 'own' | 'descendants' | 'ancestor' | 'registry' | 'none'
+
+/** Where one unit is, to the resolution the registry holds - a rectangle, and what it is a rectangle of. */
+export interface UnitExtent {
+    /** `[west, south, east, north]`, or null when nothing anywhere carries coordinates. */
+    bounds: [number, number, number, number] | null
+    coverage: ExtentCoverage
+    /** The located unit ids whose shapes compose the bounds - what a map fits, empty for `registry`. */
+    unitIds: string[]
+    /** The ancestor the bounds belong to, when the coverage is `ancestor`. */
+    framedOnUnitId: string | null
+}
+
+/**
+ * The extent one unit should be framed on.
+ *
+ * FIT PRIORITY, STATED ONCE: the unit's own geometry; else the union bounding box of its subtree's
+ * boundaries and points - a level-1 unit with no polygon of its own is where its districts are,
+ * not where its country's ancestor is; else the nearest located ancestor; else the whole
+ * registry's extent. Exported as a pure function because a unit's extent is an answer other
+ * consumers want too (climate services read org-unit extents), not just this map's framing.
+ */
+export function unitExtent(tree: OrgUnitTree, unitId: string, geometry: OrgUnitGeometry): UnitExtent {
+    const located = new Set<string>()
+    for (const boundary of geometry.boundaries) located.add(boundary.unitId)
+    for (const point of geometry.points) located.add(point.unitId)
+    const boundsAmong = (unitIds: string[]): [number, number, number, number] | null => {
+        const wanted = new Set(unitIds)
+        return boundsOf(
+            geometry.boundaries.filter((boundary) => wanted.has(boundary.unitId)),
+            geometry.points.filter((point) => wanted.has(point.unitId)),
+        )
+    }
+
+    if (located.has(unitId)) {
+        return { bounds: boundsAmong([unitId]), coverage: 'own', unitIds: [unitId], framedOnUnitId: null }
+    }
+    const node = tree.byId.get(unitId)
+    const below = node === undefined ? [] : descendantIdsOf(node).filter((id) => located.has(id))
+    if (below.length > 0) {
+        return { bounds: boundsAmong(below), coverage: 'descendants', unitIds: below, framedOnUnitId: null }
+    }
+    const ancestor = ancestorsOf(tree, unitId)
+        .toReversed()
+        .find((candidate) => located.has(candidate.id))
+    if (ancestor !== undefined) {
+        return {
+            bounds: boundsAmong([ancestor.id]),
+            coverage: 'ancestor',
+            unitIds: [ancestor.id],
+            framedOnUnitId: ancestor.id,
+        }
+    }
+    const registry = boundsOf(geometry.boundaries, geometry.points)
+    if (registry === null) return { bounds: null, coverage: 'none', unitIds: [], framedOnUnitId: null }
+    return { bounds: registry, coverage: 'registry', unitIds: [], framedOnUnitId: null }
 }
 
 /**

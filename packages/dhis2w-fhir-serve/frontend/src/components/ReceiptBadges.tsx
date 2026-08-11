@@ -33,11 +33,13 @@ export function LifecycleBadge({
                     <TooltipTrigger asChild>
                         <TriangleAlert
                             className="text-status-refused size-3.5 shrink-0"
-                            aria-label={`${summary.warnings.length} warning(s) recorded on capture`}
+                            aria-label={`${summary.warnings.length} ${summary.warnings.length === 1 ? 'warning' : 'warnings'} recorded on capture`}
                         />
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
-                        {summary.warnings.length} warning(s) recorded when this was captured
+                        {summary.warnings.length}{' '}
+                        {summary.warnings.length === 1 ? 'warning' : 'warnings'} recorded when this
+                        was captured
                     </TooltipContent>
                 </Tooltip>
             )}

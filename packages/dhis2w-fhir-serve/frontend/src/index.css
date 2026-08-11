@@ -61,6 +61,10 @@
     --color-secondary: var(--secondary);
     --color-primary-foreground: var(--primary-foreground);
     --color-primary: var(--primary);
+    /* The org-unit map's selection mark - see the tokens below. Utilities so the
+       map legend's chips can wear the exact colours the renderer paints. */
+    --color-map-selection: var(--map-selection);
+    --color-map-selection-edge: var(--map-selection-edge);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -92,6 +96,13 @@
     --popover-foreground: oklch(0.22 0.008 195);
     --primary: oklch(0.52 0.12 240);
     --primary-foreground: oklch(1 0 0);
+    /* The org-unit map's selection mark: an amber pair, deliberately a second
+       hue category, so the selected shape is not a stronger shade of the blue
+       the subtree tier already spends. `--map-selection` fills the area (and
+       the legend's chip); `--map-selection-edge` is its stroke and the colour
+       of a selected point marker. Nothing off the map may spend these. */
+    --map-selection: oklch(0.67 0.18 58); /* #d97706 */
+    --map-selection-edge: oklch(0.55 0.16 50); /* #b45309 */
     --secondary: oklch(0.985 0.003 195);
     --secondary-foreground: oklch(0.24 0.008 195);
     --muted: oklch(0.965 0.003 195);
@@ -142,6 +153,8 @@
     --popover-foreground: oklch(0.95 0.004 195);
     --primary: oklch(0.72 0.14 240);
     --primary-foreground: oklch(0.16 0.006 195);
+    --map-selection: oklch(0.77 0.19 70); /* #f59e0b */
+    --map-selection-edge: oklch(0.85 0.17 85); /* #fbbf24 */
     --secondary: oklch(0.24 0.006 195);
     --secondary-foreground: oklch(0.95 0.004 195);
     --muted: oklch(0.24 0.006 195);
@@ -182,6 +195,87 @@
     }
     html {
         @apply font-sans;
+    }
+}
+
+/* MapLibre draws its corner controls (fullscreen, attribution) from its own
+   stylesheet: a white chip with a black glyph, whatever the theme. Repainted
+   here with the app's tokens so the chrome follows the surface it sits on. The
+   glyphs are background-image SVGs whose paths CSS colour cannot reach, so dark
+   mode inverts them instead.
+
+   EVERY OVERRIDE HERE MUST OUTRANK MAPLIBRE'S OWN RULE BY SPECIFICITY, NOT BY
+   ORDER. maplibre-gl.css ships inside the lazy map chunk, so it is appended to
+   the document AFTER this stylesheet - a same-specificity override written here
+   loses to it silently, and the popup keeps its white card under dark
+   foreground ink. Hence the extra ancestor class on each selector. */
+.maplibregl-map .maplibregl-ctrl-group {
+    background: var(--card);
+    border: 1px solid var(--border);
+}
+.maplibregl-map .maplibregl-ctrl-group:not(:empty) {
+    box-shadow: none;
+}
+.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+    filter: invert(1);
+}
+
+/* The popup a click on the map opens - MapLibre's own chrome (a white card, a
+   white tip, a black close glyph) repainted from the same tokens as the rest of
+   the app's cards, in both themes. The content inside it is the component's own
+   markup and styles itself; this is only the shell. The tip selectors carry the
+   anchor class on the popup root itself, because MapLibre's tip rules are
+   two-class selectors and later in the document - see the note above. */
+.maplibregl-popup .maplibregl-popup-content {
+    background: var(--card);
+    color: var(--card-foreground);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) * 0.8);
+    box-shadow: none;
+    padding: 0.625rem 0.75rem;
+    font-family: var(--font-sans);
+}
+.maplibregl-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+    border-bottom-color: var(--card);
+}
+.maplibregl-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+    border-top-color: var(--card);
+}
+.maplibregl-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+    border-right-color: var(--card);
+}
+.maplibregl-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+    border-left-color: var(--card);
+}
+.maplibregl-popup .maplibregl-popup-close-button {
+    color: var(--muted-foreground);
+    font-size: 1rem;
+    padding: 0 0.4rem;
+}
+.maplibregl-popup .maplibregl-popup-close-button:hover {
+    color: var(--foreground);
+    background: transparent;
+}
+
+/* The starfield behind the globe fades in once as the projection transition
+   runs, instead of popping - a single entrance, not an ongoing animation. The
+   stars themselves are static; a reader who asked for reduced motion gets the
+   sky without even the fade. */
+.map-starfield {
+    animation: map-starfield-in 700ms ease-out;
+}
+@keyframes map-starfield-in {
+    from {
+        opacity: 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .map-starfield {
+        animation: none;
     }
 }
 

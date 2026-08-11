@@ -4,6 +4,7 @@ import { ArrowLeft, Eraser, Send, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AttributeOptionComboPicker } from '@/components/AttributeOptionComboPicker'
+import { EnrollmentPicker } from '@/components/EnrollmentPicker'
 import { OrgUnitScopeProvider } from '@/components/OrgUnitPicker'
 import { PageState } from '@/components/PageState'
 import { QuestionnaireForm } from '@/components/QuestionnaireItem'
@@ -11,8 +12,10 @@ import { ReportingUnitPicker } from '@/components/ReportingUnitPicker'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useEnrollmentOptions } from '@/hooks/use-enrollment-options'
 import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
 import { FhirRequestError, generateResponse, postQuestionnaireResponse, readResource } from '@/lib/api'
+import { reloadedEnrollment, type EnrollmentOption } from '@/lib/enrollments'
 import {
     attributeOptionCombosOf,
     enrolledAtOf,
@@ -37,6 +40,7 @@ import {
     openedAttributeOptionCombo,
     openedReportingUnit,
     refilledAttributeOptionCombo,
+    refilledEnrollment,
     refilledReportingUnit,
     unansweredRequiredLinkIds,
     type AnswerState,
@@ -83,6 +87,16 @@ import { cn } from '@/lib/utils'
  * registry, published to the form through `OrgUnitScopeProvider` so the `ORGANISATION_UNIT`
  * questions inside it pick from the same set.
  *
+ * A THIRD PIECE OF CONTEXT IS THE USER'S ON A STAGE FORM, AND IT IS THE ONE THE SKELETON GETS
+ * WRONG. `$generate` mints synthetic tracked-entity and enrollment uids, which is what makes the
+ * skeleton postable *here* - but they name nothing in any DHIS2, so an unassisted stage
+ * submission is refused at forward time. The real enrollments are the ones this server's own
+ * registration receipts minted, so a stage form gets a picker over exactly those, each option
+ * stating whether DHIS2 has it yet, and the choice is written over the envelope the same
+ * replace-in-place way the combo and the unit are. The default is the newest forwarded
+ * registration's pair - a submission that lands - and with nothing to offer the synthetic draw
+ * stands, said out loud rather than discovered in a rejection.
+ *
  * EVERYTHING ELSE THE ENVELOPE CARRIES IS SHOWN AND NOT ASKED. A tracker registration files an
  * enrollment, and when it begins - `D2EnrolledAt`, plus `D2IncidentAt` on a program that collects
  * one - is context no question on the form holds. It is displayed above the questions rather than
@@ -105,7 +119,18 @@ export function FormFill() {
     const [filling, setFilling] = useState(false)
     const [attributeOptionCombo, setAttributeOptionCombo] = useState<Coding | null>(null)
     const [reportingUnit, setReportingUnit] = useState<Reference | null>(null)
+    const [enrollment, setEnrollment] = useState<EnrollmentOption | null>(null)
     const orgUnitScope = useFormOrgUnitScope(questionnaire)
+    const enrollmentOffer = useEnrollmentOptions(questionnaire)
+
+    // Applied whenever the offer lands or reloads: a person's choice is re-read so its lifecycle
+    // badge catches up with a forwarder run, and before anyone chose, the default rule picks the
+    // newest forwarded registration - the one pair a submission is known to land against.
+    const { loading: offerLoading, options: offerOptions } = enrollmentOffer
+    useEffect(() => {
+        if (offerLoading) return
+        setEnrollment((current) => reloadedEnrollment(current, offerOptions))
+    }, [offerLoading, offerOptions])
 
     const spec = useMemo(
         () => flattenQuestionnaire(questionnaire ?? { resourceType: 'Questionnaire', status: 'unknown' }),
@@ -121,6 +146,7 @@ export function FormFill() {
         setIssues([])
         setAttributeOptionCombo(null)
         setReportingUnit(null)
+        setEnrollment(null)
         readResource<Questionnaire>('Questionnaire', questionnaireId)
             .then((resource) => {
                 if (cancelled) return
@@ -161,6 +187,9 @@ export function FormFill() {
                 setEnvelope(generated)
                 setAttributeOptionCombo((current) => refilledAttributeOptionCombo(current, generated))
                 setReportingUnit((current) => refilledReportingUnit(current, generated, questionnaire))
+                // The one refill rule that runs the other way: the fresh draw's pair is synthetic,
+                // so the answers refill and the chosen identity stands.
+                setEnrollment((current) => refilledEnrollment(current))
                 dispatch({
                     kind: 'replace',
                     answers: answersFromResponse(flattenQuestionnaire(questionnaire), generated),
@@ -168,12 +197,12 @@ export function FormFill() {
                 setIssues([])
                 const seed = generateSeedOf(generated)
                 toast.success(
-                    seed === null ? 'Filled with generated answers' : `Filled with generated answers, seed ${seed}`,
+                    seed === null ? 'Filled with test data' : `Filled with test data, seed ${seed}`,
                     { description: 'Change anything you like before submitting.' },
                 )
             })
             .catch((failure: unknown) => {
-                toast.error('The server would not generate answers to this form', {
+                toast.error('The server could not fill this form with test data', {
                     description: failure instanceof Error ? failure.message : String(failure),
                 })
             })
@@ -216,6 +245,7 @@ export function FormFill() {
                 buildQuestionnaireResponse(spec, answers, questionnaire, envelope, {
                     attributeOptionCombo,
                     reportingUnit,
+                    enrollment,
                 }),
             )
             toast.success('The server accepted this submission', {
@@ -225,7 +255,11 @@ export function FormFill() {
         } catch (failure: unknown) {
             if (failure instanceof FhirRequestError && failure.outcome !== null) {
                 setIssues(failure.outcome.issue)
-                toast.error(`The server refused this submission (${failure.outcome.issue.length} issues)`)
+                toast.error(
+                    `The server refused this submission (${failure.outcome.issue.length} ${
+                        failure.outcome.issue.length === 1 ? 'issue' : 'issues'
+                    })`,
+                )
             } else {
                 toast.error('This submission could not be sent', {
                     description: failure instanceof Error ? failure.message : String(failure),
@@ -258,10 +292,13 @@ export function FormFill() {
                 <div
                     className={cn(
                         'mb-4 grid gap-4',
-                        (attributeOptionCombos !== null || enrolledAt !== null) && 'lg:grid-cols-2',
+                        (attributeOptionCombos !== null || enrolledAt !== null || enrollmentOffer.active) &&
+                            'lg:grid-cols-2',
                     )}
                 >
                     <ReportingUnitPicker
+                        formKind={formTypeOf(questionnaire)}
+                        declaresAttributeOptionCombo={attributeOptionCombos !== null}
                         selectedUnitId={referencedUnitId(reportingUnit)}
                         onChange={(choice) => setReportingUnit(orgUnitReference(choice))}
                     />
@@ -271,6 +308,9 @@ export function FormFill() {
                             selected={attributeOptionCombo}
                             onChange={setAttributeOptionCombo}
                         />
+                    )}
+                    {enrollmentOffer.active && (
+                        <EnrollmentPicker offer={enrollmentOffer} selected={enrollment} onChange={setEnrollment} />
                     )}
                     {enrolledAt !== null && envelope !== null && (
                         <EnrollmentContext enrolledAt={enrolledAt} envelope={envelope} />
@@ -302,7 +342,7 @@ export function FormFill() {
                 </Button>
                 <Button type="button" variant="outline" disabled={filling} onClick={fillWithTestData}>
                     <Sparkles className="size-4" />
-                    {filling ? 'Generating' : 'Fill with test data'}
+                    {filling ? 'Filling' : 'Fill with test data'}
                 </Button>
                 <Button
                     type="button"
@@ -312,7 +352,10 @@ export function FormFill() {
                         // rather than the server's context, and it is the only control here a Radix
                         // select cannot be returned to unchosen any other way. The reporting unit
                         // stays, because clearing it would empty a control the form cannot be
-                        // submitted well without and that nothing on this page would refill.
+                        // submitted well without and that nothing on this page would refill. The
+                        // enrollment stays for the harder version of the same reason: clearing it
+                        // would silently return the submission to a synthetic pair that cannot
+                        // import.
                         dispatch({ kind: 'replace', answers: initialAnswers(spec) })
                         setAttributeOptionCombo(null)
                         setIssues([])
@@ -429,6 +472,7 @@ function FormFillHeader({
     questionnaireId: string
 }) {
     const kind = questionnaire === null ? null : formTypeOf(questionnaire)
+    const questions = questionnaire === null ? 0 : questionCount(questionnaire.item)
     return (
         <div className="mb-6 space-y-2">
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground -ml-2">
@@ -452,7 +496,7 @@ function FormFillHeader({
                 </Badge>
                 {questionnaire !== null && (
                     <span className="text-muted-foreground text-sm">
-                        {questionCount(questionnaire.item)} questions
+                        {questions} question{questions === 1 ? '' : 's'}
                     </span>
                 )}
             </div>

@@ -82,7 +82,7 @@ export function Terminology() {
         <>
             <PageHeader
                 title="Terminology"
-                description="The code systems, value sets, and concept maps this project published - and the codes inside them."
+                description="The code systems, value sets, and concept maps this server publishes - and the codes inside them."
             />
 
             <div className="mb-6 flex items-center gap-2">
@@ -133,14 +133,14 @@ export function Terminology() {
 
                 <TerminologySection
                     title="Concept maps"
-                    caption="Every concept taken back to the DHIS2 option uid and code the forwarder writes."
+                    caption="Every concept written back to the DHIS2 option uid and code when captures are sent on."
                     resourceType="ConceptMap"
                     countLabel="Mappings"
                     loading={conceptMaps.loading}
                     error={conceptMaps.error}
                     rows={conceptMapRows}
                     query={query}
-                    emptyMessage="This project published no ConceptMaps. Generate the option sets or categories the forms bind, then recompile and restart."
+                    emptyMessage="This project published no ConceptMaps. Run `make generate` then `make sushi` to compile the option sets and categories the forms bind, then restart the server."
                 />
             </section>
         </>

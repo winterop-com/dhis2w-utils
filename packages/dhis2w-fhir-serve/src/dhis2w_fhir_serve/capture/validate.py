@@ -205,6 +205,14 @@ def _read_response(payload: dict[str, Any]) -> QuestionnaireResponse:
     resource_type = payload.get("resourceType")
     if resource_type == BUNDLE_RESOURCE_TYPE:
         raise _refusal(400, "not-supported", "Bundle", ONE_RESPONSE_PER_REQUEST)
+    if not resource_type:
+        raise _refusal(
+            400,
+            "invalid",
+            "resourceType",
+            f"the request body names no `resourceType`; this endpoint receives a "
+            f"{QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE}",
+        )
     if resource_type != QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE:
         raise _refusal(
             400,
@@ -410,7 +418,8 @@ def _tracker_subject_issues(response: QuestionnaireResponse, naming: CaptureNami
             _error(
                 "value",
                 "QuestionnaireResponse.subject.identifier.system",
-                f"the subject identifier names `{identifier.system}`, not `{naming.tracked_entity_system}`",
+                f"the subject identifier names {_named_system(identifier.system)}, "
+                f"not `{naming.tracked_entity_system}`",
             )
         )
     if not is_dhis2_uid(identifier.value):
@@ -500,7 +509,8 @@ def _enrollment_extension_issues(
             _error(
                 "value",
                 "QuestionnaireResponse.extension",
-                f"the tracker enrollment names `{identifier.system}`, not `{naming.tracker_enrollment_system}`",
+                f"the tracker enrollment names {_named_system(identifier.system)}, "
+                f"not `{naming.tracker_enrollment_system}`",
             )
         )
     if not is_dhis2_uid(identifier.value):
@@ -825,8 +835,8 @@ def _period_issues(response: QuestionnaireResponse, naming: CaptureNaming) -> tu
             _warning(
                 "value",
                 "QuestionnaireResponse.extension",
-                f"the date range {claimed.start} to {claimed.end} is not what the ISO period `{iso}` "
-                f"resolves to ({resolved_start} to {resolved_end}); the ISO period is what is captured",
+                f"the date range {_stated(claimed.start)} to {_stated(claimed.end)} is not what the ISO period "
+                f"`{iso}` resolves to ({resolved_start} to {resolved_end}); the ISO period is what is captured",
             )
         )
     return tuple(issues)
@@ -1127,6 +1137,20 @@ def _extensions(response: QuestionnaireResponse, url: str) -> tuple[Extension, .
 def _sub_extensions(extension: Extension, url: str) -> tuple[Extension, ...]:
     """Every sub-extension one complex extension carries under one slice url."""
     return tuple(nested for nested in extension.extension or [] if nested.url == url)
+
+
+def _named_system(system: str | None) -> str:
+    """Spell one identifier system for a diagnostic: the system quoted, or its absence in words.
+
+    Diagnostics are read by people, and a Python `None` interpolated into one reads as a server
+    bug rather than as the client's omission - so absence is stated as absence.
+    """
+    return f"`{system}`" if system else "no system"
+
+
+def _stated(value: str | None) -> str:
+    """Spell one optional primitive for a diagnostic, naming an absent value instead of interpolating None."""
+    return value if value else "(unstated)"
 
 
 def _expression(location: object) -> str | None:

@@ -4,12 +4,19 @@ import json
 from typing import Any
 
 import pytest
+from dhis2w_fhir import service
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.names import CodeStemError
+from dhis2w_fhir.notes import GenerateNote
 from dhis2w_fhir.resources.categories import build_category_artifacts, category_identities
-from dhis2w_fhir.resources.categories.schemas import CategoryIn, CategorySelection
+from dhis2w_fhir.resources.categories.schemas import (
+    DEFAULT_CATEGORY_NAME,
+    CategoryIn,
+    CategorySelection,
+    is_default_category,
+)
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn
 from dhis2w_fhir.status import IgStatus
 from dhis2w_fhir.writer import JsonBuild
@@ -287,6 +294,100 @@ def test_selection_defaults_to_every_category() -> None:
     """An absent `[generate.categories]` include list selects the whole instance."""
     assert CategorySelection().include_ids == []
     assert GenerateConfig().categories.include_ids == []
+    assert CategorySelection().include_default is False
+
+
+#: DHIS2's built-in default category as the seeded instance holds it: the reserved name, no code.
+_DEFAULT_CATEGORY = CategoryIn(
+    uid="GLevLNI9wkl",
+    name="default",
+    options=[OptionIn(uid="xYerKDKCefk", name="default", sort_order=0)],
+)
+
+#: The pair `include_default = true` restores - the very output the target produced unconditionally
+#: before the flag existed, pinned so opting back in stays byte-identical.
+_EXPECTED_DEFAULT_CODE_SYSTEM = {
+    "resourceType": "CodeSystem",
+    "id": "d2-cat-GLevLNI9wkl-cs",
+    "url": "http://example.org/fhir/CodeSystem/d2-cat-GLevLNI9wkl-cs",
+    "identifier": [
+        {"system": "http://dhis2.org/fhir/id/category", "value": "GLevLNI9wkl"},
+        {"system": "http://dhis2.org/fhir/id/category-code", "value": "GLevLNI9wkl"},
+    ],
+    "name": "D2CAT_GLevLNI9wkl_CS",
+    "title": "default",
+    "description": "DHIS2 category default (GLevLNI9wkl). Concept codes are DHIS2 category option UIDs.",
+    "status": "draft",
+    "experimental": True,
+    "caseSensitive": True,
+    "content": "complete",
+    "count": 1,
+    "valueSet": "http://example.org/fhir/ValueSet/d2-cat-GLevLNI9wkl-vs",
+    "property": [
+        {
+            "code": "dhis2-code",
+            "uri": "http://dhis2.org/fhir/property/dhis2-code",
+            "description": "DHIS2 category option code.",
+            "type": "string",
+        }
+    ],
+    "concept": [
+        {
+            "code": "xYerKDKCefk",
+            "display": "default",
+            "property": [{"code": "dhis2-code", "valueString": "xYerKDKCefk"}],
+        }
+    ],
+}
+
+
+def test_the_default_category_is_detected_by_its_reserved_name_alone() -> None:
+    """`/api/categories` carries no isDefault flag, so the reserved name is the signal - case-sensitively."""
+    assert DEFAULT_CATEGORY_NAME == "default"
+    assert is_default_category("default")
+    assert not is_default_category("Default")
+    assert not is_default_category("DEFAULT")
+    assert not is_default_category("default ")
+    assert not is_default_category("Sex")
+
+
+def test_the_default_category_is_skipped_unless_opted_back_in() -> None:
+    """The built-in placeholder emits no CS, no VS, and no ConceptMap under the default selection."""
+    notes: list[GenerateNote] = []
+    selected = service._selected_categories([_SEX, _DEFAULT_CATEGORY], GenerateConfig(), notes)
+    assert [category.uid for category in selected] == ["O5P6e8yu1T6"]
+    assert notes == []
+    build = _build(selected, GenerateConfig())
+    assert all("GLevLNI9wkl" not in artifact.relative_path for artifact in build.artifacts)
+
+
+def test_include_default_restores_the_previous_output_byte_for_byte() -> None:
+    """`include_default = true` selects the placeholder again, and its pair is the pinned golden."""
+    config = GenerateConfig.model_validate({"categories": {"include_default": True}})
+    notes: list[GenerateNote] = []
+    selected = service._selected_categories([_SEX, _DEFAULT_CATEGORY], config, notes)
+    assert [category.uid for category in selected] == ["O5P6e8yu1T6", "GLevLNI9wkl"]
+    documents = _documents(_build(selected, config))
+    assert documents["categories/CodeSystem-d2-cat-GLevLNI9wkl-cs.json"] == _EXPECTED_DEFAULT_CODE_SYSTEM
+    assert "categories/ValueSet-d2-cat-GLevLNI9wkl-vs.json" in documents
+
+
+def test_an_include_ids_entry_naming_the_default_category_wins_over_the_skip() -> None:
+    """An explicit UID is the most specific configuration statement, so it overrides include_default."""
+    config = GenerateConfig.model_validate({"categories": {"include_ids": ["GLevLNI9wkl"]}})
+    notes: list[GenerateNote] = []
+    selected = service._selected_categories([_SEX, _DEFAULT_CATEGORY], config, notes)
+    assert [category.uid for category in selected] == ["GLevLNI9wkl"]
+    assert notes == []
+
+
+def test_an_include_ids_list_not_naming_the_default_category_leaves_it_out_without_a_note() -> None:
+    """A narrowed list never reports the skipped placeholder as a mismatch - nothing asked for it."""
+    config = GenerateConfig.model_validate({"categories": {"include_ids": ["O5P6e8yu1T6"]}})
+    notes: list[GenerateNote] = []
+    selected = service._selected_categories([_SEX, _DEFAULT_CATEGORY], config, notes)
+    assert [category.uid for category in selected] == ["O5P6e8yu1T6"]
+    assert notes == []
 
 
 def test_page_furniture_escapes_the_markup_characters_the_publisher_parses() -> None:

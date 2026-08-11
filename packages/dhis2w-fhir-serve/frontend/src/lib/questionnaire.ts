@@ -37,6 +37,11 @@ import {
     attributeOptionComboOf,
     ATTRIBUTE_OPTION_COMBO_EXTENSION_SUFFIX,
     formTypeOf,
+    identifierSystemBaseOf,
+    TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX,
+    TRACKER_ENROLLMENT_EXTENSION_SUFFIX,
+    TRACKER_ENROLLMENT_IDENTIFIER_SYSTEM_SUFFIX,
+    trackerEnrollmentExtensionUrl,
     type Coding,
     type Extension,
     type Questionnaire,
@@ -321,6 +326,16 @@ export function isEnabled(spec: QuestionnaireSpec, linkId: string, answers: Answ
  * default-combo case - a form declaring no vocabulary has nothing to pick and nothing to write. For
  * the unit it is the case where `$generate` was refused: there is no envelope to correct, and the
  * server's refusal naming the missing context is a better answer than a guess at it.
+ *
+ * THE THIRD PIECE IS THE ENROLLMENT A STAGE SUBMISSION ANSWERS AGAINST, and it is the one piece
+ * the envelope gets *wrong* rather than merely proposes: `$generate` mints synthetic tracked
+ * entity and enrollment uids that name nothing in any DHIS2, so a stage submission carrying them
+ * is refused at forward time. When a real pair is chosen - one a registration capture on this very
+ * server minted - it is written over the envelope in place, on both spots the profile reads: the
+ * `subject.identifier` value and the enrollment extension's identifier value, each keeping the
+ * envelope's own system and url spellings. Null keeps the synthetic draw, stated on the page
+ * rather than hidden; and the rewrite runs only for the tracker-event kind, because no other
+ * kind's response names an enrollment.
  */
 export function buildQuestionnaireResponse(
     spec: QuestionnaireSpec,
@@ -337,10 +352,17 @@ export function buildQuestionnaireResponse(
     const questionnaireUrl = questionnaire.url ?? envelope?.questionnaire
     const withCombo = extensionsWithAttributeOptionCombo(questionnaire, envelope, context.attributeOptionCombo)
     const onExtension = carriesUnitOnExtension(formTypeOf(questionnaire))
-    const extension = onExtension
+    const withUnit = onExtension
         ? extensionsWithReportingUnit(questionnaire, withCombo, context.reportingUnit)
         : withCombo
-    const subject = onExtension ? envelope?.subject : (context.reportingUnit ?? envelope?.subject)
+    const chosenEnrollment = formTypeOf(questionnaire) === 'tracker-event' ? context.enrollment : null
+    const extension =
+        chosenEnrollment === null ? withUnit : extensionsWithEnrollment(questionnaire, withUnit, chosenEnrollment)
+    const statedSubject = onExtension ? envelope?.subject : (context.reportingUnit ?? envelope?.subject)
+    const subject =
+        chosenEnrollment === null
+            ? statedSubject
+            : subjectWithEnrollment(questionnaire, statedSubject, chosenEnrollment)
     return {
         resourceType: 'QuestionnaireResponse',
         ...(envelope?.meta ? { meta: envelope.meta } : {}),
@@ -359,10 +381,29 @@ export interface CaptureContext {
     attributeOptionCombo: Coding | null
     /** The organisation unit the submission reports from, or null to keep whatever the envelope drew. */
     reportingUnit: Reference | null
+    /** The enrollment a stage submission answers against, or null to keep the synthetic draw. */
+    enrollment: EnrollmentChoice | null
+}
+
+/**
+ * The identifier pair one registration capture minted, as a stage submission names it.
+ *
+ * Two uids and nothing else, because that is all the rewrite writes: the display facts an offer
+ * carries beside them (the date, the lifecycle) belong to the picker, not to the wire.
+ */
+export interface EnrollmentChoice {
+    /** The DHIS2 tracked-entity uid the submission is about. */
+    trackedEntity: string
+    /** The DHIS2 enrollment uid the submission answers against. */
+    enrollment: string
 }
 
 /** Nothing chosen, which is what a form holds before its skeleton lands. */
-export const NO_CAPTURE_CONTEXT: CaptureContext = { attributeOptionCombo: null, reportingUnit: null }
+export const NO_CAPTURE_CONTEXT: CaptureContext = {
+    attributeOptionCombo: null,
+    reportingUnit: null,
+    enrollment: null,
+}
 
 /**
  * The picker's selection when a form is first opened: whatever is chosen, else what the server drew.
@@ -430,6 +471,23 @@ export function refilledReportingUnit(
 }
 
 /**
+ * The enrollment after "fill with test data": exactly what was chosen, never the fresh draw.
+ *
+ * The opposite rule from the combo and the unit, and deliberately so. For those two the refill's
+ * draw wins because the server's proposal is a plausible value of the same kind the person would
+ * pick. Here it is not: a fresh `$generate` mints a fresh *synthetic* pair, and adopting it would
+ * replace a real enrollment the person chose with uids that name nothing - turning a submission
+ * that would land into one DHIS2 refuses, silently, on the press of a button about answers. So
+ * the answers refill and the identity stands.
+ *
+ * Generic so the page's richer offer shape (the choice plus its display facts) passes through
+ * with its type intact - the rule is about identity, not about which fields ride along.
+ */
+export function refilledEnrollment<Choice extends EnrollmentChoice>(current: Choice | null): Choice | null {
+    return current
+}
+
+/**
  * The envelope's extensions with the chosen combo written into them.
  *
  * The url is the envelope's own spelling when it already carries the extension, so a project served
@@ -474,6 +532,64 @@ function extensionsWithReportingUnit(
     const written: Extension = { url, valueReference: reportingUnit }
     if (stated === undefined) return [...carried, written]
     return carried.map((candidate) => (candidate === stated ? written : candidate))
+}
+
+/**
+ * The extensions with the chosen enrollment written into them, for a stage response.
+ *
+ * The same replace-in-place discipline the combo and the unit follow: the envelope's own url and
+ * identifier system win when it states them, the form's declarations are the fallback for the
+ * no-envelope case, and nothing is written under a url neither of them names. The fallback
+ * matters more here than for its neighbours: with no envelope the response carries no enrollment
+ * at all, and a person who explicitly chose one deserves better than having the choice silently
+ * dropped on the floor because `$generate` was refused.
+ */
+function extensionsWithEnrollment(
+    questionnaire: Questionnaire,
+    carried: Extension[],
+    choice: EnrollmentChoice,
+): Extension[] {
+    const stated = carried.find((candidate) => candidate.url.endsWith(TRACKER_ENROLLMENT_EXTENSION_SUFFIX))
+    const url = stated?.url ?? trackerEnrollmentExtensionUrl(questionnaire)
+    if (url === null) return carried
+    const base = identifierSystemBaseOf(questionnaire)
+    const system =
+        stated?.valueIdentifier?.system ??
+        (base === null ? undefined : `${base}${TRACKER_ENROLLMENT_IDENTIFIER_SYSTEM_SUFFIX}`)
+    const written: Extension = {
+        url,
+        valueIdentifier: { ...(system === undefined ? {} : { system }), value: choice.enrollment },
+    }
+    if (stated === undefined) return [...carried, written]
+    return carried.map((candidate) => (candidate === stated ? written : candidate))
+}
+
+/**
+ * The subject with the chosen tracked entity written into it, for a stage response.
+ *
+ * When the envelope named its synthetic entity the reference is kept whole and only the
+ * identifier's value is replaced - same system, same type, same everything else, so the rebuilt
+ * response reads as the same document about a different person. With no envelope the subject is
+ * built from the form's own statements: the identifier system derived off the form's program
+ * identifier, and the type off `subjectType`, which the generator writes on every tracker form.
+ * A form stating neither yields no subject at all, and the server's refusal names what is
+ * missing better than a guessed system could.
+ */
+function subjectWithEnrollment(
+    questionnaire: Questionnaire,
+    stated: Reference | undefined,
+    choice: EnrollmentChoice,
+): Reference | undefined {
+    const identifier = stated?.identifier
+    if (stated !== undefined && identifier?.system?.endsWith(TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX) === true) {
+        return { ...stated, identifier: { ...identifier, value: choice.trackedEntity } }
+    }
+    const base = identifierSystemBaseOf(questionnaire)
+    if (base === null) return stated
+    return {
+        ...(questionnaire.subjectType?.[0] === undefined ? {} : { type: questionnaire.subjectType[0] }),
+        identifier: { system: `${base}${TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX}`, value: choice.trackedEntity },
+    }
 }
 
 /**

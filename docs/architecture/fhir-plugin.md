@@ -15,7 +15,7 @@ d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate categories        Categories -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires    Data sets + event programs + tracker programs -> Questionnaire instances
 d2w fhir generate examples          Example QuestionnaireResponses against those Questionnaires
-d2w fhir generate org-units         Org units -> Organization/Location instances
+d2w fhir generate org-units         Organisation units -> Organization/Location instances
 d2w fhir generate pages             Narrative site pages + per-artifact intros
 d2w fhir generate load-set          Synthetic QuestionnaireResponse corpus into load/ (not IG source)
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
@@ -28,9 +28,9 @@ through the `dhis2.plugins` entry point - the same mechanism third-party
 plugins use. It is version-neutral: the wire client auto-detects the DHIS2
 major on connect, so one package serves v41/v42/v43 with no per-tree copies.
 
-The [FHIR IG guide](../guides/fhir-ig.md) is the task-oriented companion to this
-page: quickstart, the complete `fhir.toml` reference, and the regeneration
-contract.
+The [`d2w fhir` series](../guides/fhir/index.md) is the task-oriented companion
+to this page: the quickstart, the complete `fhir.toml` reference, and the
+regeneration contract.
 
 MCP exposes only the read surface: `fhir_validate` (`readOnlyHint`).
 Scaffolding and generation - the page generation included - are CLI-only by design - they write a file tree
@@ -186,8 +186,8 @@ URLs as a NamingSystem in `foundation/d2-naming-systems.fsh`, and derives the
 `^property` URIs the terminology concepts carry.
 
 The full configuration reference, with the id-first-then-code workflow and the
-canonical naming-token registry, is in the
-[FHIR IG guide](../guides/fhir-ig.md).
+canonical naming-token registry, is in the series'
+[`fhir.toml` pages](../guides/fhir/301-fhir-toml.md).
 
 Artifact names merge the prefix and kind tokens and underscore the segments
 after them (`D2` + `OS` + `_Qdm5fPK5Ra9` + `_CS` - short tokens read by context);
@@ -564,7 +564,7 @@ it.
 a concept inside its category's CodeSystem, exactly as an option is a concept
 inside its option set's, and neither has a token: a concept is not an artifact, so
 nothing names it. The `CO` token stays reserved in the
-[canonical token registry](../guides/fhir-ig.md#the-canonical-token-registry) for
+[canonical token registry](../guides/fhir/301-generation.md#naming) for
 a future artifact that publishes category options in their own right.
 
 `[generate.categories] include_ids` selects, absent or empty = all, unmatched UIDs
@@ -876,7 +876,7 @@ package exactly as written, with no FSH parse and no conversion pass. The
 registry is the largest thing in the IG and it is pure data - no profiling, no
 invariants, nothing FSH's authoring conveniences buy - so the compile has nothing
 to do with it. The measured cost of the alternative is in the guide under
-[Registry scale](../guides/fhir-ig.md#registry-scale).
+[Registry scale](../guides/fhir/201-build-and-publish.md#size-the-build).
 
 The documents are serialised from the pydantic models in `dhis2w_fhir/r4/` -
 `Organization`, `Location`, and the element types they compose - rather than
@@ -932,7 +932,7 @@ pagecontent/periods.md                   D2Period + every DHIS2 period type
 pagecontent/capture.md                   The capture contract, worked per form kind
 pagecontent/Questionnaire-<stem>-intro.md One per generated Questionnaire
 pagecontent/CodeSystem-<id>-intro.md     Option sets carrying a DHIS2 description
-pagecontent/Organization-<stem>-intro.md Org units carrying a DHIS2 description
+pagecontent/Organization-<stem>-intro.md Organisation units carrying a DHIS2 description
 ```
 
 The six site pages are the scaffolded menu: `Home`, `Forms`, `Registry`,
@@ -1073,7 +1073,7 @@ hand-authored belongs there.
 
 Generation is the cheap half and the toolchain is where the minutes go; the
 measured numbers live in the guide under
-[Build time and the two caches](../guides/fhir-ig.md#build-time-and-the-two-caches).
+[Build time and the two caches](../guides/fhir/201-build-and-publish.md#size-the-build).
 Four structural facts explain the shape of it. The registry and the option-set
 terminology are both predefined JSON, so the compile scales with the forms and
 the five CodeSystems that are FSH rather than with the hierarchy or the

@@ -16,6 +16,7 @@ import {
     enrolledAtOf,
     incidentAtOf,
     questionCount,
+    trackedEntityOf,
     trackerEnrollmentOf,
     type Bundle,
     type Questionnaire,
@@ -38,6 +39,7 @@ import {
     openedAttributeOptionCombo,
     openedReportingUnit,
     refilledAttributeOptionCombo,
+    refilledEnrollment,
     refilledReportingUnit,
     slotAnswer,
     unansweredRequiredLinkIds,
@@ -991,5 +993,97 @@ describe('rebuilding a tracker registration', () => {
 
         expect(built.extension).toEqual(registrationSkeleton.extension)
         expect(built.subject).toEqual(registrationSkeleton.subject)
+    })
+})
+
+/**
+ * The enrollment a stage submission answers against - the one envelope fact `$generate` gets wrong.
+ *
+ * The skeleton mints synthetic tracked-entity and enrollment uids, which is what makes it
+ * postable at this server and refusable at DHIS2 (`E1079`/`E1313` - the enrollment does not
+ * exist). Writing a real pair over it is therefore the difference between a stage capture that
+ * imports and one that cannot, and the rewrite follows the combo and the unit exactly:
+ * replace-in-place, the envelope's own spellings winning, the form's declarations as the
+ * no-envelope fallback.
+ */
+describe('the enrollment a stage submission answers against', () => {
+    const stageForm = servedForm('ZzYYXq4fJie')
+    const generated = generateTrackerFixture as unknown as QuestionnaireResponse
+    const chosen = { trackedEntity: 'TeRealPers1', enrollment: 'EnRealEnro1' }
+
+    it('writes the chosen pair over the envelope in place, keeping every spelling', () => {
+        const spec = flattenQuestionnaire(stageForm)
+
+        const built = buildQuestionnaireResponse(spec, {}, stageForm, generated, {
+            ...NO_CAPTURE_CONTEXT,
+            enrollment: chosen,
+        })
+
+        expect(trackedEntityOf(built)).toBe('TeRealPers1')
+        expect(trackerEnrollmentOf(built)).toBe('EnRealEnro1')
+        // Only the two values moved: the subject keeps its type and identifier system, the
+        // extension keeps its url, its identifier system, and its position in the list.
+        expect(built.subject?.type).toBe(generated.subject?.type)
+        expect(built.subject?.identifier?.system).toBe(generated.subject?.identifier?.system)
+        expect(built.extension?.map((extension) => extension.url)).toEqual(
+            generated.extension?.map((extension) => extension.url),
+        )
+        const stated = built.extension?.find((extension) => extension.url.endsWith('/d2-tracker-enrollment'))
+        expect(stated?.valueIdentifier?.system).toBe('http://dhis2.org/fhir/id/tracker-enrollment')
+    })
+
+    it('keeps the synthetic draw when nothing is chosen', () => {
+        const spec = flattenQuestionnaire(stageForm)
+
+        const built = buildQuestionnaireResponse(spec, {}, stageForm, generated, NO_CAPTURE_CONTEXT)
+
+        expect(built.subject).toEqual(generated.subject)
+        expect(trackerEnrollmentOf(built)).toBe(trackerEnrollmentOf(generated))
+    })
+
+    it('builds the pair from the form’s own statements when there is no envelope', () => {
+        // The identifier systems come off the form's `{base}/id/program` identifier and the
+        // extension url off its form-type declaration - which is what keeps an explicit choice
+        // on the submission even when `$generate` was refused.
+        const spec = flattenQuestionnaire(stageForm)
+
+        const built = buildQuestionnaireResponse(spec, {}, stageForm, null, {
+            ...NO_CAPTURE_CONTEXT,
+            enrollment: chosen,
+        })
+
+        expect(built.subject).toEqual({
+            type: 'Patient',
+            identifier: { system: 'http://dhis2.org/fhir/id/tracked-entity', value: 'TeRealPers1' },
+        })
+        expect(built.extension).toEqual([
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-tracker-enrollment',
+                valueIdentifier: { system: 'http://dhis2.org/fhir/id/tracker-enrollment', value: 'EnRealEnro1' },
+            },
+        ])
+    })
+
+    it('ignores the choice on any form that is not a program stage', () => {
+        // Only a tracker-event response names an enrollment; a choice leaking onto another kind
+        // would write tracker context onto a response whose profile has no place for it.
+        const aggregateForm = servedForm('BfMAe6Itzgt')
+        const spec = flattenQuestionnaire(aggregateForm)
+        const envelope = generateAggregateFixture as unknown as QuestionnaireResponse
+
+        const built = buildQuestionnaireResponse(spec, {}, aggregateForm, envelope, {
+            ...NO_CAPTURE_CONTEXT,
+            enrollment: chosen,
+        })
+
+        expect(built.subject).toEqual(envelope.subject)
+        expect(built.extension).toEqual(envelope.extension)
+    })
+
+    it('stands through a refill: the answers are the draw’s, the identity is the person’s', () => {
+        // The opposite of the combo and unit refill rules, because a fresh draw's pair is
+        // synthetic - adopting it would replace a real enrollment with uids that name nothing.
+        expect(refilledEnrollment(chosen)).toBe(chosen)
+        expect(refilledEnrollment(null)).toBeNull()
     })
 })

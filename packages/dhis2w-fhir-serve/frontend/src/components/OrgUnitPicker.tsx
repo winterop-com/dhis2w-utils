@@ -81,7 +81,7 @@ export function useOrgUnitScope(): OrgUnitScope {
  * are at and wants to type three letters of its name, so the search box is what the popover opens
  * on and nothing about it changed. But a flat result list drops the parent chain, and a national
  * registry has four "Ngelehun CHC"s in four districts - so **Browse** switches the result area to
- * the hierarchy itself, lazily expanded exactly as the org-units page expands it, which is the one
+ * the hierarchy itself, lazily expanded exactly as the organisation-units page expands it, which is the one
  * shape that tells those four apart. Both are searched and rendered by the same rules: `matchesUnit`
  * for what answers a query, and the folded tree for what sits under what.
  *
@@ -191,7 +191,7 @@ export function OrgUnitPicker({
                     truncated is a list you cannot pick from. */}
                 <PopoverContent className="w-(--radix-popover-trigger-width) min-w-72 p-0" align="start">
                     {/* cmdk's own scoring is off: the rule for what answers a search is
-                        `matchesUnit`, the same one the org-units tree filters by, so a uid and a
+                        `matchesUnit`, the same one the organisation-units tree filters by, so a uid and a
                         DHIS2 code find a unit here exactly as they do there. */}
                     <Command shouldFilter={false}>
                         <CommandInput
@@ -228,7 +228,7 @@ export function OrgUnitPicker({
                             />
                         ) : (
                             <CommandList>
-                                <CommandEmpty>No unit matches that search.</CommandEmpty>
+                                <CommandEmpty>No organisation unit matches that search.</CommandEmpty>
                                 {shown.map((choice) => (
                                     <CommandItem
                                         key={choice.id}
@@ -299,7 +299,7 @@ export function OrgUnitPicker({
  */
 function ModeToggle({ mode, onChange }: { mode: PickerMode; onChange: (mode: PickerMode) => void }) {
     return (
-        <div role="group" aria-label="How to find a unit" className="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
+        <div role="group" aria-label="How to find an organisation unit" className="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
             {(['search', 'browse'] as const).map((candidate) => (
                 <button
                     key={candidate}
@@ -565,7 +565,7 @@ function NothingOffered({ scope }: { scope: OrgUnitScope }) {
     return (
         <p className="text-muted-foreground border-border rounded-lg border border-dashed px-2.5 py-2 text-xs">
             {scope.restricted && scope.registryTotal > 0
-                ? `This form's organisation-unit assignment names no unit this project publishes, so there is nothing to report from - the registry holds ${String(scope.registryTotal)}. DHIS2 refuses a capture outside the assignment with E1029.`
+                ? `This form's organisation-unit assignment names no organisation unit this project publishes, so there is nothing to report from - the registry holds ${String(scope.registryTotal)}. A capture outside the form's assigned organisation units is refused when it reaches DHIS2.`
                 : 'This project publishes no organisation units, so there is nothing to report from. `[generate.organisation_units]` in fhir.toml is what selects them.'}
         </p>
     )

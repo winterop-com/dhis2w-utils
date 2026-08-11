@@ -41,10 +41,10 @@ export interface NavItem {
  * both.
  */
 export const NAV_ITEMS: NavItem[] = [
-    { path: '', label: 'Overview', hint: 'The state of capture', icon: LayoutDashboard },
+    { path: '', label: 'Overview', hint: 'State of capture', icon: LayoutDashboard },
     { path: 'forms', label: 'Forms', hint: 'Questionnaires served', icon: ClipboardList },
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
-    { path: 'org-units', label: 'Org units', hint: 'The reporting hierarchy', icon: Network },
+    { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
     { path: 'server', label: 'Server', hint: 'What /metadata declares', icon: ServerCog },
 ]
@@ -54,7 +54,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
     const { collapsed, toggle } = useSidebar()
     const { pathname } = useLocation()
     const current = pathname.replace(/^\//, '')
-    const title = NAV_ITEMS.find((item) => item.path === current)?.label ?? 'DHIS2 FHIR capture'
+    // A detail route (forms/:id, responses/:id, terminology/:type/:id) belongs to the section
+    // whose listing links to it, so the header names the section - the app name is only for a
+    // route no nav entry claims at all.
+    const title =
+        NAV_ITEMS.find((item) => item.path === current)?.label ??
+        NAV_ITEMS.find((item) => item.path !== '' && current.startsWith(`${item.path}/`))?.label ??
+        'DHIS2 FHIR capture'
 
     // The mobile strip scrolls, but a cut-off label was the only hint that it
     // does. The fade is the affordance - and it must vanish once the end is
@@ -255,7 +261,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
                 {/* The scroll container for every page. Pages that size to their content scroll
                     here exactly as they did when the document scrolled; pages that claim the
-                    height (org units) fit inside it and scroll nothing. */}
+                    height (the organisation-units browser) fit inside it and scroll nothing. */}
                 <main className="flex w-full min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 md:px-8">
                     {children}
                 </main>

@@ -67,7 +67,7 @@ export function Overview() {
         <>
             <PageHeader
                 title="Overview"
-                description="What this server holds right now: the receipts waiting to be forwarded, the forms a capture starts from, and the guide behind both."
+                description="What this server holds right now: the receipts not yet sent to DHIS2, the forms a capture starts from, and the implementation guide behind both."
             />
 
             <div className="space-y-8">
@@ -122,7 +122,7 @@ function SpoolPulse({
     return (
         <section className="space-y-3">
             <SectionHeading
-                title="The spool"
+                title="Spool"
                 description="Every receipt this server stored, by which of the spool's three directories its file is in."
             />
             <PageState
@@ -202,11 +202,29 @@ function subtitleFor(
     counts: SpoolCounts,
     cause: RejectionCause | null,
 ): string {
-    if (lifecycle === 'received') return 'awaiting forward'
+    if (lifecycle === 'received') return 'not yet sent to DHIS2'
     if (lifecycle === 'forwarded') return 'accepted by DHIS2'
     if (counts.rejected === 0 || cause === null) return 'refused by DHIS2'
-    const named = cause.message === null ? cause.code : `${cause.code} ${cause.message}`
+    const message = cause.message === null ? null : generalisedCauseMessage(cause.message)
+    // DHIS2's own words ride in quotes after the code, so the splice reads as a citation
+    // rather than as this UI's sentence running into the importer's.
+    const named = message === null || message === '' ? cause.code : `${cause.code} "${message}"`
     return cause.receipts === counts.rejected ? named : `mostly ${named}`
+}
+
+/**
+ * A DHIS2 issue message with its backtick-quoted instances generalised away.
+ *
+ * The tile summarises a cause, and DHIS2 writes each message about one object - "Event `abc` ..."
+ * - so the verbatim first message reads as a single event's story on a tile counting many. The
+ * quoted uids become an ellipsis, which is the same generalisation the forward report's rollup
+ * groups rejections by.
+ */
+function generalisedCauseMessage(message: string): string {
+    return message
+        .replace(/`[^`]*`/g, '...')
+        .replace(/\s+/g, ' ')
+        .trim()
 }
 
 /**
@@ -257,7 +275,7 @@ function CaptureSection({
                 loading={loading}
                 error={error}
                 empty={slice.total === 0}
-                emptyMessage="This project publishes no Questionnaires, so there is nothing to capture against. Run `make generate` then `make sushi` to compile the IG, or serve it with --live."
+                emptyMessage="This project publishes no Questionnaires, so there is nothing to capture against. Run `make generate` then `make sushi` to compile the implementation guide, or serve it with --live."
             >
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {slice.shown.map((questionnaire) => (
@@ -304,7 +322,7 @@ function FormCard({ questionnaire }: { questionnaire: Questionnaire }) {
                     <Badge variant="secondary">{FORM_TYPE_LABELS[kind]}</Badge>
                 )}
                 <span className="text-muted-foreground font-mono text-xs">
-                    {questions} questions
+                    {questions} question{questions === 1 ? '' : 's'}
                 </span>
             </span>
         </Link>
@@ -336,7 +354,7 @@ function ServerIdentity({
         <section className="space-y-3">
             <SectionHeading
                 title="This server"
-                description="What /metadata says it is - the facade's only contract, since it publishes no OpenAPI document."
+                description="What /metadata says this server is."
             />
             <PageState
                 loading={checking && capability === null}
@@ -359,7 +377,7 @@ function ServerIdentity({
                                 aria-hidden
                             />
                             <span className="truncate text-sm font-medium">
-                                {igLabel ?? 'An unnamed guide'}
+                                {igLabel ?? 'Unnamed implementation guide'}
                             </span>
                             {capability?.software?.version !== undefined && (
                                 <Badge variant="secondary" className="font-mono text-[0.7rem]">

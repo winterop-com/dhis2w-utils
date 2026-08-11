@@ -13,14 +13,18 @@ export function IdentifierBadges({ badges }: { badges: IdentifierBadge[] }) {
     if (badges.length === 0) return <span className="text-muted-foreground text-xs">-</span>
     return (
         <div className="flex flex-wrap gap-1">
+            {/* A badge value can be arbitrarily long - a DHIS2 attribute value is whatever the
+                instance stored - and the inspector rail is the narrowest surface these land on.
+                So the chip may grow in height and its value break anywhere, because a rail that
+                scrolls sideways for one chip hides everything else it holds. */}
             {badges.map((badge) => (
                 <Badge
                     key={`${badge.label}-${badge.value}`}
                     variant="outline"
-                    className="text-muted-foreground gap-1 font-mono text-[10px] font-normal"
+                    className="text-muted-foreground h-auto max-w-full gap-1 font-mono text-[10px] font-normal whitespace-normal"
                 >
-                    <span className="opacity-70">{badge.label}</span>
-                    {badge.value}
+                    <span className="shrink-0 opacity-70">{badge.label}</span>
+                    <span className="min-w-0 break-all">{badge.value}</span>
                 </Badge>
             ))}
         </div>

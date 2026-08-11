@@ -867,7 +867,7 @@ def _token_number(token: str, digits: int) -> int:
     return drawn % modulus
 
 
-def _distinct_unique_value(item: QuestionnaireItemIn, token: str) -> str | None:
+def distinct_unique_value(name: str, value_type: str, token: str) -> str | None:
     """A corpus-distinct value for a unique attribute, or None when its value type admits none.
 
     DHIS2 refuses a second tracked entity carrying a `unique` attribute's value with `E1064`, so a
@@ -881,9 +881,8 @@ def _distinct_unique_value(item: QuestionnaireItemIn, token: str) -> str | None:
     boolean has fewer still. Inventing a value outside what the type admits to dodge a duplicate
     would trade a refusal we can explain for one we cannot.
     """
-    value_type = item.value_type
     if value_type in _UNIQUE_TEXT_VALUE_TYPES:
-        return f"{item.name} {token}"
+        return f"{name} {token}"
     if value_type == _EMAIL_VALUE_TYPE:
         return f"{token.lower()}@{_SYNTHETIC_EMAIL_DOMAIN}"
     if value_type == _PHONE_NUMBER_VALUE_TYPE:
@@ -970,7 +969,9 @@ def _synthetic_value(
     if value_type in _UNSYNTHESIZABLE_VALUE_TYPES:
         return None
     if item.unique:
-        distinct = None if item.option_set_uid is not None else _distinct_unique_value(item, unique_token)
+        distinct = (
+            None if item.option_set_uid is not None else distinct_unique_value(item.name, item.value_type, unique_token)
+        )
         if distinct is not None:
             return distinct
         indistinct.append(f"{item.name} ({item.uid})")

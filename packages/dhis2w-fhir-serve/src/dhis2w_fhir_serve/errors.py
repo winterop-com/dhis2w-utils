@@ -102,6 +102,19 @@ class MethodNotAllowedError(ServeError):
         self.path = path
 
 
+class UnsupportedMediaTypeError(ServeError):
+    """The request body is declared in a media type this server does not read."""
+
+    status_code = 415
+    issue_code = "not-supported"
+
+    def __init__(self, media_type: str) -> None:
+        super().__init__(
+            f"`{media_type}` is not a media type this server reads; send the body as `{FHIR_JSON_MEDIA_TYPE}`"
+        )
+        self.media_type = media_type
+
+
 def outcome(
     status_code: int,
     severity: IssueSeverity,

@@ -199,6 +199,32 @@ def test_another_resource_type_is_refused(
     assert "not a `Patient`" in _diagnostics(rejection.issues)
 
 
+def test_a_body_naming_no_resource_type_is_told_so_without_a_python_none(
+    capture_indexes: CaptureIndexCache, capture_naming: CaptureNaming, capture_store: ResourceStore
+) -> None:
+    rejection = _refuse({"status": "completed"}, capture_indexes, capture_naming, capture_store)
+
+    diagnostics = _diagnostics(rejection.issues)
+    assert rejection.http_status == 400
+    assert "names no `resourceType`" in diagnostics
+    assert "None" not in diagnostics
+
+
+def test_a_subject_identifier_without_a_system_is_named_as_absence_not_none(
+    tracker_response: dict[str, Any],
+    capture_indexes: CaptureIndexCache,
+    capture_naming: CaptureNaming,
+    capture_store: ResourceStore,
+) -> None:
+    del tracker_response["subject"]["identifier"]["system"]
+
+    rejection = _refuse(tracker_response, capture_indexes, capture_naming, capture_store)
+
+    diagnostics = _diagnostics(rejection.issues)
+    assert "the subject identifier names no system" in diagnostics
+    assert "None" not in diagnostics
+
+
 def test_a_document_that_is_not_r4_shaped_names_the_elements_it_stumbled_on(
     tracker_response: dict[str, Any],
     capture_indexes: CaptureIndexCache,

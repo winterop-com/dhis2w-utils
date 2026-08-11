@@ -119,10 +119,12 @@ from dhis2w_fhir.resources.categories import (
     max_category_slug_length,
 )
 from dhis2w_fhir.resources.categories.schemas import (
+    DEFAULT_CATEGORY_NAME,
     CategoryIdentity,
     CategoryIdentityPlan,
     CategoryIn,
     CategorySelection,
+    is_default_category,
 )
 from dhis2w_fhir.resources.examples import (
     EXAMPLES_DIRECTORY,
@@ -133,6 +135,7 @@ from dhis2w_fhir.resources.examples import (
     answer_element,
     build_example_artifacts,
     build_synthetic_responses,
+    distinct_unique_value,
     example_answers,
     example_attribute_combo_assignments,
     example_attribute_option_combo,
@@ -415,6 +418,7 @@ __all__ = [
     "DATA_ELEMENT_TERMINOLOGY",
     "DHIS2_UID_LENGTH",
     "DEFAULT_BASEMAP_TEMPLATE",
+    "DEFAULT_CATEGORY_NAME",
     "DEFAULT_LOAD_SET_PER_TARGET",
     "DEFAULT_SUSHI_TIMEOUT_SECONDS",
     "DOMAIN_PROPERTY_DESCRIPTION",
@@ -587,6 +591,7 @@ __all__ = [
     "collect_referenced_objects",
     "concept_assignments",
     "concept_map_canonical",
+    "distinct_unique_value",
     "domain_code",
     "example_answers",
     "example_attribute_combo_assignments",
@@ -608,6 +613,7 @@ __all__ = [
     "generate_note",
     "generated_header",
     "is_dhis2_uid",
+    "is_default_category",
     "is_disaggregated",
     "is_generated_file",
     "is_multi_valued",

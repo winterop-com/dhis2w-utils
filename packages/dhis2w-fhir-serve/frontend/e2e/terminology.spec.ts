@@ -61,15 +61,67 @@ test('a long code system pages rather than rendering thousands of rows', async (
 
     await expect(page.getByText(/Showing \d+ of 70 concepts/)).toBeVisible()
     // Headed by the property code said as words: the page already names the system, so repeating
-    // "DHIS2 data element" in every column says nothing. The declared sentence is the tooltip.
-    await expect(
-        page.getByRole('columnheader', { name: 'Code', description: 'DHIS2 data element code' }),
-    ).toBeVisible()
+    // "DHIS2 data element" in every column says nothing.
     await expect(page.getByRole('columnheader', { name: 'Domain', exact: true })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Value type', exact: true })).toBeVisible()
+    // This system declares no `dhis2-code` property - its concept codes are the DHIS2 data element
+    // uids and that is the whole naming - so the one Code column is the concept code itself, not a
+    // second property column full of dashes.
+    await expect(page.getByRole('columnheader', { name: 'Code', exact: true })).toHaveCount(1)
 
     await page.getByRole('textbox', { name: 'Filter concepts' }).fill('danger')
     await expect(page.getByText(/Showing 1 of 1 concepts/)).toBeVisible()
+})
+
+test('the listing filter reaches into the codes and names the system that holds a match', async ({
+    page,
+}) => {
+    await page.goto('/#/terminology')
+
+    // A concept code, not a title: no artifact is *called* DeAncDanger, so a shallow filter would
+    // answer nothing. The deep half counts the codes inside each artifact instead.
+    await page.getByRole('textbox', { name: 'Filter terminology' }).fill('DeAncDanger')
+
+    const owner = page.getByRole('row').filter({ hasText: 'd2-de-cs' })
+    await expect(owner).toHaveCount(1)
+    await expect(owner).toContainText('1 matching code')
+    // The section counter says how much of the section survived the filter.
+    await expect(page.getByText(/^1 of \d+$/)).toBeVisible()
+    // The other two sections hold nothing with that code, and say so rather than going blank.
+    await expect(page.getByText('Nothing here matches "DeAncDanger".')).toHaveCount(2)
+})
+
+test('the tracked-entity dictionary states its codes, uniqueness, and the honest dash', async ({
+    page,
+}) => {
+    await page.goto('/#/terminology/CodeSystem/d2-tea-cs')
+
+    // The published title, sentence case as the emitter writes it - not a rendered-up variant.
+    // `exact` pins the casing: a case-insensitive match would also accept a title-cased rewrite.
+    await expect(
+        page.getByRole('heading', { name: 'DHIS2 tracked entity attributes', level: 2, exact: true }),
+    ).toBeVisible()
+    // The declared properties become columns: the DHIS2 code, the value type, and uniqueness -
+    // the fact DHIS2 alone can enforce, surfaced because it decides what a duplicate submit does.
+    // The `dhis2-code` column names its subject, so it cannot be mistaken for the concept-code
+    // column beside it - two adjacent columns both headed "Code" name neither.
+    await expect(page.getByRole('columnheader', { name: 'DHIS2 code', exact: true })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Code', exact: true })).toHaveCount(1)
+    await expect(page.getByRole('columnheader', { name: 'Unique', exact: true })).toBeVisible()
+
+    // An attribute with a DHIS2 code shows it on the row beside the uid.
+    const birthDate = page.getByRole('row').filter({ hasText: 'TeaBirthDat' })
+    await expect(birthDate).toContainText('TEA_BIRTH_DATE')
+
+    // The household attribute ships without a `dhis2-code`, and the cell is a dash rather than an
+    // invented value - the honest-codes rule.
+    const household = page.getByRole('row').filter({ hasText: 'TeaHousehld' })
+    await expect(household).toHaveCount(1)
+    await expect(household.getByRole('cell', { name: '-', exact: true })).toHaveCount(1)
+
+    // The unique attribute says so; DHIS2 is what refuses the second person claiming its value.
+    const nationalId = page.getByRole('row').filter({ hasText: 'TeaNationId' })
+    await expect(nationalId.getByRole('cell', { name: 'true', exact: true })).toHaveCount(1)
 })
 
 test('the $translate tester answers with the DHIS2 identifiers a concept maps onto', async ({ page }) => {

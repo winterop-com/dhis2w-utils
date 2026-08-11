@@ -1,11 +1,21 @@
 # FHIR for DHIS2 people
 
-A primer on every FHIR concept this toolkit uses, written for someone who knows
-DHIS2 - data elements, org units, option sets, tracker - and has never touched
-FHIR. Read this once and
-[FHIR IG generation with `d2w fhir`](fhir-ig.md) reads as a guide rather than as
-a glossary. Depth lives in the linked specification pages; this page says what
-each term means, what it is closest to in DHIS2, and what `d2w fhir` does with it.
+**Who this is for:** anyone who knows DHIS2 - data elements, org units, option
+sets, tracker - and has never touched FHIR.
+
+**Before you start:** nothing to install; this page is pure reading.
+
+**You will be able to:**
+
+- name the handful of FHIR resources the rest of this series keeps using, in
+  DHIS2 terms
+- read generated FSH and FHIR JSON without treating it as noise
+- follow any 201/301/401 page in this series without a glossary detour
+
+Depth lives in the linked specification pages; this page says what each term
+means, what it is closest to in DHIS2, and what `d2w fhir` does with it. Read it
+once and the rest of the [series](index.md) reads as a guide rather than as a
+glossary.
 
 ## The shape of FHIR
 
@@ -74,7 +84,8 @@ across every FHIR guide on earth, which a UID is not.
 Every IG picks a **canonical base** and hangs its artifacts off it. Here that is
 `[ig] canonical` in `fhir.toml`, so a generated Questionnaire's `url` is
 `<canonical>/Questionnaire/<stem>`, where the stem is the identity stem
-`[generate.naming] source` resolves - the DHIS2 id by default. The separate `identifier_system_base` (default
+[`[generate.naming]` `source`](301-generation.md#naming) resolves - the DHIS2
+id by default. The separate `identifier_system_base` (default
 `http://dhis2.org/fhir`) is the base for the DHIS2 *identifier systems* rather than
 for artifacts; the two are configured independently.
 
@@ -174,7 +185,7 @@ client holding a generated coding can ask the server which DHIS2 identifiers it 
 for instead of reading concept properties itself.
 
 Further reading: [ConceptMap](https://hl7.org/fhir/R4/conceptmap.html), and
-[ConceptMaps: the route back to DHIS2](fhir-ig.md#conceptmaps-the-route-back-to-dhis2)
+[Terminology and ConceptMaps](401-terminology-and-conceptmaps.md#conceptmaps-the-route-back-to-dhis2)
 for the emitted shape and the `$translate` calls.
 
 ## Constraining and extending
@@ -461,9 +472,11 @@ Every row is something `d2w fhir generate` actually emits.
 
 ## See also
 
-- [FHIR IG generation with `d2w fhir`](fhir-ig.md) - the task-oriented guide this
-  page prepares you for.
-- [FHIR plugin architecture](../architecture/fhir-plugin.md) - how the package is
-  laid out and why.
-- [The FHIR conversion layer](../project/fhir-conversion.md) - the plan for
-  forwarding a captured response into DHIS2.
+- [The `d2w fhir` series index](index.md) - the task-oriented pages this page
+  prepares you for.
+- [FHIR plugin architecture](../../architecture/fhir-plugin.md) - how the package
+  is laid out and why.
+- [The FHIR conversion layer](../../project/fhir-conversion.md) - why the
+  forwarder is a typed Python translator.
+
+Next: [Quickstart: six commands to a served IG](101-quickstart.md)

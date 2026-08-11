@@ -54,7 +54,7 @@ from dhis2w_fhir.resources.categories import (
     build_category_concept_map_artifacts,
     category_concept_map_file_prefix,
 )
-from dhis2w_fhir.resources.categories.schemas import CategoryIn
+from dhis2w_fhir.resources.categories.schemas import CategoryIn, CategorySelection, is_default_category
 from dhis2w_fhir.resources.examples import (
     COMPLETED_STATUS,
     EXAMPLES_DIRECTORY,
@@ -649,7 +649,8 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
     The same selection semantics `generate` applies - an empty table selects everything of its
     kind, the option sets add the closure the selected forms bind (through the
     `_selected_option_set_uids` helper both paths share), the organisation units go through the
-    shared `_organisation_unit_selection_filters` - read in projections that carry ids alone, so
+    shared `_organisation_unit_selection_filters` - read in projections that carry little more
+    than ids (the category read adds the name, the wire's one default-placeholder signal), so
     scoping a national instance costs five small requests rather than a second metadata sweep.
 
     A data element is in scope when a selected data set or a selected program's stage carries it;
@@ -714,14 +715,20 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
         config.option_sets,
     )
     category_ids = config.categories.include_ids
+    # `id,name` rather than id-only: the name is the wire's one signal a category is DHIS2's
+    # built-in default placeholder, which `_category_selected` keeps off the build path.
     category_models: list[Category] = await client.resources.categories.list(
-        fields="id",
+        fields="id,name",
         filters=[_uid_filter(category_ids)] if category_ids else None,
         paging=False,
     )
     return ValidationScope(
         option_sets=option_sets,
-        categories=frozenset(model.id for model in category_models if model.id),
+        categories=frozenset(
+            model.id
+            for model in category_models
+            if model.id and _category_selected(model.id, model.name or "", config.categories)
+        ),
         organisation_units=await _fetch_published_organisation_unit_uids(client, config),
         data_sets=frozenset(data_sets),
         programs=frozenset(programs),
@@ -930,6 +937,21 @@ def _emit_categories(
     return report
 
 
+def _category_selected(uid: str, name: str, selection: CategorySelection) -> bool:
+    """Whether one category clears the default-placeholder gate of the selection.
+
+    The single statement of how DHIS2's built-in `default` category is treated, shared by the
+    generate-time filter and the validation scope so the two can never disagree. The default
+    category exchanges no information, so it is out unless `include_default` opts it back in or
+    an `include_ids` entry names its UID outright - the most specific configuration statement
+    wins over the economy default. Every other category clears the gate unconditionally;
+    `include_ids` narrowing is the caller's own step.
+    """
+    if not is_default_category(name):
+        return True
+    return selection.include_default or uid in selection.include_ids
+
+
 def _selected_categories(
     inputs: list[CategoryIn], config: GenerateConfig, notes: list[GenerateNote]
 ) -> list[CategoryIn]:
@@ -938,8 +960,11 @@ def _selected_categories(
     An absent or empty `[generate.categories] include_ids` selects every category the instance
     holds, matching the option-set selection. A category is not pulled in by a closure the way
     an option set is: nothing generated today binds a category, so the list stands on its own.
+    DHIS2's built-in `default` category is the exception `_category_selected` states: skipped
+    unless `include_default` or an `include_ids` entry naming it asks for it.
     """
     selection = config.categories
+    inputs = [item for item in inputs if _category_selected(item.uid, item.name, selection)]
     if not selection.include_ids:
         return inputs
     configured_ids = set(selection.include_ids)

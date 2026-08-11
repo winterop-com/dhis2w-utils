@@ -21,6 +21,7 @@ from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.capture.naming import GENERATE_SEED_IDENTIFIER_SEGMENT
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.synthesize import DEFAULT_PERIOD_TYPE, MAXIMUM_SEED
+from fixture_project import ORG_UNITS, REGISTRATION_UNIQUE_ATTRIBUTE, SCOPED_ASSIGNMENT_UNITS
 
 #: The canonical the dhis2w-fhir goldens were compiled under, as `capture_project` serves them.
 CANONICAL = "http://localhost:8080/fhir"
@@ -56,6 +57,16 @@ ORGANISATION_UNIT_URL = f"{CANONICAL}/StructureDefinition/d2-organisation-unit"
 
 #: How many places a DHIS2 UID carries, which is all a generated tracker identifier claims to be.
 UID_LENGTH = 11
+
+#: The units the registration form's published assignment admits, spelled as capture references.
+ASSIGNED_UNIT_REFERENCES = {f"Location/{uid}" for uid in SCOPED_ASSIGNMENT_UNITS}
+
+#: Every Location the fixture registry serves, including the curated profile exemplar.
+SERVED_UNIT_REFERENCES = {f"Location/{unit.uid}" for unit in ORG_UNITS} | {"Location/d2-location-example"}
+
+#: How many seeds the unit-variance tests range over - enough that a draw over two or more
+#: candidates lands on more than one of them, deterministically, since the draw is seed-keyed.
+VARIANCE_SEEDS = range(12)
 
 #: Every form the golden project serves, including the two extra event forms and the registration one.
 EVERY_FORM_ID = (
@@ -359,6 +370,60 @@ async def test_a_registration_response_names_the_unit_that_owns_the_enrollment(
 
     assert len(organisation_units) == 1
     assert organisation_units[0]["valueReference"]["reference"].startswith("Location/")
+
+
+def _unique_attribute_value(response: dict[str, Any]) -> str:
+    """The generated answer to the registration form's unique tracked entity attribute."""
+    item = next(entry for entry in response["item"] if entry["linkId"] == REGISTRATION_UNIQUE_ATTRIBUTE)
+    value: str = item["answer"][0]["valueString"]
+    return value
+
+
+async def test_two_generated_registrations_never_repeat_a_unique_attribute_value(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """DHIS2 refuses the second registration repeating a unique value with E1064, so no two seeds share one."""
+    first = (await _generate(capture_client, REGISTRATION_ID, seed=1)).json()
+    second = (await _generate(capture_client, REGISTRATION_ID, seed=2)).json()
+
+    assert _unique_attribute_value(first) != _unique_attribute_value(second)
+
+
+async def test_a_unique_attribute_answer_carries_the_minted_tracked_entity_uid(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """The distinct value is the response's own minted UID - the one value no other generated response holds."""
+    response = (await _generate(capture_client, REGISTRATION_ID, seed=5)).json()
+
+    assert response["subject"]["identifier"]["value"] in _unique_attribute_value(response)
+
+
+async def test_the_organisation_unit_is_part_of_the_seeded_draw_inside_the_assignment(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """Different seeds range over the whole admitted set, and every draw stays inside the published assignment."""
+    drawn: set[str] = set()
+    for seed in VARIANCE_SEEDS:
+        response = (await _generate(capture_client, REGISTRATION_ID, seed=seed)).json()
+        reference = _extensions(response, ORGANISATION_UNIT_URL)[0]["valueReference"]["reference"]
+        assert reference in ASSIGNED_UNIT_REFERENCES
+        drawn.add(reference)
+
+    assert drawn == ASSIGNED_UNIT_REFERENCES
+
+
+async def test_an_unrestricted_form_draws_its_unit_across_the_served_registry(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """A form publishing no assignment reports for any served Location, varying with the seed."""
+    drawn: set[str] = set()
+    for seed in VARIANCE_SEEDS:
+        response = (await _generate(capture_client, EVENT_ID, seed=seed)).json()
+        reference = response["subject"]["reference"]
+        assert reference in SERVED_UNIT_REFERENCES
+        drawn.add(reference)
+
+    assert len(drawn) > 1
 
 
 async def test_a_generated_response_declares_its_form_kind_profile(capture_client: httpx.AsyncClient) -> None:

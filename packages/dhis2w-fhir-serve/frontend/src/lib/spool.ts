@@ -40,7 +40,7 @@ export const LIFECYCLE_LABELS: Record<ResponseLifecycle, string> = {
 
 /** One line per state, for the filter tooltips and the empty-state prose. */
 export const LIFECYCLE_HINTS: Record<ResponseLifecycle, string> = {
-    received: 'Captured and queued. `d2w fhir forward` is what drains it.',
+    received: 'Captured, not yet sent to DHIS2. `d2w fhir forward` sends it.',
     forwarded: 'Translated, posted, and accepted by DHIS2.',
     rejected: 'Posted and refused by DHIS2. The import report says why.',
 }

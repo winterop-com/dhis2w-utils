@@ -43,7 +43,7 @@ describe('concept property columns', () => {
         expect(conceptPropertyColumns(dataElements)).toEqual([
             {
                 code: 'dhis2-code',
-                label: 'Code',
+                label: 'DHIS2 code',
                 description: 'DHIS2 data element code',
                 uri: 'http://dhis2.org/fhir/property/dhis2-code',
                 declared: true,
@@ -62,7 +62,7 @@ describe('concept property columns', () => {
         expect(conceptPropertyColumns(optionSet)).toEqual([
             {
                 code: 'dhis2-code',
-                label: 'Code',
+                label: 'DHIS2 code',
                 description: undefined,
                 uri: 'http://dhis2.org/fhir/property/dhis2-code',
                 declared: true,
@@ -330,9 +330,9 @@ describe('matchesQuery', () => {
  * attribute as unique across the instance. A table that read only the string variants would show
  * an empty column for it, and an empty cell reads as "not unique" rather than as "not rendered",
  * which is the wrong answer twice over. Written from the emitter
- * (dhis2w_fhir's questionnaires/templates/support-terminology.fsh.jinja) rather than harvested,
- * because the fixture project publishes no registration form yet; the e2e terminology walkthrough
- * is what checks the same column against a real server.
+ * (dhis2w_fhir's questionnaires/templates/support-terminology.fsh.jinja) rather than harvested, so
+ * the column rules are pinned without a server; the e2e terminology walkthrough checks the same
+ * columns against the `d2-tea-cs` the fixture project really publishes.
  */
 describe('a tracked-entity-attribute support system', () => {
     const attributes: CodeSystem = {
@@ -368,7 +368,7 @@ describe('a tracked-entity-attribute support system', () => {
 
     it('heads the boolean column with the property code said as words', () => {
         expect(conceptPropertyColumns(attributes).map((column) => column.label)).toEqual([
-            'Code',
+            'DHIS2 code',
             'Value type',
             'Unique',
         ])

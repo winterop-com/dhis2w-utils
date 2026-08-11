@@ -1,6 +1,6 @@
 # FHIR facade server (`dhis2w_fhir_serve`)
 
-`dhis2w_fhir_serve` is the package behind [`d2w fhir serve`](../guides/fhir-ig.md#serving-the-ig):
+`dhis2w_fhir_serve` is the package behind [`d2w fhir serve`](../guides/fhir/201-serve.md):
 a FastAPI application that serves one generated IG as a FHIR endpoint and receives
 QuestionnaireResponse captures against it. It is its own workspace member because it needs FastAPI
 and uvicorn, and `dhis2w-fhir` - which generates a file tree - needs neither; `pip install

@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-70 entries grouped by area. **Status tags** carry the result of the most
+75 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -103,6 +103,8 @@ filing.
 - [#65](#65-optioncode-is-required-while-its-sibling-categoryoptioncode-is-optional-and--counts-as-missing) — `Option.code` required, `CategoryOption.code` optional; `""` counts as missing
 - [#66](#66-an-empty-string-code-is-silently-stored-as-absent-rather-than-kept-or-rejected) — Empty-string `code` silently stored as absent
 - [#67](#67-get-apitrackereventsprogramstageuid-demands-program-even-though-the-stage-pins-it) — `programStage` events read demands `program`; HTML 400
+- [#68](#68-a-tracker-event-naming-a-non-existent-enrollment-is-reported-as-e1079-different-program-not-as-a-missing-enrollment) — Event naming a non-existent enrollment reported as `E1079` "different Program"
+- [#69](#69-get-apitrackereventsprogramxorgunity-filters-by-the-enrollment-owners-org-unit-not-the-events-own-orgunit) — Events listing `orgUnit=` filters by enrollment owner's unit, not the event's own
 
 ### v43-specific
 
@@ -3812,10 +3814,76 @@ registrations (24 of 24).
 **Workaround in this repo:** none possible on the read side - the code is what DHIS2
 sends. The cause is addressed instead: `d2w fhir generate load-set` answers a `unique`
 tracked entity attribute from the minting response's own identity so the `E1064` never
-happens (`_distinct_unique_value` in
+happens (`distinct_unique_value` in
 `packages/dhis2w-fhir/src/dhis2w_fhir/resources/examples/__init__.py`), and
 `d2w fhir forward` posts registrations before events so an enrollment exists by the
 time its events are read (`FORWARD_TARGET_ORDER` in
 `packages/dhis2w-fhir/src/dhis2w_fhir/conversion/schemas.py`).
+
+**Verifier:** none yet.
+
+### 69. `GET /api/tracker/events?program=X&orgUnit=Y` filters by the enrollment owner's org unit, not the event's own `orgUnit`
+
+An events listing scoped with `orgUnit=Y` selects the events of tracked entities *owned*
+at `Y`, not the events recorded at `Y`. Each returned event carries an `orgUnit` field
+stating where it was recorded, and that field routinely names a different unit than the
+one the listing was scoped to - while an event genuinely recorded at `Y` under an owner
+elsewhere is absent from `Y`'s listing entirely. The same event is served without
+complaint by `GET /api/tracker/events/{uid}` and by a `?trackedEntity=`-scoped listing,
+so the record is fully readable; it is only the org-unit-scoped listing that cannot see
+it. Nothing in the response signals the owner-based semantics: the one `orgUnit` the
+payload shows is the event's own, which is exactly the field the filter does not use.
+
+**Observed on:** DHIS2 2.43.1, revision `9cbfbf3` (local seeded stack, 2026-08-11).
+
+**Repro** (read-only, `admin:district`, Sierra Leone seed plus the ANC e2e load set):
+
+```bash
+# The event's own record: recorded at Kamasikie MCHP (ZxuSbAmsLCn).
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/events/UjSVkfcz37F?fields=event,orgUnit,enrollment,trackedEntity'
+# {"event":"UjSVkfcz37F","enrollment":"nhLohCMBf87","trackedEntity":"JfLRdItcS4o","orgUnit":"ZxuSbAmsLCn"}
+
+# Its enrollment - the ownership record - sits at Kathombo MCHP (yEU926iVAJJ).
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities/JfLRdItcS4o?program=IpHINAT79UW&fields=trackedEntity,enrollments%5Benrollment,orgUnit%5D'
+# {"trackedEntity":"JfLRdItcS4o","enrollments":[{"enrollment":"nhLohCMBf87","orgUnit":"yEU926iVAJJ"}]}
+
+# Listing events at the unit the event was recorded at does not return it - and does
+# return events recorded elsewhere, because their owner sits at this unit.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/events?program=IpHINAT79UW&orgUnit=ZxuSbAmsLCn&fields=event,orgUnit'
+# {"events":[{"event":"Qk6940OxXxr","orgUnit":"bPHn9IgjKLC"},{"event":"MiX5xxb0CkS","orgUnit":"C1tAqIpKB9k"}]}
+
+# Listing at the owner's unit is where the event appears.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/events?program=IpHINAT79UW&orgUnit=yEU926iVAJJ&fields=event,orgUnit'
+# {"events":[{"event":"UjSVkfcz37F","orgUnit":"ZxuSbAmsLCn"},{"event":"UKC8b8LyhQh","orgUnit":"YXdC9hjYPqQ"}]}
+
+# A trackedEntity-scoped listing serves it regardless of unit.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/events?program=IpHINAT79UW&trackedEntity=JfLRdItcS4o&fields=event,orgUnit'
+# {"events":[{"event":"UjSVkfcz37F","orgUnit":"ZxuSbAmsLCn"},{"event":"UKC8b8LyhQh","orgUnit":"YXdC9hjYPqQ"}]}
+```
+
+**Expected:** `orgUnit=Y` on an events listing selects events whose own `orgUnit` is `Y` -
+the field every returned event carries and the natural reading of "the events at this
+facility". At minimum, a listing filtered on one org unit should not return events whose
+only `orgUnit` field names a different one.
+
+**Actual:** the filter matches the enrollment owner's org unit. An event recorded at a
+unit other than its owner is invisible to the listing scoped to its own unit, appears
+under the owner's unit instead, and every "outreach" event (owner at the home facility,
+service delivered elsewhere) is filed under a unit its payload never mentions.
+
+**Impact:** any per-facility read-back over `?program=&orgUnit=` silently misses events
+recorded away from the owner unit and silently includes foreign ones - a count per
+facility built this way is wrong in both directions the moment a program captures
+events outside the enrolling unit.
+
+**Workaround in this repo:** none needed in shipped code - no shipped path lists events
+by `orgUnit`. Read-backs that must find every event of a submission are owner-aware:
+they scope by `?trackedEntity=` (which serves the enrollment's events whatever unit each
+was recorded at) or fetch by event UID.
 
 **Verifier:** none yet.

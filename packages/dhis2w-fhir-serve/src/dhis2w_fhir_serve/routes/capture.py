@@ -28,7 +28,7 @@ from dhis2w_fhir_serve.capture.index import CaptureIndexCache
 from dhis2w_fhir_serve.capture.naming import CaptureNaming
 from dhis2w_fhir_serve.capture.outcome import CaptureIssue, CaptureRejection, rejection_outcome, success_outcome
 from dhis2w_fhir_serve.capture.validate import ValidatedCapture, validate_response
-from dhis2w_fhir_serve.errors import FHIR_JSON_MEDIA_TYPE
+from dhis2w_fhir_serve.errors import FHIR_JSON_MEDIA_TYPE, UnsupportedMediaTypeError
 from dhis2w_fhir_serve.routes.context import serve_context
 from dhis2w_fhir_serve.spool import StoredResponseEnvelope, current_instant, new_response_id
 
@@ -36,6 +36,15 @@ from dhis2w_fhir_serve.spool import StoredResponseEnvelope, current_instant, new
 #: context is everything the lifespan loaded, and this is built by the first capture request and
 #: filled in as questionnaires are met, so a facade that is only ever read from never builds it.
 CAPTURE_STATE_ATTRIBUTE = "capture"
+
+#: The JSON media types a capture body may be declared as. `application/fhir+json` is what FHIR
+#: asks for, `application/json` is what every generic HTTP client sends by default, and any other
+#: `+json` structured syntax still says the bytes are JSON. A body declared as anything else -
+#: XML, a form post, plain text - is refused with 415 before the bytes are read, because the
+#: declaration says the client is not sending what this endpoint parses. An absent Content-Type
+#: declares nothing and the body is read as the JSON it has to be either way.
+_JSON_MEDIA_TYPES = frozenset({FHIR_JSON_MEDIA_TYPE, "application/json"})
+_JSON_MEDIA_TYPE_SUFFIX = "+json"
 
 router = APIRouter()
 
@@ -52,6 +61,7 @@ class CaptureState(BaseModel):
 @router.post(f"/{QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE}")
 async def create_questionnaire_response(request: Request) -> Response:
     """Receive one QuestionnaireResponse: validate it against the served IG, store it, and say where it lives."""
+    _require_json_body(request)
     context = serve_context(request)
     state = capture_state(request)
     try:
@@ -71,6 +81,17 @@ async def create_questionnaire_response(request: Request) -> Response:
     envelope = _receipt(validated)
     context.spool.save(envelope)
     return _created(request, envelope.response_id, validated.warnings)
+
+
+def _require_json_body(request: Request) -> None:
+    """Refuse a body declared in a media type this endpoint does not parse, with 415 and an OperationOutcome."""
+    declared = request.headers.get("content-type")
+    if declared is None or not declared.strip():
+        return
+    media_type = declared.split(";", 1)[0].strip().lower()
+    if media_type in _JSON_MEDIA_TYPES or media_type.endswith(_JSON_MEDIA_TYPE_SUFFIX):
+        return
+    raise UnsupportedMediaTypeError(media_type)
 
 
 def capture_state(request: Request) -> CaptureState:

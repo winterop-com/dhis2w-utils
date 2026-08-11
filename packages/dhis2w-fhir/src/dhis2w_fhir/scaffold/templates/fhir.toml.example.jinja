@@ -1,125 +1,95 @@
 # fhir.toml.example - every option `d2w fhir generate` and `d2w fhir serve` understand,
 # with its default. Copy what you need into fhir.toml; omitted options keep these defaults.
+#
+# Every option is explained in depth - what it controls, when to change it, and what the
+# error looks like when it is wrong - at
+# https://winterop-com.github.io/dhis2w-utils/guides/fhir/
+# A pointer like `-> 301-generation#timezone` names the page and the section there.
 
-# DHIS2 profile to read metadata from. Explicit `-p` / `DHIS2_PROFILE` wins over this.
+# Which saved DHIS2 server connection to read from; `-p` / `DHIS2_PROFILE` win. -> 301-identity#profile
 # profile = "myserver"
 
 [ig]
+# Who this guide is and where it lives on the web. -> 301-identity
 id = "{{ ig_id }}"
-canonical = "{{ canonical }}"
+canonical = "{{ canonical }}"       # the guide's permanent web address -> 301-identity#canonical
 name = "{{ name }}"
 title = "{{ title }}"
 publisher = "{{ publisher }}"
-# IG life cycle: "draft" while building; "active" for production - drives the
-# sushi-config status and the status and experimental flags of every generated artifact.
+# "draft" while building; "active" for production. -> 301-identity#status
 status = "{{ status }}"
 
 [generate]
-# Base URI for the DHIS2 identifier systems. `generate foundation` writes it into
-# foundation/d2-aliases.fsh as one alias family per DHIS2 object - $DHIS2-OU, $DHIS2-OS,
-# $DHIS2-DS, $DHIS2-PROGRAM, $DHIS2-PS, $DHIS2-DE, $DHIS2-COC, $DHIS2-TE,
-# $DHIS2-TRACKER-ENROLLMENT - each with a -CODE sibling where the object carries a DHIS2
-# code ($DHIS2-OU-CODE, $DHIS2-OS-CODE, $DHIS2-DS-CODE, $DHIS2-PROGRAM-CODE,
-# $DHIS2-PS-CODE), and into the business identifiers every generated instance carries.
+# Web-address stem of the DHIS2 identifiers every published entry carries. -> 301-generation#identifier_system_base
 identifier_system_base = "http://dhis2.org/fhir"
-# Concept code source for option sets: "id" (option UID, DHIS2 code as property)
-# or "code" (DHIS2 code when FHIR-valid, UID as property; invalid codes fall back).
+# Whether a published option's code is its DHIS2 id or its DHIS2 code. -> 301-generation#concept_code_source
 concept_code_source = "id"
-# IANA time zone the instance's zone-less timestamps are wall-clock readings in. Naming it
-# stamps every emitted dateTime with the offset that zone stood at on that very instant,
-# DST included; absent keeps the UTC reading.
+# IANA time zone the server's clock times are read in ("Asia/Vientiane"). -> 301-generation#timezone
 # timezone = "Asia/Vientiane"
-# Translation locales to emit (BCP-47 or DHIS2-style tags; absent = every locale found).
+# Languages to publish translations for (absent = every language found). -> 301-generation#locales
 # locales = ["lo", "en"]
 
 [generate.naming]
-# The identity stem every artifact of an object derives from - resource id, canonical URL,
-# file name, and FSH name follow one segment: "id" (the DHIS2 id - stable, collision-free),
-# "code-or-id" (the DHIS2 code when usable and unique, else the id, with a note), or
-# "code" (the DHIS2 code always; a missing, unusable, or colliding code refuses the run).
+# How every generated thing is named; changing these renames the whole guide. -> 301-generation#naming
+# Build names from DHIS2 ids or DHIS2 codes: "id", "code-or-id", or "code". -> 301-generation#source
 source = "id"
-# Tokens composing FSH artifact names; ids derive from the kebab of each non-empty token.
-# Defaults read by context: D2OS_Qdm5fPK5Ra9_CS / d2-os-Qdm5fPK5Ra9-cs (id source).
-prefix = "D2"                       # "" drops the prefix (profiles keep a D2 token:
-                                    # a profile cannot share its parent resource's name)
-option_set = "OS"                   # e.g. "OptionSet"; "" drops the token
-category = "CAT"                    # category CodeSystem/ValueSet names; "" drops the token
-attribute_option_combo = "AOC"      # the attribute-option-combo pair a data set on a non-default
-                                    # category combo publishes; "" drops the token
-organisation_unit = "OU"            # must stay non-empty (e.g. "OrgUnit")
-data_set = "DS"                     # data set Questionnaire names; "" drops the token
-program = "PR"                      # event program Questionnaire names; "" drops the token
-program_stage = "PS"                # tracker program stage Questionnaire names; "" drops the token
+# Name pieces: letters/digits starting with a letter; "" drops a piece. -> 301-generation#the-token-rule
+prefix = "D2"                       # in front of every generated name -> 301-generation#prefix
+option_set = "OS"                   # -> 301-generation#option_set
+category = "CAT"                    # -> 301-generation#category
+attribute_option_combo = "AOC"      # -> 301-generation#attribute_option_combo
+organisation_unit = "OU"            # the one piece that must stay non-empty -> 301-generation#organisation_unit
+data_set = "DS"                     # -> 301-generation#data_set
+program = "PR"                      # -> 301-generation#program
+program_stage = "PS"                # -> 301-generation#program_stage
 
 [generate.option_sets]
-# optionSet UIDs to include (absent = all).
+# Option sets to publish code lists for, by UID (absent = all). -> 301-what-goes-in#option-sets
 # include_ids = ["Qdm5fPK5Ra9"]
 
 [generate.categories]
-# category UIDs to include (absent = all); each one emits a CodeSystem/ValueSet pair
-# whose concepts are that category's category options.
+# Categories to publish code lists for, by UID (absent = all). -> 301-what-goes-in#categories
 # include_ids = ["O5P6e8yu1T6"]
+# DHIS2's built-in "default" category is skipped unless opted back in. -> 301-what-goes-in#include_default
+# include_default = false
 
 [generate.data_sets]
-# Data set UIDs to emit as Questionnaires (absent or empty = all data sets).
+# Data sets to publish as forms, by UID (absent = all data sets). -> 301-what-goes-in#data-sets
 # include_ids = ["BfMAe6Itzgt"]
 
 [generate.event_programs]
-# Program UIDs to emit as one Questionnaire each; selects WITHOUT_REGISTRATION programs
-# (absent or empty = every event program). Tracker programs go under
-# [generate.tracker_programs].
+# Event programs (no registration) to publish as forms, by UID (absent = all). -> 301-what-goes-in#event-programs
 # include_ids = ["VBqh0ynB2wv"]
 
 [generate.tracker_programs]
-# Program UIDs to emit as per-stage Questionnaires; selects WITH_REGISTRATION programs
-# (absent or empty selects every WITH_REGISTRATION program; one Questionnaire per program
-# stage, filed under tracker-programs/<program stem>/<stage stem>.fsh).
+# Tracker programs (with registration), one form per stage, by UID (absent = all). -> 301-what-goes-in#tracker-programs
 # include_ids = ["IpHINAT79UW"]
 
 [generate.tracked_entity_types]
-# What each tracked entity type IS, as the FHIR resource type every form of every program
-# tracking it declares its subject as (Questionnaire.subjectType, and subject.type on the
-# responses). A DHIS2 tracked entity is not always a person: a type this table never mentions
-# is a "Patient", so a person-tracking project leaves the table out entirely.
-# One of: Patient, Person, Practitioner, RelatedPerson, Group, Device, Location,
-# Organization, Specimen.
-# "Kd6Nk9wnAJa" = "Group"             # a livestock herd tracked through a vaccination programme
-# "Bx8L1nQ4EiP" = "Location"          # a water point tracked through a maintenance programme
+# What each tracked entity type is; a type not named here is a person. -> 301-what-goes-in#tracked_entity_types
+# "Kd6Nk9wnAJa" = "Group"             # e.g. a livestock herd
+# "Bx8L1nQ4EiP" = "Location"          # e.g. a water point
 
 [generate.examples]
-# Example QuestionnaireResponses per questionnaire target, generated locally by default -
-# no data endpoint is called unless `source` below opts in. 0 disables the target, 10 is
-# the ceiling.
+# Example filled-in responses per form: 0 turns them off, 10 is the ceiling. -> 301-what-goes-in#per_target
 per_target = 1
-# Where the answers come from. "synthetic": deterministic generated values, safe everywhere.
-# "instance": real values fetched from the server - demo servers only, review before publishing.
+# "synthetic" invents the values; "instance" copies real ones - demo servers only. -> 301-what-goes-in#examples-source
 source = "synthetic"
 
 [generate.organisation_units]
-# Scope to a subtree (org unit UID; absent = entire tree).
+# Which part of the org-unit tree the guide covers - the size lever. -> 301-what-goes-in#organisation-units
+# Top unit to start from, by UID (absent = the whole tree). -> 301-what-goes-in#root
 # root = "ImspTQPwCqd"
-# Deepest hierarchy level to emit (absent = no level cap).
+# Deepest level to include (absent = every level). -> 301-what-goes-in#max_level
 # max_level = 4
-terminology = false                 # also emit the org-unit CodeSystem/ValueSet
-                                    # with level/parent/dhis2-code properties
+# Also publish the org-unit code list. -> 301-what-goes-in#terminology
+terminology = false
 
 [serve]
-# How `d2w fhir serve` runs this project - `make serve` and `make serve-live` read it too,
-# so the port is stated once here rather than on every invocation. A command-line flag
-# still wins over these.
-host = "127.0.0.1"                  # loopback: the facade has no authentication, so
-                                    # binding elsewhere is a deliberate act
-port = 8080                         # a local dev DHIS2 commonly owns 8080; port = 8090
-                                    # is the usual way out of that clash
-strict_codes = false                # true refuses a captured answer whose code is outside
-                                    # the served terminology instead of warning and storing
-ui = false                          # true also serves the capture UI at / - `make serve-ui`
-                                    # turns it on for one run without stating it here
-# Raster tiles the capture UI's org-unit map draws under the boundaries. The default is
-# OpenStreetMap's standard tiles, which need no key and are fine for a laptop running this
-# for an afternoon. A DEPLOYMENT SERVING THIS TO OTHER PEOPLE SHOULD POINT AT ITS OWN TILE
-# SOURCE: openstreetmap.org's tiles are a volunteer-funded service with no SLA and a usage
-# policy that a district office's daily traffic is not what they are there for.
-# "none" draws no tiles at all - the boundary-only canvas, which is what an air-gapped
-# deployment wants, and the only setting in the UI that reaches another origin.
+# How `d2w fhir serve` (and `make serve`) runs this project; a flag wins over these. -> 301-serving
+host = "127.0.0.1"                  # this computer only; changing it opens the server up -> 301-serving#host
+port = 8080                         # a local dev DHIS2 commonly owns 8080; port = 8090 avoids the clash -> 301-serving#port
+strict_codes = false                # true refuses an out-of-list answer instead of warning -> 301-serving#strict_codes
+ui = false                          # true also serves the data-entry screens at / -> 301-serving#ui
+# Map background of the org-unit map - the one outbound call; "none" turns it off. -> 301-serving#basemap
 basemap = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"

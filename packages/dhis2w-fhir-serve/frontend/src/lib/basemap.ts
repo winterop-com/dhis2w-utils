@@ -1,10 +1,12 @@
 /**
- * The map's style, as data: the ground, the tiles when there are any, and how hard they are muted.
+ * The map's style, as data: the ground, the tiles when there are any, and how hard they are muted -
+ * plus the pure halves of the map's interactions: the sky the globe wears, and the lines a shape's
+ * popup says.
  *
- * Split out of the map component so the fork this file exists for - tiles or no tiles - is testable
- * without a WebGL context, a canvas, or the 900 kB engine. `StyleSpecification` is imported as a
- * type only, so nothing here pulls MapLibre in at runtime; the whole module is a pure function of
- * four colours, a template, and the theme.
+ * Split out of the map component so everything here is testable without a WebGL context, a canvas,
+ * or the 900 kB engine. `StyleSpecification` and its siblings are imported as types only, so
+ * nothing here pulls MapLibre in at runtime; the whole module is pure functions of colours, a
+ * template, a theme, and a handful of numbers.
  *
  * WHAT A STYLE WITH NO TILES IS. One background layer painted from `--card`, and the project's own
  * GeoJSON added on top by the component. No sprite, no glyphs, no sources - the boundary-only
@@ -18,8 +20,9 @@
  * server, no style document, and no origin beyond the tile host itself.
  */
 
-import type { StyleSpecification } from 'maplibre-gl'
+import type { SkySpecification, StyleSpecification } from 'maplibre-gl'
 
+import type { OrgUnitLevel } from '@/lib/orgunits'
 import type { BasemapConfig } from '@/lib/uiconfig'
 
 /** The id the raster tiles are drawn under, so a theme change can re-mute them in place. */
@@ -40,6 +43,10 @@ export interface MapPalette {
     context: string
     contextInk: string
     identity: string
+    /** The selected tier's area - `--map-selection`, the amber the selection is filled with. */
+    selection: string
+    /** The selected tier's edge - `--map-selection-edge`, the amber of its stroke and its marker. */
+    selectionEdge: string
 }
 
 /** The paint properties that mute a raster layer, named once so a theme change can walk them. */
@@ -115,4 +122,180 @@ export function baseStyle(
         },
         layers: [ground, { id: BASEMAP_LAYER_ID, type: 'raster', source: BASEMAP_LAYER_ID, paint: RASTER_MUTING[dark ? 'dark' : 'light'] }],
     }
+}
+
+/**
+ * The sky the globe wears: transparent space, so the starfield shows, and a physical atmosphere rim.
+ *
+ * HOW SPACE IS PAINTED, VERIFIED AGAINST THE INSTALLED ENGINE. MapLibre's style spec has no
+ * space-colour property; its sky shader mixes the whole sky quad toward transparent as the globe
+ * projection transition completes, and the framebuffer clears to transparent. So at full globe the
+ * canvas around the sphere is see-through by construction, and whatever the page puts behind the
+ * canvas is the universe. `sky-color` is stated transparent anyway - the spec's own default - so
+ * the starfield is already there mid-transition instead of appearing when the fade lands.
+ *
+ * The rim is MapLibre's scattering shader, not a colour token: `atmosphere-blend` is its only dial
+ * here - 0.45 through the low zooms so the glow still reads against deep space in the dark theme,
+ * then fading to nothing by the zoom where the globe has flattened toward the district view, where
+ * an atmosphere would be a smear behind a map. The horizon and fog tokens matter only
+ * mid-transition and under terrain; they keep the theme's hues.
+ */
+export function globeSky(palette: MapPalette): SkySpecification {
+    return {
+        'sky-color': 'transparent',
+        'horizon-color': palette.identity,
+        'fog-color': palette.surface,
+        'sky-horizon-blend': 0.6,
+        'horizon-fog-blend': 0.6,
+        'fog-ground-blend': 0.9,
+        'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 0.45, 4, 0.45, 6, 0],
+    }
+}
+
+/** The sky the flat map wears - none. Applied on leaving the globe so no halo survives the exit. */
+export const FLAT_SKY: SkySpecification = { 'atmosphere-blend': 0 }
+
+/**
+ * THE STARFIELD. In globe projection the canvas outside the sphere is transparent (see globeSky),
+ * and what shows through is an element behind the canvas painted by these functions: deep space,
+ * near-black with a faint blue cast, in BOTH themes - space is dark over the light UI too, that is
+ * the honest sky, and it is only ever visible while the globe is up so it never fights a light
+ * page. The stars are deterministic: a fixed-seed PRNG places every one, so the sky is the same on
+ * every mount, every test run, and every screenshot.
+ */
+
+/** The one seed the universe is grown from. Change it and every star moves; nothing else does. */
+export const STARFIELD_SEED = 0x5eed5
+
+/** Deep space: near-black with a faint blue cast, deliberately the same in both themes. */
+export const STARFIELD_BASE_COLOR = '#05080f'
+
+/** Starlight: blue-white; each star's brightness is its opacity, not a colour of its own. */
+export const STARFIELD_STAR_COLOR = '#dbe7ff'
+
+/** One star on a tile: where, how large, how bright. */
+export interface Star {
+    x: number
+    y: number
+    radius: number
+    opacity: number
+}
+
+/** One tiling layer of stars: its repeat size, how many stars it holds, and their ranges. */
+export interface StarfieldLayer {
+    tileSize: number
+    starCount: number
+    radius: [number, number]
+    opacity: [number, number]
+}
+
+/**
+ * Two layers, tiled at different sizes so the repeat never reads as a pattern: a sparse layer of
+ * larger, brighter stars, and a dense layer of faint specks under it. Density is per tile, so a
+ * typical map viewport shows a few hundred stars however large it is.
+ */
+export const STARFIELD_LAYERS: StarfieldLayer[] = [
+    { tileSize: 1024, starCount: 60, radius: [0.7, 1.6], opacity: [0.5, 0.95] },
+    { tileSize: 512, starCount: 130, radius: [0.4, 1.0], opacity: [0.15, 0.55] },
+]
+
+/** A tiny deterministic PRNG (mulberry32): the same seed is the same sky, forever. */
+function seededRandom(seed: number): () => number {
+    let state = seed
+    return () => {
+        state = (state + 0x6d2b79f5) | 0
+        let scrambled = Math.imul(state ^ (state >>> 15), 1 | state)
+        scrambled = (scrambled + Math.imul(scrambled ^ (scrambled >>> 7), 61 | scrambled)) ^ scrambled
+        return ((scrambled ^ (scrambled >>> 14)) >>> 0) / 4294967296
+    }
+}
+
+/**
+ * The stars of one layer's tile, placed by the seeded PRNG. The radius draw is squared toward the
+ * small end - most stars are specks, a few are bright - which is what a real sky's magnitude
+ * distribution looks like from a distance.
+ */
+export function starfieldTile(layer: StarfieldLayer, seed: number): Star[] {
+    const random = seededRandom(seed ^ layer.tileSize)
+    const stars: Star[] = []
+    for (let index = 0; index < layer.starCount; index += 1) {
+        const skew = random() ** 2
+        stars.push({
+            x: Math.round(random() * layer.tileSize * 10) / 10,
+            y: Math.round(random() * layer.tileSize * 10) / 10,
+            radius: Math.round((layer.radius[0] + (layer.radius[1] - layer.radius[0]) * skew) * 100) / 100,
+            opacity: Math.round((layer.opacity[0] + (layer.opacity[1] - layer.opacity[0]) * random()) * 100) / 100,
+        })
+    }
+    return stars
+}
+
+/** One layer as an SVG tile, ready to be a CSS background image. No base rect: the base is CSS. */
+function starfieldTileImage(layer: StarfieldLayer, seed: number): string {
+    const size = String(layer.tileSize)
+    const circles = starfieldTile(layer, seed)
+        .map(
+            (star) =>
+                `<circle cx="${String(star.x)}" cy="${String(star.y)}" r="${String(star.radius)}"` +
+                ` fill="${STARFIELD_STAR_COLOR}" fill-opacity="${String(star.opacity)}"/>`,
+        )
+        .join('')
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">${circles}</svg>`
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
+/** What the starfield element paints: the deep-space base, and every layer of stars tiled over it. */
+export interface StarfieldPaint {
+    backgroundColor: string
+    backgroundImage: string
+}
+
+/** The whole sky as CSS values - pure strings, so the universe is testable without a DOM. */
+export function starfieldPaint(): StarfieldPaint {
+    return {
+        backgroundColor: STARFIELD_BASE_COLOR,
+        backgroundImage: STARFIELD_LAYERS.map((layer) => starfieldTileImage(layer, STARFIELD_SEED)).join(', '),
+    }
+}
+
+/** What the popup knows about one unit, read off the folded tree by the map component. */
+export interface UnitPopupFacts {
+    name: string
+    level: OrgUnitLevel | null
+    parentName: string | null
+    descendantCount: number
+}
+
+/** The popup's lines, ready to render: a null line is omitted rather than written empty. */
+export interface UnitPopupContent {
+    name: string
+    levelLabel: string | null
+    parentName: string | null
+    belowLine: string | null
+}
+
+/**
+ * The lines a shape's popup says about its unit.
+ *
+ * The level is spelled the human way, once: the display its CodeSystem states, else `Level <n>`
+ * from the code's own number - never the `level-<n>` machine casing, which belongs to the machine
+ * contexts the inspector already keeps it in. The below-line exists only when something is below.
+ */
+export function unitPopupContent(facts: UnitPopupFacts): UnitPopupContent {
+    return {
+        name: facts.name,
+        levelLabel: facts.level === null ? null : humanLevel(facts.level),
+        parentName: facts.parentName,
+        belowLine:
+            facts.descendantCount === 0
+                ? null
+                : `${String(facts.descendantCount)} organisation ${facts.descendantCount === 1 ? 'unit' : 'units'} below`,
+    }
+}
+
+/** One level, spelled the human way: its stated display, else `Level <n>`, else the bare code. */
+function humanLevel(level: OrgUnitLevel): string {
+    if (level.display !== null && level.display !== '') return level.display
+    if (level.depth !== null) return `Level ${String(level.depth)}`
+    return level.code
 }

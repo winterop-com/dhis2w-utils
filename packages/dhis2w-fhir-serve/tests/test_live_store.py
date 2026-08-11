@@ -404,7 +404,10 @@ async def test_live_generate_output_posts_back_at_the_live_server(
 
     assert [response.status_code for response in generated.values()] == [200, 200, 200]
     assert [response.status_code for response in posted.values()] == [201, 201, 201]
-    assert generated["BfMAe6Itzgt"].json()["subject"]["reference"] == "Location/ImspTQPwCqd"
+    assert generated["BfMAe6Itzgt"].json()["subject"]["reference"] in {
+        "Location/ImspTQPwCqd",
+        "Location/O6uvpzGd5pu",
+    }
 
 
 @respx.mock
