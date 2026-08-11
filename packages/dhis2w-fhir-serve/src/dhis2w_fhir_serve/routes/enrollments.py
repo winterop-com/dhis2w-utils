@@ -48,7 +48,7 @@ from dhis2w_fhir_serve.errors import (
     PatientSurfaceDisabledError,
     UpstreamError,
 )
-from dhis2w_fhir_serve.patients.wire import fetch_tracked_entity
+from dhis2w_fhir_serve.patients.wire import fetch_tracked_entity, upstream_refusal_text
 from dhis2w_fhir_serve.routes.context import live_client, serve_context
 
 if TYPE_CHECKING:
@@ -116,7 +116,9 @@ async def read_patient_enrollments(request: Request, tracked_entity_uid: str) ->
     try:
         entity = await fetch_tracked_entity(client, tracked_entity_uid)
     except Dhis2ClientError as error:
-        raise UpstreamError(f"the DHIS2 instance did not answer the tracked entity read: {error}") from error
+        raise UpstreamError(
+            f"the DHIS2 instance did not answer the tracked entity read: {upstream_refusal_text(error)}"
+        ) from error
     if entity is None:
         raise NotFoundError(PATIENT_RESOURCE_TYPE, tracked_entity_uid)
     return PatientEnrollments(

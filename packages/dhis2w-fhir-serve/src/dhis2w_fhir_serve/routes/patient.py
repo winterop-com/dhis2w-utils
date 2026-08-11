@@ -75,7 +75,7 @@ from dhis2w_fhir_serve.patients.listing import (
     read_listing_page,
 )
 from dhis2w_fhir_serve.patients.projection import patient_for
-from dhis2w_fhir_serve.patients.wire import fetch_tracked_entity, search_tracked_entities
+from dhis2w_fhir_serve.patients.wire import fetch_tracked_entity, search_tracked_entities, upstream_refusal_text
 from dhis2w_fhir_serve.routes.context import live_client, serve_context
 from dhis2w_fhir_serve.routes.read import HonoredParameter, alternatives, base_url, bundle_response, identifier_token
 from dhis2w_fhir_serve.store import IdentifierToken
@@ -158,7 +158,9 @@ async def _listing_response(
             client, tracked_entity_type_uids=surface.tracked_entity_type_uids, cursor=cursor, count=count
         )
     except Dhis2ClientError as error:
-        raise UpstreamError(f"the DHIS2 instance did not answer the tracked entity listing: {error}") from error
+        raise UpstreamError(
+            f"the DHIS2 instance did not answer the tracked entity listing: {upstream_refusal_text(error)}"
+        ) from error
     bundle = Bundle(
         type="searchset",
         total=page.total,
@@ -257,7 +259,9 @@ async def _read(client: Dhis2Client, tracked_entity_uid: str) -> TrackerTrackedE
     try:
         return await fetch_tracked_entity(client, tracked_entity_uid)
     except Dhis2ClientError as error:
-        raise UpstreamError(f"the DHIS2 instance did not answer the tracked entity read: {error}") from error
+        raise UpstreamError(
+            f"the DHIS2 instance did not answer the tracked entity read: {upstream_refusal_text(error)}"
+        ) from error
 
 
 async def _search(
@@ -276,5 +280,7 @@ async def _search(
                 )
             )
         except Dhis2ClientError as error:
-            raise UpstreamError(f"the DHIS2 instance did not answer the tracked entity search: {error}") from error
+            raise UpstreamError(
+                f"the DHIS2 instance did not answer the tracked entity search: {upstream_refusal_text(error)}"
+            ) from error
     return found

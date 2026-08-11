@@ -102,6 +102,36 @@ class TrackedEntitiesPage(BaseModel):
     pager: TrackedEntitiesPager | None = None
 
 
+def upstream_refusal_text(error: Exception) -> str:
+    """What DHIS2 said, for an operator-facing diagnostic - the body's message when the status line has none.
+
+    DHIS2 sends an empty HTTP reason phrase, so `str(error)` can end at a bare colon while the
+    refusal's actual cause sits in the JSON body; a diagnostic that names no cause is worse than
+    the refusal itself. A transport error keeps its own text.
+    """
+    text = str(error)
+    if not isinstance(error, Dhis2ApiError) or error.message:
+        return text
+    body = error.body if isinstance(error.body, dict) else {}
+    body_message = str(body.get("message", "")).strip()
+    return f"{text}{body_message}" if body_message else text
+
+
+def _is_unknown_type_refusal(error: Dhis2ApiError) -> bool:
+    """Whether DHIS2 refused because the named tracked entity type does not exist on the instance.
+
+    A configured `[serve.patients] tracked_entity_types` uid is a string in a file no instance has
+    checked, and DHIS2 answers a 400 naming the absent type rather than an empty page. The serving
+    guide promises a mistyped id shows up as a surface that finds nobody, so the callers here fold
+    this one refusal into an empty answer instead of a dead surface.
+    """
+    if error.status_code != 400:
+        return False
+    body = error.body if isinstance(error.body, dict) else {}
+    message = str(body.get("message", ""))
+    return body.get("errorCode") == "E1003" and "does not exist" in message
+
+
 async def list_tracked_entities(
     client: Dhis2Client,
     *,
@@ -114,19 +144,24 @@ async def list_tracked_entities(
     No `filter=`: this is the listing, and its whole query is the type. `ouMode=ACCESSIBLE` for the
     same reason every search here sends it (BUGS.md 74) - the register a user may see is the register
     they are shown, and a listing scoped to the capture unit would answer a fraction of it without
-    saying so.
+    saying so. A type the instance does not hold answers an empty page, not a refusal.
     """
-    raw = await client.get_raw(
-        TRACKED_ENTITIES_PATH,
-        params={
-            "trackedEntityType": tracked_entity_type_uid,
-            "ouMode": SEARCH_ORG_UNIT_MODE,
-            "fields": TRACKED_ENTITY_FIELDS,
-            "page": page,
-            "pageSize": page_size,
-            TOTAL_PAGES_PARAMETER: "true",
-        },
-    )
+    try:
+        raw = await client.get_raw(
+            TRACKED_ENTITIES_PATH,
+            params={
+                "trackedEntityType": tracked_entity_type_uid,
+                "ouMode": SEARCH_ORG_UNIT_MODE,
+                "fields": TRACKED_ENTITY_FIELDS,
+                "page": page,
+                "pageSize": page_size,
+                TOTAL_PAGES_PARAMETER: "true",
+            },
+        )
+    except Dhis2ApiError as error:
+        if _is_unknown_type_refusal(error):
+            return TrackedEntitiesPage()
+        raise
     return TrackedEntitiesPage.model_validate(raw)
 
 
@@ -136,18 +171,24 @@ async def count_tracked_entity_pages(client: Dhis2Client, *, tracked_entity_type
     The listing needs this at one place only: a `previous` link crossing back over a type boundary
     lands on the last page of the type before it, and the last page is a number nothing on the
     current page states. The projection is the UID alone, because the answer read is the pager.
+    A type the instance does not hold counts zero pages.
     """
-    raw = await client.get_raw(
-        TRACKED_ENTITIES_PATH,
-        params={
-            "trackedEntityType": tracked_entity_type_uid,
-            "ouMode": SEARCH_ORG_UNIT_MODE,
-            "fields": _COUNT_ONLY_FIELDS,
-            "page": 1,
-            "pageSize": page_size,
-            TOTAL_PAGES_PARAMETER: "true",
-        },
-    )
+    try:
+        raw = await client.get_raw(
+            TRACKED_ENTITIES_PATH,
+            params={
+                "trackedEntityType": tracked_entity_type_uid,
+                "ouMode": SEARCH_ORG_UNIT_MODE,
+                "fields": _COUNT_ONLY_FIELDS,
+                "page": 1,
+                "pageSize": page_size,
+                TOTAL_PAGES_PARAMETER: "true",
+            },
+        )
+    except Dhis2ApiError as error:
+        if _is_unknown_type_refusal(error):
+            return 0
+        raise
     pager = TrackedEntitiesPage.model_validate(raw).pager
     return 0 if pager is None or pager.pageCount is None else pager.pageCount
 
@@ -159,17 +200,25 @@ async def search_tracked_entities(
     attribute_uid: str,
     value: str,
 ) -> list[TrackerTrackedEntity]:
-    """Find every tracked entity of one type whose attribute holds one exact value."""
-    raw = await client.get_raw(
-        TRACKED_ENTITIES_PATH,
-        params={
-            "trackedEntityType": tracked_entity_type_uid,
-            "filter": f"{attribute_uid}:eq:{value}",
-            "ouMode": SEARCH_ORG_UNIT_MODE,
-            "fields": TRACKED_ENTITY_FIELDS,
-            "pageSize": SEARCH_PAGE_SIZE,
-        },
-    )
+    """Find every tracked entity of one type whose attribute holds one exact value.
+
+    A type the instance does not hold matches nobody, not a refusal.
+    """
+    try:
+        raw = await client.get_raw(
+            TRACKED_ENTITIES_PATH,
+            params={
+                "trackedEntityType": tracked_entity_type_uid,
+                "filter": f"{attribute_uid}:eq:{value}",
+                "ouMode": SEARCH_ORG_UNIT_MODE,
+                "fields": TRACKED_ENTITY_FIELDS,
+                "pageSize": SEARCH_PAGE_SIZE,
+            },
+        )
+    except Dhis2ApiError as error:
+        if _is_unknown_type_refusal(error):
+            return []
+        raise
     return TrackedEntitiesPage.model_validate(raw).trackedEntities
 
 

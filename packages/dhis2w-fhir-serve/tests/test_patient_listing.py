@@ -436,3 +436,47 @@ def test_a_statement_over_a_search_only_surface_says_so(capture_project: FhirPro
 
     patient = next(resource for resource in capability.rest[0].resource or [] if resource.type == "Patient")
     assert "people by identifier only" in (patient.documentation or "")
+
+
+def _unknown_type_refusal() -> httpx.Response:
+    """The 400 DHIS2 answers a tracked-entity query naming a type the instance does not hold."""
+    return httpx.Response(
+        400,
+        json={
+            "httpStatus": "Bad Request",
+            "httpStatusCode": 400,
+            "status": "ERROR",
+            "errorCode": "E1003",
+            "message": "Tracked entity type is specified but does not exist: Zz9QqWwEe11",
+        },
+    )
+
+
+@pytest.mark.parametrize("patients", [PatientsConfig(tracked_entity_types=["Zz9QqWwEe11"])])
+async def test_a_configured_type_the_instance_does_not_hold_lists_nobody(listing_client: httpx.AsyncClient) -> None:
+    """A mistyped tracked_entity_types uid is a surface that finds nobody, never a dead one."""
+    respx.get(_TRACKER_URL).mock(return_value=_unknown_type_refusal())
+
+    listing = (await listing_client.get("/Patient")).json()
+    assert listing["type"] == "searchset"
+    assert listing.get("entry", []) == []
+
+    search = await listing_client.get(f"/Patient?identifier={_NATIONAL_ID_SYSTEM}|SCEN-A-0001")
+    assert search.status_code == 200
+    assert search.json().get("entry", []) == []
+
+
+@pytest.mark.parametrize(
+    "patients",
+    [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, "Zz9QqWwEe11"])],
+)
+async def test_a_bad_type_late_in_the_list_does_not_kill_the_walk(listing_client: httpx.AsyncClient) -> None:
+    """The listing serves the types the instance holds and skips past the one it does not."""
+    respx.get(_TRACKER_URL, params__contains={"trackedEntityType": "Zz9QqWwEe11"}).mock(
+        return_value=_unknown_type_refusal()
+    )
+    respx.get(_TRACKER_URL).mock(return_value=httpx.Response(200, json=_tracker_page(_person("PerAaa00001"), total=1)))
+
+    listing = (await listing_client.get("/Patient")).json()
+    assert listing["type"] == "searchset"
+    assert [entry["resource"]["id"] for entry in listing["entry"]] == ["PerAaa00001"]
