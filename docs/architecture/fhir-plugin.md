@@ -21,6 +21,8 @@ d2w fhir generate load-set          Synthetic QuestionnaireResponse corpus into 
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
 d2w fhir serve                      Serve the IG as a FHIR read + capture facade (package dhis2w-fhir-serve)
 d2w fhir serve --ui                 ...plus the capture UI at / (built from dhis2w-fhir-serve/frontend)
+d2w fhir forward                    Drain the capture spool into DHIS2 (dry run by default)
+d2w fhir doctor                     Run the whole chain against one instance and report what it breaks
 ```
 
 The plugin ships as its own workspace member, `dhis2w-fhir`, and mounts
@@ -1683,6 +1685,26 @@ one-shot CLI process. The facade answers it by construction rather than by harde
 - **Partial failure is a refusal to start.** A missing compiled IG or an unreachable
   instance propagates out of the lifespan and the server does not come up, rather than
   serving an empty IG that reads to a client as a project that published nothing.
+
+## The conformance runner -> `doctor.py`
+
+`d2w fhir doctor` is the one command that drives every other one. It scaffolds a
+throwaway project against the ambient profile and runs the whole chain through it in
+nine typed phases - connect, scaffold, generate, compile, validate, serve, capture,
+forward, oracle - each reporting PASS / WARN / FAIL / SKIPPED / BLOCKED with a stated
+reason, and only a FAIL exiting 1. It orchestrates the existing service functions and
+reimplements none of them: `init_project`, `generate_full`, `validate_codes`,
+`build_live_store`, `create_app`, and `forward_responses` are called exactly as their own
+commands call them, so what doctor grades is the shipped path rather than a parallel one.
+Serve and capture run in process - the ASGI app is entered through its own lifespan and
+driven by an `httpx.AsyncClient` over `ASGITransport`, so no port is bound and no
+subprocess starts. The oracle phase (`--live`) is the part with no equivalent elsewhere:
+it resolves every served DHIS2 UID back against the collection it names and deep-compares
+a seeded per-family sample field by field, with the instance as the authority and the
+served resource as the claim on trial. `doctor.py` owns the phase models, the graders, and
+the markdown renderer; `cli.py` owns the tables. It is CLI-only, like `profile`, for the
+reason scaffolding and generation are: a run writes a file tree, shells out to a compiler,
+and posts a corpus through a server it started.
 
 ## Roadmap and review material
 

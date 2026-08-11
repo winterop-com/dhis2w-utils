@@ -118,6 +118,18 @@ from them plus the project's `[generate]` naming, identifier base, and timezone.
 
 ::: dhis2w_fhir.conversion.translator
 
+### The conformance runner
+
+What [`d2w fhir doctor`](../guides/fhir/201-doctor.md) concluded about one instance, as
+models rather than as terminal output. A `DoctorReport` carries one `DoctorPhaseResult` per
+phase - the outcome, the one line it is read by, the reason a phase that did not run gives,
+and every `DoctorFinding` it raised with the field path a mismatch was found at. The graders
+are the pure half of the runner: `grade_forward`, `grade_capture`, and `grade_oracle` turn a
+phase's own report into the verdict it is recorded under, and `render_doctor_markdown` turns
+the whole run into the report file a handover is read from.
+
+::: dhis2w_fhir.doctor
+
 ### The capture spool
 
 Where `d2w fhir serve` writes a receipt and where `d2w fhir forward` moves it next. The

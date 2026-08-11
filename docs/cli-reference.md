@@ -9937,6 +9937,7 @@ $ d2w fhir [OPTIONS] COMMAND [ARGS]...
 * `validate`: Check the instance&#x27;s codes for...
 * `serve`: Serve the project&#x27;s IG as a FHIR read and...
 * `forward`: Drain the capture spool into DHIS2 -...
+* `doctor`: Run the whole FHIR toolchain against this...
 * `generate`: Generate the whole IG source from DHIS2...
 
 ### `d2w fhir init`
@@ -10072,6 +10073,42 @@ $ d2w fhir forward [OPTIONS] [directory]
 * `--import / --dry-run`: Commit the payloads to DHIS2 and move the receipts. The default is a dry run: every payload still goes to the real endpoint under its own validate-only mode, and nothing is written and nothing moves.  [default: dry-run]
 * `--strict-codes / --no-strict-codes`: Refuse a coded answer whose code is outside the served terminology, overriding `[serve] strict_codes`. Lenient resolves the DHIS2 option UID and code too, and notes it.
 * `--details`: Print every response&#x27;s outcome instead of writing them to the report.
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
+* `--help`: Show this message and exit.
+
+### `d2w fhir doctor`
+
+Run the whole FHIR toolchain against this profile&#x27;s instance and report what the instance breaks.
+
+Nine phases in a throwaway workspace: connect, scaffold, generate, compile, validate, serve,
+capture, forward, oracle. Each reports pass, warn, fail, skipped, or blocked with its reason.
+
+The instance comes from `d2w -p &lt;name&gt;` and the ambient profile resolution, as `d2w fhir serve` does.
+
+A phase that fails never stops one that does not depend on it, and only a failure exits 1.
+
+Compiling needs a FSH compiler on the machine; without one the phase is skipped and the served
+store is built by the live builders instead, so every later phase still runs.
+
+`--live` adds the oracle: the DHIS2 objects behind a seeded sample of the served resources are
+fetched back and the instance decides whether the served output still derives from them.
+
+The run writes reports/fhir-doctor-report.md, into the workspace when one was named and into the
+working directory otherwise.
+
+**Usage**:
+
+```console
+$ d2w fhir doctor [OPTIONS]
+```
+
+**Options**:
+
+* `--workspace <directory>`: Directory to run in, kept after the run. The default is a temporary directory, removed when the run ends unless --keep says otherwise.
+* `--keep`: Keep the temporary workspace, so the generated project can be read afterwards.
+* `--all-targets`: Scaffold empty selection tables, which takes every data set, every program, and every organisation-unit level. The default is a small representative probe.
+* `--live`: Run the oracle phase: fetch the DHIS2 objects behind a sample of the served resources and let the instance judge whether each one still derives from current instance state.
+* `--samples <int range>`: How many resources per family the oracle deep-compares.  [default: 5; x&gt;=0]
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 

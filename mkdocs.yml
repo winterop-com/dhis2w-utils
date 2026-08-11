@@ -188,6 +188,7 @@ nav:
           - FHIR for DHIS2 people: guides/fhir/101-fhir-concepts.md
           - Quickstart: guides/fhir/101-quickstart.md
       - 201 - Operate a project:
+          - Check an instance with doctor: guides/fhir/201-doctor.md
           - Set up a project: guides/fhir/201-set-up-a-project.md
           - Validate an instance: guides/fhir/201-validate.md
           - Generate the IG source: guides/fhir/201-generate.md

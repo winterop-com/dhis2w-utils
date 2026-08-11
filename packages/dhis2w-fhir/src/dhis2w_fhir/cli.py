@@ -24,12 +24,14 @@ from dhis2w_core.rich_console import STDERR_CONSOLE
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir import DEFAULT_LOAD_SET_PER_TARGET, DEFAULT_SUSHI_TIMEOUT_SECONDS, GenerateReport, load_project
+from dhis2w_fhir.doctor import DEFAULT_ORACLE_SAMPLES
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable
 
     from dhis2w_core.progress import ProgressReporter
 
+    from dhis2w_fhir.doctor import DoctorReport
     from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import (
         ForwardOutcome,
@@ -1536,6 +1538,190 @@ def forward_command(
     else:
         _render_forward_report(report, generation, details=details)
     if report.rejected:
+        raise typer.Exit(code=1)
+
+
+#: The Rich style each doctor outcome renders in, so a glance separates a break from a note.
+_DOCTOR_OUTCOME_STYLES = {
+    "pass": "green",
+    "warn": "yellow",
+    "fail": "red",
+    "skipped": "dim",
+    "blocked": "dim",
+}
+
+
+def _doctor_outcome_cell(value: Any) -> str:
+    """Render one phase outcome in the style it carries."""
+    outcome = str(value)
+    return f"[{_DOCTOR_OUTCOME_STYLES.get(outcome, 'default')}]{outcome}[/]"
+
+
+def _render_doctor_report(report: DoctorReport) -> None:
+    """Render one doctor run: what it ran against, one row per phase, then every finding."""
+    from dhis2w_fhir.doctor import DoctorOutcome, phase_evidence
+
+    render_detail(
+        "fhir doctor",
+        [
+            DetailRow("profile", f"{report.profile_name} ({report.profile_origin})"),
+            DetailRow("instance", report.base_url),
+            DetailRow(
+                "DHIS2 version",
+                f"{report.dhis2_version or 'not detected'} (plugin tree {report.version_tree or 'not bound'})",
+            ),
+            DetailRow(
+                "workspace",
+                f"{report.workspace}{'' if report.workspace_kept else ' (removed when the run ended)'}",
+            ),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    render_list(
+        "phases",
+        [
+            {
+                "phase": phase.phase.value,
+                "outcome": phase.outcome.value,
+                "seconds": f"{phase.elapsed_seconds:.1f}",
+                "evidence": phase_evidence(phase),
+            }
+            for phase in report.phases
+        ],
+        [
+            ColumnSpec("Phase", "phase", no_wrap=True),
+            ColumnSpec("Outcome", "outcome", formatter=_doctor_outcome_cell, no_wrap=True),
+            ColumnSpec("Seconds", "seconds", no_wrap=True),
+            ColumnSpec("What it found", "evidence"),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    findings = report.findings
+    if findings:
+        render_list(
+            "findings",
+            [
+                {
+                    "phase": finding.phase.value,
+                    "severity": finding.severity,
+                    "subject": finding.subject,
+                    "where": finding.field_path or "",
+                    "detail": finding.detail,
+                }
+                for finding in findings
+            ],
+            [
+                ColumnSpec("Phase", "phase", no_wrap=True),
+                ColumnSpec("Severity", "severity", formatter=_severity_cell, no_wrap=True),
+                ColumnSpec("Subject", "subject"),
+                ColumnSpec("Where", "where", no_wrap=True),
+                ColumnSpec("What", "detail"),
+            ],
+            console=STDERR_CONSOLE,
+        )
+    failed = report.failed_phases
+    if failed:
+        _hint(
+            "verdict",
+            f"{report.verdict_line}; {', '.join(phase.phase.value for phase in failed)} failed - "
+            "this instance breaks the toolchain as configured",
+            style="bold red",
+        )
+    elif any(phase.outcome is DoctorOutcome.WARNED for phase in report.phases):
+        _hint("verdict", f"{report.verdict_line}; the toolchain runs, with notes", style="yellow")
+    else:
+        _hint("verdict", f"{report.verdict_line}; the toolchain runs clean against this instance", style="green")
+
+
+def _write_doctor_report(report: DoctorReport) -> Path:
+    """Write one run's markdown report where a handover reads it, and say where that is."""
+    from dhis2w_fhir import REPORTS_DIRECTORY
+    from dhis2w_fhir.doctor import DOCTOR_REPORT_STEM, render_doctor_markdown
+
+    root = report.workspace if report.options.workspace is not None else Path.cwd()
+    directory = root / REPORTS_DIRECTORY
+    directory.mkdir(parents=True, exist_ok=True)
+    destination = directory / f"{DOCTOR_REPORT_STEM}.md"
+    destination.write_text(render_doctor_markdown(report), encoding="utf-8")
+    return destination
+
+
+@app.command("doctor")
+def doctor_command(
+    workspace: Annotated[
+        Path | None,
+        typer.Option(
+            "--workspace",
+            file_okay=False,
+            help="Directory to run in, kept after the run. The default is a temporary directory, "
+            "removed when the run ends unless --keep says otherwise.",
+        ),
+    ] = None,
+    keep: Annotated[
+        bool,
+        typer.Option("--keep", help="Keep the temporary workspace, so the generated project can be read afterwards."),
+    ] = False,
+    all_targets: Annotated[
+        bool,
+        typer.Option(
+            "--all-targets",
+            help="Scaffold empty selection tables, which takes every data set, every program, and every "
+            "organisation-unit level. The default is a small representative probe.",
+        ),
+    ] = False,
+    live: Annotated[
+        bool,
+        typer.Option(
+            "--live",
+            help="Run the oracle phase: fetch the DHIS2 objects behind a sample of the served resources "
+            "and let the instance judge whether each one still derives from current instance state.",
+        ),
+    ] = False,
+    samples: Annotated[
+        int,
+        typer.Option("--samples", min=0, help="How many resources per family the oracle deep-compares."),
+    ] = DEFAULT_ORACLE_SAMPLES,
+    progress: ProgressOption = True,
+) -> None:
+    """Run the whole FHIR toolchain against this profile's instance and report what the instance breaks.
+
+    Nine phases in a throwaway workspace: connect, scaffold, generate, compile, validate, serve,
+    capture, forward, oracle. Each reports pass, warn, fail, skipped, or blocked with its reason.
+
+    The instance comes from `d2w -p <name>` and the ambient profile resolution, as `d2w fhir serve` does.
+
+    A phase that fails never stops one that does not depend on it, and only a failure exits 1.
+
+    Compiling needs a FSH compiler on the machine; without one the phase is skipped and the served
+    store is built by the live builders instead, so every later phase still runs.
+
+    `--live` adds the oracle: the DHIS2 objects behind a seeded sample of the served resources are
+    fetched back and the instance decides whether the served output still derives from them.
+
+    The run writes reports/fhir-doctor-report.md, into the workspace when one was named and into the
+    working directory otherwise.
+    """
+    from dhis2w_fhir.doctor import DOCTOR_STEPS, DoctorOptions, resolve_doctor_profile, run_doctor
+
+    generation = resolve_doctor_profile()
+    options = DoctorOptions(
+        workspace=workspace,
+        keep=keep,
+        all_targets=all_targets,
+        live=live,
+        samples=samples,
+    )
+    with _progress(DOCTOR_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(run_doctor(generation, options, reporter=reporter))
+        if reporter is not None:
+            reporter.finish(report.verdict_line)
+    destination = _write_doctor_report(report)
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+    else:
+        _line(f"wrote {destination}")
+        _render_doctor_report(report)
+    if report.failed_phases:
         raise typer.Exit(code=1)
 
 

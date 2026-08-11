@@ -1373,6 +1373,31 @@ commitment.
 
 ### 9.1 Near-term
 
+- **`d2w fhir doctor`, the instance conformance runner** - shipped. One command
+  that drives the whole chain against one instance in a throwaway workspace and
+  reports what the instance breaks: connect, scaffold, generate, compile,
+  validate, serve, capture, forward, and - on `--live` - the oracle, where the
+  DHIS2 instance judges the served resources object by object. It orchestrates
+  the existing service functions and reimplements none of them, so what it grades
+  is the shipped path. Serve and capture run in process over the ASGI app, no
+  port bound; compile runs a real FSH compiler when the machine offers one and is
+  SKIPPED with that reason otherwise. Each phase reports PASS / WARN / FAIL /
+  SKIPPED / BLOCKED, only a FAIL exits 1, and the run writes
+  `reports/fhir-doctor-report.md` as the artifact a handover is read from. See
+  [Check an instance with doctor](../guides/fhir/201-doctor.md).
+
+    The two follow-ups the first live runs surfaced, neither blocking: a run
+  without a compiler serves the live read-set, which publishes no example
+  responses, so `$generate` cannot read the guide's own examples for the optional
+  elements it decides from - a registration form whose program collects an
+  incident date is generated without one and DHIS2 refuses that enrollment with
+  `E1023`. The phase states this as a warning rather than hiding it; the fix is a
+  JSON twin of the examples target beside the questionnaire and terminology
+  twins. And the oracle judges four families on the elements each one carries the
+  DHIS2 name and code on; extending it per family - a Questionnaire's item tree
+  against the data set's elements, a Location's position against the unit's
+  geometry - is the natural next depth.
+
 - **`d2w fhir serve`, phase 1** - shipped: read, receive, and spool, in the
   `dhis2w-fhir-serve` member behind the `dhis2w-cli[serve]` extra.
 

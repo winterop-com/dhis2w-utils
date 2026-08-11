@@ -35,6 +35,8 @@ states who it is for; start where your question lives.
 
 ## 201 - Operate a project
 
+- [Check an instance with doctor](201-doctor.md) - the whole chain against one
+  instance, in one command, with one verdict. Run this first.
 - [Set up an IG project](201-set-up-a-project.md) - the scaffold, the pinned
   toolchain, profiles, and `--refresh`.
 - [Validate the instance](201-validate.md) - the findings, what severity
