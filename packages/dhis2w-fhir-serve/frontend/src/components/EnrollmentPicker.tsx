@@ -95,7 +95,7 @@ export function EnrollmentPicker({
             {offer.error === null && !offer.loading && offer.options.length === 0 && (
                 <p className="text-muted-foreground text-xs">
                     No registration has been captured for this program yet, so this submission uses
-                    the skeleton's synthetic identifiers and will not import into DHIS2.{' '}
+                    the generated draft's synthetic identifiers and will not import into DHIS2.{' '}
                     {offer.registrationFormId === null ? (
                         'Capture a registration first.'
                     ) : (
@@ -107,8 +107,8 @@ export function EnrollmentPicker({
             )}
             {offer.options.length > 0 && selected === null && (
                 <p className="text-muted-foreground text-xs">
-                    Nothing is chosen, so this submission keeps the skeleton's synthetic identifiers
-                    and will not import into DHIS2. Pick an enrollment above.
+                    Nothing is chosen, so this submission keeps the generated draft's synthetic
+                    identifiers and will not import into DHIS2. Pick an enrollment above.
                 </p>
             )}
             {selected !== null && selected.lifecycle === 'received' && (

@@ -15,7 +15,7 @@ d2w fhir generate option-sets       Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate categories        Categories -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires    Data sets + event programs + tracker programs -> Questionnaire instances
 d2w fhir generate examples          Example QuestionnaireResponses against those Questionnaires
-d2w fhir generate org-units         Org units -> Organization/Location instances
+d2w fhir generate org-units         Organisation units -> Organization/Location instances
 d2w fhir generate pages             Narrative site pages + per-artifact intros
 d2w fhir generate load-set          Synthetic QuestionnaireResponse corpus into load/ (not IG source)
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
@@ -932,7 +932,7 @@ pagecontent/periods.md                   D2Period + every DHIS2 period type
 pagecontent/capture.md                   The capture contract, worked per form kind
 pagecontent/Questionnaire-<stem>-intro.md One per generated Questionnaire
 pagecontent/CodeSystem-<id>-intro.md     Option sets carrying a DHIS2 description
-pagecontent/Organization-<stem>-intro.md Org units carrying a DHIS2 description
+pagecontent/Organization-<stem>-intro.md Organisation units carrying a DHIS2 description
 ```
 
 The six site pages are the scaffolded menu: `Home`, `Forms`, `Registry`,

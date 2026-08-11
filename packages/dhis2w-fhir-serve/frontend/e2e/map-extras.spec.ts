@@ -39,7 +39,7 @@ test('the legend names the three tiers in full, and each row explains itself', a
     // The tier names lean on the selection model; hovering a row states it in one plain sentence.
     await expect(page.getByText('Other organisation units')).toHaveAttribute(
         'title',
-        'Organisation units this guide publishes that are outside your selection.',
+        'Organisation units this implementation guide publishes that are outside your selection.',
     )
 })
 
@@ -158,6 +158,89 @@ test('a left-click on a boundary opens the popup, and Open is what selects', asy
     await expect(page.getByRole('heading', { name: 'Sierra Leone', level: 3 })).toBeVisible()
     // Open answered the question, so the popup has nothing left to say.
     await expect(popup).toHaveCount(0)
+})
+
+test('the popup wears the app card tokens in both themes', async ({ page }) => {
+    // MapLibre's own stylesheet ships inside the lazy map chunk, AFTER index.css - so the shell
+    // being themed is no evidence the popup is: a same-specificity override loses to it silently
+    // and leaves MapLibre's white card under dark ink. The computed styles are compared against
+    // the card token as the browser resolves it, which is the only honest reading of a token.
+    const map = await openMap(page, '/#/organisation-units')
+    await expect
+        .poll(() => settledZoom(map), { timeout: MAP_READY_TIMEOUT })
+        .toBeGreaterThan(5.5)
+    await map.locator('canvas').click()
+    await expect(page.getByTestId('org-unit-map-popup')).toBeVisible()
+
+    const resolvedCardColor = () =>
+        page.evaluate(() => {
+            const probe = document.createElement('div')
+            probe.style.backgroundColor = 'var(--card)'
+            document.body.append(probe)
+            const resolved = getComputedStyle(probe).backgroundColor
+            probe.remove()
+            return resolved
+        })
+    const popupShellColors = () =>
+        page.evaluate(() => {
+            const content = document.querySelector('.maplibregl-popup-content')
+            const tip = document.querySelector('.maplibregl-popup-tip')
+            if (content === null || tip === null) return null
+            const tipStyles = getComputedStyle(tip)
+            return {
+                background: getComputedStyle(content).backgroundColor,
+                // The tip's one coloured border depends on the anchor, so all four are read and
+                // the assertion is that the card colour is among them.
+                tipBorders: [
+                    tipStyles.borderTopColor,
+                    tipStyles.borderBottomColor,
+                    tipStyles.borderLeftColor,
+                    tipStyles.borderRightColor,
+                ],
+            }
+        })
+
+    const lightCard = await resolvedCardColor()
+    const lightShell = await popupShellColors()
+    expect(lightShell?.background).toBe(lightCard)
+    expect(lightShell?.tipBorders).toContain(lightCard)
+
+    // The popup survives a theme flip - only its tokens change under it.
+    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    await expect(map).toHaveAttribute('data-map-theme', 'dark')
+
+    const darkCard = await resolvedCardColor()
+    expect(darkCard).not.toBe(lightCard)
+    expect(darkCard).not.toBe('rgb(255, 255, 255)')
+    await expect.poll(async () => (await popupShellColors())?.background).toBe(darkCard)
+    expect((await popupShellColors())?.tipBorders).toContain(darkCard)
+})
+
+test('typing in the filter with an unresolved ?unit= does not re-frame the map', async ({ page }) => {
+    // A ?unit= naming a unit this registry does not hold selects nothing, so the framing target
+    // is the whole registry - and it must be THE SAME framing on every render: a focus prop
+    // minted fresh per render re-ran the fit and closed the popup on every keystroke in the
+    // filter box. The camera is stepped off the fitted framing first, so a spurious re-fit would
+    // be visible as the zoom snapping back.
+    const map = await openMap(page, '/#/organisation-units?unit=NotPublished0')
+    await expect
+        .poll(() => settledZoom(map), { timeout: MAP_READY_TIMEOUT })
+        .toBeGreaterThan(3)
+    const framed = await settledZoom(map)
+
+    await map.locator('canvas').evaluate((element) => {
+        element.focus()
+    })
+    await page.keyboard.press('-')
+    await expect
+        .poll(() => settledZoom(map), { timeout: MAP_READY_TIMEOUT })
+        .toBeLessThan(framed - 0.5)
+    const wandered = await settledZoom(map)
+
+    await page.getByRole('textbox', { name: 'Filter organisation units' }).pressSequentially('bo')
+    // A re-fit eases over 400ms; give it its full window to happen, then assert it did not.
+    await page.waitForTimeout(900)
+    expect(await settledZoom(map)).toBeCloseTo(wandered, 2)
 })
 
 test('a right-click on a shape drills straight down, with no popup in between', async ({ page }) => {

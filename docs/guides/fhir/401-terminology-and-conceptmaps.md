@@ -306,4 +306,5 @@ converge: drop a category from the selection and its map goes with its pair.
 - [Serve the guide](201-serve.md) - the facade that answers `$translate` over
   these maps.
 
-Next: [Consume the FHIR API](401-consume-the-fhir-api.md)
+Next: [Custom subject types](401-custom-subject-types.md) - what a tracked
+entity is published as when it is not a person.

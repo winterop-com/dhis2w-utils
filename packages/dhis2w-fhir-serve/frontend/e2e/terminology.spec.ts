@@ -103,6 +103,10 @@ test('the tracked-entity dictionary states its codes, uniqueness, and the honest
     ).toBeVisible()
     // The declared properties become columns: the DHIS2 code, the value type, and uniqueness -
     // the fact DHIS2 alone can enforce, surfaced because it decides what a duplicate submit does.
+    // The `dhis2-code` column names its subject, so it cannot be mistaken for the concept-code
+    // column beside it - two adjacent columns both headed "Code" name neither.
+    await expect(page.getByRole('columnheader', { name: 'DHIS2 code', exact: true })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Code', exact: true })).toHaveCount(1)
     await expect(page.getByRole('columnheader', { name: 'Unique', exact: true })).toBeVisible()
 
     // An attribute with a DHIS2 code shows it on the row beside the uid.

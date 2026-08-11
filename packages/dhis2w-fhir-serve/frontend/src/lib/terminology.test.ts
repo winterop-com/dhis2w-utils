@@ -43,7 +43,7 @@ describe('concept property columns', () => {
         expect(conceptPropertyColumns(dataElements)).toEqual([
             {
                 code: 'dhis2-code',
-                label: 'Code',
+                label: 'DHIS2 code',
                 description: 'DHIS2 data element code',
                 uri: 'http://dhis2.org/fhir/property/dhis2-code',
                 declared: true,
@@ -62,7 +62,7 @@ describe('concept property columns', () => {
         expect(conceptPropertyColumns(optionSet)).toEqual([
             {
                 code: 'dhis2-code',
-                label: 'Code',
+                label: 'DHIS2 code',
                 description: undefined,
                 uri: 'http://dhis2.org/fhir/property/dhis2-code',
                 declared: true,
@@ -368,7 +368,7 @@ describe('a tracked-entity-attribute support system', () => {
 
     it('heads the boolean column with the property code said as words', () => {
         expect(conceptPropertyColumns(attributes).map((column) => column.label)).toEqual([
-            'Code',
+            'DHIS2 code',
             'Value type',
             'Unique',
         ])

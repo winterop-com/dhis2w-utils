@@ -136,6 +136,12 @@ test('selecting a unit fills the inspector, and puts the unit in the address', a
     await children.getByRole('button', { name: 'Badjia', exact: true }).click()
     await expect(page).toHaveURL(/#\/organisation-units\?unit=YuQRtpLP10I$/)
     await expect(page.getByRole('heading', { name: 'Badjia', level: 3 })).toBeVisible()
+
+    // The rail never scrolls sideways: identifier chips wrap and their values break instead,
+    // because one long attribute value must not put everything else behind a horizontal scroll.
+    const rail = page.getByRole('complementary', { name: 'Organisation unit details' })
+    const railOverflows = await rail.evaluate((element) => element.scrollWidth > element.clientWidth + 1)
+    expect(railOverflows, 'the inspector rail scrolls horizontally').toBe(false)
 })
 
 test('a unit is a link that opens with its hierarchy already expanded', async ({ page }) => {
@@ -270,7 +276,7 @@ test('a unit with no captures says so instead of showing a zero', async ({ page,
     await page.goto(`/#/organisation-units?unit=${bare ?? ''}`)
 
     const captured = page.getByTestId('org-unit-captured')
-    await expect(captured.getByText('No capture this server received names this organisation unit.')).toBeVisible()
+    await expect(captured.getByText('No received capture names this organisation unit.')).toBeVisible()
     await expect(captured.getByText('Captures this server received')).toBeVisible()
 })
 

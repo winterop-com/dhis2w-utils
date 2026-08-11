@@ -159,3 +159,5 @@ What the generated output itself looks like from the inside - the identifier
 families, the code-list structures - is the integrate-tier's territory:
 [Identifiers and the D2 extensions](401-identifiers-and-extensions.md) and
 [Terminology and ConceptMaps](401-terminology-and-conceptmaps.md).
+
+Next: [Who the guide is: `profile` and `[ig]`](301-identity.md)

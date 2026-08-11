@@ -202,12 +202,18 @@
    stylesheet: a white chip with a black glyph, whatever the theme. Repainted
    here with the app's tokens so the chrome follows the surface it sits on. The
    glyphs are background-image SVGs whose paths CSS colour cannot reach, so dark
-   mode inverts them instead. */
-.maplibregl-ctrl-group {
+   mode inverts them instead.
+
+   EVERY OVERRIDE HERE MUST OUTRANK MAPLIBRE'S OWN RULE BY SPECIFICITY, NOT BY
+   ORDER. maplibre-gl.css ships inside the lazy map chunk, so it is appended to
+   the document AFTER this stylesheet - a same-specificity override written here
+   loses to it silently, and the popup keeps its white card under dark
+   foreground ink. Hence the extra ancestor class on each selector. */
+.maplibregl-map .maplibregl-ctrl-group {
     background: var(--card);
     border: 1px solid var(--border);
 }
-.maplibregl-ctrl-group:not(:empty) {
+.maplibregl-map .maplibregl-ctrl-group:not(:empty) {
     box-shadow: none;
 }
 .dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
@@ -217,8 +223,10 @@
 /* The popup a click on the map opens - MapLibre's own chrome (a white card, a
    white tip, a black close glyph) repainted from the same tokens as the rest of
    the app's cards, in both themes. The content inside it is the component's own
-   markup and styles itself; this is only the shell. */
-.maplibregl-popup-content {
+   markup and styles itself; this is only the shell. The tip selectors carry the
+   anchor class on the popup root itself, because MapLibre's tip rules are
+   two-class selectors and later in the document - see the note above. */
+.maplibregl-popup .maplibregl-popup-content {
     background: var(--card);
     color: var(--card-foreground);
     border: 1px solid var(--border);
@@ -227,28 +235,28 @@
     padding: 0.625rem 0.75rem;
     font-family: var(--font-sans);
 }
-.maplibregl-popup-anchor-top .maplibregl-popup-tip,
-.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
-.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+.maplibregl-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
     border-bottom-color: var(--card);
 }
-.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
-.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
-.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+.maplibregl-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
     border-top-color: var(--card);
 }
-.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+.maplibregl-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
     border-right-color: var(--card);
 }
-.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+.maplibregl-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
     border-left-color: var(--card);
 }
-.maplibregl-popup-close-button {
+.maplibregl-popup .maplibregl-popup-close-button {
     color: var(--muted-foreground);
     font-size: 1rem;
     padding: 0 0.4rem;
 }
-.maplibregl-popup-close-button:hover {
+.maplibregl-popup .maplibregl-popup-close-button:hover {
     color: var(--foreground);
     background: transparent;
 }

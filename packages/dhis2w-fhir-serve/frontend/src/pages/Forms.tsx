@@ -42,7 +42,7 @@ export function Forms() {
         <>
             <PageHeader
                 title="Forms"
-                description="Questionnaires this server publishes. Each one is a DHIS2 data set, event program, or tracker stage as a capture form."
+                description="Questionnaires this server publishes. Each one is a DHIS2 data set, an event program, a tracker registration, or a tracker stage as a capture form."
             />
             <PageState
                 loading={loading}

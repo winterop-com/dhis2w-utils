@@ -293,7 +293,12 @@ function ReceiptFacts({
                     : `Received ${formatInstant(summary.received_at)} - the submission as it arrived, not a view of what DHIS2 now holds.`}
             </p>
             {stored.questionnaire !== undefined && (
-                <p className="text-muted-foreground font-mono text-xs break-all">{stored.questionnaire}</p>
+                <p className="text-xs">
+                    <span className="text-muted-foreground">Questionnaire </span>
+                    <span className="text-muted-foreground font-mono break-all">
+                        {stored.questionnaire}
+                    </span>
+                </p>
             )}
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
                 <Fact label="Receipt id" value={stored.id ?? '-'} mono />

@@ -22,7 +22,7 @@ published assignment where it has one, the served registry where it does not. An
 tracked entity attribute is never answered with a constant: DHIS2 refuses the second registration
 carrying a repeated unique value with `E1064`, so the answer embeds the response's own minted
 tracked-entity UID - the one value no other generated registration holds - through the same rule
-the examples emitter uses (`dhis2w_fhir.resources.examples._distinct_unique_value`).
+the examples emitter uses (`dhis2w_fhir.distinct_unique_value`).
 
 Three facts a compiled Questionnaire does not carry, and how they are decided here:
 
@@ -68,8 +68,8 @@ from dhis2w_fhir.r4 import (
     QuestionnaireResponseItem,
     Reference,
 )
-from dhis2w_fhir.resources.examples import _distinct_unique_value
-from dhis2w_fhir.resources.questionnaires.schemas import FormKind, QuestionnaireItemIn
+from dhis2w_fhir.resources.examples import distinct_unique_value
+from dhis2w_fhir.resources.questionnaires.schemas import FormKind
 from pydantic import BaseModel, ConfigDict, PrivateAttr, ValidationError
 
 from dhis2w_fhir_serve.capture.index import CaptureIndex, CaptureQuestion
@@ -446,15 +446,7 @@ def _distinct_answer(question: CaptureQuestion, token: str) -> QuestionnaireResp
         return None
     if question.bounds is not None:
         return None
-    value = _distinct_unique_value(
-        QuestionnaireItemIn(
-            uid=question.data_element_uid,
-            name=question.display or question.link_id,
-            value_type=question.value_type,
-            unique=True,
-        ),
-        token,
-    )
+    value = distinct_unique_value(question.display or question.link_id, question.value_type, token)
     if value is None:
         return None
     if question.answer_element == "valueString":

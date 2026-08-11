@@ -88,8 +88,9 @@ generated FSH left behind by a version of the plugin that wrote a target in
 the other shape. `d2w fhir generate` clears it and reports the files in
 `deleted_files`; the count in that report is the confirmation.
 
-Next: [Build and publish the guide](201-build-and-publish.md) to see the
-compile pick your hand-authored content up, or
-[Serve the guide](201-serve.md) - served resources come from the very
-`ig/fsh-generated/resources` and `ig/input/resources` trees this page
-divides ownership of.
+[Build and publish the guide](201-build-and-publish.md) is where the compile
+picks your hand-authored content up, and
+[Serve the guide](201-serve.md) serves the very `ig/fsh-generated/resources`
+and `ig/input/resources` trees this page divides ownership of.
+
+Next: [the series index](index.md) - this is the last page of the series.

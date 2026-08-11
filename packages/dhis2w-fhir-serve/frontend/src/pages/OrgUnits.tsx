@@ -268,7 +268,7 @@ export function OrgUnits() {
         <div className="flex min-h-0 flex-1 flex-col">
             <PageHeader
                 title="Organisation units"
-                description="The organisation units this guide published, as the hierarchy the DHIS2 instance holds them in - what a capture may report for, and which forms it may report there."
+                description="The organisation units this implementation guide publishes, as the hierarchy the DHIS2 instance holds them in - what a capture may report for, and which forms it may report there."
             />
 
             {threePane ? (
@@ -405,18 +405,30 @@ function UnitTree({
     filtered: Set<string> | null
     onSelect: (unitId: string) => void
 }) {
-    // Expansion is the union of what the caller opened by hand and what the URL and the filter
-    // imply - so a filter that matches a facility opens the districts above it without the reader
-    // clicking three chevrons, and clearing the filter leaves their own expansions intact.
-    const [opened, setOpened] = useState<Set<string>>(new Set())
-    const toggle = useCallback((unitId: string) => {
-        setOpened((previous) => {
-            const next = new Set(previous)
-            if (next.has(unitId)) next.delete(unitId)
-            else next.add(unitId)
+    // A hand toggle is an OVERRIDE over what the URL and the filter imply, not a union member:
+    // the chevron opens a closed branch and closes an open one, whichever authority opened it -
+    // so the default-expanded root remains the reader's to fold up. A filter that matches a
+    // facility still opens the districts above it without three chevron clicks, and clearing
+    // the filter leaves the reader's own toggles intact.
+    const [overrides, setOverrides] = useState<Map<string, boolean>>(new Map())
+    const toggle = useCallback((unitId: string, isOpen: boolean) => {
+        setOverrides((previous) => new Map(previous).set(unitId, !isOpen))
+    }, [])
+
+    // A new selection must be visible whatever was folded up before it: any closed-override on
+    // the selected unit or its ancestors is stale the moment the selection lands, so it is
+    // dropped rather than left to hide the row the page is about.
+    useEffect(() => {
+        if (selectedId === null) return
+        setOverrides((previous) => {
+            const chain = [selectedId, ...ancestorsOf(tree, selectedId).map((ancestor) => ancestor.id)]
+            const stale = chain.filter((unitId) => previous.get(unitId) === false)
+            if (stale.length === 0) return previous
+            const next = new Map(previous)
+            for (const unitId of stale) next.delete(unitId)
             return next
         })
-    }, [])
+    }, [selectedId, tree])
 
     const roots = filtered === null ? tree.roots : tree.roots.filter((node) => filtered.has(node.id))
 
@@ -438,7 +450,7 @@ function UnitTree({
                     node={node}
                     depth={0}
                     selectedId={selectedId}
-                    opened={opened}
+                    overrides={overrides}
                     expanded={expanded}
                     filtered={filtered}
                     onToggle={toggle}
@@ -460,7 +472,7 @@ function UnitBranch({
     node,
     depth,
     selectedId,
-    opened,
+    overrides,
     expanded,
     filtered,
     onToggle,
@@ -469,14 +481,15 @@ function UnitBranch({
     node: OrgUnitNode
     depth: number
     selectedId: string | null
-    opened: Set<string>
+    /** Hand toggles, winning over `expanded`: true holds a branch open, false holds it closed. */
+    overrides: Map<string, boolean>
     expanded: Set<string>
     filtered: Set<string> | null
-    onToggle: (unitId: string) => void
+    onToggle: (unitId: string, isOpen: boolean) => void
     onSelect: (unitId: string) => void
 }) {
     const hasChildren = node.children.length > 0
-    const open = hasChildren && (opened.has(node.id) || expanded.has(node.id))
+    const open = hasChildren && (overrides.get(node.id) ?? expanded.has(node.id))
     const children = filtered === null ? node.children : node.children.filter((child) => filtered.has(child.id))
     const isSelected = node.id === selectedId
 
@@ -494,7 +507,7 @@ function UnitBranch({
                         type="button"
                         aria-label={`${open ? 'Collapse' : 'Expand'} ${node.name}`}
                         aria-expanded={open}
-                        onClick={() => onToggle(node.id)}
+                        onClick={() => onToggle(node.id, open)}
                         className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 flex size-6 shrink-0 items-center justify-center rounded focus-visible:ring-[3px] focus-visible:outline-none"
                     >
                         {open ? (
@@ -545,7 +558,7 @@ function UnitBranch({
                             node={child}
                             depth={depth + 1}
                             selectedId={selectedId}
-                            opened={opened}
+                            overrides={overrides}
                             expanded={expanded}
                             filtered={filtered}
                             onToggle={onToggle}
@@ -796,14 +809,11 @@ const NO_IMPLIED_EXPANSIONS = new Set<string>()
  * selection's.
  */
 function UnitChildren({ node, onSelect }: { node: OrgUnitNode; onSelect: (unitId: string) => void }) {
-    const [opened, setOpened] = useState<Set<string>>(new Set())
-    const toggle = useCallback((unitId: string) => {
-        setOpened((previous) => {
-            const next = new Set(previous)
-            if (next.has(unitId)) next.delete(unitId)
-            else next.add(unitId)
-            return next
-        })
+    // The same override map the main tree keeps - with no implied expansions here, an absent
+    // entry simply means closed.
+    const [overrides, setOverrides] = useState<Map<string, boolean>>(new Map())
+    const toggle = useCallback((unitId: string, isOpen: boolean) => {
+        setOverrides((previous) => new Map(previous).set(unitId, !isOpen))
     }, [])
 
     const direct = node.children.length
@@ -832,7 +842,7 @@ function UnitChildren({ node, onSelect }: { node: OrgUnitNode; onSelect: (unitId
                             node={child}
                             depth={0}
                             selectedId={null}
-                            opened={opened}
+                            overrides={overrides}
                             expanded={NO_IMPLIED_EXPANSIONS}
                             filtered={null}
                             onToggle={toggle}
@@ -1171,7 +1181,7 @@ function CapturedHere({
                 loading={spool.loading}
                 error={spool.error}
                 empty={here.length === 0}
-                emptyMessage="No capture this server received names this organisation unit."
+                emptyMessage="No received capture names this organisation unit."
             >
                 <div className="space-y-2">
                     <div className="flex flex-wrap gap-1.5">
@@ -1213,12 +1223,12 @@ function CapturedHere({
             </PageState>
             {belowCount > 0 && (
                 <p className="text-muted-foreground text-xs">
-                    {belowCount} more below this organisation unit, at its descendants.
+                    {belowCount} more below this organisation unit.
                 </p>
             )}
             <p className="text-muted-foreground text-xs">
                 Captures this server received. What the DHIS2 instance holds at this organisation
-                unit is the output leg, and is not read here.
+                unit is not read here.
             </p>
         </section>
     )
@@ -1231,6 +1241,14 @@ function receiptFormLabel(summary: SpoolResponseSummary, formsById: Map<string, 
     const questionnaire = formsById.get(formId)
     return questionnaire === undefined ? formId : formTitle(questionnaire)
 }
+
+/**
+ * The stable empty focus, for the states with no selected extent - no selection, or a `?unit=`
+ * naming a unit this registry does not hold. One frozen array, because the map re-frames (and
+ * closes its popup) whenever the focus prop changes identity - a fresh `[]` minted per render
+ * would re-frame on every keystroke in the filter box.
+ */
+const NO_FOCUS_UNIT_IDS: readonly string[] = Object.freeze([])
 
 /**
  * The map, and every reason it might not be one.
@@ -1310,13 +1328,13 @@ function MapPanel({
                     <OrgUnitMap
                         boundaries={geometry.boundaries}
                         points={geometry.points}
-                        // W-POL: seam added by W-GLOBE - the map's click popup reads a unit's
-                        // name, level, and parent off the folded tree.
+                        // The folded registry: where the click popup reads a unit's name,
+                        // level, and parent from.
                         tree={tree}
                         basemap={basemap}
                         selectedUnitId={selected?.id ?? null}
                         descendantUnitIds={descendantUnitIds}
-                        focusUnitIds={extent?.unitIds ?? []}
+                        focusUnitIds={extent?.unitIds ?? NO_FOCUS_UNIT_IDS}
                         onSelect={onSelect}
                     />
                 )}

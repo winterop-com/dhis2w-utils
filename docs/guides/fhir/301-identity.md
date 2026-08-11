@@ -1,7 +1,17 @@
 # Who the guide is: `profile` and `[ig]`
 
-**Who this is for:** the person editing `fhir.toml`. Start at
-[the settings file](301-fhir-toml.md) if you have not read it yet.
+**Who this is for:** the person editing `fhir.toml`.
+
+**Before you start:** read [The settings file](301-fhir-toml.md) - what
+`fhir.toml` is, where it lives, and how to edit it without breaking it. Have
+your project's file open.
+
+**You will be able to:**
+
+- point the project at a different saved DHIS2 connection with `profile`
+- change the guide's id, address, name, title, and publisher in `[ig]`
+- move the guide from `draft` to `active`, and read the refusal when a value
+  is not one the file accepts
 
 This page covers the seven options that say where the guide's content comes
 from and who the guide itself is: the top-level `profile` line, and the six
@@ -221,9 +231,5 @@ ig.status
   Input should be 'draft' or 'active' [type=literal_error, input_value='published', input_type=str]
 ```
 
-## Next
-
-- [How things are generated](301-generation.md) - identifiers, codes, time
-  zone, languages, naming.
-- [What goes in](301-what-goes-in.md) - selecting data sets, programs, option
-  sets, categories, and org units.
+Next: [What goes in: the selection tables](301-what-goes-in.md) - selecting
+data sets, programs, option sets, categories, and organisation units.

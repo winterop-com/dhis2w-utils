@@ -123,7 +123,7 @@ a 422 under `--strict-codes`, the same dial that grades coded answers
 identifier, so a response that carries no type at all is complete, and
 nothing is checked.
 
-Next: [The capture contract](401-capture-contract.md) for the rest of what a
-tracker response carries, and
-[Consume the FHIR API](401-consume-the-fhir-api.md) to see `$generate` mint
-a correctly typed subject for any form kind.
+Next: [Regeneration and hand-authoring](401-regeneration-and-hand-authoring.md)
+- which files a re-run owns and where hand-written content lives.
+[The capture contract](401-capture-contract.md) covers the rest of what a
+tracker response carries.

@@ -1,7 +1,19 @@
 # What goes in: the selection tables
 
-**Who this is for:** the person editing `fhir.toml`. Start at
-[the settings file](301-fhir-toml.md) if you have not read it yet.
+**Who this is for:** the person editing `fhir.toml`.
+
+**Before you start:** read [The settings file](301-fhir-toml.md) - what
+`fhir.toml` is, where it lives, and how to edit it without breaking it. Have
+the UIDs of the objects you want to add or remove at hand (the Maintenance
+app shows them).
+
+**You will be able to:**
+
+- add or remove a data set, event program, or tracker program from the guide
+- narrow which option sets and categories become code lists
+- say what each tracked entity type is published as, scope the
+  organisation-unit registry, and choose how example responses are made
+- tell a misspelled UID from a missing object after a run
 
 This page covers the options that decide which of your DHIS2 metadata the
 guide covers: the five selection tables (option sets, categories, data sets,
@@ -224,7 +236,7 @@ person-tracking project leaves this table out entirely.
 ```text
 pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
 generate.tracked_entity_types
-  Value error, tracked entity type Kd6Nk9wnAJa is mapped to 'Car', which is not a FHIR resource type a tracked entity is published as: name one of Patient, Person, Practitioner, RelatedPerson, Group, Device, Location, Organization, Specimen
+  Value error, tracked entity type Kd6Nk9wnAJa is mapped to 'Car', which is not a FHIR resource type a tracked entity is published as: name one of Patient, Person, Practitioner, RelatedPerson, Group, Device, Location, Organization, Specimen [type=value_error, ...]
 ```
 
 ## The `[generate.organisation_units]` table { #organisation-units }
@@ -392,8 +404,5 @@ generate.examples.source
   Input should be 'synthetic' or 'instance' [type=literal_error, input_value='real', input_type=str]
 ```
 
-## Next
-
-- [Serving it](301-serving.md) - the `[serve]` section.
-- [How things are generated](301-generation.md) - naming and the `[generate]`
-  section.
+Next: [How things are generated](301-generation.md) - identifiers, codes,
+time zone, languages, and naming.

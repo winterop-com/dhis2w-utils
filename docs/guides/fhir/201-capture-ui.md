@@ -91,7 +91,7 @@ rows. Every question is labelled with its DHIS2 uid as well as its text,
 because that uid is what the server's refusals, the spool, and DHIS2 itself
 all name it by.
 
-![An aggregate form filled with test data, with the unit picker and the attribute option combo picker above the questions](../../img/fhir/capture-ui-form-fill.png)
+![An aggregate form filled with test data, with the reporting-unit picker and the attribute option combo picker above the questions](../../img/fhir/capture-ui-form-fill.png)
 
 **Fill with test data** answers the whole form from `$generate` and puts the
 answers *into the form* rather than posting them - so you can change one
@@ -138,6 +138,20 @@ envelope and ride the submission unchanged; they are on screen because a
 submission carrying a date nobody saw is worse than one carrying a date
 nobody can change.
 
+A tracker *stage* form asks instead of showing: **Answering for** is the
+enrollment this event reports against, and it is the one piece of envelope
+context the `$generate` skeleton gets wrong rather than merely proposes -
+the skeleton mints synthetic identifiers that name nothing in any DHIS2, so
+an unassisted stage submission would be refused at forward time. What the
+picker offers is the real pairs this server's own registration receipts
+minted, each labelled with its uid, its enrollment date, and its lifecycle:
+a forwarded registration names objects DHIS2 already holds, a received one
+will only after `d2w fhir forward` runs - still pickable, and the wait is
+said inline rather than discovered at forward time. Rejected registrations
+are never offered. The default is the newest forwarded pair, so an ordinary
+submission lands; with nothing to offer, the synthetic draw stands and the
+page links to the registration form to capture first.
+
 A refused submission does not vanish into a toast: the validator's
 OperationOutcome is rendered issue by issue above the buttons, each with its
 severity, its code, and the question it is about - usually enough to fix the
@@ -181,14 +195,35 @@ which refetches on focus.
 
 ## The other three pages
 
-- **Org units** is the reporting hierarchy: the tree on the left, the unit's
-  detail on the right - identifiers, level, parent chain, children, and
-  **Forms reportable here**, the assignment join that says which submissions
-  this unit can make without DHIS2 refusing them with `E1029`. The map draws
-  the published boundaries and points over raster tiles from
+- **Organisation units** is the reporting hierarchy, laid out like a GIS
+  tool: on a wide viewport, three resizable panes - the hierarchy tree, the
+  map as the always-visible centre canvas, and an inspector rail that opens
+  when you pick an organisation unit (narrower viewports get two columns
+  with the same sections behind tabs). The rail opens with the selected
+  unit's identity - name, level, identifiers, the clickable parent chain -
+  and stacks its sections under it: **Data sets** and **Programs** are the
+  forms reportable at that unit, shelved by their DHIS2 kind with a tracker
+  program's registration and stages grouped together and the forms an
+  assignment names badged `assigned to this organisation unit` - the join
+  that says which submissions this unit can make without DHIS2 refusing
+  them with `E1029`; **Captured here** is the receipts this server holds
+  for captures at that unit, linked into Responses; **Children** is the
+  subtree as a mini tree, and selecting a row re-roots the rail. The map
+  draws the published boundaries and points over raster tiles from
   `[serve] basemap` (see [Configure serving](301-serving.md));
   `basemap = "none"` draws them on a plain canvas and reaches no origin but
-  this server, which is what an air-gapped deployment wants.
+  this server, which is what an air-gapped deployment wants. The selected
+  unit is lit in amber against the blue wash of the units below it, and the
+  selection rides the URL (`#/organisation-units?unit=<uid>`), so an
+  organisation unit is a link you can send. Clicking is two gestures: a
+  left-click on a shape opens a popup naming the unit - its level, its
+  parent, what sits below - with **Open** selecting it, and while the map
+  is still too far out for a click to have meant one shape it eases a step
+  in toward the pointer instead; a right-click drills straight to the
+  selection at any zoom. The corner controls are fullscreen, a globe toggle
+  that switches the projection in place and hangs the sphere in a
+  starfield, and a recenter button back to whatever the map is framing -
+  the selection's extent, or the whole registry.
 - **Terminology** is a browser over the code systems, value sets, and
   concept maps the project publishes - concept tables with the DHIS2
   identifiers beside the concept codes, and a `$translate` tester on the

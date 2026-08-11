@@ -85,7 +85,7 @@ d2w fhir generate option-sets    Option sets -> CodeSystem/ValueSet pairs
 d2w fhir generate categories     Categories -> CodeSystem/ValueSet pairs
 d2w fhir generate questionnaires Data sets + event programs + tracker programs -> Questionnaires
 d2w fhir generate examples       Example QuestionnaireResponses answering those Questionnaires
-d2w fhir generate org-units      Org units -> Organization/Location instances
+d2w fhir generate org-units      Organisation units -> Organization/Location instances
 d2w fhir generate pages          Narrative site pages + per-artifact intros
 d2w fhir generate load-set       Synthetic QuestionnaireResponse corpus into load/ (not IG source)
 ```

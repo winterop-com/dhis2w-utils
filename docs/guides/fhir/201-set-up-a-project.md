@@ -149,10 +149,15 @@ Write step 3 while scaffolding with `d2w fhir init --profile <name>`, or set
 the key by hand later - both land in the same place. If you have no profile
 yet, create one:
 
-```bash
-uv run d2w profile add demo --url https://play.im.dhis2.org/stable-2-42-1 \
-    --username admin --password district
+```console
+$ DHIS2_PASSWORD=district uv run d2w profile add demo --auth basic --username admin \
+    --url https://play.im.dhis2.org/stable-2-42-1 --local --default
+profile 'demo' saved to /home/you/demo-ig/.dhis2/profiles.toml
 ```
+
+Secrets are never command-line flags - the password comes from the
+`DHIS2_PASSWORD` environment variable (or an interactive prompt when it is
+unset).
 
 Credentials never live in `fhir.toml`. It is committed project config: it
 names a profile, and the profile store holds the secret.

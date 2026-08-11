@@ -1,7 +1,19 @@
 # How things are generated: `[generate]` and `[generate.naming]`
 
-**Who this is for:** the person editing `fhir.toml`. Start at
-[the settings file](301-fhir-toml.md) if you have not read it yet.
+**Who this is for:** the person editing `fhir.toml`.
+
+**Before you start:** read [The settings file](301-fhir-toml.md) - what
+`fhir.toml` is, where it lives, and how to edit it without breaking it.
+Naming choices are best made before the first real publish, so read this page
+early.
+
+**You will be able to:**
+
+- put the guide's identifier labels under your own domain
+- choose whether concepts are coded by DHIS2 id or DHIS2 code
+- set the reporting time zone and the translation languages
+- rename what every generated thing is called, and read the refusal when a
+  name piece breaks the shared rule
 
 This page covers the `[generate]` section - four options that shape what the
 generated content says - and the `[generate.naming]` section, which decides
@@ -119,7 +131,7 @@ run:
 ```text
 pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
 generate.timezone
-  Value error, unknown IANA time zone 'Asia/Vientane': name a zone from the tz database (e.g. 'Asia/Vientiane', 'Europe/Oslo', 'UTC')
+  Value error, unknown IANA time zone 'Asia/Vientane': name a zone from the tz database (e.g. 'Asia/Vientiane', 'Europe/Oslo', 'UTC') [type=value_error, ...]
 ```
 
 ### `locales`
@@ -417,7 +429,5 @@ Produces `D2Stage_...` instead of `D2PS_...`.
 
 **If you get it wrong:** the shared rule above refuses it.
 
-## Next
-
-- [What goes in](301-what-goes-in.md) - selecting what the guide covers.
-- [Serving it](301-serving.md) - the `[serve]` section.
+Next: [Serving it: the `[serve]` section](301-serving.md) - how the local
+capture server runs.

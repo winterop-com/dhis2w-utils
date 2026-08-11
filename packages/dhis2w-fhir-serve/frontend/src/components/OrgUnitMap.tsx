@@ -202,8 +202,10 @@ export interface OrgUnitMapProps {
     selectedUnitId: string | null
     /** Every unit below the selected one, so the subtree can be lit at medium emphasis. */
     descendantUnitIds: Set<string>
-    /** What the map should frame - the selection's own extent, or the whole registry's. */
-    focusUnitIds: string[]
+    /** What the map should frame - the selection's own extent, or the whole registry's. Read-only,
+     * so the caller can hand the same frozen empty array on every no-selection render: a change of
+     * identity here is what re-frames the camera and closes the popup. */
+    focusUnitIds: readonly string[]
     /** Select one unit: where a right-click on a shape and the popup's Open action both land. */
     onSelect: (unitId: string) => void
 }
@@ -478,7 +480,7 @@ function MapLegend({ overTiles }: { overTiles: boolean }) {
             </li>
             <li
                 className="flex items-center gap-2"
-                title="Organisation units this guide publishes that are outside your selection."
+                title="Organisation units this implementation guide publishes that are outside your selection."
             >
                 {/* The swatch tracks the tier's real colour, which changes with the ground under
                     it: a `--border` hairline is legible on a plain card and invisible on tiles. */}
@@ -552,7 +554,7 @@ function tierOf(
 function framing(
     boundaries: OrgUnitBoundary[],
     points: OrgUnitPoint[],
-    focusUnitIds: string[],
+    focusUnitIds: readonly string[],
 ): [number, number, number, number] | null {
     if (focusUnitIds.length > 0) {
         const wanted = new Set(focusUnitIds)

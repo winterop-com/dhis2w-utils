@@ -1,7 +1,18 @@
 # Serving it: the `[serve]` section
 
-**Who this is for:** the person editing `fhir.toml`. Start at
-[the settings file](301-fhir-toml.md) if you have not read it yet.
+**Who this is for:** the person editing `fhir.toml`.
+
+**Before you start:** read [The settings file](301-fhir-toml.md) - what
+`fhir.toml` is, where it lives, and how to edit it without breaking it - and
+[Serve the guide](201-serve.md) for what the capture server is.
+
+**You will be able to:**
+
+- decide who can reach the capture server, and understand why that is the
+  one setting to read twice
+- change the port it listens on and read the refusal when the port is taken
+- turn strict code checking on, serve the data-entry screens, and set the
+  map background (or turn it off for an air-gapped deployment)
 
 `d2w fhir serve` (the `make serve` target runs exactly that) starts a small
 web server on your computer that serves the guide's content and accepts
@@ -83,6 +94,10 @@ starts:
 ```text
 error: port 8080 on 127.0.0.1 is already in use (usually the local DHIS2 instance; set [serve] port in fhir.toml or pass --port)
 ```
+
+The check binds an IPv4 socket, so a listener holding the port only on IPv6
+(Docker on macOS publishing `*:8080` is the common case) is not caught, and
+the server starts beside it.
 
 A non-number stops the run earlier:
 
@@ -183,7 +198,6 @@ key - and each viewer's browser fetches them from openstreetmap.org.
 map's background comes up blank or broken in the browser while the boundaries
 still draw. (`"none"` in any capitalisation is understood as "off".)
 
-## Back to the map
-
-- [The settings file](301-fhir-toml.md) - the index of this series.
-- [What goes in](301-what-goes-in.md) - selecting what the guide covers.
+Next: [The capture contract](401-capture-contract.md) - the integrate tier
+starts with what a valid submission carries. Or back to
+[The settings file](301-fhir-toml.md), the index of this section.

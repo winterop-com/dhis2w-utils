@@ -83,14 +83,19 @@ export interface TranslationResult {
  * The property columns a concept table shows, declarations first.
  *
  * A CodeSystem's `property` is the authority on order; the column is HEADED by the property
- * code said as words ("dhis2-code" is "Code", "value-type" is "Value type") because the page
- * already names the system - repeating "DHIS2 data element" in every header says nothing. The
- * declared `description` keeps the full sentence as the header's tooltip. A property carried
- * by a concept and declared nowhere is real data, and dropping it would silently hide a
- * column, so those follow in first-seen order and are marked undeclared.
+ * code said as words ("value-type" is "Value type") because the page already names the system -
+ * repeating "DHIS2 data element" in every header says nothing. `dhis2-code` alone keeps its
+ * subject as "DHIS2 code": its column sits beside the concept-code column, and two adjacent
+ * columns both headed "Code" name neither. The declared `description` keeps the full sentence
+ * as the header's tooltip. A property carried by a concept and declared nowhere is real data,
+ * and dropping it would silently hide a column, so those follow in first-seen order and are
+ * marked undeclared.
  */
-/** A property code said as words: the dhis2- prefix dropped, hyphens spaced, first letter up. */
+/** A property code said as words: hyphens spaced, first letter up - and `dhis2-code` names its subject. */
 export function propertyColumnLabel(code: string): string {
+    // Stripped of its prefix, `dhis2-code` would head its column "Code" - the same word as the
+    // concept-code column beside it, which tells a reader nothing about which code is whose.
+    if (code === 'dhis2-code') return 'DHIS2 code'
     const bare = code.replace(/^dhis2-/, '').replaceAll('-', ' ').trim()
     return bare === '' ? code : bare.charAt(0).toUpperCase() + bare.slice(1)
 }

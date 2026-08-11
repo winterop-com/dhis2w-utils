@@ -128,6 +128,10 @@ error: port 8080 on 127.0.0.1 is already in use (usually the local DHIS2 instanc
 set [serve] port in fhir.toml or pass --port)
 ```
 
+One honest limit: the probe binds an IPv4 socket, so a listener that holds
+the port only on IPv6 - Docker on macOS publishing `*:8080` is the common
+case - is not caught, and serve starts beside it.
+
 The table has one more setting, `basemap` - the raster tiles the capture
 UI's organisation-unit map draws. Every `[serve]` key, the basemap policy
 included, is covered in [Configure serving](301-serving.md).

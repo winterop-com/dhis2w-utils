@@ -278,8 +278,11 @@ make forward          # the dry run
 make forward-import   # the committing run
 ```
 
-Next: what the translator builds each payload from, field by field, is the
+What the translator builds each payload from, field by field, is the
 integration developer's contract - see
 [The capture contract](401-capture-contract.md) for what a response must
 carry, and [the FHIR conversion layer](../../project/fhir-conversion.md) for
 why the forwarder is a typed translator.
+
+Next: [Troubleshooting](201-troubleshooting.md) - the failure modes of the
+whole loop, this page's included, in one table.

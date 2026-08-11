@@ -9,6 +9,20 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import App from '@/App'
 import '@/index.css'
 
+// A rebuild replaces every hashed chunk file, so a tab still holding the previous shell 404s the
+// moment it lazy-loads a page chunk (the map renderer is the one this bundle splits out) and that
+// page is dead until somebody reloads by hand. Vite reports exactly that failure as
+// `vite:preloadError`; one automatic reload fetches the current shell, whose chunk names resolve
+// again. The sessionStorage flag makes it one reload per tab session, so a deployment that is
+// genuinely broken degrades to the plain failure instead of a reload loop.
+const CHUNK_RELOAD_FLAG = 'stale-chunk-reloaded'
+window.addEventListener('vite:preloadError', (event) => {
+    if (sessionStorage.getItem(CHUNK_RELOAD_FLAG) === '1') return
+    sessionStorage.setItem(CHUNK_RELOAD_FLAG, '1')
+    event.preventDefault()
+    window.location.reload()
+})
+
 // HashRouter keeps every route client-side (#/responses, #/server, ...), which
 // is what lets the server go on serving this bundle as plain static files. There
 // is no SPA fallback on the Python side and there must not be one: the FHIR

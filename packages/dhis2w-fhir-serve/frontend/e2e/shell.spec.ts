@@ -61,6 +61,16 @@ test('the rail navigates all six pages', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible()
 })
 
+test('the header names the section on a detail route, not the app', async ({ page }) => {
+    // A detail route belongs to the section whose listing links to it, so the header keeps the
+    // section's name - the app name is only for a route no nav entry claims.
+    await page.goto('/#/forms/BfMAe6Itzgt')
+    await expect(page.locator('header h1')).toHaveText('Forms')
+
+    await page.goto('/#/terminology/CodeSystem/d2-de-cs')
+    await expect(page.locator('header h1')).toHaveText('Terminology')
+})
+
 test('a deep hash route survives a reload', async ({ page }) => {
     // Hash routing is what lets the SPA be a static mount with no server-side
     // rewrite: `#/server` never reaches the server as a path at all.

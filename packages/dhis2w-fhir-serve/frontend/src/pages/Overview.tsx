@@ -206,7 +206,9 @@ function subtitleFor(
     if (lifecycle === 'forwarded') return 'accepted by DHIS2'
     if (counts.rejected === 0 || cause === null) return 'refused by DHIS2'
     const message = cause.message === null ? null : generalisedCauseMessage(cause.message)
-    const named = message === null || message === '' ? cause.code : `${cause.code} ${message}`
+    // DHIS2's own words ride in quotes after the code, so the splice reads as a citation
+    // rather than as this UI's sentence running into the importer's.
+    const named = message === null || message === '' ? cause.code : `${cause.code} "${message}"`
     return cause.receipts === counts.rejected ? named : `mostly ${named}`
 }
 
@@ -320,7 +322,7 @@ function FormCard({ questionnaire }: { questionnaire: Questionnaire }) {
                     <Badge variant="secondary">{FORM_TYPE_LABELS[kind]}</Badge>
                 )}
                 <span className="text-muted-foreground font-mono text-xs">
-                    {questions} questions
+                    {questions} question{questions === 1 ? '' : 's'}
                 </span>
             </span>
         </Link>

@@ -338,7 +338,8 @@ $ curl -s localhost:8091/uiconfig | jq .
 Both live on single lowercase path segments precisely so they can never
 shadow a FHIR resource type, which is PascalCase.
 
-Next: [The capture contract](401-capture-contract.md) for what a valid
-submission carries, and
-[the `dhis2w_fhir_serve` API reference](../../api/fhir-serve.md) for the
+Next: [Identifiers and the D2 extensions](401-identifiers-and-extensions.md)
+- the identifier families and extensions every resource this API serves
+carries. The
+[`dhis2w_fhir_serve` API reference](../../api/fhir-serve.md) covers the
 store, the spool, and the capture path as importable Python.

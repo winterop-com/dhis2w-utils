@@ -297,6 +297,8 @@ export function FormFill() {
                     )}
                 >
                     <ReportingUnitPicker
+                        formKind={formTypeOf(questionnaire)}
+                        declaresAttributeOptionCombo={attributeOptionCombos !== null}
                         selectedUnitId={referencedUnitId(reportingUnit)}
                         onChange={(choice) => setReportingUnit(orgUnitReference(choice))}
                     />
@@ -470,6 +472,7 @@ function FormFillHeader({
     questionnaireId: string
 }) {
     const kind = questionnaire === null ? null : formTypeOf(questionnaire)
+    const questions = questionnaire === null ? 0 : questionCount(questionnaire.item)
     return (
         <div className="mb-6 space-y-2">
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground -ml-2">
@@ -493,7 +496,7 @@ function FormFillHeader({
                 </Badge>
                 {questionnaire !== null && (
                     <span className="text-muted-foreground text-sm">
-                        {questionCount(questionnaire.item)} questions
+                        {questions} question{questions === 1 ? '' : 's'}
                     </span>
                 )}
             </div>

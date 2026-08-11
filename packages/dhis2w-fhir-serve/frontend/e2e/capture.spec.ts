@@ -335,6 +335,13 @@ test.describe('a form whose assignment narrows where it may be reported from', (
         await expect(picker).toBeVisible()
         await expect(picker).toContainText(new RegExp(`${CHOSEN_UNIT}|${HELD_UNIT}`))
         await expect(page.getByText('2 organisation units are assigned to this form')).toBeVisible()
+        // The consequence is stated as the fact, without the tracker importer's error code - the
+        // refusal wording differs per kind, and E-codes belong to the import report that states them.
+        await expect(
+            page.getByText(
+                "A capture outside the form's assigned organisation units is refused when it reaches DHIS2.",
+            ),
+        ).toBeVisible()
 
         // Two of ten. The registry the organisation-units page browses is the same one this reads.
         await picker.click()
@@ -723,7 +730,9 @@ test.describe('a stage form answering for a captured registration', () => {
         // unchosen state means for the submission instead of letting it look routine.
         const picker = page.getByLabel('Answering for')
         await expect(picker).toBeVisible()
-        await expect(page.getByText('Nothing is chosen, so this submission keeps the skeleton')).toBeVisible()
+        await expect(
+            page.getByText('Nothing is chosen, so this submission keeps the generated draft'),
+        ).toBeVisible()
 
         // The offer is the registration just captured, labelled honestly: the minted uid and the
         // lifecycle its receipt is in.
