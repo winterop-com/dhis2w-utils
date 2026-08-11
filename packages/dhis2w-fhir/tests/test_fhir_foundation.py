@@ -19,7 +19,7 @@ _IDENTIFIER_SYSTEM_COUNT = 26
 
 
 def test_foundation_covers_expected_files() -> None:
-    """The target emits the aliases, the NamingSystems, the thirteen extensions, and the capture contract."""
+    """The target emits the aliases, the NamingSystems, the fourteen extensions, and the capture contract."""
     assert set(_by_path(GenerateConfig())) == {
         "foundation/d2-entity-level.fsh",
         "foundation/d2-aliases.fsh",
@@ -35,6 +35,7 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-organisation-unit-level.fsh",
         "foundation/d2-tracker-enrollment.fsh",
         "foundation/d2-enrollment-dates.fsh",
+        "foundation/d2-subject-exists.fsh",
         "foundation/d2-responses.fsh",
         "foundation/d2-generate-operation.fsh",
         "foundation/d2-capture-server.fsh",
@@ -310,7 +311,9 @@ Description: "One submission of a DHIS2 tracker program's registration form: the
 attributes captured when a person is enrolled, answered on the linkIds of the program's \
 Questionnaire. The response mints both DHIS2 identities it creates - the tracked entity it is \
 subject to and the enrollment its extension names - so a client can capture the enrollment's \
-first stage events in the same breath, before either identity exists on the instance."
+first stage events in the same breath, before either identity exists on the instance. A response \
+stating D2SubjectExists enrols a person the instance already holds instead, and then mints the \
+enrollment alone."
 * ^status = #draft
 * ^experimental = true
 * extension contains
@@ -318,15 +321,25 @@ first stage events in the same breath, before either identity exists on the inst
     D2TrackerEnrollment named D2TrackerEnrollment 1..1 and
     D2EnrolledAt named D2EnrolledAt 1..1 and
     D2IncidentAt named D2IncidentAt 0..1 and
+    D2SubjectExists named D2SubjectExists 0..1 and
     D2FormType named D2FormType 1..1
 * extension[D2OrganisationUnit] ^short = "The DHIS2 organisation unit the person is enrolled at, \
-which becomes the organisation unit of both the tracked entity and the enrollment."
+which becomes the organisation unit of both the tracked entity and the enrollment. A response \
+naming a person the instance already holds does not move that person: the organisation unit is \
+the enrollment's alone."
 * extension[D2TrackerEnrollment] ^short = "The DHIS2 enrollment this registration creates. The \
 client mints the value as a DHIS2 UID - eleven characters, the first a letter - so the response \
 names the enrollment its own stage responses will be captured against before any of them is sent."
 * extension[D2EnrolledAt] ^short = "When the enrollment begins."
 * extension[D2IncidentAt] ^short = "When the incident the enrollment follows occurred. Carried by \
 a response to a form whose program collects one, and absent otherwise."
+* extension[D2SubjectExists] ^short = "Whether the person this response is subject to is already \
+held by the DHIS2 instance. True means the subject identifier names an existing tracked entity \
+and the response enrols that person, so it is imported as an enrollment on its own. Absent or \
+false means the client minted the subject identifier and the response creates the person along \
+with the enrollment. A response stating true answers only the questions the program asks: an \
+answer belonging to the person's own record cannot ride an enrollment, and rewriting the record \
+of a person this contract does not own is not something an enrollment does."
 * extension[D2FormType] ^short = "The DHIS2 form kind this response answers."
 * extension[D2FormType].valueCode = #tracker (exactly)
 * questionnaire 1..1
@@ -336,9 +349,11 @@ a response to a form whose program collects one, and absent otherwise."
 * subject.identifier.system 1..1
 * subject.identifier.system = "http://dhis2.org/fhir/id/tracked-entity" (exactly)
 * subject.identifier.value 1..1
-* subject ^short = "The DHIS2 tracked entity this registration creates, named by identifier rather \
+* subject ^short = "The DHIS2 tracked entity this registration enrols, named by identifier rather \
 than by reference: this guide publishes no Patient resource, so the identifier is the person. The \
-client mints the value as a DHIS2 UID, the same way it mints the enrollment."
+client mints the value as a DHIS2 UID, the same way it mints the enrollment - unless the response \
+carries D2SubjectExists as true, and the value is then the UID of a person the instance already \
+holds."
 * authored 1..1
 """
 

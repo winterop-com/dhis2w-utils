@@ -12,11 +12,13 @@ Description: {{ profile.description_literal }}
     {{ names.tracker_enrollment_extension }} named {{ names.tracker_enrollment_extension }} 1..1 and
     {{ names.enrolled_at_extension }} named {{ names.enrolled_at_extension }} 1..1 and
     {{ names.incident_at_extension }} named {{ names.incident_at_extension }} 0..1 and
+    {{ names.subject_exists_extension }} named {{ names.subject_exists_extension }} 0..1 and
     {{ names.form_type_extension }} named {{ names.form_type_extension }} 1..1
-* extension[{{ names.organisation_unit_extension }}] ^short = "The DHIS2 organisation unit the person is enrolled at, which becomes the organisation unit of both the tracked entity and the enrollment."
+* extension[{{ names.organisation_unit_extension }}] ^short = "The DHIS2 organisation unit the person is enrolled at, which becomes the organisation unit of both the tracked entity and the enrollment. A response naming a person the instance already holds does not move that person: the organisation unit is the enrollment's alone."
 * extension[{{ names.tracker_enrollment_extension }}] ^short = "The DHIS2 enrollment this registration creates. The client mints the value as a DHIS2 UID - eleven characters, the first a letter - so the response names the enrollment its own stage responses will be captured against before any of them is sent."
 * extension[{{ names.enrolled_at_extension }}] ^short = "When the enrollment begins."
 * extension[{{ names.incident_at_extension }}] ^short = "When the incident the enrollment follows occurred. Carried by a response to a form whose program collects one, and absent otherwise."
+* extension[{{ names.subject_exists_extension }}] ^short = "Whether the person this response is subject to is already held by the DHIS2 instance. True means the subject identifier names an existing tracked entity and the response enrols that person, so it is imported as an enrollment on its own. Absent or false means the client minted the subject identifier and the response creates the person along with the enrollment. A response stating true answers only the questions the program asks: an answer belonging to the person's own record cannot ride an enrollment, and rewriting the record of a person this contract does not own is not something an enrollment does."
 {% elif profile.entity_context_required %}
 * extension contains
     {{ names.organisation_unit_extension }} named {{ names.organisation_unit_extension }} 1..1 and
@@ -53,7 +55,7 @@ Description: {{ profile.description_literal }}
 * subject.identifier.system 1..1
 * subject.identifier.system = "{{ tracked_entity_system }}" (exactly)
 * subject.identifier.value 1..1
-* subject ^short = "The DHIS2 tracked entity this registration creates, named by identifier rather than by reference: this guide publishes no {{ tracker_subject_types.reference_targets }} resource, so the identifier is the {{ tracker_subject_types.subject_noun }}. The client mints the value as a DHIS2 UID, the same way it mints the enrollment."
+* subject ^short = "The DHIS2 tracked entity this registration enrols, named by identifier rather than by reference: this guide publishes no {{ tracker_subject_types.reference_targets }} resource, so the identifier is the {{ tracker_subject_types.subject_noun }}. The client mints the value as a DHIS2 UID, the same way it mints the enrollment - unless the response carries {{ names.subject_exists_extension }} as true, and the value is then the UID of a person the instance already holds."
 {% elif profile.entity_context_required %}
 * subject 1..1
 * subject only Reference({{ tracker_subject_types.reference_targets }})

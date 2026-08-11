@@ -1,4 +1,4 @@
-"""The four payload translators: one per DHIS2 form kind, each writing the import shape DHIS2 reads.
+"""The five payload translators: one per DHIS2 form kind, each writing the import shape DHIS2 reads.
 
     aggregate      -> a `/api/dataValueSets` envelope: data set, ISO period, organisation unit, the
                       attribute option combo the whole report is filed under where the form declares
@@ -12,7 +12,9 @@
                       answered entity-level question, and the single enrollment the response
                       creates - minted UID, program, organisation unit, enrolment date, incident
                       date where one was stated, `ACTIVE` status, and one attribute per answered
-                      program-only question.
+                      program-only question. A response stating `D2SubjectExists` names a person
+                      the instance already holds, and produces that enrollment alone - naming the
+                      existing tracked entity, with no tracked entity beside it to rewrite.
     tracker-event  -> the same event as `event`, plus the program stage it belongs to, the tracked
                       entity it was captured for, and the enrollment it sits on.
 
@@ -185,9 +187,17 @@ class EventTranslation(_Outcome):
 
 
 class RegistrationTranslation(_Outcome):
-    """One registration response translated: the tracked entity it creates, or the reasons it produced none."""
+    """One registration response translated: what it creates in DHIS2, or the reasons it produced none.
+
+    `tracked_entity` and `enrollment` are alternatives, and `target_kind` says which one the
+    response produced: a registration creating the person it enrols carries the tracked entity with
+    the enrollment nested inside it, and one whose subject the instance already holds carries the
+    enrollment alone.
+    """
 
     tracked_entity: TrackerTrackedEntity | None = None
+    enrollment: TrackerEnrollment | None = None
+    target_kind: ConversionTargetKind = ConversionTargetKind.TRACKER
 
 
 def translate_aggregate_response(
@@ -348,6 +358,15 @@ def translate_tracker_registration_response(
     attribute only the program collects, and its value is stated on the enrollment. A question
     stating no level at all - a guide compiled before the extension was published - is written on
     the tracked entity, which is where every registration answer went before the split.
+
+    A response carrying `D2SubjectExists` as true states that its subject identifier names a person
+    the instance already holds, and what it creates is then the enrollment alone - a top-level
+    `enrollments` array naming that existing tracked entity, posted under the same plain
+    `importStrategy=CREATE` every other payload goes under. No `trackedEntities` wrapper goes round
+    it: an enrollment that rides inside one has to be posted `CREATE_AND_UPDATE`, which silently
+    rewrites the person's owning organisation unit (BUGS.md 73), and the person is not this
+    response's to move. The program's own attributes ride the enrollment, because DHIS2 answers
+    `E1018` to a mandatory program attribute that arrives on nothing.
     """
     notes: list[ConversionNote] = []
     refusals: list[ConversionRefusal] = []
@@ -358,31 +377,38 @@ def translate_tracker_registration_response(
     enrollment = _enrollment(response, context, refusals)
     enrolled_at = _enrollment_date(response, context.naming.enrolled_at_url, context, notes, refusals, required=True)
     incident_at = _enrollment_date(response, context.naming.incident_at_url, context, notes, refusals, required=False)
+    subject_exists = _subject_exists(response, context)
     translated = translate_answers(response, form, context)
     notes.extend(translated.notes)
     refusals.extend(translated.refusals)
+    if subject_exists:
+        refusals.extend(_existing_subject_refusals(translated, form))
+    target_kind = ConversionTargetKind.TRACKER_ENROLLMENT if subject_exists else ConversionTargetKind.TRACKER
     if refusals or program is None or tracked_entity_type is None or organisation_unit is None:
-        return RegistrationTranslation(notes=tuple(notes), refusals=tuple(refusals))
+        return RegistrationTranslation(notes=tuple(notes), refusals=tuple(refusals), target_kind=target_kind)
     if tracked_entity is None or enrollment is None or enrolled_at is None:
-        return RegistrationTranslation(notes=tuple(notes), refusals=tuple(refusals))
+        return RegistrationTranslation(notes=tuple(notes), refusals=tuple(refusals), target_kind=target_kind)
+    created = TrackerEnrollment(
+        enrollment=enrollment,
+        trackedEntity=tracked_entity if subject_exists else None,
+        program=program,
+        orgUnit=organisation_unit,
+        enrolledAt=enrolled_at,
+        occurredAt=incident_at,
+        status=REGISTERED_ENROLLMENT_STATUS,
+        attributes=_registration_attributes(translated, entity_level=False) or None,
+    )
+    if subject_exists:
+        return RegistrationTranslation(notes=tuple(notes), enrollment=created, target_kind=target_kind)
     return RegistrationTranslation(
         notes=tuple(notes),
+        target_kind=target_kind,
         tracked_entity=TrackerTrackedEntity(
             trackedEntity=tracked_entity,
             trackedEntityType=tracked_entity_type,
             orgUnit=organisation_unit,
             attributes=_registration_attributes(translated, entity_level=True),
-            enrollments=[
-                TrackerEnrollment(
-                    enrollment=enrollment,
-                    program=program,
-                    orgUnit=organisation_unit,
-                    enrolledAt=enrolled_at,
-                    occurredAt=incident_at,
-                    status=REGISTERED_ENROLLMENT_STATUS,
-                    attributes=_registration_attributes(translated, entity_level=False) or None,
-                )
-            ],
+            enrollments=[created],
         ),
     )
 
@@ -407,9 +433,12 @@ def translate_tracked_entity_response(
     notes.extend(translated.notes)
     refusals.extend(translated.refusals)
     if refusals or tracked_entity_type is None or organisation_unit is None or tracked_entity is None:
-        return RegistrationTranslation(notes=tuple(notes), refusals=tuple(refusals))
+        return RegistrationTranslation(
+            notes=tuple(notes), refusals=tuple(refusals), target_kind=ConversionTargetKind.TRACKED_ENTITY
+        )
     return RegistrationTranslation(
         notes=tuple(notes),
+        target_kind=ConversionTargetKind.TRACKED_ENTITY,
         tracked_entity=TrackerTrackedEntity(
             trackedEntity=tracked_entity,
             trackedEntityType=tracked_entity_type,
@@ -489,6 +518,44 @@ def _item(
     refusals.extend(wire.refusals)
     if wire.value is not None:
         answers.append(TranslatedAnswer(question=question, value=wire.value))
+
+
+def _subject_exists(response: QuestionnaireResponse, context: ConversionContext) -> bool:
+    """Whether the response states that the person it is subject to is already held by the instance.
+
+    Absent is false, which is what makes an unmarked registration the create it has always been:
+    the client minted the subject identifier and DHIS2 has never seen it. Only an explicit `true`
+    switches the payload to the enrollment-only shape.
+    """
+    return any(extension.valueBoolean is True for extension in _extensions(response, context.naming.subject_exists_url))
+
+
+def _existing_subject_refusals(translated: TranslatedAnswers, form: FormSpec) -> tuple[ConversionRefusal, ...]:
+    """Refuse every answer belonging to the person's own record when the instance already holds that person.
+
+    An enrollment-only import carries the program's attributes and nothing else, so an entity-level
+    answer has nowhere on the payload to go. The alternative - wrapping the enrollment in a
+    `trackedEntities` entry so the attribute has a home - rewrites the owning organisation unit of a
+    person this response did not create (BUGS.md 73). Dropping the answer silently is the third
+    option and the worst: a captured value that reaches no instance is data loss nobody is told
+    about. So the whole response is refused, each answer named, and the fix stated.
+
+    OWNER REVIEW: refusal is the strict reading of all-or-nothing. The looser reading - import the
+    enrollment and report the dropped answers as notes - is a policy decision, not a technical one.
+    """
+    return tuple(
+        ConversionRefusal(
+            category=ConversionRefusalCategory.ENTITY_LEVEL_ANSWER_ON_EXISTING_SUBJECT,
+            link_id=answer.question.link_id,
+            element="QuestionnaireResponse.item.answer",
+            reason=f"`{answer.question.link_id}` is a question of the person's own record, and this response "
+            f"enrols a person the instance already holds - so it imports as an enrollment alone, which "
+            f"carries no answer of that kind. Answer it on that person's own record, or capture a new "
+            f"person through `{form.canonical}` without stating that the subject already exists",
+        )
+        for answer in translated.answers
+        if _is_entity_level(answer)
+    )
 
 
 def _registration_attributes(translated: TranslatedAnswers, *, entity_level: bool) -> list[TrackerAttribute]:

@@ -8,7 +8,8 @@ answers with.
 
 The DHIS2 payloads themselves are the generated OpenAPI models: `DataValueSet` / `DataValue` for
 the aggregate envelope, `TrackerEvent` / `TrackerDataValue` for both event kinds, and
-`TrackerTrackedEntity` / `TrackerEnrollment` / `TrackerAttribute` for the registration one.
+`TrackerTrackedEntity` / `TrackerEnrollment` / `TrackerAttribute` for the registration one, and
+`TrackerEnrollment` on its own for the registration that enrols a person the instance already holds.
 Nothing is hand-rolled - those schemas carry every field the import endpoints read, and every wire
 value they carry is a string, so a lexical decimal and a DHIS2 option code survive untouched.
 """
@@ -18,7 +19,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from dhis2w_client.generated.v42.oas import DataValueSet, TrackerEvent, TrackerTrackedEntity
+from dhis2w_client.generated.v42.oas import DataValueSet, TrackerEnrollment, TrackerEvent, TrackerTrackedEntity
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import IDENTIFIER_SYSTEM_SUBJECTS, FoundationNaming
@@ -82,27 +83,39 @@ class ConversionTargetKind(StrEnum):
     #: The `/api/tracker` event an event program's response reports as.
     EVENT = "event"
 
+    #: The `/api/tracker` tracked entity a person-only response creates, with no enrollment on it.
+    TRACKED_ENTITY = "tracked-entity"
+
     #: The `/api/tracker` tracked entity and enrollment a tracker registration response creates.
     TRACKER = "tracker"
+
+    #: The `/api/tracker` enrollment alone a registration naming a person the instance already holds creates.
+    TRACKER_ENROLLMENT = "tracker-enrollment"
 
     #: The `/api/tracker` event a tracker program stage's response reports as, on its enrollment.
     TRACKER_EVENT = "tracker-event"
 
 
-#: The payload each DHIS2 form kind translates into - the one place the two vocabularies meet.
+#: The payload each DHIS2 form kind translates into - the one place the two vocabularies meet. The
+#: registration kind is the one entry a response can move off: a registration whose subject the
+#: instance already holds imports as `TRACKER_ENROLLMENT`, and the translator names that per response.
 TARGET_KINDS_BY_FORM_KIND: dict[FormKind, ConversionTargetKind] = {
     "aggregate": ConversionTargetKind.DATA_VALUE_SET,
     "event": ConversionTargetKind.EVENT,
     "tracker": ConversionTargetKind.TRACKER,
     "tracker-event": ConversionTargetKind.TRACKER_EVENT,
-    "tracked-entity": ConversionTargetKind.TRACKER,
+    "tracked-entity": ConversionTargetKind.TRACKED_ENTITY,
 }
 
-#: The order a drain posts its payloads in. A registration creates the enrollment a stage event of
-#: the same drain answers against, and DHIS2 refuses an event whose enrollment it cannot find with
-#: `E1313` - so registrations go first and every other payload follows in spool order.
+#: The order a drain posts its payloads in, which is the order one drain's own creations depend on
+#: each other. A person-only response creates the person a registration of the same drain enrols;
+#: a registration creates the enrollment a stage event of the same drain answers against, and DHIS2
+#: refuses an event whose enrollment it cannot find with `E1313`. So people go first, then the two
+#: kinds that create an enrollment, and every payload that answers into one follows in spool order.
 FORWARD_TARGET_ORDER: tuple[ConversionTargetKind, ...] = (
+    ConversionTargetKind.TRACKED_ENTITY,
     ConversionTargetKind.TRACKER,
+    ConversionTargetKind.TRACKER_ENROLLMENT,
     ConversionTargetKind.DATA_VALUE_SET,
     ConversionTargetKind.EVENT,
     ConversionTargetKind.TRACKER_EVENT,
@@ -257,6 +270,9 @@ class ConversionRefusalCategory(StrEnum):
     #: A registration response states no enrollment date, which DHIS2 requires of every enrollment.
     MISSING_ENROLLMENT_DATE = "missing-enrollment-date"
 
+    #: A registration naming a person the instance already holds answers a question of that person's own record.
+    ENTITY_LEVEL_ANSWER_ON_EXISTING_SUBJECT = "entity-level-answer-on-existing-subject"
+
     #: A registration response's enrollment or incident date does not read as an instant.
     MALFORMED_ENROLLMENT_DATE = "malformed-enrollment-date"
 
@@ -315,6 +331,9 @@ class ConversionNaming(BaseModel):
     entity_level_url: str
     """Canonical of the item extension a registration question states which DHIS2 level it is imported at on."""
 
+    subject_exists_url: str
+    """Canonical of the extension a registration response states that its subject is already held on."""
+
     attribute_option_combos_url: str
     """Canonical of the Questionnaire extension a form declares its attribute-option-combo ValueSet on."""
 
@@ -355,6 +374,7 @@ class ConversionNaming(BaseModel):
             enrolled_at_url=_definition_url(canonical, names.enrolled_at_extension_id),
             incident_at_url=_definition_url(canonical, names.incident_at_extension_id),
             entity_level_url=_definition_url(canonical, names.entity_level_extension_id),
+            subject_exists_url=_definition_url(canonical, names.subject_exists_extension_id),
             attribute_option_combos_url=_definition_url(canonical, names.attribute_option_combos_extension_id),
             attribute_option_combo_url=_definition_url(canonical, names.attribute_option_combo_extension_id),
             organisation_unit_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["OrgUnit"]),
@@ -555,10 +575,10 @@ class ConversionContext(BaseModel):
 class ConversionResult(BaseModel):
     """What one QuestionnaireResponse translated into: a payload, or the reasons there is none.
 
-    Exactly one of `data_value_set`, `event`, and `tracked_entity` is set when `refusals` is empty,
-    and `target_kind` names which. A refused response carries none of them: a response the
-    translator cannot read whole produces a named refusal rather than a partial payload that would
-    import the half of itself that happened to parse.
+    Exactly one of `data_value_set`, `event`, `tracked_entity`, and `enrollment` is set when
+    `refusals` is empty, and `target_kind` names which. A refused response carries none of them: a
+    response the translator cannot read whole produces a named refusal rather than a partial payload
+    that would import the half of itself that happened to parse.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -570,6 +590,14 @@ class ConversionResult(BaseModel):
     event: TrackerEvent | None = None
     tracked_entity: TrackerTrackedEntity | None = None
     """The person and the enrollment a registration response creates, carried whole for one `/api/tracker` post."""
+
+    enrollment: TrackerEnrollment | None = None
+    """The enrollment alone a registration whose subject the instance already holds creates.
+
+    Set instead of `tracked_entity`, and posted as a top-level `enrollments` array: an enrollment
+    that rides inside a `trackedEntities` wrapper rewrites the person's owning organisation unit
+    (BUGS.md 73), and a person this response did not create is not this response's to move.
+    """
 
     notes: tuple[ConversionNote, ...] = ()
     refusals: tuple[ConversionRefusal, ...] = ()
@@ -615,3 +643,8 @@ class ConversionReport(BaseModel):
     def tracked_entities(self) -> tuple[TrackerTrackedEntity, ...]:
         """Every registration the batch produced, ready to post to `/api/tracker` before its events."""
         return tuple(result.tracked_entity for result in self.results if result.tracked_entity is not None)
+
+    @property
+    def enrollments(self) -> tuple[TrackerEnrollment, ...]:
+        """Every enrollment-only payload the batch produced, for the people the instance already holds."""
+        return tuple(result.enrollment for result in self.results if result.enrollment is not None)

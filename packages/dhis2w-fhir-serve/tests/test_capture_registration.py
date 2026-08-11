@@ -44,6 +44,7 @@ ORGANISATION_UNIT_URL = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-organisatio
 TRACKER_ENROLLMENT_URL = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-tracker-enrollment"
 ENROLLED_AT_URL = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-enrolled-at"
 INCIDENT_AT_URL = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-incident-at"
+SUBJECT_EXISTS_URL = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-subject-exists"
 
 TRACKED_ENTITY_SYSTEM = "http://dhis2.org/fhir/id/tracked-entity"
 TRACKER_ENROLLMENT_SYSTEM = "http://dhis2.org/fhir/id/tracker-enrollment"
@@ -406,6 +407,52 @@ def test_a_registration_answering_a_link_id_the_form_does_not_ask_is_refused(
     rejection = _refuse(body, capture_indexes, capture_naming, capture_store)
 
     assert "is not a question of" in _diagnostics(_errors(rejection))
+
+
+@pytest.mark.parametrize("stated", [True, False])
+def test_a_registration_naming_a_person_the_instance_holds_is_accepted(
+    capture_indexes: CaptureIndexCache,
+    capture_naming: CaptureNaming,
+    capture_store: ResourceStore,
+    stated: bool,
+) -> None:
+    """The marker is admitted and nothing new is refused: whether the person exists is the instance's answer."""
+    body = _registration()
+    body["extension"].append({"url": SUBJECT_EXISTS_URL, "valueBoolean": stated})
+
+    captured = _accept(body, capture_indexes, capture_naming, capture_store)
+
+    assert captured.warnings == ()
+
+
+def test_a_registration_carrying_the_marker_twice_is_refused(
+    capture_indexes: CaptureIndexCache,
+    capture_naming: CaptureNaming,
+    capture_store: ResourceStore,
+) -> None:
+    """The profile admits one, and two statements of one fact leave the server choosing between them."""
+    body = _registration()
+    body["extension"].extend(
+        [{"url": SUBJECT_EXISTS_URL, "valueBoolean": True}, {"url": SUBJECT_EXISTS_URL, "valueBoolean": False}]
+    )
+
+    rejection = _refuse(body, capture_indexes, capture_naming, capture_store)
+
+    assert "at most one" in _diagnostics(_errors(rejection))
+
+
+def test_a_marker_carrying_no_boolean_is_refused(
+    capture_indexes: CaptureIndexCache,
+    capture_naming: CaptureNaming,
+    capture_store: ResourceStore,
+) -> None:
+    """The extension's whole content is the boolean, so one without it states nothing at all."""
+    body = _registration()
+    body["extension"].append({"url": SUBJECT_EXISTS_URL, "valueString": "yes"})
+
+    rejection = _refuse(body, capture_indexes, capture_naming, capture_store)
+
+    assert "carries no `valueBoolean`" in _diagnostics(_errors(rejection))
 
 
 def test_a_response_declaring_the_wrong_kind_for_a_registration_form_is_refused(

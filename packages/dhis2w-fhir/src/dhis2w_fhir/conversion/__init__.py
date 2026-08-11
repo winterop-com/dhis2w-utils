@@ -59,6 +59,7 @@ from dhis2w_fhir.conversion.payloads import (
     translate_aggregate_response,
     translate_answers,
     translate_event_response,
+    translate_tracked_entity_response,
     translate_tracker_event_response,
     translate_tracker_registration_response,
 )
@@ -167,6 +168,7 @@ __all__ = [
     "translate_event_response",
     "translate_response",
     "translate_responses",
+    "translate_tracked_entity_response",
     "translate_tracker_event_response",
     "translate_tracker_registration_response",
     "wall_clock_notes",

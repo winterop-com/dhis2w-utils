@@ -451,6 +451,22 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "entity", "level")
 
     @property
+    def subject_exists_extension(self) -> str:
+        """FSH name of the existing-subject Extension (e.g. `D2SubjectExists`).
+
+        Named for the fact it carries rather than for the act that produced it: the boolean says
+        the person the response is subject to is already held by the instance, which is what the
+        translator branches on. `D2LinkedSubject` was the alternative and names a capture-client
+        gesture - linking - that a reader of the contract has no way to resolve. OWNER REVIEW.
+        """
+        return f"{self.definition_prefix}SubjectExists"
+
+    @property
+    def subject_exists_extension_id(self) -> str:
+        """FHIR id of the existing-subject Extension (e.g. `d2-subject-exists`)."""
+        return join_id_tokens(self.definition_prefix, "subject", "exists")
+
+    @property
     def aggregate_response_profile(self) -> str:
         """FSH name of the aggregate QuestionnaireResponse profile (e.g. `D2AggregateResponse`)."""
         return f"{self.definition_prefix}AggregateResponse"

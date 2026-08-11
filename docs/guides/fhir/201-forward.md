@@ -42,6 +42,8 @@ validate-only mode.
 | --- | --- | --- | --- |
 | Aggregate response | `POST /api/dataValueSets` | `dryRun=true` | *(no extra parameter)* |
 | Tracker registration | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
+| Enrollment of an existing person | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
+| Person-only registration | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
 | Event / tracker event | `POST /api/tracker` | `importMode=VALIDATE` | *(no extra parameter)* |
 
 Both endpoints run every rule they would run for a committed import and
@@ -65,13 +67,17 @@ Six steps, each narrated on stderr:
    tells them apart.
 4. **Translate** - each response through `dhis2w_fhir.conversion`,
    all-or-nothing.
-5. **Post** - one payload per response, **registrations first**, through the
-   one client the run opened.
+5. **Post** - one payload per response, **people first and then the payloads
+   that create an enrollment**, through the one client the run opened.
 6. **File** - each receipt into what it became (import runs only).
 
-Registrations post before events because the enrollment an event names is
-what the registration creates - DHIS2 refuses an event whose enrollment it
-cannot find with `E1313`. There is no dependency graph beyond that ordering:
+The posting order is what one drain's own creations depend on: a person-only
+capture creates the person a registration of the same drain enrols, and a
+registration creates the enrollment a stage event names - DHIS2 refuses an
+event whose enrollment it cannot find with `E1313`. The full order is
+person-only registrations, then registrations, then enrollments of people the
+instance already holds, then aggregate reports, then both event kinds. There
+is no dependency graph beyond that ordering:
 a registration DHIS2 rejects leaves its stage events to fail `E1313` exactly
 as they would have, the receipts stay in the queue, and the next run is the
 retry. One POST per response is deliberate - DHIS2 answers a bundle with one
@@ -168,6 +174,24 @@ the client minted them, which is the whole point of the contract:
 | `enrollments[].enrolledAt` | the `D2EnrolledAt` extension, read back to the zone-less wall clock DHIS2 stores | refused (`missing-enrollment-date` / `malformed-enrollment-date`) |
 | `enrollments[].occurredAt` | the `D2IncidentAt` extension, the same way | left unset |
 | `enrollments[].status` | fixed `ACTIVE` - a registration form is answered when a person is enrolled | n/a |
+
+A registration whose response states `D2SubjectExists` becomes a **top-level
+`enrollments` array** instead - the same enrollment fields as above, plus a
+`trackedEntity` naming the person the instance already holds, and no
+`trackedEntities` wrapper at all. The wrapper would force
+`importStrategy=CREATE_AND_UPDATE`, which silently rewrites that person's
+owning organisation unit (`BUGS.md` 73), so the enrollment goes on its own
+under plain `CREATE`. The program's own attributes ride the enrollment,
+because DHIS2 answers `E1018` to a mandatory program attribute that arrives on
+nothing - and an answer belonging to the person's own record (`D2EntityLevel`
+`true` or absent) refuses the response with
+`entity-level-answer-on-existing-subject`, naming each question, because an
+enrollment-only import has nowhere to put it and dropping it would be a
+captured value that reaches no instance.
+
+The report and the rejection sidecar both name the payload kind, so
+`tracker-enrollment` in the `Target` column is how an operator tells an
+enrollment of an existing person from a registration that created one.
 
 The payload models are the generated OpenAPI ones - `TrackerTrackedEntity`,
 `TrackerEnrollment`, `TrackerAttribute`, `TrackerEvent` - and a response

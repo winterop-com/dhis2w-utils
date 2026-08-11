@@ -34,6 +34,8 @@ from dhis2w_fhir import (
     option_set_identities,
 )
 from dhis2w_fhir.conversion import (
+    FORWARD_TARGET_ORDER,
+    TARGET_KINDS_BY_FORM_KIND,
     CodedAnswerMode,
     ConversionContext,
     ConversionNaming,
@@ -1399,7 +1401,7 @@ def test_a_person_only_response_creates_a_tracked_entity_and_no_enrollment() -> 
     result = translate_response(document, _context([_PERSON_TYPE]))
 
     assert result.refusals == ()
-    assert result.target_kind == ConversionTargetKind.TRACKER
+    assert result.target_kind == ConversionTargetKind.TRACKED_ENTITY
     assert result.tracked_entity is not None
     assert result.tracked_entity.trackedEntity == _TRACKED_ENTITY
     assert result.tracked_entity.trackedEntityType == "nEenWmSyUEp"
@@ -1408,6 +1410,141 @@ def test_a_person_only_response_creates_a_tracked_entity_and_no_enrollment() -> 
     assert _attributes(result) == {
         uid: value for uid, value in _REGISTRATION_VALUES.items() if uid in _ENTITY_LEVEL_ATTRIBUTES
     }
+
+
+#: The UID of a person an instance already holds, which a linked registration enrols rather than creates.
+_EXISTING_PERSON = "Te9zzzzzzzz"
+
+
+def _with_subject_exists(
+    document: QuestionnaireResponse, context: ConversionContext, *, stated: bool = True
+) -> QuestionnaireResponse:
+    """One registration response marked as being about a person the instance already holds."""
+    marker = Extension(url=context.naming.subject_exists_url, valueBoolean=stated)
+    return document.model_copy(update={"extension": [*(document.extension or []), marker]})
+
+
+#: The one attribute of that program the program itself asks, whose answer belongs on the enrollment.
+_PROGRAM_LEVEL_ATTRIBUTE = "cejWyOfXge6"
+
+
+def _linked_registration_response(**overrides: object) -> ExampleResponseIn:
+    """One registration of a person the instance already holds, answering only what the program asks."""
+    return _registration_response(
+        tracked_entity_uid=_EXISTING_PERSON,
+        answers=[
+            ExampleAnswerIn(
+                data_element_uid=_PROGRAM_LEVEL_ATTRIBUTE, value=_REGISTRATION_VALUES[_PROGRAM_LEVEL_ATTRIBUTE]
+            )
+        ],
+        **overrides,
+    )
+
+
+def _linked_registration() -> tuple[ConversionResult, ConversionContext]:
+    """One registration naming a person the instance already holds, translated against a levelled form."""
+    context = _context([_LEVELLED_PROGRAMME])
+    document = _document(_linked_registration_response(), [_LEVELLED_PROGRAMME])
+    return translate_response(_with_subject_exists(document, context), context), context
+
+
+def test_a_registration_naming_a_person_the_instance_holds_imports_as_an_enrollment_alone() -> None:
+    """The whole payload is the enrollment: it names the existing person and carries no person of its own."""
+    result, _ = _linked_registration()
+
+    assert result.refusals == ()
+    assert result.target_kind == ConversionTargetKind.TRACKER_ENROLLMENT
+    assert result.tracked_entity is None
+    assert result.enrollment is not None
+    assert result.enrollment.enrollment == _ENROLLMENT
+    assert result.enrollment.trackedEntity == _EXISTING_PERSON
+    assert result.enrollment.program == _LEVELLED_PROGRAMME.uid
+    assert result.enrollment.orgUnit == _CLINIC_ORG_UNIT
+    assert result.enrollment.status is not None
+    assert result.enrollment.status.value == "ACTIVE"
+    assert result.enrollment.enrolledAt == datetime.datetime.fromisoformat(_ENROLLED_AT)
+    assert result.enrollment.occurredAt == datetime.datetime.fromisoformat(_INCIDENT_AT)
+
+
+def test_the_enrollment_of_an_existing_person_carries_the_program_s_own_attributes() -> None:
+    """The program-level answers ride the enrollment, because DHIS2 answers `E1018` when they ride nothing."""
+    result, _ = _linked_registration()
+
+    assert result.enrollment is not None
+    assert [(attribute.attribute, attribute.value) for attribute in result.enrollment.attributes or []] == [
+        (_PROGRAM_LEVEL_ATTRIBUTE, _REGISTRATION_VALUES[_PROGRAM_LEVEL_ATTRIBUTE])
+    ]
+
+
+def test_the_enrollment_only_payload_carries_no_tracked_entity_of_its_own() -> None:
+    """The wire shape is the whole point: a `trackedEntities` wrapper would rewrite the person's owner."""
+    result, _ = _linked_registration()
+
+    assert result.enrollment is not None
+    posted = result.enrollment.model_dump(by_alias=True, exclude_none=True, mode="json")
+
+    assert set(posted) == {
+        "enrollment",
+        "trackedEntity",
+        "program",
+        "orgUnit",
+        "enrolledAt",
+        "occurredAt",
+        "status",
+        "attributes",
+    }
+    assert posted["trackedEntity"] == _EXISTING_PERSON
+
+
+def test_the_enrollment_uid_of_a_linked_registration_is_the_one_the_receipt_minted() -> None:
+    """One receipt names one enrollment, so translating it twice names the same enrollment twice."""
+    first, _ = _linked_registration()
+    second, _ = _linked_registration()
+
+    assert first.enrollment is not None
+    assert second.enrollment is not None
+    assert first.enrollment.enrollment == second.enrollment.enrollment == _ENROLLMENT
+
+
+def test_an_answer_of_the_person_s_own_record_is_refused_when_the_instance_already_holds_them() -> None:
+    """An enrollment-only import carries no entity attribute, and dropping the answer silently is data loss."""
+    context = _context([_LEVELLED_PROGRAMME])
+    document = _document(_registration_response(tracked_entity_uid=_EXISTING_PERSON), [_LEVELLED_PROGRAMME])
+
+    refused = translate_response(_with_subject_exists(document, context), context)
+
+    assert refused.enrollment is None
+    assert refused.tracked_entity is None
+    assert {refusal.category for refusal in refused.refusals} == {
+        ConversionRefusalCategory.ENTITY_LEVEL_ANSWER_ON_EXISTING_SUBJECT
+    }
+    assert {refusal.link_id for refusal in refused.refusals} == set(_ENTITY_LEVEL_ATTRIBUTES)
+    assert all("Answer it on that person's own record" in refusal.reason for refusal in refused.refusals)
+
+
+def test_a_registration_stating_the_marker_false_creates_the_person_it_enrols() -> None:
+    """Absent and false are the same statement, and both are the create a registration has always been."""
+    context = _context([_LEVELLED_PROGRAMME])
+    document = _document(_registration_response(), [_LEVELLED_PROGRAMME])
+
+    unmarked = translate_response(document, context)
+    marked_false = translate_response(_with_subject_exists(document, context, stated=False), context)
+
+    assert unmarked.target_kind == marked_false.target_kind == ConversionTargetKind.TRACKER
+    assert marked_false.enrollment is None
+    assert marked_false.tracked_entity == unmarked.tracked_entity
+
+
+def test_a_drain_posts_people_then_enrollments_then_what_answers_into_them() -> None:
+    """The posting order is what makes one drain internally consistent, across all six payload kinds."""
+    order = list(FORWARD_TARGET_ORDER)
+
+    assert order.index(ConversionTargetKind.TRACKED_ENTITY) < order.index(ConversionTargetKind.TRACKER)
+    assert order.index(ConversionTargetKind.TRACKER) < order.index(ConversionTargetKind.TRACKER_ENROLLMENT)
+    assert order.index(ConversionTargetKind.TRACKER_ENROLLMENT) < order.index(ConversionTargetKind.EVENT)
+    assert order.index(ConversionTargetKind.TRACKER_ENROLLMENT) < order.index(ConversionTargetKind.TRACKER_EVENT)
+    assert set(order) == set(ConversionTargetKind)
+    assert set(TARGET_KINDS_BY_FORM_KIND.values()) <= set(order)
 
 
 def test_a_person_only_form_can_never_lose_the_type_it_registers() -> None:

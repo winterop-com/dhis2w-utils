@@ -19,8 +19,10 @@ a form's responses may be keyed under, `d2-attribute-option-combo.fsh` the Exten
 the one an aggregate response was captured under, `d2-tracker-enrollment.fsh` the Extension
 carrying the DHIS2 tracker enrollment a response belongs to, `d2-enrollment-dates.fsh` the
 two Extensions dating that enrollment - when it began, and when the incident it follows occurred -
-and `d2-entity-level.fsh` the Extension stating which DHIS2 level a registration question's answer
-is imported at: the tracked entity itself, or the enrollment the response creates.
+`d2-entity-level.fsh` the Extension stating which DHIS2 level a registration question's answer
+is imported at - the tracked entity itself, or the enrollment the response creates - and
+`d2-subject-exists.fsh` the Extension stating that the person a registration is subject to is
+already held by the instance, so the response enrols them instead of creating them.
 
 Three more artifacts turn that vocabulary into a capture contract a third party can build
 against without reading DHIS2: `d2-responses.fsh` profiles the QuestionnaireResponse a
@@ -293,6 +295,11 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
         experimental=experimental,
     )
+    subject_exists = _ENVIRONMENT.get_template("d2-subject-exists.fsh.jinja").render(
+        names=names,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     responses = _ENVIRONMENT.get_template("d2-responses.fsh.jinja").render(
         names=names,
         profiles=build_response_profile_declarations(config),
@@ -412,6 +419,12 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             content=entity_level,
         ),
         FshArtifact(
+            relative_path="foundation/d2-subject-exists.fsh",
+            kind="extension",
+            fsh_name=names.subject_exists_extension,
+            content=subject_exists,
+        ),
+        FshArtifact(
             relative_path="foundation/d2-responses.fsh",
             kind="profile",
             fsh_name=names.aggregate_response_profile,
@@ -470,7 +483,9 @@ def build_response_profile_declarations(config: GenerateConfig) -> list[Response
                 "captured when a person is enrolled, answered on the linkIds of the program's Questionnaire. "
                 "The response mints both DHIS2 identities it creates - the tracked entity it is subject to and "
                 "the enrollment its extension names - so a client can capture the enrollment's first stage "
-                "events in the same breath, before either identity exists on the instance."
+                "events in the same breath, before either identity exists on the instance. A response "
+                f"stating {names.subject_exists_extension} enrols a person the instance already holds instead, "
+                "and then mints the enrollment alone."
             ),
             authored_required=True,
             registration_context_required=True,

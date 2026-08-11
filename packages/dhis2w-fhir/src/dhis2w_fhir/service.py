@@ -3574,10 +3574,14 @@ _DATA_VALUE_SETS_PATH = "/api/dataValueSets"
 #: The `/api/tracker` endpoint both event kinds and every registration are imported through.
 _TRACKER_PATH = "/api/tracker"
 
-#: The `/api/tracker` bundle key each payload kind rides under: an event, or the tracked entity a
-#: registration creates with its enrollment nested inside it.
+#: The `/api/tracker` bundle key each payload kind rides under: an event, the tracked entity a
+#: registration creates with its enrollment nested inside it, or - for a registration enrolling a
+#: person the instance already holds - that enrollment on its own at the top level. The third key
+#: is what keeps the person untouched: an enrollment nested in a `trackedEntities` entry needs
+#: `CREATE_AND_UPDATE`, and that rewrites the person's owning organisation unit (BUGS.md 73).
 _TRACKER_EVENTS_KEY = "events"
 _TRACKER_TRACKED_ENTITIES_KEY = "trackedEntities"
+_TRACKER_ENROLLMENTS_KEY = "enrollments"
 
 #: What a dry run adds to an aggregate post. v42 spells validate-only on this endpoint as `dryRun`,
 #: and the import runs every rule it would run for real while committing nothing.
@@ -3709,6 +3713,18 @@ class ForwardImportOutcome(BaseModel):
         return f"{self.created} created, {self.updated} updated, {self.ignored} ignored"
 
 
+class ForwardRejectionRecord(ForwardImportOutcome):
+    """The sidecar beside a rejected receipt: DHIS2's own answer, plus which payload was posted.
+
+    The target kind is what tells an operator reading `rejected/<id>.report.json` cold which of the
+    tracker shapes DHIS2 turned down - a person and their enrollment, or the enrollment alone for a
+    person the instance already held - without opening the receipt beside it and reading its
+    extensions back.
+    """
+
+    target_kind: ConversionTargetKind | None = None
+
+
 class ForwardRejectionReason(BaseModel):
     """One cause a run's rejections roll up into, and how many responses met it.
 
@@ -3760,10 +3776,11 @@ class ForwardReport(BaseModel):
     """The outcome of draining one project's capture spool into DHIS2, in the order it was drained.
 
     `outcomes` is in spool order, which is not the posting order: payloads go to DHIS2 in
-    `FORWARD_TARGET_ORDER`, registrations first, so an enrollment exists before the stage events of
-    the same drain answer against it. The two orders are deliberately separate - a report reads
-    back as the spool it drained, and the posting order is a fact about the run rather than about
-    any one receipt.
+    `FORWARD_TARGET_ORDER`, people first and then the payloads that create an enrollment, so a
+    person exists before a registration of the same drain enrols them and an enrollment exists
+    before the stage events of the same drain answer against it. The two orders are deliberately
+    separate - a report reads back as the spool it drained, and the posting order is a fact about
+    the run rather than about any one receipt.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -4023,11 +4040,12 @@ async def _post_translations(
     report for the bundle, and a spool whose receipts move individually needs one answer each.
 
     The order is `FORWARD_TARGET_ORDER` and then the spool's, which is what makes one drain
-    internally consistent: a registration creates the enrollment a stage event captured seconds
-    later answers against, and DHIS2 refuses an event naming an enrollment it cannot find with
-    `E1313`. Posting every registration first is the whole of the coordination - there is no
-    dependency graph, and a registration DHIS2 rejects still leaves its stage events to fail
-    `E1313`, which the next drain retries once the cause is fixed.
+    internally consistent: a person-only capture creates the person a registration captured seconds
+    later enrols, a registration creates the enrollment a stage event captured seconds later answers
+    against, and DHIS2 refuses an event naming an enrollment it cannot find with `E1313`. Posting
+    by kind is the whole of the coordination - there is no dependency graph, and a registration
+    DHIS2 rejects still leaves its stage events to fail `E1313`, which the next drain retries once
+    the cause is fixed.
     """
     translated = sorted(
         ((entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused),
@@ -4059,8 +4077,14 @@ async def _post_result(client: Dhis2Client, result: ConversionResult, *, dry_run
         registration = result.tracked_entity.model_dump(by_alias=True, exclude_none=True, mode="json")
         body = {_TRACKER_TRACKED_ENTITIES_KEY: [registration]}
         return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
+    if result.enrollment is not None:
+        enrolment = result.enrollment.model_dump(by_alias=True, exclude_none=True, mode="json")
+        body = {_TRACKER_ENROLLMENTS_KEY: [enrolment]}
+        return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
     if result.event is None:
-        raise ValueError("a translated result carries no data value set, no tracked entity, and no event")
+        raise ValueError(
+            "a translated result carries no data value set, no tracked entity, no enrollment, and no event"
+        )
     body = {_TRACKER_EVENTS_KEY: [result.event.model_dump(by_alias=True, exclude_none=True, mode="json")]}
     return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
 
@@ -4215,7 +4239,7 @@ def _file_outcomes(
     for entry, result in zip(spooled, conversion.results, strict=True):
         imported = imports.get(entry.response_id)
         kind = _outcome_kind(result, imported, minted_enrollments)
-        path = _filed_path(entry, kind, imported, moving=moving)
+        path = _filed_path(entry, kind, imported, result.target_kind, moving=moving)
         outcomes.append(
             ForwardOutcome(
                 response_id=entry.response_id,
@@ -4235,13 +4259,15 @@ def _minted_enrollment_uids(conversion: ConversionReport) -> frozenset[str]:
     """Every enrollment UID this run's registrations mint, which is what their stage events name.
 
     The UIDs are the client's own - a registration response carries the enrollment it creates in its
-    `D2TrackerEnrollment` extension - so they are known before DHIS2 answers anything.
+    `D2TrackerEnrollment` extension - so they are known before DHIS2 answers anything. Both
+    registration shapes mint one: the person the run creates carries theirs inside them, and the
+    person the instance already holds is enrolled by a payload that is the enrollment itself.
     """
+    nested = (
+        enrollment for tracked_entity in conversion.tracked_entities for enrollment in tracked_entity.enrollments or []
+    )
     return frozenset(
-        enrollment.enrollment
-        for tracked_entity in conversion.tracked_entities
-        for enrollment in tracked_entity.enrollments or []
-        if enrollment.enrollment
+        enrollment.enrollment for enrollment in (*nested, *conversion.enrollments) if enrollment.enrollment
     )
 
 
@@ -4282,6 +4308,7 @@ def _filed_path(
     entry: SpooledResponse,
     kind: ForwardOutcomeKind,
     imported: ForwardImportOutcome | None,
+    target_kind: ConversionTargetKind | None,
     *,
     moving: bool,
 ) -> Path:
@@ -4290,12 +4317,18 @@ def _filed_path(
     A dry run moves nothing at all, so a run that validated the whole spool leaves the queue exactly
     as it found it and can be run again as the import. `unverifiable` is a dry-run reading and so is
     named here for the same reason: what a run could not check stays where the next run finds it.
+
+    A rejection takes its report along, and the report names the payload kind DHIS2 turned down as
+    well as what DHIS2 said about it.
     """
     if not moving or kind in (ForwardOutcomeKind.REFUSED, ForwardOutcomeKind.UNVERIFIABLE):
         return entry.path
     if kind == ForwardOutcomeKind.ACCEPTED:
         return move_to_forwarded(entry)
-    return move_to_rejected(entry, imported) if imported is not None else entry.path
+    if imported is None:
+        return entry.path
+    record = ForwardRejectionRecord(**dict(imported), target_kind=target_kind)
+    return move_to_rejected(entry, record)
 
 
 def _relative_path(path: Path, project_root: Path) -> str:
