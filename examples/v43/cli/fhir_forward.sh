@@ -49,7 +49,12 @@ wait "$SERVER_PID" 2>/dev/null || true
 # importMode=VALIDATE on /api/tracker - so DHIS2's own rules decide each answer while nothing
 # is written to the instance and no receipt moves. Expect a table reading
 # `mode: DRY RUN (validate only)` and counts for spooled / translated / refused / posted /
-# accepted / rejected, bracketed by a yellow DRY RUN banner.
+# accepted / rejected / unverifiable in a dry run, bracketed by a yellow DRY RUN banner.
+#
+# A stage event whose enrollment a registration of the same run creates is counted unverifiable
+# rather than rejected: a dry run writes nothing, so there is no enrollment for DHIS2 to check the
+# event against, and an import posts registrations first. A DHIS2 rejection exits 1; a dry run
+# whose only failures are unverifiable exits 0.
 d2w fhir forward
 
 # Nothing moved: the queue is exactly as long as it was, so the same run can be repeated.

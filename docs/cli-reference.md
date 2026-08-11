@@ -10051,6 +10051,10 @@ rejected/ beside a report, and a translator-refused one stays put - fix and forw
 Every payload names its own DHIS2 object - an event&#x27;s UID is derived from the receipt&#x27;s logical id -
 so one receipt forwarded twice is refused as an object the instance holds, never imported twice.
 
+A DHIS2 rejection exits 1. A dry run counts a stage event whose enrollment a registration of the
+same run creates as unverifiable rather than rejected - a dry run writes nothing, so there is no
+enrollment to check it against - and a run whose only failures are those exits 0.
+
 Outcomes land in reports/fhir-forward-report.md; `--details` prints them here instead.
 
 **Usage**:

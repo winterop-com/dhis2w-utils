@@ -299,9 +299,17 @@ d2w fhir            FHIR IG generation (SUSHI/FSH + pre-built JSON, package dhis
                         the message with its quoted UIDs generalised away) as a
                         reasons table on the terminal and at the head of the
                         report, so 202 rejections read as the 3 rules they
-                        broke; outcomes go to reports/fhir-forward-report.md
-                        with one counted hint (--details prints them inline,
-                        with a Why column carrying each response's first reason)
+                        broke; a dry run counts a stage event whose enrollment
+                        a registration of the same run creates as unverifiable
+                        rather than rejected - it writes nothing, so there is
+                        no enrollment to check the event against - and gets its
+                        own count and section, while a stage event naming an
+                        enrollment no registration of the run creates stays a
+                        rejection; a DHIS2 rejection exits 1 and a dry run whose
+                        only failures are unverifiable exits 0; outcomes go to
+                        reports/fhir-forward-report.md with one counted hint
+                        (--details prints them inline, with a Why column
+                        carrying each response's first reason)
 
   Every command with an instance behind it narrates its steps on stderr - a
   spinner on a terminal, plain [k/N] lines when redirected - and takes

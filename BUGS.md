@@ -3832,10 +3832,16 @@ happens (`distinct_unique_value` in
 `packages/dhis2w-fhir/src/dhis2w_fhir/resources/examples/__init__.py`), and
 `d2w fhir forward` posts registrations before events so an enrollment exists by the
 time its events are read (`FORWARD_TARGET_ORDER` in
-`packages/dhis2w-fhir/src/dhis2w_fhir/conversion/schemas.py`). The other source of a
-fabricated enrollment is closed at the same place it was minted: a `$generate` stage
-response answers against the pair a spooled registration of its program minted, and
-mints one of its own only where no such registration exists (`adopted_tracker_pair` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/conversion/schemas.py`). The dry run cannot be
+addressed that way - `importMode=VALIDATE` writes nothing, so the enrollment is absent
+however the run is ordered - so a dry-run rejection carrying only this pair against an
+enrollment one of the run's own registrations mints is counted `unverifiable` rather
+than `rejected`, with a reason stating the fact rather than the codes (`_is_unverifiable`
+in `packages/dhis2w-fhir/src/dhis2w_fhir/service.py`). An event naming an enrollment no
+registration of the run mints stays a rejection. The other source of a fabricated
+enrollment is closed at the same place it was minted: a `$generate` stage response
+answers against the pair a spooled registration of its program minted, and mints one
+of its own only where no such registration exists (`adopted_tracker_pair` in
 `packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/synthesize.py`).
 
 **Also observed with no earlier refusal at all** (2.42.6-SNAPSHOT, 2.43.1 rev
@@ -3845,9 +3851,9 @@ before it - draws the same pair, `E1079` asserting a program mismatch against th
 absent enrollment plus `E1313`, in both `importMode=VALIDATE` and real import.
 `E1081` ("Enrollment ... could not be found") never fires for events on any version
 tested. On 2.43.2-SNAPSHOT the wording is character-for-character what the 2.43.1
-addendum records - no further drift on that line. So the misdirection is not an artefact of
-the cascade: the code says "different program" whenever the enrollment cannot be
-resolved, whatever the reason it cannot be.
+addendum records - no further drift on that line. So the misdirection is not an
+artefact of the cascade: the code says "different program" whenever the enrollment
+cannot be resolved, whatever the reason it cannot be.
 
 **Verifier:** none yet.
 

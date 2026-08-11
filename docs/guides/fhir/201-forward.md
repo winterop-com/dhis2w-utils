@@ -78,6 +78,27 @@ retry. One POST per response is deliberate - DHIS2 answers a bundle with one
 report for the bundle, and a spool whose receipts move individually needs
 one answer each.
 
+## What a dry run cannot check
+
+A dry run writes nothing, so the enrollment a registration mints does not
+exist when the stage event naming it is validated in the same run. DHIS2
+answers that event `E1313` for the enrollment nobody has, plus the `E1079`
+program mismatch it asserts against that same absent enrollment. The pair is
+the dry run's own doing, not a fault in the data: the run counts those
+responses **unverifiable in a dry run** rather than rejected, and states why
+in its own section.
+
+An import posts registrations first, so the same spool imports clean.
+
+A stage event naming an enrollment **no registration of the run mints** is a
+different thing - nothing in the drain would ever create it - and stays a
+rejection in both modes.
+
+Exit codes follow that split. A DHIS2 rejection exits 1. A dry run whose
+only failures are unverifiable exits 0: it proved everything a dry run can
+prove, and the unverifiable section says what is left for `--import` to
+answer.
+
 ## The three states a receipt can end in
 
 ```
@@ -108,6 +129,11 @@ them:
 A refused response stays put precisely because the retry is natural: nothing
 was written, nothing was moved, and the same command is the retry once the
 guide or the data is fixed.
+
+Unverifiable is a third reading, and only a dry run produces it. DHIS2 named
+a reason, but the reason is one the dry run created by writing nothing - see
+[What a dry run cannot check](#what-a-dry-run-cannot-check). The receipt
+stays in `received/`, and `--import` is what answers it.
 
 ## What a translated payload is built from
 
@@ -206,36 +232,48 @@ $ d2w fhir forward
 [3/6] value types: 214 of 214 data element(s) typed
 [4/6] translate: 284 translated, 2 refused
 [5/6] post: 284 payload(s) posted (validate only)
-[6/6] spool: 286 spooled, 284 translated, 2 refused, 284 posted, 281 accepted, 3 rejected
+[6/6] spool: 286 spooled, 284 translated, 2 refused, 284 posted, 281 accepted, 2 rejected,
+      1 unverifiable in a dry run
 
 dry run: DRY RUN - every payload was posted to DHIS2 under its own validate-only mode
 (dataValueSets dryRun=true, tracker importMode=VALIDATE). Nothing was written to the
 instance and no receipt moved. Re-run with --import to commit.
 
-        fhir forward
-  profile         local (fhir.toml)
-  project         /home/me/demo-ig
-  mode            DRY RUN (validate only)
-  coded answers   lenient
-  spooled         286
-  translated      284
-  refused         2
-  posted          284
-  accepted        281
-  rejected        3
+              fhir forward
+  profile                     local (fhir.toml)
+  project                     /home/me/demo-ig
+  mode                        DRY RUN (validate only)
+  coded answers               lenient
+  spooled                     286
+  translated                  284
+  refused                     2
+  posted                      284
+  accepted                    281
+  rejected                    2
+  unverifiable in a dry run   1
 
                     rejection reasons
   Code    What DHIS2 said                                          Responses
   E1029   Event OrganisationUnit: `...` and Program: `...`, do             2
           not match.
-  E1313   Enrollment `...` requires a TrackedEntity.                       1
+
+                       unverifiable in a dry run
+  What a dry run cannot check                                    Responses
+  The enrollment this event answers into is created by a                 1
+  registration validated in the same run. A dry run writes
+  nothing to the instance, so there is no enrollment for DHIS2
+  to check the event against. An import posts registrations
+  first, and the event is checked against the enrollment one
+  created.
 
 note: 286 response(s), 41 note(s); full outcomes in
       /home/me/demo-ig/reports/fhir-forward-report.md (--details to print)
-error: 3 response(s) rejected by DHIS2 - read the import summary, fix the instance or the
-       data, and forward again
+error: 2 response(s) rejected by DHIS2; exiting 1 - read the import summary, fix the
+       instance or the data, and forward again
 note: 2 response(s) refused by the translator - they stay in the spool, so fixing the
       guide or the data and forwarding again is the retry
+note: 1 response(s) this dry run could not check - each is a stage event whose enrollment
+      a registration of the same run creates, and only an import creates it
 ```
 
 The rollup is what makes a large rejection readable. DHIS2 states a rule
@@ -258,7 +296,7 @@ that drained three receipts:
 - Mode: import
 - Coded answers: lenient
 - Forwarded: 2026-08-10T18:58:14+00:00
-- Counts: 3 spooled, 3 translated, 0 refused, 3 posted, 3 accepted, 0 rejected
+- Counts: 3 spooled, 3 translated, 0 refused, 3 posted, 3 accepted, 0 rejected, 0 unverifiable in a dry run
 
 ## Accepted
 

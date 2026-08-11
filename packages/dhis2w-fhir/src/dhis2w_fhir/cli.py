@@ -1225,7 +1225,7 @@ _DRY_RUN_BANNER = (
 )
 
 #: The Rich style each outcome kind renders in, so a glance separates what landed from what did not.
-_OUTCOME_STYLES = {"accepted": "green", "rejected": "red", "refused": "yellow"}
+_OUTCOME_STYLES = {"accepted": "green", "rejected": "red", "refused": "yellow", "unverifiable": "cyan"}
 
 
 def _outcome_cell(value: Any) -> str:
@@ -1296,6 +1296,22 @@ def _render_rejection_reasons(report: ForwardReport) -> None:
     )
 
 
+def _render_unverifiable_reasons(report: ForwardReport) -> None:
+    """State what this dry run could not check and why, so nobody reads it as data DHIS2 turned down."""
+    reasons = report.unverifiable_reasons
+    if not reasons:
+        return
+    render_list(
+        "unverifiable in a dry run",
+        [{"reason": reason.reason, "responses": str(reason.responses)} for reason in reasons],
+        [
+            ColumnSpec("What a dry run cannot check", "reason"),
+            ColumnSpec("Responses", "responses", no_wrap=True),
+        ],
+        console=STDERR_CONSOLE,
+    )
+
+
 def _render_forward_outcomes(report: ForwardReport) -> None:
     """List every response the run drained, with what became of it and why."""
     if not report.outcomes:
@@ -1359,8 +1375,14 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
         )
         lines.extend(f"| {reason.responses} | {reason.error_code or ''} | {reason.reason} |" for reason in reasons)
         lines.append("")
+    unverifiable_reasons = report.unverifiable_reasons
+    if unverifiable_reasons:
+        lines.extend(["## What a dry run could not check", ""])
+        for reason in unverifiable_reasons:
+            lines.extend([f"{reason.reason} ({reason.responses} response(s))", ""])
     for heading, outcomes in (
         ("Rejected by DHIS2", report.rejected),
+        ("Unverifiable in a dry run", report.unverifiable),
         ("Refused by the translator", report.refused),
         ("Accepted", report.accepted),
     ):
@@ -1403,6 +1425,7 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
             DetailRow("posted", str(report.posted_count)),
             DetailRow("accepted", str(len(report.accepted))),
             DetailRow("rejected", str(len(report.rejected))),
+            DetailRow("unverifiable in a dry run", str(len(report.unverifiable))),
         ],
         console=STDERR_CONSOLE,
     )
@@ -1412,6 +1435,7 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
         _hint("note", "the spool is empty - `d2w fhir serve` is what fills it")
         return
     _render_rejection_reasons(report)
+    _render_unverifiable_reasons(report)
     if details:
         _render_forward_outcomes(report)
     else:
@@ -1424,8 +1448,8 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
     if report.rejected:
         _hint(
             "error",
-            f"{len(report.rejected)} response(s) rejected by DHIS2 - read the import summary, fix the instance "
-            "or the data, and forward again",
+            f"{len(report.rejected)} response(s) rejected by DHIS2; exiting 1 - read the import summary, fix "
+            "the instance or the data, and forward again",
             style="red",
         )
     if report.refused:
@@ -1433,6 +1457,12 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
             "note",
             f"{len(report.refused)} response(s) refused by the translator - they stay in the spool, so fixing "
             "the guide or the data and forwarding again is the retry",
+        )
+    if report.unverifiable:
+        _hint(
+            "note",
+            f"{len(report.unverifiable)} response(s) this dry run could not check - each is a stage event whose "
+            "enrollment a registration of the same run creates, and only an import creates it",
         )
     if report.dry_run:
         _hint("dry run", _DRY_RUN_BANNER, style="bold yellow")
@@ -1477,6 +1507,10 @@ def forward_command(
     Every payload names its own DHIS2 object - an event's UID is derived from the receipt's logical id -
     so one receipt forwarded twice is refused as an object the instance holds, never imported twice.
 
+    A DHIS2 rejection exits 1. A dry run counts a stage event whose enrollment a registration of the
+    same run creates as unverifiable rather than rejected - a dry run writes nothing, so there is no
+    enrollment to check it against - and a run whose only failures are those exits 0.
+
     Outcomes land in reports/fhir-forward-report.md; `--details` prints them here instead.
     """
     from dhis2w_fhir import FORWARD_STEPS, service
@@ -1499,8 +1533,10 @@ def forward_command(
             reporter.finish(report.counts_line)
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
-        return
-    _render_forward_report(report, generation, details=details)
+    else:
+        _render_forward_report(report, generation, details=details)
+    if report.rejected:
+        raise typer.Exit(code=1)
 
 
 def register(root_app: Any) -> None:

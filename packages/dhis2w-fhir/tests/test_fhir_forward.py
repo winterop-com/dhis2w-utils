@@ -1142,3 +1142,190 @@ async def test_forwarding_one_receipt_twice_asks_dhis2_to_create_the_same_event_
 
     assert first == second
     assert dict(routes["tracker"].calls.last.request.url.params)["importStrategy"] == "CREATE"
+
+
+#: The event UID DHIS2 names in the pair it answers an absent enrollment with.
+_STAGE_EVENT_UID = "EvAaBbCcDd1"
+
+
+def _absent_enrollment_tracker(enrollment: str = _MINTED_ENROLLMENT) -> httpx.Response:
+    """The pair `/api/tracker` answers a stage event whose enrollment nobody has, verbatim off a live 2.42.
+
+    `E1313` states the enrollment is missing and `E1079` asserts a program mismatch against that same
+    absent enrollment (BUGS.md 68). Under `importMode=VALIDATE` the pair is what every stage event of a
+    registration validated in the same run earns, because a dry run never created the enrollment.
+    """
+    return httpx.Response(
+        409,
+        json={
+            "status": "ERROR",
+            "validationReport": {
+                "errorReports": [
+                    {
+                        "message": (
+                            f"Event: `{_STAGE_EVENT_UID}` Program: `IpHINAT79UW` is different from Program "
+                            f"defined in Enrollment `{enrollment}`"
+                        ),
+                        "errorCode": "E1079",
+                        "trackerType": "EVENT",
+                        "uid": _STAGE_EVENT_UID,
+                    },
+                    {
+                        "message": f"Enrollment `{enrollment}` requires a TrackedEntity.",
+                        "errorCode": "E1313",
+                        "trackerType": "EVENT",
+                        "uid": _STAGE_EVENT_UID,
+                    },
+                ],
+                "warningReports": [],
+            },
+            "stats": {"created": 0, "updated": 0, "deleted": 0, "ignored": 1, "total": 1},
+        },
+    )
+
+
+def _mock_tracker_instance_answering_the_stage_event(event_response: httpx.Response) -> respx.Route:
+    """Mock a tracker drain whose registration DHIS2 takes and whose stage event it answers `event_response`."""
+    tracker = _mock_tracker_instance()
+
+    def _answer(request: httpx.Request) -> httpx.Response:
+        return _accepted_tracker() if b'"trackedEntities"' in request.content else event_response
+
+    tracker.mock(side_effect=_answer)
+    return tracker
+
+
+def _drop_the_registration_receipt(root: Path) -> None:
+    """Leave the stage event alone in the spool, so the enrollment it names is one no receipt here mints."""
+    (root / RECEIVED_RESPONSES_RELATIVE_PATH / "En1aaaaaaaa.json").unlink()
+
+
+@respx.mock
+async def test_a_dry_run_cannot_check_a_stage_event_against_an_enrollment_the_same_run_would_create(
+    tracker_forward_project: Path,
+) -> None:
+    """The pair DHIS2 answers here is the dry run's own doing, so the event is unverifiable and not rejected."""
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project)
+
+    assert report.rejected == ()
+    assert len(report.unverifiable) == 1
+    assert report.unverifiable[0].response_id == "A03MvHHogjR-example-1"
+    assert report.unverifiable[0].kind == ForwardOutcomeKind.UNVERIFIABLE
+    assert len(report.accepted) == 1
+    assert report.posted_count == 2
+    assert "0 rejected, 1 unverifiable in a dry run" in report.counts_line
+
+
+@respx.mock
+async def test_the_unverifiable_section_says_what_a_dry_run_cannot_check_without_naming_an_error_code(
+    tracker_forward_project: Path,
+) -> None:
+    """A reader acts on this without knowing what `E1079` and `E1313` are, which is the whole point of it."""
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project)
+
+    assert len(report.unverifiable_reasons) == 1
+    reason = report.unverifiable_reasons[0]
+    assert reason.responses == 1
+    assert "created by a registration validated in the same run" in reason.reason
+    assert "A dry run writes nothing to the instance" in reason.reason
+    assert "E1079" not in reason.reason
+    assert "E1313" not in reason.reason
+
+
+@respx.mock
+async def test_a_dry_run_stage_event_naming_an_enrollment_no_registration_of_the_run_mints_stays_rejected(
+    tracker_forward_project: Path,
+) -> None:
+    """The orphan is the case that has to keep failing loudly - nothing in this run would ever create it."""
+    _drop_the_registration_receipt(tracker_forward_project)
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project)
+
+    assert report.unverifiable == ()
+    assert len(report.rejected) == 1
+    assert report.rejected[0].response_id == "A03MvHHogjR-example-1"
+    assert [issue.error_code for issue in report.rejected[0].import_outcome.issues] == ["E1079", "E1313"]
+
+
+@respx.mock
+async def test_a_dry_run_rejection_outside_the_absent_enrollment_pair_stays_rejected(
+    tracker_forward_project: Path,
+) -> None:
+    """A stage event of this run's own registration is still rejected for anything else DHIS2 names."""
+    _mock_tracker_instance_answering_the_stage_event(_rejected_tracker())
+
+    report = await _forward(tracker_forward_project)
+
+    assert report.unverifiable == ()
+    assert len(report.rejected) == 1
+    assert [issue.error_code for issue in report.rejected[0].import_outcome.issues] == ["E1029"]
+
+
+@respx.mock
+async def test_an_import_run_reads_the_same_pair_as_a_rejection_and_files_it_as_one(
+    tracker_forward_project: Path,
+) -> None:
+    """An import creates what it posts, so nothing it refuses went unchecked and nothing is reclassified."""
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project, import_responses=True)
+
+    assert report.unverifiable == ()
+    assert report.unverifiable_reasons == ()
+    assert len(report.rejected) == 1
+    assert report.rejected[0].spool_path.startswith(REJECTED_RESPONSES_RELATIVE_PATH)
+    assert (tracker_forward_project / REJECTED_RESPONSES_RELATIVE_PATH / "A03MvHHogjR-example-1.json").is_file()
+
+
+@respx.mock
+async def test_the_report_round_trips_the_unverifiable_outcome_through_json(
+    tracker_forward_project: Path,
+) -> None:
+    """The kind is a field of the receipt, so a dumped report rebuilds the count and the section from it."""
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project)
+    restored = service.ForwardReport.model_validate_json(report.model_dump_json())
+
+    assert [outcome.kind for outcome in restored.outcomes] == [outcome.kind for outcome in report.outcomes]
+    assert len(restored.unverifiable) == 1
+    assert restored.unverifiable_reasons == report.unverifiable_reasons
+    assert restored.counts_line == report.counts_line
+
+
+@respx.mock
+def test_a_dry_run_whose_only_failures_are_unverifiable_exits_zero(
+    tracker_forward_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A dry run proved everything a dry run can prove, so it is a success and says what it could not check."""
+    from dhis2w_cli.main import build_app
+    from typer.testing import CliRunner
+
+    monkeypatch.setenv("COLUMNS", "300")
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    result = CliRunner().invoke(build_app(), ["fhir", "forward", str(tracker_forward_project), "--no-progress"])
+
+    assert result.exit_code == 0, result.output
+    assert "unverifiable in a dry run" in result.output
+    assert "created by a registration validated in the same run" in result.output
+
+
+@respx.mock
+def test_a_dry_run_holding_an_orphan_stage_event_exits_one(tracker_forward_project: Path) -> None:
+    """A rejection nothing in the run explains is a failure whatever the mode, and the exit code says so."""
+    from dhis2w_cli.main import build_app
+    from typer.testing import CliRunner
+
+    _drop_the_registration_receipt(tracker_forward_project)
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    result = CliRunner().invoke(build_app(), ["fhir", "forward", str(tracker_forward_project), "--no-progress"])
+
+    assert result.exit_code == 1, result.output
+    assert "1 response(s) rejected by DHIS2" in result.output

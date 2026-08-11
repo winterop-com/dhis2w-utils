@@ -69,6 +69,11 @@ def register(mcp: Any) -> None:
         A response the translator refuses never reaches DHIS2 and stays in the spool, so fixing the
         guide or the data and forwarding again is the retry.
 
+        A dry run counts a stage event whose enrollment a registration of the same run creates as
+        `unverifiable` rather than `rejected`: the run writes nothing, so there is no enrollment for
+        DHIS2 to check the event against, and an import posts registrations first. A stage event
+        naming an enrollment no registration of the run creates is a rejection in either mode.
+
         `strict_codes` overrides `[serve] strict_codes`: strict refuses a coded answer outside the
         served terminology, lenient resolves the DHIS2 option UID and code too and notes what it did.
         """
