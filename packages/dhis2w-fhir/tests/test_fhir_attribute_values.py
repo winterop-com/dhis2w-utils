@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import httpx
 import pytest
 import respx
-from dhis2w_client.generated.v42.schemas import DataSet, OptionSet, OrganisationUnit, Program
+from dhis2w_client.generated.v42.schemas import OptionSet
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import resolve_profile
 from dhis2w_fhir import InitOptions, load_project, service
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from pydantic import BaseModel
 
 _HOST = "https://dhis2.example"
 _TODAY = date(2026, 8, 1)
@@ -34,30 +37,44 @@ _MAPPED_ATTRIBUTE_VALUES = [
 
 _GEOJSON_VALUE = json.dumps({"type": "Point", "coordinates": [102.6, 17.97]})
 
+#: The generated schema trees, which do not agree on how `attributeValues` is typed.
+_SCHEMA_TREES = ("v41", "v42", "v43")
 
-def _organisation_unit(**extra: Any) -> OrganisationUnit:
-    """Build a generated OrganisationUnit for the mapper."""
+
+@pytest.fixture(params=_SCHEMA_TREES)
+def schemas(request: pytest.FixtureRequest) -> ModuleType:
+    """One generated schema tree per DHIS2 major, so the mappers are asserted against all three shapes.
+
+    v41 declares `attributeValues: list[AttributeValue]` while v42 and v43 declare it `Any`, so the
+    very same wire payload reaches the mappers as typed models on one tree and as plain dicts on the
+    other two. A mapper test bound to a single tree cannot see that.
+    """
+    return importlib.import_module(f"dhis2w_client.generated.{request.param}.schemas")
+
+
+def _organisation_unit(schemas: ModuleType, **extra: Any) -> Any:
+    """Build a generated OrganisationUnit for the mapper, out of one version's schema tree."""
     payload: dict[str, Any] = {"id": "O6uvpzGd5pu", "name": "Bo", "level": 2, "path": "/ImspTQPwCqd/O6uvpzGd5pu"}
     payload.update(extra)
-    return OrganisationUnit.model_validate(payload)
+    return schemas.OrganisationUnit.model_validate(payload)
 
 
-def _option_set(**extra: Any) -> OptionSet:
-    """Build a generated OptionSet for the mapper."""
+def _option_set(schemas: ModuleType, **extra: Any) -> Any:
+    """Build a generated OptionSet for the mapper, out of one version's schema tree."""
     payload: dict[str, Any] = {"id": "Xa1b2c3d4e5", "name": "Birth type", "options": []}
     payload.update(extra)
-    return OptionSet.model_validate(payload)
+    return schemas.OptionSet.model_validate(payload)
 
 
-def _data_set(**extra: Any) -> DataSet:
-    """Build a generated DataSet for the mapper."""
+def _data_set(schemas: ModuleType, **extra: Any) -> Any:
+    """Build a generated DataSet for the mapper, out of one version's schema tree."""
     payload: dict[str, Any] = {"id": "BfMAe6Itzgt", "name": "Child Health", "periodType": "Monthly"}
     payload.update(extra)
-    return DataSet.model_validate(payload)
+    return schemas.DataSet.model_validate(payload)
 
 
-def _event_program(**extra: Any) -> Program:
-    """Build a generated single-stage event Program for the mapper."""
+def _event_program(schemas: ModuleType, **extra: Any) -> Any:
+    """Build a generated single-stage event Program for the mapper, out of one version's schema tree."""
     payload: dict[str, Any] = {
         "id": "VBqh0ynB2wv",
         "name": "Malaria case registration",
@@ -65,52 +82,65 @@ def _event_program(**extra: Any) -> Program:
         "programStages": [{"id": "pTo4uMt3xur", "name": "Stage", "programStageDataElements": []}],
     }
     payload.update(extra)
-    return Program.model_validate(payload)
+    return schemas.Program.model_validate(payload)
 
 
-def _mapped_organisation_unit(model: OrganisationUnit) -> OrganisationUnitIn:
+def _mapped_organisation_unit(model: Any) -> OrganisationUnitIn:
     """Map one organisation unit, asserting it survived the mapper."""
     mapped = service._organisation_unit_input(model, service.GeometryTally(), _TODAY)
     assert mapped is not None
     return mapped
 
 
-def test_organisation_unit_attribute_values_reach_the_projection() -> None:
-    """An organisation unit's attribute values arrive on the projection, in wire order."""
-    mapped = _mapped_organisation_unit(_organisation_unit(attributeValues=_WIRE_ATTRIBUTE_VALUES))
+def test_the_v41_tree_parses_attribute_values_into_models_where_the_others_leave_dicts() -> None:
+    """The shape difference the mapper has to absorb, asserted directly so the parametrize above has a reason."""
+    parsed = {
+        version: importlib.import_module(f"dhis2w_client.generated.{version}.schemas").OptionSet.model_validate(
+            {"id": "Xa1b2c3d4e5", "attributeValues": _WIRE_ATTRIBUTE_VALUES}
+        )
+        for version in _SCHEMA_TREES
+    }
+    assert all(isinstance(entry, BaseModel) for entry in parsed["v41"].attributeValues)
+    assert all(isinstance(entry, dict) for entry in parsed["v42"].attributeValues)
+    assert all(isinstance(entry, dict) for entry in parsed["v43"].attributeValues)
+
+
+def test_organisation_unit_attribute_values_reach_the_projection(schemas: ModuleType) -> None:
+    """An organisation unit's attribute values arrive on the projection, in wire order, on every major."""
+    mapped = _mapped_organisation_unit(_organisation_unit(schemas, attributeValues=_WIRE_ATTRIBUTE_VALUES))
     assert mapped.attribute_values == _MAPPED_ATTRIBUTE_VALUES
 
 
-def test_option_set_attribute_values_reach_the_projection() -> None:
-    """An option set's attribute values arrive on the projection, in wire order."""
-    mapped = service._option_set_input(_option_set(attributeValues=_WIRE_ATTRIBUTE_VALUES))
+def test_option_set_attribute_values_reach_the_projection(schemas: ModuleType) -> None:
+    """An option set's attribute values arrive on the projection, in wire order, on every major."""
+    mapped = service._option_set_input(_option_set(schemas, attributeValues=_WIRE_ATTRIBUTE_VALUES))
     assert mapped.attribute_values == _MAPPED_ATTRIBUTE_VALUES
 
 
-def test_data_set_attribute_values_reach_the_projection() -> None:
-    """A data set's attribute values arrive on the questionnaire projection, in wire order."""
-    mapped = service._data_set_source(_data_set(attributeValues=_WIRE_ATTRIBUTE_VALUES), [])
+def test_data_set_attribute_values_reach_the_projection(schemas: ModuleType) -> None:
+    """A data set's attribute values arrive on the questionnaire projection, in wire order, on every major."""
+    mapped = service._data_set_source(_data_set(schemas, attributeValues=_WIRE_ATTRIBUTE_VALUES), [])
     assert mapped.attribute_values == _MAPPED_ATTRIBUTE_VALUES
 
 
-def test_event_program_attribute_values_reach_the_projection() -> None:
-    """An event program's attribute values arrive on the questionnaire projection, in wire order."""
-    mapped = service._event_program_source(_event_program(attributeValues=_WIRE_ATTRIBUTE_VALUES), [])
+def test_event_program_attribute_values_reach_the_projection(schemas: ModuleType) -> None:
+    """An event program's attribute values arrive on the questionnaire projection, in wire order, on every major."""
+    mapped = service._event_program_source(_event_program(schemas, attributeValues=_WIRE_ATTRIBUTE_VALUES), [])
     assert mapped.attribute_values == _MAPPED_ATTRIBUTE_VALUES
 
 
-def test_objects_without_attribute_values_project_an_empty_list() -> None:
+def test_objects_without_attribute_values_project_an_empty_list(schemas: ModuleType) -> None:
     """Every projection defaults to no attribute values - most DHIS2 objects carry none."""
-    assert _mapped_organisation_unit(_organisation_unit()).attribute_values == []
-    assert service._option_set_input(_option_set()).attribute_values == []
-    assert service._data_set_source(_data_set(), []).attribute_values == []
-    assert service._event_program_source(_event_program(), []).attribute_values == []
+    assert _mapped_organisation_unit(_organisation_unit(schemas)).attribute_values == []
+    assert service._option_set_input(_option_set(schemas)).attribute_values == []
+    assert service._data_set_source(_data_set(schemas), []).attribute_values == []
+    assert service._event_program_source(_event_program(schemas), []).attribute_values == []
 
 
-def test_an_attribute_value_carries_a_whole_geojson_document() -> None:
+def test_an_attribute_value_carries_a_whole_geojson_document(schemas: ModuleType) -> None:
     """DHIS2 sends every value as a string whatever its value type, a GeoJSON document included."""
     mapped = service._option_set_input(
-        _option_set(attributeValues=[{"attribute": {"id": "ihn1wb9eho8"}, "value": _GEOJSON_VALUE}])
+        _option_set(schemas, attributeValues=[{"attribute": {"id": "ihn1wb9eho8"}, "value": _GEOJSON_VALUE}])
     )
     assert mapped.attribute_values == [AttributeValueIn(attribute_uid="ihn1wb9eho8", value=_GEOJSON_VALUE)]
 
@@ -127,8 +157,13 @@ def test_an_attribute_value_carries_a_whole_geojson_document() -> None:
     ],
 )
 def test_an_incomplete_attribute_value_is_dropped(entry: object) -> None:
-    """An entry missing either half of the pair is dropped rather than projected half-formed."""
-    mapped = service._option_set_input(_option_set(attributeValues=[entry]))
+    """An entry missing either half of the pair is dropped rather than projected half-formed.
+
+    Read through the v42 tree, whose `Any`-typed `attributeValues` carries a malformed entry all the
+    way to the mapper. The v41 tree refuses the same entry at `model_validate`, so a half-formed pair
+    never reaches the projection there either.
+    """
+    mapped = service._option_set_input(OptionSet.model_validate({"id": "Xa1b2c3d4e5", "attributeValues": [entry]}))
     assert mapped.attribute_values == []
 
 

@@ -352,6 +352,44 @@ def _rejected_tracker_other_unit() -> httpx.Response:
     )
 
 
+def _two_event_spool() -> list[QuestionnaireResponse]:
+    """The published example responses plus a second copy of the event one, so two payloads reach `/api/tracker`.
+
+    A rollup collapses causes across responses, so proving it takes two responses that meet the same
+    cause - and the forwarder posts one payload per receipt, so the second copy is the second post.
+    """
+    documents = _documents(GenerateConfig())
+    event = next(document for document in documents if _form_kind(document) != "aggregate")
+    return [*documents, event.model_copy(update={"id": f"{event.id}b"})]
+
+
+def _rejected_tracker_reworded() -> httpx.Response:
+    """The same broken rule worded the way another DHIS2 major words it, which no generalisation reconciles.
+
+    `E1029` names one rule; the sentence DHIS2 wraps it in is prose and differs between majors
+    (BUGS.md #68 shows the same drift on `E1079`). Grouping on the sentence would report one rule as
+    two causes of the run against an instance that words it either way.
+    """
+    return httpx.Response(
+        409,
+        json={
+            "status": "ERROR",
+            "validationReport": {
+                "errorReports": [
+                    {
+                        "message": "Event `Ev3aaaaaaaa` organisation unit does not belong to program `IpHINAT79UW`.",
+                        "errorCode": "E1029",
+                        "trackerType": "EVENT",
+                        "uid": "Ev3aaaaaaaa",
+                    }
+                ],
+                "warningReports": [],
+            },
+            "stats": {"created": 0, "updated": 0, "deleted": 0, "ignored": 1, "total": 1},
+        },
+    )
+
+
 def _write_probe_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Point profile resolution at a `probe` profile whose base url is the mocked instance."""
     config_dir = tmp_path / ".config" / "dhis2"
@@ -677,15 +715,32 @@ async def test_the_rejections_roll_up_by_cause_with_the_quoted_uids_generalised(
     respx.post(f"{_BASE_URL}/api/tracker").mock(
         side_effect=[_rejected_tracker(), _rejected_tracker_other_unit()],
     )
-    _fill_spool(forward_project, _documents(GenerateConfig()))
+    _fill_spool(forward_project, _two_event_spool())
     report = await _forward(forward_project)
     reasons = {reason.error_code: reason for reason in report.rejection_reasons}
     assert set(reasons) == {"E7611", "E1029"}
     assert reasons["E1029"].reason == "Event OrganisationUnit: `...` and Program: `...`, do not match."
+    assert reasons["E1029"].responses == 2
     assert reasons["E7611"].responses == 1
     assert [reason.responses for reason in report.rejection_reasons] == sorted(
         (reason.responses for reason in report.rejection_reasons), reverse=True
     )
+
+
+@respx.mock
+async def test_one_rule_worded_two_ways_is_still_one_cause_of_the_run(forward_project: Path) -> None:
+    """The rollup groups on the error code, so a message DHIS2 rewords between majors stays one row."""
+    _mock_instance(aggregate_response=_rejected_aggregate(), tracker_response=_rejected_tracker())
+    respx.post(f"{_BASE_URL}/api/tracker").mock(
+        side_effect=[_rejected_tracker(), _rejected_tracker_reworded()],
+    )
+    _fill_spool(forward_project, _two_event_spool())
+    report = await _forward(forward_project)
+    reasons = {reason.error_code: reason for reason in report.rejection_reasons}
+    assert set(reasons) == {"E7611", "E1029"}
+    assert reasons["E1029"].responses == 2
+    # The sample shown is the first wording the run met, generalised - not a second row beside it.
+    assert reasons["E1029"].reason == "Event OrganisationUnit: `...` and Program: `...`, do not match."
 
 
 #: The data set on a non-default attribute category combo, whose every value carries a third key.

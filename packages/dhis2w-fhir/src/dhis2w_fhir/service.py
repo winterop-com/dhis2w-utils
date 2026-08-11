@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from dhis2w_client.errors import Dhis2ApiError
+
+# The v41 generated OAS tree carries no import-summary, import-conflict, or import-count module, so
+# the import-report shapes come from v42 on every major - they are the wire shape all three answer with.
 from dhis2w_client.generated.v42.oas import ImportConflict, ImportSummary, TrackerImportError, TrackerImportReport
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile, resolve
@@ -3138,11 +3141,16 @@ def _attribute_value_inputs(raw_attribute_values: object) -> list[AttributeValue
     DHIS2 nests the attribute under `attribute[id]` and sends every value as a string, whatever
     the attribute's declared value type, so the projection reads the UID out of the nested
     reference and takes the value as it stands.
+
+    An entry arrives either as the wire dict or as a typed model: the three generated schema trees
+    type `attributeValues` differently - v41 as `list[AttributeValue]`, v42 and v43 as `Any` - and
+    this is the single place that absorbs that, dumping a model back to its wire shape first.
     """
     if not isinstance(raw_attribute_values, list):
         return []
     attribute_values: list[AttributeValueIn] = []
-    for raw in raw_attribute_values:
+    for entry in raw_attribute_values:
+        raw = entry.model_dump() if isinstance(entry, BaseModel) else entry
         if not isinstance(raw, dict):
             continue
         attribute = raw.get("attribute")
@@ -3516,8 +3524,11 @@ class ForwardRejectionReason(BaseModel):
     """One cause a run's rejections roll up into, and how many responses met it.
 
     DHIS2 states a rule once and then names the objects that broke it, so two hundred rejections are
-    usually a handful of causes. Grouping is on the error code plus the message with its quoted UIDs
-    generalised away, which is what turns `202 rejected` into something a person can act on.
+    usually a handful of causes. Grouping is on the error code, which is the stable name of a rule -
+    the wording DHIS2 wraps it in differs between majors, so grouping on the message would split one
+    rule into a row per version. `reason` is the first message the group met, with its quoted UIDs
+    generalised away, kept as the sample a reader acts on. A row DHIS2 gave no code for groups on
+    that generalised message instead, since it is the only name the rule has.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -3600,20 +3611,30 @@ class ForwardReport(BaseModel):
     def rejection_reasons(self) -> tuple[ForwardRejectionReason, ...]:
         """Every rejection of the run rolled up by cause, commonest first, so a wall of them reads as a few.
 
-        A response counts once per distinct cause it met, however many rows named that cause, and the
-        quoted UIDs DHIS2 embeds in a message are generalised away, so "Event OrganisationUnit: X and
-        Program: Y, do not match." is one cause of the run rather than one cause per event.
+        A response counts once per distinct cause it met, however many rows named that cause, so
+        `E1029` against two different pairs of objects is one cause of the run rather than two. The
+        message shown for a cause is the first one the run met, with the quoted UIDs DHIS2 embeds in
+        it generalised away.
         """
         counted: Counter[tuple[str | None, str]] = Counter()
+        samples: dict[tuple[str | None, str], str] = {}
         for outcome in self.rejected:
             imported = outcome.import_outcome
             issues = imported.issues if imported is not None else ()
-            causes = {(issue.error_code, _generalised_reason(issue.reason)) for issue in issues}
-            counted.update(causes or {(None, imported.message or "DHIS2 gave no reason") if imported else (None, "")})
+            causes: dict[tuple[str | None, str], str] = {}
+            for issue in issues:
+                reason = _generalised_reason(issue.reason)
+                causes.setdefault(_rejection_cause_key(issue.error_code, reason), reason)
+            if not causes:
+                message = (imported.message or "DHIS2 gave no reason") if imported is not None else ""
+                causes[(None, message)] = message
+            counted.update(causes.keys())
+            for key, reason in causes.items():
+                samples.setdefault(key, reason)
         ordered = sorted(counted.items(), key=lambda item: (-item[1], item[0][0] or "", item[0][1]))
         return tuple(
-            ForwardRejectionReason(error_code=error_code, reason=reason, responses=responses)
-            for (error_code, reason), responses in ordered
+            ForwardRejectionReason(error_code=key[0], reason=samples[key], responses=responses)
+            for key, responses in ordered
         )
 
 
@@ -3930,6 +3951,15 @@ def _tracker_issue(error: TrackerImportError) -> ForwardImportIssue:
 def _generalised_reason(reason: str) -> str:
     """One DHIS2 message with its quoted identifiers generalised away, so one rule reads as one cause."""
     return _QUOTED_IDENTIFIER.sub("`...`", reason)
+
+
+def _rejection_cause_key(error_code: str | None, generalised_reason: str) -> tuple[str | None, str]:
+    """What a rejection rolls up under: the error code alone, or the generalised message when there is no code.
+
+    An error code names a DHIS2 rule identically on every major, while the wording around it drifts, so
+    a coded row carries no message in its key and a codeless one has nothing else to be named by.
+    """
+    return (error_code, "") if error_code else (None, generalised_reason)
 
 
 def _file_outcomes(
