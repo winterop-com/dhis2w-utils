@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_fhir.names import join_id_tokens, page_text
-from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE, SUBJECT_RESOURCE_TYPES
+from dhis2w_fhir.names import join_id_tokens, page_text, quote
+from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE, SUBJECT_RESOURCE_TYPES, CodeSystemPropertyType
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -63,6 +63,58 @@ IDENTIFIER_SYSTEM_SUBJECTS = (
 )
 
 
+class TerminologyPairProfile(BaseModel):
+    """The fixed prose one CodeSystem/ValueSet pair publishes under, shared by both emitters.
+
+    The FSH target quotes these into its template and the JSON target writes them onto the built
+    `CodeSystem` and `ValueSet`, so the compiled guide and the served documents describe the same
+    terminology in the same words. `value_set_description` is for the pair whose ValueSet
+    describes a selection rather than the code system it draws from; left unset the ValueSet
+    publishes the code system's own description.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    title: str
+    description: str
+    value_set_description: str | None = None
+
+    @property
+    def value_set_text(self) -> str:
+        """What the ValueSet describes itself as - its own words where it has them, the CodeSystem's otherwise."""
+        return self.value_set_description if self.value_set_description is not None else self.description
+
+    @property
+    def title_literal(self) -> str:
+        """The title as the page-facing FSH `Title:` literal, markup characters HTML-escaped."""
+        return page_text(self.title)
+
+    @property
+    def description_literal(self) -> str:
+        """The CodeSystem description as the page-facing FSH `Description:` literal."""
+        return page_text(self.description)
+
+    @property
+    def value_set_description_literal(self) -> str:
+        """The ValueSet description as the page-facing FSH `Description:` literal."""
+        return page_text(self.value_set_text)
+
+
+class TerminologyPropertyDeclaration(BaseModel):
+    """One concept property a generated CodeSystem declares, in the words and the type both emitters use."""
+
+    model_config = ConfigDict(frozen=True)
+
+    code: str
+    description: str
+    type: CodeSystemPropertyType
+
+    @property
+    def description_literal(self) -> str:
+        """The description as the quoted FSH literal a `^property[=].description` rule takes."""
+        return quote(self.description)
+
+
 class FormTypeDefinition(BaseModel):
     """One DHIS2 form kind as a concept of the D2FormType terminology."""
 
@@ -79,6 +131,18 @@ FORM_TYPE_DEFINITIONS: tuple[FormTypeDefinition, ...] = (
     FormTypeDefinition(code="event", display="Event program form"),
     FormTypeDefinition(code="tracker", display="Tracker registration form"),
     FormTypeDefinition(code="tracker-event", display="Tracker program stage form"),
+)
+
+#: The prose the form-type CodeSystem/ValueSet pair publishes under.
+FORM_TYPE_TERMINOLOGY = TerminologyPairProfile(
+    title="DHIS2 form types",
+    description="The DHIS2 form kinds a Questionnaire is generated from.",
+)
+
+#: The prose the period-type CodeSystem/ValueSet pair publishes under.
+PERIOD_TYPE_TERMINOLOGY = TerminologyPairProfile(
+    title="DHIS2 period types",
+    description="The period types DHIS2 registers, each with the ISO period format it is written in.",
 )
 
 

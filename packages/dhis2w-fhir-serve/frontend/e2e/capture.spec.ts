@@ -677,7 +677,8 @@ test.describe('a tracker registration form', () => {
  * A stage form answering for an enrollment this server really minted - the whole reason the
  * "Answering for" picker exists.
  *
- * The `$generate` skeleton mints synthetic identifiers, so an unassisted stage submission is
+ * The `$generate` skeleton adopts the newest spooled registration's pair and mints synthetic
+ * identifiers only when no registration receipt exists - an unassisted submission is then
  * refused by DHIS2 at forward time (`E1079`/`E1313` - the enrollment does not exist). The real
  * pairs are in this server's own spool: `PsAncVisit1` names its program on the `{base}/id/program`
  * identifier, the fixture's registration form carries the same identifier as its identity, and
@@ -735,7 +736,7 @@ test.describe('a stage form answering for a captured registration', () => {
         const picker = page.getByLabel('Answering for')
         await expect(picker).toBeVisible()
         await expect(
-            page.getByText('Nothing is chosen, so this submission keeps the generated draft'),
+            page.getByText('Nothing is chosen, so this submission answers for the newest captured'),
         ).toBeVisible()
 
         // The offer is the registration just captured, labelled honestly: the minted uid and the

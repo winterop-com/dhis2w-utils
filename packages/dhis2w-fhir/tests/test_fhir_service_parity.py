@@ -24,11 +24,26 @@ from dhis2w_fhir import (
 
 _HOST = "https://dhis2.example"
 
+#: One annotating attribute value and one unique one - the two halves of the attribute surface.
+_ATTRIBUTE_VALUES_PAYLOAD = [
+    {"attribute": {"id": "ihn1wb9eho8"}, "value": "KE03"},
+    {"attribute": {"id": "AtrFhirOrU1"}, "value": "LA-17-042"},
+]
+
+#: The instance's attribute declarations: one coded and annotating, one coded and unique.
+_ATTRIBUTES_PAYLOAD = {
+    "attributes": [
+        {"id": "ihn1wb9eho8", "code": "hfid"},
+        {"id": "AtrFhirOrU1", "code": "registry number", "unique": True},
+    ]
+}
+
 _OPTION_SETS_PAYLOAD = {
     "optionSets": [
         {
             "id": "Xa1b2c3d4e5",
             "name": "Birth type",
+            "attributeValues": _ATTRIBUTE_VALUES_PAYLOAD,
             "options": [
                 {"id": "kRRUtYaGett", "code": "NB", "name": "Natural Birth", "sortOrder": 1},
                 {"id": "EBE0c8sZazS", "code": "CS", "name": "Scheduled Cesarean", "sortOrder": 2},
@@ -120,12 +135,15 @@ async def test_generate_option_sets_across_majors(
     wire_version: str,
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
-    mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """`generate_option_sets` writes a CodeSystem/ValueSet pair per set against every DHIS2 major."""
+    """`generate_option_sets` writes a CodeSystem/ValueSet pair per set against every DHIS2 major.
+
+    The set carries attribute values, whose wire shape reaches the mapper as typed models on v41 and
+    as plain dicts on v42 and v43, so the emitted extension and identifier are asserted on all three.
+    """
     mock_system_info(wire_version)
-    mock_attributes()
+    respx.get(f"{_HOST}/api/attributes").mock(return_value=httpx.Response(200, json=_ATTRIBUTES_PAYLOAD))
     await _scaffold_project(tmp_path)
     route = respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
 
@@ -146,6 +164,20 @@ async def test_generate_option_sets_across_majors(
     )
     assert code_system["name"] == "D2OS_Xa1b2c3d4e5_CS"
     assert code_system["title"] == "Birth type"
+    assert code_system["extension"] == [
+        {
+            "url": "http://example.org/fhir/StructureDefinition/d2-attribute-value",
+            "extension": [
+                {"url": "attributeId", "valueString": "ihn1wb9eho8"},
+                {"url": "attributeCode", "valueString": "hfid"},
+                {"url": "value", "valueString": "KE03"},
+            ],
+        }
+    ]
+    assert code_system["identifier"][-1] == {
+        "system": "http://dhis2.org/fhir/attribute/AtrFhirOrU1",
+        "value": "LA-17-042",
+    }
     concept_map = json.loads(
         (resources / "concept-maps" / "ConceptMap-d2-os-Xa1b2c3d4e5-cm.json").read_text(encoding="utf-8")
     )

@@ -1,0 +1,52 @@
+[
+  {
+    "uid": "ImspTQPwCqd",
+    "name": "Sierra Leone",
+    "code": "SL",
+    "level": 1,
+    "path": "/ImspTQPwCqd",
+    "closed": false,
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "O6uvpzGd5pu",
+    "name": "Bo",
+    "short_name": "Bo District",
+    "code": "OU_539",
+    "level": 2,
+    "path": "/ImspTQPwCqd/O6uvpzGd5pu",
+    "parent_uid": "ImspTQPwCqd",
+    "closed": false,
+    "translations": [
+      {
+        "locale": "lo",
+        "property": "NAME",
+        "value": "ແຂວງ ບໍ"
+      }
+    ],
+    "attribute_values": []
+  },
+  {
+    "uid": "YuQRtpLP10I",
+    "name": "Badjia",
+    "level": 3,
+    "path": "/ImspTQPwCqd/O6uvpzGd5pu/YuQRtpLP10I",
+    "parent_uid": "O6uvpzGd5pu",
+    "closed": false,
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "DiszpKrYNg8",
+    "name": "Ngelehun CHC",
+    "short_name": "Ngelehun CHC",
+    "code": "OU_559",
+    "level": 4,
+    "path": "/ImspTQPwCqd/O6uvpzGd5pu/YuQRtpLP10I/DiszpKrYNg8",
+    "parent_uid": "YuQRtpLP10I",
+    "closed": false,
+    "translations": [],
+    "attribute_values": []
+  }
+]

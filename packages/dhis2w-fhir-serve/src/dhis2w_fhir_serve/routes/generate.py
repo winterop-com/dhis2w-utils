@@ -7,6 +7,10 @@ postable - `$generate` output sent to this server's own `POST /QuestionnaireResp
 which is the round trip a capture UI's fill-with-test-data button and an API-driven stress corpus both
 stand on. `tests/test_generate_endpoint.py` holds that invariant per form kind.
 
+The spool is read as part of answering: a generated stage response answers against the tracked entity
+and the enrollment a spooled registration of the same program minted, so the operation's output is a
+function of the project's receipts as well as its forms - see `dhis2w_fhir_serve.synthesize`.
+
 This is a **custom** operation, deliberately not SDC's `$populate`. `$populate` means fill this form
 from real context about a real subject; `$generate` invents its data, and a client that knows what
 `$populate` means would be misled by seeing it here. The IG publishes the OperationDefinition, and
@@ -133,6 +137,7 @@ def _generated(request: Request, resource_id: str, seed: int | None) -> Response
         context.store,
         seed=seed if seed is not None else draw_seed(),
         today=datetime.date.today(),
+        spool=context.spool,
     )
     return Response(
         content=response.model_dump_json(exclude_none=True, by_alias=True),

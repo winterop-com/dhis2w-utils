@@ -1,7 +1,7 @@
 """Live-schema contract tests against play.im.dhis2.org.
 
-Pulls one real instance of each major resource from `dev-2-42` and
-`dev-2-43` and runs it through the matching generated pydantic model.
+Pulls one real instance of each major resource from `dev-2-41`,
+`dev-2-42` and `dev-2-43` and runs it through the matching generated pydantic model.
 Catches DHIS2 ship-day API drift the day it lands — if a field type
 changes, a new required field appears, or an enum gains a constant we
 don't know about, the model_validate call below raises and this test
@@ -55,13 +55,15 @@ def _listable_resource_accessors(version_key: str) -> list[str]:
     )
 
 
-# Built per version at collection time so v42/v43 each cover their own resource
+# Built per version at collection time so v41/v42/v43 each cover their own resource
 # set (v43 drops `push_analysis`, for instance). Every listable `/api/{resource}`
 # is exercised — a full overview, not a curated subset.
+_V41_RESOURCES = _listable_resource_accessors("v41")
 _V42_RESOURCES = _listable_resource_accessors("v42")
 _V43_RESOURCES = _listable_resource_accessors("v43")
 
 PLAY_URLS = {
+    "v41": "https://play.im.dhis2.org/dev-2-41",
     "v42": "https://play.im.dhis2.org/dev-2-42",
     "v43": "https://play.im.dhis2.org/dev-2-43",
 }
@@ -90,6 +92,13 @@ async def _make_client(url: str) -> AsyncIterator[Dhis2Client]:
         yield client
     finally:
         await client.close()
+
+
+@pytest.fixture
+async def play_v41_client() -> AsyncIterator[Dhis2Client]:
+    """Yield a connected client for `dev-2-41`, skipping if the host is down."""
+    async for client in _make_client(PLAY_URLS["v41"]):
+        yield client
 
 
 @pytest.fixture
@@ -166,6 +175,13 @@ async def _assert_resource_validates(client: Dhis2Client, accessor_name: str) ->
     except Dhis2ApiError as exc:
         pytest.skip(f"GET `{accessor_name}/{sample_id}` returned HTTP {exc.status_code}")
     assert fetched is not None, f"GET /api/.../{sample_id} returned None"
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize("accessor_name", _V41_RESOURCES, ids=_V41_RESOURCES)
+async def test_v41_schema_contract(play_v41_client: Dhis2Client, accessor_name: str) -> None:
+    """Generated v41 model still validates one live row from play."""
+    await _assert_resource_validates(play_v41_client, accessor_name)
 
 
 @pytest.mark.contract
@@ -302,6 +318,21 @@ async def _assert_tracker_endpoint_validates(client: Dhis2Client, endpoint: str,
     instance = model_cls.model_validate(row)
     assert instance is not None
     _report_undeclared_fields(f"/api/tracker/{endpoint}", instance)
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize(
+    ("endpoint", "model_name"),
+    TRACKER_ENDPOINTS,
+    ids=[m for _, m in TRACKER_ENDPOINTS],
+)
+async def test_v41_tracker_contract(
+    play_v41_client: Dhis2Client,
+    endpoint: str,
+    model_name: str,
+) -> None:
+    """Generated v41 tracker model still validates one live row from play."""
+    await _assert_tracker_endpoint_validates(play_v41_client, endpoint, model_name)
 
 
 @pytest.mark.contract

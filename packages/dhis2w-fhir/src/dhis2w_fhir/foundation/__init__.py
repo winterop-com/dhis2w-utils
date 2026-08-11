@@ -26,6 +26,11 @@ capture client sends - one profile per form kind, each pinning the context the r
 to carry - `d2-capture-server.fsh` states the interactions a server accepting those
 responses supports, and `d2-generate-operation.fsh` defines `$generate`, the instance-level
 operation that answers a served Questionnaire with a synthetic response postable straight back.
+
+The two vocabularies those extensions bind - the form types and the period types - also have a
+JSON path in `documents.py`, because a server running without a compiled guide still has to answer
+for the code system a served form's `D2FormType` extension names. Template and builder render one
+Python vocabulary each, so the served pair and the compiled pair are the same document.
 """
 
 from __future__ import annotations
@@ -42,15 +47,25 @@ from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_extension_url,
     attribute_value_extensions,
 )
+from dhis2w_fhir.foundation.documents import (
+    FoundationTerminologyBuild,
+    TerminologyPair,
+    build_foundation_terminology_documents,
+    build_terminology_pair,
+)
 from dhis2w_fhir.foundation.schemas import (
     FORM_TYPE_DEFINITIONS,
+    FORM_TYPE_TERMINOLOGY,
     GENERATE_OPERATION_CODE,
     GENERATE_SEED_PARAMETER,
     IDENTIFIER_SYSTEM_SUBJECTS,
+    PERIOD_TYPE_TERMINOLOGY,
     FormTypeDefinition,
     FoundationNaming,
     NamingSystemDeclaration,
     ResponseProfileDeclaration,
+    TerminologyPairProfile,
+    TerminologyPropertyDeclaration,
     TrackerSubjectTypes,
 )
 from dhis2w_fhir.names import page_text
@@ -70,17 +85,25 @@ __all__ = [
     "ATTRIBUTE_VALUE_SUB_EXTENSION",
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
     "FORM_TYPE_DEFINITIONS",
+    "FORM_TYPE_TERMINOLOGY",
     "GENERATE_OPERATION_CODE",
     "GENERATE_SEED_PARAMETER",
+    "PERIOD_TYPE_TERMINOLOGY",
     "FormTypeDefinition",
     "FoundationNaming",
+    "FoundationTerminologyBuild",
     "NamingSystemDeclaration",
     "ResponseProfileDeclaration",
+    "TerminologyPair",
+    "TerminologyPairProfile",
+    "TerminologyPropertyDeclaration",
     "attribute_value_extension_url",
     "attribute_value_extensions",
     "build_captured_response_profile_declarations",
     "build_foundation_artifacts",
+    "build_foundation_terminology_documents",
     "build_response_profile_declarations",
+    "build_terminology_pair",
 ]
 
 #: The `NamingSystem.date` every declaration carries. R4 makes the element mandatory, and a
@@ -172,10 +195,18 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
     )
     period = _ENVIRONMENT.get_template("d2-period.fsh.jinja").render(
-        names=names, period_types=PERIOD_TYPE_DEFINITIONS, ig_status=ig_status, experimental=experimental
+        names=names,
+        period_types=PERIOD_TYPE_DEFINITIONS,
+        terminology=PERIOD_TYPE_TERMINOLOGY,
+        ig_status=ig_status,
+        experimental=experimental,
     )
     form_type = _ENVIRONMENT.get_template("d2-form-type.fsh.jinja").render(
-        names=names, form_types=FORM_TYPE_DEFINITIONS, ig_status=ig_status, experimental=experimental
+        names=names,
+        form_types=FORM_TYPE_DEFINITIONS,
+        terminology=FORM_TYPE_TERMINOLOGY,
+        ig_status=ig_status,
+        experimental=experimental,
     )
     attribute_value = _ENVIRONMENT.get_template("d2-attribute-value.fsh.jinja").render(
         names=names,

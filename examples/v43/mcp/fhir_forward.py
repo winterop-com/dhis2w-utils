@@ -32,11 +32,12 @@ async def main() -> None:
         outcomes = report.get("outcomes", [])
         counted = {
             kind: sum(1 for outcome in outcomes if outcome["kind"] == kind)
-            for kind in ("accepted", "rejected", "refused")
+            for kind in ("accepted", "rejected", "refused", "unverifiable")
         }
         print(
             f"{'dry run' if report.get('dry_run') else 'import'}: {report.get('spooled')} spooled, "
-            f"{counted['accepted']} accepted, {counted['rejected']} rejected, {counted['refused']} refused "
+            f"{counted['accepted']} accepted, {counted['rejected']} rejected, {counted['refused']} refused, "
+            f"{counted['unverifiable']} unverifiable in a dry run "
             f"({report.get('coded_answer_mode')} coded answers)"
         )
         for outcome in outcomes[:10]:

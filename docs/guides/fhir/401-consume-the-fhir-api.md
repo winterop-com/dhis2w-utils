@@ -206,10 +206,20 @@ comes back as the response's business identifier under
 `{canonical}/id/generate-seed` (visible above). It survives the post into
 the stored receipt, so a corpus generated last week can be regenerated
 exactly by reading the seeds off it. Seeds are R4 `integer`s, `0` to
-`2147483647`; anything else is a 400 OperationOutcome. The tracked entity
-and enrollment on a generated tracker response are shaped synthetic UIDs -
-they name nothing on any instance, which is exactly what the
-[capture contract](401-capture-contract.md) checks.
+`2147483647`; anything else is a 400 OperationOutcome.
+
+A generated **registration** mints the tracked entity and the enrollment it
+creates, exactly as a real client does - shaped UIDs, which is what the
+[capture contract](401-capture-contract.md) checks. A generated **stage**
+response answers against a pair that already exists: the one a registration
+receipt in this project's spool minted, preferring a forwarded registration
+over a received one and the newest of either, on the program the two forms
+share. That is what makes a generated stage event importable - DHIS2 refuses
+an event naming an enrollment it cannot resolve with `E1079` and `E1313`. Only
+where the spool holds no registration of that program does a stage response
+mint a pair of its own. So a stage response is reproducible from its seed
+*and* the spool it was drawn against: running `d2w fhir forward` between two
+calls can move which registration is answered against.
 
 A Questionnaire the server does not hold is a 404 OperationOutcome; one it
 holds but cannot read as a capture form is a 422 saying so.

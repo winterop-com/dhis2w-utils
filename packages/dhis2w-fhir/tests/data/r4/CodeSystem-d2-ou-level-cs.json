@@ -1,0 +1,32 @@
+{
+  "resourceType": "CodeSystem",
+  "status": "draft",
+  "content": "complete",
+  "name": "D2OU_Level_CS",
+  "id": "d2-ou-level-cs",
+  "title": "DHIS2 organisation unit levels",
+  "description": "Hierarchy levels of the DHIS2 organisation unit tree.",
+  "url": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs",
+  "concept": [
+    {
+      "code": "level-1",
+      "display": "Level 1"
+    },
+    {
+      "code": "level-2",
+      "display": "Level 2"
+    },
+    {
+      "code": "level-3",
+      "display": "Level 3"
+    },
+    {
+      "code": "level-4",
+      "display": "Level 4"
+    }
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-ou-level-vs",
+  "count": 4
+}

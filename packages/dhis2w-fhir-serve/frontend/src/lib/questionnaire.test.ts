@@ -1032,7 +1032,7 @@ describe('the enrollment a stage submission answers against', () => {
         expect(stated?.valueIdentifier?.system).toBe('http://dhis2.org/fhir/id/tracker-enrollment')
     })
 
-    it('keeps the synthetic draw when nothing is chosen', () => {
+    it('keeps the draft identity when nothing is chosen', () => {
         const spec = flattenQuestionnaire(stageForm)
 
         const built = buildQuestionnaireResponse(spec, {}, stageForm, generated, NO_CAPTURE_CONTEXT)

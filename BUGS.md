@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-80 entries grouped by area. **Status tags** carry the result of the most
+81 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -110,6 +110,7 @@ filing.
 - [#72](#72-entity-scoped-get-with-a-program-the-entity-is-not-enrolled-in-answers-404-trackedentity-could-not-be-found) — Entity-scoped `GET` with an unenrolled program answers 404 "could not be found"
 - [#73](#73-create_and_update-enrolling-an-existing-tracked-entity-silently-rewrites-the-entitys-owning-org-unit) — `CREATE_AND_UPDATE` enrolling an existing entity rewrites its owning org unit
 - [#74](#74-unique-tracked-entity-attributes-are-not-searched-instance-wide-by-apitrackertrackedentities) — Unique attributes not searched instance-wide when org-unit scoped
+- [#75](#75-e1302-puts-the-value-type---or-nothing-at-all---where-the-data-element-identifier-belongs) — `E1302` names the value type, or nothing, where the data element belongs
 
 ### v43-specific
 
@@ -3778,7 +3779,8 @@ mismatch that cannot be true of an object nobody has. It arrives beside `E1313`
 ("of an Enrollment does not reference a TrackedEntity"), which is equally about
 resolution rather than about the reference the payload carries.
 
-**Observed on:** DHIS2 2.42 (`dhis2/core:2.42`, 2026-08-10).
+**Observed on:** DHIS2 2.42 (`dhis2/core:2.42`, 2026-08-10), 2.42.6-SNAPSHOT
+(2026-08-11), and 2.43.1 (revision `9cbfbf3`, 2026-08-11).
 
 **Repro:**
 
@@ -3803,9 +3805,15 @@ curl -s -u admin:district -H 'Content-Type: application/json' \
 **Expected:** an error saying the enrollment `EnAaBbCcDd1` does not exist - DHIS2 has
 `E1081` ("Enrollment ... could not be found") for exactly that.
 
-**Actual:** `E1079` - "Event: `<uid>` Program: `IpHINAT79UW` is different from Program
-defined in Enrollment `EnAaBbCcDd1`" - plus `E1313`. Both describe a relationship
-between the event and an enrollment that does not exist.
+**Actual:** `E1079` plus `E1313`. Both describe a relationship between the event and an
+enrollment that does not exist. The `E1079` message is worded two ways across the builds
+tested, so it is recorded here per version:
+
+- 2.42 (`dhis2/core:2.42`): ``Event: `<uid>` Program: `IpHINAT79UW` is different from
+  Program defined in Enrollment `EnAaBbCcDd1` ``
+- 2.42.6-SNAPSHOT: ``Event: `<uid>`, program: `IpHINAT79UW` is different from program
+  defined in enrollment `<uid>`.`` - a comma after the event UID, lower-case `program`
+  and `enrollment`, and a full stop at the end.
 
 **Impact:** the reported cause misdirects. A forwarder rolling rejections up by error
 code reports "events reference enrollments of another program", which sends a reader
@@ -3814,7 +3822,8 @@ refusal several entries earlier in the same run. This cost a full diagnosis cycl
 `d2w fhir forward`: the 48 `E1079`s of one drain were, every one of them, the stage
 events of the 24 registrations `E1064` had refused - verified by matching each
 enrollment named in an `E1079` against the enrollments minted by the refused
-registrations (24 of 24).
+registrations (24 of 24). The wording is not stable across builds of one major either,
+so a rollup keying on the message rather than the code reads one refusal as two.
 
 **Workaround in this repo:** none possible on the read side - the code is what DHIS2
 sends. The cause is addressed instead: `d2w fhir generate load-set` answers a `unique`
@@ -3823,13 +3832,28 @@ happens (`distinct_unique_value` in
 `packages/dhis2w-fhir/src/dhis2w_fhir/resources/examples/__init__.py`), and
 `d2w fhir forward` posts registrations before events so an enrollment exists by the
 time its events are read (`FORWARD_TARGET_ORDER` in
-`packages/dhis2w-fhir/src/dhis2w_fhir/conversion/schemas.py`).
+`packages/dhis2w-fhir/src/dhis2w_fhir/conversion/schemas.py`). The dry run cannot be
+addressed that way - `importMode=VALIDATE` writes nothing, so the enrollment is absent
+however the run is ordered - so a dry-run rejection carrying only this pair against an
+enrollment one of the run's own registrations mints is counted `unverifiable` rather
+than `rejected`, with a reason stating the fact rather than the codes (`_is_unverifiable`
+in `packages/dhis2w-fhir/src/dhis2w_fhir/service.py`). An event naming an enrollment no
+registration of the run mints stays a rejection. The other source of a fabricated
+enrollment is closed at the same place it was minted: a `$generate` stage response
+answers against the pair a spooled registration of its program minted, and mints one
+of its own only where no such registration exists (`adopted_tracker_pair` in
+`packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/synthesize.py`).
 
-**Also observed on 2.43.1** (rev 9cbfbf3, 2026-08-11): an event naming a completely
-fabricated enrollment (no earlier refusal involved, the UID never existed) draws the
-same pair - `E1079` asserting a program mismatch against the absent enrollment plus
-`E1313` - in both `importMode=VALIDATE` and real import. `E1081` ("Enrollment ...
-could not be found") never fires for events on either version tested.
+**Also observed with no earlier refusal at all** (2.42.6-SNAPSHOT, 2.43.1 rev
+`9cbfbf3`, and 2.43.2-SNAPSHOT rev `94e14ed`, all 2026-08-11): an event naming a
+completely fabricated enrollment - the UID never existed, and nothing was refused
+before it - draws the same pair, `E1079` asserting a program mismatch against the
+absent enrollment plus `E1313`, in both `importMode=VALIDATE` and real import.
+`E1081` ("Enrollment ... could not be found") never fires for events on any version
+tested. On 2.43.2-SNAPSHOT the wording is character-for-character what the 2.43.1
+addendum records - no further drift on that line. So the misdirection is not an
+artefact of the cascade: the code says "different program" whenever the enrollment
+cannot be resolved, whatever the reason it cannot be.
 
 **Verifier:** none yet.
 
@@ -4104,5 +4128,52 @@ search exists for. Lookups must broaden the scope deliberately.
 **Workaround in this repo:** none shipped yet; the planned identifier-search backend
 queries with `ouMode=ACCESSIBLE` (or `ALL` where the user may) rather than the capture
 unit's scope.
+
+**Verifier:** none yet.
+
+### 75. `E1302` puts the value type - or nothing at all - where the data element identifier belongs
+
+`E1302` reports an invalid data value, but the slot its message template reserves for
+the offending data element holds the wrong thing on every version tested: v42 and v43
+interpolate the VALUE TYPE (``DataElement `COORDINATE` is not valid``), and v41
+interpolates an empty string (``DataElement `` is not valid``). In neither rendering
+does the data element's identifier appear anywhere in the message or in `args`, so the
+operator cannot tell which question failed. The sibling `E1303` is well-formed by
+comparison - its `args` carry a full `MetadataIdentifier` naming the element.
+
+**Observed on:** DHIS2 2.41.10-SNAPSHOT rev `8606ff8`, 2.42.6-SNAPSHOT, and
+2.43.2-SNAPSHOT rev `94e14ed` (play.im.dhis2.org dev instances, 2026-08-11).
+
+**Repro:**
+
+```bash
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/tracker?importStrategy=CREATE&importMode=VALIDATE&async=false' -d '{
+    "events": [{"program": "VBqh0ynB2wv", "programStage": "pTo4uMt3xur",
+                "orgUnit": "DiszpKrYNg8", "occurredAt": "2026-07-22T04:00:00",
+                "status": "COMPLETED",
+                "dataValues": [{"dataElement": "F3ogKBuviRA", "value": "not a coordinate"}]}]}'
+```
+
+**Expected:** the message (or at least `args`) names `F3ogKBuviRA`, the data element
+whose value failed - the template's own wording promises it: "DataElement `X` is not
+valid".
+
+**Actual (2.42/2.43):** `{"message": "DataElement `COORDINATE` is not valid: `Value
+type is COORDINATE but the value `not a coordinate` is not.`.", "errorCode": "E1302",
+"args": ["COORDINATE", "Value type is COORDINATE but the value `not a coordinate` is
+not."]}` - `args[0]` is the value type, not the element.
+
+**Actual (2.41):** the same shape with an empty first slot: ``DataElement `` is not
+valid: ...`` - the identifier is absent entirely.
+
+**Impact:** a rejection rollup or an operator reading the import report has no way to
+locate the failing question on a form with many data elements of the same value type.
+
+**Workaround in this repo:** none possible on the read side - the message is DHIS2's.
+The cause is addressed instead: `$generate` and the examples emitter draw
+format-constrained value types (COORDINATE, PHONE_NUMBER, EMAIL, LETTER, USERNAME)
+through `seeded_format_constrained_value`, so generated corpora no longer trip `E1302`
+at all.
 
 **Verifier:** none yet.

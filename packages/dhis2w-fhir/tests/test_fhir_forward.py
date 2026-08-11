@@ -43,7 +43,9 @@ from dhis2w_fhir.conversion import (
     bound_question_uids,
     build_project_context,
     load_compiled_artifacts,
+    receipt_event_uid,
 )
+from dhis2w_fhir.names import is_dhis2_uid
 from dhis2w_fhir.r4 import Identifier, Location, QuestionnaireResponse
 from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, build_option_set_concept_maps
@@ -343,6 +345,44 @@ def _rejected_tracker_other_unit() -> httpx.Response:
                         "errorCode": "E1029",
                         "trackerType": "EVENT",
                         "uid": "Ev2aaaaaaaa",
+                    }
+                ],
+                "warningReports": [],
+            },
+            "stats": {"created": 0, "updated": 0, "deleted": 0, "ignored": 1, "total": 1},
+        },
+    )
+
+
+def _two_event_spool() -> list[QuestionnaireResponse]:
+    """The published example responses plus a second copy of the event one, so two payloads reach `/api/tracker`.
+
+    A rollup collapses causes across responses, so proving it takes two responses that meet the same
+    cause - and the forwarder posts one payload per receipt, so the second copy is the second post.
+    """
+    documents = _documents(GenerateConfig())
+    event = next(document for document in documents if _form_kind(document) != "aggregate")
+    return [*documents, event.model_copy(update={"id": f"{event.id}b"})]
+
+
+def _rejected_tracker_reworded() -> httpx.Response:
+    """The same broken rule worded the way another DHIS2 major words it, which no generalisation reconciles.
+
+    `E1029` names one rule; the sentence DHIS2 wraps it in is prose and differs between majors
+    (BUGS.md #68 shows the same drift on `E1079`). Grouping on the sentence would report one rule as
+    two causes of the run against an instance that words it either way.
+    """
+    return httpx.Response(
+        409,
+        json={
+            "status": "ERROR",
+            "validationReport": {
+                "errorReports": [
+                    {
+                        "message": "Event `Ev3aaaaaaaa` organisation unit does not belong to program `IpHINAT79UW`.",
+                        "errorCode": "E1029",
+                        "trackerType": "EVENT",
+                        "uid": "Ev3aaaaaaaa",
                     }
                 ],
                 "warningReports": [],
@@ -677,15 +717,32 @@ async def test_the_rejections_roll_up_by_cause_with_the_quoted_uids_generalised(
     respx.post(f"{_BASE_URL}/api/tracker").mock(
         side_effect=[_rejected_tracker(), _rejected_tracker_other_unit()],
     )
-    _fill_spool(forward_project, _documents(GenerateConfig()))
+    _fill_spool(forward_project, _two_event_spool())
     report = await _forward(forward_project)
     reasons = {reason.error_code: reason for reason in report.rejection_reasons}
     assert set(reasons) == {"E7611", "E1029"}
     assert reasons["E1029"].reason == "Event OrganisationUnit: `...` and Program: `...`, do not match."
+    assert reasons["E1029"].responses == 2
     assert reasons["E7611"].responses == 1
     assert [reason.responses for reason in report.rejection_reasons] == sorted(
         (reason.responses for reason in report.rejection_reasons), reverse=True
     )
+
+
+@respx.mock
+async def test_one_rule_worded_two_ways_is_still_one_cause_of_the_run(forward_project: Path) -> None:
+    """The rollup groups on the error code, so a message DHIS2 rewords between majors stays one row."""
+    _mock_instance(aggregate_response=_rejected_aggregate(), tracker_response=_rejected_tracker())
+    respx.post(f"{_BASE_URL}/api/tracker").mock(
+        side_effect=[_rejected_tracker(), _rejected_tracker_reworded()],
+    )
+    _fill_spool(forward_project, _two_event_spool())
+    report = await _forward(forward_project)
+    reasons = {reason.error_code: reason for reason in report.rejection_reasons}
+    assert set(reasons) == {"E7611", "E1029"}
+    assert reasons["E1029"].responses == 2
+    # The sample shown is the first wording the run met, generalised - not a second row beside it.
+    assert reasons["E1029"].reason == "Event OrganisationUnit: `...` and Program: `...`, do not match."
 
 
 #: The data set on a non-default attribute category combo, whose every value carries a third key.
@@ -1023,3 +1080,252 @@ async def test_the_report_reads_back_in_spool_order_whatever_the_posting_order_w
     report = await _forward(tracker_forward_project, import_responses=True)
 
     assert [outcome.response_id for outcome in report.outcomes] == ["A03MvHHogjR-example-1", "En1aaaaaaaa"]
+
+
+def test_one_receipt_always_names_the_same_event_uid() -> None:
+    """A receipt-derived identity is a pure function of the receipt, so two translations agree on it."""
+    assert receipt_event_uid("A03MvHHogjR-example-1") == receipt_event_uid("A03MvHHogjR-example-1")
+
+
+def test_two_receipts_name_two_events() -> None:
+    """Two visits captured against one form are two events, so their derived UIDs must not collide."""
+    assert receipt_event_uid("A03MvHHogjR-example-1") != receipt_event_uid("A03MvHHogjR-example-2")
+
+
+def test_a_derived_event_uid_is_shaped_the_way_dhis2_reads_one() -> None:
+    """One ASCII letter and ten alphanumeric places, which is the only check a reader can make offline."""
+    assert is_dhis2_uid(receipt_event_uid("A03MvHHogjR-example-1"))
+    assert is_dhis2_uid(receipt_event_uid("En1aaaaaaaa"))
+
+
+@respx.mock
+async def test_a_posted_event_carries_the_uid_its_receipt_derives(forward_project: Path) -> None:
+    """The client names the event, so the import report DHIS2 answers with is about a UID the run already knows."""
+    routes = _mock_instance()
+
+    report = await _forward(forward_project, import_responses=True)
+
+    posted = json.loads(routes["tracker"].calls.last.request.content)["events"][0]
+    event_outcomes = [outcome for outcome in report.outcomes if outcome.target_kind is not None]
+    event_receipt = next(outcome.response_id for outcome in event_outcomes if outcome.target_kind.value == "event")
+    assert posted["event"] == receipt_event_uid(event_receipt)
+
+
+@respx.mock
+async def test_a_dry_run_and_the_import_behind_it_name_the_same_event(forward_project: Path) -> None:
+    """Dry-run diagnostics are readable against the objects the import creates because both name one UID."""
+    dry_routes = _mock_instance()
+    await _forward(forward_project)
+    validated = json.loads(dry_routes["tracker"].calls.last.request.content)["events"][0]["event"]
+
+    respx.reset()
+    import_routes = _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    imported = json.loads(import_routes["tracker"].calls.last.request.content)["events"][0]["event"]
+
+    assert validated == imported
+
+
+@respx.mock
+async def test_forwarding_one_receipt_twice_asks_dhis2_to_create_the_same_event_twice(
+    forward_project: Path,
+) -> None:
+    """A re-forward is a `CREATE` against a UID the instance already holds - a refusal, not a second visit."""
+    routes = _mock_instance()
+
+    await _forward(forward_project, import_responses=True)
+    first = json.loads(routes["tracker"].calls.last.request.content)["events"][0]["event"]
+
+    _fill_spool(forward_project, _documents(GenerateConfig()))
+    await _forward(forward_project, import_responses=True)
+    second = json.loads(routes["tracker"].calls.last.request.content)["events"][0]["event"]
+
+    assert first == second
+    assert dict(routes["tracker"].calls.last.request.url.params)["importStrategy"] == "CREATE"
+
+
+#: The event UID DHIS2 names in the pair it answers an absent enrollment with.
+_STAGE_EVENT_UID = "EvAaBbCcDd1"
+
+
+def _absent_enrollment_tracker(enrollment: str = _MINTED_ENROLLMENT) -> httpx.Response:
+    """The pair `/api/tracker` answers a stage event whose enrollment nobody has, verbatim off a live 2.42.
+
+    `E1313` states the enrollment is missing and `E1079` asserts a program mismatch against that same
+    absent enrollment (BUGS.md 68). Under `importMode=VALIDATE` the pair is what every stage event of a
+    registration validated in the same run earns, because a dry run never created the enrollment.
+    """
+    return httpx.Response(
+        409,
+        json={
+            "status": "ERROR",
+            "validationReport": {
+                "errorReports": [
+                    {
+                        "message": (
+                            f"Event: `{_STAGE_EVENT_UID}` Program: `IpHINAT79UW` is different from Program "
+                            f"defined in Enrollment `{enrollment}`"
+                        ),
+                        "errorCode": "E1079",
+                        "trackerType": "EVENT",
+                        "uid": _STAGE_EVENT_UID,
+                    },
+                    {
+                        "message": f"Enrollment `{enrollment}` requires a TrackedEntity.",
+                        "errorCode": "E1313",
+                        "trackerType": "EVENT",
+                        "uid": _STAGE_EVENT_UID,
+                    },
+                ],
+                "warningReports": [],
+            },
+            "stats": {"created": 0, "updated": 0, "deleted": 0, "ignored": 1, "total": 1},
+        },
+    )
+
+
+def _mock_tracker_instance_answering_the_stage_event(event_response: httpx.Response) -> respx.Route:
+    """Mock a tracker drain whose registration DHIS2 takes and whose stage event it answers `event_response`."""
+    tracker = _mock_tracker_instance()
+
+    def _answer(request: httpx.Request) -> httpx.Response:
+        return _accepted_tracker() if b'"trackedEntities"' in request.content else event_response
+
+    tracker.mock(side_effect=_answer)
+    return tracker
+
+
+def _drop_the_registration_receipt(root: Path) -> None:
+    """Leave the stage event alone in the spool, so the enrollment it names is one no receipt here mints."""
+    (root / RECEIVED_RESPONSES_RELATIVE_PATH / "En1aaaaaaaa.json").unlink()
+
+
+@respx.mock
+async def test_a_dry_run_cannot_check_a_stage_event_against_an_enrollment_the_same_run_would_create(
+    tracker_forward_project: Path,
+) -> None:
+    """The pair DHIS2 answers here is the dry run's own doing, so the event is unverifiable and not rejected."""
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project)
+
+    assert report.rejected == ()
+    assert len(report.unverifiable) == 1
+    assert report.unverifiable[0].response_id == "A03MvHHogjR-example-1"
+    assert report.unverifiable[0].kind == ForwardOutcomeKind.UNVERIFIABLE
+    assert len(report.accepted) == 1
+    assert report.posted_count == 2
+    assert "0 rejected, 1 unverifiable in a dry run" in report.counts_line
+
+
+@respx.mock
+async def test_the_unverifiable_section_says_what_a_dry_run_cannot_check_without_naming_an_error_code(
+    tracker_forward_project: Path,
+) -> None:
+    """A reader acts on this without knowing what `E1079` and `E1313` are, which is the whole point of it."""
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project)
+
+    assert len(report.unverifiable_reasons) == 1
+    reason = report.unverifiable_reasons[0]
+    assert reason.responses == 1
+    assert "created by a registration validated in the same run" in reason.reason
+    assert "A dry run writes nothing to the instance" in reason.reason
+    assert "E1079" not in reason.reason
+    assert "E1313" not in reason.reason
+
+
+@respx.mock
+async def test_a_dry_run_stage_event_naming_an_enrollment_no_registration_of_the_run_mints_stays_rejected(
+    tracker_forward_project: Path,
+) -> None:
+    """The orphan is the case that has to keep failing loudly - nothing in this run would ever create it."""
+    _drop_the_registration_receipt(tracker_forward_project)
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project)
+
+    assert report.unverifiable == ()
+    assert len(report.rejected) == 1
+    assert report.rejected[0].response_id == "A03MvHHogjR-example-1"
+    assert [issue.error_code for issue in report.rejected[0].import_outcome.issues] == ["E1079", "E1313"]
+
+
+@respx.mock
+async def test_a_dry_run_rejection_outside_the_absent_enrollment_pair_stays_rejected(
+    tracker_forward_project: Path,
+) -> None:
+    """A stage event of this run's own registration is still rejected for anything else DHIS2 names."""
+    _mock_tracker_instance_answering_the_stage_event(_rejected_tracker())
+
+    report = await _forward(tracker_forward_project)
+
+    assert report.unverifiable == ()
+    assert len(report.rejected) == 1
+    assert [issue.error_code for issue in report.rejected[0].import_outcome.issues] == ["E1029"]
+
+
+@respx.mock
+async def test_an_import_run_reads_the_same_pair_as_a_rejection_and_files_it_as_one(
+    tracker_forward_project: Path,
+) -> None:
+    """An import creates what it posts, so nothing it refuses went unchecked and nothing is reclassified."""
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project, import_responses=True)
+
+    assert report.unverifiable == ()
+    assert report.unverifiable_reasons == ()
+    assert len(report.rejected) == 1
+    assert report.rejected[0].spool_path.startswith(REJECTED_RESPONSES_RELATIVE_PATH)
+    assert (tracker_forward_project / REJECTED_RESPONSES_RELATIVE_PATH / "A03MvHHogjR-example-1.json").is_file()
+
+
+@respx.mock
+async def test_the_report_round_trips_the_unverifiable_outcome_through_json(
+    tracker_forward_project: Path,
+) -> None:
+    """The kind is a field of the receipt, so a dumped report rebuilds the count and the section from it."""
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    report = await _forward(tracker_forward_project)
+    restored = service.ForwardReport.model_validate_json(report.model_dump_json())
+
+    assert [outcome.kind for outcome in restored.outcomes] == [outcome.kind for outcome in report.outcomes]
+    assert len(restored.unverifiable) == 1
+    assert restored.unverifiable_reasons == report.unverifiable_reasons
+    assert restored.counts_line == report.counts_line
+
+
+@respx.mock
+def test_a_dry_run_whose_only_failures_are_unverifiable_exits_zero(
+    tracker_forward_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A dry run proved everything a dry run can prove, so it is a success and says what it could not check."""
+    from dhis2w_cli.main import build_app
+    from typer.testing import CliRunner
+
+    monkeypatch.setenv("COLUMNS", "300")
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    result = CliRunner().invoke(build_app(), ["fhir", "forward", str(tracker_forward_project), "--no-progress"])
+
+    assert result.exit_code == 0, result.output
+    assert "unverifiable in a dry run" in result.output
+    assert "created by a registration validated in the same run" in result.output
+
+
+@respx.mock
+def test_a_dry_run_holding_an_orphan_stage_event_exits_one(tracker_forward_project: Path) -> None:
+    """A rejection nothing in the run explains is a failure whatever the mode, and the exit code says so."""
+    from dhis2w_cli.main import build_app
+    from typer.testing import CliRunner
+
+    _drop_the_registration_receipt(tracker_forward_project)
+    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+
+    result = CliRunner().invoke(build_app(), ["fhir", "forward", str(tracker_forward_project), "--no-progress"])
+
+    assert result.exit_code == 1, result.output
+    assert "1 response(s) rejected by DHIS2" in result.output

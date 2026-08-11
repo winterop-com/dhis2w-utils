@@ -340,6 +340,64 @@ async def test_the_live_store_holds_both_concept_map_families(
 
 
 @respx.mock
+async def test_the_live_store_serves_the_terminology_the_foundation_fsh_declares(
+    live_profile: None,  # noqa: ARG001
+    live_project: FhirProject,
+) -> None:
+    """The form-type, period-type, and organisation-unit level pairs are served without an FSH compiler."""
+    _mock_instance()
+
+    store = await _built_store(live_project)
+
+    code_systems = _bodies(store, "CodeSystem")
+    value_sets = _bodies(store, "ValueSet")
+    assert code_systems["d2-form-type-cs"]["url"] == f"{_CANONICAL}/CodeSystem/d2-form-type-cs"
+    assert [concept["code"] for concept in code_systems["d2-form-type-cs"]["concept"]] == [
+        "aggregate",
+        "event",
+        "tracker",
+        "tracker-event",
+    ]
+    assert value_sets["d2-form-type-vs"]["compose"]["include"] == [
+        {"system": f"{_CANONICAL}/CodeSystem/d2-form-type-cs"}
+    ]
+    assert code_systems["d2-period-type-cs"]["concept"][0] == {"code": "Daily", "display": "Daily (yyyyMMdd)"}
+    assert "d2-period-type-vs" in value_sets
+    # The vocabulary every published Location states its level from - two units, two levels.
+    assert [concept["code"] for concept in code_systems["d2-ou-level-cs"]["concept"]] == ["level-1", "level-2"]
+    assert "d2-ou-level-vs" in value_sets
+    # The whole-selection pair is off until `[generate.organisation_units] terminology` turns it on.
+    assert "d2-ou-cs" not in code_systems
+    assert "d2-ou-vs" not in value_sets
+
+
+@respx.mock
+async def test_the_live_store_serves_the_organisation_unit_code_list_when_it_is_turned_on(
+    live_profile: None,  # noqa: ARG001
+    tmp_path: Path,
+) -> None:
+    """`terminology = true` publishes the whole-selection pair live, levels carried as integers."""
+    _mock_instance()
+    config_path = tmp_path / "terminology-fhir.toml"
+    config_path.write_text(f"{_LIVE_FHIR_TOML}\n[generate.organisation_units]\nterminology = true\n", encoding="utf-8")
+    project = FhirProject(config=load_fhir_config(config_path), config_path=config_path.resolve())
+
+    store = await _built_store(project)
+
+    code_system = _bodies(store, "CodeSystem")["d2-ou-cs"]
+    assert code_system["url"] == f"{_CANONICAL}/CodeSystem/d2-ou-cs"
+    assert code_system["count"] == 2
+    assert code_system["concept"][0] == {
+        "code": "ImspTQPwCqd",
+        "display": "Sierra Leone",
+        "property": [{"code": "level", "valueInteger": 1}, {"code": "dhis2-code", "valueString": "SL"}],
+    }
+    assert _bodies(store, "ValueSet")["d2-ou-vs"]["compose"]["include"] == [
+        {"system": f"{_CANONICAL}/CodeSystem/d2-ou-cs"}
+    ]
+
+
+@respx.mock
 async def test_the_profile_is_opened_exactly_once(
     live_profile: None,  # noqa: ARG001
     live_project: FhirProject,

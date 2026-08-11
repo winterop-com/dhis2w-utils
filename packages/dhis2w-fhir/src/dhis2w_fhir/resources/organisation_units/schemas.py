@@ -5,7 +5,31 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dhis2w_fhir.attributes import AttributeValueIn
+from dhis2w_fhir.foundation.schemas import TerminologyPairProfile, TerminologyPropertyDeclaration
 from dhis2w_fhir.i18n import TranslationIn
+
+#: The prose the org-unit-level CodeSystem/ValueSet pair publishes under - the levels the selection reaches.
+ORGANISATION_UNIT_LEVEL_TERMINOLOGY = TerminologyPairProfile(
+    title="DHIS2 organisation unit levels",
+    description="Hierarchy levels of the DHIS2 organisation unit tree.",
+)
+
+#: The prose the whole-selection CodeSystem/ValueSet pair publishes under. The ValueSet names the
+#: selection it draws, where the CodeSystem names what a concept code means.
+ORGANISATION_UNIT_TERMINOLOGY = TerminologyPairProfile(
+    title="DHIS2 organisation units",
+    description="DHIS2 organisation units. Concept codes are DHIS2 organisation unit UIDs.",
+    value_set_description="All DHIS2 organisation units in the generated selection.",
+)
+
+#: The concept properties the whole-selection CodeSystem declares, in the order it declares them.
+ORGANISATION_UNIT_CONCEPT_PROPERTIES: tuple[TerminologyPropertyDeclaration, ...] = (
+    TerminologyPropertyDeclaration(
+        code="level", description="DHIS2 organisation unit hierarchy level.", type="integer"
+    ),
+    TerminologyPropertyDeclaration(code="parent", description="Parent organisation unit UID.", type="code"),
+    TerminologyPropertyDeclaration(code="dhis2-code", description="DHIS2 organisation unit code.", type="string"),
+)
 
 
 class OrganisationUnitSelection(BaseModel):
@@ -67,3 +91,8 @@ class OrganisationUnitIn(BaseModel):
     closed: bool = False
     translations: list[TranslationIn] = Field(default_factory=list)
     attribute_values: list[AttributeValueIn] = Field(default_factory=list)
+
+
+def ordered_organisation_units(organisation_units: list[OrganisationUnitIn]) -> list[OrganisationUnitIn]:
+    """The selection in terminology emission order - down the DHIS2 hierarchy path, then by UID."""
+    return sorted(organisation_units, key=lambda item: (item.path, item.uid))

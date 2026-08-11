@@ -15,7 +15,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from dhis2w_fhir.i18n import TranslationIn, name_translations
 from dhis2w_fhir.names import quote
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
-from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from dhis2w_fhir.resources.organisation_units.schemas import (
+    ORGANISATION_UNIT_CONCEPT_PROPERTIES,
+    ORGANISATION_UNIT_LEVEL_TERMINOLOGY,
+    ORGANISATION_UNIT_TERMINOLOGY,
+    OrganisationUnitIn,
+    ordered_organisation_units,
+)
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact
 
@@ -53,6 +59,7 @@ def build_organisation_unit_level_terminology(
     content = _ENVIRONMENT.get_template("org-unit-levels.fsh.jinja").render(
         names=names,
         levels=sorted(set(levels)),
+        terminology=ORGANISATION_UNIT_LEVEL_TERMINOLOGY,
         ig_status=ig_status,
         experimental=experimental_for_status(ig_status),
     )
@@ -78,11 +85,13 @@ def build_organisation_unit_terminology(
             code_literal=quote(organisation_unit.code) if organisation_unit.code is not None else None,
             designations=name_translations(organisation_unit.translations, config.locales),
         )
-        for organisation_unit in sorted(organisation_units, key=lambda item: (item.path, item.uid))
+        for organisation_unit in ordered_organisation_units(organisation_units)
     ]
     content = _ENVIRONMENT.get_template("org-units-terminology.fsh.jinja").render(
         names=names,
         concepts=concepts,
+        terminology=ORGANISATION_UNIT_TERMINOLOGY,
+        properties=ORGANISATION_UNIT_CONCEPT_PROPERTIES,
         property_base=f"{config.identifier_system_base}/property",
         ig_status=ig_status,
         experimental=experimental_for_status(ig_status),

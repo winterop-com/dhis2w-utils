@@ -91,10 +91,12 @@ then `make sushi` in the project, and serve again.
 client, opened during startup and closed before the first request arrives.
 Nothing in the request path ever talks to DHIS2. What `--live` serves is
 byte-identical to what the compiled store would have served for the same
-metadata, because both come out of the same JSON builders - but live mode
-serves the read set only, not the foundation artifacts: StructureDefinitions
-only exist as JSON once SUSHI has compiled them, and no FSH compiler runs in
-the server.
+metadata, because both come out of the same JSON builders - the CodeSystem and
+ValueSet pairs the foundation FSH declares included, so a client resolving the
+form-type, period-type, or organisation-unit terminology gets the same
+documents either way. What live mode leaves out is the definitional layer:
+StructureDefinitions and the profiles only exist as JSON once SUSHI has
+compiled them, and no FSH compiler runs in the server.
 
 Either way, the store is a snapshot: read once at startup and never re-read.
 Regenerate, recompile, or re-fetch, then restart the server to serve the new

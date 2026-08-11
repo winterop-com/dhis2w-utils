@@ -34,8 +34,8 @@ from dhis2w_fhir import (
 from dhis2w_fhir.period import parse_period
 from dhis2w_fhir.resources.examples import (
     EXAMPLES_DIRECTORY,
-    _synthetic_uid,
     response_status_code,
+    synthetic_uid,
 )
 from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
 from dhis2w_fhir.resources.option_sets import option_set_identities
@@ -708,7 +708,7 @@ def test_a_tracker_event_example_titles_itself_under_both_identities() -> None:
 def test_a_synthetic_uid_has_the_shape_dhis2_gives_one() -> None:
     """A DHIS2 UID opens on a letter and runs to eleven alphanumeric places."""
     generator = random.Random(0)  # noqa: S311 - a test fixture, not a secret
-    drawn = [_synthetic_uid(generator) for _ in range(50)]
+    drawn = [synthetic_uid(generator) for _ in range(50)]
     for uid in drawn:
         assert len(uid) == 11
         assert uid[0].isascii() and uid[0].isalpha()

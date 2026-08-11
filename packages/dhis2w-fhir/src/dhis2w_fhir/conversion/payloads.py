@@ -4,8 +4,9 @@
                       attribute option combo the whole report is filed under where the form declares
                       a vocabulary for one, and one data value per answered cell, each carrying its
                       category option combo.
-    event          -> one `/api/tracker` event of an event program: program, organisation unit,
-                      occurrence, status, and one data value per answered question.
+    event          -> one `/api/tracker` event of an event program: the UID derived from the
+                      receipt's own logical id, program, organisation unit, occurrence, status,
+                      and one data value per answered question.
     tracker        -> one `/api/tracker` tracked entity: its client-minted UID, the tracked entity
                       type the form names, the organisation unit that owns it, one attribute per
                       answered entity-level question, and the single enrollment the response
@@ -14,6 +15,13 @@
                       program-only question.
     tracker-event  -> the same event as `event`, plus the program stage it belongs to, the tracked
                       entity it was captured for, and the enrollment it sits on.
+
+Every DHIS2 object a tracker payload creates is named before it is posted. A registration reads its
+tracked entity and enrollment UIDs off the response, where the client that filled the form minted
+them; both event kinds derive theirs from the receipt's own logical id, so one receipt always names
+one event. A dry run and the import behind it therefore report the same UID, and forwarding a
+receipt twice is refused by the instance as an object it already holds rather than filing a second
+copy of one visit.
 
 Every fact a payload carries is read out of the response through an identifier or an extension,
 never out of a URL. A Questionnaire's canonical segment is an identity stem, and a Location's id
@@ -29,6 +37,7 @@ report of a period, which is worse than not importing.
 from __future__ import annotations
 
 import datetime
+import random
 from typing import TYPE_CHECKING
 
 from dhis2w_client.generated.v42.oas import (
@@ -61,6 +70,7 @@ from dhis2w_fhir.conversion.values import (
     wall_clock_reading,
 )
 from dhis2w_fhir.period import parse_period
+from dhis2w_fhir.resources.examples import derived_seed, synthetic_uid
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -77,6 +87,7 @@ __all__ = [
     "REGISTERED_ENROLLMENT_STATUS",
     "TranslatedAnswer",
     "TranslatedAnswers",
+    "receipt_event_uid",
     "translate_aggregate_response",
     "translate_event_response",
     "translate_tracker_event_response",
@@ -121,6 +132,14 @@ _DATE_PART_SEPARATOR = "T"
 #: answered when a person is enrolled, and DHIS2 spells a live enrollment `ACTIVE` - completing or
 #: cancelling one is a later act against an enrollment that already exists.
 REGISTERED_ENROLLMENT_STATUS = EnrollmentStatus.ACTIVE
+
+#: What the event-identity material names itself, so the UID a receipt's event is imported under
+#: cannot collide with any other identity minted off the same receipt id.
+_EVENT_IDENTITY_TOKEN = "event"
+
+#: The ordinal slot of the event-identity material. A receipt reports exactly one event, so the
+#: discriminator a receipt naming several would move stays at the first.
+_SOLE_EVENT_ORDINAL = 0
 
 
 class TranslatedAnswer(BaseModel):
@@ -215,6 +234,27 @@ def translate_aggregate_response(
     )
 
 
+def receipt_event_uid(response_id: str) -> str:
+    """The DHIS2 UID one receipt's event is imported under, derived from the receipt's own logical id.
+
+    The same receipt names the same event UID - on the dry run and on the import that follows it,
+    on this machine and on the next. That property is the whole point: an event travels to
+    `/api/tracker` under `importStrategy=CREATE`, so forwarding a receipt DHIS2 already holds the
+    event of is refused as an object that exists, rather than filing a second copy of one visit.
+    It is the identity a registration already has - the tracked entity UID its subject identifier
+    carries - given to the one payload kind that carried none, and it is what lets a dry run's
+    diagnostics be read against the objects the import then creates, because both name this UID.
+
+    The material is `<response id>:event:0`, hashed with SHA-256 - never Python's per-process
+    salted `hash` - and shaped into `[A-Za-z][A-Za-z0-9]{10}` by the same drawer the synthesis
+    path mints tracked entity and enrollment UIDs with. The trailing ordinal is the discriminator
+    a receipt naming more than one event would move; a receipt reports exactly one.
+    """
+    material = f"{response_id}:{_EVENT_IDENTITY_TOKEN}"
+    generator = random.Random(derived_seed(material, _SOLE_EVENT_ORDINAL))  # noqa: S311 - an identity, not a secret
+    return synthetic_uid(generator)
+
+
 def translate_event_response(
     response: QuestionnaireResponse, form: FormSpec, context: ConversionContext
 ) -> EventTranslation:
@@ -233,6 +273,7 @@ def translate_event_response(
     return EventTranslation(
         notes=tuple(notes),
         event=TrackerEvent(
+            event=_event_identity(response),
             program=program,
             programStage=form.program_stage_uid,
             orgUnit=organisation_unit,
@@ -271,6 +312,7 @@ def translate_tracker_event_response(
         notes=tuple(notes),
         target_kind=ConversionTargetKind.TRACKER_EVENT,
         event=TrackerEvent(
+            event=_event_identity(response),
             program=program,
             programStage=stage,
             orgUnit=organisation_unit,
@@ -437,6 +479,17 @@ def _tracker_data_values(translated: TranslatedAnswers) -> list[TrackerDataValue
         TrackerDataValue(dataElement=answer.question.data_element_uid, value=answer.value)
         for answer in translated.answers
     ]
+
+
+def _event_identity(response: QuestionnaireResponse) -> str | None:
+    """The event UID one response names, or None for a response carrying no logical id to name it with.
+
+    A receipt off the capture spool is a file named after its own id and a resource carrying that
+    id, so the None branch is a response handed straight to the translator by a caller who minted
+    no identity for it - and a payload nothing can name is one DHIS2 mints the UID of, exactly as
+    it does for every other identity such a response does not state.
+    """
+    return receipt_event_uid(response.id) if response.id else None
 
 
 def _period(

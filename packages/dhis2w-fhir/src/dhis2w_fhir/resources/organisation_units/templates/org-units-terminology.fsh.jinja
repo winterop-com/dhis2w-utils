@@ -1,24 +1,18 @@
 CodeSystem: {{ names.organisation_unit_code_system }}
 Id: {{ names.terminology_id('cs') }}
-Title: "DHIS2 organisation units"
-Description: "DHIS2 organisation units. Concept codes are DHIS2 organisation unit UIDs."
+Title: {{ terminology.title_literal }}
+Description: {{ terminology.description_literal }}
 * ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical({{ names.organisation_unit_value_set }})
-* ^property[+].code = #level
-* ^property[=].uri = "{{ property_base }}/level"
-* ^property[=].description = "DHIS2 organisation unit hierarchy level."
-* ^property[=].type = #integer
-* ^property[+].code = #parent
-* ^property[=].uri = "{{ property_base }}/parent"
-* ^property[=].description = "Parent organisation unit UID."
-* ^property[=].type = #code
-* ^property[+].code = #dhis2-code
-* ^property[=].uri = "{{ property_base }}/dhis2-code"
-* ^property[=].description = "DHIS2 organisation unit code."
-* ^property[=].type = #string
+{% for declaration in properties %}
+* ^property[+].code = #{{ declaration.code }}
+* ^property[=].uri = "{{ property_base }}/{{ declaration.code }}"
+* ^property[=].description = {{ declaration.description_literal }}
+* ^property[=].type = #{{ declaration.type }}
+{% endfor %}
 {% for concept in concepts %}
 * #{{ concept.uid }} {{ concept.display_literal }}
 * #{{ concept.uid }} ^property[+].code = #level
@@ -39,8 +33,8 @@ Description: "DHIS2 organisation units. Concept codes are DHIS2 organisation uni
 
 ValueSet: {{ names.organisation_unit_value_set }}
 Id: {{ names.terminology_id('vs') }}
-Title: "DHIS2 organisation units"
-Description: "All DHIS2 organisation units in the generated selection."
+Title: {{ terminology.title_literal }}
+Description: {{ terminology.value_set_description_literal }}
 * ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * include codes from system {{ names.organisation_unit_code_system }}

@@ -24,13 +24,12 @@ const CONTROL_ID = 'answering-enrollment'
  * nothing in the response's `item` tree carries either - they ride the envelope, beside the
  * organisation unit. So the control sits above the form with the other envelope facts.
  *
- * WHY THE USER PICKS IT AND THE SERVER DOES NOT. This is the one piece of envelope context the
- * `$generate` skeleton gets *wrong* rather than merely proposes: it mints synthetic uids that
- * name nothing in any DHIS2, so an unassisted stage submission is refused at forward time
- * (`E1079`/`E1313` - the enrollment does not exist). The real enrollments are the ones this
- * server's own registration receipts minted, and which person is being followed up is a fact the
- * person filling the form brought with them - exactly the argument the attribute option combo
- * makes.
+ * WHY THE USER PICKS IT AND THE SERVER ONLY PROPOSES. The `$generate` skeleton adopts the pair
+ * of the newest spooled registration for this program - forwarded preferred - and mints a pair
+ * naming nothing only when no registration receipt exists, in which case the submission is
+ * refused at forward time (`E1079`/`E1313` - the enrollment does not exist). Which person is
+ * being followed up is a fact the person filling the form brought with them - exactly the
+ * argument the attribute option combo makes - so the proposal is theirs to override.
  *
  * WHY EVERY OPTION STATES ITS LIFECYCLE. A pair from a forwarded registration names objects
  * DHIS2 already holds, so a submission against it lands. A pair from a received one exists only
@@ -107,8 +106,9 @@ export function EnrollmentPicker({
             )}
             {offer.options.length > 0 && selected === null && (
                 <p className="text-muted-foreground text-xs">
-                    Nothing is chosen, so this submission keeps the generated draft's synthetic
-                    identifiers and will not import into DHIS2. Pick an enrollment above.
+                    Nothing is chosen, so this submission answers for the newest captured
+                    registration - one not yet sent to DHIS2. Pick an enrollment above to answer
+                    for a different one.
                 </p>
             )}
             {selected !== null && selected.lifecycle === 'received' && (

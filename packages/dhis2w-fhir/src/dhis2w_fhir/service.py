@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from dhis2w_client.errors import Dhis2ApiError
+
+# The v41 generated OAS tree carries no import-summary, import-conflict, or import-count module, so
+# the import-report shapes come from v42 on every major - they are the wire shape all three answer with.
 from dhis2w_client.generated.v42.oas import ImportConflict, ImportSummary, TrackerImportError, TrackerImportReport
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile, resolve
@@ -3138,11 +3141,16 @@ def _attribute_value_inputs(raw_attribute_values: object) -> list[AttributeValue
     DHIS2 nests the attribute under `attribute[id]` and sends every value as a string, whatever
     the attribute's declared value type, so the projection reads the UID out of the nested
     reference and takes the value as it stands.
+
+    An entry arrives either as the wire dict or as a typed model: the three generated schema trees
+    type `attributeValues` differently - v41 as `list[AttributeValue]`, v42 and v43 as `Any` - and
+    this is the single place that absorbs that, dumping a model back to its wire shape first.
     """
     if not isinstance(raw_attribute_values, list):
         return []
     attribute_values: list[AttributeValueIn] = []
-    for raw in raw_attribute_values:
+    for entry in raw_attribute_values:
+        raw = entry.model_dump() if isinstance(entry, BaseModel) else entry
         if not isinstance(raw, dict):
             continue
         attribute = raw.get("attribute")
@@ -3401,9 +3409,9 @@ _TRACKER_TRACKED_ENTITIES_KEY = "trackedEntities"
 #: and the import runs every rule it would run for real while committing nothing.
 _DATA_VALUE_SETS_DRY_RUN_PARAMS = {"dryRun": "true"}
 
-#: The parameters every forwarded event is posted under. A translated event carries no DHIS2 uid, so
-#: it is always a create, and `async=false` is what makes the answer the import report itself rather
-#: than a job reference to poll.
+#: The parameters every forwarded event is posted under. Every payload names its own receipt-derived
+#: uid, and CREATE is what makes a re-forwarded receipt collide loudly instead of updating in place;
+#: `async=false` makes the answer the import report itself rather than a job reference to poll.
 _TRACKER_PARAMS = {"importStrategy": "CREATE", "async": "false"}
 
 #: What a dry run adds to a tracker post. v42 has no `dryRun` on `/api/tracker`; the endpoint's own
@@ -3436,6 +3444,18 @@ _QUOTED_IDENTIFIER = re.compile(r"`[^`]*`")
 #: How often the posting step re-captions itself, so a 300-response drain narrates without one line each.
 _POST_TICK_INTERVAL = 10
 
+#: The two codes DHIS2 answers a tracker event whose enrollment it cannot find with: `E1313` for the
+#: enrollment nobody has, and the `E1079` program mismatch it asserts against that same absent
+#: enrollment (BUGS.md 68). A rejection carrying only these is the whole shape a dry run cannot check.
+_ABSENT_ENROLLMENT_ERROR_CODES = frozenset({"E1079", "E1313"})
+
+#: What a dry run says about a stage event whose enrollment only a registration of the same run creates.
+_UNVERIFIABLE_IN_DRY_RUN_REASON = (
+    "The enrollment this event answers into is created by a registration validated in the same run. A dry "
+    "run writes nothing to the instance, so there is no enrollment for DHIS2 to check the event against. "
+    "An import posts registrations first, and the event is checked against the enrollment one created."
+)
+
 
 class ForwardOutcomeKind(StrEnum):
     """What became of one spooled response in a forward run."""
@@ -3448,6 +3468,9 @@ class ForwardOutcomeKind(StrEnum):
 
     #: DHIS2 was given the payload and refused it; the import report says why.
     REJECTED = "rejected"
+
+    #: A dry run could not check the payload, because what it answers into is created by the same run.
+    UNVERIFIABLE = "unverifiable"
 
 
 class ForwardImportIssue(BaseModel):
@@ -3516,13 +3539,29 @@ class ForwardRejectionReason(BaseModel):
     """One cause a run's rejections roll up into, and how many responses met it.
 
     DHIS2 states a rule once and then names the objects that broke it, so two hundred rejections are
-    usually a handful of causes. Grouping is on the error code plus the message with its quoted UIDs
-    generalised away, which is what turns `202 rejected` into something a person can act on.
+    usually a handful of causes. Grouping is on the error code, which is the stable name of a rule -
+    the wording DHIS2 wraps it in differs between majors, so grouping on the message would split one
+    rule into a row per version. `reason` is the first message the group met, with its quoted UIDs
+    generalised away, kept as the sample a reader acts on. A row DHIS2 gave no code for groups on
+    that generalised message instead, since it is the only name the rule has.
     """
 
     model_config = ConfigDict(frozen=True)
 
     error_code: str | None = None
+    reason: str
+    responses: int
+
+
+class ForwardUnverifiableReason(BaseModel):
+    """One cause a dry run could not check a payload against, and how many responses met it.
+
+    Separate from `ForwardRejectionReason` because it is a different claim about the run: a rejection
+    says the payload is wrong, and this says the run could not tell either way.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
     reason: str
     responses: int
 
@@ -3579,6 +3618,11 @@ class ForwardReport(BaseModel):
         return tuple(outcome for outcome in self.outcomes if outcome.kind == ForwardOutcomeKind.REJECTED)
 
     @property
+    def unverifiable(self) -> tuple[ForwardOutcome, ...]:
+        """Every response this dry run could not check, because the run itself would create what it needs."""
+        return tuple(outcome for outcome in self.outcomes if outcome.kind == ForwardOutcomeKind.UNVERIFIABLE)
+
+    @property
     def translated_count(self) -> int:
         """How many responses produced a payload."""
         return self.spooled - len(self.refused)
@@ -3586,34 +3630,57 @@ class ForwardReport(BaseModel):
     @property
     def posted_count(self) -> int:
         """How many payloads were posted to DHIS2."""
-        return len(self.accepted) + len(self.rejected)
+        return len(self.accepted) + len(self.rejected) + len(self.unverifiable)
 
     @property
     def counts_line(self) -> str:
         """The whole run in one line, which is what a progress reporter and a summary hint both want."""
         return (
             f"{self.spooled:,} spooled, {self.translated_count:,} translated, {len(self.refused):,} refused, "
-            f"{self.posted_count:,} posted, {len(self.accepted):,} accepted, {len(self.rejected):,} rejected"
+            f"{self.posted_count:,} posted, {len(self.accepted):,} accepted, {len(self.rejected):,} rejected, "
+            f"{len(self.unverifiable):,} unverifiable in a dry run"
         )
 
     @property
     def rejection_reasons(self) -> tuple[ForwardRejectionReason, ...]:
         """Every rejection of the run rolled up by cause, commonest first, so a wall of them reads as a few.
 
-        A response counts once per distinct cause it met, however many rows named that cause, and the
-        quoted UIDs DHIS2 embeds in a message are generalised away, so "Event OrganisationUnit: X and
-        Program: Y, do not match." is one cause of the run rather than one cause per event.
+        A response counts once per distinct cause it met, however many rows named that cause, so
+        `E1029` against two different pairs of objects is one cause of the run rather than two. The
+        message shown for a cause is the first one the run met, with the quoted UIDs DHIS2 embeds in
+        it generalised away.
         """
         counted: Counter[tuple[str | None, str]] = Counter()
+        samples: dict[tuple[str | None, str], str] = {}
         for outcome in self.rejected:
             imported = outcome.import_outcome
             issues = imported.issues if imported is not None else ()
-            causes = {(issue.error_code, _generalised_reason(issue.reason)) for issue in issues}
-            counted.update(causes or {(None, imported.message or "DHIS2 gave no reason") if imported else (None, "")})
+            causes: dict[tuple[str | None, str], str] = {}
+            for issue in issues:
+                reason = _generalised_reason(issue.reason)
+                causes.setdefault(_rejection_cause_key(issue.error_code, reason), reason)
+            if not causes:
+                message = (imported.message or "DHIS2 gave no reason") if imported is not None else ""
+                causes[(None, message)] = message
+            counted.update(causes.keys())
+            for key, reason in causes.items():
+                samples.setdefault(key, reason)
         ordered = sorted(counted.items(), key=lambda item: (-item[1], item[0][0] or "", item[0][1]))
         return tuple(
-            ForwardRejectionReason(error_code=error_code, reason=reason, responses=responses)
-            for (error_code, reason), responses in ordered
+            ForwardRejectionReason(error_code=key[0], reason=samples[key], responses=responses)
+            for key, responses in ordered
+        )
+
+    @property
+    def unverifiable_reasons(self) -> tuple[ForwardUnverifiableReason, ...]:
+        """What the run could not check and why, as the section a reader acts on without knowing DHIS2 codes."""
+        if not self.unverifiable:
+            return ()
+        return (
+            ForwardUnverifiableReason(
+                reason=_UNVERIFIABLE_IN_DRY_RUN_REASON,
+                responses=len(self.unverifiable),
+            ),
         )
 
 
@@ -3646,6 +3713,13 @@ async def forward_responses(
     `E1313` for an enrollment that does not exist yet. Nothing tracks which event belongs to which
     registration: the ordering is by payload kind, and a registration DHIS2 rejects leaves its
     events to fail as they would have anyway, for the next drain to retry.
+
+    A dry run cannot prove one thing an import can. `importMode=VALIDATE` writes nothing, so the
+    enrollment a registration of the same run mints does not exist when the stage event naming it is
+    checked, and DHIS2 answers that event `E1313` plus the `E1079` program mismatch it asserts against
+    the absent enrollment. Those responses are counted `unverifiable` rather than `rejected`: the
+    enrollment they name is one this run's registrations mint, and an import posts registrations
+    first. An event naming an enrollment no registration of the run mints is a rejection either way.
 
     `coded_answer_mode` defaults to what `[serve] strict_codes` says, so a project that captures
     strictly forwards strictly without stating it twice.
@@ -3686,7 +3760,15 @@ async def forward_responses(
         progress.complete(f"{len(imports):,} payload(s) posted{' (validate only)' if dry_run else ''}")
 
     progress.step("spool", "filing what each response became")
-    outcomes = _file_outcomes(spooled, conversion, imports, project.project_root, moving=import_responses)
+    minted_enrollments = _minted_enrollment_uids(conversion) if dry_run else frozenset[str]()
+    outcomes = _file_outcomes(
+        spooled,
+        conversion,
+        imports,
+        project.project_root,
+        moving=import_responses,
+        minted_enrollments=minted_enrollments,
+    )
     report = ForwardReport(
         project_root=project.project_root,
         dry_run=dry_run,
@@ -3932,6 +4014,15 @@ def _generalised_reason(reason: str) -> str:
     return _QUOTED_IDENTIFIER.sub("`...`", reason)
 
 
+def _rejection_cause_key(error_code: str | None, generalised_reason: str) -> tuple[str | None, str]:
+    """What a rejection rolls up under: the error code alone, or the generalised message when there is no code.
+
+    An error code names a DHIS2 rule identically on every major, while the wording around it drifts, so
+    a coded row carries no message in its key and a codeless one has nothing else to be named by.
+    """
+    return (error_code, "") if error_code else (None, generalised_reason)
+
+
 def _file_outcomes(
     spooled: Sequence[SpooledResponse],
     conversion: ConversionReport,
@@ -3939,12 +4030,17 @@ def _file_outcomes(
     project_root: Path,
     *,
     moving: bool,
+    minted_enrollments: frozenset[str],
 ) -> tuple[ForwardOutcome, ...]:
-    """Pair every receipt with what DHIS2 said about it, moving the file when the run really imported."""
+    """Pair every receipt with what DHIS2 said about it, moving the file when the run really imported.
+
+    `minted_enrollments` is empty on an import run, which is what keeps the unverifiable reading a
+    dry-run reading: an import creates the enrollments it posts, so nothing it rejects goes unchecked.
+    """
     outcomes: list[ForwardOutcome] = []
     for entry, result in zip(spooled, conversion.results, strict=True):
         imported = imports.get(entry.response_id)
-        kind = _outcome_kind(result, imported)
+        kind = _outcome_kind(result, imported, minted_enrollments)
         path = _filed_path(entry, kind, imported, moving=moving)
         outcomes.append(
             ForwardOutcome(
@@ -3961,11 +4057,51 @@ def _file_outcomes(
     return tuple(outcomes)
 
 
-def _outcome_kind(result: ConversionResult, imported: ForwardImportOutcome | None) -> ForwardOutcomeKind:
-    """Which of the three states one receipt ended in."""
+def _minted_enrollment_uids(conversion: ConversionReport) -> frozenset[str]:
+    """Every enrollment UID this run's registrations mint, which is what their stage events name.
+
+    The UIDs are the client's own - a registration response carries the enrollment it creates in its
+    `D2TrackerEnrollment` extension - so they are known before DHIS2 answers anything.
+    """
+    return frozenset(
+        enrollment.enrollment
+        for tracked_entity in conversion.tracked_entities
+        for enrollment in tracked_entity.enrollments or []
+        if enrollment.enrollment
+    )
+
+
+def _outcome_kind(
+    result: ConversionResult,
+    imported: ForwardImportOutcome | None,
+    minted_enrollments: frozenset[str],
+) -> ForwardOutcomeKind:
+    """Which of the four states one receipt ended in."""
     if result.is_refused or imported is None:
         return ForwardOutcomeKind.REFUSED
-    return ForwardOutcomeKind.REJECTED if imported.is_rejected else ForwardOutcomeKind.ACCEPTED
+    if not imported.is_rejected:
+        return ForwardOutcomeKind.ACCEPTED
+    if _is_unverifiable(result, imported, minted_enrollments):
+        return ForwardOutcomeKind.UNVERIFIABLE
+    return ForwardOutcomeKind.REJECTED
+
+
+def _is_unverifiable(
+    result: ConversionResult,
+    imported: ForwardImportOutcome,
+    minted_enrollments: frozenset[str],
+) -> bool:
+    """Whether a rejection is only DHIS2 saying the enrollment this event names does not exist yet.
+
+    Three things have to hold together. The payload is a tracker event; every row DHIS2 named against
+    it is one of the pair it answers an absent enrollment with (BUGS.md 68); and the enrollment the
+    event names is one a registration of the same run mints. An event naming an enrollment nobody in
+    the run creates fails the last test and stays a rejection, which is the orphan the run must state.
+    """
+    if result.event is None or result.event.enrollment not in minted_enrollments:
+        return False
+    error_codes = {issue.error_code for issue in imported.issues}
+    return bool(error_codes) and all(code in _ABSENT_ENROLLMENT_ERROR_CODES for code in error_codes)
 
 
 def _filed_path(
@@ -3978,9 +4114,10 @@ def _filed_path(
     """Move the receipt into the state it ended in, and answer with where it now sits.
 
     A dry run moves nothing at all, so a run that validated the whole spool leaves the queue exactly
-    as it found it and can be run again as the import.
+    as it found it and can be run again as the import. `unverifiable` is a dry-run reading and so is
+    named here for the same reason: what a run could not check stays where the next run finds it.
     """
-    if not moving or kind == ForwardOutcomeKind.REFUSED:
+    if not moving or kind in (ForwardOutcomeKind.REFUSED, ForwardOutcomeKind.UNVERIFIABLE):
         return entry.path
     if kind == ForwardOutcomeKind.ACCEPTED:
         return move_to_forwarded(entry)

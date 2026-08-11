@@ -5,6 +5,11 @@ The invariant every other test here supports: **a generated response posted back
 tracker event - over the compiled goldens, and again over a strict-codes server, because a generated
 coding has to be the exact concept code the contract asks for rather than one of the lenient
 fall-back spellings.
+
+Two things a 201 does not settle, and which are tested here beside it, because DHIS2 grades them and
+this server does not: a value has to be spelled the way its DHIS2 value type is parsed, and a stage
+event has to name a tracked entity and an enrollment that exist. Both are what the difference between
+"this server accepts it" and "`d2w fhir forward` lands it" is made of.
 """
 
 from __future__ import annotations
@@ -20,7 +25,8 @@ from dhis2w_fhir.period import parse_period
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.capture.naming import GENERATE_SEED_IDENTIFIER_SEGMENT
 from dhis2w_fhir_serve.settings import ServeSettings
-from dhis2w_fhir_serve.synthesize import DEFAULT_PERIOD_TYPE, MAXIMUM_SEED
+from dhis2w_fhir_serve.spool import ResponseLifecycle, ResponseSpool, StoredResponseEnvelope
+from dhis2w_fhir_serve.synthesize import DEFAULT_PERIOD_TYPE, MAXIMUM_SEED, TrackerPair
 from fixture_project import ORG_UNITS, REGISTRATION_UNIQUE_ATTRIBUTE, SCOPED_ASSIGNMENT_UNITS
 
 #: The canonical the dhis2w-fhir goldens were compiled under, as `capture_project` serves them.
@@ -54,6 +60,11 @@ REGISTRATION_QUESTIONNAIRE = f"{CANONICAL}/Questionnaire/{REGISTRATION_ID}"
 ENROLLED_AT_URL = f"{CANONICAL}/StructureDefinition/d2-enrolled-at"
 INCIDENT_AT_URL = f"{CANONICAL}/StructureDefinition/d2-incident-at"
 ORGANISATION_UNIT_URL = f"{CANONICAL}/StructureDefinition/d2-organisation-unit"
+
+#: The stage form of the registration form's own program - the pair a registration mints is what a
+#: response to this form is captured against.
+STAGE_ID = "PsAncVisit1"
+STAGE_QUESTIONNAIRE = f"{CANONICAL}/Questionnaire/{STAGE_ID}"
 
 #: How many places a DHIS2 UID carries, which is all a generated tracker identifier claims to be.
 UID_LENGTH = 11
@@ -543,3 +554,334 @@ async def test_metadata_declares_the_operation_on_the_questionnaire_entry(
         }
     ]
     assert all("operation" not in entry for entry in others)
+
+
+#: A form asking one question per DHIS2 value type R4 has no item type of its own for: five that ride
+#: a `string` item and DHIS2 parses anyway, one that is genuinely free text, and three DHIS2 stores a
+#: document or a UID reference for. The compiled goldens ask none of them, so the form is written into
+#: the project by the tests that need it rather than into the fixture every other test shares.
+WIDE_FORM_ID = "PrWideType1"
+WIDE_QUESTIONNAIRE = f"{CANONICAL}/Questionnaire/{WIDE_FORM_ID}"
+WIDE_CODE_SYSTEM = f"{CANONICAL}/CodeSystem/d2-wide-cs"
+
+#: Which question of that form asks which DHIS2 value type.
+WIDE_VALUE_TYPES = {
+    "DeCoord0001": "COORDINATE",
+    "DePhone0001": "PHONE_NUMBER",
+    "DeEmail0001": "EMAIL",
+    "DeLetter001": "LETTER",
+    "DeUsernam01": "USERNAME",
+    "DeFreeText1": "TEXT",
+    "DeGeoJson01": "GEOJSON",
+    "DeReferenc1": "REFERENCE",
+    "DeAssociat1": "TRACKER_ASSOCIATE",
+}
+
+#: The questions DHIS2 stores a document or a reference to one of its own objects behind, which a
+#: generated response leaves unanswered rather than inventing a target for.
+WIDE_UNANSWERED_QUESTIONS = ("DeGeoJson01", "DeReferenc1", "DeAssociat1")
+
+#: The wide questions asked as a `text` item; every other one is asked as a `string`.
+WIDE_TEXT_QUESTIONS = ("DeGeoJson01",)
+
+#: How few characters DHIS2 holds a username to, which is what makes a seeded one an account name.
+MINIMUM_USERNAME_LENGTH = 4
+
+
+def _wide_questionnaire() -> dict[str, Any]:
+    """The wide-value-type form, in the shape `d2w fhir generate` writes an event program's form."""
+    return {
+        "resourceType": "Questionnaire",
+        "id": WIDE_FORM_ID,
+        "url": WIDE_QUESTIONNAIRE,
+        "title": "Wide value types",
+        "extension": [{"url": FORM_TYPE_URL, "valueCode": "event"}],
+        "identifier": [{"system": "http://dhis2.org/fhir/id/program", "value": WIDE_FORM_ID}],
+        "name": f"D2PR_{WIDE_FORM_ID}",
+        "status": "draft",
+        "experimental": True,
+        "subjectType": ["Location"],
+        "item": [
+            {
+                "linkId": link_id,
+                "code": [{"system": WIDE_CODE_SYSTEM, "code": link_id, "display": value_type.title()}],
+                "text": value_type.title(),
+                "type": "text" if link_id in WIDE_TEXT_QUESTIONS else "string",
+            }
+            for link_id, value_type in WIDE_VALUE_TYPES.items()
+        ],
+    }
+
+
+def _wide_code_system() -> dict[str, Any]:
+    """The support CodeSystem stating the DHIS2 value type behind each of those questions."""
+    return {
+        "resourceType": "CodeSystem",
+        "id": WIDE_CODE_SYSTEM.rsplit("/", 1)[-1],
+        "url": WIDE_CODE_SYSTEM,
+        "status": "draft",
+        "content": "complete",
+        "caseSensitive": True,
+        "property": [{"code": "value-type", "uri": "http://dhis2.org/fhir/property/value-type", "type": "code"}],
+        "concept": [
+            {
+                "code": link_id,
+                "display": value_type.title(),
+                "property": [{"code": "value-type", "valueCode": value_type}],
+            }
+            for link_id, value_type in WIDE_VALUE_TYPES.items()
+        ],
+        "count": len(WIDE_VALUE_TYPES),
+    }
+
+
+def _answered_strings(response: dict[str, Any]) -> dict[str, str]:
+    """Every string answer of one generated response, by the question that carries it."""
+    return {
+        item["linkId"]: item["answer"][0]["valueString"]
+        for item in response.get("item", [])
+        if item.get("answer") and "valueString" in item["answer"][0]
+    }
+
+
+async def _generated_wide_response(
+    capture_project: FhirProject,
+    write_resource: Callable[[Path, dict[str, Any]], None],
+    seed: int,
+) -> tuple[dict[str, Any], int]:
+    """Serve the wide-value-type form beside the goldens, generate against it, and post the answer back."""
+    compiled = capture_project.ig_directory / "fsh-generated" / "resources"
+    write_resource(compiled / f"Questionnaire-{WIDE_FORM_ID}.json", _wide_questionnaire())
+    write_resource(compiled / f"CodeSystem-{WIDE_CODE_SYSTEM.rsplit('/', 1)[-1]}.json", _wide_code_system())
+    app = create_app(ServeSettings(project_dir=capture_project.project_root))
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://serve.test") as client:
+            generated = await _generate(client, WIDE_FORM_ID, seed=seed)
+            posted = await _post_back(client, generated)
+
+    return generated.json(), posted.status_code
+
+
+async def test_a_format_constrained_answer_is_spelled_the_way_its_dhis2_value_type_is_parsed(
+    capture_project: FhirProject,
+    write_resource: Callable[[Path, dict[str, Any]], None],
+) -> None:
+    """R4 asks all five as `string`; DHIS2 parses each of them, and refuses a value it cannot with `E1302`."""
+    response, posted = await _generated_wide_response(capture_project, write_resource, seed=5)
+    answered = _answered_strings(response)
+    longitude, latitude = (float(part) for part in answered["DeCoord0001"].strip("[]").split(","))
+    username = answered["DeUsernam01"]
+
+    assert -180 <= longitude <= 180
+    assert -90 <= latitude <= 90
+    assert answered["DePhone0001"].startswith("+")
+    assert answered["DePhone0001"][1:].isdigit()
+    assert answered["DeEmail0001"].count("@") == 1
+    assert answered["DeEmail0001"].endswith("@example.invalid")
+    assert answered["DeLetter001"].isalpha()
+    assert len(answered["DeLetter001"]) == 1
+    assert username.isalnum()
+    assert len(username) >= MINIMUM_USERNAME_LENGTH
+    assert posted == 201
+
+
+async def test_a_free_text_answer_still_names_the_question_it_answers(
+    capture_project: FhirProject,
+    write_resource: Callable[[Path, dict[str, Any]], None],
+) -> None:
+    """Free text is what DHIS2 stores for a TEXT question, so naming the question is an honest answer to it."""
+    response, _ = await _generated_wide_response(capture_project, write_resource, seed=5)
+
+    assert _answered_strings(response)["DeFreeText1"] == "Example DeFreeText1"
+
+
+async def test_a_value_type_holding_a_document_or_a_dhis2_reference_is_left_unanswered(
+    capture_project: FhirProject,
+    write_resource: Callable[[Path, dict[str, Any]], None],
+) -> None:
+    """An invented GeoJSON blob or object UID names a target nothing resolves, which DHIS2 refuses as `E1302`."""
+    response, posted = await _generated_wide_response(capture_project, write_resource, seed=5)
+
+    answered = {item["linkId"] for item in response.get("item", []) if item.get("answer")}
+
+    assert not answered & set(WIDE_UNANSWERED_QUESTIONS)
+    assert posted == 201
+
+
+async def test_a_format_constrained_answer_is_the_same_for_the_same_seed(
+    capture_project: FhirProject,
+    write_resource: Callable[[Path, dict[str, Any]], None],
+) -> None:
+    """The constrained values are drawn off the same seeded stream as every other answer, so they repeat."""
+    first, _ = await _generated_wide_response(capture_project, write_resource, seed=13)
+    second, _ = await _generated_wide_response(capture_project, write_resource, seed=13)
+
+    assert _answered_strings(first) == _answered_strings(second)
+
+
+def _tracker_pair(response: dict[str, Any]) -> TrackerPair:
+    """The tracked entity and the enrollment one generated tracker response is captured against."""
+    return TrackerPair(
+        tracked_entity_uid=response["subject"]["identifier"]["value"],
+        enrollment_uid=_extensions(response, TRACKER_ENROLLMENT_URL)[0]["valueIdentifier"]["value"],
+    )
+
+
+def _spool_registration(
+    project: FhirProject,
+    response: dict[str, Any],
+    *,
+    response_id: str,
+    received_at: str,
+    lifecycle: ResponseLifecycle,
+) -> None:
+    """Store one registration receipt in the state named, as the facade writes it and the forwarder moves it."""
+    spool = ResponseSpool.at(project.project_root)
+    directory = spool.directory_for(lifecycle)
+    directory.mkdir(parents=True, exist_ok=True)
+    envelope = StoredResponseEnvelope(
+        response_id=response_id,
+        received_at=received_at,
+        form_kind="tracker",
+        questionnaire=REGISTRATION_QUESTIONNAIRE,
+        response=response,
+    )
+    (directory / f"{response_id}.json").write_text(envelope.model_dump_json(indent=2) + "\n", encoding="utf-8")
+
+
+async def test_a_stage_response_answers_against_the_pair_a_captured_registration_minted(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """A stage event naming a pair that never existed is refused `E1079`, so a spooled registration's is adopted."""
+    registration = await _generate(capture_client, REGISTRATION_ID, seed=5)
+    assert (await _post_back(capture_client, registration)).status_code == 201
+
+    generated = await _generate(capture_client, STAGE_ID, seed=5)
+    posted = await _post_back(capture_client, generated)
+
+    assert generated.json()["questionnaire"] == STAGE_QUESTIONNAIRE
+    assert _tracker_pair(generated.json()) == _tracker_pair(registration.json())
+    assert posted.status_code == 201
+
+
+async def test_a_stage_response_prefers_a_forwarded_registration_over_a_received_one(
+    capture_client: httpx.AsyncClient,
+    capture_project: FhirProject,
+) -> None:
+    """A forwarded pair names objects DHIS2 already holds; a received one will only after the next drain."""
+    forwarded = (await _generate(capture_client, REGISTRATION_ID, seed=1)).json()
+    received = (await _generate(capture_client, REGISTRATION_ID, seed=2)).json()
+    _spool_registration(
+        capture_project,
+        forwarded,
+        response_id="registration-forwarded",
+        received_at="2026-08-01T09:00:00Z",
+        lifecycle=ResponseLifecycle.FORWARDED,
+    )
+    _spool_registration(
+        capture_project,
+        received,
+        response_id="registration-received",
+        received_at="2026-08-09T09:00:00Z",
+        lifecycle=ResponseLifecycle.RECEIVED,
+    )
+
+    generated = (await _generate(capture_client, STAGE_ID, seed=5)).json()
+
+    assert _tracker_pair(generated) == _tracker_pair(forwarded)
+
+
+async def test_a_rejected_registration_is_never_answered_against(
+    capture_client: httpx.AsyncClient,
+    capture_project: FhirProject,
+) -> None:
+    """DHIS2 refused the registration, so its pair names nothing and no forwarder run will change that."""
+    before = await _generate(capture_client, STAGE_ID, seed=5)
+    rejected = (await _generate(capture_client, REGISTRATION_ID, seed=1)).json()
+    _spool_registration(
+        capture_project,
+        rejected,
+        response_id="registration-rejected",
+        received_at="2026-08-09T09:00:00Z",
+        lifecycle=ResponseLifecycle.REJECTED,
+    )
+
+    after = await _generate(capture_client, STAGE_ID, seed=5)
+
+    assert after.content == before.content
+    assert _tracker_pair(after.json()) != _tracker_pair(rejected)
+
+
+async def test_a_stage_response_mints_a_pair_when_no_registration_of_its_program_is_spooled(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """The join is the program the two forms share, so another program's registration is not one to answer against.
+
+    The stage form is drawn on a seed of its own, because the pair is the first thing any tracker
+    form takes off the seeded stream: two forms generated on one seed mint the same pair, and a
+    stage response that had adopted this registration would be indistinguishable from one that had not.
+    """
+    before = await _generate(capture_client, TRACKER_EVENT_ID, seed=6)
+    registration = await _generate(capture_client, REGISTRATION_ID, seed=5)
+    assert (await _post_back(capture_client, registration)).status_code == 201
+
+    after = await _generate(capture_client, TRACKER_EVENT_ID, seed=6)
+    minted = _tracker_pair(after.json())
+
+    assert after.content == before.content
+    assert minted != _tracker_pair(registration.json())
+    assert len(minted.tracked_entity_uid) == UID_LENGTH
+    assert len(minted.enrollment_uid) == UID_LENGTH
+
+
+async def test_an_answered_pair_wins_over_the_pair_the_seed_would_mint(
+    capture_client: httpx.AsyncClient,
+    capture_project: FhirProject,
+) -> None:
+    """Which person a stage event is about is a fact about this project's data, not a value the seed draws.
+
+    And adoption moves those two identifiers and nothing else: the drawn pair comes off the seeded
+    stream whether or not it is then answered over, so every other value of the document stands.
+    """
+    minted = await _generate(capture_client, STAGE_ID, seed=5)
+    registration = (await _generate(capture_client, REGISTRATION_ID, seed=8)).json()
+    _spool_registration(
+        capture_project,
+        registration,
+        response_id="registration-adopted",
+        received_at="2026-08-09T09:00:00Z",
+        lifecycle=ResponseLifecycle.RECEIVED,
+    )
+
+    adopted = await _generate(capture_client, STAGE_ID, seed=5)
+
+    minted_pair = _tracker_pair(minted.json())
+    adopted_pair = _tracker_pair(adopted.json())
+    restored = adopted.text.replace(adopted_pair.tracked_entity_uid, minted_pair.tracked_entity_uid).replace(
+        adopted_pair.enrollment_uid, minted_pair.enrollment_uid
+    )
+
+    assert adopted_pair == _tracker_pair(registration)
+    assert adopted_pair != minted_pair
+    assert restored == minted.text
+
+
+async def test_a_stage_response_is_the_same_bytes_for_one_seed_and_one_spool_state(
+    capture_client: httpx.AsyncClient,
+    capture_project: FhirProject,
+) -> None:
+    """Determinism holds with the spool in it: the same seed against the same receipts is the same document."""
+    _spool_registration(
+        capture_project,
+        (await _generate(capture_client, REGISTRATION_ID, seed=8)).json(),
+        response_id="registration-stable",
+        received_at="2026-08-09T09:00:00Z",
+        lifecycle=ResponseLifecycle.RECEIVED,
+    )
+
+    first = await _generate(capture_client, STAGE_ID, seed=1234)
+    second = await _generate(capture_client, STAGE_ID, seed=1234)
+
+    assert first.content == second.content

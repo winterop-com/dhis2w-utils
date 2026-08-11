@@ -136,9 +136,12 @@ def _invoke(arguments: list[str], report: ForwardReport) -> tuple[Any, AsyncMock
 
 
 def test_a_bare_run_is_a_dry_run_and_says_so_twice(forward_project: Path) -> None:
-    """The mode opens and closes the output, and the table names it too - nothing reads as an import."""
+    """The mode opens and closes the output, and the table names it too - nothing reads as an import.
+
+    The run holds a rejection DHIS2 named, which is what makes it exit 1.
+    """
     result, mock = _invoke(["--no-progress"], _report(forward_project))
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert mock.await_args is not None
     assert mock.await_args.kwargs["import_responses"] is False
     assert result.output.count("DRY RUN") >= 3
@@ -186,9 +189,12 @@ def test_a_rejection_and_a_refusal_each_get_their_own_closing_line(forward_proje
 
 
 def test_import_commits_and_drops_the_dry_run_narration(forward_project: Path) -> None:
-    """`--import` is the only way the command writes, and the output says `import` rather than DRY RUN."""
+    """`--import` is the only way the command writes, and the output says `import` rather than DRY RUN.
+
+    The run holds a rejection DHIS2 named, which is what makes it exit 1.
+    """
     result, mock = _invoke(["--no-progress", "--import"], _report(forward_project, dry_run=False))
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert mock.await_args is not None
     assert mock.await_args.kwargs["import_responses"] is True
     assert "DRY RUN" not in result.output
@@ -216,11 +222,14 @@ def test_no_flag_leaves_the_dial_to_the_project(forward_project: Path) -> None:
 
 
 def test_json_puts_the_whole_report_on_stdout_and_nothing_else(forward_project: Path) -> None:
-    """A caller pipes stdout into jq without filtering, so the narration never reaches it."""
+    """A caller pipes stdout into jq without filtering, so the narration never reaches it.
+
+    The run holds a rejection DHIS2 named, so it exits 1 with the whole report still on stdout.
+    """
     mock = AsyncMock(return_value=_report(forward_project))
     with patch("dhis2w_fhir.service.forward_responses", new=mock):
         result = _runner.invoke(build_app(), ["--json", "fhir", "forward", "--no-progress"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     payload = json.loads(result.stdout)
     assert payload["dry_run"] is True
     assert payload["spooled"] == 3

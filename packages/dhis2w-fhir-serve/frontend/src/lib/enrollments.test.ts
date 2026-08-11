@@ -219,7 +219,7 @@ describe('the default enrollment', () => {
         expect(defaultEnrollmentOption(options)?.responseId).toBe('newest-forwarded')
     })
 
-    it('is nothing when no registration has been forwarded, so the synthetic draw stands stated', () => {
+    it('is nothing when no registration has been forwarded, so the page states what the draft answers for', () => {
         expect(defaultEnrollmentOption([optionOf({ lifecycle: 'received' })])).toBeNull()
         expect(defaultEnrollmentOption([])).toBeNull()
     })

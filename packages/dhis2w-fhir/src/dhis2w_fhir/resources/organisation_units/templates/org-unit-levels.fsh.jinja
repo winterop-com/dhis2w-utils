@@ -1,7 +1,7 @@
 CodeSystem: {{ names.level_code_system }}
 Id: {{ names.terminology_id('level', 'cs') }}
-Title: "DHIS2 organisation unit levels"
-Description: "Hierarchy levels of the DHIS2 organisation unit tree."
+Title: {{ terminology.title_literal }}
+Description: {{ terminology.description_literal }}
 * ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * ^content = #complete
@@ -13,8 +13,8 @@ Description: "Hierarchy levels of the DHIS2 organisation unit tree."
 
 ValueSet: {{ names.level_value_set }}
 Id: {{ names.terminology_id('level', 'vs') }}
-Title: "DHIS2 organisation unit levels"
-Description: "Hierarchy levels of the DHIS2 organisation unit tree."
+Title: {{ terminology.title_literal }}
+Description: {{ terminology.value_set_description_literal }}
 * ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * include codes from system {{ names.level_code_system }}
