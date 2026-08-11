@@ -98,6 +98,7 @@ if TYPE_CHECKING:
 
     from dhis2w_fhir.attributes import AttributeCodeIndex
     from dhis2w_fhir.config import GenerateConfig
+    from dhis2w_fhir.resources.categories.decomposition import CategoryDecomposition
     from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 
 __all__ = [
@@ -307,12 +308,16 @@ def build_data_dictionary_documents(
     canonical: str,
     *,
     ig_status: IgStatus,
+    decomposition: CategoryDecomposition | None = None,
 ) -> DataDictionaryDocumentBuild:
     """Build the support CodeSystem/ValueSet pairs over the objects the given forms reference.
 
     One pair over every data element a question is asked from, one over every tracked entity
     attribute a registration form asks about, one over every category option combo the aggregate
     forms disaggregate by - the JSON twin of `data-dictionary/`.
+
+    `decomposition` states what each category option combo is composed of, so every combo concept
+    carries one `Coding`-valued property per category axis into that category's own CodeSystem.
     """
     names = QuestionnaireNaming.from_naming(config.naming)
     referenced = ReferencedObjects()
@@ -350,7 +355,7 @@ def build_data_dictionary_documents(
     if referenced.option_combos:
         pairs.append(
             _support_pair(
-                _option_combo_concepts(referenced.option_combos),
+                _option_combo_concepts(referenced.option_combos, decomposition),
                 CATEGORY_OPTION_COMBO_TERMINOLOGY,
                 config,
                 canonical,
@@ -359,6 +364,7 @@ def build_data_dictionary_documents(
                 value_set_name=names.category_option_combo_value_set,
                 value_set_id=names.category_option_combo_value_set_id,
                 ig_status=ig_status,
+                decomposition=decomposition,
             )
         )
     return DataDictionaryDocumentBuild(
@@ -638,16 +644,28 @@ def _tracked_entity_attribute_concepts(attributes: dict[str, QuestionnaireItemIn
     ]
 
 
-def _option_combo_concepts(option_combos: dict[str, CategoryOptionComboIn]) -> list[CodeSystemConcept]:
-    """One concept per referenced category option combo, carrying the DHIS2 code it disaggregates under."""
-    return [
-        CodeSystemConcept(
-            code=option_combo.uid,
-            display=flatten_whitespace(option_combo.name),
-            property=_code_property(option_combo.code) or None,
+def _option_combo_concepts(
+    option_combos: dict[str, CategoryOptionComboIn], decomposition: CategoryDecomposition | None
+) -> list[CodeSystemConcept]:
+    """One concept per referenced category option combo: the DHIS2 code it disaggregates under, then its axes.
+
+    The category properties follow the code so a reader meets the combo's own identity first and
+    the parts it was built from after, in the order its category combo splits over them.
+    """
+    concepts: list[CodeSystemConcept] = []
+    for option_combo in sorted(option_combos.values(), key=lambda entry: (entry.name, entry.uid)):
+        properties = [
+            *_code_property(option_combo.code),
+            *([] if decomposition is None else decomposition.properties_for(option_combo.uid)),
+        ]
+        concepts.append(
+            CodeSystemConcept(
+                code=option_combo.uid,
+                display=flatten_whitespace(option_combo.name),
+                property=properties or None,
+            )
         )
-        for option_combo in sorted(option_combos.values(), key=lambda entry: (entry.name, entry.uid))
-    ]
+    return concepts
 
 
 def _code_property(code: str | None) -> list[CodeSystemConceptProperty]:
@@ -672,6 +690,7 @@ def _support_pair(
     value_set_name: str,
     value_set_id: str,
     ig_status: IgStatus,
+    decomposition: CategoryDecomposition | None = None,
 ) -> _SupportPair:
     """Build one support pair: a complete CodeSystem over the concepts, and the ValueSet including it whole."""
     code_system_url = code_system_canonical(canonical, code_system_id)
@@ -690,7 +709,7 @@ def _support_pair(
             content="complete",
             count=len(concepts),
             valueSet=value_set_url,
-            property=_property_declarations(concepts, terminology, config),
+            property=_property_declarations(concepts, terminology, config, decomposition),
             concept=concepts,
         ),
         value_set=ValueSet(
@@ -707,7 +726,10 @@ def _support_pair(
 
 
 def _property_declarations(
-    concepts: list[CodeSystemConcept], terminology: SupportTerminologyProfile, config: GenerateConfig
+    concepts: list[CodeSystemConcept],
+    terminology: SupportTerminologyProfile,
+    config: GenerateConfig,
+    decomposition: CategoryDecomposition | None = None,
 ) -> list[CodeSystemProperty]:
     """Declare every concept property the built concepts actually carry, under the configured property base."""
     property_base = f"{config.identifier_system_base}/property"
@@ -762,4 +784,12 @@ def _property_declarations(
                 type="boolean",
             )
         )
+    if decomposition is not None:
+        carried = {
+            concept_property.code
+            for concept in concepts
+            for concept_property in concept.property or []
+            if concept_property.code is not None
+        }
+        declarations.extend(decomposition.declarations_for(carried))
     return declarations

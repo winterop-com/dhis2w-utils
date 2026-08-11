@@ -31,6 +31,12 @@ Description: {{ terminology.description_literal }}
 * ^property[=].description = {{ terminology.unique_property_description_literal }}
 * ^property[=].type = #boolean
 {% endif %}
+{% for declaration in terminology.category_declarations %}
+* ^property[+].code = #{{ declaration.property_code }}
+* ^property[=].uri = "{{ declaration.uri }}"
+* ^property[=].description = {{ declaration.description_literal }}
+* ^property[=].type = #Coding
+{% endfor %}
 {% for concept in terminology.concepts %}
 * #{{ concept.uid }} {{ concept.display_literal }}
 {% if concept.code_literal is not none %}
@@ -49,6 +55,10 @@ Description: {{ terminology.description_literal }}
 * #{{ concept.uid }} ^property[+].code = #unique
 * #{{ concept.uid }} ^property[=].valueBoolean = {{ concept.unique_literal }}
 {% endif %}
+{% for category_property in concept.category_properties %}
+* #{{ concept.uid }} ^property[+].code = #{{ category_property.property_code }}
+* #{{ concept.uid }} ^property[=].valueCoding = {{ category_property.coding_literal }}
+{% endfor %}
 {% endfor %}
 
 ValueSet: {{ terminology.value_set }}

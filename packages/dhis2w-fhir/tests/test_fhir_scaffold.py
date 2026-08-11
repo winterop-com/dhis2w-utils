@@ -155,7 +155,7 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
 
 #: A commented-out option line of the example file: `# key = value`, or `# "UID" = "Type"` in the
 #: one table keyed by DHIS2 UID. Prose comments never match, because they carry no `=` in that shape.
-_COMMENTED_OPTION = re.compile(r'^# ((?:[a-z_]+|"[A-Za-z0-9]+") = .*?)(?:\s{2,}#.*)?$')
+_COMMENTED_OPTION = re.compile(r'^# ((?:[a-z_]+|"[A-Za-z0-9]+") = .*?|\[\[[a-z_.]+\]\])(?:\s{2,}#.*)?$')
 
 
 def test_fhir_toml_example_catalogues_only_keys_the_document_declares() -> None:

@@ -27,6 +27,12 @@
       "uri": "http://dhis2.org/fhir/property/dhis2-code",
       "description": "DHIS2 category option combo code.",
       "type": "string"
+    },
+    {
+      "code": "category-yY2bQYqNt0o",
+      "uri": "http://dhis2.org/fhir/property/category-yY2bQYqNt0o",
+      "description": "DHIS2 category Project.",
+      "type": "Coding"
     }
   ],
   "concept": [
@@ -37,6 +43,14 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_1452092"
+        },
+        {
+          "code": "category-yY2bQYqNt0o",
+          "valueCoding": {
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
+            "code": "i4Nbp8S2G6A",
+            "display": "Improve access to clean water"
+          }
         }
       ]
     },
@@ -47,6 +61,14 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_1452091"
+        },
+        {
+          "code": "category-yY2bQYqNt0o",
+          "valueCoding": {
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
+            "code": "yMj2MnmNI8L",
+            "display": "Improve access to medicines"
+          }
         }
       ]
     },
@@ -57,6 +79,14 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_1452090"
+        },
+        {
+          "code": "category-yY2bQYqNt0o",
+          "valueCoding": {
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
+            "code": "M58XdOfhiJ7",
+            "display": "Provide access to basic education"
+          }
         }
       ]
     },
@@ -67,6 +97,14 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_1452093"
+        },
+        {
+          "code": "category-yY2bQYqNt0o",
+          "valueCoding": {
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
+            "code": "OUUdG3sdOqb",
+            "display": "Provide access to primary health care"
+          }
         }
       ]
     }

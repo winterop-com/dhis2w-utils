@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Search } from 'lucide-react'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
@@ -21,9 +21,19 @@ import { useFhirResource } from '@/hooks/use-fhir-resource'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { useValueSetOptions } from '@/hooks/use-valueset-options'
 import { holdsDataElementConcepts } from '@/lib/dhis2'
-import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet, unescapeMarkup } from '@/lib/fhir'
 import {
+    canonicalId,
+    type CodeSystem,
+    type CodeSystemConcept,
+    type ConceptMap,
+    type ValueSet,
+    unescapeMarkup,
+} from '@/lib/fhir'
+import {
+    CONCEPT_FILTER_PARAMETER,
     composedSystems,
+    conceptPropertyCoding,
+    conceptPropertyCodingLink,
     conceptPropertyColumns,
     conceptPropertyValue,
     filterConcepts,
@@ -122,9 +132,16 @@ function title(resource: CodeSystem | ValueSet | ConceptMap): string | null {
     return raw === null ? null : unescapeMarkup(raw)
 }
 
-/** A code system: what it declares about itself, then every concept it holds. */
+/**
+ * A code system: what it declares about itself, then every concept it holds.
+ *
+ * The concept filter lives in the address bar rather than in local state, because that is what a
+ * coding-valued property links to: a reader following one lands here with the filter already
+ * naming the coded concept, and can hand the address on unchanged.
+ */
 function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
-    const [query, setQuery] = useState('')
+    const [searchParameters, setSearchParameters] = useSearchParams()
+    const query = searchParameters.get(CONCEPT_FILTER_PARAMETER) ?? ''
     const [page, setPage] = useState(1)
     const [asked, setAsked] = useState('')
     const settings = useUiConfig()
@@ -170,7 +187,10 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                         placeholder="Filter by code, display, or property"
                         value={query}
                         onChange={(next) => {
-                            setQuery(next)
+                            setSearchParameters(
+                                next === '' ? {} : { [CONCEPT_FILTER_PARAMETER]: next },
+                                { replace: true },
+                            )
                             setPage(1)
                         }}
                     />
@@ -215,12 +235,11 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                             </TableCell>
                                             <TableCell>{concept.display ?? '-'}</TableCell>
                                             {columns.map((column) => (
-                                                <TableCell
+                                                <ConceptPropertyCell
                                                     key={column.code}
-                                                    className="text-muted-foreground font-mono text-xs"
-                                                >
-                                                    {conceptPropertyValue(concept, column.code) ?? '-'}
-                                                </TableCell>
+                                                    concept={concept}
+                                                    code={column.code}
+                                                />
                                             ))}
                                             <TableCell>
                                                 <Button
@@ -247,6 +266,32 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                 <TranslateTester system={codeSystem.url} code={asked} targetSystems={[]} />
             )}
         </div>
+    )
+}
+
+/**
+ * One concept property, in its cell: a coding into a published CodeSystem digs down to it.
+ *
+ * The link carries the coded concept as the target page's filter, so following a category axis off
+ * a category option combo lands on that category's own vocabulary showing the one option. A coding
+ * naming a display keeps that display in prose; everything else is machine spelling and stays mono.
+ */
+function ConceptPropertyCell({ concept, code }: { concept: CodeSystemConcept; code: string }) {
+    const coding = conceptPropertyCoding(concept, code)
+    const link = coding === null ? null : conceptPropertyCodingLink(coding)
+    if (link !== null) {
+        return (
+            <TableCell className={link.isCode ? 'font-mono text-xs' : 'text-xs'}>
+                <Link className="text-primary underline-offset-4 hover:underline" to={link.to}>
+                    {link.label}
+                </Link>
+            </TableCell>
+        )
+    }
+    return (
+        <TableCell className="text-muted-foreground font-mono text-xs">
+            {conceptPropertyValue(concept, code) ?? '-'}
+        </TableCell>
     )
 }
 

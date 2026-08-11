@@ -186,7 +186,7 @@ async def test_every_metadata_fetch_asks_for_the_attribute_values(
     mock_attributes: Callable[..., None],
     tmp_path: Path,
 ) -> None:
-    """All four fetches request the attribute values - an omitted field list silently empties the projections."""
+    """Every projection fetch requests the attribute values - an omitted field list silently empties them."""
     mock_system_info("v42")
     mock_attributes()
     await _scaffold_project(tmp_path)
@@ -198,13 +198,14 @@ async def test_every_metadata_fetch_asks_for_the_attribute_values(
     )
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    categories = respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
 
     profile = resolve_profile("probe")
     await service.generate_option_sets(profile, load_project(tmp_path))
     await service.generate_organisation_units(profile, load_project(tmp_path))
     await service.generate_questionnaires(profile, load_project(tmp_path))
 
-    for route in (option_sets, organisation_units, data_sets, programs):
+    for route in (option_sets, organisation_units, data_sets, programs, categories):
         # The option-set identity plan fetches `id,name` alone, so it is the projection fetch that has to ask.
         assert any("attributeValues[attribute[id],value]" in call.request.url.params["fields"] for call in route.calls)
 

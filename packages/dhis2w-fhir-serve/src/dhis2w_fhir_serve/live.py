@@ -47,6 +47,7 @@ from dhis2w_fhir.resources.attribute_combos import (
     build_attribute_combo_artifacts,
     build_attribute_combo_concept_map_artifacts,
 )
+from dhis2w_fhir.resources.categories.decomposition import build_category_decomposition
 from dhis2w_fhir.resources.questionnaires.assignments import build_assignment_artifacts
 from dhis2w_fhir.service import fetch_live_ig_inputs, resolve_generation_profile
 from dhis2w_fhir.writer import JsonBuild
@@ -98,7 +99,10 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
         published=inputs.organisation_unit_stems,
         stem_plan=inputs.questionnaire_stems,
     )
-    attribute_combos = build_attribute_combo_artifacts(inputs.sources, config, canonical, ig_status=ig_status)
+    decomposition = build_category_decomposition(inputs.sources, inputs.categories, config, canonical)
+    attribute_combos = build_attribute_combo_artifacts(
+        inputs.sources, config, canonical, ig_status=ig_status, decomposition=decomposition
+    )
     questionnaires = build_questionnaire_documents(
         inputs.sources,
         config,
@@ -109,7 +113,9 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
         assignments=assignments.plan,
         attribute_combos=attribute_combos.plan,
     )
-    data_dictionary = build_data_dictionary_documents(inputs.sources, config, canonical, ig_status=ig_status)
+    data_dictionary = build_data_dictionary_documents(
+        inputs.sources, config, canonical, ig_status=ig_status, decomposition=decomposition
+    )
     foundation_terminology = build_foundation_terminology_documents(config, canonical, ig_status=ig_status)
     organisation_unit_terminology = _organisation_unit_terminology(
         inputs.organisation_units, config, canonical, ig_status

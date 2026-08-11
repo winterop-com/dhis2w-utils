@@ -416,6 +416,7 @@ async def test_generate_questionnaires_across_majors(
         return_value=httpx.Response(200, json=_QUESTIONNAIRE_PROGRAMS_PAYLOAD)
     )
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json={"organisationUnits": []}))
 
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))

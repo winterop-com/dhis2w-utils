@@ -33,6 +33,7 @@ _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
         GenerateNoteCategory.SELECTION_GAP: 1,
         GenerateNoteCategory.SKIPPED_QUESTION: 4,
     },
+    "resources/categories/decomposition.py": {GenerateNoteCategory.SELECTION_GAP: 1},
     "resources/examples/documents.py": {GenerateNoteCategory.SELECTION_GAP: 1},
     "resources/option_sets/__init__.py": {
         GenerateNoteCategory.CODE_COLLISION: 2,

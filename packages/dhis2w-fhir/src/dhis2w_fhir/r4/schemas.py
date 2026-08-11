@@ -180,7 +180,8 @@ class CodeSystemConceptProperty(BackboneElement):
 
     The `value[x]` choices are the ones the generated code systems declare a property type for:
     `#string` and `#code` on the DHIS2 code, domain, value type, and parent properties,
-    `#boolean` on the uniqueness flag, and `#integer` on the organisation-unit hierarchy level.
+    `#boolean` on the uniqueness flag, `#integer` on the organisation-unit hierarchy level, and
+    `Coding` on the category axes a category option combo concept decomposes over.
     """
 
     code: str | None = None
@@ -188,6 +189,7 @@ class CodeSystemConceptProperty(BackboneElement):
     valueString: str | None = None
     valueBoolean: bool | None = None
     valueInteger: int | None = None
+    valueCoding: Coding | None = None
 
 
 class CodeSystemConceptDesignation(BackboneElement):

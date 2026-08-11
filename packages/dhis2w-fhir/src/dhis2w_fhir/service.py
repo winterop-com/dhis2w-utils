@@ -57,6 +57,7 @@ from dhis2w_fhir.resources.categories import (
     build_category_concept_map_artifacts,
     category_concept_map_file_prefix,
 )
+from dhis2w_fhir.resources.categories.decomposition import build_category_decomposition
 from dhis2w_fhir.resources.categories.schemas import CategoryIn, CategorySelection, is_default_category
 from dhis2w_fhir.resources.examples import (
     COMPLETED_STATUS,
@@ -179,19 +180,25 @@ _ORGANISATION_UNIT_FIELDS = (
     "id,code,name,shortName,description,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,"
     f"closedDate,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS}"
 )
+#: What a category combo has to state for its option combos to publish their own composition: the
+#: ordered categories the combo splits over, and the category options each option combo is met from.
+#: The UIDs alone - every name and every concept code the decomposition emits is joined from the
+#: category projection the same run reads, so a combo says which options it is and nothing more.
+_CATEGORY_COMBO_DECOMPOSITION_FIELDS = "categories[id],categoryOptionCombos[id,name,code,categoryOptions[id]]"
+
 #: The data-element projection every form kind's questions are built from. `code` rides it for the
 #: data dictionary, which publishes the DHIS2 code of the object a question is asked from the way
 #: the attribute dictionary publishes an attribute's - a data element DHIS2 left uncoded publishes
 #: no code rather than its UID under a `dhis2-code` label.
 _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
     "dataElement[id,code,name,formName,valueType,domainType,optionSet[id],"
-    "categoryCombo[id,name,isDefault,categoryOptionCombos[id,name,code]]]"
+    f"categoryCombo[id,name,isDefault,{_CATEGORY_COMBO_DECOMPOSITION_FIELDS}]]"
 )
 #: The data set's own category combo - the attribute combo whose option combos are the third key
 #: of every value it holds. It rides the very projection the disaggregation combos ride, so the
 #: attribute-option-combo vocabulary is read on the metadata sweep the forms already cost rather
 #: than on a request of its own.
-_ATTRIBUTE_COMBO_FIELDS = "categoryCombo[id,code,name,isDefault,categoryOptionCombos[id,name,code]]"
+_ATTRIBUTE_COMBO_FIELDS = f"categoryCombo[id,code,name,isDefault,{_CATEGORY_COMBO_DECOMPOSITION_FIELDS}]"
 
 _DATA_SET_FIELDS = (
     "id,name,code,description,periodType,sections[id,name,dataElements[id]],"
@@ -876,13 +883,8 @@ async def generate_categories(
     notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching categories")
     async with open_client(profile) as client:
-        models = await client.resources.categories.list(
-            fields=_CATEGORY_FIELDS,
-            order=["name:asc"],
-            paging=False,
-        )
+        inputs = await _fetch_categories(client, config, notes)
         attribute_codes = await resolve_attribute_code_index(client)
-    inputs = _selected_categories([_category_input(model) for model in models], config, notes)
     progress.complete(f"{len(inputs):,} categor{'y' if len(inputs) == 1 else 'ies'}")
     return _emit_categories(project, categories=inputs, attribute_codes=attribute_codes, notes=notes, progress=progress)
 
@@ -938,6 +940,21 @@ def _emit_categories(
     )
     progress.complete(_target_counts(report))
     return report
+
+
+async def _fetch_categories(client: Dhis2Client, config: GenerateConfig, notes: list[GenerateNote]) -> list[CategoryIn]:
+    """Read the categories the run publishes: every one the instance holds, narrowed by the configuration.
+
+    The one read behind both consumers - the category target's own pairs and the decomposition the
+    combo vocabularies carry - so the two always agree on which categories are published and on the
+    concept codes their options took.
+    """
+    models = await client.resources.categories.list(
+        fields=_CATEGORY_FIELDS,
+        order=["name:asc"],
+        paging=False,
+    )
+    return _selected_categories([_category_input(model) for model in models], config, notes)
 
 
 def _category_selected(uid: str, name: str, selection: CategorySelection) -> bool:
@@ -1034,6 +1051,11 @@ async def generate_questionnaires(
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
         attribute_codes = await resolve_attribute_code_index(client)
+        # The categories the run publishes, read in this target's own fetch phase: the combo
+        # vocabularies decompose every option combo into them, so the concept codes and the
+        # CodeSystem canonicals a coding names come from the very selection the category target
+        # emits rather than from a shape guessed off the combo.
+        categories = await _fetch_categories(client, config, notes)
         # The questionnaire surface resolves before the registry read, so a `source = "code"`
         # refusal names this target's own offenders rather than the registry's.
         stem_plan = plan_questionnaire_stems(sources, config.naming.source)
@@ -1045,6 +1067,7 @@ async def generate_questionnaires(
         sources=sources,
         option_set_plan=option_set_plan,
         attribute_codes=attribute_codes,
+        categories=categories,
         stem_plan=stem_plan,
         assignments=assignments,
         published_organisation_unit_stems=published_organisation_unit_stems,
@@ -1059,6 +1082,7 @@ def _emit_questionnaires(
     sources: list[QuestionnaireSourceIn],
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
+    categories: list[CategoryIn],
     stem_plan: QuestionnaireStemPlan,
     assignments: AssignmentIndex,
     published_organisation_unit_stems: StemResolution,
@@ -1074,6 +1098,10 @@ def _emit_questionnaires(
     The assignment Lists and the attribute-option-combo pairs are built first, because a form that
     publishes either one carries a reference to it on the Questionnaire: both emitters read the one
     plan each build returns, so the FSH source and the served document name the same artifacts.
+
+    `categories` is the selection the category target publishes, which the combo vocabularies
+    decompose their concepts into - one property per category axis, coded into that category's own
+    CodeSystem.
     """
     generate = project.config.generate
     canonical = project.config.ig.canonical
@@ -1091,7 +1119,10 @@ def _emit_questionnaires(
         published=published_organisation_unit_stems,
         stem_plan=stem_plan,
     )
-    attribute_combo_build = build_attribute_combo_artifacts(sources, generate, canonical, ig_status=ig_status)
+    decomposition = build_category_decomposition(sources, categories, generate, canonical)
+    attribute_combo_build = build_attribute_combo_artifacts(
+        sources, generate, canonical, ig_status=ig_status, decomposition=decomposition
+    )
     concept_maps = build_attribute_combo_concept_map_artifacts(sources, generate, canonical, ig_status=ig_status)
     build = build_questionnaire_artifacts(
         sources,
@@ -1103,6 +1134,7 @@ def _emit_questionnaires(
         stem_plan=stem_plan,
         assignments=assignment_build.plan,
         attribute_combos=attribute_combo_build.plan,
+        decomposition=decomposition,
     )
     syncs = [
         sync_artifacts(project.fsh_directory, directory, _artifacts_under(build.artifacts, directory))
@@ -1136,7 +1168,13 @@ def _emit_questionnaires(
         questionnaire_count=len(sources),
         assignment_count=len(assignment_build.artifacts),
         attribute_combo_count=len(attribute_combo_build.artifacts),
-        notes=[*notes, *build.notes, *assignment_build.notes, *attribute_combo_build.notes],
+        notes=[
+            *notes,
+            *build.notes,
+            *assignment_build.notes,
+            *attribute_combo_build.notes,
+            *decomposition.notes,
+        ],
     )
     progress.complete(_target_counts(report))
     return report
@@ -2197,6 +2235,7 @@ async def generate_full(
             sources=inputs.sources,
             option_set_plan=inputs.option_set_plan,
             attribute_codes=inputs.attribute_codes,
+            categories=inputs.categories,
             stem_plan=inputs.questionnaire_stems,
             assignments=inputs.assignments,
             published_organisation_unit_stems=inputs.organisation_unit_stems,
@@ -2346,12 +2385,7 @@ async def fetch_live_ig_inputs(
     option_sets = _selected_option_sets(fetched_option_sets, sources, config, option_set_notes)
     option_set_plan = _option_set_identity_plan(fetched_option_sets, config, sources)
     steps.tick("reading categories")
-    category_models = await client.resources.categories.list(
-        fields=_CATEGORY_FIELDS,
-        order=["name:asc"],
-        paging=False,
-    )
-    categories = _selected_categories([_category_input(model) for model in category_models], config, category_notes)
+    categories = await _fetch_categories(client, config, category_notes)
     organisation_units = await _fetch_organisation_units(client, config, tally, today, steps)
     steps.tick("reading the attribute-code join")
     attribute_codes = await resolve_attribute_code_index(client)
@@ -3077,8 +3111,25 @@ def _category_combo_input(raw: object) -> CategoryComboIn | None:
         name=_optional_text(raw.get("name")) or uid,
         code=_optional_text(raw.get("code")),
         is_default=bool(raw.get("isDefault")),
+        category_uids=_reference_uid_list(raw.get("categories")),
         option_combos=_option_combo_inputs(raw.get("categoryOptionCombos")),
     )
+
+
+def _reference_uid_list(raw_references: object) -> list[str]:
+    """The UIDs of one wire reference list, in the order DHIS2 answered with, skipping malformed entries.
+
+    A category combo's `categories` is an ordered list rather than a set, so the order carries the
+    disaggregation's own reading order - location then age group for "Fixed, <1y".
+    """
+    uids: list[str] = []
+    for entry in raw_references if isinstance(raw_references, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        uid = _optional_text(entry.get("id"))
+        if uid is not None:
+            uids.append(uid)
+    return uids
 
 
 def _option_combo_inputs(raw_combos: object) -> list[CategoryOptionComboIn]:
@@ -3104,6 +3155,7 @@ def _option_combo_inputs(raw_combos: object) -> list[CategoryOptionComboIn]:
                 uid=combo_uid,
                 name=_optional_text(entry.get("name")) or combo_uid,
                 code=_optional_text(entry.get("code")),
+                category_option_uids=sorted(_reference_uid_list(entry.get("categoryOptions"))),
             )
         )
     option_combos.sort(key=lambda option_combo: (option_combo.name, option_combo.uid))

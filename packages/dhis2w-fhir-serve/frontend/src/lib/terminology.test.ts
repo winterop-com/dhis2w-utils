@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import attributeComboFixture from '@/lib/__fixtures__/codesystem-d2-aoc-idcDPkDtepR-cs.json'
 import codeSystemFixture from '@/lib/__fixtures__/codesystem-d2-de-cs.json'
 import conceptMapFixture from '@/lib/__fixtures__/conceptmap-d2-os-OsSymptom01-cm.json'
 import optionSetFixture from '@/lib/__fixtures__/codesystem-d2-os-OsSymptom01-cs.json'
@@ -8,7 +9,10 @@ import translateNotFoundFixture from '@/lib/__fixtures__/translate-not-found.jso
 import valueSetFixture from '@/lib/__fixtures__/valueset-d2-os-OsSymptom01-vs.json'
 import type { CodeSystem, ConceptMap, Parameters, ValueSet } from '@/lib/fhir'
 import {
+    CONCEPT_FILTER_PARAMETER,
     composedSystems,
+    conceptPropertyCoding,
+    conceptPropertyCodingLink,
     conceptPropertyColumns,
     conceptPropertyValue,
     enumeratedConceptCount,
@@ -32,6 +36,7 @@ import {
  */
 
 const dataElements = codeSystemFixture as CodeSystem
+const attributeCombos = attributeComboFixture as CodeSystem
 const optionSet = optionSetFixture as CodeSystem
 const conceptMap = conceptMapFixture as ConceptMap
 const symptomValueSet = valueSetFixture as ValueSet
@@ -116,6 +121,57 @@ describe('concept property values', () => {
         expect(conceptPropertyValue(concept, 'ratio')).toBe('1.5')
         expect(conceptPropertyValue(concept, 'flag')).toBe('false')
         expect(conceptPropertyValue(concept, 'coded')).toBe('CODED')
+    })
+})
+
+describe('a property valued as a coding', () => {
+    it('reads the coding a category option combo states each of its axes as', () => {
+        const concept = attributeCombos.concept?.[0]
+        expect(concept).toBeDefined()
+        expect(conceptPropertyCoding(concept!, 'category-yY2bQYqNt0o')).toEqual({
+            system: 'http://localhost:8080/fhir/CodeSystem/d2-cat-yY2bQYqNt0o-cs',
+            code: 'i4Nbp8S2G6A',
+            display: 'Improve access to clean water',
+        })
+        expect(conceptPropertyCoding(concept!, 'dhis2-code')).toBeNull()
+    })
+
+    it('links to the code system the coding names, filtered to the concept it codes', () => {
+        const concept = attributeCombos.concept?.[0]
+        expect(conceptPropertyCodingLink(conceptPropertyCoding(concept!, 'category-yY2bQYqNt0o')!)).toEqual({
+            label: 'Improve access to clean water',
+            isCode: false,
+            to: '/terminology/CodeSystem/d2-cat-yY2bQYqNt0o-cs?code=i4Nbp8S2G6A',
+        })
+    })
+
+    it('works for any coding-valued property, not just the ones the category axes emit', () => {
+        expect(
+            conceptPropertyCodingLink({
+                system: 'https://example.org/fhir/CodeSystem/some-other-system',
+                code: 'A code with spaces',
+            }),
+        ).toEqual({
+            label: 'A code with spaces',
+            isCode: true,
+            to: '/terminology/CodeSystem/some-other-system?code=A%20code%20with%20spaces',
+        })
+    })
+
+    it('names the filter parameter the concept table reads its filter from', () => {
+        expect(CONCEPT_FILTER_PARAMETER).toBe('code')
+    })
+
+    it('leaves a coding this server publishes no page for as plain text', () => {
+        // A ValueSet canonical, an external terminology, and a coding with no system at all: each
+        // is real data with nowhere to go, and a link to nowhere is worse than the code itself.
+        expect(conceptPropertyCodingLink({ system: 'http://localhost:8080/fhir/ValueSet/d2-cat-x-vs', code: 'A' }))
+            .toBeNull()
+        expect(conceptPropertyCodingLink({ system: 'http://snomed.info/sct', code: '260385009' })).toBeNull()
+        expect(conceptPropertyCodingLink({ code: 'A' })).toBeNull()
+        expect(
+            conceptPropertyCodingLink({ system: 'http://localhost:8080/fhir/CodeSystem/d2-cat-x-cs' }),
+        ).toBeNull()
     })
 })
 

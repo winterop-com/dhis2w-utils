@@ -1,0 +1,54 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-cat-YNZyaJHiHYq-cs",
+  "url": "http://localhost:8080/fhir/CodeSystem/d2-cat-YNZyaJHiHYq-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/category",
+      "value": "YNZyaJHiHYq"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/category-code",
+      "value": "EPI_NUTR_AGE"
+    }
+  ],
+  "name": "D2CAT_YNZyaJHiHYq_CS",
+  "title": "EPI/nutrition age",
+  "description": "DHIS2 category EPI/nutrition age (YNZyaJHiHYq). Concept codes are DHIS2 category option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 2,
+  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-cat-YNZyaJHiHYq-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 category option code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "btOyqprQ9e8",
+      "display": "<1y",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "<1y"
+        }
+      ]
+    },
+    {
+      "code": "GEqzEKCHoGA",
+      "display": ">1y",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": ">1y"
+        }
+      ]
+    }
+  ]
+}

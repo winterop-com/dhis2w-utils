@@ -81,6 +81,7 @@ if TYPE_CHECKING:
 
     from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
     from dhis2w_fhir.config import GenerateConfig
+    from dhis2w_fhir.resources.categories.decomposition import CategoryDecomposition
 
 __all__ = [
     "BOUNDS_BY_VALUE_TYPE",
@@ -378,6 +379,26 @@ class _QuestionnaireView(BaseModel):
         return experimental_for_status(self.ig_status)
 
 
+class _SupportCategoryProperty(BaseModel):
+    """One category axis a category option combo concept decomposes over, as the FSH coding it takes."""
+
+    model_config = ConfigDict(frozen=True)
+
+    property_code: str
+    coding_literal: str
+    """The `system#code "display"` FSH coding into the category's own published CodeSystem."""
+
+
+class _SupportCategoryDeclaration(BaseModel):
+    """One category axis as the concept property the support CodeSystem declares, named by the category."""
+
+    model_config = ConfigDict(frozen=True)
+
+    property_code: str
+    uri: str
+    description_literal: str
+
+
 class _SupportConcept(BaseModel):
     """One data element, tracked entity attribute, or category option combo as a support CodeSystem concept."""
 
@@ -391,6 +412,7 @@ class _SupportConcept(BaseModel):
     domain_code: str | None = None
     value_type_code: str | None = None
     unique_literal: str | None = None
+    category_properties: list[_SupportCategoryProperty] = Field(default_factory=list)
 
 
 class _SupportTerminologyView(BaseModel):
@@ -410,6 +432,7 @@ class _SupportTerminologyView(BaseModel):
     value_type_property_description_literal: str
     unique_property_description_literal: str
     ig_status: IgStatus
+    category_declarations: list[_SupportCategoryDeclaration] = Field(default_factory=list)
     concepts: list[_SupportConcept] = Field(default_factory=list)
 
     @property
@@ -449,6 +472,7 @@ def build_questionnaire_artifacts(
     stem_plan: QuestionnaireStemPlan | None = None,
     assignments: AssignmentPlan | None = None,
     attribute_combos: AttributeComboPlan | None = None,
+    decomposition: CategoryDecomposition | None = None,
 ) -> FshBuild:
     """Build one `data-sets/` or `event-programs/` file per target plus the `data-dictionary/` support pairs.
 
@@ -462,7 +486,8 @@ def build_questionnaire_artifacts(
     carries no assignment extension, which means the whole published registry may report it.
     `attribute_combos` names the attribute-option-combo ValueSet each form's responses are keyed
     from; a form absent from that plan carries no extension either, which means the default
-    attribute option combo.
+    attribute option combo. `decomposition` states what each category option combo is composed of,
+    which is what the data dictionary's combo concepts carry their category axes from.
     """
     build = FshBuild()
     assignment_plan = assignments if assignments is not None else AssignmentPlan()
@@ -519,7 +544,11 @@ def build_questionnaire_artifacts(
             )
         )
     if referenced.option_combos:
-        build.artifacts.append(_option_combo_terminology(referenced.option_combos, names, config, ig_status=ig_status))
+        build.artifacts.append(
+            _option_combo_terminology(
+                referenced.option_combos, names, config, ig_status=ig_status, decomposition=decomposition
+            )
+        )
     if colliding:
         build.notes.append(
             aggregate_generate_note(
@@ -1040,13 +1069,19 @@ def _option_combo_terminology(
     config: GenerateConfig,
     *,
     ig_status: IgStatus,
+    decomposition: CategoryDecomposition | None,
 ) -> FshArtifact:
-    """Build `data-dictionary/category-option-combos.fsh` over every option combo the forms disaggregate by."""
+    """Build `data-dictionary/category-option-combos.fsh` over every option combo the forms disaggregate by.
+
+    Beside its own code, each combo concept states what it is composed of: one `Coding`-valued
+    property per category the combo splits over, coding the option into that category's CodeSystem.
+    """
     concepts = [
         _SupportConcept(
             uid=option_combo.uid,
             display_literal=quote(option_combo.name),
             code_literal=quote(option_combo.code) if option_combo.code else None,
+            category_properties=_category_properties(option_combo.uid, decomposition),
         )
         for option_combo in sorted(option_combos.values(), key=lambda item: (item.name, item.uid))
     ]
@@ -1060,7 +1095,29 @@ def _option_combo_terminology(
         value_set=names.category_option_combo_value_set,
         value_set_id=names.category_option_combo_value_set_id,
         ig_status=ig_status,
+        decomposition=decomposition,
     )
+
+
+def _category_properties(
+    option_combo_uid: str, decomposition: CategoryDecomposition | None
+) -> list[_SupportCategoryProperty]:
+    """One category option combo's axes as the FSH codings its concept carries, in its combo's category order."""
+    if decomposition is None:
+        return []
+    properties: list[_SupportCategoryProperty] = []
+    for concept_property in decomposition.properties_for(option_combo_uid):
+        coding = concept_property.valueCoding
+        if concept_property.code is None or coding is None or coding.system is None or coding.code is None:
+            continue
+        display = "" if coding.display is None else f" {quote(coding.display)}"
+        properties.append(
+            _SupportCategoryProperty(
+                property_code=concept_property.code,
+                coding_literal=f"{coding.system}#{coding.code}{display}",
+            )
+        )
+    return properties
 
 
 def _support_terminology_artifact(
@@ -1074,8 +1131,13 @@ def _support_terminology_artifact(
     value_set: str,
     value_set_id: str,
     ig_status: IgStatus,
+    decomposition: CategoryDecomposition | None = None,
 ) -> FshArtifact:
     """Render one data-dictionary pair through the template every support pair shares."""
+    carried = {
+        category_property.property_code for concept in concepts for category_property in concept.category_properties
+    }
+    declarations = [] if decomposition is None else decomposition.declarations_for(carried)
     view = _SupportTerminologyView(
         code_system=code_system,
         code_system_id=code_system_id,
@@ -1089,6 +1151,14 @@ def _support_terminology_artifact(
         value_type_property_description_literal=quote(terminology.value_type_property_description),
         unique_property_description_literal=quote(UNIQUE_PROPERTY_DESCRIPTION),
         ig_status=ig_status,
+        category_declarations=[
+            _SupportCategoryDeclaration(
+                property_code=declaration.code or "",
+                uri=declaration.uri or "",
+                description_literal=quote(declaration.description or ""),
+            )
+            for declaration in declarations
+        ],
         concepts=concepts,
     )
     return FshArtifact(

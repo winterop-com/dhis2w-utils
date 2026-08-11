@@ -89,6 +89,10 @@ CAPTURE_QUESTIONNAIRE_FILES = (
 #: The data-dictionary terminology every generated form draws its question codes from, plus the
 #: attribute-option-combo pair the non-default-combo form binds - without which a capture client
 #: has a form declaring a vocabulary and no way to expand it.
+#:
+#: The category pairs ride with them because both combo vocabularies decompose their concepts into
+#: those categories: a reader who follows a combo's category property lands on the CodeSystem named
+#: here, so a project serving the combos without the categories would publish links to nothing.
 CAPTURE_SUPPORT_FILES = (
     "CodeSystem-d2-de-cs.json",
     "CodeSystem-d2-coc-cs.json",
@@ -96,7 +100,20 @@ CAPTURE_SUPPORT_FILES = (
     "ValueSet-d2-coc-vs.json",
     "CodeSystem-d2-aoc-idcDPkDtepR-cs.json",
     "ValueSet-d2-aoc-idcDPkDtepR-vs.json",
+    "CodeSystem-d2-cat-yY2bQYqNt0o-cs.json",
+    "ValueSet-d2-cat-yY2bQYqNt0o-vs.json",
+    "CodeSystem-d2-cat-fMZEcRHuamy-cs.json",
+    "ValueSet-d2-cat-fMZEcRHuamy-vs.json",
+    "CodeSystem-d2-cat-YNZyaJHiHYq-cs.json",
+    "ValueSet-d2-cat-YNZyaJHiHYq-vs.json",
+    "CodeSystem-d2-cat-Qzh0MSUx4RM-cs.json",
+    "ValueSet-d2-cat-Qzh0MSUx4RM-vs.json",
 )
+
+#: The category the attribute option combos of the non-default-combo form decompose over, and the
+#: concept property they name it under - what the browser follows from a combo row to its parts.
+PROJECT_CATEGORY_CODE_SYSTEM = f"{CAPTURE_CANONICAL}/CodeSystem/d2-cat-yY2bQYqNt0o-cs"
+PROJECT_CATEGORY_PROPERTY = "category-yY2bQYqNt0o"
 
 AGGREGATE_RESPONSE_FILE = "QuestionnaireResponse-BfMAe6Itzgt-example-1.json"
 EVENT_RESPONSE_FILE = "QuestionnaireResponse-EVTsupVis01-example-1.json"

@@ -136,6 +136,83 @@ Narrow the selection with `[generate.categories]` `include_ids` - absent or empt
 means every category except DHIS2's built-in `default` placeholder, which
 `include_default = true` (or an `include_ids` entry naming it) brings back.
 
+## What a category option combo is made of
+
+A category option combo is a composition. "Fixed, <1y" is the Fixed option of one
+category met with the <1y option of another; "Improve access to clean water" is a
+single option of the Project category. Two vocabularies publish those combos - the
+data dictionary's `D2COC_CS` over every cell the questions split into, and the
+`D2AOC_<stem>_CS` pair per non-default attribute category combo - and a reader
+holding one of their concepts sees a code and a name with no way to dig into the
+parts it was built from.
+
+**Every combo concept carries one concept property per category it splits over.**
+The property is valued as a `Coding` into that category's own published CodeSystem:
+
+```json
+{
+  "code": "Prlt0C1RF0s",
+  "display": "Fixed, <1y",
+  "property": [
+    { "code": "dhis2-code", "valueString": "COC_292" },
+    {
+      "code": "category-fMZEcRHuamy",
+      "valueCoding": {
+        "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-fMZEcRHuamy-cs",
+        "code": "qkPbeWaFsnU",
+        "display": "Fixed"
+      }
+    },
+    {
+      "code": "category-YNZyaJHiHYq",
+      "valueCoding": {
+        "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-YNZyaJHiHYq-cs",
+        "code": "btOyqprQ9e8",
+        "display": "<1y"
+      }
+    }
+  ]
+}
+```
+
+The properties read in the category combo's own order - location first, age group
+second, which is the order DHIS2 reads the combo's name in.
+
+**The declaration names the category.** Each axis is declared on the CodeSystem with
+the category's name as its description, so the vocabulary alone tells a reader which
+axis a property is without opening the category:
+
+```json
+{
+  "code": "category-fMZEcRHuamy",
+  "uri": "http://dhis2.org/fhir/property/category-fMZEcRHuamy",
+  "description": "DHIS2 category Location Fixed/Outreach.",
+  "type": "Coding"
+}
+```
+
+The property code is `category-<stem>` off the category's identity stem - the DHIS2
+UID under the default `source = "id"`, the category's code under the code sources.
+
+**The coding names a concept that CodeSystem really holds.** The codes come from the
+same concept-code assignment the category pair builds its own concepts from, so the
+two can never disagree: under `concept_code_source = "id"` the coding names the
+category option UID, under `"code"` it names the DHIS2 code with the same fall-backs
+the category pair applied.
+
+**A category the run does not publish states nothing.** A coding into a CodeSystem
+nobody wrote leads a reader nowhere, so an axis whose category is outside
+`[generate.categories]` is left off and the run reports it as a selection gap. Leaving
+`include_ids` absent - every category except the `default` placeholder - is what keeps
+every axis of every published combo resolvable.
+
+**`d2w fhir serve --ui` renders each axis as a link.** The concept table gives every
+declared property its own column, headed by the property code as words with the
+category's name as the header's tooltip, and a cell valued as a coding links into that
+coding's own CodeSystem page with the concept filter preset to the coded concept. The
+link is generic: any coding-valued concept property digs down this way, whichever
+vocabulary emitted it.
+
 ## ConceptMaps: the route back to DHIS2
 
 Every concept the generator writes is a DHIS2 object under a FHIR spelling, and a
