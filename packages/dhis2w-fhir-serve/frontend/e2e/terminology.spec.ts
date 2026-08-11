@@ -129,10 +129,10 @@ test('a category option combo digs down into the category options it is composed
 }) => {
     await page.goto('/#/terminology/CodeSystem/d2-aoc-idcDPkDtepR-cs')
 
-    // One column per category the combo splits over, headed by the property code as words and
-    // carrying the category's own name as the header's tooltip - so the vocabulary alone says
-    // which axis this is without opening the category.
-    const axis = page.getByRole('columnheader', { name: 'Category yY2bQYqNt0o', exact: true })
+    // One column per category the combo splits over, headed by the category's own name - the
+    // declaration states it, and a header wearing a uid tells a reader nothing. The tooltip
+    // keeps the declaration's full sentence.
+    const axis = page.getByRole('columnheader', { name: 'Project', exact: true })
     await expect(axis).toBeVisible()
     await expect(axis).toHaveAttribute('title', 'DHIS2 category Project')
 

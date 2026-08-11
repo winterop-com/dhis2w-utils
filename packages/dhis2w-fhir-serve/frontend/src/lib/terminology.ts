@@ -92,6 +92,27 @@ export interface TranslationResult {
  * and dropping it would silently hide a column, so those follow in first-seen order and are
  * marked undeclared.
  */
+/** A category-axis declaration names its category: "DHIS2 category <name>." */
+const DECLARED_CATEGORY = /^DHIS2 category (.+)\.$/
+/** A searchability-context declaration names its context: "... searchable in <kind> <name> (<uid>)." */
+const DECLARED_SEARCH_CONTEXT = /searchable in (?:tracker program|tracked entity type) (.+) \([A-Za-z][A-Za-z0-9]{10}\)\.$/
+
+/**
+ * A declared column's header: the named subject where the declaration states one, else the code as words.
+ *
+ * A per-object property's code carries a uid (`category-fMZEcRHuamy`, `searchable-IpHINAT79UW`),
+ * and a header wearing a uid tells a reader nothing - the declaration's own description already
+ * names the object, so the header says the name; the tooltip keeps the full sentence, and the
+ * machine spelling stays where machine spellings belong.
+ */
+export function declaredColumnLabel(code: string, description: string | undefined): string {
+    const category = description?.match(DECLARED_CATEGORY)
+    if (category !== null && category !== undefined) return category[1]
+    const context = description?.match(DECLARED_SEARCH_CONTEXT)
+    if (context !== null && context !== undefined) return `Searchable in ${context[1]}`
+    return propertyColumnLabel(code)
+}
+
 /** A property code said as words: hyphens spaced, first letter up - and `dhis2-code` names its subject. */
 export function propertyColumnLabel(code: string): string {
     // Stripped of its prefix, `dhis2-code` would head its column "Code" - the same word as the
@@ -108,7 +129,7 @@ export function conceptPropertyColumns(codeSystem: CodeSystem): ConceptPropertyC
     }
     const columns: ConceptPropertyColumn[] = (codeSystem.property ?? []).map((property) => ({
         code: property.code,
-        label: propertyColumnLabel(property.code),
+        label: declaredColumnLabel(property.code, property.description),
         description: property.description?.replace(/\.$/, '') ?? undefined,
         uri: property.uri,
         declared: true,
