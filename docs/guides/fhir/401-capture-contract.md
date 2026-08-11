@@ -24,13 +24,14 @@ the response profiles, a requirements CapabilityStatement, and a prose
 Capture page with validated examples. A third party needs the published
 guide and nothing else.
 
-## The four profiles
+## The five profiles
 
 One per form kind, in `foundation/d2-responses.fsh`. "Form kind" is the
 DHIS2 object the form was generated from: a routine *data set* reported
-per period ("aggregate"), a standalone *event program*, and a *tracker
+per period ("aggregate"), a standalone *event program*, a *tracker
 program* - a longitudinal record with a registration form and per-visit
-*stage* forms.
+*stage* forms - and a *tracked entity type*, whose own registration form
+creates a person and enrols them in nothing.
 
 | Profile | Parent | What it pins |
 | --- | --- | --- |
@@ -38,8 +39,9 @@ program* - a longitudinal record with a registration form and per-visit
 | `D2EventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#event`, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
 | `D2TrackerRegistrationResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker`, `D2OrganisationUnit` 1..1, `D2TrackerEnrollment` 1..1, `D2EnrolledAt` 1..1, `D2IncidentAt` 0..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
 | `D2TrackerEventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker-event`, `D2TrackerEnrollment` 1..1, `D2OrganisationUnit` 1..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
+| `D2TrackedEntityResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracked-entity`, `D2OrganisationUnit` 1..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2TrackerEnrollment`, no enrollment dates, no `D2Period`. |
 
-The two tracker profiles restrict `subject` to `Reference(Patient)` - plus
+The three tracked-entity profiles restrict `subject` to `Reference(Patient)` - plus
 every other type the project's
 [tracked entity types](401-custom-subject-types.md) name, so a project that
 tracks herds beside people publishes `Reference(Patient or Group)`. Which
@@ -49,7 +51,7 @@ type a given form's responses actually carry is pinned by that form's own
 
 `foundation/d2-capture-server.fsh` sits beside them: a `D2CaptureServer`
 CapabilityStatement of `kind = #requirements`, declaring `create` on
-`QuestionnaireResponse` with all four profiles as `supportedProfile`, plus
+`QuestionnaireResponse` with all five profiles as `supportedProfile`, plus
 `read` and `search-type` on the `Questionnaire`, `CodeSystem`, `ValueSet`,
 `Location`, `Organization`, and `List` resources a client resolves a form
 from - `List` because a form's organisation-unit assignment is published as
@@ -134,6 +136,25 @@ DHIS2 identifiers and carries the attribute values. Whether a DHIS2
 enrollment additionally maps to an `EpisodeOfCare` or a `CarePlan` is an
 open roadmap decision; the resource layer would be an addition on top of the
 identifier contract, not a prerequisite for it.
+
+## A person-only registration creates the person and stops
+
+`D2TrackedEntityResponse` is the registration contract without its
+enrollment half. It mints the tracked entity the same way - the client draws
+the DHIS2 UID, and nothing on the instance holds it until the response is
+imported - names the organisation unit the person is owned at, and carries
+no `D2TrackerEnrollment`, no `D2EnrolledAt`, and no `D2IncidentAt`, because
+the form it answers enrols nobody in anything.
+
+That is not a degraded registration; it is what DHIS2 accepts. A bare
+`trackedEntities` import under plain CREATE stands up a person who is
+findable without a programme, and enrolling them later is a separate
+submission against a tracker programme's own registration form.
+
+Every question of such a form is at the entity level by construction - the
+form asks the attributes the *tracked entity type itself* collects, which is
+the set DHIS2 imports onto the tracked entity - so the forwarder writes every
+answer onto the person and has no enrollment to split them across.
 
 ## The prose half, and the examples that check it
 

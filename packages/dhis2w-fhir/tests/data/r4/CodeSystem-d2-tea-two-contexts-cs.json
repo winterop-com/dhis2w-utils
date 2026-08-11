@@ -48,11 +48,15 @@
         },
         {
           "code": "searchable",
-          "valueBoolean": false
+          "valueBoolean": true
         },
         {
           "code": "searchable-Trk1aaaaaaa",
           "valueBoolean": false
+        },
+        {
+          "code": "searchable-Tet1aaaaaaa",
+          "valueBoolean": true
         }
       ]
     },
@@ -79,6 +83,10 @@
         {
           "code": "searchable-Trk1aaaaaaa",
           "valueBoolean": true
+        },
+        {
+          "code": "searchable-Tet1aaaaaaa",
+          "valueBoolean": false
         }
       ]
     }
@@ -109,6 +117,12 @@
       "code": "searchable",
       "uri": "http://dhis2.org/fhir/property/searchable",
       "description": "Whether DHIS2 declares the tracked entity attribute searchable in any context this guide publishes.",
+      "type": "boolean"
+    },
+    {
+      "code": "searchable-Tet1aaaaaaa",
+      "uri": "http://dhis2.org/fhir/property/searchable-Tet1aaaaaaa",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in tracked entity type Person (Tet1aaaaaaa).",
       "type": "boolean"
     },
     {

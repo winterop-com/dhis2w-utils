@@ -1,8 +1,9 @@
-"""FSH emission for DHIS2 data sets, event programs, and tracker programs: one Questionnaire per form.
+"""FSH emission for DHIS2 data sets, programs, and tracked entity types: one Questionnaire per form.
 
-A data set, an event program, one stage of a tracker program, and the
-registration a tracker program enrols a person through are all data-capture
-forms, so each maps onto a `Questionnaire`: sections become `#group` items,
+A data set, an event program, one stage of a tracker program, the registration
+a tracker program enrols a person through, and the person-only registration a
+tracked entity type stands up on its own are all data-capture forms, so each
+maps onto a `Questionnaire`: sections become `#group` items,
 data elements become questions typed from their DHIS2 `valueType`,
 option-set-bound elements become `#choice` items answered from the option-set
 ValueSet, and a data element disaggregated by a non-default category combo
@@ -22,11 +23,13 @@ enrols a person as.
 
 The output splits by what it describes: `data-sets/<uid>.fsh`,
 `event-programs/<uid>.fsh`, `tracker-programs/<program uid>/<stage uid>.fsh`
-with the program's `registration.fsh` beside its stages, and
+with the program's `registration.fsh` beside its stages,
+`tracked-entity-types/<uid>.fsh` for the person-only forms, and
 `data-dictionary/` for the three support CodeSystem/ValueSet pairs the form
 kinds share - one over every data element they reference, one over every
 tracked entity attribute a registration form asks about, one over every
-category option combo. The support pairs live under this target's own
+category option combo. The attribute pair states searchability per context,
+because DHIS2 holds that flag on the join rather than on the attribute. The support pairs live under this target's own
 directories, so the option-set terminology target's cleanup can never delete
 them.
 """
@@ -56,8 +59,10 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     DATA_ELEMENT_TERMINOLOGY,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
+    SEARCHABLE_PROPERTY_DESCRIPTION,
     TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
     UNIQUE_PROPERTY_DESCRIPTION,
+    AttributeSearchContext,
     CategoryOptionComboIn,
     FormKind,
     FormKindProfile,
@@ -97,6 +102,7 @@ __all__ = [
     "PROGRAM_IDENTIFIER_SEGMENT",
     "QUESTIONNAIRE_DIRECTORIES",
     "REGISTRATION_FILE_STEM",
+    "TRACKED_ENTITY_TYPE_DIRECTORY",
     "TRACKED_ENTITY_TYPE_IDENTIFIER_SEGMENT",
     "TRACKER_PROGRAM_DIRECTORY",
     "NumericBounds",
@@ -113,6 +119,7 @@ __all__ = [
     "plan_questionnaire_stems",
     "question_code_system",
     "question_entity_level",
+    "search_context_declarations",
     "source_description",
     "source_items",
     "source_program",
@@ -127,14 +134,18 @@ EVENT_PROGRAM_DIRECTORY = "event-programs"
 #: Sync directory holding one Questionnaire per tracker program stage, nested under its program's UID.
 TRACKER_PROGRAM_DIRECTORY = "tracker-programs"
 
+#: Sync directory holding one Questionnaire per DHIS2 tracked entity type - the person-only forms.
+TRACKED_ENTITY_TYPE_DIRECTORY = "tracked-entity-types"
+
 #: Sync directory holding the support terminology every form kind shares.
 DATA_DICTIONARY_DIRECTORY = "data-dictionary"
 
-#: The four sync directories the questionnaire target owns, in report order.
+#: The five sync directories the questionnaire target owns, in report order.
 QUESTIONNAIRE_DIRECTORIES = (
     DATA_SET_DIRECTORY,
     EVENT_PROGRAM_DIRECTORY,
     TRACKER_PROGRAM_DIRECTORY,
+    TRACKED_ENTITY_TYPE_DIRECTORY,
     DATA_DICTIONARY_DIRECTORY,
 )
 
@@ -389,6 +400,16 @@ class _SupportCategoryProperty(BaseModel):
     """The `system#code "display"` FSH coding into the category's own published CodeSystem."""
 
 
+class _SupportBooleanDeclaration(BaseModel):
+    """One boolean concept property the support CodeSystem declares, named by the context it answers for."""
+
+    model_config = ConfigDict(frozen=True)
+
+    property_code: str
+    uri: str
+    description_literal: str
+
+
 class _SupportCategoryDeclaration(BaseModel):
     """One category axis as the concept property the support CodeSystem declares, named by the category."""
 
@@ -397,6 +418,15 @@ class _SupportCategoryDeclaration(BaseModel):
     property_code: str
     uri: str
     description_literal: str
+
+
+class _SupportBooleanProperty(BaseModel):
+    """One boolean concept property a support concept carries, as the code and literal FSH writes."""
+
+    model_config = ConfigDict(frozen=True)
+
+    property_code: str
+    literal: str
 
 
 class _SupportConcept(BaseModel):
@@ -412,6 +442,8 @@ class _SupportConcept(BaseModel):
     domain_code: str | None = None
     value_type_code: str | None = None
     unique_literal: str | None = None
+    searchable_literal: str | None = None
+    searchable_contexts: list[_SupportBooleanProperty] = Field(default_factory=list)
     category_properties: list[_SupportCategoryProperty] = Field(default_factory=list)
 
 
@@ -431,7 +463,9 @@ class _SupportTerminologyView(BaseModel):
     domain_property_description_literal: str
     value_type_property_description_literal: str
     unique_property_description_literal: str
+    searchable_property_description_literal: str
     ig_status: IgStatus
+    searchable_declarations: list[_SupportBooleanDeclaration] = Field(default_factory=list)
     category_declarations: list[_SupportCategoryDeclaration] = Field(default_factory=list)
     concepts: list[_SupportConcept] = Field(default_factory=list)
 
@@ -459,6 +493,11 @@ class _SupportTerminologyView(BaseModel):
     def declares_unique(self) -> bool:
         """Whether any concept carries the unique property, so the CodeSystem must declare it."""
         return any(concept.unique_literal is not None for concept in self.concepts)
+
+    @property
+    def declares_searchable(self) -> bool:
+        """Whether any concept carries the searchable roll-up, so the CodeSystem must declare it."""
+        return any(concept.searchable_literal is not None for concept in self.concepts)
 
 
 def build_questionnaire_artifacts(
@@ -538,11 +577,7 @@ def build_questionnaire_artifacts(
     if referenced.data_elements:
         build.artifacts.append(_data_element_terminology(referenced.data_elements, names, config, ig_status=ig_status))
     if referenced.tracked_entity_attributes:
-        build.artifacts.append(
-            _tracked_entity_attribute_terminology(
-                referenced.tracked_entity_attributes, names, config, ig_status=ig_status
-            )
-        )
+        build.artifacts.append(_tracked_entity_attribute_terminology(referenced, names, config, ig_status=ig_status))
     if referenced.option_combos:
         build.artifacts.append(
             _option_combo_terminology(
@@ -623,6 +658,7 @@ _DIRECTORIES_BY_KIND: dict[FormKind, str] = {
     "event": EVENT_PROGRAM_DIRECTORY,
     "tracker": TRACKER_PROGRAM_DIRECTORY,
     "tracker-event": TRACKER_PROGRAM_DIRECTORY,
+    "tracked-entity": TRACKED_ENTITY_TYPE_DIRECTORY,
 }
 
 
@@ -716,6 +752,11 @@ def _attribute_option_combo_value_set(
 def source_description(source: QuestionnaireSourceIn, profile: FormKindProfile) -> str:
     """The prose one form's Questionnaire describes itself with, a program stage naming its program too."""
     opening = f"DHIS2 {profile.label} {source.name} ({source.uid})"
+    if source.kind == "tracked-entity":
+        return (
+            f"{opening} as a registration form: the tracked entity attributes the type itself collects, "
+            "captured when a person is registered without being enrolled in any program."
+        )
     if source.kind == "tracker":
         return (
             f"{opening} as a registration form: the tracked entity attributes captured when a person "
@@ -981,19 +1022,34 @@ def collect_referenced_objects(source: QuestionnaireSourceIn, referenced: Refere
     """Record every question object and category option combo one source's items reference.
 
     A form's questions land in the dictionary its kind asks from: a registration form's questions
-    are the program's tracked entity attributes, everything else's are data elements.
+    are the program's tracked entity attributes, a person-only form's are the tracked entity
+    type's, everything else's are data elements.
+
+    An attribute question also records the context that asked it, because searchability is a fact
+    about the pair rather than about the attribute: two programs asking one attribute contribute
+    two answers, and the dictionary publishes both.
     """
-    questions = (
-        referenced.tracked_entity_attributes
-        if FORM_KIND_PROFILES[source.kind].question_subject == "tracked-entity-attribute"
-        else referenced.data_elements
-    )
+    asks_attributes = FORM_KIND_PROFILES[source.kind].question_subject == "tracked-entity-attribute"
+    questions = referenced.tracked_entity_attributes if asks_attributes else referenced.data_elements
     for item in source_items(source):
         questions.setdefault(item.uid, item)
+        if asks_attributes:
+            _record_search_context(source, item, referenced)
         if not is_disaggregated(item, source.kind) or item.category_combo is None:
             continue
         for option_combo in item.category_combo.option_combos:
             referenced.option_combos.setdefault(option_combo.uid, option_combo)
+
+
+def _record_search_context(
+    source: QuestionnaireSourceIn, item: QuestionnaireItemIn, referenced: ReferencedObjects
+) -> None:
+    """Record what one form says about whether the attribute it asks is searchable in it."""
+    contexts = referenced.search_contexts.setdefault(item.uid, [])
+    if any(context.context_uid == source.uid for context in contexts):
+        return
+    label = f"{FORM_KIND_PROFILES[source.kind].label} {source.name} ({source.uid})"
+    contexts.append(AttributeSearchContext(context_uid=source.uid, context_label=label, searchable=item.searchable))
 
 
 def _data_element_terminology(
@@ -1028,18 +1084,22 @@ def _data_element_terminology(
 
 
 def _tracked_entity_attribute_terminology(
-    attributes: dict[str, QuestionnaireItemIn],
+    referenced: ReferencedObjects,
     names: QuestionnaireNaming,
     config: GenerateConfig,
     *,
     ig_status: IgStatus,
 ) -> FshArtifact:
-    """Build `data-dictionary/tracked-entity-attributes.fsh` over every attribute a registration form asks.
+    """Build `data-dictionary/tracked-entity-attributes.fsh` over every attribute the forms ask about.
 
     The twin of the data-element pair, over the objects a registration form asks its questions
-    from: the same `dhis2-code` and `value-type` properties, plus `unique`, because a unique
-    tracked entity attribute is the business identifier the person is found by.
+    from: the same `dhis2-code` and `value-type` properties, plus the two that say what the
+    attribute does for the person. `unique` marks the business identifier the person is found by;
+    `searchable` says whether DHIS2 will find a person by it at all, once as a roll-up over every
+    context this run publishes and once per context, because DHIS2 holds the flag on the join and
+    two contexts asking one attribute disagree as readily as they agree.
     """
+    attributes = referenced.tracked_entity_attributes
     concepts = [
         _SupportConcept(
             uid=item.uid,
@@ -1047,6 +1107,13 @@ def _tracked_entity_attribute_terminology(
             code_literal=quote(item.code) if item.code else None,
             value_type_code=item.value_type,
             unique_literal="true" if item.unique else "false",
+            searchable_literal="true" if referenced.searchable_anywhere(item.uid) else "false",
+            searchable_contexts=[
+                _SupportBooleanProperty(
+                    property_code=context.property_code, literal="true" if context.searchable else "false"
+                )
+                for context in referenced.contexts_for(item.uid)
+            ],
         )
         for item in sorted(attributes.values(), key=lambda item: (item.name, item.uid))
     ]
@@ -1060,7 +1127,22 @@ def _tracked_entity_attribute_terminology(
         value_set=names.tracked_entity_attribute_value_set,
         value_set_id=names.tracked_entity_attribute_value_set_id,
         ig_status=ig_status,
+        search_contexts=search_context_declarations(referenced),
     )
+
+
+def search_context_declarations(referenced: ReferencedObjects) -> list[AttributeSearchContext]:
+    """Every context the run publishes a searchability answer for, once each, in context-UID order.
+
+    One declaration per context rather than per attribute-context pair: the property is what the
+    CodeSystem declares and the concepts are what carry a value for it, so a program asking twelve
+    attributes declares one property and answers it twelve times.
+    """
+    seen: dict[str, AttributeSearchContext] = {}
+    for contexts in referenced.search_contexts.values():
+        for context in contexts:
+            seen.setdefault(context.context_uid, context)
+    return [seen[uid] for uid in sorted(seen)]
 
 
 def _option_combo_terminology(
@@ -1132,12 +1214,14 @@ def _support_terminology_artifact(
     value_set_id: str,
     ig_status: IgStatus,
     decomposition: CategoryDecomposition | None = None,
+    search_contexts: list[AttributeSearchContext] | None = None,
 ) -> FshArtifact:
     """Render one data-dictionary pair through the template every support pair shares."""
     carried = {
         category_property.property_code for concept in concepts for category_property in concept.category_properties
     }
     declarations = [] if decomposition is None else decomposition.declarations_for(carried)
+    property_base = f"{config.identifier_system_base}/property"
     view = _SupportTerminologyView(
         code_system=code_system,
         code_system_id=code_system_id,
@@ -1145,12 +1229,21 @@ def _support_terminology_artifact(
         value_set_id=value_set_id,
         title_literal=quote(terminology.title),
         description_literal=quote(terminology.description),
-        property_base=f"{config.identifier_system_base}/property",
+        property_base=property_base,
         property_description_literal=quote(terminology.code_property_description),
         domain_property_description_literal=quote(DOMAIN_PROPERTY_DESCRIPTION),
         value_type_property_description_literal=quote(terminology.value_type_property_description),
         unique_property_description_literal=quote(UNIQUE_PROPERTY_DESCRIPTION),
+        searchable_property_description_literal=quote(SEARCHABLE_PROPERTY_DESCRIPTION),
         ig_status=ig_status,
+        searchable_declarations=[
+            _SupportBooleanDeclaration(
+                property_code=context.property_code,
+                uri=f"{property_base}/{context.property_code}",
+                description_literal=quote(context.description),
+            )
+            for context in search_contexts or []
+        ],
         category_declarations=[
             _SupportCategoryDeclaration(
                 property_code=declaration.code or "",

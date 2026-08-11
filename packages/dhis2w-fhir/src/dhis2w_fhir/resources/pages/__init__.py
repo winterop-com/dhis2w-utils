@@ -63,6 +63,7 @@ from dhis2w_fhir.resources.pages.schemas import (
 )
 from dhis2w_fhir.resources.questionnaires import ITEM_TYPES_BY_VALUE_TYPE
 from dhis2w_fhir.resources.questionnaires.schemas import (
+    FORM_KIND_PROFILES,
     FormKind,
     QuestionnaireItemIn,
     QuestionnaireNaming,
@@ -104,6 +105,7 @@ _KIND_LABELS: dict[FormKind, str] = {
     "event": "event program",
     "tracker": "tracker program registration",
     "tracker-event": "tracker program stage",
+    "tracked-entity": "tracked entity type registration",
 }
 
 #: What a data set with no DHIS2 period type shows in the period-type column.
@@ -252,6 +254,7 @@ def _forms_page(forms: list[FormRow]) -> FshArtifact:
         data_sets=[form for form in forms if form.kind == "aggregate"],
         event_programs=[form for form in forms if form.kind == "event"],
         tracker_programs=_tracker_program_groups(forms),
+        tracked_entity_types=[form for form in forms if form.kind == "tracked-entity"],
     )
 
 
@@ -329,9 +332,11 @@ def _support_code_systems(pages: PagesIn, config: GenerateConfig) -> list[Suppor
     """The support CodeSystems this run emits, in artifact order - the data-dictionary pairs, then foundation."""
     questionnaire_names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
-    registration_forms = [source for source in pages.forms if source.kind == "tracker"]
-    items = [item for source in pages.forms if source.kind != "tracker" for item in _source_items(source)]
-    attributes = [item for source in registration_forms for item in _source_items(source)]
+    asks_attributes = {
+        kind for kind, profile in FORM_KIND_PROFILES.items() if profile.question_subject == "tracked-entity-attribute"
+    }
+    items = [item for source in pages.forms if source.kind not in asks_attributes for item in _source_items(source)]
+    attributes = [item for source in pages.forms if source.kind in asks_attributes for item in _source_items(source)]
     rows: list[SupportCodeSystemRow] = []
     if items:
         rows.append(

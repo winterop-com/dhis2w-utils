@@ -112,6 +112,8 @@ class AssignmentPlan(BaseModel):
 
     def list_id_for(self, source: QuestionnaireSourceIn) -> str | None:
         """The id of the List scoping one form, or None when the form publishes no assignment."""
+        if not FORM_KIND_PROFILES[source.kind].assigned:
+            return None
         return self.list_ids.get(assignment_container_uid(source))
 
     def reference_for(self, source: QuestionnaireSourceIn) -> str | None:
@@ -214,9 +216,16 @@ def build_assignment_artifacts(
 
 
 def _containers(sources: list[QuestionnaireSourceIn], stem_plan: QuestionnaireStemPlan) -> list[AssignmentContainer]:
-    """Every distinct assignment container of the run, in the order the forms first name it."""
+    """Every distinct assignment container of the run, in the order the forms first name it.
+
+    A form of a kind DHIS2 hangs no assignment on contributes none: a tracked entity type is not
+    scoped to organisation units, so every unit the registry publishes may register one and there
+    is nothing to narrow.
+    """
     containers: dict[str, AssignmentContainer] = {}
     for source in sources:
+        if not FORM_KIND_PROFILES[source.kind].assigned:
+            continue
         container = assignment_container(source, stem_plan)
         containers.setdefault(container.uid, container)
     return list(containers.values())

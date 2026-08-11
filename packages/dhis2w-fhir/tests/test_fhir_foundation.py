@@ -369,9 +369,40 @@ entity by identifier."
 * authored 1..1
 """
 
+_TRACKED_ENTITY_RESPONSE_GOLDEN = """Profile: D2TrackedEntityResponse
+Parent: QuestionnaireResponse
+Id: d2-tracked-entity-response
+Title: "DHIS2 tracked entity response"
+Description: "One submission of a DHIS2 tracked entity type\'s registration form: the attributes the \
+type itself collects, captured when a person is registered without being enrolled in any program. The \
+response mints the tracked entity it creates, and names no enrollment at all - there is none, which is \
+the whole point of the form."
+* ^status = #draft
+* ^experimental = true
+* extension contains
+    D2OrganisationUnit named D2OrganisationUnit 1..1 and
+    D2FormType named D2FormType 1..1
+* extension[D2OrganisationUnit] ^short = "The DHIS2 organisation unit the person is registered at, \
+which becomes the organisation unit of the tracked entity."
+* extension[D2FormType] ^short = "The DHIS2 form kind this response answers."
+* extension[D2FormType].valueCode = #tracked-entity (exactly)
+* questionnaire 1..1
+* subject 1..1
+* subject only Reference(Patient)
+* subject.identifier 1..1
+* subject.identifier.system 1..1
+* subject.identifier.system = "http://dhis2.org/fhir/id/tracked-entity" (exactly)
+* subject.identifier.value 1..1
+* subject ^short = "The DHIS2 tracked entity this registration creates, named by identifier rather \
+than by reference: this guide publishes no Patient resource, so the identifier is the person. The \
+client mints the value as a DHIS2 UID, and nothing on the instance holds it until this response is \
+imported."
+* authored 1..1
+"""
 
-def test_the_four_response_profiles_are_stable_goldens() -> None:
-    """All four quarters of the capture contract are emitted verbatim into one foundation file."""
+
+def test_the_five_response_profiles_are_stable_goldens() -> None:
+    """Every quarter of the capture contract is emitted verbatim into one foundation file."""
     responses = _by_path(GenerateConfig())["foundation/d2-responses.fsh"]
     assert responses == "\n".join(
         (
@@ -379,6 +410,7 @@ def test_the_four_response_profiles_are_stable_goldens() -> None:
             _EVENT_RESPONSE_GOLDEN,
             _TRACKER_REGISTRATION_RESPONSE_GOLDEN,
             _TRACKER_EVENT_RESPONSE_GOLDEN,
+            _TRACKED_ENTITY_RESPONSE_GOLDEN,
         )
     )
 
@@ -388,7 +420,8 @@ def test_the_response_profiles_pin_the_context_a_capture_client_has_to_send() ->
     responses = _by_path(GenerateConfig())["foundation/d2-responses.fsh"]
     aggregate, _, rest = responses.partition("Profile: D2EventResponse")
     event, _, rest = rest.partition("Profile: D2TrackerRegistrationResponse")
-    registration, _, tracker_event = rest.partition("Profile: D2TrackerEventResponse")
+    registration, _, rest = rest.partition("Profile: D2TrackerEventResponse")
+    tracker_event, _, tracked_entity = rest.partition("Profile: D2TrackedEntityResponse")
     assert "D2Period named D2Period 1..1" in aggregate
     assert "* extension[D2FormType].valueCode = #aggregate (exactly)" in aggregate
     assert "* authored 1..1" not in aggregate
@@ -406,8 +439,14 @@ def test_the_response_profiles_pin_the_context_a_capture_client_has_to_send() ->
     assert "* extension[D2FormType].valueCode = #tracker-event (exactly)" in tracker_event
     assert "D2EnrolledAt" not in tracker_event
     assert "* authored 1..1" in tracker_event
+    assert "D2Period" not in tracked_entity
+    assert "D2OrganisationUnit named D2OrganisationUnit 1..1" in tracked_entity
+    assert "D2TrackerEnrollment" not in tracked_entity
+    assert "D2EnrolledAt" not in tracked_entity
+    assert "* extension[D2FormType].valueCode = #tracked-entity (exactly)" in tracked_entity
+    assert "* authored 1..1" in tracked_entity
     assert responses.count("* subject only Reference(D2Location)") == 2
-    assert responses.count("* questionnaire 1..1") == 4
+    assert responses.count("* questionnaire 1..1") == 5
 
 
 def test_the_tracker_event_response_subjects_the_tracked_entity_by_identifier() -> None:
@@ -429,11 +468,11 @@ def test_the_tracker_event_response_subjects_the_tracked_entity_by_identifier() 
 def test_the_response_profiles_derive_their_publication_state_from_the_ig_status() -> None:
     """Every profile carries ^status and ^experimental straight off `[ig] status`."""
     draft = _by_path(GenerateConfig())["foundation/d2-responses.fsh"]
-    assert draft.count("* ^status = #draft") == 4
-    assert draft.count("* ^experimental = true") == 4
+    assert draft.count("* ^status = #draft") == 5
+    assert draft.count("* ^experimental = true") == 5
     active = _by_path(GenerateConfig(), ig_status="active")["foundation/d2-responses.fsh"]
-    assert active.count("* ^status = #active") == 4
-    assert active.count("* ^experimental = false") == 4
+    assert active.count("* ^status = #active") == 5
+    assert active.count("* ^experimental = false") == 5
     assert "* ^status = #draft" not in active
     assert "* ^experimental = true" not in active
 
@@ -627,9 +666,9 @@ _CAPTURE_SERVER_GOLDEN = """Instance: D2CaptureServer
 InstanceOf: CapabilityStatement
 Title: "DHIS2 capture server"
 Description: "The interactions a server capturing DHIS2 data as QuestionnaireResponses supports: \
-one response created per request, against the aggregate, event, tracker registration, or tracker \
-event response profile, plus read and search over the definitional resources a capture client \
-resolves a form from."
+one response created per request, against the aggregate, event, tracker registration, tracker \
+event, or tracked entity response profile, plus read and search over the definitional resources a \
+capture client resolves a form from."
 Usage: #definition
 * id = "d2-capture-server"
 * name = "D2CaptureServer"
@@ -650,6 +689,7 @@ response per form submission, and the server accepts exactly one response per re
 * rest.resource[=].supportedProfile[+] = Canonical(D2EventResponse)
 * rest.resource[=].supportedProfile[+] = Canonical(D2TrackerRegistrationResponse)
 * rest.resource[=].supportedProfile[+] = Canonical(D2TrackerEventResponse)
+* rest.resource[=].supportedProfile[+] = Canonical(D2TrackedEntityResponse)
 * rest.resource[+].type = #Questionnaire
 * rest.resource[=].interaction[+].code = #read
 * rest.resource[=].interaction[+].code = #search-type

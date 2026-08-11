@@ -113,7 +113,7 @@ ONE_RESPONSE_PER_REQUEST = (
 LOCATION_REFERENCE_PREFIX = "Location/"
 
 #: The form kinds whose response is about a tracked entity rather than about an organisation unit.
-_TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event")
+_TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event", "tracked-entity")
 
 #: How a refusal spells the DHIS2 UID shape a tracker identifier is checked against.
 _UID_SHAPE_DESCRIPTION = f"one ASCII letter followed by {DHIS2_UID_LENGTH - 1} alphanumeric places"
@@ -283,6 +283,10 @@ def _profile_issues(
         issues.extend(_authored_issues(response))
         issues.extend(_tracker_subject_issues(response, naming))
         issues.extend(_registration_context_issues(response, naming))
+    elif form_kind == "tracked-entity":
+        issues.extend(_authored_issues(response))
+        issues.extend(_tracker_subject_issues(response, naming))
+        issues.extend(_organisation_unit_extension_issues(response, naming, "a registration"))
     else:
         issues.extend(_authored_issues(response))
         issues.extend(_tracker_subject_issues(response, naming))

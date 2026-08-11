@@ -88,7 +88,8 @@ class NamingConfig(BaseModel):
     (`d2-os-birth-type-cs`). `prefix`, `option_set`, `category`, `attribute_option_combo`,
     `data_set`, `program`, and `program_stage` may be empty to drop them;
     `organisation_unit` must stay non-empty or the org-unit artifact names would degenerate
-    to bare `_CS`/`_Level_CS`. `attribute_option_combo` names the vocabulary a data
+    to bare `_CS`/`_Level_CS`. `tracked_entity_type` names the person-only registration form a
+    tracked entity type publishes. `attribute_option_combo` names the vocabulary a data
     set's non-default category combo publishes, and it takes a token of its own rather than the
     `COC` the data dictionary uses: `D2COC_CS` is the disaggregation vocabulary a
     question's cells are coded from, while `D2AOC_*_VS` is the vocabulary a response's
@@ -107,13 +108,21 @@ class NamingConfig(BaseModel):
     data_set: str = "DS"
     program: str = "PR"
     program_stage: str = "PS"
+    tracked_entity_type: str = "TET"
 
     @field_validator(
-        "prefix", "option_set", "category", "attribute_option_combo", "data_set", "program", "program_stage"
+        "prefix",
+        "option_set",
+        "category",
+        "attribute_option_combo",
+        "data_set",
+        "program",
+        "program_stage",
+        "tracked_entity_type",
     )
     @classmethod
     def _optional_token(cls, value: str) -> str:
-        """Prefix, option_set, category, attribute_option_combo, data_set, program, and program_stage may be empty."""
+        """Every token but organisation_unit may be empty, which drops it from the composed name."""
         return _validate_fsh_token(value, allow_empty=True)
 
     @field_validator("organisation_unit")
@@ -126,9 +135,13 @@ class NamingConfig(BaseModel):
 class GenerateConfig(BaseModel):
     """Generation behaviour - the `[generate]` table of `fhir.toml`.
 
-    The three data-definition tables select the three questionnaire form kinds: `data_sets`
-    picks aggregate data sets, `event_programs` picks programs without registration, and
-    `tracker_programs` picks programs with registration, one Questionnaire per program stage.
+    The four data-definition tables select the questionnaire form kinds: `data_sets` picks
+    aggregate data sets, `event_programs` picks programs without registration, `tracker_programs`
+    picks programs with registration (one Questionnaire per program stage plus the program's own
+    registration form), and `tracked_entity_forms` picks the tracked entity types that publish a
+    person-only registration form - a form that creates a person and enrols them in nothing.
+    Empty, `tracked_entity_forms` publishes one form per type the selected tracker programs
+    track; the other three publish everything of their kind the instance holds.
 
     `timezone` is the IANA zone the instance's zone-less timestamps are wall-clock readings in
     (BUGS.md #62). Naming it turns every emitted `dateTime` into the numeric offset that zone
@@ -155,6 +168,7 @@ class GenerateConfig(BaseModel):
     data_sets: TargetSelection = Field(default_factory=TargetSelection)
     event_programs: TargetSelection = Field(default_factory=TargetSelection)
     tracker_programs: TargetSelection = Field(default_factory=TargetSelection)
+    tracked_entity_forms: TargetSelection = Field(default_factory=TargetSelection)
     tracked_entity_types: dict[str, str] = Field(default_factory=dict)
     examples: ExampleSelection = Field(default_factory=ExampleSelection)
 

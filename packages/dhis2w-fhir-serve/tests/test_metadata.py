@@ -73,6 +73,7 @@ async def test_metadata_declares_capture_against_every_captured_response_profile
         f"{CANONICAL}/StructureDefinition/d2-event-response",
         f"{CANONICAL}/StructureDefinition/d2-tracker-registration-response",
         f"{CANONICAL}/StructureDefinition/d2-tracker-event-response",
+        f"{CANONICAL}/StructureDefinition/d2-tracked-entity-response",
     ]
 
 

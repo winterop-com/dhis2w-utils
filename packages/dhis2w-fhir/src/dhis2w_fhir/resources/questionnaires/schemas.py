@@ -25,11 +25,17 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import NamingConfig
 
 #: The form kinds a Questionnaire is generated from, and the D2FormType code each carries.
-FormKind = Literal["aggregate", "event", "tracker", "tracker-event"]
+#:
+#: `tracked-entity` names the registration of a tracked entity that joins no program: DHIS2 accepts
+#: a bare `trackedEntities` import under plain CREATE, and the person it creates is findable
+#: without one. The code names the DHIS2 object the form creates, the way `aggregate` names the
+#: shape a data set's values are filed in and `tracker-event` names one visit of an enrollment.
+FormKind = Literal["aggregate", "event", "tracker", "tracker-event", "tracked-entity"]
 
 #: The DHIS2 object a form kind's questions are asked from, which decides the support CodeSystem
 #: an item's `code` is drawn from: a data set, an event program, and a tracker program stage all
-#: ask data elements, while a tracker registration form asks the program's tracked entity attributes.
+#: ask data elements, while a tracker registration form and a tracked entity type's own form ask
+#: tracked entity attributes.
 QuestionSubject = Literal["data-element", "tracked-entity-attribute"]
 
 #: The trailing token every organisation-unit assignment List id ends in, after the token and stem.
@@ -47,8 +53,12 @@ class FormKindProfile(BaseModel):
 
     `subject_type` is the resource type a form of this kind is answered about when the project
     says nothing else. It is the whole answer on the two organisation-unit kinds and the default
-    on the two tracker kinds, where `[generate.tracked_entity_types]` maps a tracked entity type
-    onto the resource type it really is; `form_subject_type` is where the two meet.
+    on the three tracked-entity kinds, where `[generate.tracked_entity_types]` maps a tracked
+    entity type onto the resource type it really is; `form_subject_type` is where the two meet.
+
+    `assigned` states whether DHIS2 scopes the form to organisation units. A data set and a
+    program carry an assignment, so a form of theirs may publish an assignment `List`; a tracked
+    entity type carries none, so every organisation unit the registry publishes may register one.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -60,6 +70,7 @@ class FormKindProfile(BaseModel):
     subject_type: str
     label: str
     question_subject: QuestionSubject = "data-element"
+    assigned: bool = True
 
 
 #: The DHIS2 identifier systems, subject type, and prose label each form kind carries. An aggregate
@@ -102,26 +113,44 @@ FORM_KIND_PROFILES: dict[FormKind, FormKindProfile] = {
         subject_type=DEFAULT_SUBJECT_RESOURCE_TYPE,
         label="tracker program stage",
     ),
+    "tracked-entity": FormKindProfile(
+        identifier_system="$DHIS2-TET",
+        identifier_code_system="$DHIS2-TET-CODE",
+        identifier_segment="tracked-entity-type",
+        code_identifier_segment="tracked-entity-type-code",
+        subject_type=DEFAULT_SUBJECT_RESOURCE_TYPE,
+        label="tracked entity type",
+        question_subject="tracked-entity-attribute",
+        assigned=False,
+    ),
 }
 
 #: The form kinds a capture server accepts a response for and the translator turns into a DHIS2
 #: payload. Every generated kind is one: an aggregate response becomes a `/api/dataValueSets`
-#: envelope, an event and a tracker-event response become one `/api/tracker` event each, and a
-#: registration response becomes the `/api/tracker` tracked entity and enrollment it mints. The
-#: tuple stays the single switch the capture surface keys off - serve's index, the conversion
-#: gate, the `supportedProfile` declarations, `/metadata`, and the load set all read it.
-CAPTURED_FORM_KINDS: tuple[FormKind, ...] = ("aggregate", "event", "tracker", "tracker-event")
+#: envelope, an event and a tracker-event response become one `/api/tracker` event each, a
+#: registration response becomes the `/api/tracker` tracked entity and enrollment it mints, and a
+#: tracked-entity response becomes that same tracked entity with no enrollment on it. The tuple
+#: stays the single switch the capture surface keys off - serve's index, the conversion gate, the
+#: `supportedProfile` declarations, `/metadata`, and the load set all read it.
+CAPTURED_FORM_KINDS: tuple[FormKind, ...] = ("aggregate", "event", "tracker", "tracker-event", "tracked-entity")
 
 
 class TargetSelection(BaseModel):
     """Which DHIS2 objects a data-definition target covers - one table per form kind.
 
     UIDs only: names are not unique in DHIS2. An empty (or absent) list means all, as it does
-    for the terminology targets; a non-empty list filters. Three tables select the three form
-    kinds: `[generate.data_sets]` picks data sets, `[generate.event_programs]` picks programs
-    without registration, and `[generate.tracker_programs]` picks programs with registration.
-    The whole-instance sweep routes each program to its table by its DHIS2 `programType`, so a
-    program listed under the table its type does not belong to is refused by name.
+    for the terminology targets; a non-empty list filters. Four tables select the form kinds:
+    `[generate.data_sets]` picks data sets, `[generate.event_programs]` picks programs without
+    registration, `[generate.tracker_programs]` picks programs with registration, and
+    `[generate.tracked_entity_forms]` picks the tracked entity types that publish a person-only
+    registration form. The whole-instance sweep routes each program to its table by its DHIS2
+    `programType`, so a program listed under the table its type does not belong to is refused by
+    name.
+
+    `[generate.tracked_entity_forms]` is the one table whose empty default is not the whole
+    instance: it is the tracked entity types the selected tracker programs already track, so a
+    project selecting programs gets a person-only form for each kind of person those programs
+    register and nothing else.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -185,7 +214,55 @@ DOMAIN_PROPERTY_DESCRIPTION = "DHIS2 data element domain type."
 #: The description of the `unique` concept property, which only the attribute pair declares. A
 #: unique tracked entity attribute is a business identifier - a national id, a case number - so a
 #: consumer reading the vocabulary can tell which questions identify the person from which describe them.
+#:
+#: Uniqueness is a fact about the attribute alone: DHIS2 holds `unique` on the tracked entity
+#: attribute itself, so it is the same answer in every form that asks it. Searchability is not,
+#: which is why the property beside it is per context.
 UNIQUE_PROPERTY_DESCRIPTION = "Whether DHIS2 declares the tracked entity attribute unique."
+
+#: The concept property carrying whether an attribute is searchable anywhere the run publishes.
+SEARCHABLE_PROPERTY = "searchable"
+
+#: The description of the `searchable` concept property, which only the attribute pair declares.
+SEARCHABLE_PROPERTY_DESCRIPTION = (
+    "Whether DHIS2 declares the tracked entity attribute searchable in any context this guide publishes."
+)
+
+#: How a per-context searchability property spells the context it answers for: the property code
+#: is this token joined to the DHIS2 UID of the form's own object - a program for a registration
+#: form, a tracked entity type for a person-only form.
+SEARCHABLE_CONTEXT_PROPERTY_PREFIX = "searchable-"
+
+
+def searchable_context_property(context_uid: str) -> str:
+    """The concept property code carrying one context's searchability answer (e.g. `searchable-IpHINAT79UW`)."""
+    return f"{SEARCHABLE_CONTEXT_PROPERTY_PREFIX}{context_uid}"
+
+
+class AttributeSearchContext(BaseModel):
+    """One context's answer to whether a tracked entity attribute is searchable in it.
+
+    A context is the DHIS2 object whose form asks the attribute: a tracker program for a
+    registration form, a tracked entity type for a person-only one. Two programs disagree about
+    the same attribute - on the DHIS2 demo database `Child Programme` and `Antenatal care` do -
+    so a single boolean would state one of them and lie about the other.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    context_uid: str
+    context_label: str
+    searchable: bool
+
+    @property
+    def property_code(self) -> str:
+        """The concept property code this context's answer is published under."""
+        return searchable_context_property(self.context_uid)
+
+    @property
+    def description(self) -> str:
+        """What the declaration of this context's property says it answers for."""
+        return f"Whether DHIS2 declares the tracked entity attribute searchable in {self.context_label}."
 
 
 class NumericBounds(BaseModel):
@@ -245,6 +322,10 @@ class QuestionnaireItemIn(BaseModel):
     way it codes every metadata object, and a unique attribute is a business identifier rather
     than a description. Both ride onto the attribute support CodeSystem as concept properties.
 
+    `searchable` is the fact about the *pair* the way `entity_level` is: DHIS2 holds it on the
+    join, so it is this form's answer about this attribute and no other form's. The dictionary
+    publishes it per context rather than once per attribute for that reason.
+
     `entity_level` is the fact about the *pair* - this attribute on this program's tracked entity
     type - that decides where DHIS2 imports the answer: True when the attribute is one of the
     type's own `trackedEntityTypeAttributes`, so its value belongs on the tracked entity, False
@@ -269,6 +350,7 @@ class QuestionnaireItemIn(BaseModel):
     option_set_uid: str | None = None
     compulsory: bool = False
     unique: bool = False
+    searchable: bool = False
     entity_level: bool | None = None
     required_option_combo_uids: list[str] = Field(default_factory=list)
     category_combo: CategoryComboIn | None = None
@@ -340,11 +422,12 @@ class QuestionnaireSourceIn(BaseModel):
     attribute_combo: CategoryComboIn | None = None
     displays_incident_date: bool = False
     tracked_entity_type_uid: str | None = None
-    """The DHIS2 tracked entity type a registration form enrols an entity as; None on every other kind.
+    """The DHIS2 tracked entity type a registration or person-only form registers an entity as.
 
-    A stage form of the same program carries it on `program` instead, because a stage belongs to
-    the program rather than being it; `form_tracked_entity_type_uid` reads whichever of the two
-    a form holds.
+    None on the two organisation-unit kinds. A `tracked-entity` source *is* its type, so the value
+    repeats `uid`; a stage form of a program carries it on `program` instead, because a stage
+    belongs to the program rather than being it. `form_tracked_entity_type_uid` reads whichever of
+    the three a form holds.
     """
 
     sections: list[QuestionnaireSectionIn] = Field(default_factory=list)
@@ -356,14 +439,28 @@ class ReferencedObjects(BaseModel):
     """The DHIS2 objects one run's forms reference, gathered into the data dictionary both emitters publish.
 
     One entry per support pair: the data elements the questions are asked from, the tracked entity
-    attributes the registration forms ask about, and the category option combos the aggregate
+    attributes the forms that ask them ask about, and the category option combos the aggregate
     forms disaggregate by. Each is keyed by UID and holds the first projection that named it, so
     a data element two data sets share becomes one concept rather than two.
+
+    `search_contexts` is the exception to first-projection-wins, because searchability is not a
+    fact about the attribute alone: it holds every context that asked the attribute, in the order
+    the run reached them, so the dictionary publishes one answer per context and one roll-up over
+    the lot.
     """
 
     data_elements: dict[str, QuestionnaireItemIn] = Field(default_factory=dict)
     tracked_entity_attributes: dict[str, QuestionnaireItemIn] = Field(default_factory=dict)
     option_combos: dict[str, CategoryOptionComboIn] = Field(default_factory=dict)
+    search_contexts: dict[str, list[AttributeSearchContext]] = Field(default_factory=dict)
+
+    def searchable_anywhere(self, attribute_uid: str) -> bool:
+        """Whether any context this run publishes declares the attribute searchable."""
+        return any(context.searchable for context in self.search_contexts.get(attribute_uid, []))
+
+    def contexts_for(self, attribute_uid: str) -> list[AttributeSearchContext]:
+        """Every context that asked one attribute, in the order the run reached them."""
+        return self.search_contexts.get(attribute_uid, [])
 
 
 def source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
@@ -391,8 +488,8 @@ def source_display_name(source: QuestionnaireSourceIn) -> str:
 
 
 def form_tracked_entity_type_uid(source: QuestionnaireSourceIn) -> str | None:
-    """The DHIS2 tracked entity type one form is about: the registration form's own, else its program's."""
-    if source.kind == "tracker":
+    """The DHIS2 tracked entity type one form is about: the form's own, else its program's."""
+    if source.kind in {"tracker", "tracked-entity"}:
         return source.tracked_entity_type_uid
     if source.kind == "tracker-event" and source.program is not None:
         return source.program.tracked_entity_type_uid
@@ -494,6 +591,7 @@ class QuestionnaireNaming(BaseModel):
     data_set: str
     program: str
     program_stage: str
+    tracked_entity_type: str
 
     @classmethod
     def from_naming(cls, naming: NamingConfig) -> QuestionnaireNaming:
@@ -503,20 +601,23 @@ class QuestionnaireNaming(BaseModel):
             data_set=naming.data_set,
             program=naming.program,
             program_stage=naming.program_stage,
+            tracked_entity_type=naming.tracked_entity_type,
         )
 
     def source_token(self, kind: FormKind) -> str:
-        """The naming token one form kind composes its name from (`DS`, `PR`, `PS`).
+        """The naming token one form kind composes its name from (`DS`, `PR`, `PS`, `TET`).
 
         A tracker registration form takes the program token, because the form it names *is* the
         program's own form - `D2PR_<program>` is the form of program X whichever kind of program
-        X is, while `D2PS_<stage>` is one visit of a tracker program.
+        X is, while `D2PS_<stage>` is one visit of a tracker program. A person-only form takes the
+        tracked entity type's token for the same reason: the form is the type.
         """
         return {
             "aggregate": self.data_set,
             "event": self.program,
             "tracker": self.program,
             "tracker-event": self.program_stage,
+            "tracked-entity": self.tracked_entity_type,
         }[kind]
 
     def questionnaire_name(self, kind: FormKind, stem_segment: str) -> str:

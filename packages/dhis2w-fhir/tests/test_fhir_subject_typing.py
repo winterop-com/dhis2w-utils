@@ -264,7 +264,7 @@ def test_the_response_profiles_admit_every_type_the_project_configured() -> None
     """One profile is published for the whole project, so it admits the union rather than pinning one type."""
     content = _responses_fsh(GenerateConfig(tracked_entity_types={_HERD_TYPE: "Group", _WATER_POINT_TYPE: "Location"}))
 
-    assert content.count("* subject only Reference(Patient or Group or Location)") == 2
+    assert content.count("* subject only Reference(Patient or Group or Location)") == 3
     assert "so the identifier is the tracked entity" in content
 
 

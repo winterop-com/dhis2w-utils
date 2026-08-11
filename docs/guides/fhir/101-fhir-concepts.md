@@ -204,7 +204,8 @@ restricts what may be entered, an option set restricts it further. None of those
 change what a data value *is*; they say which data values are acceptable.
 
 This toolkit generates `D2Organization` and `D2Location` over the registry, and
-`D2AggregateResponse` / `D2EventResponse` / `D2TrackerEventResponse` over
+`D2AggregateResponse` / `D2EventResponse` / `D2TrackerRegistrationResponse` /
+`D2TrackerEventResponse` / `D2TrackedEntityResponse` over
 `QuestionnaireResponse` - the capture contract. Each response profile pins the
 extensions its form kind must carry, requires `questionnaire` and `subject`, and
 restricts what `subject` may point at.
@@ -436,6 +437,7 @@ Every row is something `d2w fhir generate` actually emits.
 | Option | A `concept` in that CodeSystem - not an artifact of its own |
 | Category, with its category options | The same `CodeSystem` + `ValueSet` pair shape |
 | Data element referenced by a generated form | A concept in `D2DE_CS` |
+| Tracked entity attribute asked by a generated form | A concept in `D2TEA_CS` |
 | Category option combo | A concept in `D2COC_CS` |
 | Organisation unit | An `Organization` **and** a `Location` instance |
 | Organisation unit level | A concept in `D2OU_Level_CS`, bound to `Organization.type` |
@@ -443,11 +445,13 @@ Every row is something `d2w fhir generate` actually emits.
 | Aggregate data set | One `Questionnaire`, `subjectType = #Location` |
 | Event program | One `Questionnaire`, `subjectType = #Location` |
 | Tracker program stage | One `Questionnaire` per stage, `subjectType` the program's tracked entity type (`#Patient` by default) |
+| Tracked entity type | One `Questionnaire` - the person-only registration form, `subjectType` that type (`#Patient` by default) |
 | Section | An `item` of `type = #group` |
 | Data element on a form | A child `item`, `linkId` the data element UID |
 | Disaggregated data element | A group with one child per option combo, `linkId` `<deUid>.<cocUid>` |
 | Data values for one (org unit, period, attribute option combo) | One `QuestionnaireResponse` |
 | Event | One `QuestionnaireResponse` |
+| Tracked entity registered without an enrollment | One `QuestionnaireResponse` |
 | Reporting period | The `D2Period` extension - ISO identifier, type, resolved range |
 | Which kind of form this is | The `D2FormType` extension, and `Questionnaire.code` |
 | Attribute value | One `D2AttributeValue` extension |

@@ -1358,6 +1358,67 @@ def test_a_registration_form_stating_no_level_writes_every_answer_on_the_person(
     assert enrollment.attributes is None  # type: ignore[attr-defined]
 
 
+#: The person-only form of the very type that program enrols, asking the attributes the type collects.
+_PERSON_TYPE = QuestionnaireSourceIn(
+    uid="nEenWmSyUEp",
+    name="Person",
+    code="TET_PERSON",
+    kind="tracked-entity",
+    tracked_entity_type_uid="nEenWmSyUEp",
+    flat_items=[
+        item.model_copy(update={"entity_level": True})
+        for item in _CHILD_PROGRAMME.flat_items
+        if item.uid in _ENTITY_LEVEL_ATTRIBUTES
+    ],
+)
+
+
+def _person_only_response(**overrides: object) -> ExampleResponseIn:
+    """One captured person-only registration: the person created, and no enrollment at all."""
+    captured = ExampleResponseIn(
+        instance_id="Te1aaaaaaaa",
+        target_uid=_PERSON_TYPE.uid,
+        kind="tracked-entity",
+        organisation_unit_uid=_CLINIC_ORG_UNIT,
+        status_code="completed",
+        authored=_ENROLLED_AT,
+        tracked_entity_uid=_TRACKED_ENTITY,
+        answers=[
+            ExampleAnswerIn(data_element_uid=uid, value=value)
+            for uid, value in _REGISTRATION_VALUES.items()
+            if uid in _ENTITY_LEVEL_ATTRIBUTES
+        ],
+    )
+    return captured.model_copy(update=overrides)
+
+
+def test_a_person_only_response_creates_a_tracked_entity_and_no_enrollment() -> None:
+    """The person-only kind imports as a bare `trackedEntities` entry, which is what makes it viable."""
+    document = _document(_person_only_response(), [_PERSON_TYPE])
+
+    result = translate_response(document, _context([_PERSON_TYPE]))
+
+    assert result.refusals == ()
+    assert result.target_kind == ConversionTargetKind.TRACKER
+    assert result.tracked_entity is not None
+    assert result.tracked_entity.trackedEntity == _TRACKED_ENTITY
+    assert result.tracked_entity.trackedEntityType == "nEenWmSyUEp"
+    assert result.tracked_entity.orgUnit == _CLINIC_ORG_UNIT
+    assert result.tracked_entity.enrollments is None
+    assert _attributes(result) == {
+        uid: value for uid, value in _REGISTRATION_VALUES.items() if uid in _ENTITY_LEVEL_ATTRIBUTES
+    }
+
+
+def test_a_person_only_form_can_never_lose_the_type_it_registers() -> None:
+    """The type is the form's own identity slice, so a person-only form always states what it creates."""
+    typeless = _PERSON_TYPE.model_copy(update={"tracked_entity_type_uid": None})
+
+    form = _context([typeless]).forms[f"{_CANONICAL}/Questionnaire/{typeless.uid}"]
+
+    assert form.tracked_entity_type_uid == typeless.uid
+
+
 def test_a_registration_questions_level_is_read_off_the_served_form() -> None:
     """The split is a fact the compiled guide publishes, so the context carries it question by question."""
     context = _context([_LEVELLED_PROGRAMME])

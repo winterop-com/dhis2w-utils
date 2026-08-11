@@ -23,10 +23,14 @@
     {
       "code": "tracker-event",
       "display": "Tracker program stage form"
+    },
+    {
+      "code": "tracked-entity",
+      "display": "Tracked entity type registration form"
     }
   ],
   "experimental": true,
   "caseSensitive": true,
   "valueSet": "http://localhost:8080/fhir/ValueSet/d2-form-type-vs",
-  "count": 4
+  "count": 5
 }

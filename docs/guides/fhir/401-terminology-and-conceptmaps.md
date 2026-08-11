@@ -213,6 +213,65 @@ coding's own CodeSystem page with the concept filter preset to the coded concept
 link is generic: any coding-valued concept property digs down this way, whichever
 vocabulary emitted it.
 
+## What the guide says about a tracked entity attribute
+
+The data dictionary publishes one CodeSystem/ValueSet pair per kind of question a
+form asks. `D2DE_CS` is over the data elements; `D2TEA_CS` is over the **tracked
+entity attributes** that a tracker programme's registration form and a tracked
+entity type's person-only form ask about. Its concepts carry four properties, and
+the last two are what a consumer resolving a person needs:
+
+| Property | Type | What it says |
+| --- | --- | --- |
+| `dhis2-code` | string | The DHIS2 code, where the instance states one. |
+| `value-type` | code | The DHIS2 value type the answer is spelled in. |
+| `unique` | boolean | Whether DHIS2 declares the attribute a business identifier. |
+| `searchable` | boolean | Whether DHIS2 will find a person by it in **any** context this guide publishes. |
+
+`unique` is a fact about the attribute alone - DHIS2 holds the flag on the
+attribute object, so it is the same answer wherever the attribute is asked.
+
+**Searchability is not, so the guide publishes it per context.** DHIS2 holds
+`searchable` on the *join* between an attribute and the form that asks it, and two
+forms genuinely disagree: on the DHIS2 demo database, one programme declares an
+attribute searchable while another asking the same attribute does not. A single
+boolean would state one of them and lie about the other, so beside the roll-up the
+CodeSystem declares one boolean property per context, coded
+`searchable-<uid>` - the programme's UID on a registration form, the tracked entity
+type's UID on a person-only one - and every concept carries the answer of every
+context that asked it:
+
+```json
+{
+  "code": "Tea1aaaaaaa",
+  "display": "National identifier",
+  "property": [
+    { "code": "dhis2-code", "valueString": "TEA_NATIONAL_ID" },
+    { "code": "value-type", "valueCode": "TEXT" },
+    { "code": "unique", "valueBoolean": true },
+    { "code": "searchable", "valueBoolean": true },
+    { "code": "searchable-Tet1aaaaaaa", "valueBoolean": false },
+    { "code": "searchable-Trk1aaaaaaa", "valueBoolean": true }
+  ]
+}
+```
+
+Read it as: this attribute is a business identifier, DHIS2 will find a person by it
+somewhere in this guide, and the somewhere is the Child Programme rather than the
+Person type's own registration form. Each per-context property is declared with the
+context named in words, so the vocabulary is readable without a UID lookup, and
+every one of them is queryable through
+[`CodeSystem/$lookup`](401-consume-the-fhir-api.md) the way `unique` is.
+
+A context appears only where it published a form in this run, which is the honest
+reading: the roll-up answers for the guide, not for the whole instance.
+
+**Which DHIS2 level an answer belongs to is not here.** That is published as the
+`D2EntityLevel` extension on the `Questionnaire.item` instead, because membership is
+a fact about the attribute *and* the tracked entity type together - one dictionary is
+shared by every form of the run, and two programmes on different types can disagree
+about one attribute.
+
 ## ConceptMaps: the route back to DHIS2
 
 Every concept the generator writes is a DHIS2 object under a FHIR spelling, and a

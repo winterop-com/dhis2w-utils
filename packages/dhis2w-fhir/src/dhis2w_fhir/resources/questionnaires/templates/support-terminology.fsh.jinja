@@ -31,6 +31,18 @@ Description: {{ terminology.description_literal }}
 * ^property[=].description = {{ terminology.unique_property_description_literal }}
 * ^property[=].type = #boolean
 {% endif %}
+{% if terminology.declares_searchable %}
+* ^property[+].code = #searchable
+* ^property[=].uri = "{{ terminology.property_base }}/searchable"
+* ^property[=].description = {{ terminology.searchable_property_description_literal }}
+* ^property[=].type = #boolean
+{% endif %}
+{% for declaration in terminology.searchable_declarations %}
+* ^property[+].code = #{{ declaration.property_code }}
+* ^property[=].uri = "{{ declaration.uri }}"
+* ^property[=].description = {{ declaration.description_literal }}
+* ^property[=].type = #boolean
+{% endfor %}
 {% for declaration in terminology.category_declarations %}
 * ^property[+].code = #{{ declaration.property_code }}
 * ^property[=].uri = "{{ declaration.uri }}"
@@ -55,6 +67,14 @@ Description: {{ terminology.description_literal }}
 * #{{ concept.uid }} ^property[+].code = #unique
 * #{{ concept.uid }} ^property[=].valueBoolean = {{ concept.unique_literal }}
 {% endif %}
+{% if concept.searchable_literal is not none %}
+* #{{ concept.uid }} ^property[+].code = #searchable
+* #{{ concept.uid }} ^property[=].valueBoolean = {{ concept.searchable_literal }}
+{% endif %}
+{% for searchable in concept.searchable_contexts %}
+* #{{ concept.uid }} ^property[+].code = #{{ searchable.property_code }}
+* #{{ concept.uid }} ^property[=].valueBoolean = {{ searchable.literal }}
+{% endfor %}
 {% for category_property in concept.category_properties %}
 * #{{ concept.uid }} ^property[+].code = #{{ category_property.property_code }}
 * #{{ concept.uid }} ^property[=].valueCoding = {{ category_property.coding_literal }}

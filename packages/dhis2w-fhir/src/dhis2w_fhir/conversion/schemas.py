@@ -95,6 +95,7 @@ TARGET_KINDS_BY_FORM_KIND: dict[FormKind, ConversionTargetKind] = {
     "event": ConversionTargetKind.EVENT,
     "tracker": ConversionTargetKind.TRACKER,
     "tracker-event": ConversionTargetKind.TRACKER_EVENT,
+    "tracked-entity": ConversionTargetKind.TRACKER,
 }
 
 #: The order a drain posts its payloads in. A registration creates the enrollment a stage event of
@@ -377,6 +378,8 @@ class ConversionNaming(BaseModel):
             return self.data_set_system
         if form_kind == "tracker-event":
             return self.program_stage_system
+        if form_kind == "tracked-entity":
+            return self.tracked_entity_type_system
         return self.program_system
 
 

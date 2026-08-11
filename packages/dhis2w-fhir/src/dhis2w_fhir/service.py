@@ -117,6 +117,7 @@ from dhis2w_fhir.resources.questionnaires.assignments import (
     build_assignment_artifacts,
 )
 from dhis2w_fhir.resources.questionnaires.schemas import (
+    FORM_KIND_PROFILES,
     CategoryComboIn,
     CategoryOptionComboIn,
     FormKind,
@@ -152,6 +153,7 @@ if TYPE_CHECKING:
         OrganisationUnit,
         Program,
         TrackedEntityAttribute,
+        TrackedEntityType,
     )
     from dhis2w_core.progress import ProgressReporter
 
@@ -225,9 +227,20 @@ _PROGRAM_STAGE_FIELDS = (
 #: at which DHIS2 level an answer is imported: an attribute the type collects is stated on the
 #: tracked entity, an attribute only the program asks is stated on the enrollment. It rides the
 #: program read the form already costs, so knowing the level is worth no extra request.
+#: `searchable` rides the same join for the same reason `mandatory` does: DHIS2 holds it there, so
+#: whether a person can be found by an attribute is this program's answer and not the attribute's.
 _PROGRAM_ATTRIBUTE_FIELDS = (
     "trackedEntityType[id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]],displayIncidentDate,"
-    "programTrackedEntityAttributes[mandatory,sortOrder,"
+    "programTrackedEntityAttributes[mandatory,searchable,sortOrder,"
+    "trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id]]]"
+)
+
+#: The tracked entity type projection a person-only registration form is built from: the type's own
+#: identity, and the attributes it collects itself through the join that carries their order,
+#: whether the type requires them, and whether DHIS2 will find a person by them.
+_TRACKED_ENTITY_TYPE_FIELDS = (
+    f"id,name,code,description,{_ATTRIBUTE_VALUE_FIELDS},"
+    "trackedEntityTypeAttributes[mandatory,searchable,sortOrder,"
     "trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id]]]"
 )
 _PROGRAM_FIELDS = (
@@ -1452,7 +1465,13 @@ async def _fetch_load_set_assignments(
                     uid=data_set.id,
                     organisation_unit_uids=_reference_uids(data_set.organisationUnits),
                 )
-    program_uids = sorted({assignment_container_uid(source) for source in sources if source.kind != "aggregate"})
+    program_uids = sorted(
+        {
+            assignment_container_uid(source)
+            for source in sources
+            if source.kind != "aggregate" and FORM_KIND_PROFILES[source.kind].assigned
+        }
+    )
     if program_uids:
         programs: list[Program] = await client.resources.programs.list(
             fields=_LOAD_SET_PROGRAM_FIELDS,
@@ -1500,10 +1519,22 @@ def _plan_load_set(
     A data set on a non-default category combo is covered like any other. Its responses carry the
     `D2AttributeOptionCombo` extension, drawn from the attribute option combos the data set really
     holds, so the third key of the data value set is stated and DHIS2 has no `E8023` to raise.
+
+    A person-only form is placed over the whole published registry, because DHIS2 hangs no
+    assignment on a tracked entity type: there is no scope to intersect, so every unit the run
+    publishes a Location for may register one.
     """
     plan = _LoadSetPlan()
     unplaced: list[str] = []
     for source in sources:
+        if not FORM_KIND_PROFILES[source.kind].assigned:
+            units = sorted(published_organisation_unit_uids)
+            if units:
+                plan.sources.append(source)
+                plan.placements[source.uid] = SyntheticPlacement(organisation_unit_uids=tuple(units))
+                continue
+            unplaced.append(f"{source.name} ({source.uid})")
+            continue
         assignment = assignments.get(assignment_container_uid(source))
         units = sorted(published_organisation_unit_uids & assignment.organisation_unit_uids) if assignment else []
         if not units:
@@ -1879,6 +1910,7 @@ _SOURCE_CODE_COLLECTIONS: dict[str, str] = {
     "event": "programs",
     "tracker": "programs",
     "tracker-event": "programStages",
+    "tracked-entity": "trackedEntityTypes",
 }
 
 
@@ -2524,10 +2556,13 @@ def _option_set_closure(
 async def _fetch_questionnaire_sources(
     client: Dhis2Client, config: GenerateConfig, notes: list[GenerateNote]
 ) -> list[QuestionnaireSourceIn]:
-    """Fetch the selected data sets, event programs, and tracker program stages as the Questionnaire projection.
+    """Fetch the selected data sets, programs, and tracked entity types as the Questionnaire projection.
 
     An absent or empty `include_ids` selects everything the instance holds of that table's kind,
-    matching the terminology targets. Data sets come first, then the programs.
+    matching the terminology targets. Data sets come first, then the programs, then the tracked
+    entity types - whose default is not the whole instance but the types the selected tracker
+    programs track, so a project selecting one program publishes a person-only form for the kind
+    of person that program registers rather than for every kind the instance knows.
     """
     sources: list[QuestionnaireSourceIn] = []
     data_set_ids = config.data_sets.include_ids
@@ -2541,7 +2576,37 @@ async def _fetch_questionnaire_sources(
     if data_set_ids:
         _note_unmatched(data_set_ids, {model.id for model in data_sets}, "data_sets", "data set", notes)
     sources.extend(await _fetch_program_sources(client, config, notes))
+    sources.extend(await _fetch_tracked_entity_type_sources(client, config, sources, notes))
     return sources
+
+
+async def _fetch_tracked_entity_type_sources(
+    client: Dhis2Client,
+    config: GenerateConfig,
+    sources: list[QuestionnaireSourceIn],
+    notes: list[GenerateNote],
+) -> list[QuestionnaireSourceIn]:
+    """Fetch the tracked entity types that publish a person-only registration form, in one read.
+
+    The selection is `[generate.tracked_entity_forms] include_ids` where it names anything, and the
+    types the run's tracker programs already track where it does not. Both are a filtered read, so
+    a run selecting no tracker programs and naming no types costs no request at all.
+    """
+    selected = config.tracked_entity_forms.include_ids
+    uids = selected or sorted(
+        {uid for source in sources if source.kind == "tracker" and (uid := source.tracked_entity_type_uid)}
+    )
+    if not uids:
+        return []
+    models: list[TrackedEntityType] = await client.resources.tracked_entity_types.list(
+        fields=_TRACKED_ENTITY_TYPE_FIELDS,
+        filters=[_uid_filter(uids)],
+        order=["name:asc"],
+        paging=False,
+    )
+    if selected:
+        _note_unmatched(selected, {model.id for model in models}, "tracked_entity_forms", "tracked entity type", notes)
+    return [_tracked_entity_type_source(model, notes) for model in models]
 
 
 async def _fetch_program_sources(
@@ -2864,6 +2929,55 @@ def _registration_source(model: Program, notes: list[GenerateNote]) -> Questionn
     )
 
 
+def _tracked_entity_type_source(model: TrackedEntityType, notes: list[GenerateNote]) -> QuestionnaireSourceIn:
+    """Map a tracked entity type onto its person-only registration form - the form that enrols nobody.
+
+    The form is the type, so it takes the type's UID, name, code, description, and annotating
+    attribute values, and its subject is whatever `[generate.tracked_entity_types]` says the type
+    is. Its questions are the attributes the type itself collects, which is why every one of them
+    states `D2EntityLevel` true: there is no enrollment for an answer to land on.
+    """
+    uid = model.id or ""
+    return _questionnaire_source(
+        uid=uid,
+        name=model.name or uid,
+        code=model.code,
+        description=model.description,
+        kind="tracked-entity",
+        items=_tracked_entity_type_items(model),
+        raw_sections=None,
+        attribute_values=_attribute_value_inputs(model.attributeValues),
+        notes=notes,
+        tracked_entity_type_uid=uid,
+    )
+
+
+def _tracked_entity_type_items(model: TrackedEntityType) -> list[QuestionnaireItemIn]:
+    """One tracked entity type's questions, ordered by DHIS2 sort order then attribute name and UID.
+
+    `trackedEntityTypeAttributes` is the join between the type and its attributes, holding exactly
+    what a program's join holds - whether the question is mandatory, whether a person is found by
+    it, where it sits in the form - so a type's attributes read the way a program's do.
+    """
+    raw_attributes = model.trackedEntityTypeAttributes
+    entries = [
+        entry
+        for entry in (raw_attributes if isinstance(raw_attributes, list) else [])
+        if isinstance(entry, dict) and _tracked_entity_attribute_reference(entry) is not None
+    ]
+    entries.sort(key=_registration_item_sort_key)
+    return [
+        _tracked_entity_attribute_item(
+            reference,
+            mandatory=bool(entry.get("mandatory")),
+            searchable=bool(entry.get("searchable")),
+            entity_level=True,
+        )
+        for entry in entries
+        if (reference := _tracked_entity_attribute_reference(entry)) is not None
+    ]
+
+
 def _tracked_entity_type_uid(model: Program) -> str | None:
     """The DHIS2 tracked entity type a program enrols a person as, or None when the instance sent none."""
     reference = model.trackedEntityType
@@ -2919,6 +3033,7 @@ def _registration_items(model: Program) -> list[QuestionnaireItemIn]:
         _tracked_entity_attribute_item(
             reference,
             mandatory=bool(entry.get("mandatory")),
+            searchable=bool(entry.get("searchable")),
             entity_level=None
             if entity_level_uids is None
             else _optional_text(reference.get("id")) in entity_level_uids,
@@ -2944,9 +3059,14 @@ def _registration_item_sort_key(entry: dict[str, object]) -> tuple[int, str, str
 
 
 def _tracked_entity_attribute_item(
-    raw: dict[str, object], *, mandatory: bool, entity_level: bool | None
+    raw: dict[str, object], *, mandatory: bool, searchable: bool, entity_level: bool | None
 ) -> QuestionnaireItemIn:
-    """Map one wire tracked entity attribute into the question projection both emitters consume."""
+    """Map one wire tracked entity attribute into the question projection both emitters consume.
+
+    `mandatory`, `searchable`, and `entity_level` come off the join rather than off the attribute,
+    because all three are facts about this form asking this attribute rather than about the
+    attribute itself.
+    """
     uid = _optional_text(raw.get("id")) or ""
     option_set = raw.get("optionSet")
     option_set_uid = _optional_text(option_set.get("id")) if isinstance(option_set, dict) else None
@@ -2959,6 +3079,7 @@ def _tracked_entity_attribute_item(
         option_set_uid=option_set_uid,
         compulsory=mandatory,
         unique=bool(raw.get("unique")),
+        searchable=searchable,
         entity_level=entity_level,
     )
 
@@ -3004,6 +3125,7 @@ _SOURCE_LABELS_BY_KIND = {
     "event": "event program",
     "tracker": "tracker program registration",
     "tracker-event": "tracker program stage",
+    "tracked-entity": "tracked entity type registration",
 }
 
 

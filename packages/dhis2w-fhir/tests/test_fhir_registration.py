@@ -75,6 +75,7 @@ _REGISTRATION = QuestionnaireSourceIn(
             value_type="TEXT",
             compulsory=True,
             unique=True,
+            searchable=True,
             entity_level=True,
         ),
         QuestionnaireItemIn(
@@ -249,7 +250,7 @@ def test_an_attribute_dhis2_left_uncoded_publishes_no_dhis2_code() -> None:
         if concept["code"] == "Tea2aaaaaaa"
         for entry in concept["property"]
     }
-    assert properties == {"value-type", "unique"}
+    assert properties == {"value-type", "unique", "searchable", "searchable-Trk1aaaaaaa"}
 
 
 #: The URL the registration items state their DHIS2 level under, as both emitters resolve it.

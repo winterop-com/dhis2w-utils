@@ -359,6 +359,7 @@ async def test_the_live_store_serves_the_terminology_the_foundation_fsh_declares
         "event",
         "tracker",
         "tracker-event",
+        "tracked-entity",
     ]
     assert value_sets["d2-form-type-vs"]["compose"]["include"] == [
         {"system": f"{_CANONICAL}/CodeSystem/d2-form-type-cs"}

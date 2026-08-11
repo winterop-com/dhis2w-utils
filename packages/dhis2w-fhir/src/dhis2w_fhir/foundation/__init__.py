@@ -189,9 +189,9 @@ _GENERATE_RETURN_DOCUMENTATION = (
 _CAPTURE_SERVER_TITLE = "DHIS2 capture server"
 _CAPTURE_SERVER_DESCRIPTION = (
     "The interactions a server capturing DHIS2 data as QuestionnaireResponses supports: one "
-    "response created per request, against the aggregate, event, tracker registration, or "
-    "tracker event response profile, plus read and search over the definitional resources a "
-    "capture client resolves a form from."
+    "response created per request, against the aggregate, event, tracker registration, tracker "
+    "event, or tracked entity response profile, plus read and search over the definitional "
+    "resources a capture client resolves a form from."
 )
 
 _ENVIRONMENT = Environment(
@@ -487,6 +487,20 @@ def build_response_profile_declarations(config: GenerateConfig) -> list[Response
             ),
             authored_required=True,
             tracker_context_required=True,
+        ),
+        ResponseProfileDeclaration(
+            name=names.tracked_entity_response_profile,
+            profile_id=names.tracked_entity_response_profile_id,
+            form_type_code="tracked-entity",
+            title="DHIS2 tracked entity response",
+            description=(
+                "One submission of a DHIS2 tracked entity type's registration form: the attributes the type "
+                "itself collects, captured when a person is registered without being enrolled in any program. "
+                "The response mints the tracked entity it creates, and names no enrollment at all - there is "
+                "none, which is the whole point of the form."
+            ),
+            authored_required=True,
+            entity_context_required=True,
         ),
     ]
 

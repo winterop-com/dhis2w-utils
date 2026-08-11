@@ -90,6 +90,7 @@ __all__ = [
     "receipt_event_uid",
     "translate_aggregate_response",
     "translate_event_response",
+    "translate_tracked_entity_response",
     "translate_tracker_event_response",
     "translate_tracker_registration_response",
 ]
@@ -381,6 +382,41 @@ def translate_tracker_registration_response(
                     status=REGISTERED_ENROLLMENT_STATUS,
                     attributes=_registration_attributes(translated, entity_level=False) or None,
                 )
+            ],
+        ),
+    )
+
+
+def translate_tracked_entity_response(
+    response: QuestionnaireResponse, form: FormSpec, context: ConversionContext
+) -> RegistrationTranslation:
+    """Translate one person-only response into the `/api/tracker` tracked entity it creates.
+
+    The registration translator without its enrollment half. DHIS2 accepts a bare `trackedEntities`
+    import under plain CREATE, so the payload is one tracked entity carrying the type off
+    `$DHIS2-TET`, the organisation unit it is owned at, and its answers - every one of them on the
+    entity, because the form asks only attributes the type itself collects and there is no
+    enrollment for an answer to land on.
+    """
+    notes: list[ConversionNote] = []
+    refusals: list[ConversionRefusal] = []
+    tracked_entity_type = _tracked_entity_type(form, context, refusals)
+    organisation_unit = _extension_organisation_unit(response, context, notes, refusals)
+    tracked_entity = _tracked_entity(response, context, notes, refusals)
+    translated = translate_answers(response, form, context)
+    notes.extend(translated.notes)
+    refusals.extend(translated.refusals)
+    if refusals or tracked_entity_type is None or organisation_unit is None or tracked_entity is None:
+        return RegistrationTranslation(notes=tuple(notes), refusals=tuple(refusals))
+    return RegistrationTranslation(
+        notes=tuple(notes),
+        tracked_entity=TrackerTrackedEntity(
+            trackedEntity=tracked_entity,
+            trackedEntityType=tracked_entity_type,
+            orgUnit=organisation_unit,
+            attributes=[
+                TrackerAttribute(attribute=answer.question.data_element_uid, value=answer.value)
+                for answer in translated.answers
             ],
         ),
     )

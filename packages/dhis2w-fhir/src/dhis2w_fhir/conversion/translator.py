@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from dhis2w_fhir.conversion.payloads import (
     translate_aggregate_response,
     translate_event_response,
+    translate_tracked_entity_response,
     translate_tracker_event_response,
     translate_tracker_registration_response,
 )
@@ -66,9 +67,14 @@ def translate_response(response: QuestionnaireResponse, context: ConversionConte
         )
     if form.form_kind == "aggregate":
         return _aggregate_result(response, form, context)
-    if form.form_kind == "tracker":
+    if form.form_kind in _REGISTRATION_FORM_KINDS:
         return _registration_result(response, form, context)
     return _event_result(response, form, context)
+
+
+#: The form kinds whose response creates a tracked entity: the tracker registration, which enrols
+#: the person it creates, and the person-only registration, which enrols them in nothing.
+_REGISTRATION_FORM_KINDS = frozenset({"tracker", "tracked-entity"})
 
 
 def translate_responses(responses: Sequence[QuestionnaireResponse], context: ConversionContext) -> ConversionReport:
@@ -92,8 +98,12 @@ def _aggregate_result(response: QuestionnaireResponse, form: FormSpec, context: 
 def _registration_result(
     response: QuestionnaireResponse, form: FormSpec, context: ConversionContext
 ) -> ConversionResult:
-    """Run the registration translator and carry its outcome onto the result the caller reads."""
-    translation = translate_tracker_registration_response(response, form, context)
+    """Run the registration translator its form kind names and carry the outcome onto the result."""
+    translation = (
+        translate_tracked_entity_response(response, form, context)
+        if form.form_kind == "tracked-entity"
+        else translate_tracker_registration_response(response, form, context)
+    )
     return ConversionResult(
         response_id=response.id,
         questionnaire=form.canonical,

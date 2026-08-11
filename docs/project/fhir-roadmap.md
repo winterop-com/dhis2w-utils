@@ -1765,7 +1765,7 @@ commitment.
     a `Patient`, so a person-tracking project configures nothing.
 
     **Capture checks the shape of what the client minted, and says what it cannot check.**
-    `CAPTURED_FORM_KINDS` holds all four kinds, which is the one switch serve's index,
+    `CAPTURED_FORM_KINDS` holds every kind, which is the one switch serve's index,
     the conversion gate, the `supportedProfile` declarations, `/metadata`, and the load
     set all read. The envelope phase grades a DHIS2-UID shape on both minted identifiers,
     one organisation unit, and an enrolment date that parses - and stops there on purpose.
@@ -1807,6 +1807,47 @@ commitment.
     `generate load-set` covers registration targets for the same reason and threads the
     minted pairs through the program's stage responses, so a corpus is internally
     consistent and a single forward run lands both halves.
+
+- **The person-only registration form** - shipped. A DHIS2 tracked entity does not
+  need a programme to exist: a bare `trackedEntities` import under plain CREATE stands
+  one up, and the person it creates is findable without one. So a tracked entity type
+  is a form in its own right, published at `tracked-entity-types/<stem>.fsh` under the
+  `TET` naming token, form kind `tracked-entity`, asking the attributes the *type*
+  collects - the very set DHIS2 imports onto the tracked entity, which is why every
+  item carries `D2EntityLevel` true and the conversion has no enrollment to split
+  answers across. Its identity is the type's own (`$DHIS2-TET` / `$DHIS2-TET-CODE`),
+  its subject follows `[generate.tracked_entity_types]` like every other tracked-entity
+  form, and it publishes no organisation-unit assignment at all: DHIS2 hangs one on a
+  data set and on a programme, never on a type, so the whole published registry may
+  register a person and the load set places these responses over all of it.
+
+    `D2TrackedEntityResponse` is the capture contract: the registration profile without
+    its enrollment half - the minted tracked entity, the owning organisation unit,
+    `authored` 1..1, and no `D2TrackerEnrollment`, `D2EnrolledAt`, or `D2IncidentAt`
+    at all. `$generate` and the example corpus both draw one UID rather than two.
+
+    **Selection is its own table, and its default is not the whole instance.**
+    `[generate.tracked_entity_forms] include_ids` names types outright; left empty it is
+    the types the selected tracker programmes already register, read in one filtered
+    request and skipped entirely when a run selects no tracker programme. Overloading
+    `[generate.tracked_entity_types]` was the alternative and was refused: that table
+    says what a type *is*, and a table that also decided what is published would make
+    typing a herd as a `Group` publish a form nobody asked for.
+
+- **What identifies a person, per context** - shipped. `D2TEA_CS` carried `unique`,
+  which is a fact about the attribute alone, and said nothing about whether DHIS2 will
+  *find* a person by it. It does now, and the shape is per context because the fact is:
+  DHIS2 holds `searchable` on the join between an attribute and the form asking it, and
+  on the demo database Child Programme and Antenatal care disagree about the same
+  attribute. One boolean would have stated one of them and lied about the other. So the
+  dictionary publishes a `searchable` roll-up - true where any context this run
+  publishes declares it, which is the question a consumer actually asks - beside one
+  `searchable-<contextUid>` boolean per context that asked the attribute, declared once
+  each with the context named in words. It is a concept property rather than a
+  designation or an extension so `$lookup` answers it the way it answers `unique`, and
+  it follows the precedent `D2COC_CS` set with one property per category axis. Both
+  flags ride the `programTrackedEntityAttributes` and `trackedEntityTypeAttributes`
+  joins the forms already fetch, so the provenance costs no request.
 
 - **The attribute option combo, published as terminology** - shipped, and it is what
   [decision 5.4](#54-where-attributeoptioncombo-and-data-set-completeness-live)
