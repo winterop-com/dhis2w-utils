@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-81 entries grouped by area. **Status tags** carry the result of the most
+82 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -111,6 +111,7 @@ filing.
 - [#73](#73-create_and_update-enrolling-an-existing-tracked-entity-silently-rewrites-the-entitys-owning-org-unit) — `CREATE_AND_UPDATE` enrolling an existing entity rewrites its owning org unit
 - [#74](#74-unique-tracked-entity-attributes-are-not-searched-instance-wide-by-apitrackertrackedentities) — Unique attributes not searched instance-wide when org-unit scoped
 - [#75](#75-e1302-puts-the-value-type---or-nothing-at-all---where-the-data-element-identifier-belongs) — `E1302` names the value type, or nothing, where the data element belongs
+- [#76](#76-v43-aggregate-conflicts-no-longer-name-the-offending-object-e8122-drops-object-and-property) — v43 aggregate conflicts drop `object`/`property`; the failing data element is unnamed
 
 ### v43-specific
 
@@ -4175,5 +4176,45 @@ The cause is addressed instead: `$generate` and the examples emitter draw
 format-constrained value types (COORDINATE, PHONE_NUMBER, EMAIL, LETTER, USERNAME)
 through `seeded_format_constrained_value`, so generated corpora no longer trip `E1302`
 at all.
+
+**Verifier:** none yet.
+
+### 76. v43 aggregate conflicts no longer name the offending object: `E8122` drops `object` and `property`
+
+The same invalid data value draws structurally different conflict entries per major.
+2.41/2.42 answer `status: WARNING` with `errorCode: E7619` and a conflict naming
+`object` (the data element UID) and `property` (`value`). 2.43 answers
+`status: ERROR` with `errorCode: E8122` and a conflict carrying **neither** field -
+only an `objects: {"args": ...}` map - and no `description`. A reader of the 2.43
+report knows the rule that fired but not which data element tripped it.
+
+**Observed on:** DHIS2 2.41.10-SNAPSHOT rev `c3a425c`, 2.42.6-SNAPSHOT rev `9595934`,
+2.43.2-SNAPSHOT rev `7b4cd04` (play.im.dhis2.org dev instances, 2026-08-11).
+
+**Repro:**
+
+```bash
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/dataValueSets?dryRun=true' -d '{
+    "dataSet": "BfMAe6Itzgt", "period": "202601", "orgUnit": "DiszpKrYNg8",
+    "dataValues": [{"dataElement": "DUSpd8Jq3M7", "categoryOptionCombo": "pq2XI5kz2BY",
+                    "value": "not-a-number"}]}'
+```
+
+**Expected:** whatever the error family, the conflict names the object it is about -
+the 2.41/2.42 shape does.
+
+**Actual (2.43):** `{"errorCode": "E8122", "objects": {"args": "..."}}` with no
+`object`, no `property`, no `description`. Also note the status flip: 2.41/2.42 call
+the refused value a `WARNING` inside a 409; 2.43 calls it an `ERROR`.
+
+**Impact:** on v43 a forward rejection rollup for aggregate conflicts has no subject -
+the counts and the rule survive, the data element does not. Any tooling reading
+`conflict.object` silently loses it on v43.
+
+**Workaround in this repo:** none possible - the field is absent from the wire.
+`ForwardImportIssue.subject` is `None` for these on v43, and the per-version fixture
+tests (`packages/dhis2w-fhir/tests/data/forward-409/`) pin each major's actual shape
+so a change in either direction surfaces.
 
 **Verifier:** none yet.

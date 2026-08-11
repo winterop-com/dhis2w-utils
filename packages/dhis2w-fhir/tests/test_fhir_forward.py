@@ -63,6 +63,7 @@ from dhis2w_fhir.spool import (
     REJECTION_REPORT_SUFFIX,
     SpoolReadError,
 )
+from pydantic import BaseModel, ConfigDict
 
 _BASE_URL = "https://dhis2.example"
 _CANONICAL = "http://example.org/fhir"
@@ -201,13 +202,171 @@ def _fill_spool(root: Path, documents: list[QuestionnaireResponse]) -> None:
         (directory / f"{document.id}.json").write_text(json.dumps(envelope, indent=2), encoding="utf-8")
 
 
+#: Where the 409 bodies harvested off the live play instances are kept, one file per DHIS2 major.
+_HARVESTED_409_DIRECTORY = Path(__file__).parent / "data" / "forward-409"
+
+#: What `/api/system/info` called each instance the stored 409 bodies were harvested off.
+_HARVESTED_INSTANCE_VERSIONS = {"v41": "2.41.10-SNAPSHOT", "v42": "2.42.6-SNAPSHOT", "v43": "2.43.2-SNAPSHOT"}
+
+#: The build beside each version - the pair that names the one nightly a stored body came off.
+_HARVESTED_INSTANCE_REVISIONS = {"v41": "c3a425c", "v42": "9595934", "v43": "7b4cd04"}
+
+
+def _harvested_409(name: str, wire_version: str) -> httpx.Response:
+    """Replay one stored 409 body as the answer the instance gave, field for field as DHIS2 wrote it."""
+    body = json.loads((_HARVESTED_409_DIRECTORY / f"{name}-{wire_version}.json").read_text(encoding="utf-8"))
+    return httpx.Response(409, json=body)
+
+
+def _harvested_aggregate_value_type_409(wire_version: str) -> httpx.Response:
+    """A wrapped `/api/dataValueSets` 409, verbatim off the 2026-08-11 play nightlies.
+
+    Off 2.41.10-SNAPSHOT (c3a425c), 2.42.6-SNAPSHOT (9595934) and 2.43.2-SNAPSHOT (7b4cd04). Provoked by
+    `POST /api/dataValueSets?dryRun=true` writing `not-a-number` into the NUMBER data element `DUSpd8Jq3M7`
+    of data set `BfMAe6Itzgt`, period `202601`, organisation unit `DiszpKrYNg8`.
+    """
+    return _harvested_409("data-value-set-value-type", wire_version)
+
+
+def _harvested_absent_enrollment_409(wire_version: str) -> httpx.Response:
+    """The bare `/api/tracker` pair a stage event whose enrollment nobody has earns, verbatim off the nightlies.
+
+    Off 2.41.10-SNAPSHOT (c3a425c), 2.42.6-SNAPSHOT (9595934) and 2.43.2-SNAPSHOT (7b4cd04) on 2026-08-11.
+    Provoked by `POST /api/tracker?importStrategy=CREATE&async=false&importMode=VALIDATE` with event
+    `EvAaBbCcDd1` of stage `A03MvHHogjR` naming enrollment `EnAaBbCcDd1`, which no instance holds.
+
+    `E1313` states the enrollment references no tracked entity and `E1079` asserts a program mismatch
+    against that same absent enrollment (BUGS.md 68). Under `importMode=VALIDATE` the pair is what every
+    stage event of a registration validated in the same run earns, because a dry run creates no enrollment.
+    """
+    return _harvested_409("tracker-absent-enrollment", wire_version)
+
+
+def _harvested_tracker_value_type_409(wire_version: str) -> httpx.Response:
+    """A bare `/api/tracker` 409 over a value the data element's type refuses, verbatim off the nightlies.
+
+    Off 2.41.10-SNAPSHOT (c3a425c), 2.42.6-SNAPSHOT (9595934) and 2.43.2-SNAPSHOT (7b4cd04) on 2026-08-11.
+    Provoked by `POST /api/tracker?importStrategy=CREATE&async=false&importMode=VALIDATE` with event
+    `EvBbCcDd002` of stage `pTo4uMt3xur` writing `not-a-coordinate` into the COORDINATE data element
+    `F3ogKBuviRA`.
+    """
+    return _harvested_409("tracker-value-type", wire_version)
+
+
+class _AggregateRejectionFacts(BaseModel):
+    """What one major's harvested `/api/dataValueSets` 409 states, read off the stored body itself."""
+
+    model_config = ConfigDict(frozen=True)
+
+    status: str
+    error_code: str
+    subject: str | None
+    message: str
+
+
+class _TrackerRejectionFacts(BaseModel):
+    """What one major's harvested `/api/tracker` 409 states, read off the stored body itself."""
+
+    model_config = ConfigDict(frozen=True)
+
+    error_codes: tuple[str, ...]
+    subject: str
+    messages: tuple[str, ...]
+
+
+#: What each major answers the one refused data value with. 2.43 names another rule, drops the `object`
+#: that named the data element, and calls an outright error what 2.41 and 2.42 call a warning - so the
+#: only thing a reader of all three can count on is that a conflict arrived at all.
+_AGGREGATE_VALUE_TYPE_FACTS = {
+    "v41": _AggregateRejectionFacts(
+        status="WARNING",
+        error_code="E7619",
+        subject="DUSpd8Jq3M7",
+        message="Value must match value type of data element `DUSpd8Jq3M7`: `Data value is not numeric`",
+    ),
+    "v42": _AggregateRejectionFacts(
+        status="WARNING",
+        error_code="E7619",
+        subject="DUSpd8Jq3M7",
+        message="Value must match value type of data element `DUSpd8Jq3M7`: `Data value is not numeric`",
+    ),
+    "v43": _AggregateRejectionFacts(
+        status="ERROR",
+        error_code="E8122",
+        subject=None,
+        message="Value #0 value `not-a-number` is no valid NUMBER: value_not_numeric",
+    ),
+}
+
+#: What each major answers the stage event naming an enrollment nobody has with. The two codes are the
+#: same three times over and the two sentences are three different pairs of prose (BUGS.md 68).
+_ABSENT_ENROLLMENT_FACTS = {
+    "v41": _TrackerRejectionFacts(
+        error_codes=("E1313", "E1079"),
+        subject="EvAaBbCcDd1",
+        messages=(
+            "Event EvAaBbCcDd1 of an enrollment does not point to an existing tracked entity. "
+            "The data in your system might be corrupted",
+            "Event: `EvAaBbCcDd1`, program: `IpHINAT79UW` is different from program defined in "
+            "enrollment `EnAaBbCcDd1`.",
+        ),
+    ),
+    "v42": _TrackerRejectionFacts(
+        error_codes=("E1313", "E1079"),
+        subject="EvAaBbCcDd1",
+        messages=(
+            "Event `EvAaBbCcDd1` of an Enrollment does not reference a TrackedEntity.",
+            "Event: `EvAaBbCcDd1`, program: `IpHINAT79UW` is different from program defined in "
+            "enrollment `EnAaBbCcDd1`.",
+        ),
+    ),
+    "v43": _TrackerRejectionFacts(
+        error_codes=("E1313", "E1079"),
+        subject="EvAaBbCcDd1",
+        messages=(
+            "Event `EvAaBbCcDd1` of an Enrollment does not reference a TrackedEntity.",
+            "Event: `EvAaBbCcDd1` Program: `IpHINAT79UW` is different from Program defined in "
+            "Enrollment `EnAaBbCcDd1`.",
+        ),
+    ),
+}
+
+#: What each major answers the coordinate that is not one with. `E1302` names the value type - or, on
+#: 2.41, nothing at all - where the data element identifier belongs (BUGS.md 75).
+_TRACKER_VALUE_TYPE_FACTS = {
+    "v41": _TrackerRejectionFacts(
+        error_codes=("E1302",),
+        subject="EvBbCcDd002",
+        messages=("DataElement `` is not valid: `Value type is COORDINATE but the value `not-a-coordinate` is not.`",),
+    ),
+    "v42": _TrackerRejectionFacts(
+        error_codes=("E1302",),
+        subject="EvBbCcDd002",
+        messages=(
+            "DataElement `COORDINATE` is not valid: `Value type is COORDINATE but the value "
+            "`not-a-coordinate` is not.`.",
+        ),
+    ),
+    "v43": _TrackerRejectionFacts(
+        error_codes=("E1302",),
+        subject="EvBbCcDd002",
+        messages=(
+            "DataElement `COORDINATE` is not valid: `Value type is COORDINATE but the value "
+            "`not-a-coordinate` is not.`.",
+        ),
+    ),
+}
+
+
 def _mock_instance(
     *,
+    wire_version: str = "v42",
     aggregate_response: httpx.Response | None = None,
     tracker_response: httpx.Response | None = None,
 ) -> dict[str, respx.Route]:
     """Mock everything a forward run touches: the version probe, the value types, and the two imports."""
-    respx.get(f"{_BASE_URL}/api/system/info").mock(return_value=httpx.Response(200, json={"version": "2.42.0"}))
+    version = _HARVESTED_INSTANCE_VERSIONS[wire_version]
+    respx.get(f"{_BASE_URL}/api/system/info").mock(return_value=httpx.Response(200, json={"version": version}))
     value_types = respx.get(f"{_BASE_URL}/api/dataElements").mock(
         return_value=httpx.Response(
             200,
@@ -363,33 +522,6 @@ def _two_event_spool() -> list[QuestionnaireResponse]:
     documents = _documents(GenerateConfig())
     event = next(document for document in documents if _form_kind(document) != "aggregate")
     return [*documents, event.model_copy(update={"id": f"{event.id}b"})]
-
-
-def _rejected_tracker_reworded() -> httpx.Response:
-    """The same broken rule worded the way another DHIS2 major words it, which no generalisation reconciles.
-
-    `E1029` names one rule; the sentence DHIS2 wraps it in is prose and differs between majors
-    (BUGS.md #68 shows the same drift on `E1079`). Grouping on the sentence would report one rule as
-    two causes of the run against an instance that words it either way.
-    """
-    return httpx.Response(
-        409,
-        json={
-            "status": "ERROR",
-            "validationReport": {
-                "errorReports": [
-                    {
-                        "message": "Event `Ev3aaaaaaaa` organisation unit does not belong to program `IpHINAT79UW`.",
-                        "errorCode": "E1029",
-                        "trackerType": "EVENT",
-                        "uid": "Ev3aaaaaaaa",
-                    }
-                ],
-                "warningReports": [],
-            },
-            "stats": {"created": 0, "updated": 0, "deleted": 0, "ignored": 1, "total": 1},
-        },
-    )
 
 
 def _write_probe_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -731,18 +863,24 @@ async def test_the_rejections_roll_up_by_cause_with_the_quoted_uids_generalised(
 
 @respx.mock
 async def test_one_rule_worded_two_ways_is_still_one_cause_of_the_run(forward_project: Path) -> None:
-    """The rollup groups on the error code, so a message DHIS2 rewords between majors stays one row."""
+    """The rollup groups on the error code, so the sentence 2.42 and 2.43 word differently stays one row.
+
+    The two bodies are the same provocation harvested off two majors, so the drift here is DHIS2's own -
+    2.42 says "program defined in enrollment", 2.43 says "Program defined in Enrollment", one rule either way.
+    """
     _mock_instance(aggregate_response=_rejected_aggregate(), tracker_response=_rejected_tracker())
     respx.post(f"{_BASE_URL}/api/tracker").mock(
-        side_effect=[_rejected_tracker(), _rejected_tracker_reworded()],
+        side_effect=[_harvested_absent_enrollment_409("v42"), _harvested_absent_enrollment_409("v43")],
     )
     _fill_spool(forward_project, _two_event_spool())
     report = await _forward(forward_project)
     reasons = {reason.error_code: reason for reason in report.rejection_reasons}
-    assert set(reasons) == {"E7611", "E1029"}
-    assert reasons["E1029"].responses == 2
+    assert set(reasons) == {"E7611", "E1313", "E1079"}
+    assert reasons["E1079"].responses == 2
     # The sample shown is the first wording the run met, generalised - not a second row beside it.
-    assert reasons["E1029"].reason == "Event OrganisationUnit: `...` and Program: `...`, do not match."
+    assert reasons["E1079"].reason == (
+        "Event: `...`, program: `...` is different from program defined in enrollment `...`."
+    )
 
 
 #: The data set on a non-default attribute category combo, whose every value carries a third key.
@@ -994,7 +1132,9 @@ def _write_tracker_project(root: Path) -> None:
 
 def _mock_tracker_instance() -> respx.Route:
     """Mock the version probe, both value-type reads, and the one import endpoint a tracker drain posts to."""
-    respx.get(f"{_BASE_URL}/api/system/info").mock(return_value=httpx.Response(200, json={"version": "2.42.0"}))
+    respx.get(f"{_BASE_URL}/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": _HARVESTED_INSTANCE_VERSIONS["v42"]})
+    )
     respx.get(f"{_BASE_URL}/api/dataElements").mock(
         return_value=httpx.Response(200, json={"dataElements": [{"id": "a3kGcGDCuk6", "valueType": "INTEGER"}]})
     )
@@ -1144,46 +1284,6 @@ async def test_forwarding_one_receipt_twice_asks_dhis2_to_create_the_same_event_
     assert dict(routes["tracker"].calls.last.request.url.params)["importStrategy"] == "CREATE"
 
 
-#: The event UID DHIS2 names in the pair it answers an absent enrollment with.
-_STAGE_EVENT_UID = "EvAaBbCcDd1"
-
-
-def _absent_enrollment_tracker(enrollment: str = _MINTED_ENROLLMENT) -> httpx.Response:
-    """The pair `/api/tracker` answers a stage event whose enrollment nobody has, verbatim off a live 2.42.
-
-    `E1313` states the enrollment is missing and `E1079` asserts a program mismatch against that same
-    absent enrollment (BUGS.md 68). Under `importMode=VALIDATE` the pair is what every stage event of a
-    registration validated in the same run earns, because a dry run never created the enrollment.
-    """
-    return httpx.Response(
-        409,
-        json={
-            "status": "ERROR",
-            "validationReport": {
-                "errorReports": [
-                    {
-                        "message": (
-                            f"Event: `{_STAGE_EVENT_UID}` Program: `IpHINAT79UW` is different from Program "
-                            f"defined in Enrollment `{enrollment}`"
-                        ),
-                        "errorCode": "E1079",
-                        "trackerType": "EVENT",
-                        "uid": _STAGE_EVENT_UID,
-                    },
-                    {
-                        "message": f"Enrollment `{enrollment}` requires a TrackedEntity.",
-                        "errorCode": "E1313",
-                        "trackerType": "EVENT",
-                        "uid": _STAGE_EVENT_UID,
-                    },
-                ],
-                "warningReports": [],
-            },
-            "stats": {"created": 0, "updated": 0, "deleted": 0, "ignored": 1, "total": 1},
-        },
-    )
-
-
 def _mock_tracker_instance_answering_the_stage_event(event_response: httpx.Response) -> respx.Route:
     """Mock a tracker drain whose registration DHIS2 takes and whose stage event it answers `event_response`."""
     tracker = _mock_tracker_instance()
@@ -1205,7 +1305,7 @@ async def test_a_dry_run_cannot_check_a_stage_event_against_an_enrollment_the_sa
     tracker_forward_project: Path,
 ) -> None:
     """The pair DHIS2 answers here is the dry run's own doing, so the event is unverifiable and not rejected."""
-    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+    _mock_tracker_instance_answering_the_stage_event(_harvested_absent_enrollment_409("v42"))
 
     report = await _forward(tracker_forward_project)
 
@@ -1223,7 +1323,7 @@ async def test_the_unverifiable_section_says_what_a_dry_run_cannot_check_without
     tracker_forward_project: Path,
 ) -> None:
     """A reader acts on this without knowing what `E1079` and `E1313` are, which is the whole point of it."""
-    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+    _mock_tracker_instance_answering_the_stage_event(_harvested_absent_enrollment_409("v42"))
 
     report = await _forward(tracker_forward_project)
 
@@ -1242,14 +1342,14 @@ async def test_a_dry_run_stage_event_naming_an_enrollment_no_registration_of_the
 ) -> None:
     """The orphan is the case that has to keep failing loudly - nothing in this run would ever create it."""
     _drop_the_registration_receipt(tracker_forward_project)
-    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+    _mock_tracker_instance_answering_the_stage_event(_harvested_absent_enrollment_409("v42"))
 
     report = await _forward(tracker_forward_project)
 
     assert report.unverifiable == ()
     assert len(report.rejected) == 1
     assert report.rejected[0].response_id == "A03MvHHogjR-example-1"
-    assert [issue.error_code for issue in report.rejected[0].import_outcome.issues] == ["E1079", "E1313"]
+    assert [issue.error_code for issue in report.rejected[0].import_outcome.issues] == ["E1313", "E1079"]
 
 
 @respx.mock
@@ -1271,7 +1371,7 @@ async def test_an_import_run_reads_the_same_pair_as_a_rejection_and_files_it_as_
     tracker_forward_project: Path,
 ) -> None:
     """An import creates what it posts, so nothing it refuses went unchecked and nothing is reclassified."""
-    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+    _mock_tracker_instance_answering_the_stage_event(_harvested_absent_enrollment_409("v42"))
 
     report = await _forward(tracker_forward_project, import_responses=True)
 
@@ -1287,7 +1387,7 @@ async def test_the_report_round_trips_the_unverifiable_outcome_through_json(
     tracker_forward_project: Path,
 ) -> None:
     """The kind is a field of the receipt, so a dumped report rebuilds the count and the section from it."""
-    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+    _mock_tracker_instance_answering_the_stage_event(_harvested_absent_enrollment_409("v42"))
 
     report = await _forward(tracker_forward_project)
     restored = service.ForwardReport.model_validate_json(report.model_dump_json())
@@ -1307,7 +1407,7 @@ def test_a_dry_run_whose_only_failures_are_unverifiable_exits_zero(
     from typer.testing import CliRunner
 
     monkeypatch.setenv("COLUMNS", "300")
-    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+    _mock_tracker_instance_answering_the_stage_event(_harvested_absent_enrollment_409("v42"))
 
     result = CliRunner().invoke(build_app(), ["fhir", "forward", str(tracker_forward_project), "--no-progress"])
 
@@ -1323,9 +1423,147 @@ def test_a_dry_run_holding_an_orphan_stage_event_exits_one(tracker_forward_proje
     from typer.testing import CliRunner
 
     _drop_the_registration_receipt(tracker_forward_project)
-    _mock_tracker_instance_answering_the_stage_event(_absent_enrollment_tracker())
+    _mock_tracker_instance_answering_the_stage_event(_harvested_absent_enrollment_409("v42"))
 
     result = CliRunner().invoke(build_app(), ["fhir", "forward", str(tracker_forward_project), "--no-progress"])
 
     assert result.exit_code == 1, result.output
     assert "1 response(s) rejected by DHIS2" in result.output
+
+
+@respx.mock
+async def test_every_majors_wrapped_data_value_set_409_reaches_the_outcome_whole(
+    forward_project: Path, wire_version: str
+) -> None:
+    """The `WebMessage` is unwrapped and its `ImportSummary` read on all three majors, counts and conflict intact.
+
+    The degrade this guards is silent: a summary the generated model cannot read leaves
+    `data_value_summary` at None, and the rejection is then a status with no code, no count and no
+    conflict - a run that says nothing about why two hundred responses were refused.
+    """
+    _mock_instance(wire_version=wire_version, aggregate_response=_harvested_aggregate_value_type_409(wire_version))
+    facts = _AGGREGATE_VALUE_TYPE_FACTS[wire_version]
+
+    report = await _forward(forward_project)
+
+    outcome = next(outcome for outcome in report.rejected if outcome.target_kind == "data-value-set").import_outcome
+    assert outcome is not None
+    assert outcome.data_value_summary is not None
+    assert outcome.status == facts.status
+    assert (outcome.created, outcome.updated, outcome.ignored, outcome.deleted) == (0, 0, 1, 0)
+    assert outcome.data_value_summary.importCount is not None
+    assert outcome.data_value_summary.importCount.ignored == 1
+    assert outcome.data_value_summary.conflicts is not None
+    assert len(outcome.data_value_summary.conflicts) == 1
+    assert [issue.error_code for issue in outcome.issues] == [facts.error_code]
+    assert outcome.issues[0].subject == facts.subject
+    assert outcome.issues[0].message == facts.message
+
+
+@respx.mock
+async def test_a_data_value_set_409_is_a_rejection_on_every_major_whatever_status_it_carries(
+    forward_project: Path, wire_version: str
+) -> None:
+    """2.41 and 2.42 call the refused value a warning and 2.43 an error, and all three refused it.
+
+    Reading the rejection off the status alone would take the 2.41 and 2.42 answers for successes, so
+    what makes it a rejection is DHIS2 having named a conflict against the payload at all.
+    """
+    _mock_instance(wire_version=wire_version, aggregate_response=_harvested_aggregate_value_type_409(wire_version))
+
+    report = await _forward(forward_project)
+
+    outcome = next(outcome for outcome in report.rejected if outcome.target_kind == "data-value-set").import_outcome
+    assert outcome is not None
+    assert outcome.is_rejected is True
+    assert len(report.accepted) == 1
+
+
+@respx.mock
+async def test_every_majors_bare_tracker_409_parses_with_its_codes_and_uids_intact(
+    forward_project: Path, wire_version: str
+) -> None:
+    """No major wraps the tracker report, so each one is recognised by its own shape and read whole."""
+    _mock_instance(wire_version=wire_version, tracker_response=_harvested_tracker_value_type_409(wire_version))
+    facts = _TRACKER_VALUE_TYPE_FACTS[wire_version]
+
+    report = await _forward(forward_project)
+
+    outcome = next(outcome for outcome in report.rejected if outcome.target_kind == "event").import_outcome
+    assert outcome is not None
+    assert outcome.tracker_report is not None
+    assert outcome.tracker_report.validationReport is not None
+    assert outcome.status == "ERROR"
+    assert (outcome.created, outcome.updated, outcome.ignored, outcome.deleted) == (0, 0, 1, 0)
+    assert [issue.error_code for issue in outcome.issues] == list(facts.error_codes)
+    assert [issue.subject for issue in outcome.issues] == [facts.subject]
+    assert [issue.message for issue in outcome.issues] == list(facts.messages)
+
+
+@respx.mock
+async def test_every_majors_absent_enrollment_409_carries_both_codes_of_the_pair(
+    forward_project: Path, wire_version: str
+) -> None:
+    """`E1313` and `E1079` arrive together on all three majors, in the order the instance listed them."""
+    _mock_instance(wire_version=wire_version, tracker_response=_harvested_absent_enrollment_409(wire_version))
+    facts = _ABSENT_ENROLLMENT_FACTS[wire_version]
+
+    report = await _forward(forward_project)
+
+    outcome = next(outcome for outcome in report.rejected if outcome.target_kind == "event").import_outcome
+    assert outcome is not None
+    assert outcome.tracker_report is not None
+    assert [issue.error_code for issue in outcome.issues] == list(facts.error_codes)
+    assert [issue.subject for issue in outcome.issues] == [facts.subject, facts.subject]
+    assert [issue.message for issue in outcome.issues] == list(facts.messages)
+    assert outcome.ignored == 1
+
+
+@respx.mock
+async def test_the_harvested_rejections_roll_up_under_the_codes_each_major_named(
+    forward_project: Path, wire_version: str
+) -> None:
+    """Two endpoints refuse one response each, and the run reads as one row per rule on every major."""
+    _mock_instance(
+        wire_version=wire_version,
+        aggregate_response=_harvested_aggregate_value_type_409(wire_version),
+        tracker_response=_harvested_tracker_value_type_409(wire_version),
+    )
+    aggregate_code = _AGGREGATE_VALUE_TYPE_FACTS[wire_version].error_code
+
+    report = await _forward(forward_project)
+
+    assert len(report.rejected) == 2
+    reasons = {reason.error_code: reason for reason in report.rejection_reasons}
+    assert set(reasons) == {aggregate_code, "E1302"}
+    assert reasons[aggregate_code].responses == 1
+    assert reasons["E1302"].responses == 1
+    # 2.41 leaves the identifier empty and 2.42 and 2.43 put the value type there, and generalising the
+    # quoted parts away folds both into one sentence - which is what one row per rule has to survive.
+    assert reasons["E1302"].reason.startswith("DataElement `...` is not valid:")
+
+
+def test_the_majors_word_one_tracker_rule_three_ways_and_only_its_code_holds_still() -> None:
+    """BUGS.md 68's drift, pinned against the wire: the sentences differ, the codes do not.
+
+    Rolling rejections up on the sentence would report one rule as two causes of a run that met two
+    majors, which is the reason `rejection_reasons` keys on the code and never on the prose.
+    """
+    codes = {version: facts.error_codes for version, facts in _ABSENT_ENROLLMENT_FACTS.items()}
+    assert set(codes.values()) == {("E1313", "E1079")}
+
+    absent_tracked_entity = {version: facts.messages[0] for version, facts in _ABSENT_ENROLLMENT_FACTS.items()}
+    assert absent_tracked_entity["v41"] != absent_tracked_entity["v42"]
+    assert absent_tracked_entity["v42"] == absent_tracked_entity["v43"]
+
+    program_mismatch = {version: facts.messages[1] for version, facts in _ABSENT_ENROLLMENT_FACTS.items()}
+    assert program_mismatch["v41"] == program_mismatch["v42"]
+    assert program_mismatch["v42"] != program_mismatch["v43"]
+
+
+def test_each_stored_409_body_names_the_instance_it_was_harvested_off(wire_version: str) -> None:
+    """A fixture whose provenance nobody can check is a fixture somebody will one day invent."""
+    assert _HARVESTED_INSTANCE_VERSIONS[wire_version].startswith(f"2.{wire_version[1:]}.")
+    assert len(_HARVESTED_INSTANCE_REVISIONS[wire_version]) == 7
+    for name in ("data-value-set-value-type", "tracker-absent-enrollment", "tracker-value-type"):
+        assert (_HARVESTED_409_DIRECTORY / f"{name}-{wire_version}.json").is_file()

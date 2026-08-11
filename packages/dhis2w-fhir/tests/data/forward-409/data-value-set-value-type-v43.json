@@ -1,0 +1,63 @@
+{
+  "httpStatus": "Conflict",
+  "httpStatusCode": 409,
+  "status": "ERROR",
+  "message": "An error occurred, please check import summary.",
+  "response": {
+    "status": "ERROR",
+    "importOptions": {
+      "idSchemes": {},
+      "atomic": false,
+      "dryRun": true,
+      "async": false,
+      "importStrategy": "CREATE_AND_UPDATE",
+      "mergeMode": "REPLACE",
+      "reportMode": "FULL",
+      "skipExistingCheck": false,
+      "sharing": false,
+      "skipNotifications": false,
+      "skipAudit": false,
+      "datasetAllowsPeriods": false,
+      "strictPeriods": false,
+      "strictDataElements": false,
+      "strictCategoryOptionCombos": false,
+      "strictAttributeOptionCombos": false,
+      "strictOrganisationUnits": false,
+      "strictDataSetApproval": false,
+      "strictDataSetLocking": false,
+      "strictDataSetInputPeriods": false,
+      "requireCategoryOptionCombo": false,
+      "requireAttributeOptionCombo": false,
+      "skipPatternValidation": false,
+      "ignoreEmptyCollection": false,
+      "force": false,
+      "firstRowIsHeader": true,
+      "skipLastUpdated": false,
+      "mergeDataValues": false,
+      "skipCache": false
+    },
+    "importCount": {
+      "imported": 0,
+      "updated": 0,
+      "ignored": 1,
+      "deleted": 0
+    },
+    "conflicts": [
+      {
+        "objects": {
+          "args": "0-not-a-number-NUMBER-value_not_numeric"
+        },
+        "value": "Value #0 value `not-a-number` is no valid NUMBER: value_not_numeric",
+        "errorCode": "E8122",
+        "indexes": [
+          0
+        ]
+      }
+    ],
+    "rejectedIndexes": [
+      0
+    ],
+    "dataSetComplete": "false",
+    "responseType": "ImportSummary"
+  }
+}
