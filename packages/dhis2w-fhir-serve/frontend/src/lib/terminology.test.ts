@@ -63,6 +63,32 @@ describe('concept property columns', () => {
         ])
     })
 
+    it('heads a per-object column with the name its declaration states, never the uid', () => {
+        const combos = {
+            resourceType: 'CodeSystem',
+            property: [
+                {
+                    code: 'category-yY2bQYqNt0o',
+                    uri: 'http://dhis2.org/fhir/property/category-yY2bQYqNt0o',
+                    description: 'DHIS2 category Project.',
+                    type: 'Coding',
+                },
+                {
+                    code: 'searchable-IpHINAT79UW',
+                    uri: 'http://dhis2.org/fhir/property/searchable-IpHINAT79UW',
+                    description:
+                        'Whether DHIS2 declares the tracked entity attribute searchable in tracker program Child Programme (IpHINAT79UW).',
+                    type: 'boolean',
+                },
+            ],
+            concept: [],
+        } as unknown as typeof dataElements
+        expect(conceptPropertyColumns(combos).map((column) => column.label)).toEqual([
+            'Project',
+            'Searchable in Child Programme',
+        ])
+    })
+
     it('heads the column from the code alone when the system describes none', () => {
         expect(conceptPropertyColumns(optionSet)).toEqual([
             {
