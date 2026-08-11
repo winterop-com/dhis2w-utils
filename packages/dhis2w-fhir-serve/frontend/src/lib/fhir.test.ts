@@ -17,6 +17,7 @@ import {
     canonicalId,
     conceptDisplay,
     declaredOperations,
+    declaresPatientSearch,
     enrolledAtOf,
     FORM_TYPE_LABELS,
     FORM_TYPES,
@@ -30,6 +31,7 @@ import {
     operationNames,
     programOf,
     questionCount,
+    registersAPerson,
     servedIgLabel,
     trackedEntityOf,
     trackerEnrollmentOf,
@@ -213,6 +215,73 @@ describe('a real /metadata document', () => {
     })
 })
 
+/**
+ * Whether this server can be asked who a person is, read off the conformance document.
+ *
+ * THIS IS THE ONE PROBE, AND THE FIXTURE IS THE COMPILED CASE. `metadata.json` is a real
+ * `/metadata` from a compiled run, and a compiled run declares no `Patient` at all - the resource
+ * is answered from a DHIS2 instance and there is none behind a compiled guide. So the fixture is
+ * the negative, and the positive is built here in the shape `dhis2w_fhir_serve.capability` emits
+ * under `--live`.
+ *
+ * BOTH HALVES ARE REQUIRED ON PURPOSE. A statement naming `Patient` with a read interaction alone
+ * would be a server that resolves a person by uid and cannot look one up, and a search box offered
+ * against it would be a search box that always fails.
+ */
+describe('whether patient search is published', () => {
+    /** The Patient entry a live process over a project publishing a registration form declares. */
+    const livePatient = {
+        type: 'Patient',
+        interaction: [{ code: 'read' }, { code: 'search-type' }],
+        searchParam: [{ name: 'identifier', type: 'token' }],
+    }
+
+    /** One statement carrying whatever Patient entry a case is about, beside the compiled ones. */
+    const withPatient = (entry: Record<string, unknown> | null): CapabilityStatement => ({
+        ...metadata,
+        rest: [
+            {
+                ...metadata.rest![0],
+                resource: [
+                    ...(metadata.rest?.[0].resource ?? []),
+                    ...(entry === null ? [] : [entry as unknown as (typeof livePatient)]),
+                ],
+            },
+        ],
+    })
+
+    it('is not published by a compiled run, which declares no Patient at all', () => {
+        expect(metadata.rest?.[0].resource?.some((resource) => resource.type === 'Patient')).toBe(false)
+        expect(declaresPatientSearch(metadata)).toBe(false)
+    })
+
+    it('is published when the statement declares Patient with a search on identifier', () => {
+        expect(declaresPatientSearch(withPatient(livePatient))).toBe(true)
+    })
+
+    it('is not published by a Patient entry that can only be read by uid', () => {
+        expect(
+            declaresPatientSearch(withPatient({ type: 'Patient', interaction: [{ code: 'read' }] })),
+        ).toBe(false)
+    })
+
+    it('is not published by a search on some parameter other than identifier', () => {
+        expect(
+            declaresPatientSearch(
+                withPatient({
+                    type: 'Patient',
+                    interaction: [{ code: 'search-type' }],
+                    searchParam: [{ name: 'name', type: 'string' }],
+                }),
+            ),
+        ).toBe(false)
+    })
+
+    it('is not published by a server that answered nothing at all', () => {
+        expect(declaresPatientSearch(null)).toBe(false)
+    })
+})
+
 describe('canonicalId', () => {
     it('takes the last segment of a canonical URL', () => {
         expect(canonicalId('http://localhost:8080/fhir/Questionnaire/BfMAe6Itzgt')).toBe('BfMAe6Itzgt')
@@ -390,23 +459,49 @@ describe('the attribute option combo a form reports for', () => {
 })
 
 /**
- * The four DHIS2 objects a capture form can have come from, as this UI names them.
+ * The five DHIS2 objects a capture form can have come from, as this UI names them.
  *
  * `tracker` is the registration form - one Questionnaire per tracker program, asking the tracked
  * entity attributes - and it is one character away from `tracker-event`, the program stage. The
  * two are different forms of different shapes producing different DHIS2 payloads, so the pair
  * being spelled apart is worth an assertion of its own: a label lookup that fell through would
  * render a registration form as a bare code in every listing that shows the kind.
+ *
+ * `tracked-entity` is the third one-person kind and the one no program is behind: it registers a
+ * person and enrols them in nothing. Admitting it is what lets a served person-only form be
+ * shelved, opened, filled, and submitted rather than being listed as a form declaring no kind.
  */
 describe('the form-kind vocabulary', () => {
-    it('carries every code of the D2FormType terminology, registration included', () => {
-        expect([...FORM_TYPES]).toEqual(['aggregate', 'event', 'tracker', 'tracker-event'])
+    it('carries every code of the D2FormType terminology, both registration kinds included', () => {
+        expect([...FORM_TYPES]).toEqual(['aggregate', 'event', 'tracker', 'tracker-event', 'tracked-entity'])
     })
 
     it('names each kind, and never leaves one to render as its code', () => {
         expect(FORM_TYPE_LABELS.tracker).toBe('Tracker registration')
         expect(FORM_TYPE_LABELS['tracker-event']).toBe('Tracker program stage')
+        expect(FORM_TYPE_LABELS['tracked-entity']).toBe('Person registration')
         for (const kind of FORM_TYPES) expect(FORM_TYPE_LABELS[kind], kind).not.toBe('')
+    })
+
+    it('reads the person-only kind off a form that declares it, and grades who registers a person', () => {
+        expect(
+            formTypeOf({
+                resourceType: 'Questionnaire',
+                status: 'active',
+                extension: [
+                    {
+                        url: 'http://localhost:8080/fhir/StructureDefinition/d2-form-type',
+                        valueCode: 'tracked-entity',
+                    },
+                ],
+            }),
+        ).toBe('tracked-entity')
+        expect(registersAPerson('tracked-entity')).toBe(true)
+        expect(registersAPerson('tracker')).toBe(true)
+        // A stage form is about a person, but it names one rather than registering one.
+        expect(registersAPerson('tracker-event')).toBe(false)
+        expect(registersAPerson('aggregate')).toBe(false)
+        expect(registersAPerson(null)).toBe(false)
     })
 
     it('reads the registration kind off a form that declares it', () => {

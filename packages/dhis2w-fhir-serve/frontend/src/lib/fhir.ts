@@ -279,6 +279,29 @@ export interface Location {
     managingOrganization?: Reference
 }
 
+/** The classification elements a resource carries in `meta` - this UI reads the tags. */
+export interface Meta {
+    profile?: string[]
+    tag?: Coding[]
+}
+
+/**
+ * One person in the DHIS2 instance behind a live facade.
+ *
+ * Identity and nothing else, which is what `dhis2w_fhir_serve.patients.projection` publishes and
+ * why: DHIS2 has no attribute that means a name, a gender, or a birth date, so those elements are
+ * absent rather than guessed at. `id` is the tracked entity uid, `identifier` opens with that uid
+ * and then carries one entry per value of an attribute DHIS2 declares unique, `meta.tag` states
+ * the tracked entity type, and every remaining attribute value rides an extension.
+ */
+export interface Patient {
+    resourceType: 'Patient'
+    id?: string
+    meta?: Meta
+    identifier?: Identifier[]
+    extension?: Extension[]
+}
+
 /** One member of a List: the resource it names. */
 export interface ResourceListEntry {
     item: Reference
@@ -449,6 +472,7 @@ export type FhirResource =
     | ValueSet
     | ConceptMap
     | Location
+    | Patient
     | ResourceList
     | OperationOutcome
 
@@ -555,18 +579,37 @@ export const FORM_TYPE_EXTENSION_SUFFIX = '/StructureDefinition/d2-form-type'
  * `FORM_TYPE_DEFINITIONS` in dhis2w_fhir.foundation.schemas. `tracker-event`
  * (a program stage) is the one that catches people out: it is not spelled
  * `tracker`, which is the registration form, and the goldens use the former.
+ * `tracked-entity` is the third one-person kind and the only one that enrols
+ * nobody: it is generated from a DHIS2 tracked entity type rather than from a
+ * program, so its response carries a subject and an organisation unit and no
+ * enrollment at all.
  */
-export const FORM_TYPES = ['aggregate', 'event', 'tracker', 'tracker-event'] as const
+export const FORM_TYPES = ['aggregate', 'event', 'tracker', 'tracker-event', 'tracked-entity'] as const
 
 /** One code of the `D2FormType` terminology. */
 export type FormType = (typeof FORM_TYPES)[number]
 
-/** How each form kind is named in the UI, since the codes are terse. */
+/**
+ * How each form kind is named in the UI, since the codes are terse.
+ *
+ * `tracked-entity` reads as "Person registration" rather than as its DHIS2 artifact name: what a
+ * reader needs from a badge is that the form registers a person, and that it says nothing about a
+ * program is the very fact "Tracker registration" beside it does not carry.
+ */
 export const FORM_TYPE_LABELS: Record<FormType, string> = {
     aggregate: 'Aggregate data set',
     event: 'Event program',
     tracker: 'Tracker registration',
     'tracker-event': 'Tracker program stage',
+    'tracked-entity': 'Person registration',
+}
+
+/** The form kinds whose submission is about one person rather than about a place or a period. */
+export const PERSON_FORM_TYPES: readonly FormType[] = ['tracker', 'tracked-entity']
+
+/** Whether a form kind registers a person - the two kinds a patient picker sits on. */
+export function registersAPerson(formKind: FormType | null): boolean {
+    return formKind !== null && PERSON_FORM_TYPES.includes(formKind)
 }
 
 /**
@@ -665,6 +708,17 @@ export function conceptDisplay(codeSystem: CodeSystem | null, code: string | nul
  * enrollment before either of them has reached DHIS2.
  */
 export const TRACKER_ENROLLMENT_EXTENSION_SUFFIX = '/StructureDefinition/d2-tracker-enrollment'
+
+/**
+ * The extension a registration question states its DHIS2 import level on.
+ *
+ * True means the answer is written onto the tracked entity itself - the person - and false means
+ * it is written onto the enrollment. The distinction is invisible on an ordinary registration,
+ * where both land in the same import, and decisive on one answering for a person the instance
+ * already holds: DHIS2 has that person's entity-level values already, and the conversion layer
+ * refuses one that states its subject already exists and carries one anyway.
+ */
+export const ENTITY_LEVEL_EXTENSION_SUFFIX = '/StructureDefinition/d2-entity-level'
 
 /** The extension a registration response dates its enrollment with - required on that profile. */
 export const ENROLLED_AT_EXTENSION_SUFFIX = '/StructureDefinition/d2-enrolled-at'
@@ -967,6 +1021,34 @@ export function operationNames(capability: CapabilityStatement | null): string[]
     const seen = new Set<string>()
     for (const operation of declaredOperations(capability)) seen.add(operation.name)
     return [...seen]
+}
+
+/** The resource type a live facade answers from the DHIS2 instance rather than from its store. */
+export const PATIENT_RESOURCE_TYPE = 'Patient'
+
+/** The one search parameter that facade answers a patient lookup on. */
+export const PATIENT_IDENTIFIER_SEARCH_PARAMETER = 'identifier'
+
+/**
+ * Whether this server publishes patient search - the one capability a UI must ask before offering it.
+ *
+ * `/metadata` is the whole of the answer and it is stated ahead of any request: a live process over
+ * a project that publishes a registration form declares a `Patient` entry with a `search-type`
+ * interaction and an `identifier` search parameter, and a compiled process declares no `Patient` at
+ * all. So a control that finds a person in the instance is offered exactly when the conformance
+ * document says a search would be answered, rather than offered and then refused.
+ *
+ * Both halves are checked, not only the resource type. A statement that named `Patient` with a read
+ * interaction alone would be a server that resolves a person by uid and cannot look one up, which
+ * is not a search control a person can use.
+ */
+export function declaresPatientSearch(capability: CapabilityStatement | null): boolean {
+    const entry = capability?.rest?.[0]?.resource?.find((resource) => resource.type === PATIENT_RESOURCE_TYPE)
+    if (entry === undefined) return false
+    const searchable = entry.interaction?.some((interaction) => interaction.code === 'search-type') === true
+    const byIdentifier =
+        entry.searchParam?.some((parameter) => parameter.name === PATIENT_IDENTIFIER_SEARCH_PARAMETER) === true
+    return searchable && byIdentifier
 }
 
 /**

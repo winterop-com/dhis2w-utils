@@ -64,6 +64,10 @@ describe('the guarded-path pattern', () => {
             '/ConceptMap/$translate?code=x',
             '/Location/ImspTQPwCqd',
             '/Organization',
+            // The two a live process answers from the DHIS2 instance rather than from its store.
+            '/Patient?identifier=12345678',
+            '/Patient/TeiPerson01',
+            '/patients/TeiPerson01/enrollments',
         ]
         for (const path of served) {
             expect(GUARDED_PATH_PATTERN.test(path), path).toBe(true)
@@ -77,8 +81,7 @@ describe('the guarded-path pattern', () => {
             '/assets/index-abc123.js',
             '/api/dataValueSets',
             '/fhir/Questionnaire',
-            '/Patient',
-            '/Patient/1',
+            '/Patients',
             '/QuestionnaireResponses',
             '/metadataX',
             'Questionnaire',

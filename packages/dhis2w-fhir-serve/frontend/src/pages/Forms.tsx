@@ -18,14 +18,20 @@ import { cn } from '@/lib/utils'
 /**
  * Every form this server publishes, grouped by the DHIS2 capture model it came from.
  *
- * THREE MODELS, THREE SECTIONS. A data set, an event program, and a tracker program are not three
- * flavours of the same thing: a data set is a periodic report for an organisation unit, an event
- * program records single events with no person involved, and a tracker program is one surface
- * whose registration form enrols a person and whose stage forms record that person's visits. A
- * flat table put a stage form and the data set above it on equal rows, which is exactly the
- * dependency it hid - so the page reads as sections, and inside the tracker section each program
- * is its own group with the registration leading its stages. The fold is `catalogueForms` in
- * lib/catalogue.ts, the same one the organisation-units rail shelves with.
+ * FOUR MODELS, FOUR SECTIONS. A data set, an event program, a tracker program, and a person-only
+ * registration are not four flavours of the same thing: a data set is a periodic report for an
+ * organisation unit, an event program records single events with no person involved, a tracker
+ * program is one surface whose registration form enrols a person and whose stage forms record that
+ * person's visits, and a person-only form puts a person in the instance and enrols them in
+ * nothing. A flat table put a stage form and the data set above it on equal rows, which is exactly
+ * the dependency it hid - so the page reads as sections, and inside the tracker section each
+ * program is its own group with the registration leading its stages. The fold is `catalogueForms`
+ * in lib/catalogue.ts, the same one the organisation-units rail shelves with.
+ *
+ * PEOPLE IS ITS OWN SECTION BECAUSE IT IS NEITHER OF THE OTHERS. A person-only form is generated
+ * from a DHIS2 tracked entity type and names no program, so there is no group to nest it in and no
+ * period to report it for. Shelving it under Tracker programs would file it under a heading that
+ * says a person is enrolled once and then visited, which is the one thing this kind does not do.
  *
  * NO KIND BADGES. The section heading states the kind once, so a per-row badge would repeat it
  * down every column; inside a tracker group the registration/stage role notes carry the split the
@@ -98,6 +104,21 @@ export function Forms() {
                                     <TrackerProgramGroup key={group.key} group={group} />
                                 ))}
                             </div>
+                        </FormSection>
+                    )}
+
+                    {catalog.people.length > 0 && (
+                        <FormSection
+                            testid="forms-people"
+                            heading="People"
+                            count={catalog.people.length}
+                            explainer="Registers a person in this DHIS2 instance without enrolling them in a program."
+                        >
+                            <FormTable>
+                                {catalog.people.map((questionnaire) => (
+                                    <FormRow key={formIdentifier(questionnaire)} questionnaire={questionnaire} />
+                                ))}
+                            </FormTable>
                         </FormSection>
                     )}
 

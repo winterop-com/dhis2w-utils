@@ -5,6 +5,7 @@ import generateEventFixture from '@/lib/__fixtures__/generate-EVTsupVis01.json'
 import generateScopedFixture from '@/lib/__fixtures__/generate-PrScoped001.json'
 import generateTemporalFixture from '@/lib/__fixtures__/generate-PrTemporal1.json'
 import generateTrackerFixture from '@/lib/__fixtures__/generate-ZzYYXq4fJie.json'
+import registrationQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrAncCare01.json'
 import scopedQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrScoped001.json'
 import temporalQuestionnaireFixture from '@/lib/__fixtures__/questionnaire-PrTemporal1.json'
 import attributeComboFormFixture from '@/lib/__fixtures__/questionnaire-TuL8IOPzpHh.json'
@@ -27,8 +28,10 @@ import {
     answersFromResponse,
     answersReducer,
     buildQuestionnaireResponse,
+    clearedEntityLevelAnswers,
     dateTimeInputValue,
     enabledLinkIds,
+    entityLevelLinkIds,
     EMPTY_SLOT,
     flattenQuestionnaire,
     initialAnswers,
@@ -46,6 +49,7 @@ import {
     type AnswerState,
 } from '@/lib/questionnaire'
 import { carriesUnitOnExtension, reportingUnitOf } from '@/lib/orgunits'
+import { marksAnExistingSubject } from '@/lib/patients'
 
 /**
  * The renderer's reading of a form, checked against forms the server really serves.
@@ -1085,5 +1089,120 @@ describe('the enrollment a stage submission answers against', () => {
         // synthetic - adopting it would replace a real enrollment with uids that name nothing.
         expect(refilledEnrollment(chosen)).toBe(chosen)
         expect(refilledEnrollment(null)).toBeNull()
+    })
+})
+
+/**
+ * A registration answering for a person this DHIS2 instance already holds.
+ *
+ * THE THREE THINGS THAT CHANGE, and each of them is a fact rather than a preference. The subject
+ * becomes the person's real tracked-entity uid, because the minted one names a person the
+ * submission is no longer creating. The response carries the `D2SubjectExists` marker, so the
+ * forwarder reads "this person exists" off the document rather than inferring it. And every
+ * entity-level answer leaves the item tree, because DHIS2 already holds those values for this
+ * person and `d2w fhir forward` refuses a submission that states its subject exists and carries
+ * one anyway.
+ *
+ * The form is the fixture project's real registration form, which is what makes the entity-level
+ * split real too: three of its four questions are entity-level and the fourth is the one the
+ * program asks that the tracked entity type does not collect.
+ */
+describe('a registration answering for a person the instance already holds', () => {
+    const registrationForm = registrationQuestionnaireFixture as unknown as Questionnaire
+    const spec = flattenQuestionnaire(registrationForm)
+
+    /** Every question answered, so what the marker takes away is a subtraction that can be seen. */
+    const answered: AnswerState = {
+        TeaNationId: [{ ...EMPTY_SLOT, text: '19850312-4471' }],
+        TeaBirthDat: [{ ...EMPTY_SLOT, text: '1985-03-12' }],
+        TeaHousehld: [{ ...EMPTY_SLOT, text: '4' }],
+    }
+
+    const skeleton: QuestionnaireResponse = {
+        resourceType: 'QuestionnaireResponse',
+        status: 'completed',
+        questionnaire: registrationForm.url,
+        subject: {
+            type: 'Patient',
+            identifier: { system: 'http://dhis2.org/fhir/id/tracked-entity', value: 'wJt3Qy1PxLd' },
+        },
+        extension: [
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit',
+                valueReference: { reference: 'Location/DiszpKrYNg8' },
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-enrolled-at',
+                valueDateTime: '2026-07-21T04:00:00Z',
+            },
+            { url: 'http://localhost:8080/fhir/StructureDefinition/d2-form-type', valueCode: 'tracker' },
+        ],
+    }
+
+    it('reads which questions DHIS2 writes onto the person, off the form’s own statement', () => {
+        expect([...entityLevelLinkIds(spec)].toSorted()).toEqual(['TeaBirthDat', 'TeaNationId', 'TeaSex00001'])
+    })
+
+    it('clears exactly those answers, and keeps the state object when there is nothing to clear', () => {
+        expect(clearedEntityLevelAnswers(spec, answered)).toEqual({
+            TeaHousehld: [{ ...EMPTY_SLOT, text: '4' }],
+        })
+        const enrollmentLevelOnly: AnswerState = { TeaHousehld: [{ ...EMPTY_SLOT, text: '4' }] }
+        expect(clearedEntityLevelAnswers(spec, enrollmentLevelOnly)).toBe(enrollmentLevelOnly)
+    })
+
+    it('names the real person, marks the submission, and writes no entity-level answer', () => {
+        const built = buildQuestionnaireResponse(spec, answered, registrationForm, skeleton, {
+            ...NO_CAPTURE_CONTEXT,
+            existingSubject: { trackedEntity: 'TeiPerson001' },
+        })
+
+        expect(trackedEntityOf(built)).toBe('TeiPerson001')
+        // The reference itself is kept whole: same system, same type, a different person.
+        expect(built.subject?.type).toBe('Patient')
+        expect(built.subject?.identifier?.system).toBe('http://dhis2.org/fhir/id/tracked-entity')
+        expect(marksAnExistingSubject(built.extension)).toBe(true)
+        expect(built.extension?.at(-1)).toEqual({
+            url: 'http://localhost:8080/fhir/StructureDefinition/d2-subject-exists',
+            valueBoolean: true,
+        })
+        // The one answer that rides the enrollment survives; the three that ride the person do not.
+        expect(built.item).toEqual([{ linkId: 'TeaHousehld', answer: [{ valueInteger: 4 }] }])
+        // The envelope is otherwise untouched - the unit and the enrollment date are the server's.
+        expect(reportingUnitOf(built, 'tracker')).toEqual({ reference: 'Location/DiszpKrYNg8' })
+        expect(enrolledAtOf(built)).toBe('2026-07-21T04:00:00Z')
+    })
+
+    it('changes nothing at all when the registration is about a new person', () => {
+        const built = buildQuestionnaireResponse(spec, answered, registrationForm, skeleton, NO_CAPTURE_CONTEXT)
+
+        expect(trackedEntityOf(built)).toBe('wJt3Qy1PxLd')
+        expect(marksAnExistingSubject(built.extension)).toBe(false)
+        expect(built.item?.map((item) => item.linkId)).toEqual(['TeaNationId', 'TeaBirthDat', 'TeaHousehld'])
+    })
+
+    it('never links a submission of a kind that registers nobody', () => {
+        // A stage form names a person through the enrollment it answers for; an aggregate form is
+        // about a place. The marker leaking onto either would rewrite a subject that is not
+        // a person at all.
+        const aggregateForm = servedForm('BfMAe6Itzgt')
+        const aggregateSpec = flattenQuestionnaire(aggregateForm)
+        const envelope = generateAggregateFixture as unknown as QuestionnaireResponse
+        const built = buildQuestionnaireResponse(aggregateSpec, {}, aggregateForm, envelope, {
+            ...NO_CAPTURE_CONTEXT,
+            existingSubject: { trackedEntity: 'TeiPerson001' },
+        })
+
+        expect(built.subject).toEqual(envelope.subject)
+        expect(marksAnExistingSubject(built.extension)).toBe(false)
+    })
+
+    it('stops counting a locked required question as one the form is waiting on', () => {
+        // `TeaNationId` is required and entity-level, so a submission about an existing person can
+        // never carry it -
+        // and a screen telling a person their form is incomplete with no way to complete it is
+        // worse than one that says nothing.
+        expect(unansweredRequiredLinkIds(spec, {})).toEqual(['TeaNationId'])
+        expect(unansweredRequiredLinkIds(spec, {}, entityLevelLinkIds(spec))).toEqual([])
     })
 })

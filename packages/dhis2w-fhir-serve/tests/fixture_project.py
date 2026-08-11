@@ -4,11 +4,13 @@ The resources are the dhis2w-fhir goldens - one Questionnaire per form kind plus
 they bind, and the ConceptMap the emitter writes beside one of the option sets - so a test that
 accepts them is a test that the facade accepts the documented contract.
 
-One form is written here rather than harvested: the registration form of the tracker program whose
-stage form the goldens already publish. It gives the fixture a whole tracker surface - register a
-person against `PrAncCare01`, mint the identifier pair, then answer `PsAncVisit1` with the same
-pair - which is what the capture, `$generate`, and e2e paths all need to exercise the registration
-contract end to end.
+Two forms are written here rather than harvested. The first is the registration form of the tracker
+program whose stage form the goldens already publish: it gives the fixture a whole tracker surface -
+register a person against `PrAncCare01`, mint the identifier pair, then answer `PsAncVisit1` with the
+same pair - which is what the capture, `$generate`, and e2e paths all need to exercise the
+registration contract end to end. The second is the person-only form of the tracked entity type that
+program registers into, which is the same surface with the enrollment taken out of it: a person put
+in the instance and enrolled in nothing.
 
 Beside them sits an organisation-unit registry: ten Locations over four levels, carrying every
 geometry state a real selection produces, the curated profile exemplar a generated IG publishes
@@ -599,6 +601,80 @@ TRACKED_ENTITY_ATTRIBUTE_VALUE_SET_BODY: dict[str, Any] = {
     "compose": {"include": [{"system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM}]},
 }
 
+#: The person-only registration form of the same tracked entity type the tracker program registers
+#: into. It is generated from the *type* rather than from a program, so it asks the attributes the
+#: type itself collects - every one of them entity-level, because there is no enrollment for an
+#: answer to land on - names no program at all, and publishes no organisation-unit assignment:
+#: DHIS2 hangs one on a data set and on a programme, never on a type.
+#:
+#: The fixture publishes one so the browser has a whole person-only surface to shelve, open, fill,
+#: and submit. It shares `TetPerson01` with the registration form on purpose: a project registering
+#: people into one type through two doors is the ordinary arrangement, and it is what makes the
+#: patient index's tracked-entity-type set a set rather than a list of one per form.
+PERSON_QUESTIONNAIRE = f"{CAPTURE_CANONICAL}/Questionnaire/{REGISTRATION_TRACKED_ENTITY_TYPE_UID}"
+TRACKED_ENTITY_TYPE_CODE_IDENTIFIER_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/tracked-entity-type-code"
+
+PERSON_QUESTIONNAIRE_BODY: dict[str, Any] = {
+    "resourceType": "Questionnaire",
+    "id": REGISTRATION_TRACKED_ENTITY_TYPE_UID,
+    "url": PERSON_QUESTIONNAIRE,
+    "title": "Person",
+    "description": (
+        f"DHIS2 tracked entity type Person ({REGISTRATION_TRACKED_ENTITY_TYPE_UID}) as a registration form: "
+        "the tracked entity attributes the type itself collects, captured when a person is registered "
+        "without being enrolled in any program."
+    ),
+    "extension": [{"url": FORM_TYPE_URL, "valueCode": "tracked-entity"}],
+    "identifier": [
+        {"system": TRACKED_ENTITY_TYPE_IDENTIFIER_SYSTEM, "value": REGISTRATION_TRACKED_ENTITY_TYPE_UID},
+        {"system": TRACKED_ENTITY_TYPE_CODE_IDENTIFIER_SYSTEM, "value": "TET_PERSON"},
+    ],
+    "name": f"D2TET_{REGISTRATION_TRACKED_ENTITY_TYPE_UID}",
+    "status": "draft",
+    "experimental": True,
+    "subjectType": ["Patient"],
+    "code": [{"system": f"{CAPTURE_CANONICAL}/CodeSystem/d2-form-type-cs", "code": "tracked-entity"}],
+    "item": [
+        {
+            "linkId": REGISTRATION_UNIQUE_ATTRIBUTE,
+            "code": [
+                {
+                    "system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
+                    "code": REGISTRATION_UNIQUE_ATTRIBUTE,
+                    "display": "National identifier",
+                }
+            ],
+            "text": "National id",
+            "type": "string",
+            "required": True,
+            "extension": [{"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": True}],
+        },
+        {
+            "linkId": REGISTRATION_DATE_ATTRIBUTE,
+            "code": [
+                {
+                    "system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
+                    "code": REGISTRATION_DATE_ATTRIBUTE,
+                    "display": "Date of birth",
+                }
+            ],
+            "text": "Date of birth",
+            "type": "date",
+            "extension": [{"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": True}],
+        },
+        {
+            "linkId": REGISTRATION_CODED_ATTRIBUTE,
+            "code": [
+                {"system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM, "code": REGISTRATION_CODED_ATTRIBUTE, "display": "Sex"}
+            ],
+            "text": "Sex",
+            "type": "choice",
+            "answerValueSet": SEX_VALUE_SET,
+            "extension": [{"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": True}],
+        },
+    ],
+}
+
 SCOPED_QUESTIONNAIRE_BODY: dict[str, Any] = {
     "resourceType": "Questionnaire",
     "id": SCOPED_QUESTIONNAIRE_UID,
@@ -756,6 +832,7 @@ def build_capture_project(destination: Path) -> FhirProject:
     write_resource(compiled / f"Questionnaire-{TEMPORAL_QUESTIONNAIRE_UID}.json", TEMPORAL_QUESTIONNAIRE_BODY)
     write_resource(compiled / f"Questionnaire-{SCOPED_QUESTIONNAIRE_UID}.json", SCOPED_QUESTIONNAIRE_BODY)
     write_resource(compiled / f"Questionnaire-{REGISTRATION_PROGRAM_UID}.json", REGISTRATION_QUESTIONNAIRE_BODY)
+    write_resource(compiled / f"Questionnaire-{REGISTRATION_TRACKED_ENTITY_TYPE_UID}.json", PERSON_QUESTIONNAIRE_BODY)
 
     registry = destination / "ig" / "input" / "resources" / "registry"
     for unit in ORG_UNITS:

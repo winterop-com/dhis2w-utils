@@ -1,4 +1,4 @@
-import type { Dispatch } from 'react'
+import { createContext, use, type Dispatch, type ReactNode } from 'react'
 
 import { AnswerControl } from '@/components/AnswerControl'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,33 @@ import {
     type QuestionnaireNode,
     type QuestionnaireSpec,
 } from '@/lib/questionnaire'
+
+/** The questions this form is not asking after all, and the one line each of them states instead. */
+export interface LockedQuestions {
+    linkIds: ReadonlySet<string>
+    /** The short reason shown under each locked control - the full reason belongs to whatever locked them. */
+    note: string
+}
+
+/** Nothing locked, which is every form until something above it says otherwise. */
+export const NO_LOCKED_QUESTIONS: LockedQuestions = { linkIds: new Set(), note: '' }
+
+/**
+ * Which questions are read-only for a reason that is not the form's own.
+ *
+ * A CONTEXT, ON THE PRECEDENT `OrgUnitScopeProvider` SET. `item.readOnly` is a fact about the
+ * question and is read off the node; this is a fact about the *submission* - a registration
+ * answering for a person this DHIS2 instance already holds asks none of the questions that write
+ * onto the person - and it is decided by the page. Threading it through `QuestionnaireForm` and
+ * every level of the recursion would put a patient-linking concern into code whose whole job is not
+ * to know what a question is about, so the page that knows publishes it once.
+ */
+const LockedQuestionsContext = createContext<LockedQuestions>(NO_LOCKED_QUESTIONS)
+
+/** Publish the locked set to every control rendered under it. */
+export function LockedQuestionsProvider({ locked, children }: { locked: LockedQuestions; children: ReactNode }) {
+    return <LockedQuestionsContext value={locked}>{children}</LockedQuestionsContext>
+}
 
 /**
  * A Questionnaire, rendered as something a person can fill in.
@@ -90,6 +117,7 @@ export function QuestionnaireItemView({
     enabled: ReadonlySet<string>
     dispatch: Dispatch<AnswerAction>
 }) {
+    const locked = use(LockedQuestionsContext)
     const node = spec.byLinkId.get(linkId)
     if (node === undefined || !enabled.has(linkId)) return null
 
@@ -130,8 +158,17 @@ export function QuestionnaireItemView({
                 {node.required && <span className="sr-only">(required)</span>}
                 {node.code?.code !== undefined && <CodeBadge code={node.code.code} />}
             </Label>
-            <AnswerControl node={node} slots={answers[node.linkId] ?? []} dispatch={dispatch} />
-            <QuestionHint node={node} />
+            <AnswerControl
+                node={node}
+                slots={answers[node.linkId] ?? []}
+                locked={locked.linkIds.has(node.linkId)}
+                dispatch={dispatch}
+            />
+            {locked.linkIds.has(node.linkId) ? (
+                <p className="text-muted-foreground text-xs">{locked.note}</p>
+            ) : (
+                <QuestionHint node={node} />
+            )}
             {node.childLinkIds.map((childLinkId) => (
                 <QuestionnaireItemView
                     key={childLinkId}

@@ -3,23 +3,28 @@ import { expect, test } from '@playwright/test'
 /**
  * Forms: the served Questionnaires grouped by the DHIS2 capture model each came from.
  *
- * The grouping is the interesting shape. The fixture project deliberately carries all three
- * models - two data sets, three event programs, and two tracker programs, one with a published
- * registration (`PrAncCare01`) and one whose stage is served alone (`IpHINAT79UW`) - so a page
- * that flattened them back into one table, or that guessed a registration where none is served,
- * fails here.
+ * The grouping is the interesting shape. The fixture project deliberately carries all four
+ * models - two data sets, three event programs, two tracker programs (one with a published
+ * registration, `PrAncCare01`, and one whose stage is served alone, `IpHINAT79UW`), and the
+ * person-only form of the tracked entity type the first of those registers into - so a page that
+ * flattened them back into one table, that guessed a registration where none is served, or that
+ * filed a form enrolling nobody under a programme, fails here.
  */
 
-test('the three capture models are sections, each saying what it is', async ({ page }) => {
+test('the four capture models are sections, each saying what it is', async ({ page }) => {
     await page.goto('/#/forms')
 
     await expect(page.getByRole('heading', { name: 'Data sets' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Event programs' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Tracker programs' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'People' })).toBeVisible()
 
     // The explainers state the model's nature, which is what the kind badges used to gesture at.
     await expect(page.getByText('Periodic reports for an organisation unit. No person involved.')).toBeVisible()
     await expect(page.getByText('Single events, recorded without registering a person.')).toBeVisible()
+    await expect(
+        page.getByText('Registers a person in this DHIS2 instance without enrolling them in a program.'),
+    ).toBeVisible()
 
     // Each form sits in its own model's section and nowhere else.
     const dataSets = page.getByTestId('forms-data-sets')
@@ -31,6 +36,17 @@ test('the three capture models are sections, each saying what it is', async ({ p
     await expect(eventPrograms.getByRole('row').filter({ hasText: 'Supervision visit' })).toHaveCount(1)
     await expect(eventPrograms.getByRole('row').filter({ hasText: 'Temporal capture' })).toHaveCount(1)
     await expect(eventPrograms.getByRole('row').filter({ hasText: 'Child Health' })).toHaveCount(0)
+
+    // The person-only form is on its own shelf and in no programme's group: it names no
+    // programme at all, so a fold that grouped it would have invented one out of its own id.
+    // Matched on the uid rather than on the title: "Person" is a substring of the role notes a
+    // tracker group puts on its own rows ("registration - enrols a person"), and the claim here is
+    // about where this one form sits.
+    const people = page.getByTestId('forms-people')
+    await expect(people.getByRole('row').filter({ hasText: 'TetPerson01' })).toHaveCount(1)
+    await expect(
+        page.getByTestId('forms-tracker-programs').getByRole('row').filter({ hasText: 'TetPerson01' }),
+    ).toHaveCount(0)
 
     // The section states the kind once, so the old per-row badges are gone with the Kind column.
     await expect(page.getByText('Aggregate data set', { exact: true })).toHaveCount(0)

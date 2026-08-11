@@ -134,6 +134,24 @@ describe('catalogueForms edge shapes', () => {
     })
 
     it('answers an empty catalogue for a project publishing nothing', () => {
-        expect(catalogueForms([])).toEqual({ dataSets: [], programs: [], unclassified: [] })
+        expect(catalogueForms([])).toEqual({ dataSets: [], programs: [], people: [], unclassified: [] })
+    })
+
+    /**
+     * The person-only kind, which is neither a data set nor a program.
+     *
+     * It carries no `{base}/id/program` identifier at all - its identity is the tracked entity
+     * type's - so a fold that grouped it by program would key it on its own form id and invent a
+     * one-form "program" named after a person. The shelf is what stops that, and the assertion is
+     * that the program list stays untouched by it.
+     */
+    it('shelves a person-only registration on its own, and under no program', () => {
+        const catalog = catalogueForms([
+            form({ id: 'Tet1aaaaaaa', title: 'Person', extension: [kind('tracked-entity')] }),
+        ])
+        expect(catalog.people.map(formTitle)).toEqual(['Person'])
+        expect(catalog.programs).toEqual([])
+        expect(catalog.dataSets).toEqual([])
+        expect(catalog.unclassified).toEqual([])
     })
 })
