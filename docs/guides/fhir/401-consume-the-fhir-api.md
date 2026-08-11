@@ -11,6 +11,7 @@ what a valid capture is ([The capture contract](401-capture-contract.md)).
 - discover what a facade serves from `/metadata` and nothing else
 - read and search the published resources, including the identifier search
   that groups a program's forms
+- find a person by identifier and page through the people an instance holds
 - resolve generated codes back to DHIS2 identifiers with `$translate`
 - get a valid, reproducible test submission from `$generate`
 - post a capture and read every kind of answer the server gives
@@ -180,6 +181,96 @@ comes back holding it.
 entry's `fullUrl` points at. A UID the instance does not hold is a 404 there -
 a read, unlike a search, names a specific resource.
 
+## The `Patient` listing: who the instance holds, a page at a time
+
+`GET /Patient` carrying no parameters at all is the listing rather than a
+search that matched nothing: what a facade has to offer for "no criteria" is
+the register itself, paged. It is what a client browses when nobody has an
+identifier to type, and it is live-only for the same reason the search is -
+the answer comes from the instance, per request.
+
+```console
+$ curl -s localhost:8391/Patient | jq '.type, .total, (.entry | length)'
+"searchset"
+137
+20
+```
+
+Entries are the same projection the search answers with, and each `fullUrl`
+points at `GET /Patient/{trackedEntityUid}`.
+
+**Two parameters page it: `_count` and `page`.** `_count` is R4's page size.
+A call naming none is answered with `[serve.patients] page_size` entries; a
+call naming more than `[serve.patients] page_size_limit` is answered with
+`page_size_limit` of them and a `next` link, rather than refused - a client
+that asked for too much should be handed a smaller page, not an error
+([Configure serving](301-serving.md#patients)).
+
+```console
+$ curl -s 'localhost:8391/Patient?_count=5' | jq '.entry | length'
+5
+```
+
+**`page` is an opaque token. Follow the links; never construct one.** The
+listing spans every tracked entity type this project treats as people, and
+DHIS2 pages each type's records on its own, so one page of this listing can sit
+part-way through several of the instance's own cursors at once. The token is
+how the server carries that position across a request; it is bytes to a client,
+with no offset to do arithmetic on and no guarantee about its shape from one
+release to the next. What a client does with it is copy the `next` link:
+
+```console
+$ curl -s localhost:8391/Patient | jq -r '.link[] | "\(.relation) \(.url)"'
+self http://localhost:8391/Patient?_count=20
+next http://localhost:8391/Patient?_count=20&page=eyJuRWVuV21TeVVFcCI6Mn0
+```
+
+The first page carries no `previous` and the last carries no `next`, so the end
+of the listing is a missing link rather than an empty page you have to ask for
+to discover. As everywhere else on this facade, `self` echoes only the
+parameters that were applied.
+
+**`total` is present when DHIS2 states one.** R4 makes `total` optional on a
+searchset, and this server carries it only where the instance's own answer
+carried a count. Where it did not, the element is absent rather than guessed at
+or computed by walking every page - so a client shows a denominator when it has
+one and otherwise follows `next` until there is none. An invented total is a
+worse answer than no total.
+
+**Naming `identifier` is always the search**, whatever the listing is set to:
+the two share an endpoint, and the parameter is what tells them apart.
+
+**What the configuration answers with when it is off.** `[serve.patients]`
+gates the surface, and each of its two switches refuses with the fact and the
+line to change ([Configure serving](301-serving.md#patients)). With
+`listing = false`, the search is untouched and the no-parameter call is not
+served:
+
+```console
+$ curl -s localhost:8391/Patient
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this facade serves no `Patient` listing; name an `identifier` to search for a person, or set `[serve.patients] listing = true` in fhir.toml and serve again"}]}
+$ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001' | jq .total
+1
+```
+
+With `enabled = false`, nothing about people is served - the search, the
+listing, and the enrollment listing below all answer the same way, and
+`/metadata` declares no `Patient` at all, exactly as it does under a compiled
+guide:
+
+```console
+$ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is not served here: this project sets `[serve.patients] enabled` to false; set it true in fhir.toml and serve again to search or list people"}]}
+```
+
+Which people the two surfaces cover is configuration too:
+`[serve.patients] tracked_entity_types` narrows both to named tracked entity
+types - the setting a laboratory instance reaches for, so that specimens are
+not listed beside patients - and `[serve.patients] search_attributes` names the
+attributes an identifier keys on, in place of the ones DHIS2 declares unique.
+Both are explained for the person editing the file in
+[Configure serving](301-serving.md#patients).
+
 ## `/patients/{uid}/enrollments`: which programs a person is in
 
 A capture client that has found a person still has to answer a stage form
@@ -219,8 +310,10 @@ user capture into a closed episode without a word. The server states the status
 and leaves `active` false; refusing the capture is the instance's call to make,
 not this facade's.
 
-Like `/Patient`, the listing is live-only, and answers the same
-`not-supported` OperationOutcome under a compiled guide.
+Like `/Patient`, this listing is live-only, and answers the same
+`not-supported` OperationOutcome under a compiled guide - and under
+`[serve.patients] enabled = false`, which takes the whole people surface away
+in one line.
 
 ## `$translate`: generated codes back to DHIS2 identifiers
 
@@ -475,11 +568,12 @@ between - see [Forward captures into DHIS2](201-forward.md).
 
 The handful of run-time settings the capture UI has to act on - today, the
 basemap layers this run offers with the attribution the server can honestly
-state for each, and the address of the DHIS2 instance it resolved a profile
-for, which is what an identity on a page links back to. Deliberately not the
-profile's name, its credentials, the host this process listens on, or the
-strictness dial: those describe the process to whoever runs it, and a browser
-that could read them would be a browser that leaks them.
+state for each, the address of the DHIS2 instance it resolved a profile for,
+which is what an identity on a page links back to, and whether this run answers
+about people at all. Deliberately not the profile's name, its credentials, the
+host this process listens on, or the strictness dial: those describe the process
+to whoever runs it, and a browser that could read them would be a browser that
+leaks them.
 
 ```console
 $ curl -s localhost:8091/uiconfig | jq .
@@ -491,7 +585,11 @@ $ curl -s localhost:8091/uiconfig | jq .
       "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noreferrer\">OpenStreetMap</a> contributors"
     }
   ],
-  "dhis2_base_url": "https://play.dhis2.org/40"
+  "dhis2_base_url": "https://play.dhis2.org/40",
+  "patients": {
+    "enabled": true,
+    "listing": true
+  }
 }
 ```
 
@@ -499,6 +597,17 @@ $ curl -s localhost:8091/uiconfig | jq .
 `null` when it resolved no profile. Both are states the UI renders rather than
 absences it guesses at: the map's layer control holds `None` alone, and the
 screens carry no links out.
+
+`patients` is the two switches of `[serve.patients]` that change what the
+screens draw - `enabled` false and there is no Patients page in the navigation
+at all, `listing` false and that page searches without offering to browse. The
+UI reads them here rather than discovering them from a refusal, so a control
+that cannot be answered is never drawn in the first place. What is reported is
+what this run does, not what the file says: a compiled run reports `enabled`
+false whatever `fhir.toml` states, because the people surface answers from an
+instance and a compiled run is connected to none. The other four settings of
+that table shape the answers rather than the screens, so the browser is never
+told them.
 
 Both live on single lowercase path segments precisely so they can never
 shadow a FHIR resource type, which is PascalCase.

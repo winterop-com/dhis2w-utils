@@ -156,7 +156,9 @@ others - each has a warning box on its own page, and each is worth reading
 3. **[`serve.host`](301-serving.md#host)** - the switch between "the capture
    server is visible only on this computer" and "everyone on the network can
    reach it". The server has no login, so this line is its whole access
-   control.
+   control. On a server started in live mode, what sits behind it includes the
+   people the DHIS2 instance holds - how much of that it offers is
+   [`[serve.patients]`](301-serving.md#patients).
 
 ## Where every option is explained
 
@@ -170,7 +172,7 @@ wrong.
 | [Who the guide is](301-identity.md) | `profile`, `[ig]` | which DHIS2 server it reads, the guide's name, address, publisher, and life-cycle status |
 | [How things are generated](301-generation.md) | `[generate]`, `[generate.naming]` | identifier addresses, code choices, time zone, languages, and everything about naming |
 | [What goes in](301-what-goes-in.md) | the selection tables, `[generate.tracked_entity_types]`, `[generate.examples]`, `[generate.organisation_units]` | which data sets, programs, option sets, categories, and org units the guide covers, and the example responses |
-| [Serving it](301-serving.md) | `[serve]` | how the local capture server runs: address, port, strictness, data-entry screens, map backgrounds |
+| [Serving it](301-serving.md) | `[serve]`, `[serve.patients]` | how the local capture server runs: address, port, strictness, data-entry screens, map backgrounds, and what it answers about people |
 
 What the generated output itself looks like from the inside - the identifier
 families, the code-list structures - is the integrate-tier's territory:

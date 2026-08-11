@@ -5,6 +5,8 @@ import { FormFill } from '@/pages/FormFill'
 import { Forms } from '@/pages/Forms'
 import { OrgUnits } from '@/pages/OrgUnits'
 import { Overview } from '@/pages/Overview'
+import { PatientDetail } from '@/pages/PatientDetail'
+import { Patients } from '@/pages/Patients'
 import { ResponseDetail } from '@/pages/ResponseDetail'
 import { Responses } from '@/pages/Responses'
 import { Server } from '@/pages/Server'
@@ -14,8 +16,8 @@ import { TerminologyDetail } from '@/pages/TerminologyDetail'
 /**
  * The route table.
  *
- * Flat and hash-routed. Flat because the five top-level pages are peers and the
- * three detail routes below are one segment deeper rather than a nested layout;
+ * Flat and hash-routed. Flat because the six top-level pages are peers and the
+ * four detail routes below are one segment deeper rather than a nested layout;
  * hash-routed because `d2w fhir serve --ui` mounts
  * the bundle as plain static files behind every FHIR route, and a static mount
  * has no SPA fallback to give a deep path - `#/terminology` never reaches the
@@ -26,12 +28,20 @@ import { TerminologyDetail } from '@/pages/TerminologyDetail'
  * (components/AppLayout.tsx). The shell reads the nav array; nothing else needs
  * to know.
  *
- * `/forms/:questionnaireId`, `/responses/:responseId`, and
- * `/terminology/:resourceType/:resourceId` are the three routes that are not
- * listings: the first renders one Questionnaire as a fillable form and posts the
- * answers back, the second opens one stored receipt with its answers joined to
- * the questions that were asked, the third opens one terminology resource and
- * shows the codes inside it.
+ * `/forms/:questionnaireId`, `/responses/:responseId`,
+ * `/terminology/:resourceType/:resourceId`, and `/patients/:trackedEntityUid`
+ * are the four routes that are not listings: the first renders one Questionnaire
+ * as a fillable form and posts the answers back, the second opens one stored
+ * receipt with its answers joined to the questions that were asked, the third
+ * opens one terminology resource and shows the codes inside it, and the fourth
+ * opens one person the DHIS2 instance holds.
+ *
+ * `/patients` and `/patients/:trackedEntityUid` are the two routes that can be
+ * offered or not: the person routes are mounted only by a run that reaches a
+ * DHIS2 instance, so both pages read `/uiconfig` and send a reader to the
+ * overview when this run offers no people. The route table stays whole either
+ * way, because whether a page exists is a fact about the running server rather
+ * than about the bundle.
  *
  * `/organisation-units` is the one page that keeps its selection in the query
  * string (`#/organisation-units?unit=<uid>`) rather than in the path: the tree,
@@ -53,6 +63,8 @@ export default function App() {
                 <Route path="forms/:questionnaireId" element={<FormFill />} />
                 <Route path="responses" element={<Responses />} />
                 <Route path="responses/:responseId" element={<ResponseDetail />} />
+                <Route path="patients" element={<Patients />} />
+                <Route path="patients/:trackedEntityUid" element={<PatientDetail />} />
                 <Route path="organisation-units" element={<OrgUnits />} />
                 <Route path="terminology" element={<Terminology />} />
                 <Route path="terminology/:resourceType/:resourceId" element={<TerminologyDetail />} />

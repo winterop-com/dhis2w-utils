@@ -10,6 +10,7 @@ import {
     PanelLeftOpen,
     ServerCog,
     Stethoscope,
+    Users,
 } from 'lucide-react'
 
 import { StatusMenu } from '@/components/StatusMenu'
@@ -18,6 +19,8 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSidebar } from '@/hooks/use-sidebar'
+import { useUiConfig } from '@/hooks/use-ui-config'
+import { patientSettings, type UiConfig } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
 /** One entry in the sidebar rail: where it goes, what it is called, and what it is for. */
@@ -27,6 +30,13 @@ export interface NavItem {
     label: string
     hint: string
     icon: typeof ClipboardList
+    /**
+     * True for a page this run offers only under a setting, which `/uiconfig` states.
+     *
+     * Absent for the six pages every run serves: they answer from the guide this process loaded,
+     * so a bundle that shipped with the server can be certain they are there.
+     */
+    offered?: (settings: UiConfig) => boolean
 }
 
 /**
@@ -37,23 +47,45 @@ export interface NavItem {
  * desktop rail, the mobile strip, and the header title all read this array. Keep
  * the order meaningful: the overview first because it is what the root route
  * answers, then the order of the capture loop itself - from the forms a client
- * can fill, through what came back, to the terminology and the server behind
- * both.
+ * can fill, through the people those forms are about and what came back, to the
+ * terminology and the server behind all of it.
+ *
+ * A PAGE THAT IS NOT ALWAYS THERE STATES ITS OWN CONDITION, in `offered`. Patients
+ * is the first of those: the person routes are mounted only by a run that reaches
+ * a DHIS2 instance, and a rail entry leading to a page that answers a refusal is
+ * worse than no entry - so the condition is asked before the entry is drawn,
+ * rather than discovered by following it.
  */
 export const NAV_ITEMS: NavItem[] = [
     { path: '', label: 'Overview', hint: 'State of capture', icon: LayoutDashboard },
     { path: 'forms', label: 'Forms', hint: 'Questionnaires served', icon: ClipboardList },
+    {
+        path: 'patients',
+        label: 'Patients',
+        hint: 'People this DHIS2 instance holds',
+        icon: Users,
+        offered: (settings) => patientSettings(settings).enabled,
+    },
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
     { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
     { path: 'server', label: 'Server', hint: 'What /metadata declares', icon: ServerCog },
 ]
 
+/** The entries this run really offers - every unconditional one, plus those whose condition holds. */
+export function offeredNavItems(settings: UiConfig): NavItem[] {
+    return NAV_ITEMS.filter((item) => item.offered === undefined || item.offered(settings))
+}
+
 /** Sidebar shell: collapsible navigation rail, status header, page content. */
 export function AppLayout({ children }: { children: ReactNode }) {
     const { collapsed, toggle } = useSidebar()
     const { pathname } = useLocation()
+    const { config } = useUiConfig()
     const current = pathname.replace(/^\//, '')
+    // The rail is drawn from what this run offers; the header title reads the whole table, so a
+    // detail route is still named by its section while the settings are still in flight.
+    const items = offeredNavItems(config)
     // A detail route (forms/:id, responses/:id, terminology/:type/:id) belongs to the section
     // whose listing links to it, so the header names the section - the app name is only for a
     // route no nav entry claims at all.
@@ -111,7 +143,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 </NavLink>
 
                 <nav className="flex flex-col gap-1 px-2 py-2">
-                    {NAV_ITEMS.map((item) => {
+                    {items.map((item) => {
                         const Icon = item.icon
                         // Computed here rather than via NavLink's className
                         // function: the collapsed mode wraps the link in
@@ -242,7 +274,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                     '[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]',
                             )}
                         >
-                            {NAV_ITEMS.map((item) => (
+                            {items.map((item) => (
                                 <Button
                                     key={item.path}
                                     asChild

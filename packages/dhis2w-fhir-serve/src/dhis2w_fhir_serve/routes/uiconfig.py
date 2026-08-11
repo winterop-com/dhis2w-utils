@@ -3,11 +3,14 @@
 WHY THIS EXISTS AT ALL. Everything else the UI renders it reads out of FHIR: the forms are
 Questionnaires, the hierarchy is Locations, the server's own identity is the CapabilityStatement.
 This is the one class of fact that is none of those - not something the guide published, but
-something about *how this process was started*. Two things are that today. `[serve.basemaps]` names
+something about *how this process was started*. Three things are that today. `[serve.basemaps]` names
 the raster layers the organisation-unit map may draw under the boundaries, which is a deployment
 decision made in fhir.toml or on the command line that a bundle compiled weeks earlier cannot know.
-And the profile this run resolved names the DHIS2 instance the guide was generated from, which is
-what lets a published organisation unit, form, or data element link back to the object it came from.
+The profile this run resolved names the DHIS2 instance the guide was generated from, which is what
+lets a published organisation unit, form, or data element link back to the object it came from. And
+`[serve.patients]` decides whether there is a person surface to navigate to at all, which no
+published resource states: a Questionnaire that registers people is published by projects whose
+server answers for none.
 
 WHY NOT `/metadata`. A CapabilityStatement describes the FHIR interface - what a client may read,
 search, and post. A tile template is not part of that interface and would have to ride in an
@@ -31,6 +34,7 @@ here, and the model is the enumeration of exactly those.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit, urlunsplit
 
 from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, BasemapSource
@@ -39,6 +43,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.requests import Request
 
 from dhis2w_fhir_serve.routes.context import serve_context
+
+if TYPE_CHECKING:
+    from dhis2w_fhir_serve.patients.surface import PatientSurface
 
 #: Where the settings are served from. One lowercase segment, so no FHIR resource type can collide.
 UI_CONFIG_PATH = "/uiconfig"
@@ -81,6 +88,28 @@ class BasemapLayer(BaseModel):
     """The credit line the map must display, as HTML, or None when this server cannot know it."""
 
 
+class PatientsUiConfig(BaseModel):
+    """Whether this process answers for people, and whether it will list them.
+
+    Both are resolved facts rather than the `[serve.patients]` table read back: `enabled` is false
+    for a compiled run and for a project publishing no registration form, exactly as it is for one
+    whose table switches the surface off, because all three mean the same thing to a screen - there
+    is nobody here to show. `listing` is the same question for the screen that shows everybody.
+
+    So the UI gates its navigation on these two and never asks `/metadata` a second question about
+    it: a `Patient` entry in the CapabilityStatement says the same thing, but reading it means
+    parsing a conformance document to decide whether to draw a link.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool
+    """Whether `GET /Patient` and the enrollment listing answer at all in this process."""
+
+    listing: bool
+    """Whether a `GET /Patient` naming no identifier answers with a page of the register."""
+
+
 class UiConfig(BaseModel):
     """What the capture UI may know about how this facade was started.
 
@@ -90,22 +119,35 @@ class UiConfig(BaseModel):
 
     `dhis2_base_url` is None when no profile resolved, and the UI answers that by rendering no
     links out at all - a guide with no named instance behind it has nowhere honest to point.
+
+    `patients` is None on the same terms: a server that says nothing about its Patient surface is
+    one a screen must assume nothing about, and reads exactly as `enabled = false` does. This
+    process always states it, because it always knows.
     """
 
     model_config = ConfigDict(frozen=True)
 
     basemaps: list[BasemapLayer] = Field(default_factory=list)
     dhis2_base_url: str | None = None
+    patients: PatientsUiConfig | None = None
 
 
 @router.get(UI_CONFIG_PATH)
 async def read_ui_config(request: Request) -> UiConfig:
     """Answer the run-time settings the UI acts on, resolved for this process."""
-    settings = serve_context(request).settings
+    context = serve_context(request)
+    settings = context.settings
     return UiConfig(
         basemaps=basemap_layers(settings.basemaps),
         dhis2_base_url=public_instance_url(settings.dhis2_base_url),
+        patients=patients_surface_config(live=settings.live, surface=context.patient_surface),
     )
+
+
+def patients_surface_config(*, live: bool, surface: PatientSurface) -> PatientsUiConfig:
+    """The Patient surface as a screen has to read it: served or not, and listing or not."""
+    enabled = live and surface.serves_patients()
+    return PatientsUiConfig(enabled=enabled, listing=enabled and surface.serves_listing())
 
 
 def basemap_layers(sources: list[BasemapSource]) -> list[BasemapLayer]:

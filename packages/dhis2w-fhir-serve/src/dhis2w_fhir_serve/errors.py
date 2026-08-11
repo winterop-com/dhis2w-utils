@@ -89,6 +89,39 @@ class NotServedFromCompiledIgError(ServeError):
         self.resource_type = resource_type
 
 
+class PatientSurfaceDisabledError(ServeError):
+    """The project serves no people at all: `[serve.patients] enabled` is false.
+
+    Same status and issue code as `NotServedFromCompiledIgError`, and for the same reason - from
+    the client's side this server does not support the interaction - with the config key named so
+    the operator reads it as a decision this project wrote down rather than as a missing feature.
+    """
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str) -> None:
+        super().__init__(
+            f"`{resource_type}` is not served here: this project sets `[serve.patients] enabled` to false; "
+            "set it true in fhir.toml and serve again to search or list people"
+        )
+        self.resource_type = resource_type
+
+
+class PatientListingDisabledError(ServeError):
+    """People may be searched for here but not listed: `[serve.patients] listing` is false."""
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str) -> None:
+        super().__init__(
+            f"this facade serves no `{resource_type}` listing; name an `identifier` to search for a person, "
+            "or set `[serve.patients] listing = true` in fhir.toml and serve again"
+        )
+        self.resource_type = resource_type
+
+
 class NoPublishedSubjectTypeError(ServeError):
     """The facade runs live, but the guide publishes no registration form, so it knows of no people to search."""
 

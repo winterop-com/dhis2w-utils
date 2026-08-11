@@ -40,6 +40,13 @@ const PERSON_FORM = 'TetPerson01'
 const PERSON_UID = 'TeiPerson01'
 const NATIONAL_ID = '19850312-4471'
 
+/** A second person, so that "the listing pages" is a claim with two pages behind it. */
+const SECOND_PERSON_UID = 'TeiPerson02'
+const SECOND_NATIONAL_ID = '19910704-2210'
+
+/** The DHIS2 instance the browse page pretends this server resolved a profile for. */
+const INSTANCE = 'https://dhis2.test/instance'
+
 /** Their two enrollments: one in the stage form's own program, one in a program it is not. */
 const COMPLETED_ENROLLMENT = 'EnrAnc00001'
 const OTHER_PROGRAM_ENROLLMENT = 'EnrChild001'
@@ -72,6 +79,35 @@ const PATIENT = {
         },
     ],
 }
+
+/**
+ * The second person, holding one unique value and one attribute the type collects rather than names.
+ *
+ * `TeaHousehld` carries no `attributeCode`, because DHIS2 requires no code on a tracked entity
+ * attribute - so this is also the case where the guide's own dictionary is the only thing that can
+ * name the attribute at all.
+ */
+const SECOND_PATIENT = {
+    resourceType: 'Patient',
+    id: SECOND_PERSON_UID,
+    meta: { tag: [{ system: `${IDENTIFIER_BASE}/id/tracked-entity-type`, code: 'TetPerson01' }] },
+    identifier: [
+        { system: `${IDENTIFIER_BASE}/id/tracked-entity`, value: SECOND_PERSON_UID },
+        { system: `${IDENTIFIER_BASE}/tracked-entity-attribute/TeaNationId`, value: SECOND_NATIONAL_ID },
+    ],
+    extension: [
+        {
+            url: `${CANONICAL}/StructureDefinition/d2-tracked-entity-attribute-value`,
+            extension: [
+                { url: 'attributeId', valueString: 'TeaHousehld' },
+                { url: 'value', valueString: '6' },
+            ],
+        },
+    ],
+}
+
+/** Everyone the fulfilled instance holds, one per page - the order the listing pages through. */
+const PEOPLE = [PATIENT, SECOND_PATIENT]
 
 /**
  * What that person is enrolled in.
@@ -123,24 +159,104 @@ async function serveALiveInstance(page: Page): Promise<void> {
         await route.fulfill({ status: 200, contentType: FHIR_JSON, body: JSON.stringify(document) })
     })
     await page.route(
-        (url) => url.pathname === '/Patient',
+        (url) => url.pathname === '/Patient' || url.pathname.startsWith('/Patient/'),
         (route) => {
-            const identifier = new URL(route.request().url()).searchParams.get('identifier') ?? ''
-            const matches = identifier === NATIONAL_ID || identifier === PERSON_UID
+            const url = new URL(route.request().url())
+            if (url.pathname !== '/Patient') {
+                const uid = decodeURIComponent(url.pathname.slice('/Patient/'.length))
+                const held = PEOPLE.find((candidate) => candidate.id === uid)
+                return held === undefined
+                    ? route.fulfill({
+                          status: 404,
+                          contentType: FHIR_JSON,
+                          body: JSON.stringify({
+                              resourceType: 'OperationOutcome',
+                              issue: [
+                                  {
+                                      severity: 'error',
+                                      code: 'not-found',
+                                      diagnostics: `This DHIS2 instance holds no tracked entity ${uid}.`,
+                                  },
+                              ],
+                          }),
+                      })
+                    : route.fulfill({ status: 200, contentType: FHIR_JSON, body: JSON.stringify(held) })
+            }
+            const identifier = url.searchParams.get('identifier')
+            if (identifier !== null) {
+                const found = PEOPLE.filter(
+                    (candidate) =>
+                        candidate.id === identifier ||
+                        candidate.identifier.some((value) => value.value === identifier),
+                )
+                return route.fulfill({
+                    status: 200,
+                    contentType: FHIR_JSON,
+                    body: JSON.stringify({
+                        resourceType: 'Bundle',
+                        type: 'searchset',
+                        total: found.length,
+                        entry: found.map((resource) => ({ resource, search: { mode: 'match' } })),
+                    }),
+                })
+            }
             return route.fulfill({
                 status: 200,
                 contentType: FHIR_JSON,
-                body: JSON.stringify({
-                    resourceType: 'Bundle',
-                    type: 'searchset',
-                    total: matches ? 1 : 0,
-                    entry: matches ? [{ resource: PATIENT, search: { mode: 'match' } }] : [],
-                }),
+                body: JSON.stringify(listingPage(url.searchParams.get('page'))),
             })
         },
     )
     await page.route('**/patients/*/enrollments', (route) =>
         route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ENROLLMENTS) }),
+    )
+}
+
+/**
+ * One page of the listing, keyed on the opaque token the previous page's link carried.
+ *
+ * One person per page, which is what makes both directions provable in two clicks. The tokens are
+ * deliberately not offsets: what the UI has to get right is that it echoes whatever it was handed,
+ * and a token that looked like an index would let a wrong implementation pass by computing one.
+ */
+function listingPage(token: string | null): unknown {
+    const onSecond = token === 'a-token-the-server-minted'
+    const resource = onSecond ? SECOND_PATIENT : PATIENT
+    return {
+        resourceType: 'Bundle',
+        type: 'searchset',
+        total: PEOPLE.length,
+        link: onSecond
+            ? [
+                  { relation: 'self', url: '/Patient?_count=25&page=a-token-the-server-minted' },
+                  { relation: 'previous', url: '/Patient?_count=25&page=another-one-entirely' },
+              ]
+            : [
+                  { relation: 'self', url: '/Patient?_count=25' },
+                  { relation: 'next', url: '/Patient?_count=25&page=a-token-the-server-minted' },
+              ],
+        entry: [{ resource, search: { mode: 'match' } }],
+    }
+}
+
+/**
+ * Answer `/uiconfig` with what this run offers about people.
+ *
+ * Fulfilled for the same reason uiconfig.spec.ts fulfils it: the suite drives ONE server process,
+ * and "a run that offers no people" and "a run that offers them" cannot both be true of it. The
+ * endpoint only ever reported how the process was started, so starting it differently is what is
+ * being simulated here. What the server really answers is held by the pytest suite over the route.
+ */
+async function servePatientSettings(
+    page: Page,
+    patients: { enabled: boolean; listing: boolean } | null,
+): Promise<void> {
+    await page.route('**/uiconfig', (route) =>
+        route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ basemaps: [], dhis2_base_url: INSTANCE, patients }),
+        }),
     )
 }
 
@@ -383,5 +499,176 @@ test.describe('a person-only registration form', () => {
         const receipt = await newestReceipt(request, PERSON_FORM)
         expect(receipt.subject?.identifier?.value).toBeTruthy()
         expect(receipt.extension?.some((extension) => extension.url.endsWith('/d2-tracker-enrollment'))).toBe(false)
+    })
+})
+
+/**
+ * Browsing the people the instance holds - the one page in this app that reads somebody's database.
+ *
+ * THE SETTINGS ARE FULFILLED AND THE GUIDE IS REAL, which is the split that makes these claims
+ * worth making. `/uiconfig` and the person routes answer here, because the fixture server holds no
+ * DHIS2 instance; everything the page joins those answers to is read from the real server - the
+ * published `D2TEA_CS` is what turns `TeaBirthDat` into "Date of birth", and the real person-only
+ * form is what turns `TetPerson01` into "Person". So a naming join that broke against what the
+ * emitter really publishes fails here rather than passing against a fixture of itself.
+ */
+test.describe('the people this DHIS2 instance holds', () => {
+    test('is not in the navigation at all on a run that states nothing about people', async ({ page }) => {
+        await servePatientSettings(page, null)
+
+        // Waited for rather than assumed: an entry that is absent because the settings have not
+        // landed yet would make this assertion true of a page that was about to draw one.
+        const stated = page.waitForResponse((response) => response.url().includes('/uiconfig'))
+        await page.goto('/')
+        await stated
+        await expect(page.getByRole('link', { name: 'Forms' }).first()).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Patients' })).toHaveCount(0)
+
+        // And a link somebody kept from a run that did offer it goes back to the overview rather
+        // than to a page whose every read would be refused.
+        await page.goto('/#/patients')
+        await expect(page).toHaveURL(/#\/$/)
+        await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible()
+    })
+
+    test('is not in the navigation on a run that states it offers no people', async ({ page }) => {
+        // The ordinary compiled case, stated rather than left out: the same outcome, and the one
+        // the server really answers with.
+        await servePatientSettings(page, { enabled: false, listing: false })
+
+        const stated = page.waitForResponse((response) => response.url().includes('/uiconfig'))
+        await page.goto('/')
+        await stated
+        await expect(page.getByRole('link', { name: 'Forms' }).first()).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Patients' })).toHaveCount(0)
+    })
+
+    test('pages through everyone, forwards and back, on the links the server stated', async ({ page }) => {
+        await servePatientSettings(page, { enabled: true, listing: true })
+        await serveALiveInstance(page)
+
+        await page.goto('/')
+        await page.getByRole('link', { name: 'Patients' }).first().click()
+        await expect(page).toHaveURL(/#\/patients$/)
+
+        const listing = page.getByTestId('patient-listing')
+        const first = listing.getByRole('row').filter({ hasText: NATIONAL_ID })
+        await expect(first).toBeVisible()
+        // The two joins through the published guide, on the row: the type by its person-only form,
+        // the attribute by the dictionary. Neither name is anywhere in what the instance answered.
+        await expect(first).toContainText('Person')
+        await expect(first).toContainText('Date of birth')
+        await expect(first).toContainText('1985-03-12')
+        await expect(first).toContainText(PERSON_UID)
+        await expect(
+            page.getByText('Showing 1 of 2 people this DHIS2 instance holds as tracked entities.'),
+        ).toBeVisible()
+
+        const previous = page.getByRole('button', { name: 'Previous' })
+        const next = page.getByRole('button', { name: 'Next' })
+        // Disabled because the server stated no link that way, not because a count was computed.
+        await expect(previous).toBeDisabled()
+        await expect(next).toBeEnabled()
+
+        await next.click()
+        const second = listing.getByRole('row').filter({ hasText: SECOND_NATIONAL_ID })
+        await expect(second).toBeVisible()
+        // The attribute DHIS2 left uncoded is still named, because the guide published a name for it.
+        await expect(second).toContainText('Household size')
+        await expect(listing.getByRole('row').filter({ hasText: NATIONAL_ID })).toHaveCount(0)
+        await expect(previous).toBeEnabled()
+        await expect(next).toBeDisabled()
+
+        await previous.click()
+        await expect(listing.getByRole('row').filter({ hasText: NATIONAL_ID })).toBeVisible()
+        await expect(listing.getByRole('row').filter({ hasText: SECOND_NATIONAL_ID })).toHaveCount(0)
+    })
+
+    test('narrows to whoever holds the identifier value that was typed', async ({ page }) => {
+        await servePatientSettings(page, { enabled: true, listing: true })
+        await serveALiveInstance(page)
+
+        await page.goto('/#/patients')
+        const listing = page.getByTestId('patient-listing')
+        await expect(listing.getByRole('row').filter({ hasText: NATIONAL_ID })).toBeVisible()
+
+        await page.getByLabel('Identifier value').fill(SECOND_NATIONAL_ID)
+
+        // The table is the one surface for people on this page, so a search replaces the page of
+        // everyone rather than appearing beside it.
+        await expect(listing.getByRole('row').filter({ hasText: SECOND_NATIONAL_ID })).toBeVisible()
+        await expect(listing.getByRole('row').filter({ hasText: NATIONAL_ID })).toHaveCount(0)
+        await expect(page.getByRole('button', { name: 'Next' })).toHaveCount(0)
+
+        await page.getByLabel('Identifier value').fill('')
+        await expect(listing.getByRole('row').filter({ hasText: NATIONAL_ID })).toBeVisible()
+    })
+
+    test('opens one person in full, with what the instance holds and what it has them in', async ({ page }) => {
+        await servePatientSettings(page, { enabled: true, listing: true })
+        await serveALiveInstance(page)
+
+        await page.goto('/#/patients')
+        await page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID }).click()
+        await expect(page).toHaveURL(new RegExp(`#/patients/${PERSON_UID}$`))
+
+        // Headed by the value that names them, because there is no name to head it with.
+        await expect(page.getByRole('heading', { name: NATIONAL_ID })).toBeVisible()
+
+        const identifiers = page.getByRole('table').first()
+        await expect(identifiers).toContainText('National identifier')
+        await expect(identifiers).toContainText(NATIONAL_ID)
+
+        const attributes = page.getByRole('table').nth(1)
+        await expect(attributes).toContainText('Date of birth')
+        await expect(attributes).toContainText('1985-03-12')
+
+        // Their enrollments, and the warning the completed one earns - DHIS2 takes events into it
+        // and says nothing, so this sentence is the only place anybody is told.
+        const enrollments = page.getByTestId('patient-enrollments')
+        await expect(enrollments).toContainText('Antenatal care')
+        await expect(enrollments).toContainText('Completed')
+        await expect(
+            page.getByText('DHIS2 accepts new events into a completed enrollment without complaint'),
+        ).toBeVisible()
+
+        // The way into the instance: Capture's enrollment dashboard, which is the screen that opens
+        // a person - and it needs the program and the enrollment, which this listing states.
+        const link = page.getByRole('link', {
+            name: `Open the enrollment ${COMPLETED_ENROLLMENT} in this DHIS2 instance's Capture app`,
+        })
+        await expect(link).toHaveAttribute(
+            'href',
+            `${INSTANCE}/dhis-web-capture/index.html#/enrollment` +
+                `?teiId=${PERSON_UID}&programId=${REGISTRATION_FORM}&orgUnitId=DiszpKrYNg8&enrollmentId=${COMPLETED_ENROLLMENT}`,
+        )
+        await expect(link).toHaveAttribute('target', '_blank')
+        await expect(link).toHaveAttribute('rel', 'noreferrer noopener')
+    })
+
+    test('keeps the search and asks for no listing at all when this run declines one', async ({ page }) => {
+        await servePatientSettings(page, { enabled: true, listing: false })
+        await serveALiveInstance(page)
+
+        const listingReads: string[] = []
+        page.on('request', (request) => {
+            const url = new URL(request.url())
+            if (url.pathname === '/Patient' && !url.searchParams.has('identifier')) {
+                listingReads.push(request.url())
+            }
+        })
+
+        await page.goto('/#/patients')
+        await expect(page.getByLabel('Identifier value')).toBeVisible()
+        await expect(
+            page.getByText('This server answers a search for one person and does not list everyone'),
+        ).toBeVisible()
+        await expect(page.getByTestId('patient-listing')).toHaveCount(0)
+
+        // The search still reaches the instance, and the listing was never asked for - not asked
+        // and hidden, which is what makes the setting a gate rather than a style.
+        await page.getByLabel('Identifier value').fill(NATIONAL_ID)
+        await expect(page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID })).toBeVisible()
+        expect(listingReads, listingReads.join('\n')).toEqual([])
     })
 })

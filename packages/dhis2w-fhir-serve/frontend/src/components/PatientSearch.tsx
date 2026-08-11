@@ -1,15 +1,15 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Loader2, Search } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { usePatientSearch } from '@/hooks/use-patient-search'
+import { usePatientSearch, type PatientSearchState } from '@/hooks/use-patient-search'
 import { patientLeadValue, type PatientProjection } from '@/lib/patients'
 
 /**
- * Find a person by an identifier value this DHIS2 instance already holds.
+ * The box a person is looked up in, and the four things it can say about what it found.
  *
  * WHAT IT SEARCHES, AND WHY IT SAYS SO. The server answers a bare identifier value by trying every
  * key at once - the tracked entity uid, and the value of every attribute DHIS2 declares unique -
@@ -18,26 +18,29 @@ import { patientLeadValue, type PatientProjection } from '@/lib/patients'
  * because the one thing this box does not search is names. It cannot: DHIS2 has no attribute that
  * means a name, so the served projection carries none.
  *
- * WHAT A RESULT ROW SHOWS. Whatever the projection carries, with the value of a unique attribute
- * leading - that is the string that names the person, and usually the one that was just typed.
- * Everything else the instance holds about them follows as attribute values, and the tracked
- * entity uid is stated last because it is the handle rather than the recognition. Nothing is
- * invented: a person the instance holds under a uid alone shows a uid alone.
+ * THE CONTROL IS SEPARATE FROM WHAT IS DONE WITH A MATCH, because the same search sits on two
+ * surfaces that answer different questions with it: a capture form chooses the person a submission
+ * is about, and the browse page opens their record. Those want the same box, the same words, and
+ * the same four states - "nothing typed yet", "asking", "nobody holds that", "the instance refused"
+ * - and different results underneath. So the box is this component and the results are its
+ * children, which is what keeps one sentence about what is searched rather than two paraphrases.
  */
-export function PatientSearch({
+export function PatientSearchControl({
     controlId,
-    enabled,
-    onChoose,
+    typed,
+    onTyped,
+    state,
+    children,
 }: {
     /** The id the label and the input find each other by; each mount needs its own. */
     controlId: string
-    /** False while the control is on screen but not the active source, so nothing is asked. */
-    enabled: boolean
-    onChoose: (patient: PatientProjection) => void
+    typed: string
+    onTyped: (next: string) => void
+    /** What the search is currently answering, from `usePatientSearch`. */
+    state: PatientSearchState
+    /** The matches, rendered however the surface around this box renders a person. */
+    children?: ReactNode
 }) {
-    const [typed, setTyped] = useState('')
-    const search = usePatientSearch(typed, enabled)
-
     return (
         <div className="grid gap-2">
             <Label htmlFor={controlId}>Identifier value</Label>
@@ -58,28 +61,59 @@ export function PatientSearch({
                         className="pl-8"
                         placeholder="Identifier value"
                         value={typed}
-                        onChange={(event) => setTyped(event.target.value)}
+                        onChange={(event) => onTyped(event.target.value)}
                     />
                 </div>
-                {search.searching && (
+                {state.searching && (
                     <Loader2 className="text-muted-foreground size-4 shrink-0 animate-spin" aria-hidden />
                 )}
             </div>
 
-            {search.error !== null && (
+            {state.error !== null && (
                 <p className="text-destructive text-xs">
-                    This DHIS2 instance could not be searched: {search.error}
+                    This DHIS2 instance could not be searched: {state.error}
                 </p>
             )}
-            {search.error === null && search.query === null && (
+            {state.error === null && state.query === null && (
                 <p className="text-muted-foreground text-xs">Type an identifier value to search.</p>
             )}
-            {search.error === null && search.query !== null && !search.searching && search.results.length === 0 && (
+            {state.error === null && state.query !== null && !state.searching && state.results.length === 0 && (
                 <p className="text-muted-foreground text-xs">
                     This DHIS2 instance holds nobody under that identifier value.
                 </p>
             )}
 
+            {children}
+        </div>
+    )
+}
+
+/**
+ * Find a person by an identifier value this DHIS2 instance already holds, and choose them.
+ *
+ * The capture form's half of the search: the box above, with each match as a row that can be
+ * chosen. What a result row shows is whatever the projection carries, with the value of a unique
+ * attribute leading - that is the string that names the person, and usually the one that was just
+ * typed. Everything else the instance holds about them follows as attribute values, and the tracked
+ * entity uid is stated last because it is the handle rather than the recognition. Nothing is
+ * invented: a person the instance holds under a uid alone shows a uid alone.
+ */
+export function PatientSearch({
+    controlId,
+    enabled,
+    onChoose,
+}: {
+    /** The id the label and the input find each other by; each mount needs its own. */
+    controlId: string
+    /** False while the control is on screen but not the active source, so nothing is asked. */
+    enabled: boolean
+    onChoose: (patient: PatientProjection) => void
+}) {
+    const [typed, setTyped] = useState('')
+    const search = usePatientSearch(typed, enabled)
+
+    return (
+        <PatientSearchControl controlId={controlId} typed={typed} onTyped={setTyped} state={search}>
             {search.results.length > 0 && (
                 <ul data-testid="patient-search-results" className="grid gap-1">
                     {search.results.map((patient) => (
@@ -89,7 +123,7 @@ export function PatientSearch({
                     ))}
                 </ul>
             )}
-        </div>
+        </PatientSearchControl>
     )
 }
 
@@ -134,9 +168,9 @@ function PatientResult({
  * What the instance holds about one person beyond the value that names them.
  *
  * Attribute values as they arrived - the attribute's DHIS2 code when the instance set one, the uid
- * when it did not, and the value beside it - because this UI has no join from an attribute uid to
- * a display it could trust here, and a value under a label this screen made up would be worse than
- * a value under the uid DHIS2 knows it by.
+ * when it did not, and the value beside it. A capture form reads no terminology of its own, so
+ * there is no join to a published name here; the browse page, which reads the guide anyway, names
+ * each attribute in full.
  */
 function PatientFacts({ patient }: { patient: PatientProjection }) {
     return (

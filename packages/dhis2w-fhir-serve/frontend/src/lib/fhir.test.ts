@@ -13,6 +13,7 @@ import {
     attributeOptionComboLabel,
     attributeOptionCombosOf,
     attributeOptionComboOf,
+    bundleLink,
     bundleResources,
     canonicalId,
     conceptDisplay,
@@ -34,6 +35,7 @@ import {
     registersAPerson,
     servedIgLabel,
     trackedEntityOf,
+    trackedEntityTypeOf,
     trackerEnrollmentOf,
     trackerEnrollmentExtensionUrl,
     type Bundle,
@@ -679,5 +681,62 @@ describe('the derived tracker spellings the no-envelope rewrite falls back on', 
         const bare: Questionnaire = { resourceType: 'Questionnaire', status: 'active' }
         expect(identifierSystemBaseOf(bare)).toBeNull()
         expect(trackerEnrollmentExtensionUrl(bare)).toBeNull()
+    })
+})
+
+/**
+ * Where a paged search says its neighbours are.
+ *
+ * The one read in this app whose answer arrives in pieces, so the links are how the pieces are
+ * joined. `next` absent is the server stating there is no page after this one - a fact rather than
+ * an omission - which is why the reader answers null instead of guessing at an offset.
+ */
+describe('the links a searchset states', () => {
+    const paged: Bundle<Questionnaire> = {
+        resourceType: 'Bundle',
+        type: 'searchset',
+        link: [
+            { relation: 'self', url: '/Patient?_count=25' },
+            { relation: 'next', url: '/Patient?_count=25&page=ON' },
+        ],
+    }
+
+    it('finds a relation by name rather than by where it sits in the list', () => {
+        expect(bundleLink(paged, 'next')).toBe('/Patient?_count=25&page=ON')
+        expect(bundleLink(paged, 'self')).toBe('/Patient?_count=25')
+    })
+
+    it('answers null for a relation the Bundle did not state, and for no Bundle at all', () => {
+        expect(bundleLink(paged, 'previous')).toBeNull()
+        expect(bundleLink(questionnaireBundle, 'next')).toBeNull()
+        expect(bundleLink(undefined, 'next')).toBeNull()
+    })
+})
+
+/**
+ * The tracked entity type a person-only form was generated from.
+ *
+ * The one place the guide publishes a name for a type: a served Patient states the type uid as a
+ * tag and carries no display for it, so this identifier is the join that turns `TetPerson01` into
+ * whatever the instance calls that type. The suffix comparison is exact at the end, which is what
+ * keeps `/id/tracked-entity` - a different system, on a different element - out of the answer.
+ */
+describe('a person-only form’s tracked entity type', () => {
+    it('reads the uid the form was generated from', () => {
+        const personForm: Questionnaire = {
+            resourceType: 'Questionnaire',
+            id: 'TetPerson01',
+            status: 'draft',
+            identifier: [
+                { system: 'http://dhis2.org/fhir/id/tracked-entity-type', value: 'TetPerson01' },
+                { system: 'http://dhis2.org/fhir/id/tracked-entity-type-code', value: 'TET_PERSON' },
+            ],
+        }
+        expect(trackedEntityTypeOf(personForm)).toBe('TetPerson01')
+    })
+
+    it('reads nothing off a form that names a program instead', () => {
+        expect(trackedEntityTypeOf(servedForm('PsAncVisit1'))).toBeNull()
+        expect(trackedEntityTypeOf({ resourceType: 'Questionnaire', status: 'draft' })).toBeNull()
     })
 })

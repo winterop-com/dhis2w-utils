@@ -742,6 +742,27 @@ export const INCIDENT_AT_EXTENSION_SUFFIX = '/StructureDefinition/d2-incident-at
  */
 export const TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX = '/id/tracked-entity'
 
+/**
+ * The identifier system a person-only registration form names the DHIS2 tracked entity type under.
+ *
+ * The one place the guide publishes a name for a tracked entity type: a `tracked-entity` form is
+ * generated from the type itself, carries its uid here, and is titled with the type's own name. A
+ * served Patient states the same uid as a `meta.tag` and carries no display for it, so this
+ * identifier is what a screen joins through to say "Person" rather than "TetPerson01".
+ *
+ * `/id/tracked-entity` is a different system and does not match, because the suffix comparison is
+ * exact at the end - `/id/tracked-entity-type` does not end in `/id/tracked-entity`.
+ */
+export const TRACKED_ENTITY_TYPE_IDENTIFIER_SYSTEM_SUFFIX = '/id/tracked-entity-type'
+
+/** The DHIS2 tracked entity type uid a person-only form was generated from, or null. */
+export function trackedEntityTypeOf(questionnaire: Questionnaire): string | null {
+    const identifier = questionnaire.identifier?.find((candidate) =>
+        candidate.system?.endsWith(TRACKED_ENTITY_TYPE_IDENTIFIER_SYSTEM_SUFFIX),
+    )
+    return identifier?.value ?? null
+}
+
 /** The identifier system the enrollment extension's `valueIdentifier` names its uid under. */
 export const TRACKER_ENROLLMENT_IDENTIFIER_SYSTEM_SUFFIX = '/id/tracker-enrollment'
 
@@ -895,6 +916,18 @@ export function generateSeedOf(response: QuestionnaireResponse): string | null {
 export function bundleResources<T>(bundle: Bundle<T> | undefined): T[] {
     if (!bundle?.entry) return []
     return bundle.entry.flatMap((entry) => (entry.resource ? [entry.resource] : []))
+}
+
+/**
+ * The url one relation of a searchset Bundle states, or null when the Bundle states none.
+ *
+ * A paged search states where its neighbours are and this is the only place a caller learns it:
+ * `next` absent means there is no page after this one, which is a fact the server is stating rather
+ * than something a page count can be derived from. R4 allows several links, so the relation is
+ * matched rather than positioned.
+ */
+export function bundleLink<T>(bundle: Bundle<T> | undefined, relation: string): string | null {
+    return bundle?.link?.find((candidate) => candidate.relation === relation)?.url ?? null
 }
 
 /**

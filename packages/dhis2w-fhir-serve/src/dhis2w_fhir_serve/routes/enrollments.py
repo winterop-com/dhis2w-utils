@@ -26,6 +26,9 @@ the one field a picker needs to grade it on.
 The read is entity-scoped and never names a program, because naming one the person is not enrolled
 in answers 404 asserting the person does not exist (BUGS.md 72). The enrollments come off the
 entity.
+
+This listing is part of the Patient surface, so `[serve.patients] enabled = false` refuses it along
+with the FHIR routes: a project that serves no people serves nothing about their enrollments either.
 """
 
 from __future__ import annotations
@@ -42,9 +45,10 @@ from dhis2w_fhir_serve.errors import (
     NoPublishedSubjectTypeError,
     NotFoundError,
     NotServedFromCompiledIgError,
+    PatientSurfaceDisabledError,
     UpstreamError,
 )
-from dhis2w_fhir_serve.patients.wire import fetch_tracked_entity
+from dhis2w_fhir_serve.patients.wire import fetch_tracked_entity, upstream_refusal_text
 from dhis2w_fhir_serve.routes.context import live_client, serve_context
 
 if TYPE_CHECKING:
@@ -100,16 +104,21 @@ class PatientEnrollments(BaseModel):
 @router.get(PATIENT_ENROLLMENTS_PATH)
 async def read_patient_enrollments(request: Request, tracked_entity_uid: str) -> PatientEnrollments:
     """List the programs one person is enrolled in, read off the entity itself."""
+    surface = serve_context(request).patient_surface
+    if not surface.patients.enabled:
+        raise PatientSurfaceDisabledError(PATIENT_RESOURCE_TYPE)
     client = live_client(request)
     if client is None:
         raise NotServedFromCompiledIgError(PATIENT_RESOURCE_TYPE)
-    index = serve_context(request).patient_index
-    if not index.serves_patients():
+    if not surface.serves_patients():
         raise NoPublishedSubjectTypeError(PATIENT_RESOURCE_TYPE)
+    index = surface.index
     try:
         entity = await fetch_tracked_entity(client, tracked_entity_uid)
     except Dhis2ClientError as error:
-        raise UpstreamError(f"the DHIS2 instance did not answer the tracked entity read: {error}") from error
+        raise UpstreamError(
+            f"the DHIS2 instance did not answer the tracked entity read: {upstream_refusal_text(error)}"
+        ) from error
     if entity is None:
         raise NotFoundError(PATIENT_RESOURCE_TYPE, tracked_entity_uid)
     return PatientEnrollments(

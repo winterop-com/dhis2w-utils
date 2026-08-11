@@ -14,6 +14,8 @@
 - turn strict code checking on, serve the data-entry screens, and choose the
   map backgrounds the screens offer (or offer none, for an air-gapped
   deployment)
+- decide whether the server answers questions about people at all, who can be
+  found, and how many of them one page holds
 
 `d2w fhir serve` (the `make serve` target runs exactly that) starts a small
 web server on your computer that serves the guide's content and accepts
@@ -31,11 +33,13 @@ Two things to know before the options:
 - The server has **no login**. Anyone who can reach it can read everything it
   serves and submit forms to it. That is why `host` below is the option to
   read most carefully. `make serve-live` widens what "everything" means: that
-  mode also answers `GET /Patient`, which searches the DHIS2 instance for a
-  person by identifier and returns the attribute values DHIS2 holds about them.
-  A default run serves only what the guide published and can answer no such
-  question, so an exposed live server is a materially different decision from
-  an exposed compiled one.
+  mode answers questions about people - it searches the DHIS2 instance for a
+  person by identifier, returns the attribute values DHIS2 holds about them,
+  and, until you say otherwise, lists the people the instance holds a page at a
+  time. A default run serves only what the guide published and can answer no
+  such question, so an exposed live server is a materially different decision
+  from an exposed compiled one. How much of that a live run offers is
+  [`[serve.patients]`](#patients) below.
 
 ### `host`
 
@@ -230,6 +234,298 @@ and repeats: `--basemap "Streets=https://.../{z}/{x}/{y}.png" --basemap
 named after its host. `--basemap none` offers no layer at all, which is what
 `basemaps = []` says in the file; naming it beside a real layer is refused
 rather than guessed at.
+
+### People: the `[serve.patients]` table { #patients }
+
+!!! note "The one surface whose cost grows with use"
+    Everything else this server answers, it answers out of files it read once
+    when it started: a hundred readers cost it no more than one. The people
+    surface is the exception. Every search, and every page of the listing, is a
+    question put to the DHIS2 instance while somebody waits - so the more this
+    surface is used, the more work the instance does. The six settings below are
+    how a project decides how much of that it wants.
+
+A live run - `make serve-live`, or `d2w fhir serve --live` - answers three
+questions about people that no other run can answer:
+
+- *"Who holds this identifier?"* - the search, from a card number, a register
+  number, or whatever value the person is known by.
+- *"Who is in here?"* - the listing: people a page at a time, for somebody who
+  has no identifier to type.
+- *"Which programmes is this person in?"* - the enrollment list the capture
+  screens' pickers choose from.
+
+A server reading a compiled guide answers none of the three and says so. It
+holds no connection to a DHIS2 instance, so there is nobody to answer about -
+that is a property of the mode, not something this table turns on.
+
+`[serve.patients]` is how a project offers *less* than all of it. Every setting
+has a default that makes the surface work without your writing the table at
+all; you write it when a deployment wants the surface narrowed, or a page size
+the default does not fit.
+
+```toml
+[serve.patients]
+enabled = true
+listing = true
+page_size = 20
+page_size_limit = 100
+```
+
+#### `enabled` { #patients-enabled }
+
+**In plain words.** Whether this server answers questions about people at all.
+On - the default - a live run searches by identifier, lists people, and lists
+one person's enrollments. Off, none of the three exists: the run is live in
+every other way, and the people surface is simply not there.
+
+**When you would change it.** Two situations, and neither is a fault being
+worked around. A live run whose whole job is to serve the guide's forms
+straight off the instance without a compile step has no reason to also let
+anyone who can reach the port ask about the people in that instance. And a
+demonstration on an instance that holds real records is exactly the room in
+which the safest posture is that no person can be looked up at all.
+
+**Example.**
+
+```toml
+[serve.patients]
+enabled = false
+```
+
+A live server that serves forms, code lists, and the organisation-unit
+registry, and answers nothing about people.
+
+**What a person using the screens sees.** No Patients page in the navigation,
+and a registration form's **Person** control offers **New person** alone -
+exactly what a compiled guide offers. Nothing is greyed out or half-offered:
+the screens are told what this server answers and draw only that.
+
+**Default:** `true` - **If you leave it out:** a live run answers all three
+questions and a compiled run answers none of them. That difference is the mode
+doing the work, not this setting.
+
+**If you get it wrong:** TOML wants bare `true` or `false`; anything
+unrecognisable stops the run with a printout naming `serve.patients.enabled`.
+
+#### `listing` { #patients-listing }
+
+**In plain words.** Whether "show me the people" is a question this server
+answers. On - the default - asking for people without naming an identifier
+returns them a page at a time. Off, the identifier search still works, so
+somebody you can name can be found; nobody can page through the register.
+
+**When you would change it.** When looking a known person up is legitimate and
+browsing everybody is not. That line is a common one to draw: a clerk capturing
+a visit has a card in their hand and needs the one person on it, while paging
+through everyone an instance holds is a different capability that happens to
+share an address. This setting draws the line in one word.
+
+**Example.**
+
+```toml
+[serve.patients]
+listing = false
+```
+
+An identifier search answers as it always did; a request that names no
+identifier is refused with a message saying the listing is off in this project.
+
+**What a person using the screens sees.** The Patients page keeps its search
+box and offers no browsing: it opens on an invitation to search rather than on
+the first page of people, and there are no paging controls rather than empty
+ones.
+
+**Default:** `true` - **If you leave it out:** a live run's Patients page opens
+on the first page of the people the instance holds.
+
+**If you get it wrong:** TOML wants bare `true` or `false`; a printout naming
+`serve.patients.listing` is what a different value gets you. Setting
+`listing = true` beside `enabled = false` changes nothing - `enabled` removes
+the surface the listing is part of.
+
+#### `page_size` { #patients-page_size }
+
+**In plain words.** How many people come back in one page when whoever asked
+did not say. The Patients page shows a page of this size, and a program reading
+the server directly gets this many per page unless it asks for a different
+number.
+
+**When you would change it.** To fit what the page is read on: twenty is a
+comfortable browser page, and a deployment whose clerks work on large monitors
+may prefer fifty. Lower it - ten, five - when the instance is slow and what
+matters is that the first page arrives quickly.
+
+**Example.**
+
+```toml
+[serve.patients]
+page_size = 50
+```
+
+Fifty people per page, for anyone who does not ask for a different number.
+
+**Default:** `20` - **If you leave it out:** twenty people per page. Keep the
+value at or below `page_size_limit`: the limit is the ceiling on any page, and
+a default page larger than the ceiling is a contradiction the file should not
+state.
+
+**If you get it wrong:** a value that is not a whole number stops the run
+before it starts, with a printout naming `serve.patients.page_size` and saying
+an integer was expected.
+
+#### `page_size_limit` { #patients-page_size_limit }
+
+**In plain words.** The largest page anybody is allowed to ask for. A request
+that asks for more is not refused - it is answered with this many, and a link
+to the next page. Ask for five thousand people at once and you get a hundred,
+plus the link that gets you the next hundred.
+
+**Why there is a ceiling at all.** One page is one read from the DHIS2
+instance, and the size of the page is the size of that read. With no ceiling, a
+single request could ask the instance to assemble every person it holds - a
+heavy question for the instance, and a slow answer for everyone queued behind
+it. The ceiling turns that one enormous question into a sequence of ordinary
+ones, without anybody being told no.
+
+**When you would change it.** Raise it when a known program is pulling people
+out in bulk and the instance is comfortable with larger reads. Lower it -
+twenty-five, ten - on a modest instance, or one shared with people doing real
+work, where the point is that no single request can cost much.
+
+**Example.**
+
+```toml
+[serve.patients]
+page_size_limit = 25
+```
+
+Nobody obtains more than twenty-five people in one page, however large a page
+they ask for.
+
+**Default:** `100` - **If you leave it out:** the largest page anyone can
+obtain holds a hundred people, and a larger ask is quietly given a hundred
+rather than refused. A refusal would leave a client that asked for too much
+holding nothing, when a smaller page is precisely what it should have had.
+
+**If you get it wrong:** a value that is not a whole number stops the run with
+a printout naming `serve.patients.page_size_limit`.
+
+#### `tracked_entity_types` { #patients-tracked_entity_types }
+
+**What a tracked entity type is.** DHIS2 does not only track people. Every
+record it tracks is of exactly one **tracked entity type**, and an instance
+decides what its types are: Person, certainly, but a laboratory instance also
+tracks Specimen, a livestock programme tracks a herd, a water programme tracks
+a water point. The type is what kind of thing the record is about.
+
+**In plain words.** Which of those types this server treats as people. Left
+empty - the default - it is the types this project's own registration forms
+register, read off the guide the project published. Naming ids here narrows it
+to exactly those, for the search and the listing alike.
+
+**When you would change it.** The laboratory instance is the clearest case. It
+registers people *and* specimens, both as tracked entity types, and if this
+project publishes a registration form for each, then "the types the forms
+register" includes both: the listing pages through specimens beside patients,
+and an identifier search can find a specimen whose barcode happens to match
+what somebody typed. Naming the person type here makes people the only thing
+this surface is about. The other case is plain narrowing - an instance with
+several person-like registers, where this deployment works with one of them.
+
+**Example.**
+
+```toml
+[serve.patients]
+tracked_entity_types = ["nEenWmSyUEp"]
+```
+
+The search and the listing consider records of that one type, whatever else
+the project's forms register.
+
+**Where the ids come from.** The eleven-character id DHIS2 shows for the type
+under Tracked entity types in its Maintenance app - the same id the guide
+publishes that type's registration form under.
+
+**Not the same table as `[generate.tracked_entity_types]`.** That one, on the
+generation side, says *what a type is* - which FHIR resource a herd or a water
+point is published as
+([what goes in](301-what-goes-in.md#tracked_entity_types)). This one says which
+types the people surface answers about. The same words doing two different
+jobs, in two different sections.
+
+**Default:** `[]` (empty) - **If you leave it out:** the types this project's
+registration forms register, which for an ordinary person-tracking project is
+one type and needs no configuration at all. A project that publishes no
+registration form names no type at all, and the people surface answers empty -
+the honest reading of a guide with no people in it.
+
+**If you get it wrong:** nothing in `fhir.toml` can check an id against an
+instance it has not connected to, so a mistyped one is not refused. It shows up
+as a surface that finds nobody: an empty listing, and searches that match
+no one, on an instance you know holds thousands of people. Check the id against
+the type in DHIS2 before concluding the search is broken.
+
+#### `search_attributes` { #patients-search_attributes }
+
+**What "unique" means in DHIS2.** An instance can mark a tracked entity
+attribute **unique**, which means it refuses to store the same value on two
+records. That flag is what turns a value into a name for a person rather than a
+fact about one: two people can share a village and a year of birth, but only
+one person holds card number 10023. So the identifier search's keys are, by
+default, exactly the attributes the instance declares unique - the guide
+publishes that flag on every attribute it carries, and this server reads it
+back off the guide.
+
+**In plain words.** Which attributes count as identifiers: the keys somebody
+can search by, and the values a person's record is listed under. Empty - the
+default - means the unique ones. Naming attribute ids here means those,
+whether DHIS2 enforces uniqueness on them or not.
+
+**When you would change it.** Two situations.
+
+An instance declares five unique attributes and the field only ever quotes one
+of them. A search that names no key tries every key at once, so five keys mean
+five questions to the instance for one typed value. Naming the key people
+actually carry makes it one question, and the results come back only under that
+key.
+
+Or the number a clerk actually types - a national identity number, a facility
+register number - is one the instance never marked unique, which happens
+whenever somebody decided the enforcement would be more trouble than it is
+worth. Naming it here makes it a search key regardless.
+
+!!! warning "A key that is not unique can name more than one person"
+    Uniqueness is the thing that makes one value mean one person. Name an
+    attribute the instance does not enforce it on and a search can honestly come
+    back with several people who share the value - a phone number shared by a
+    household, a register number reused after a book was filled. The answer is
+    not wrong; it is what the instance holds. It does mean whoever reads it has
+    to choose between people, so name a non-unique attribute deliberately rather
+    than to make a search work.
+
+**Example.**
+
+```toml
+[serve.patients]
+search_attributes = ["lZGmxYbs97q"]
+```
+
+One key. A value typed with no key named is looked for under that attribute and
+no other.
+
+**Where the ids come from.** The eleven-character id DHIS2 shows for the
+attribute under Tracked entity attributes in its Maintenance app. The guide
+also publishes them, with their names and their uniqueness flag, in the tracked
+entity attribute dictionary the capture screens' Terminology page browses.
+
+**Default:** `[]` (empty) - **If you leave it out:** every attribute the
+instance declares unique is a search key, which is the set DHIS2 itself already
+treats as identifying.
+
+**If you get it wrong:** as with the types above, no check is possible before
+the server connects, so a mistyped id is a key nothing is ever found under. The
+symptom is a value you know a person holds finding nobody.
 
 Next: [The capture contract](401-capture-contract.md) - the integrate tier
 starts with what a valid submission carries. Or back to

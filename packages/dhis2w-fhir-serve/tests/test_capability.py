@@ -7,6 +7,7 @@ from dhis2w_fhir.r4 import CapabilityStatement
 from dhis2w_fhir_serve.capability import build_server_capability
 from dhis2w_fhir_serve.metadata import build_metadata_body
 from dhis2w_fhir_serve.patients.index import PatientIndex
+from dhis2w_fhir_serve.patients.surface import PatientSurface
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import ResourceStore, StoreSummary
 
@@ -25,9 +26,9 @@ FULL_SUMMARY = StoreSummary(
 )
 
 
-def _patient_index(project: FhirProject) -> PatientIndex:
-    """The index over an empty store - no published registration form, so no Patient is declared."""
-    return PatientIndex.from_store(project, ResourceStore())
+def _patient_surface(project: FhirProject) -> PatientSurface:
+    """The surface over an empty store - no published registration form, so no Patient is declared."""
+    return PatientSurface.resolve(PatientIndex.from_store(project, ResourceStore()), project.config.serve.patients)
 
 
 def _capability(project: FhirProject, summary: StoreSummary, *, live: bool = False) -> CapabilityStatement:
@@ -36,7 +37,7 @@ def _capability(project: FhirProject, summary: StoreSummary, *, live: bool = Fal
         store_summary=summary,
         spool_count=11,
         settings=ServeSettings(project_dir=project.project_root, live=live),
-        patient_index=_patient_index(project),
+        patient_surface=_patient_surface(project),
         server_version="9.9.9",
     )
 
@@ -141,7 +142,7 @@ def test_capability_round_trips_through_the_r4_model(compiled_project: FhirProje
         store_summary=FULL_SUMMARY,
         spool_count=11,
         settings=ServeSettings(project_dir=compiled_project.project_root),
-        patient_index=_patient_index(compiled_project),
+        patient_surface=_patient_surface(compiled_project),
         server_version="9.9.9",
     )
     revalidated = CapabilityStatement.model_validate(body)

@@ -36,6 +36,8 @@ from dhis2w_fhir_serve.errors import (
     NotFoundError,
     NotServedError,
     NotServedFromCompiledIgError,
+    PatientListingDisabledError,
+    PatientSurfaceDisabledError,
     ServeError,
     UpstreamError,
     outcome,
@@ -44,11 +46,22 @@ from dhis2w_fhir_serve.errors import (
 from dhis2w_fhir_serve.log import RequestLogMiddleware, configure_logging
 from dhis2w_fhir_serve.metadata import build_metadata_body
 from dhis2w_fhir_serve.patients.index import PatientIndex, PublishedAttribute
+from dhis2w_fhir_serve.patients.listing import (
+    COUNT_PARAMETER,
+    PAGE_PARAMETER,
+    ListingCursor,
+    PatientListingPage,
+    read_listing_page,
+)
 from dhis2w_fhir_serve.patients.projection import patient_for
+from dhis2w_fhir_serve.patients.surface import PatientSurface
 from dhis2w_fhir_serve.patients.wire import (
     SEARCH_ORG_UNIT_MODE,
+    TOTAL_PAGES_PARAMETER,
     TRACKED_ENTITY_FIELDS,
+    count_tracked_entity_pages,
     fetch_tracked_entity,
+    list_tracked_entities,
     search_tracked_entities,
 )
 from dhis2w_fhir_serve.routes.enrollments import (
@@ -68,8 +81,10 @@ from dhis2w_fhir_serve.routes.uiconfig import (
     OPENSTREETMAP_ATTRIBUTION,
     UI_CONFIG_PATH,
     BasemapLayer,
+    PatientsUiConfig,
     UiConfig,
     basemap_layers,
+    patients_surface_config,
     public_instance_url,
 )
 from dhis2w_fhir_serve.settings import ServeSettings
@@ -117,6 +132,7 @@ from dhis2w_fhir_serve.ui import (
 
 __all__ = [
     "COMPILED_RESOURCES_RELATIVE_PATH",
+    "COUNT_PARAMETER",
     "DEFAULT_PERIOD_TYPE",
     "DEFAULT_STRICT_CODES",
     "FHIR_JSON_MEDIA_TYPE",
@@ -124,6 +140,7 @@ __all__ = [
     "GENERATED_STATUS",
     "GENERATE_SEED_IDENTIFIER_SEGMENT",
     "MAXIMUM_SEED",
+    "PAGE_PARAMETER",
     "PATIENT_ENROLLMENTS_PATH",
     "RECEIVED_RESPONSES_RELATIVE_PATH",
     "REJECTED_RESPONSES_RELATIVE_PATH",
@@ -131,6 +148,7 @@ __all__ = [
     "SPOOL_PATH",
     "SEARCH_ORG_UNIT_MODE",
     "SPOOL_RELATIVE_PATH",
+    "TOTAL_PAGES_PARAMETER",
     "TRACKED_ENTITY_FIELDS",
     "OPENSTREETMAP_ATTRIBUTION",
     "UI_CONFIG_PATH",
@@ -153,6 +171,7 @@ __all__ = [
     "CompiledIgMissingError",
     "DateWindow",
     "IdentifierToken",
+    "ListingCursor",
     "MethodNotAllowedError",
     "NoPublishedSubjectTypeError",
     "NotFoundError",
@@ -161,6 +180,11 @@ __all__ = [
     "PatientEnrollment",
     "PatientEnrollments",
     "PatientIndex",
+    "PatientListingDisabledError",
+    "PatientListingPage",
+    "PatientSurface",
+    "PatientSurfaceDisabledError",
+    "PatientsUiConfig",
     "PublishedAttribute",
     "RequestLogMiddleware",
     "ResolvedCoding",
@@ -192,17 +216,21 @@ __all__ = [
     "build_server_capability",
     "build_store",
     "configure_logging",
+    "count_tracked_entity_pages",
     "create_app",
     "current_instant",
     "draw_seed",
     "fetch_tracked_entity",
     "generate_response",
+    "list_tracked_entities",
     "load_compiled_store",
     "mount_ui_assets",
     "mount_ui_shell",
     "new_response_id",
     "outcome",
     "patient_for",
+    "patients_surface_config",
+    "read_listing_page",
     "register_error_handlers",
     "rejection_outcome",
     "resolve_period_type",

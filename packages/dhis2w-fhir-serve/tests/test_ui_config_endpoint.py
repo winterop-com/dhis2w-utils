@@ -1,9 +1,9 @@
 """`GET /uiconfig` - the run-time settings the capture UI acts on, and what it refuses to carry.
 
-The endpoint exists because two things the UI renders are not properties of the served guide: which
-raster layers the organisation-unit map may draw under the boundaries, and which DHIS2 instance the
-guide was generated from. Both are decided when the process starts, and a bundle compiled weeks
-earlier cannot know either.
+The endpoint exists because three things the UI renders are not properties of the served guide:
+which raster layers the organisation-unit map may draw under the boundaries, which DHIS2 instance
+the guide was generated from, and whether this process answers for people at all. All three are
+decided when the process starts, and a bundle compiled weeks earlier cannot know any of them.
 
 These tests hold two contracts. The first is the shape - a plain JSON body, mounted ahead of the
 read catch-alls that would otherwise answer that `uiconfig` is not a served resource type. The
@@ -16,15 +16,20 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
-from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, BasemapSource, FhirProject
+from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, BasemapSource, FhirProject, PatientsConfig
 from dhis2w_fhir_serve.app import create_app
+from dhis2w_fhir_serve.patients.index import PatientIndex
+from dhis2w_fhir_serve.patients.surface import PatientSurface
 from dhis2w_fhir_serve.routes.uiconfig import (
     OPENSTREETMAP_ATTRIBUTION,
     UI_CONFIG_PATH,
+    PatientsUiConfig,
     basemap_layers,
+    patients_surface_config,
     public_instance_url,
 )
 from dhis2w_fhir_serve.settings import ServeSettings
+from dhis2w_fhir_serve.store import load_compiled_store
 from fastapi import FastAPI
 
 #: The layers the app under test is started with unless a test overrides the `basemaps` fixture.
@@ -132,10 +137,32 @@ async def test_the_settings_carry_nothing_a_browser_has_no_business_knowing(
     """The model is the enumeration of what the UI acts on, and the omissions are the point."""
     body = (await ui_config_client.get(UI_CONFIG_PATH)).json()
 
-    assert set(body) == {"basemaps", "dhis2_base_url"}
+    assert set(body) == {"basemaps", "dhis2_base_url", "patients"}
     serialised = str(body)
     for leaked in ("profile", "project_dir", "strict_codes", "live", "port"):
         assert leaked not in serialised, serialised
+
+
+async def test_a_compiled_run_reports_no_patient_surface_to_navigate_to(
+    ui_config_client: httpx.AsyncClient,
+) -> None:
+    """The state is the effective one, not the table read back: a compiled run answers for nobody."""
+    assert (await ui_config_client.get(UI_CONFIG_PATH)).json()["patients"] == {"enabled": False, "listing": False}
+
+
+def test_the_patient_surface_is_reported_as_a_live_run_resolves_it(capture_project: FhirProject) -> None:
+    """Live, over a guide publishing a registration form: people are served, and so is the listing."""
+    index = PatientIndex.from_store(capture_project, load_compiled_store(capture_project))
+
+    served = patients_surface_config(live=True, surface=PatientSurface.resolve(index, PatientsConfig()))
+    listing_off = patients_surface_config(
+        live=True, surface=PatientSurface.resolve(index, PatientsConfig(listing=False))
+    )
+    disabled = patients_surface_config(live=True, surface=PatientSurface.resolve(index, PatientsConfig(enabled=False)))
+
+    assert served == PatientsUiConfig(enabled=True, listing=True)
+    assert listing_off == PatientsUiConfig(enabled=True, listing=False)
+    assert disabled == PatientsUiConfig(enabled=False, listing=False)
 
 
 async def test_the_path_is_not_claimed_by_the_read_catch_all(client: httpx.AsyncClient) -> None:

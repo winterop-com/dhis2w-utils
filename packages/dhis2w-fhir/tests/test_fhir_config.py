@@ -8,6 +8,7 @@ from dhis2w_fhir.config import (
     GenerateConfig,
     IgConfig,
     NoFhirProjectError,
+    PatientsConfig,
     ServeConfig,
     UnknownFhirConfigKeyError,
     find_project_fhir_config,
@@ -284,3 +285,76 @@ def test_a_tracked_entity_type_map_still_takes_any_uid_as_a_key(tmp_path: Path) 
     """The one table whose keys are DHIS2 UIDs rather than option names keeps taking whatever the instance holds."""
     path = _write(tmp_path, after='\n[generate.tracked_entity_types]\n"Kd6Nk9wnAJa" = "Group"\n')
     assert load_fhir_config(path).generate.tracked_entity_types == {"Kd6Nk9wnAJa": "Group"}
+
+
+def test_the_patients_table_serves_a_listing_of_twenty_by_default() -> None:
+    """An absent `[serve.patients]` serves people, lists them, and pages them twenty at a time."""
+    patients = ServeConfig().patients
+
+    assert patients.enabled is True
+    assert patients.listing is True
+    assert patients.page_size == 20
+    assert patients.page_size_limit == 100
+    assert patients.tracked_entity_types == []
+    assert patients.search_attributes == []
+
+
+def test_the_patients_table_parses_off_fhir_toml(tmp_path: Path) -> None:
+    """What a live run says about people is project config, so it loads off the document like the rest."""
+    path = _write(
+        tmp_path,
+        after="\n[serve.patients]\nenabled = true\nlisting = false\npage_size = 5\npage_size_limit = 50\n"
+        'tracked_entity_types = ["nEenWmSyUEp"]\nsearch_attributes = ["lZGmxYbs97q"]\n',
+    )
+
+    patients = load_fhir_config(path).serve.patients
+
+    assert patients.listing is False
+    assert patients.page_size == 5
+    assert patients.page_size_limit == 50
+    assert patients.tracked_entity_types == ["nEenWmSyUEp"]
+    assert patients.search_attributes == ["lZGmxYbs97q"]
+
+
+def test_a_page_carries_at_least_one_person() -> None:
+    """A page of nobody is a listing whose `next` link never reaches the end of the register."""
+    with pytest.raises(ValidationError, match="a page carries at least one person"):
+        PatientsConfig(page_size=0)
+
+
+def test_the_page_size_limit_cannot_be_smaller_than_the_page_served_by_default() -> None:
+    """The limit is the largest page this server serves, so a default above it could never be served."""
+    assert PatientsConfig(page_size=50, page_size_limit=50).page_size_limit == 50
+    with pytest.raises(ValidationError, match="cannot be smaller than the page it serves by default"):
+        PatientsConfig(page_size=50, page_size_limit=20)
+
+
+def test_the_patient_scoping_lists_name_dhis2_objects_by_uid() -> None:
+    """A name or a code in either list would select nothing, silently, so the shape is checked here."""
+    with pytest.raises(ValidationError, match="is not a DHIS2 UID"):
+        PatientsConfig(tracked_entity_types=["Person"])
+    with pytest.raises(ValidationError, match="is not a DHIS2 UID"):
+        PatientsConfig(search_attributes=["NATIONAL_ID"])
+
+
+def test_a_misspelled_key_in_the_patients_table_gets_the_same_treatment(tmp_path: Path) -> None:
+    """`[serve.patients]` declares its full key set like every other table, so a typo is named and placed."""
+    path = _write(tmp_path, after="\n[serve.patients]\npage_sizes = 40\n")
+
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+
+    assert raised.value.diagnostics == (
+        "fhir.toml: unknown key 'page_sizes' in [serve.patients]\n  did you mean 'page_size'?",
+    )
+
+
+def test_the_patients_table_survives_a_config_round_trip(tmp_path: Path) -> None:
+    """The table writes to fhir.toml and loads back off it, nested tables included."""
+    path = tmp_path / "fhir.toml"
+    config = _make_config()
+    config.serve = ServeConfig(patients=PatientsConfig(listing=False, page_size=10))
+
+    write_fhir_config(path, config)
+
+    assert load_fhir_config(path).serve.patients == PatientsConfig(listing=False, page_size=10)
