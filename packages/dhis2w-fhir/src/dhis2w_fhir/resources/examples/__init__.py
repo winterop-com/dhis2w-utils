@@ -177,11 +177,13 @@ MULTI_VALUE_TYPE = "MULTI_TEXT"
 #: The separator DHIS2 joins a MULTI_TEXT value's option codes with.
 MULTI_VALUE_SEPARATOR = ","
 
-#: The value types an example leaves unanswered. An attachment or a geometry blob says nothing
-#: useful when it is invented, and inventing one would misrepresent the form. `REFERENCE` and
-#: `TRACKER_ASSOCIATE` point at DHIS2 objects the IG publishes no FHIR resource for, so an
-#: answer would name a target no consumer can resolve.
-_UNSYNTHESIZABLE_VALUE_TYPES = frozenset({"FILE_RESOURCE", "IMAGE", "GEOJSON", "REFERENCE", "TRACKER_ASSOCIATE"})
+#: The value types a synthesised answer leaves unanswered. An attachment or a geometry blob says
+#: nothing useful when it is invented, and inventing one would misrepresent the form. `REFERENCE`
+#: and `TRACKER_ASSOCIATE` point at DHIS2 objects the IG publishes no FHIR resource for, so an
+#: answer would name a target no consumer can resolve - and DHIS2 refuses an invented one with
+#: `E1302`. Every synthesising emitter reads this set, so a question of one of these types is
+#: unanswered in the guide's example corpus and in a `$generate` response alike.
+UNSYNTHESIZABLE_VALUE_TYPES = frozenset({"FILE_RESOURCE", "IMAGE", "GEOJSON", "REFERENCE", "TRACKER_ASSOCIATE"})
 
 #: The DHIS2 value type answered as a reference to the organisation unit's Location instance.
 ORGANISATION_UNIT_VALUE_TYPE = "ORGANISATION_UNIT"
@@ -241,6 +243,21 @@ _SYNTHETIC_EMAIL_DOMAIN = "example.invalid"
 _UNIQUE_TEXT_VALUE_TYPES = frozenset({"TEXT", "LONG_TEXT", "USERNAME"})
 _EMAIL_VALUE_TYPE = "EMAIL"
 _PHONE_NUMBER_VALUE_TYPE = "PHONE_NUMBER"
+
+#: The remaining DHIS2 value types whose stored value has a shape DHIS2 parses rather than keeps
+#: verbatim, so a synthesised answer has to be spelled in it. `COORDINATE` is the `[lon,lat]`
+#: string DHIS2 stores for a point, `LETTER` is a single letter, and `USERNAME` names an account.
+_COORDINATE_VALUE_TYPE = "COORDINATE"
+_LETTER_VALUE_TYPE = "LETTER"
+_USERNAME_VALUE_TYPE = "USERNAME"
+
+#: How many digits a seeded `PHONE_NUMBER` carries after its leading `+`.
+_SEEDED_PHONE_DIGITS = 11
+
+#: What a seeded account name opens with, and how many digits distinguish one from the next. Four
+#: letters plus six digits clears the four-character minimum DHIS2 holds a username to.
+_SEEDED_ACCOUNT_PREFIX = "user"
+_SEEDED_ACCOUNT_DIGITS = 6
 
 #: How many digits a distinct numeric value for a unique attribute is drawn across. Nine keeps every
 #: value inside the 32-bit signed range DHIS2 stores an `INTEGER` in, while leaving a billion of them.
@@ -966,7 +983,7 @@ def _synthetic_value(
     make distinct rather than leaving the refusal to be discovered at import.
     """
     value_type = item.value_type
-    if value_type in _UNSYNTHESIZABLE_VALUE_TYPES:
+    if value_type in UNSYNTHESIZABLE_VALUE_TYPES:
         return None
     if item.unique:
         distinct = (
@@ -999,8 +1016,9 @@ def _synthetic_value(
         return _seeded_birth_date(generator).isoformat()
     if value_type == URI_VALUE_TYPE:
         return f"{_SYNTHETIC_URL_HOST}/{instance_id}"
-    if value_type == "COORDINATE":
-        return _seeded_coordinate(generator)
+    constrained = seeded_format_constrained_value(value_type, generator)
+    if constrained is not None:
+        return constrained
     return f"Example {item.name}"
 
 
@@ -1019,12 +1037,64 @@ def _seeded_birth_date(generator: random.Random) -> datetime.date:
     return _SYNTHETIC_AGE_EARLIEST + datetime.timedelta(days=generator.randrange(span))
 
 
+def seeded_format_constrained_value(value_type: str, generator: random.Random) -> str | None:
+    """One seeded value for a DHIS2 value type whose stored value has a shape, or None for free text.
+
+    DHIS2 parses these types rather than storing what it is handed: it refuses `E1302` for a
+    `COORDINATE` that is not a longitude and latitude pair, an `EMAIL` that is not an address, a
+    `LETTER` that is a word, a `PHONE_NUMBER` carrying letters, and a `USERNAME` with a space in
+    it. A free-text type answers None and the caller's own wording stands, because free text is
+    exactly what DHIS2 stores for it.
+
+    Every synthesising emitter draws from here - the guide's example corpus and the server's
+    `$generate` alike - so one value type is spelled one way across the project, and a value type
+    whose shape DHIS2 tightens is answered in one place. The draw is the caller's own seeded
+    generator, so the same seed keeps producing the same value.
+    """
+    if value_type == _COORDINATE_VALUE_TYPE:
+        return _seeded_coordinate(generator)
+    if value_type == _EMAIL_VALUE_TYPE:
+        return _seeded_email(generator)
+    if value_type == _PHONE_NUMBER_VALUE_TYPE:
+        return _seeded_phone_number(generator)
+    if value_type == _LETTER_VALUE_TYPE:
+        return _seeded_letter(generator)
+    if value_type == _USERNAME_VALUE_TYPE:
+        return _seeded_username(generator)
+    return None
+
+
 def _seeded_coordinate(generator: random.Random) -> str:
     """A seeded `[longitude,latitude]` pair in the DHIS2 COORDINATE wire spelling."""
     places = _SYNTHETIC_COORDINATE_PLACES
     longitude = round(generator.uniform(-_SYNTHETIC_LONGITUDE_BOUND, _SYNTHETIC_LONGITUDE_BOUND), places)
     latitude = round(generator.uniform(-_SYNTHETIC_LATITUDE_BOUND, _SYNTHETIC_LATITUDE_BOUND), places)
     return f"[{longitude},{latitude}]"
+
+
+def _seeded_email(generator: random.Random) -> str:
+    """A seeded address at the RFC 2606 `.invalid` domain, which is what an EMAIL question stores."""
+    return f"{_seeded_account_name(generator)}@{_SYNTHETIC_EMAIL_DOMAIN}"
+
+
+def _seeded_phone_number(generator: random.Random) -> str:
+    """A seeded phone number in the plus-then-digits spelling DHIS2 admits for PHONE_NUMBER."""
+    return f"+{generator.randrange(10**_SEEDED_PHONE_DIGITS):0{_SEEDED_PHONE_DIGITS}d}"
+
+
+def _seeded_letter(generator: random.Random) -> str:
+    """A seeded single letter - the whole of what DHIS2 stores behind a LETTER question."""
+    return generator.choice(string.ascii_uppercase)
+
+
+def _seeded_username(generator: random.Random) -> str:
+    """A seeded account name, which is what a USERNAME question names."""
+    return _seeded_account_name(generator)
+
+
+def _seeded_account_name(generator: random.Random) -> str:
+    """A seeded letters-then-digits account name, used as a username and as an email local part."""
+    return f"{_SEEDED_ACCOUNT_PREFIX}{generator.randrange(10**_SEEDED_ACCOUNT_DIGITS):0{_SEEDED_ACCOUNT_DIGITS}d}"
 
 
 class _AnswerableKey(BaseModel):

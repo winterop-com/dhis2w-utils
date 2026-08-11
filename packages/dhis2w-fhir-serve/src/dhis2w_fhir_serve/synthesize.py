@@ -8,6 +8,17 @@ round trip - a generated response posted back to this server's own `/Questionnai
 201 - and the way it is held is that both directions read one index, so a rule can never be enforced
 on receipt without being honoured on generation.
 
+An answer is drawn on the axis DHIS2 grades it on, which is the DHIS2 value type rather than the FHIR
+item type the question is asked as. R4 offers one `string` item for a coordinate, a phone number, an
+email address, a letter, and a username, and DHIS2 parses all five: a `[longitude,latitude]` pair for
+a `COORDINATE`, an address for an `EMAIL`, one letter for a `LETTER`. A value spelled outside what the
+type admits is refused at import with `E1302`, so the value type decides the value and the item type
+only decides which `value[x]` element carries it (`dhis2w_fhir.seeded_format_constrained_value`, the
+one rule this server and the guide's example corpus both draw from). The value types DHIS2 stores a
+document or a UID reference for - a file, an image, GeoJSON, a `REFERENCE`, a `TRACKER_ASSOCIATE` -
+are left unanswered rather than invented, for the same reason a question bound to unpublished
+terminology is: an invented answer names a target nothing resolves.
+
 Nothing here invents terminology. A coded answer is a concept the served CodeSystem really publishes,
 carried in the exact spelling the contract asks for (the concept code, never the DHIS2 code or UID
 fall-backs), so a strict-codes server accepts what a lenient one does. A question bound to terminology
@@ -23,6 +34,15 @@ tracked entity attribute is never answered with a constant: DHIS2 refuses the se
 carrying a repeated unique value with `E1064`, so the answer embeds the response's own minted
 tracked-entity UID - the one value no other generated registration holds - through the same rule
 the examples emitter uses (`dhis2w_fhir.distinct_unique_value`).
+
+A generated stage response answers against a person this server already knows. A tracker event names
+a tracked entity and an enrollment, and DHIS2 refuses one naming a pair that never existed with
+`E1079` and `E1313`, so the pair is adopted from a registration receipt in this project's own spool -
+the same join the capture UI's enrollment picker makes, on the program the two forms share. Only when
+the spool holds no registration of that program does a stage response mint a pair of its own. Which
+means a generated stage response is a function of `(questionnaire, store, spool, seed, today)`: the
+same seed against the same spool state produces the same bytes, and running `d2w fhir forward` between
+two calls can move which pair is adopted, because a forwarded registration is one DHIS2 already holds.
 
 Three facts a compiled Questionnaire does not carry, and how they are decided here:
 
@@ -68,11 +88,15 @@ from dhis2w_fhir.r4 import (
     QuestionnaireResponseItem,
     Reference,
 )
-from dhis2w_fhir.resources.examples import distinct_unique_value
+from dhis2w_fhir.resources.examples import (
+    UNSYNTHESIZABLE_VALUE_TYPES,
+    distinct_unique_value,
+    seeded_format_constrained_value,
+)
 from dhis2w_fhir.resources.questionnaires.schemas import FormKind
 from pydantic import BaseModel, ConfigDict, PrivateAttr, ValidationError
 
-from dhis2w_fhir_serve.capture.index import CaptureIndex, CaptureQuestion
+from dhis2w_fhir_serve.capture.index import QUESTIONNAIRE_RESOURCE_TYPE, CaptureIndex, CaptureQuestion
 from dhis2w_fhir_serve.capture.naming import (
     PERIOD_ISO_SUB_EXTENSION,
     PERIOD_RANGE_SUB_EXTENSION,
@@ -80,7 +104,8 @@ from dhis2w_fhir_serve.capture.naming import (
     CaptureNaming,
 )
 from dhis2w_fhir_serve.capture.resolve import CodingResolverSet, ResolvedCoding
-from dhis2w_fhir_serve.store import ResourceStore
+from dhis2w_fhir_serve.spool import ResponseLifecycle, ResponseSpool, StoredReceipt
+from dhis2w_fhir_serve.store import IdentifierToken, ResourceStore, StoreEntry
 
 if TYPE_CHECKING:
     from dhis2w_fhir.period.schemas import PeriodValue
@@ -104,8 +129,17 @@ LOCATION_RESOURCE_TYPE = "Location"
 #: The form kinds whose generated response carries a tracker context - the person and the enrollment.
 _TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event")
 
-#: The form kind whose generated response mints that context rather than naming an existing one.
+#: The form kind that mints a tracker context; the other tracker kind answers against an existing one.
 _REGISTRATION_FORM_KIND: FormKind = "tracker"
+
+#: The form kind whose generated response adopts a registration's pair out of the spool.
+_STAGE_FORM_KIND: FormKind = "tracker-event"
+
+#: The lifecycle states a registration receipt is adopted from, in the order they are preferred.
+#: A forwarded receipt's pair names objects DHIS2 already holds; a received one's will only after
+#: the next `d2w fhir forward` run. A rejected receipt is never adopted - DHIS2 refused the
+#: registration, so its pair names nothing and no forwarder run will change that.
+_ADOPTABLE_LIFECYCLES: tuple[ResponseLifecycle, ...] = (ResponseLifecycle.FORWARDED, ResponseLifecycle.RECEIVED)
 
 #: The item types that carry no answer of their own and only nest other items.
 _STRUCTURAL_ITEM_TYPES = ("group", "display")
@@ -175,12 +209,15 @@ def generate_response(
     *,
     seed: int,
     today: datetime.date,
+    spool: ResponseSpool | None = None,
 ) -> QuestionnaireResponse:
     """Generate one synthetic response to a served form: its context, then an answer to every question.
 
-    The whole document is a function of `(questionnaire, store, seed, today)`, and the only term that
-    moves on its own is `today` - it decides which completed reporting period an aggregate response
-    is for, and which thirty days an event's timestamps fall in.
+    The whole document is a function of `(questionnaire, store, spool, seed, today)`. Two terms move
+    on their own: `today` decides which completed reporting period an aggregate response is for and
+    which thirty days an event's timestamps fall in, and `spool` decides which registration a stage
+    response answers against. A caller naming no spool generates a stage response that mints its own
+    tracker pair, which is what a form kind whose context is data rather than metadata otherwise does.
     """
     period = _reporting_period(index, naming, store, today) if index.form_kind == "aggregate" else None
     window = DateWindow.of_period(period) if period is not None else DateWindow.recent(today)
@@ -192,8 +229,18 @@ def generate_response(
         window=window,
         location_id=_capture_location_id(index, store, seed),
         incident_date_shown=resolves_incident_date(index, naming, store),
+        adopted_pair=adopted_tracker_pair(index, naming, store, spool),
     )
     return generator.build(questionnaire, period)
+
+
+class TrackerPair(BaseModel):
+    """The tracked entity and the enrollment one registration minted - what a stage response answers against."""
+
+    model_config = ConfigDict(frozen=True)
+
+    tracked_entity_uid: str
+    enrollment_uid: str
 
 
 class _TrackerContext(BaseModel):
@@ -227,6 +274,9 @@ class _Generator(BaseModel):
     incident_date_shown: bool = False
     """Whether a served example of this form carries an incident date, which is what decides generating one."""
 
+    adopted_pair: TrackerPair | None = None
+    """The spooled registration's pair a generated stage response answers against, or None to mint one."""
+
     _random: random.Random = PrivateAttr(default_factory=random.Random)
 
     def model_post_init(self, context: Any, /) -> None:
@@ -258,14 +308,24 @@ class _Generator(BaseModel):
         )
 
     def _tracker_context(self) -> _TrackerContext:
-        """Draw the tracked entity and the enrollment a generated tracker response names, dating a minted one.
+        """Name the tracked entity and the enrollment a generated tracker response is captured against.
 
-        The two UIDs are drawn first whatever the kind, so adding the registration dates leaves a
-        generated stage response byte-identical to what the same seed produced before them.
+        A stage response answers against the pair a spooled registration of the same program minted,
+        and mints one of its own only where the spool holds no such registration. The adopted pair
+        wins over the drawn one whatever the seed would have minted: a seed is a handle on values,
+        and which person a stage event is about is a fact about this project's data, not about it.
+
+        The two UIDs are drawn off the seeded stream whatever the kind, and whether or not the draw
+        is then adopted over, so adoption moves those two identifiers and nothing else in the document.
         """
         tracked_entity_uid = self._uid()
         enrollment_uid = self._uid()
         if self.index.form_kind != _REGISTRATION_FORM_KIND:
+            adopted = self.adopted_pair
+            if adopted is not None:
+                return _TrackerContext(
+                    tracked_entity_uid=adopted.tracked_entity_uid, enrollment_uid=adopted.enrollment_uid
+                )
             return _TrackerContext(tracked_entity_uid=tracked_entity_uid, enrollment_uid=enrollment_uid)
         return _TrackerContext(
             tracked_entity_uid=tracked_entity_uid,
@@ -351,8 +411,17 @@ class _Generator(BaseModel):
         return generated
 
     def _answers(self, question: CaptureQuestion | None, unique_token: str | None) -> list[QuestionnaireResponseAnswer]:
-        """Every answer one question gets: a repeating coded question two selections, everything else one."""
+        """Every answer one question gets: a repeating coded question two selections, everything else one.
+
+        A question whose DHIS2 value type holds a document or a reference to a DHIS2 object - a file,
+        an image, GeoJSON, a `REFERENCE`, a `TRACKER_ASSOCIATE` - is left unanswered, the rule the
+        guide's example corpus follows: an invented one names a target nothing resolves, and DHIS2
+        refuses it with `E1302`. The form still admits the response, because a question the form does
+        not mark required is answerable and not obligatory.
+        """
         if question is None or question.answer_element in _UNGENERATED_ANSWER_ELEMENTS:
+            return []
+        if question.value_type in UNSYNTHESIZABLE_VALUE_TYPES:
             return []
         if question.answer_element == "valueCoding":
             return self._coded_answers(question)
@@ -378,7 +447,14 @@ class _Generator(BaseModel):
         return [QuestionnaireResponseAnswer(valueCoding=_coding(system, option)) for option in selected]
 
     def _answer(self, question: CaptureQuestion) -> QuestionnaireResponseAnswer | None:
-        """One typed answer, on the `value[x]` element the question's own item type takes."""
+        """One typed answer: the `value[x]` element from the item type, the value from the DHIS2 value type.
+
+        The item type decides only which element carries the answer. Which value it carries is the
+        DHIS2 value type's to say, because that is what DHIS2 grades the value against on import -
+        R4 asks a coordinate, a phone number, an email address, a letter, and a username all as
+        `string` items, and DHIS2 parses each of the five. Only a value type DHIS2 stores as free
+        text falls through to the wording that names the question.
+        """
         element = question.answer_element
         if element == "valueInteger":
             return QuestionnaireResponseAnswer(valueInteger=self._integer(question))
@@ -398,6 +474,13 @@ class _Generator(BaseModel):
             return QuestionnaireResponseAnswer(
                 valueReference=Reference(reference=f"{LOCATION_RESOURCE_TYPE}/{self.location_id}")
             )
+        constrained = (
+            seeded_format_constrained_value(question.value_type, self._random)
+            if question.value_type is not None
+            else None
+        )
+        if constrained is not None:
+            return QuestionnaireResponseAnswer(valueString=constrained)
         return QuestionnaireResponseAnswer(valueString=f"Example {question.link_id}")
 
     def _integer(self, question: CaptureQuestion) -> int:
@@ -420,13 +503,18 @@ class _Generator(BaseModel):
         return f"{self._random.randrange(_HOURS_PER_DAY):02d}"
 
     def _uid(self) -> str:
-        """A seeded DHIS2-shaped UID for the tracker context this response is captured in.
+        """A seeded DHIS2-shaped UID for a tracker identity this response is the first to name.
 
-        The tracked entity and the enrollment a generated tracker response names do not exist on any
-        instance. The capture contract checks the shape of those identifiers, not their existence,
-        which is what lets a form kind whose context is data rather than metadata be generated at all -
-        and what makes a generated registration response mean the same thing as a real one, since a
-        real client mints those identifiers too.
+        A generated registration mints the two identifiers it creates, which is what a real client
+        does too - the person and the enrollment come into existence with the submission that
+        registers them. A generated stage response names a pair a spooled registration already
+        minted, and mints one only where the spool holds no registration of its program to adopt
+        from; that fall-back pair exists on no instance, and DHIS2 refuses a stage event naming it
+        with `E1079` and `E1313`, which is exactly what the adoption is for.
+
+        The capture contract checks the shape of these identifiers rather than their existence,
+        which is what lets a form kind whose context is data rather than metadata be generated at
+        all - and what keeps the 201 round trip standing whichever way the pair was decided.
         """
         return _shaped_uid(self._random)
 
@@ -456,6 +544,86 @@ def _distinct_answer(question: CaptureQuestion, token: str) -> QuestionnaireResp
     if question.answer_element == "valueInteger":
         return QuestionnaireResponseAnswer(valueInteger=int(value))
     return None
+
+
+def adopted_tracker_pair(
+    index: CaptureIndex, naming: CaptureNaming, store: ResourceStore, spool: ResponseSpool | None
+) -> TrackerPair | None:
+    """The pair a generated stage response answers against: what a spooled registration of its program minted.
+
+    This is the join the capture UI's enrollment picker makes, made server-side. A stage form names
+    its program on the `{base}/id/program` identifier, the registration form of that program carries
+    the same identifier, and every receipt answering that form holds one minted pair - so the whole
+    lookup is local to this project and touches no instance.
+
+    The order is the picker's order. A forwarded registration is preferred over a received one
+    because DHIS2 already holds its pair, and within a state the newest registration wins, which is
+    the person most plausibly being followed up. A rejected registration is never adopted. A receipt
+    holding half a pair, or one these models cannot read, is passed over rather than adopted from,
+    because a stage event built on half a pair is refused exactly as surely as one built on a
+    fabricated pair. None means the spool holds no registration of this program, and the caller mints.
+    """
+    if spool is None or index.form_kind != _STAGE_FORM_KIND or index.program_uid is None:
+        return None
+    forms = _program_form_entries(index.program_uid, naming, store)
+    if not forms:
+        return None
+    receipts = spool.search(form_kind=_REGISTRATION_FORM_KIND, lifecycles=_ADOPTABLE_LIFECYCLES)
+    preferred = sorted(receipts, key=lambda receipt: _ADOPTABLE_LIFECYCLES.index(receipt.lifecycle))
+    for receipt in preferred:
+        if not any(_answers_form(receipt, entry) for entry in forms):
+            continue
+        pair = _receipt_tracker_pair(receipt, naming)
+        if pair is not None:
+            return pair
+    return None
+
+
+def _program_form_entries(program_uid: str, naming: CaptureNaming, store: ResourceStore) -> tuple[StoreEntry, ...]:
+    """Every served Questionnaire carrying one program's grouping identifier - its registration form among them.
+
+    The program identifier alone names a program's registration form, its stage forms, and an event
+    program's own form alike, so it is not on its own enough to say which form a receipt answered.
+    What settles it is the receipt: the facade records the DHIS2 form kind it validated a submission
+    as, and only a registration is recorded as `tracker`, so filtering the receipts by kind and their
+    forms by program identifies the registrations of one program exactly.
+    """
+    token = IdentifierToken(system=naming.program_identifier_system, value=program_uid)
+    return tuple(
+        entry
+        for entry in store.entries
+        if entry.resource_type == QUESTIONNAIRE_RESOURCE_TYPE and token in entry.identifiers
+    )
+
+
+def _answers_form(receipt: StoredReceipt, entry: StoreEntry) -> bool:
+    """Whether one receipt answered one served form, by the canonical it names or the id that canonical ends in."""
+    return receipt.questionnaire == entry.canonical_url or receipt.questionnaire.rsplit("/", 1)[-1] == entry.resource_id
+
+
+def _receipt_tracker_pair(receipt: StoredReceipt, naming: CaptureNaming) -> TrackerPair | None:
+    """The whole pair one registration receipt minted, read off the resource as it was submitted."""
+    try:
+        response = QuestionnaireResponse.model_validate(receipt.response)
+    except ValidationError:
+        return None
+    subject_identifier = response.subject.identifier if response.subject is not None else None
+    tracked_entity_uid = (
+        subject_identifier.value
+        if subject_identifier is not None and subject_identifier.system == naming.tracked_entity_system
+        else None
+    )
+    enrollment_uid = next(
+        (
+            extension.valueIdentifier.value
+            for extension in response.extension or []
+            if extension.url == naming.tracker_enrollment_url and extension.valueIdentifier is not None
+        ),
+        None,
+    )
+    if not tracked_entity_uid or not enrollment_uid:
+        return None
+    return TrackerPair(tracked_entity_uid=tracked_entity_uid, enrollment_uid=enrollment_uid)
 
 
 def _shaped_uid(generator: random.Random) -> str:

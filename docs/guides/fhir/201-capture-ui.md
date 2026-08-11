@@ -145,11 +145,13 @@ nobody can change.
 
 A tracker *stage* form asks instead of showing: **Answering for** is the
 enrollment this event reports against, and it is the one piece of envelope
-context the `$generate` skeleton gets wrong rather than merely proposes -
-the skeleton mints synthetic identifiers that name nothing in any DHIS2, so
-an unassisted stage submission would be refused at forward time. What the
-picker offers is the real pairs this server's own registration receipts
-minted, each labelled with its uid, its enrollment date, and its lifecycle:
+context you choose rather than inherit. The `$generate` skeleton proposes one
+- the pair a registration receipt of this program minted, newest forwarded
+first - and mints identifiers of its own only where this server holds no
+registration of the program to answer against, which is the one case a stage
+submission is refused at forward time. What the picker offers is every real
+pair this server's own registration receipts minted, each labelled with its
+uid, its enrollment date, and its lifecycle:
 a forwarded registration names objects DHIS2 already holds, a received one
 will only after `d2w fhir forward` runs - still pickable, and the wait is
 said inline rather than discovered at forward time. Rejected registrations

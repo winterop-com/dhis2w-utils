@@ -131,6 +131,7 @@ from dhis2w_fhir.resources.examples import (
     EXAMPLES_DIRECTORY,
     MULTI_VALUE_SEPARATOR,
     STATUS_BY_EVENT_STATUS,
+    UNSYNTHESIZABLE_VALUE_TYPES,
     ExampleTally,
     SyntheticBuild,
     answer_element,
@@ -148,6 +149,7 @@ from dhis2w_fhir.resources.examples import (
     example_tracker_context,
     location_stem,
     response_status_code,
+    seeded_format_constrained_value,
     zoned_date_time,
 )
 from dhis2w_fhir.resources.examples.documents import (
@@ -540,6 +542,7 @@ __all__ = [
     "TRANSLATION_EXTENSION_URL",
     "TargetSelection",
     "TranslationIn",
+    "UNSYNTHESIZABLE_VALUE_TYPES",
     "UnsupportedProgramError",
     "VALIDATE_CODES_STEPS",
     "VALIDATE_ECHO_CATEGORIES",
@@ -654,6 +657,7 @@ __all__ = [
     "resolve_attribute_code_index",
     "resolve_identity_stems",
     "response_status_code",
+    "seeded_format_constrained_value",
     "source_description",
     "source_display_name",
     "source_items",

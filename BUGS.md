@@ -3778,7 +3778,8 @@ mismatch that cannot be true of an object nobody has. It arrives beside `E1313`
 ("of an Enrollment does not reference a TrackedEntity"), which is equally about
 resolution rather than about the reference the payload carries.
 
-**Observed on:** DHIS2 2.42 (`dhis2/core:2.42`, 2026-08-10).
+**Observed on:** DHIS2 2.42 (`dhis2/core:2.42`, 2026-08-10), 2.42.6-SNAPSHOT
+(2026-08-11), and 2.43.1 (revision `9cbfbf3`, 2026-08-11).
 
 **Repro:**
 
@@ -3803,9 +3804,15 @@ curl -s -u admin:district -H 'Content-Type: application/json' \
 **Expected:** an error saying the enrollment `EnAaBbCcDd1` does not exist - DHIS2 has
 `E1081` ("Enrollment ... could not be found") for exactly that.
 
-**Actual:** `E1079` - "Event: `<uid>` Program: `IpHINAT79UW` is different from Program
-defined in Enrollment `EnAaBbCcDd1`" - plus `E1313`. Both describe a relationship
-between the event and an enrollment that does not exist.
+**Actual:** `E1079` plus `E1313`. Both describe a relationship between the event and an
+enrollment that does not exist. The `E1079` message is worded two ways across the builds
+tested, so it is recorded here per version:
+
+- 2.42 (`dhis2/core:2.42`): ``Event: `<uid>` Program: `IpHINAT79UW` is different from
+  Program defined in Enrollment `EnAaBbCcDd1` ``
+- 2.42.6-SNAPSHOT: ``Event: `<uid>`, program: `IpHINAT79UW` is different from program
+  defined in enrollment `<uid>`.`` - a comma after the event UID, lower-case `program`
+  and `enrollment`, and a full stop at the end.
 
 **Impact:** the reported cause misdirects. A forwarder rolling rejections up by error
 code reports "events reference enrollments of another program", which sends a reader
@@ -3814,7 +3821,8 @@ refusal several entries earlier in the same run. This cost a full diagnosis cycl
 `d2w fhir forward`: the 48 `E1079`s of one drain were, every one of them, the stage
 events of the 24 registrations `E1064` had refused - verified by matching each
 enrollment named in an `E1079` against the enrollments minted by the refused
-registrations (24 of 24).
+registrations (24 of 24). The wording is not stable across builds of one major either,
+so a rollup keying on the message rather than the code reads one refusal as two.
 
 **Workaround in this repo:** none possible on the read side - the code is what DHIS2
 sends. The cause is addressed instead: `d2w fhir generate load-set` answers a `unique`
@@ -3823,13 +3831,20 @@ happens (`distinct_unique_value` in
 `packages/dhis2w-fhir/src/dhis2w_fhir/resources/examples/__init__.py`), and
 `d2w fhir forward` posts registrations before events so an enrollment exists by the
 time its events are read (`FORWARD_TARGET_ORDER` in
-`packages/dhis2w-fhir/src/dhis2w_fhir/conversion/schemas.py`).
+`packages/dhis2w-fhir/src/dhis2w_fhir/conversion/schemas.py`). The other source of a
+fabricated enrollment is closed at the same place it was minted: a `$generate` stage
+response answers against the pair a spooled registration of its program minted, and
+mints one of its own only where no such registration exists (`adopted_tracker_pair` in
+`packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/synthesize.py`).
 
-**Also observed on 2.43.1** (rev 9cbfbf3, 2026-08-11): an event naming a completely
-fabricated enrollment (no earlier refusal involved, the UID never existed) draws the
-same pair - `E1079` asserting a program mismatch against the absent enrollment plus
-`E1313` - in both `importMode=VALIDATE` and real import. `E1081` ("Enrollment ...
-could not be found") never fires for events on either version tested.
+**Also observed with no earlier refusal at all** (2.42.6-SNAPSHOT and 2.43.1 rev
+`9cbfbf3`, both 2026-08-11): an event naming a completely fabricated enrollment - the
+UID never existed, and nothing was refused before it - draws the same pair, `E1079`
+asserting a program mismatch against the absent enrollment plus `E1313`, in both
+`importMode=VALIDATE` and real import. `E1081` ("Enrollment ... could not be found")
+never fires for events on any version tested. So the misdirection is not an artefact of
+the cascade: the code says "different program" whenever the enrollment cannot be
+resolved, whatever the reason it cannot be.
 
 **Verifier:** none yet.
 
