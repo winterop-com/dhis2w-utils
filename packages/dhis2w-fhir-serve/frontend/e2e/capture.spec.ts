@@ -631,10 +631,14 @@ test.describe('a tracker registration form', () => {
             'this server does not answer $generate for the tracker kind, so a registration cannot be filled here',
         )
 
-        // The listing names the kind in the words the whole UI uses for it.
+        // The listing shelves the form inside its program's tracker group, with its role stated.
         await page.goto('/#/forms')
-        const listed = page.getByRole('row').filter({ hasText: form.title }).first()
-        await expect(listed).toContainText('Tracker registration')
+        const listed = page
+            .getByTestId('forms-tracker-programs')
+            .getByRole('row')
+            .filter({ hasText: form.title })
+            .first()
+        await expect(listed).toContainText('registration - enrols a person')
 
         const opened = page.waitForResponse((response) => response.url().includes('$generate'))
         await listed.click()

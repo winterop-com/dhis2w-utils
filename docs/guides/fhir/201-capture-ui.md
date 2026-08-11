@@ -74,12 +74,17 @@ does not blank the forms beside it.
 
 ## Forms, and the form itself
 
-**Forms** lists every `Questionnaire` this server publishes, with the DHIS2
-object kind each one came from (read off the `D2FormType` extension - a form
-carrying none is shown as such, because the facade will refuse to capture
-against it) and how many questions it asks.
+**Forms** lists every `Questionnaire` this server publishes, grouped by the
+DHIS2 capture model it came from (read off the `D2FormType` extension - a
+form carrying none sits in its own stated section, because the facade will
+refuse to capture against it). **Data sets** are periodic reports for an
+organisation unit, with no person involved; **Event programs** record single
+events without registering anyone; and **Tracker programs** get one group
+per program - its registration form first, its stages nested beneath -
+because stages record visits for a person the registration enrols. Every row
+keeps its question count and id, and opens the form.
 
-![The forms list: title, DHIS2 kind, question count, and id per served form](../../img/fhir/capture-ui-forms.png)
+![The forms list: data sets, event programs, and tracker programs as sections, with question count and id per served form](../../img/fhir/capture-ui-forms.png)
 
 Open one and you get the form itself - every question as the control its R4
 item type asks for: a switch for a yes/no, a bounded number field for a

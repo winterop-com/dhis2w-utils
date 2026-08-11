@@ -16,16 +16,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useSpool, type SpoolState } from '@/hooks/use-spool'
 import { useUiConfig } from '@/hooks/use-ui-config'
-import {
-    formIdentifier,
-    formsByTitle,
-    formTitle,
-    formTypeOf,
-    programOf,
-    type Location,
-    type Questionnaire,
-    type ResourceList,
-} from '@/lib/fhir'
+import { catalogueForms, isEventProgram, type ProgramGroup } from '@/lib/catalogue'
+import { formIdentifier, formTitle, type Location, type Questionnaire, type ResourceList } from '@/lib/fhir'
 import {
     ancestorsOf,
     buildFormAssignments,
@@ -180,7 +172,8 @@ export function OrgUnits() {
     const selected = tree.byId.get(requested) ?? (requested === '' ? (tree.roots[0] ?? null) : null)
     const filtered = useMemo(() => matchingUnitIds(tree, query), [tree, query])
     const catalog = useMemo(
-        () => (selected === null ? null : catalogueForms(reportableFormsAt(assignmentIndex, selected.id), formsById)),
+        () =>
+            selected === null ? null : catalogueUnitForms(reportableFormsAt(assignmentIndex, selected.id), formsById),
         [selected, assignmentIndex, formsById],
     )
 
@@ -855,16 +848,6 @@ function UnitChildren({ node, onSelect }: { node: OrgUnitNode; onSelect: (unitId
     )
 }
 
-/** One program's published capture surface: registration and stages together, or its one event form. */
-interface ProgramGroup {
-    /** The DHIS2 program uid, or the form's own id when it names no program. */
-    key: string
-    title: string
-    registration: Questionnaire | null
-    event: Questionnaire | null
-    stages: Questionnaire[]
-}
-
 /** The forms reportable at one unit, shelved the way DHIS2 shelves them. */
 interface UnitFormCatalog {
     dataSets: Questionnaire[]
@@ -876,54 +859,33 @@ interface UnitFormCatalog {
 }
 
 /**
- * Shelve the reportable forms by DHIS2 kind.
+ * Shelve the reportable forms by DHIS2 kind, through the one grouping algorithm in lib/catalogue.
  *
- * A data set and a program are different capture surfaces, and a tracker program is one thing
- * whose registration and stage forms belong together - so the flat reportable list is folded into
- * sections, with the program grouping keyed on the program uid every tracker form carries.
+ * What this adds over `catalogueForms` is the resolution step the rail needs: the reportable list
+ * is form ids, and an id the store no longer serves still has to be listed rather than hidden -
+ * so unresolved ids join the kindless forms in `other`, keyed by the id the assignment names.
  */
-function catalogueForms(reportable: ReportableForms, formsById: Map<string, Questionnaire>): UnitFormCatalog {
-    const dataSets: Questionnaire[] = []
-    const other: { formId: string; questionnaire: Questionnaire | null }[] = []
-    const groups = new Map<string, ProgramGroup>()
-    const groupFor = (key: string): ProgramGroup => {
-        const existing = groups.get(key)
-        if (existing !== undefined) return existing
-        const created: ProgramGroup = { key, title: key, registration: null, event: null, stages: [] }
-        groups.set(key, created)
-        return created
-    }
-
+function catalogueUnitForms(reportable: ReportableForms, formsById: Map<string, Questionnaire>): UnitFormCatalog {
+    const served: Questionnaire[] = []
+    const missingFormIds: string[] = []
     for (const formId of [...reportable.restrictedFormIds, ...reportable.universalFormIds]) {
         const questionnaire = formsById.get(formId)
-        if (questionnaire === undefined) {
-            other.push({ formId, questionnaire: null })
-            continue
-        }
-        const kind = formTypeOf(questionnaire)
-        if (kind === 'aggregate') dataSets.push(questionnaire)
-        else if (kind === null) other.push({ formId, questionnaire })
-        else {
-            const group = groupFor(programOf(questionnaire) ?? formId)
-            if (kind === 'event') group.event = questionnaire
-            else if (kind === 'tracker') group.registration = questionnaire
-            else group.stages.push(questionnaire)
-        }
+        if (questionnaire === undefined) missingFormIds.push(formId)
+        else served.push(questionnaire)
     }
 
-    const programs = [...groups.values()]
-    for (const group of programs) {
-        // The program is named by its registration when one is published, by its event form
-        // otherwise - the event form IS the program - and by its first stage as the last resort.
-        const naming = group.registration ?? group.event ?? group.stages[0]
-        if (naming !== undefined) group.title = formTitle(naming)
-        group.stages = formsByTitle(group.stages)
-    }
-    programs.sort((left, right) => left.title.localeCompare(right.title))
+    const catalog = catalogueForms(served)
+    const other: { formId: string; questionnaire: Questionnaire | null }[] = [
+        ...catalog.unclassified.map((questionnaire) => ({
+            formId: formIdentifier(questionnaire),
+            questionnaire: questionnaire as Questionnaire | null,
+        })),
+        ...missingFormIds.map((formId) => ({ formId, questionnaire: null })),
+    ]
 
     return {
-        dataSets: formsByTitle(dataSets),
-        programs,
+        dataSets: catalog.dataSets,
+        programs: catalog.programs,
         other: other.toSorted((left, right) => left.formId.localeCompare(right.formId)),
         assignedHere: new Set(reportable.restrictedFormIds),
     }
@@ -1042,7 +1004,7 @@ function FormCatalogSections({
 
 /** One program's rows: an event program is its one form; a tracker program groups its stages. */
 function ProgramRows({ group, assignedHere }: { group: ProgramGroup; assignedHere: Set<string> }) {
-    if (group.event !== null && group.registration === null && group.stages.length === 0) {
+    if (isEventProgram(group) && group.event !== null) {
         const formId = formIdentifier(group.event)
         return (
             <FormRow

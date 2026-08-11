@@ -83,7 +83,7 @@ test.describe('docs screenshots', () => {
     test('the forms list', async ({ page }) => {
         await page.goto('/#/forms')
         await expect(page.getByRole('heading', { name: 'Forms', level: 2 })).toBeVisible()
-        await expect(page.getByRole('cell', { name: 'Aggregate data set' }).first()).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Tracker programs' })).toBeVisible()
 
         await page.screenshot({
             path: path.join(screenshotDirectory, 'capture-ui-forms.png'),
