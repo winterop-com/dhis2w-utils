@@ -1,0 +1,75 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "Tet1aaaaaaa",
+  "url": "http://example.org/fhir/Questionnaire/Tet1aaaaaaa",
+  "title": "Person",
+  "description": "DHIS2 tracked entity type Person (Tet1aaaaaaa) as a registration form: the tracked entity attributes the type itself collects, captured when a person is registered without being enrolled in any program.",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "tracked-entity"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/tracked-entity-type",
+      "value": "Tet1aaaaaaa"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/tracked-entity-type-code",
+      "value": "TET_PERSON"
+    }
+  ],
+  "name": "D2TET_Tet1aaaaaaa",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "code": "tracked-entity",
+      "system": "http://example.org/fhir/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "Tea1aaaaaaa",
+      "code": [
+        {
+          "code": "Tea1aaaaaaa",
+          "system": "http://example.org/fhir/CodeSystem/d2-tea-cs",
+          "display": "National identifier"
+        }
+      ],
+      "text": "National id",
+      "type": "string",
+      "required": true,
+      "extension": [
+        {
+          "url": "http://example.org/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "Tea2aaaaaaa",
+      "code": [
+        {
+          "code": "Tea2aaaaaaa",
+          "system": "http://example.org/fhir/CodeSystem/d2-tea-cs",
+          "display": "Marital status"
+        }
+      ],
+      "text": "Marital status",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/ValueSet/d2-os-Os3aaaaaaaa-vs",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    }
+  ]
+}

@@ -1315,9 +1315,11 @@ async def _materialise_live_store(project: FhirProject) -> int:
     load into one store, so writing those again would serve every one of them twice.
     """
     from dhis2w_fhir_serve import ServeSettings  # noqa: PLC0415
-    from dhis2w_fhir_serve.live import build_live_store  # noqa: PLC0415
+    from dhis2w_fhir_serve.live import build_live_store, open_live_client  # noqa: PLC0415
 
-    store = await build_live_store(project, ServeSettings(project_dir=project.project_root, live=True))
+    settings = ServeSettings(project_dir=project.project_root, live=True)
+    async with open_live_client(project, settings) as client:
+        store = await build_live_store(project, settings, client)
     predefined = _predefined_identities(project)
     directory = project.ig_directory / _COMPILED_RESOURCES_RELATIVE_PATH
     directory.mkdir(parents=True, exist_ok=True)

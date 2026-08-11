@@ -21,6 +21,7 @@ from dhis2w_fhir_serve.routes.context import serve_context
 if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject
 
+    from dhis2w_fhir_serve.patients.index import PatientIndex
     from dhis2w_fhir_serve.settings import ServeSettings
     from dhis2w_fhir_serve.store import StoreSummary
 
@@ -32,6 +33,7 @@ def build_metadata_body(
     store_summary: StoreSummary,
     spool_count: int,
     settings: ServeSettings,
+    patient_index: PatientIndex,
     server_version: str,
 ) -> dict[str, Any]:
     """Render the server's CapabilityStatement as the JSON body `/metadata` answers with.
@@ -44,6 +46,7 @@ def build_metadata_body(
         store_summary=store_summary,
         spool_count=spool_count,
         settings=settings,
+        patient_index=patient_index,
         server_version=server_version,
     )
     return capability.model_dump(mode="json", exclude_none=True, by_alias=True)

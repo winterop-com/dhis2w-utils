@@ -43,10 +43,19 @@ import {
 export function AnswerControl({
     node,
     slots,
+    locked = false,
     dispatch,
 }: {
     node: QuestionnaireNode
     slots: readonly AnswerSlot[]
+    /**
+     * True when the submission will not carry this answer whatever is typed.
+     *
+     * A fact about the submission rather than about the question - `node.readOnly` is the form's
+     * own statement and this is the page's - and it disables the same controls for the same
+     * reason: a control that accepts input nothing will send is a control that lies.
+     */
+    locked?: boolean
     dispatch: Dispatch<AnswerAction>
 }) {
     if (!node.fillable) {
@@ -64,6 +73,7 @@ export function AnswerControl({
                 node={node}
                 slot={slots[0] ?? EMPTY_SLOT}
                 controlId={node.linkId}
+                disabled={node.readOnly || locked}
                 onChange={(slot) => dispatch({ kind: 'set', linkId: node.linkId, index: 0, slot })}
             />
         )
@@ -86,6 +96,7 @@ export function AnswerControl({
                             node={node}
                             slot={slot}
                             controlId={index === 0 ? node.linkId : `${node.linkId}-${index}`}
+                            disabled={node.readOnly || locked}
                             onChange={(next) =>
                                 dispatch({ kind: 'set', linkId: node.linkId, index, slot: next })
                             }
@@ -96,7 +107,7 @@ export function AnswerControl({
                         variant="ghost"
                         size="icon"
                         aria-label={`Remove answer ${index + 1} of ${node.text ?? node.linkId}`}
-                        disabled={node.readOnly}
+                        disabled={node.readOnly || locked}
                         onClick={() => dispatch({ kind: 'remove-repeat', linkId: node.linkId, index })}
                     >
                         <X className="size-4" />
@@ -108,7 +119,7 @@ export function AnswerControl({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={node.readOnly}
+                    disabled={node.readOnly || locked}
                     onClick={() => dispatch({ kind: 'add-repeat', linkId: node.linkId })}
                 >
                     <Plus className="size-4" />
@@ -124,14 +135,16 @@ function SlotControl({
     node,
     slot,
     controlId,
+    disabled,
     onChange,
 }: {
     node: QuestionnaireNode
     slot: AnswerSlot
     controlId: string
+    /** Whether this row accepts input at all - the form's own `readOnly`, or the page's lock. */
+    disabled: boolean
     onChange: (slot: AnswerSlot) => void
 }) {
-    const disabled = node.readOnly
     const write = (text: string) => onChange({ ...EMPTY_SLOT, text })
 
     switch (node.type) {

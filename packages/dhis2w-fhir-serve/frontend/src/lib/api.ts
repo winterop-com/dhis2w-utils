@@ -20,17 +20,27 @@
  * off. Anything else is a programming error and is refused here rather than by
  * the server.
  *
- * TWO PATHS HERE ARE NOT FHIR. `/spool` answers plain JSON, not
+ * TWO OF THE GUARDED PREFIXES ANSWER FROM DHIS2 RATHER THAN FROM THE STORE.
+ * `/Patient` and `/patients/{uid}/enrollments` are mounted only by a live
+ * process, and a compiled one refuses both by saying so - which is a refusal a
+ * caller reads and renders, not a path that escaped the guard. Everything else
+ * on this surface is answered from a store loaded once at startup.
+ *
+ * THREE PATHS HERE ARE NOT FHIR. `/spool` answers plain JSON, not
  * `application/fhir+json`: it serves the receipt *envelopes* - when the facade
  * accepted each submission, which of its three lifecycle directories the file
  * now sits in, and what DHIS2 said when it refused one - and none of those are
- * QuestionnaireResponse elements. `/uiconfig` is the other, and answers the
+ * QuestionnaireResponse elements. `/uiconfig` is the second, and answers the
  * handful of run-time settings this UI has to act on - today the map's tile
  * template, which is a property of how the process was started rather than of
- * anything the guide published. `dhis2w_fhir_serve.routes.spool` argues the
- * shape in full and `routes.uiconfig` inherits it. Both still go through this
- * guard, because the reason for the guard is the SPA fallback, and that applies
- * to every path alike.
+ * anything the guide published. `/patients/{uid}/enrollments` is the third, and
+ * lowercase for the same reason `/spool` is: whether a DHIS2 enrollment is an
+ * `EpisodeOfCare` or a `CarePlan` is an open decision, and answering a picker's
+ * feed as a FHIR resource would settle it by accident.
+ * `dhis2w_fhir_serve.routes.spool` argues the shape in full, and
+ * `routes.uiconfig` and `routes.enrollments` inherit it. All three still go
+ * through this guard, because the reason for the guard is the SPA fallback, and
+ * that applies to every path alike.
  *
  * WHY NO QUERY LIBRARY. There is no react-query, swr, or zustand in this app on
  * purpose. The server answers whole Bundles off a store loaded once at startup,
@@ -40,13 +50,17 @@
  * `useSyncExternalStore`.
  */
 
-import type {
-    Bundle,
-    CapabilityStatement,
-    OperationOutcome,
-    Parameters,
-    QuestionnaireResponse,
+import {
+    PATIENT_IDENTIFIER_SEARCH_PARAMETER,
+    PATIENT_RESOURCE_TYPE,
+    type Bundle,
+    type CapabilityStatement,
+    type OperationOutcome,
+    type Parameters,
+    type Patient,
+    type QuestionnaireResponse,
 } from '@/lib/fhir'
+import type { PatientEnrollments } from '@/lib/patients'
 import type { SpoolListing } from '@/lib/spool'
 import type { UiConfig } from '@/lib/uiconfig'
 
@@ -65,6 +79,8 @@ export const GUARDED_PATH_SEGMENTS = [
     'metadata',
     'spool',
     'uiconfig',
+    'patients',
+    'Patient',
     'Questionnaire',
     'QuestionnaireResponse',
     'CodeSystem',
@@ -254,6 +270,35 @@ export async function postQuestionnaireResponse(
         method: 'POST',
         headers: { 'Content-Type': FHIR_JSON_MEDIA_TYPE },
         body: JSON.stringify(response),
+    })
+}
+
+/**
+ * Search the DHIS2 instance behind a live facade for the people one identifier value names.
+ *
+ * The bare-value token form, which names no key: the server tries the tracked entity uid and every
+ * attribute DHIS2 declares unique, and folds the matches into one searchset deduplicated by person.
+ * That is the right form for a control someone types an identifier into - the person holding the
+ * card in front of them does not know which of the instance's attributes it is a value of.
+ *
+ * A compiled process refuses this with a `not-supported` OperationOutcome, which arrives here as a
+ * `FhirRequestError` carrying the server's own words. Callers ask `/metadata` first and never offer
+ * the control at all in that case; the refusal is what a race against a restart reads as.
+ */
+export async function searchPatients(identifier: string): Promise<Bundle<Patient>> {
+    return searchResources<Patient>(PATIENT_RESOURCE_TYPE, { [PATIENT_IDENTIFIER_SEARCH_PARAMETER]: identifier })
+}
+
+/**
+ * Which programs one person is enrolled in, as the picker's feed states it.
+ *
+ * Sent with `cache: 'no-store'`, like `/spool` and for the same class of reason: this is an answer
+ * about the DHIS2 instance at this moment, and a person enrolled in a program a minute ago must not
+ * be reported as not enrolled because a cached answer was still warm.
+ */
+export async function readPatientEnrollments(trackedEntityUid: string): Promise<PatientEnrollments> {
+    return readJson<PatientEnrollments>(`/patients/${encodeURIComponent(trackedEntityUid)}/enrollments`, {
+        cache: 'no-store',
     })
 }
 

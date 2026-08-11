@@ -12,6 +12,8 @@ a checkout needs `make build-frontend` once.
 
 - serve the capture UI and know what it does and does not add to the facade
 - fill a form with generated test data, change what you like, and submit it
+- register a person with no program, and answer a registration for somebody
+  the DHIS2 instance already holds
 - read a receipt back joined to the questions it answers
 - follow a receipt's lifecycle from the browser while `d2w fhir forward`
   runs in a terminal
@@ -79,10 +81,22 @@ DHIS2 capture model it came from (read off the `D2FormType` extension - a
 form carrying none sits in its own stated section, because the facade will
 refuse to capture against it). **Data sets** are periodic reports for an
 organisation unit, with no person involved; **Event programs** record single
-events without registering anyone; and **Tracker programs** get one group
+events without registering anyone; **Tracker programs** get one group
 per program - its registration form first, its stages nested beneath -
-because stages record visits for a person the registration enrols. Every row
-keeps its question count and id, and opens the form.
+because stages record visits for a person the registration enrols; and
+**People** is the person-only kind, which registers a person in this DHIS2
+instance without enrolling them in a program. Every row keeps its question
+count and id, and opens the form.
+
+A person-only form is generated from a DHIS2 tracked entity type rather than
+from a data set or a program, so it belongs to neither of the other shelves:
+it names no program to group under and no period to report for. It is the
+same registration surface with the enrollment taken out - a subject, an
+organisation unit, and the attributes the type itself collects - and its
+receipt files no enrollment at all. DHIS2 hangs an organisation-unit
+assignment on a data set and on a program and never on a type, so a
+person-only form is reportable at every published organisation unit and gets
+a **People** shelf of its own in the organisation-units rail too.
 
 ![The forms list: data sets, event programs, and tracker programs as sections, with question count and id per served form](../../img/fhir/capture-ui-forms.png)
 
@@ -143,6 +157,49 @@ envelope and ride the submission unchanged; they are on screen because a
 submission carrying a date nobody saw is worse than one carrying a date
 nobody can change.
 
+### Who a registration is about
+
+Both registration kinds - a tracker registration and a person-only form -
+carry a **Person** control beside the other envelope facts. It opens on
+**New person**, which mints an identity for somebody the instance has never
+seen, and that is the whole of what the control does on a server serving a
+compiled guide: there is no DHIS2 instance behind one, so there is nobody to
+find, and the control says so rather than offering a search that would always
+fail.
+
+A **live** server publishes `GET /Patient?identifier=`, and then the control
+offers a second option, **Find in this DHIS2 instance**. Type an identifier
+value and the search runs against the instance once the typing stops. What it
+searches is stated on the control: the identifier values DHIS2 holds - the
+tracked entity uid, and the values of the attributes DHIS2 declares unique.
+Not names. DHIS2 states no attribute that means a name, so the served
+projection carries none and this box would be lying if it claimed to search
+them. Each result is shown as what the projection carries, with the value of a
+unique attribute leading, the rest of the attribute values beside it, and the
+tracked entity uid last.
+
+Choosing a person changes the submission in three ways, and the screen shows
+all three:
+
+- **The subject becomes their real tracked-entity uid**, in place of the one
+  `$generate` minted - so the submission is about somebody DHIS2 already has.
+- **The submission carries `D2SubjectExists`**, which is what tells
+  [`d2w fhir forward`](201-forward.md) to write onto that person rather than
+  create one.
+- **The entity-level questions go read-only and are cleared.** Those are the
+  ones DHIS2 writes onto the person rather than onto the enrollment (the form
+  states which on each question, as `D2EntityLevel`), and the instance already
+  holds this person's values for them. This is not tidiness: the forwarder
+  **refuses** a submission that states its subject exists and carries one
+  anyway, naming each such answer. Change it on that person's own record in
+  DHIS2, or register a new person instead.
+
+Their existing enrollments are listed underneath, read from the instance -
+program name where this project's guide publishes one, the enrollment's state
+in words, when it began, and where. A completed enrollment carries a warning,
+because DHIS2 accepts new events into one with no error and no warning at all
+(BUGS.md 70), so this is the only place anyone is told.
+
 A tracker *stage* form asks instead of showing: **Answering for** is the
 enrollment this event reports against, and it is the one piece of envelope
 context you choose rather than inherit. The `$generate` skeleton proposes one
@@ -158,6 +215,19 @@ said inline rather than discovered at forward time. Rejected registrations
 are never offered. The default is the newest forwarded pair, so an ordinary
 submission lands; with nothing to offer, the synthetic draw stands and the
 page links to the registration form to capture first.
+
+On a **live** server the picker also offers a second source, **Enrollments in
+this DHIS2 instance** - the receipts captured here stay the default, and this
+is the addition. Find the person with the same identifier search the
+registration form uses, and their enrollments **in this form's own program**
+become choosable, each with its uid, when it began, and the organisation unit
+it sits at. Their enrollments in other programs are not offered at all,
+because DHIS2 refuses an event filed against an enrollment in a program the
+event does not belong to. A completed enrollment is offered and carries the
+warning it earns: DHIS2 will take the event without complaint, so choosing it
+is deliberate. Choosing one sets both halves of the pair, and both are DHIS2's
+own - a submission built from it imports with no forwarder run standing
+between it and the instance.
 
 A refused submission does not vanish into a toast: the validator's
 OperationOutcome is rendered issue by issue above the buttons, each with its
@@ -208,12 +278,14 @@ which refetches on focus.
   when you pick an organisation unit (narrower viewports get two columns
   with the same sections behind tabs). The rail opens with the selected
   unit's identity - name, level, identifiers, the clickable parent chain -
-  and stacks its sections under it: **Data sets** and **Programs** are the
-  forms reportable at that unit, shelved by their DHIS2 kind with a tracker
-  program's registration and stages grouped together and the forms an
-  assignment names badged `assigned to this organisation unit` - the join
-  that says which submissions this unit can make without DHIS2 refusing
-  them with `E1029`; **Captured here** is the receipts this server holds
+  and stacks its sections under it: **Data sets**, **Programs**, and
+  **People** are the forms reportable at that unit, shelved by their DHIS2
+  kind with a tracker program's registration and stages grouped together and
+  the forms an assignment names badged `assigned to this organisation unit` -
+  the join that says which submissions this unit can make without DHIS2
+  refusing them with `E1029`; a person-only form appears at every unit,
+  because DHIS2 hangs no assignment on a tracked entity type;
+  **Captured here** is the receipts this server holds
   for captures at that unit, linked into Responses; **Children** is the
   subtree as a mini tree, and selecting a row re-roots the rail. The map
   draws the published boundaries and points over the raster layers

@@ -68,6 +68,7 @@ from dhis2w_fhir.resources.questionnaires import (
     is_multi_valued,
     item_type,
     question_entity_level,
+    search_context_declarations,
     source_description,
 )
 from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
@@ -76,8 +77,11 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     DATA_ELEMENT_TERMINOLOGY,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
+    SEARCHABLE_PROPERTY,
+    SEARCHABLE_PROPERTY_DESCRIPTION,
     TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
     UNIQUE_PROPERTY_DESCRIPTION,
+    AttributeSearchContext,
     CategoryOptionComboIn,
     FormKind,
     FormKindProfile,
@@ -341,7 +345,7 @@ def build_data_dictionary_documents(
     if referenced.tracked_entity_attributes:
         pairs.append(
             _support_pair(
-                _tracked_entity_attribute_concepts(referenced.tracked_entity_attributes),
+                _tracked_entity_attribute_concepts(referenced),
                 TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
                 config,
                 canonical,
@@ -350,6 +354,7 @@ def build_data_dictionary_documents(
                 value_set_name=names.tracked_entity_attribute_value_set,
                 value_set_id=names.tracked_entity_attribute_value_set_id,
                 ig_status=ig_status,
+                search_contexts=search_context_declarations(referenced),
             )
         )
     if referenced.option_combos:
@@ -628,8 +633,12 @@ def _data_element_concepts(data_elements: dict[str, QuestionnaireItemIn]) -> lis
     return concepts
 
 
-def _tracked_entity_attribute_concepts(attributes: dict[str, QuestionnaireItemIn]) -> list[CodeSystemConcept]:
-    """One concept per referenced tracked entity attribute: its DHIS2 code, its value type, its uniqueness."""
+def _tracked_entity_attribute_concepts(referenced: ReferencedObjects) -> list[CodeSystemConcept]:
+    """One concept per referenced tracked entity attribute: its code, value type, uniqueness, searchability.
+
+    The searchability answers follow the same order the FSH path writes them in: the roll-up over
+    every context the run publishes, then one property per context that asked the attribute.
+    """
     return [
         CodeSystemConcept(
             code=item.uid,
@@ -638,9 +647,16 @@ def _tracked_entity_attribute_concepts(attributes: dict[str, QuestionnaireItemIn
                 *_code_property(item.code),
                 CodeSystemConceptProperty(code=_VALUE_TYPE_PROPERTY, valueCode=item.value_type),
                 CodeSystemConceptProperty(code=_UNIQUE_PROPERTY, valueBoolean=item.unique),
+                CodeSystemConceptProperty(
+                    code=SEARCHABLE_PROPERTY, valueBoolean=referenced.searchable_anywhere(item.uid)
+                ),
+                *(
+                    CodeSystemConceptProperty(code=context.property_code, valueBoolean=context.searchable)
+                    for context in referenced.contexts_for(item.uid)
+                ),
             ],
         )
-        for item in sorted(attributes.values(), key=lambda entry: (entry.name, entry.uid))
+        for item in sorted(referenced.tracked_entity_attributes.values(), key=lambda entry: (entry.name, entry.uid))
     ]
 
 
@@ -691,6 +707,7 @@ def _support_pair(
     value_set_id: str,
     ig_status: IgStatus,
     decomposition: CategoryDecomposition | None = None,
+    search_contexts: list[AttributeSearchContext] | None = None,
 ) -> _SupportPair:
     """Build one support pair: a complete CodeSystem over the concepts, and the ValueSet including it whole."""
     code_system_url = code_system_canonical(canonical, code_system_id)
@@ -709,7 +726,7 @@ def _support_pair(
             content="complete",
             count=len(concepts),
             valueSet=value_set_url,
-            property=_property_declarations(concepts, terminology, config, decomposition),
+            property=_property_declarations(concepts, terminology, config, decomposition, search_contexts),
             concept=concepts,
         ),
         value_set=ValueSet(
@@ -730,6 +747,7 @@ def _property_declarations(
     terminology: SupportTerminologyProfile,
     config: GenerateConfig,
     decomposition: CategoryDecomposition | None = None,
+    search_contexts: list[AttributeSearchContext] | None = None,
 ) -> list[CodeSystemProperty]:
     """Declare every concept property the built concepts actually carry, under the configured property base."""
     property_base = f"{config.identifier_system_base}/property"
@@ -784,6 +802,29 @@ def _property_declarations(
                 type="boolean",
             )
         )
+    carries_searchable = any(
+        concept_property.code == SEARCHABLE_PROPERTY
+        for concept in concepts
+        for concept_property in concept.property or []
+    )
+    if carries_searchable:
+        declarations.append(
+            CodeSystemProperty(
+                code=SEARCHABLE_PROPERTY,
+                uri=f"{property_base}/{SEARCHABLE_PROPERTY}",
+                description=SEARCHABLE_PROPERTY_DESCRIPTION,
+                type="boolean",
+            )
+        )
+    declarations.extend(
+        CodeSystemProperty(
+            code=context.property_code,
+            uri=f"{property_base}/{context.property_code}",
+            description=context.description,
+            type="boolean",
+        )
+        for context in search_contexts or []
+    )
     if decomposition is not None:
         carried = {
             concept_property.code

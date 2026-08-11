@@ -1430,7 +1430,10 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
             continue
         lines.extend([f"## {heading}", ""])
         for outcome in outcomes:
-            lines.append(f"- `{outcome.response_id}` ({outcome.questionnaire or 'no form'}) - {outcome.spool_path}")
+            target = outcome.target_kind or "no payload"
+            lines.append(
+                f"- `{outcome.response_id}` ({outcome.questionnaire or 'no form'}) - {target} - {outcome.spool_path}"
+            )
             imported = outcome.import_outcome
             if imported is not None and imported.issues:
                 lines.extend(f"    - {issue.line}" for issue in imported.issues[:_REPORT_REASON_SAMPLE])

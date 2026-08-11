@@ -24,22 +24,24 @@ the response profiles, a requirements CapabilityStatement, and a prose
 Capture page with validated examples. A third party needs the published
 guide and nothing else.
 
-## The four profiles
+## The five profiles
 
 One per form kind, in `foundation/d2-responses.fsh`. "Form kind" is the
 DHIS2 object the form was generated from: a routine *data set* reported
-per period ("aggregate"), a standalone *event program*, and a *tracker
+per period ("aggregate"), a standalone *event program*, a *tracker
 program* - a longitudinal record with a registration form and per-visit
-*stage* forms.
+*stage* forms - and a *tracked entity type*, whose own registration form
+creates a person and enrols them in nothing.
 
 | Profile | Parent | What it pins |
 | --- | --- | --- |
 | `D2AggregateResponse` | `QuestionnaireResponse` | `D2Period` 1..1, `D2AttributeOptionCombo` 0..1, `D2FormType` 1..1 fixed to `#aggregate`, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
 | `D2EventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#event`, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 restricted to `Reference(D2Location)`. |
-| `D2TrackerRegistrationResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker`, `D2OrganisationUnit` 1..1, `D2TrackerEnrollment` 1..1, `D2EnrolledAt` 1..1, `D2IncidentAt` 0..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
+| `D2TrackerRegistrationResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker`, `D2OrganisationUnit` 1..1, `D2TrackerEnrollment` 1..1, `D2EnrolledAt` 1..1, `D2IncidentAt` 0..1, `D2SubjectExists` 0..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
 | `D2TrackerEventResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracker-event`, `D2TrackerEnrollment` 1..1, `D2OrganisationUnit` 1..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2Period`. |
+| `D2TrackedEntityResponse` | `QuestionnaireResponse` | `D2FormType` 1..1 fixed to `#tracked-entity`, `D2OrganisationUnit` 1..1, `authored` 1..1, `questionnaire` 1..1, `subject` 1..1 with `subject.identifier` 1..1 and its `system` fixed to `{base}/id/tracked-entity`. No `D2TrackerEnrollment`, no enrollment dates, no `D2Period`. |
 
-The two tracker profiles restrict `subject` to `Reference(Patient)` - plus
+The three tracked-entity profiles restrict `subject` to `Reference(Patient)` - plus
 every other type the project's
 [tracked entity types](401-custom-subject-types.md) name, so a project that
 tracks herds beside people publishes `Reference(Patient or Group)`. Which
@@ -49,7 +51,7 @@ type a given form's responses actually carry is pinned by that form's own
 
 `foundation/d2-capture-server.fsh` sits beside them: a `D2CaptureServer`
 CapabilityStatement of `kind = #requirements`, declaring `create` on
-`QuestionnaireResponse` with all four profiles as `supportedProfile`, plus
+`QuestionnaireResponse` with all five profiles as `supportedProfile`, plus
 `read` and `search-type` on the `Questionnaire`, `CodeSystem`, `ValueSet`,
 `Location`, `Organization`, and `List` resources a client resolves a form
 from - `List` because a form's organisation-unit assignment is published as
@@ -134,6 +136,84 @@ DHIS2 identifiers and carries the attribute values. Whether a DHIS2
 enrollment additionally maps to an `EpisodeOfCare` or a `CarePlan` is an
 open roadmap decision; the resource layer would be an addition on top of the
 identifier contract, not a prerequisite for it.
+
+## A person-only registration creates the person and stops
+
+`D2TrackedEntityResponse` is the registration contract without its
+enrollment half. It mints the tracked entity the same way - the client draws
+the DHIS2 UID, and nothing on the instance holds it until the response is
+imported - names the organisation unit the person is owned at, and carries
+no `D2TrackerEnrollment`, no `D2EnrolledAt`, and no `D2IncidentAt`, because
+the form it answers enrols nobody in anything.
+
+That is not a degraded registration; it is what DHIS2 accepts. A bare
+`trackedEntities` import under plain CREATE stands up a person who is
+findable without a programme, and enrolling them later is a separate
+submission against a tracker programme's own registration form.
+
+Every question of such a form is at the entity level by construction - the
+form asks the attributes the *tracked entity type itself* collects, which is
+the set DHIS2 imports onto the tracked entity - so the forwarder writes every
+answer onto the person and has no enrollment to split them across.
+
+## Enrolling a person the instance already holds
+
+The registration form is also how an *existing* person is enrolled in a
+programme, and the response says which of the two it is through
+`D2SubjectExists` - a `boolean` extension the registration profile admits
+`0..1`. Absent or `false` is the default reading and the one every example in
+this guide shows: the client minted `subject.identifier.value`, and the
+response creates that person along with the enrollment. `true` says the
+opposite - `subject.identifier.value` is the UID of a person the instance
+already stores, and the response enrols them.
+
+What changes is the whole import shape. A linked registration is forwarded as
+a **top-level `enrollments` array**, under the same plain
+`importStrategy=CREATE` every other payload goes under:
+
+```json
+{
+  "enrollments": [
+    {
+      "enrollment": "EnAaBbCcDd1",
+      "trackedEntity": "TeZzYyXxWw9",
+      "program": "IpHINAT79UW",
+      "orgUnit": "ImspTQPwCqd",
+      "enrolledAt": "2026-01-04T08:00:00",
+      "status": "ACTIVE",
+      "attributes": [{ "attribute": "TeaHousehld", "value": "4" }]
+    }
+  ]
+}
+```
+
+Three things about that payload are load-bearing:
+
+- **No `trackedEntities` wrapper.** Nesting the enrollment inside one forces
+  `importStrategy=CREATE_AND_UPDATE`, which silently rewrites the person's
+  owning organisation unit to the one on the payload (`BUGS.md` 73). The
+  person is not this response's to move, so the wrapper is never written.
+- **The enrollment UID is still the client's.** `D2TrackerEnrollment` is
+  `1..1` on a linked registration exactly as it is on a creating one, so the
+  stage responses of the new enrollment can be captured in the same breath.
+- **The program's own attributes ride the enrollment.** DHIS2 answers `E1018`
+  to a mandatory program attribute that arrives on nothing, so every question
+  the form marks `D2EntityLevel false` is written into `attributes` on the
+  enrollment itself.
+
+**An entity-level answer refuses the whole response.** A question the form
+marks `D2EntityLevel true` asks the *person's own record*, and an
+enrollment-only import has nowhere to put it. The forwarder refuses the
+response rather than dropping the answer, naming each question it stumbled on
+and stating the fix: answer it on that person's own record, or capture a new
+person through the registration form without stating that the subject already
+exists. Dropping it silently would be a captured value that reaches no
+instance, and writing it would mean rewriting a person this contract does not
+own.
+
+A capture server grades the marker on shape alone - at most one, and it
+carries a `valueBoolean`. Whether the UID names a person the instance holds is
+the instance's answer, and the forwarder is where that is settled.
 
 ## The prose half, and the examples that check it
 

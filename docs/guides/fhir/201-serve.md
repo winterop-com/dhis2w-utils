@@ -74,10 +74,10 @@ semantics and both operations, is
 
 ## The two modes
 
-| Mode | What the store holds | What it needs |
-| --- | --- | --- |
-| default | `ig/fsh-generated/resources` (what SUSHI compiled) merged with `ig/input/resources/` (the registry, terminology, concept-map, and category JSON the generate targets wrote, which SUSHI never re-emits) | a compiled IG on disk; no DHIS2 connection at all |
-| `--live` | the same read set, built straight off a DHIS2 instance at startup | a reachable instance and a resolvable profile; no compile step |
+| Mode | What the store holds | What it also answers | What it needs |
+| --- | --- | --- | --- |
+| default | `ig/fsh-generated/resources` (what SUSHI compiled) merged with `ig/input/resources/` (the registry, terminology, concept-map, and category JSON the generate targets wrote, which SUSHI never re-emits) | nothing beyond the store | a compiled IG on disk; no DHIS2 connection at all |
+| `--live` | the same read set, built straight off a DHIS2 instance at startup | `Patient` and the enrollment listing, read from the instance per request | a reachable instance and a resolvable profile; no compile step |
 
 The default mode is fully offline. If the project has never been compiled,
 the server refuses to start and says what to run:
@@ -88,8 +88,15 @@ then `make sushi` in the project, and serve again.
 ```
 
 `--live` skips the compiled-IG check and builds the store through one DHIS2
-client, opened during startup and closed before the first request arrives.
-Nothing in the request path ever talks to DHIS2. What `--live` serves is
+client, opened during startup and held open for the life of the process. No
+read of the store ever talks to DHIS2 again; the connection stays because two
+routes answer from the instance rather than from the store, and they are the
+only ones that do. `GET /Patient` finds a person by identifier and
+`GET /patients/{uid}/enrollments` lists the programs they are enrolled in, both
+documented in
+[Consume the FHIR API](401-consume-the-fhir-api.md#patient-who-a-person-is-in-the-instance).
+A compiled run holds no client, so both answer a `not-supported`
+OperationOutcome and `/metadata` declares no `Patient` at all. What `--live` serves is
 byte-identical to what the compiled store would have served for the same
 metadata, because both come out of the same JSON builders - the CodeSystem and
 ValueSet pairs the foundation FSH declares included, so a client resolving the

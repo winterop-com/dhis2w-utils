@@ -70,6 +70,49 @@ class NotServedError(ServeError):
         self.resource_type = resource_type
 
 
+class NotServedFromCompiledIgError(ServeError):
+    """The resource type is answered from the DHIS2 instance, and this process serves a compiled guide instead.
+
+    Same status and issue code as `NotServedError`, because that is what it is from the client's
+    side - this server does not support that interaction - with the reason stated so the operator
+    reads it as a way the process was started rather than as a missing feature.
+    """
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str) -> None:
+        super().__init__(
+            f"`{resource_type}` is answered from the DHIS2 instance this facade runs against, and this "
+            "process serves a compiled implementation guide; start it with `--live` to search people."
+        )
+        self.resource_type = resource_type
+
+
+class NoPublishedSubjectTypeError(ServeError):
+    """The facade runs live, but the guide publishes no registration form, so it knows of no people to search."""
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str) -> None:
+        super().__init__(
+            f"this project publishes no registration form, so no tracked entity type is served here and "
+            f"`{resource_type}` cannot be searched; generate a tracker program's registration form first."
+        )
+        self.resource_type = resource_type
+
+
+class UpstreamError(ServeError):
+    """The DHIS2 instance behind this facade refused or failed the read a request depends on."""
+
+    status_code = 502
+    issue_code = "exception"
+
+    def __init__(self, diagnostics: str) -> None:
+        super().__init__(diagnostics)
+
+
 class BadSearchError(ServeError):
     """The search parameters cannot be read as a query."""
 

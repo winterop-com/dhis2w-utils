@@ -46,7 +46,7 @@ from dhis2w_fhir.conversion import (
     receipt_event_uid,
 )
 from dhis2w_fhir.names import is_dhis2_uid
-from dhis2w_fhir.r4 import Identifier, Location, QuestionnaireResponse
+from dhis2w_fhir.r4 import Extension, Identifier, Location, QuestionnaireResponse
 from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, build_option_set_concept_maps
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn
@@ -1208,6 +1208,129 @@ async def test_a_posted_registration_states_each_answer_at_the_dhis2_level_the_f
     tracked_entity = registration["trackedEntities"][0]
     assert tracked_entity["attributes"] == [{"attribute": "w75KJ2mc4zz", "value": "Amara"}]
     assert tracked_entity["enrollments"][0]["attributes"] == [{"attribute": "TeaHousehld", "value": "4"}]
+
+
+#: The UID of a person the instance already holds, which a linked registration enrols rather than creates.
+_EXISTING_TRACKED_ENTITY = "TeZzYyXxWw9"
+
+
+def _linked_tracker_captures() -> list[ExampleResponseIn]:
+    """One registration of a person the instance already holds, and one stage event of its enrollment."""
+    registration, stage = _tracker_captures()
+    return [
+        registration.model_copy(
+            update={
+                "tracked_entity_uid": _EXISTING_TRACKED_ENTITY,
+                "answers": [ExampleAnswerIn(data_element_uid="TeaHousehld", value="4")],
+            }
+        ),
+        stage.model_copy(update={"tracked_entity_uid": _EXISTING_TRACKED_ENTITY}),
+    ]
+
+
+def _write_linked_tracker_project(root: Path) -> None:
+    """Write the tracker project with a spool whose registration names a person the instance already holds."""
+    _write_tracker_project(root)
+    naming = ConversionNaming.from_config(GenerateConfig(), _CANONICAL)
+    documents = build_example_documents(
+        _TRACKER_SOURCES,
+        _linked_tracker_captures(),
+        [],
+        GenerateConfig(),
+        _CANONICAL,
+        option_set_plan=option_set_identities([], GenerateConfig()),
+    ).responses
+    marked = [
+        document.model_copy(
+            update={
+                "extension": [
+                    *(document.extension or []),
+                    Extension(url=naming.subject_exists_url, valueBoolean=True),
+                ]
+            }
+        )
+        if document.id == "En1aaaaaaaa"
+        else document
+        for document in documents
+    ]
+    _fill_spool(root, marked)
+
+
+@pytest.fixture
+def linked_forward_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A tracker project whose spooled registration enrols a person the instance already holds."""
+    _write_probe_profile(tmp_path, monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    _write_linked_tracker_project(root)
+    monkeypatch.chdir(root)
+    return root
+
+
+@respx.mock
+async def test_enrolling_a_person_the_instance_holds_posts_a_top_level_enrollments_array(
+    linked_forward_project: Path,
+) -> None:
+    """The one wire shape that enrols without touching the person: no `trackedEntities` wrapper anywhere."""
+    tracker = _mock_tracker_instance()
+
+    report = await _forward(linked_forward_project, import_responses=True)
+
+    posted = [json.loads(call.request.content) for call in tracker.calls]
+    assert [sorted(body) for body in posted] == [["enrollments"], ["events"]]
+    enrollment = posted[0]["enrollments"][0]
+    assert enrollment["trackedEntity"] == _EXISTING_TRACKED_ENTITY
+    assert enrollment["enrollment"] == _MINTED_ENROLLMENT
+    assert enrollment["program"] == _TRACKER_PROGRAM.uid
+    assert enrollment["orgUnit"] == _ROOT_ORG_UNIT
+    assert enrollment["status"] == "ACTIVE"
+    assert enrollment["attributes"] == [{"attribute": "TeaHousehld", "value": "4"}]
+    assert report.rejected == ()
+    assert len(report.accepted) == 2
+
+
+@respx.mock
+async def test_an_enrollment_only_import_goes_under_plain_create(linked_forward_project: Path) -> None:
+    """`CREATE_AND_UPDATE` rewrites the person's owning organisation unit (BUGS.md 73), so CREATE it is."""
+    tracker = _mock_tracker_instance()
+
+    await _forward(linked_forward_project, import_responses=True)
+
+    params = tracker.calls[0].request.url.params
+    assert params["importStrategy"] == "CREATE"
+    assert params["async"] == "false"
+    assert "importMode" not in params
+
+
+@respx.mock
+async def test_a_linked_registration_reads_back_as_an_enrollment_only_import(
+    linked_forward_project: Path,
+) -> None:
+    """An operator reading the report can tell a linked import from a create without opening the receipt."""
+    _mock_tracker_instance()
+
+    report = await _forward(linked_forward_project, import_responses=True)
+
+    targets = {outcome.response_id: outcome.target_kind for outcome in report.outcomes}
+    assert targets["En1aaaaaaaa"] == "tracker-enrollment"
+    assert targets["A03MvHHogjR-example-1"] == "tracker-event"
+
+
+@respx.mock
+async def test_a_rejected_enrollment_only_import_names_its_payload_kind_in_the_sidecar(
+    linked_forward_project: Path,
+) -> None:
+    """The sidecar beside a rejected receipt says which tracker shape DHIS2 turned down."""
+    _mock_tracker_instance()
+    respx.post(f"{_BASE_URL}/api/tracker").mock(return_value=_rejected_tracker())
+
+    report = await _forward(linked_forward_project, import_responses=True)
+
+    sidecar = linked_forward_project / REJECTED_RESPONSES_RELATIVE_PATH / f"En1aaaaaaaa{REJECTION_REPORT_SUFFIX}"
+    written = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert written["target_kind"] == "tracker-enrollment"
+    assert written["issues"]
+    assert len(report.rejected) == 2
 
 
 @respx.mock

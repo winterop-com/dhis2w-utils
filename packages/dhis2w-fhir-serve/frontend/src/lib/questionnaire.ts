@@ -38,6 +38,7 @@ import {
     ATTRIBUTE_OPTION_COMBO_EXTENSION_SUFFIX,
     formTypeOf,
     identifierSystemBaseOf,
+    registersAPerson,
     TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX,
     TRACKER_ENROLLMENT_EXTENSION_SUFFIX,
     TRACKER_ENROLLMENT_IDENTIFIER_SYSTEM_SUFFIX,
@@ -63,6 +64,7 @@ import {
     organisationUnitExtensionUrl,
     reportingUnitOf,
 } from '@/lib/orgunits'
+import { isEntityLevelExtension, subjectExistsExtensionUrl, SUBJECT_EXISTS_EXTENSION_SUFFIX } from '@/lib/patients'
 
 /** The standard R4 extensions a numeric question carries its inclusive bounds on. */
 export const MINIMUM_VALUE_EXTENSION_URL = 'http://hl7.org/fhir/StructureDefinition/minValue'
@@ -160,6 +162,15 @@ export interface QuestionnaireNode {
      * shown beside every label rather than hidden behind a tooltip.
      */
     code: Coding | null
+    /**
+     * Which DHIS2 level this question's answer is written at, or null when the form states none.
+     *
+     * True is the tracked entity - the person themselves - and false is the enrollment. Null is
+     * every question of every other kind, and also a registration form compiled before the guide
+     * published `D2EntityLevel`: absence is not "enrollment level", it is "this form does not say",
+     * and a screen that read it as false would unlock questions it has no grounds to unlock.
+     */
+    entityLevel: boolean | null
     /** Direct children, in document order. */
     childLinkIds: string[]
 }
@@ -336,6 +347,15 @@ export function isEnabled(spec: QuestionnaireSpec, linkId: string, answers: Answ
  * envelope's own system and url spellings. Null keeps the synthetic draw, stated on the page
  * rather than hidden; and the rewrite runs only for the tracker-event kind, because no other
  * kind's response names an enrollment.
+ *
+ * THE FOURTH IS WHO A REGISTRATION IS ABOUT, and it changes the item tree rather than only the
+ * envelope. `$generate` mints a tracked-entity uid because the ordinary registration creates a
+ * person; a registration answering for a person this DHIS2 instance already holds names that
+ * person's real uid instead, carries the `D2SubjectExists` marker so the forwarder writes onto
+ * that person rather than creating one, and writes no entity-level answer at all - the instance
+ * holds those values, and `d2w fhir forward` refuses a submission that states its subject exists
+ * and carries one anyway. The rewrite runs only for the two kinds that register a person, because
+ * no other kind's subject is one.
  */
 export function buildQuestionnaireResponse(
     spec: QuestionnaireSpec,
@@ -344,25 +364,29 @@ export function buildQuestionnaireResponse(
     envelope: QuestionnaireResponse | null,
     context: CaptureContext,
 ): QuestionnaireResponse {
+    const formKind = formTypeOf(questionnaire)
+    const existingSubject = registersAPerson(formKind) ? context.existingSubject : null
     const enabled = enabledLinkIds(spec, answers)
+    const answerable = existingSubject === null ? enabled : withoutEntityLevel(spec, enabled)
     const item = spec.rootLinkIds.flatMap((linkId) => {
-        const built = buildItem(spec, linkId, answers, enabled)
+        const built = buildItem(spec, linkId, answers, answerable)
         return built === null ? [] : [built]
     })
     const questionnaireUrl = questionnaire.url ?? envelope?.questionnaire
     const withCombo = extensionsWithAttributeOptionCombo(questionnaire, envelope, context.attributeOptionCombo)
-    const onExtension = carriesUnitOnExtension(formTypeOf(questionnaire))
+    const onExtension = carriesUnitOnExtension(formKind)
     const withUnit = onExtension
         ? extensionsWithReportingUnit(questionnaire, withCombo, context.reportingUnit)
         : withCombo
-    const chosenEnrollment = formTypeOf(questionnaire) === 'tracker-event' ? context.enrollment : null
-    const extension =
+    const chosenEnrollment = formKind === 'tracker-event' ? context.enrollment : null
+    const withEnrollment =
         chosenEnrollment === null ? withUnit : extensionsWithEnrollment(questionnaire, withUnit, chosenEnrollment)
+    const extension =
+        existingSubject === null ? withEnrollment : extensionsWithSubjectExists(questionnaire, withEnrollment)
     const statedSubject = onExtension ? envelope?.subject : (context.reportingUnit ?? envelope?.subject)
+    const namedEntity = chosenEnrollment?.trackedEntity ?? existingSubject?.trackedEntity ?? null
     const subject =
-        chosenEnrollment === null
-            ? statedSubject
-            : subjectWithEnrollment(questionnaire, statedSubject, chosenEnrollment)
+        namedEntity === null ? statedSubject : subjectWithTrackedEntity(questionnaire, statedSubject, namedEntity)
     return {
         resourceType: 'QuestionnaireResponse',
         ...(envelope?.meta ? { meta: envelope.meta } : {}),
@@ -383,6 +407,27 @@ export interface CaptureContext {
     reportingUnit: Reference | null
     /** The enrollment a stage submission answers against, or null to keep the synthetic draw. */
     enrollment: EnrollmentChoice | null
+    /**
+     * The person this DHIS2 instance already holds that a registration is about, or null for a new one.
+     *
+     * Null is the ordinary registration: the envelope's minted tracked-entity uid stands, every
+     * question is asked, and the submission creates a person. A value replaces that uid with a real
+     * one, marks the submission so the conversion layer knows the person is not being created, and
+     * takes the entity-level answers out of the item tree.
+     */
+    existingSubject: ExistingSubject | null
+}
+
+/**
+ * A person the instance already holds, as a submission names them.
+ *
+ * One uid, because that is all the rewrite writes: everything else a search result carries - the
+ * identifier values, the attribute values, the enrollments - belongs to the picker rather than to
+ * the wire.
+ */
+export interface ExistingSubject {
+    /** The DHIS2 tracked-entity uid of the person this submission is about. */
+    trackedEntity: string
 }
 
 /**
@@ -403,6 +448,7 @@ export const NO_CAPTURE_CONTEXT: CaptureContext = {
     attributeOptionCombo: null,
     reportingUnit: null,
     enrollment: null,
+    existingSubject: null,
 }
 
 /**
@@ -468,6 +514,39 @@ export function refilledReportingUnit(
 ): Reference | null {
     if (envelope === null || questionnaire === null) return current
     return reportingUnitOf(envelope, formTypeOf(questionnaire)) ?? current
+}
+
+/**
+ * Every question whose answer is written onto the person rather than onto their enrollment.
+ *
+ * `D2EntityLevel` true is the whole of it - the level the form itself states - and a question that
+ * states nothing is not in the set, because absence means the form does not say rather than that
+ * the answer rides the enrollment.
+ */
+export function entityLevelLinkIds(spec: QuestionnaireSpec): ReadonlySet<string> {
+    return new Set(spec.nodes.filter((node) => node.entityLevel === true).map((node) => node.linkId))
+}
+
+/**
+ * The answers with every entity-level one dropped.
+ *
+ * WHY THEY ARE DROPPED RATHER THAN HIDDEN. A submission about a person this DHIS2 instance already
+ * holds carries no entity-level answers at all: the instance has that person's record, and the
+ * forwarder refuses a submission that states its subject exists and carries one anyway. Hiding the
+ * questions while keeping what was typed would leave a value in state that Submit would then have
+ * to remember not to send - so what is unanswerable is unanswered, and the screen and the wire
+ * agree without a second rule between them.
+ *
+ * The identity of the state object is preserved when nothing changes, so choosing a person the
+ * instance already holds on a blank form does not rerender every control for no reason.
+ */
+export function clearedEntityLevelAnswers(spec: QuestionnaireSpec, answers: AnswerState): AnswerState {
+    const entityLevel = entityLevelLinkIds(spec)
+    const held = Object.keys(answers).filter((linkId) => entityLevel.has(linkId))
+    if (held.length === 0) return answers
+    const next = { ...answers }
+    for (const linkId of held) delete next[linkId]
+    return next
 }
 
 /**
@@ -565,7 +644,28 @@ function extensionsWithEnrollment(
 }
 
 /**
- * The subject with the chosen tracked entity written into it, for a stage response.
+ * The extensions with the `D2SubjectExists` marker written into them, for a registration response.
+ *
+ * The same replace-in-place discipline the combo, the unit, and the enrollment follow: the
+ * envelope's own url wins when it already carries the marker, the form's canonical is the
+ * fallback, and nothing is written under a url neither of them names. `$generate` never draws one
+ * - every skeleton it produces is about a new person - so in practice this always appends.
+ */
+function extensionsWithSubjectExists(questionnaire: Questionnaire, carried: Extension[]): Extension[] {
+    const stated = carried.find((candidate) => candidate.url.endsWith(SUBJECT_EXISTS_EXTENSION_SUFFIX))
+    const url = stated?.url ?? subjectExistsExtensionUrl(questionnaire)
+    if (url === null) return carried
+    const written: Extension = { url, valueBoolean: true }
+    if (stated === undefined) return [...carried, written]
+    return carried.map((candidate) => (candidate === stated ? written : candidate))
+}
+
+/**
+ * The subject with a real tracked entity written into it, for any response about a named person.
+ *
+ * Two callers, one rewrite: a stage form answering for a chosen enrollment, and a registration
+ * answering for a person this instance already holds. Both are the same edit - the envelope's
+ * minted uid is a placeholder and the chosen uid is the fact.
  *
  * When the envelope named its synthetic entity the reference is kept whole and only the
  * identifier's value is replaced - same system, same type, same everything else, so the rebuilt
@@ -575,21 +675,27 @@ function extensionsWithEnrollment(
  * A form stating neither yields no subject at all, and the server's refusal names what is
  * missing better than a guessed system could.
  */
-function subjectWithEnrollment(
+function subjectWithTrackedEntity(
     questionnaire: Questionnaire,
     stated: Reference | undefined,
-    choice: EnrollmentChoice,
+    trackedEntity: string,
 ): Reference | undefined {
     const identifier = stated?.identifier
     if (stated !== undefined && identifier?.system?.endsWith(TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX) === true) {
-        return { ...stated, identifier: { ...identifier, value: choice.trackedEntity } }
+        return { ...stated, identifier: { ...identifier, value: trackedEntity } }
     }
     const base = identifierSystemBaseOf(questionnaire)
     if (base === null) return stated
     return {
         ...(questionnaire.subjectType?.[0] === undefined ? {} : { type: questionnaire.subjectType[0] }),
-        identifier: { system: `${base}${TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX}`, value: choice.trackedEntity },
+        identifier: { system: `${base}${TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX}`, value: trackedEntity },
     }
+}
+
+/** The enabled set with every entity-level question taken out of it, so no answer is written for one. */
+function withoutEntityLevel(spec: QuestionnaireSpec, enabled: ReadonlySet<string>): ReadonlySet<string> {
+    const entityLevel = entityLevelLinkIds(spec)
+    return new Set([...enabled].filter((linkId) => !entityLevel.has(linkId)))
 }
 
 /**
@@ -679,11 +785,29 @@ export function isAnswered(node: QuestionnaireNode, answers: AnswerState): boole
     return (answers[node.linkId] ?? []).some((slot) => slotAnswer(node, slot) !== null)
 }
 
-/** Every enabled, required question the form is still waiting on. */
-export function unansweredRequiredLinkIds(spec: QuestionnaireSpec, answers: AnswerState): string[] {
+/**
+ * Every enabled, required question the form is still waiting on.
+ *
+ * `exempt` is the set the submission will not carry however the form is filled - today the
+ * entity-level questions of a registration answering for a person the instance already holds. A
+ * question in it is not "still waiting": nothing anyone types would reach the wire, so counting it
+ * would tell a person their form is incomplete and give them no way to complete it.
+ */
+export function unansweredRequiredLinkIds(
+    spec: QuestionnaireSpec,
+    answers: AnswerState,
+    exempt: ReadonlySet<string> = new Set(),
+): string[] {
     const enabled = enabledLinkIds(spec, answers)
     return spec.nodes
-        .filter((node) => node.required && node.fillable && enabled.has(node.linkId) && !isAnswered(node, answers))
+        .filter(
+            (node) =>
+                node.required &&
+                node.fillable &&
+                enabled.has(node.linkId) &&
+                !exempt.has(node.linkId) &&
+                !isAnswered(node, answers),
+        )
         .map((node) => node.linkId)
 }
 
@@ -764,6 +888,7 @@ function readItem(item: QuestionnaireItem, ancestorLinkIds: string[]): Questionn
         enableBehavior: item.enableBehavior ?? 'all',
         initial: item.initial ?? [],
         code: item.code?.[0] ?? null,
+        entityLevel: item.extension?.find(isEntityLevelExtension)?.valueBoolean ?? null,
         childLinkIds: [],
     }
 }

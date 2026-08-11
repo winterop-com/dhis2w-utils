@@ -336,14 +336,17 @@ depends on `fhir.toml` alone and never opens a client:
   entity-level for the tracked entity type that collects it, and two programs on different
   types can disagree about the same attribute, which one dictionary entry cannot say twice.
 - `d2-responses.fsh` - the `D2AggregateResponse`, `D2EventResponse`,
-  `D2TrackerRegistrationResponse`, and `D2TrackerEventResponse` profiles on
+  `D2TrackerRegistrationResponse`, `D2TrackerEventResponse`, and
+  `D2TrackedEntityResponse` profiles on
   `QuestionnaireResponse`, one per form kind. Each slices the extensions its kind has
   to carry (`D2Period` 1..1 on the aggregate one, `D2TrackerEnrollment` and
   `D2OrganisationUnit` 1..1 on both tracker ones plus `D2EnrolledAt` 1..1 /
-  `D2IncidentAt` 0..1 on the registration one, `D2FormType` 1..1 on all four, fixed
+  `D2IncidentAt` 0..1 on the registration one, `D2OrganisationUnit` 1..1 alone on the
+  person-only one, which names no enrollment because it creates none,
+  `D2FormType` 1..1 on all five, fixed
   to the kind's own code), requires `questionnaire`, requires `subject`, and requires
   `authored` on all but the aggregate one. The aggregate and event profiles restrict
-  `subject` to `Reference(D2Location)`; both tracker ones restrict it to
+  `subject` to `Reference(D2Location)`; the three tracked-entity ones restrict it to
   `Reference(Patient)` - plus every other resource type the project's tracked entity
   types resolve to, since one profile is published for the whole IG - and make it a
   *logical* reference - `subject.identifier` 1..1 with `system` fixed to
@@ -352,9 +355,10 @@ depends on `fhir.toml` alone and never opens a client:
   separates the two tracker contracts is who authored those identifiers: a stage
   response names a tracked entity and an enrollment that already exist, a registration
   response mints both, which is stated on the profile's `^short` rather than left to
-  the reader. The four flags on `ResponseProfileDeclaration` (`period_required`,
-  `authored_required`, `tracker_context_required`, `registration_context_required`) are
-  what the one shared template branches on, so a fifth form kind is a declaration rather
+  the reader. The five flags on `ResponseProfileDeclaration` (`period_required`,
+  `authored_required`, `tracker_context_required`, `registration_context_required`,
+  `entity_context_required`) are
+  what the one shared template branches on, so a further form kind is a declaration rather
   than a template. The slice names are the extension names, which is what lets an
   instance address them as `extension[D2Period]` the way the examples already did
   against the bare resource. `build_captured_response_profile_declarations` is the
@@ -577,7 +581,7 @@ like any other and is filterable like any other.
 
 ## Data sets, event programs, and tracker programs -> Questionnaires
 
-`generate questionnaires` owns four sync directories under `ig/input/fsh/`, split
+`generate questionnaires` owns five sync directories under `ig/input/fsh/`, split
 by what the files describe rather than by which command wrote them:
 
 ```
@@ -587,6 +591,9 @@ tracker-programs/<program stem>/<stage stem>.fsh
                                          One Questionnaire per tracker program stage
 tracker-programs/<program stem>/registration.fsh
                                          The program's own registration form
+tracked-entity-types/<stem>.fsh          The person-only registration form of one
+                                         tracked entity type - a person created and
+                                         enrolled in nothing
 data-dictionary/data-elements.fsh        D2DE_CS / _VS over every referenced element
 data-dictionary/tracked-entity-attributes.fsh
                                          D2TEA_CS / _VS over every referenced attribute
@@ -661,12 +668,14 @@ composed of on the projection the forms already cost:
 coding into a CodeSystem nobody wrote.
 
 The targets are `[generate.data_sets]` / `[generate.event_programs]` /
-`[generate.tracker_programs]` `include_ids`,
-absent or empty = all, exactly like the terminology and registry selections. The
+`[generate.tracker_programs]` / `[generate.tracked_entity_forms]` `include_ids`,
+absent or empty = all, exactly like the terminology and registry selections - except the
+last, whose empty default is the tracked entity types the selected tracker programs
+register, read in one filtered request and skipped outright when the run names none. The
 service makes one `sync_artifacts` call per directory, each swept against its own
-files alone, and merges the four reports into the single `GenerateReport` whose
+files alone, and merges the five reports into the single `GenerateReport` whose
 `target_directory` reads `data-sets, event-programs, tracker-programs,
-data-dictionary`. The two
+tracked-entity-types, data-dictionary`. The two
 support pairs are FSH under `ig/input/fsh/data-dictionary/`, a different tree
 from the option-set target's `ig/input/resources/terminology/`, so its cleanup
 can never reach them. The command is still

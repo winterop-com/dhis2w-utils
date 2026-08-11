@@ -19,7 +19,7 @@ _IDENTIFIER_SYSTEM_COUNT = 26
 
 
 def test_foundation_covers_expected_files() -> None:
-    """The target emits the aliases, the NamingSystems, the twelve extensions, and the capture contract."""
+    """The target emits the aliases, the NamingSystems, the fourteen extensions, and the capture contract."""
     assert set(_by_path(GenerateConfig())) == {
         "foundation/d2-entity-level.fsh",
         "foundation/d2-aliases.fsh",
@@ -27,6 +27,7 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-period.fsh",
         "foundation/d2-form-type.fsh",
         "foundation/d2-attribute-value.fsh",
+        "foundation/d2-tracked-entity-attribute-value.fsh",
         "foundation/d2-organisation-unit.fsh",
         "foundation/d2-organisation-unit-assignment.fsh",
         "foundation/d2-attribute-option-combo.fsh",
@@ -34,6 +35,7 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-organisation-unit-level.fsh",
         "foundation/d2-tracker-enrollment.fsh",
         "foundation/d2-enrollment-dates.fsh",
+        "foundation/d2-subject-exists.fsh",
         "foundation/d2-responses.fsh",
         "foundation/d2-generate-operation.fsh",
         "foundation/d2-capture-server.fsh",
@@ -309,7 +311,9 @@ Description: "One submission of a DHIS2 tracker program's registration form: the
 attributes captured when a person is enrolled, answered on the linkIds of the program's \
 Questionnaire. The response mints both DHIS2 identities it creates - the tracked entity it is \
 subject to and the enrollment its extension names - so a client can capture the enrollment's \
-first stage events in the same breath, before either identity exists on the instance."
+first stage events in the same breath, before either identity exists on the instance. A response \
+stating D2SubjectExists enrols a person the instance already holds instead, and then mints the \
+enrollment alone."
 * ^status = #draft
 * ^experimental = true
 * extension contains
@@ -317,15 +321,25 @@ first stage events in the same breath, before either identity exists on the inst
     D2TrackerEnrollment named D2TrackerEnrollment 1..1 and
     D2EnrolledAt named D2EnrolledAt 1..1 and
     D2IncidentAt named D2IncidentAt 0..1 and
+    D2SubjectExists named D2SubjectExists 0..1 and
     D2FormType named D2FormType 1..1
 * extension[D2OrganisationUnit] ^short = "The DHIS2 organisation unit the person is enrolled at, \
-which becomes the organisation unit of both the tracked entity and the enrollment."
+which becomes the organisation unit of both the tracked entity and the enrollment. A response \
+naming a person the instance already holds does not move that person: the organisation unit is \
+the enrollment's alone."
 * extension[D2TrackerEnrollment] ^short = "The DHIS2 enrollment this registration creates. The \
 client mints the value as a DHIS2 UID - eleven characters, the first a letter - so the response \
 names the enrollment its own stage responses will be captured against before any of them is sent."
 * extension[D2EnrolledAt] ^short = "When the enrollment begins."
 * extension[D2IncidentAt] ^short = "When the incident the enrollment follows occurred. Carried by \
 a response to a form whose program collects one, and absent otherwise."
+* extension[D2SubjectExists] ^short = "Whether the person this response is subject to is already \
+held by the DHIS2 instance. True means the subject identifier names an existing tracked entity \
+and the response enrols that person, so it is imported as an enrollment on its own. Absent or \
+false means the client minted the subject identifier and the response creates the person along \
+with the enrollment. A response stating true answers only the questions the program asks: an \
+answer belonging to the person's own record cannot ride an enrollment, and rewriting the record \
+of a person this contract does not own is not something an enrollment does."
 * extension[D2FormType] ^short = "The DHIS2 form kind this response answers."
 * extension[D2FormType].valueCode = #tracker (exactly)
 * questionnaire 1..1
@@ -335,9 +349,11 @@ a response to a form whose program collects one, and absent otherwise."
 * subject.identifier.system 1..1
 * subject.identifier.system = "http://dhis2.org/fhir/id/tracked-entity" (exactly)
 * subject.identifier.value 1..1
-* subject ^short = "The DHIS2 tracked entity this registration creates, named by identifier rather \
+* subject ^short = "The DHIS2 tracked entity this registration enrols, named by identifier rather \
 than by reference: this guide publishes no Patient resource, so the identifier is the person. The \
-client mints the value as a DHIS2 UID, the same way it mints the enrollment."
+client mints the value as a DHIS2 UID, the same way it mints the enrollment - unless the response \
+carries D2SubjectExists as true, and the value is then the UID of a person the instance already \
+holds."
 * authored 1..1
 """
 
@@ -368,9 +384,40 @@ entity by identifier."
 * authored 1..1
 """
 
+_TRACKED_ENTITY_RESPONSE_GOLDEN = """Profile: D2TrackedEntityResponse
+Parent: QuestionnaireResponse
+Id: d2-tracked-entity-response
+Title: "DHIS2 tracked entity response"
+Description: "One submission of a DHIS2 tracked entity type\'s registration form: the attributes the \
+type itself collects, captured when a person is registered without being enrolled in any program. The \
+response mints the tracked entity it creates, and names no enrollment at all - there is none, which is \
+the whole point of the form."
+* ^status = #draft
+* ^experimental = true
+* extension contains
+    D2OrganisationUnit named D2OrganisationUnit 1..1 and
+    D2FormType named D2FormType 1..1
+* extension[D2OrganisationUnit] ^short = "The DHIS2 organisation unit the person is registered at, \
+which becomes the organisation unit of the tracked entity."
+* extension[D2FormType] ^short = "The DHIS2 form kind this response answers."
+* extension[D2FormType].valueCode = #tracked-entity (exactly)
+* questionnaire 1..1
+* subject 1..1
+* subject only Reference(Patient)
+* subject.identifier 1..1
+* subject.identifier.system 1..1
+* subject.identifier.system = "http://dhis2.org/fhir/id/tracked-entity" (exactly)
+* subject.identifier.value 1..1
+* subject ^short = "The DHIS2 tracked entity this registration creates, named by identifier rather \
+than by reference: this guide publishes no Patient resource, so the identifier is the person. The \
+client mints the value as a DHIS2 UID, and nothing on the instance holds it until this response is \
+imported."
+* authored 1..1
+"""
 
-def test_the_four_response_profiles_are_stable_goldens() -> None:
-    """All four quarters of the capture contract are emitted verbatim into one foundation file."""
+
+def test_the_five_response_profiles_are_stable_goldens() -> None:
+    """Every quarter of the capture contract is emitted verbatim into one foundation file."""
     responses = _by_path(GenerateConfig())["foundation/d2-responses.fsh"]
     assert responses == "\n".join(
         (
@@ -378,6 +425,7 @@ def test_the_four_response_profiles_are_stable_goldens() -> None:
             _EVENT_RESPONSE_GOLDEN,
             _TRACKER_REGISTRATION_RESPONSE_GOLDEN,
             _TRACKER_EVENT_RESPONSE_GOLDEN,
+            _TRACKED_ENTITY_RESPONSE_GOLDEN,
         )
     )
 
@@ -387,7 +435,8 @@ def test_the_response_profiles_pin_the_context_a_capture_client_has_to_send() ->
     responses = _by_path(GenerateConfig())["foundation/d2-responses.fsh"]
     aggregate, _, rest = responses.partition("Profile: D2EventResponse")
     event, _, rest = rest.partition("Profile: D2TrackerRegistrationResponse")
-    registration, _, tracker_event = rest.partition("Profile: D2TrackerEventResponse")
+    registration, _, rest = rest.partition("Profile: D2TrackerEventResponse")
+    tracker_event, _, tracked_entity = rest.partition("Profile: D2TrackedEntityResponse")
     assert "D2Period named D2Period 1..1" in aggregate
     assert "* extension[D2FormType].valueCode = #aggregate (exactly)" in aggregate
     assert "* authored 1..1" not in aggregate
@@ -405,8 +454,14 @@ def test_the_response_profiles_pin_the_context_a_capture_client_has_to_send() ->
     assert "* extension[D2FormType].valueCode = #tracker-event (exactly)" in tracker_event
     assert "D2EnrolledAt" not in tracker_event
     assert "* authored 1..1" in tracker_event
+    assert "D2Period" not in tracked_entity
+    assert "D2OrganisationUnit named D2OrganisationUnit 1..1" in tracked_entity
+    assert "D2TrackerEnrollment" not in tracked_entity
+    assert "D2EnrolledAt" not in tracked_entity
+    assert "* extension[D2FormType].valueCode = #tracked-entity (exactly)" in tracked_entity
+    assert "* authored 1..1" in tracked_entity
     assert responses.count("* subject only Reference(D2Location)") == 2
-    assert responses.count("* questionnaire 1..1") == 4
+    assert responses.count("* questionnaire 1..1") == 5
 
 
 def test_the_tracker_event_response_subjects_the_tracked_entity_by_identifier() -> None:
@@ -428,11 +483,11 @@ def test_the_tracker_event_response_subjects_the_tracked_entity_by_identifier() 
 def test_the_response_profiles_derive_their_publication_state_from_the_ig_status() -> None:
     """Every profile carries ^status and ^experimental straight off `[ig] status`."""
     draft = _by_path(GenerateConfig())["foundation/d2-responses.fsh"]
-    assert draft.count("* ^status = #draft") == 4
-    assert draft.count("* ^experimental = true") == 4
+    assert draft.count("* ^status = #draft") == 5
+    assert draft.count("* ^experimental = true") == 5
     active = _by_path(GenerateConfig(), ig_status="active")["foundation/d2-responses.fsh"]
-    assert active.count("* ^status = #active") == 4
-    assert active.count("* ^experimental = false") == 4
+    assert active.count("* ^status = #active") == 5
+    assert active.count("* ^experimental = false") == 5
     assert "* ^status = #draft" not in active
     assert "* ^experimental = true" not in active
 
@@ -626,9 +681,9 @@ _CAPTURE_SERVER_GOLDEN = """Instance: D2CaptureServer
 InstanceOf: CapabilityStatement
 Title: "DHIS2 capture server"
 Description: "The interactions a server capturing DHIS2 data as QuestionnaireResponses supports: \
-one response created per request, against the aggregate, event, tracker registration, or tracker \
-event response profile, plus read and search over the definitional resources a capture client \
-resolves a form from."
+one response created per request, against the aggregate, event, tracker registration, tracker \
+event, or tracked entity response profile, plus read and search over the definitional resources a \
+capture client resolves a form from."
 Usage: #definition
 * id = "d2-capture-server"
 * name = "D2CaptureServer"
@@ -649,6 +704,7 @@ response per form submission, and the server accepts exactly one response per re
 * rest.resource[=].supportedProfile[+] = Canonical(D2EventResponse)
 * rest.resource[=].supportedProfile[+] = Canonical(D2TrackerRegistrationResponse)
 * rest.resource[=].supportedProfile[+] = Canonical(D2TrackerEventResponse)
+* rest.resource[=].supportedProfile[+] = Canonical(D2TrackedEntityResponse)
 * rest.resource[+].type = #Questionnaire
 * rest.resource[=].interaction[+].code = #read
 * rest.resource[=].interaction[+].code = #search-type

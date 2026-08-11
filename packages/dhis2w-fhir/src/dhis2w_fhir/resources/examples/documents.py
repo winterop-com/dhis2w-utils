@@ -132,6 +132,7 @@ class _ExampleSystems(BaseModel):
     event_response_profile_url: str
     tracker_registration_response_profile_url: str
     tracker_event_response_profile_url: str
+    tracked_entity_response_profile_url: str
 
     @classmethod
     def from_config(cls, config: GenerateConfig, canonical: str) -> _ExampleSystems:
@@ -155,6 +156,9 @@ class _ExampleSystems(BaseModel):
                 canonical, foundation.tracker_registration_response_profile_id
             ),
             tracker_event_response_profile_url=_definition_url(canonical, foundation.tracker_event_response_profile_id),
+            tracked_entity_response_profile_url=_definition_url(
+                canonical, foundation.tracked_entity_response_profile_id
+            ),
         )
 
     def identifier_system(self, segment: str) -> str:
@@ -173,6 +177,8 @@ class _ExampleSystems(BaseModel):
             return self.tracker_registration_response_profile_url
         if kind == "tracker-event":
             return self.tracker_event_response_profile_url
+        if kind == "tracked-entity":
+            return self.tracked_entity_response_profile_url
         return self.event_response_profile_url
 
 

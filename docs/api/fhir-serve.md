@@ -8,8 +8,9 @@ and uvicorn, and `dhis2w-fhir` - which generates a file tree - needs neither; `p
 
 Everything a running facade serves is loaded once at startup and held on `app.state.context`, so a
 request is index lookups and nothing else. The store is either the compiled IG on disk or - under
-`--live` - the same read set built off a DHIS2 instance through one client opened during startup
-and closed before the first request arrives.
+`--live` - the same read set built off a DHIS2 instance through one client opened during startup.
+That client stays open for the life of the process, because `GET /Patient` and the enrollment
+listing answer from the instance per request; no read of the store ever touches DHIS2 again.
 
 The receipt spool is the one exception, and deliberately so: it is a path rather than a loaded
 index, and every read of it re-reads the directory. `d2w fhir forward` runs as a separate process
@@ -30,6 +31,9 @@ so anything cached would be stale within seconds of a drain.
   `resolve_period_type`, `MAXIMUM_SEED`).
 - Render the FHIR error and outcome bodies the facade answers with (`outcome`, `rejection_outcome`,
   `success_outcome`, `build_server_capability`).
+- Read what a guide states about people, or search a DHIS2 instance for one, without an HTTP server
+  (`PatientIndex`, `PublishedAttribute`, `patient_for`, `search_tracked_entities`,
+  `fetch_tracked_entity`, `PatientEnrollment`, `PatientEnrollments`).
 
 ## Worked example - load a store and read one resource
 
@@ -107,6 +111,30 @@ machine that runs the whole thing, and the OperationOutcome vocabulary every ans
 ::: dhis2w_fhir_serve.capture.validate
 
 ::: dhis2w_fhir_serve.capture.outcome
+
+### Patients
+
+`GET /Patient` and `GET /Patient/{id}`, answered from the DHIS2 instance rather than from the store,
+and only by a process started with `--live`. The index reads what the guide already publishes about
+people, the wire module holds the empirical `/api/tracker/trackedEntities` contract the search obeys,
+and the projection turns one tracked entity into a Patient carrying identity and no demographic
+claims - each module docstring states why.
+
+::: dhis2w_fhir_serve.patients.index
+
+::: dhis2w_fhir_serve.patients.wire
+
+::: dhis2w_fhir_serve.patients.projection
+
+::: dhis2w_fhir_serve.routes.patient
+
+### Enrollment listing
+
+`GET /patients/{uid}/enrollments` - which programs one person is enrolled in, as the picker's typed
+JSON feed rather than as a FHIR resource, because whether a DHIS2 enrollment is an `EpisodeOfCare`
+or a `CarePlan` is a decision this project has deliberately not taken yet.
+
+::: dhis2w_fhir_serve.routes.enrollments
 
 ### Read and search routes
 

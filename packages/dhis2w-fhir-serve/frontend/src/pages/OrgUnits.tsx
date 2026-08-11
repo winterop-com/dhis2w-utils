@@ -881,6 +881,15 @@ function UnitChildren({ node, onSelect }: { node: OrgUnitNode; onSelect: (unitId
 interface UnitFormCatalog {
     dataSets: Questionnaire[]
     programs: ProgramGroup[]
+    /**
+     * Person-only registration forms reportable here.
+     *
+     * A shelf of its own for the reason the Forms page gives, and one that lands harder in this
+     * rail: DHIS2 hangs an assignment on a data set and on a program, never on a tracked entity
+     * type, so a person-only form is assigned everywhere by construction and appears at every unit.
+     * Folded into Programs it would be a row under a heading naming something it does not belong to.
+     */
+    people: Questionnaire[]
     /** Reportable forms declaring no kind, or ids the store no longer serves - listed, not hidden. */
     other: { formId: string; questionnaire: Questionnaire | null }[]
     /** The form ids an assignment List names this unit on; every other entry is assigned everywhere. */
@@ -915,13 +924,14 @@ function catalogueUnitForms(reportable: ReportableForms, formsById: Map<string, 
     return {
         dataSets: catalog.dataSets,
         programs: catalog.programs,
+        people: catalog.people,
         other: other.toSorted((left, right) => left.formId.localeCompare(right.formId)),
         assignedHere: new Set(reportable.restrictedFormIds),
     }
 }
 
 /**
- * The reportable forms as rail sections: Data sets, Programs, and whatever fits neither.
+ * The reportable forms as rail sections: Data sets, Programs, People, and whatever fits none.
  *
  * THE WORDING IS DHIS2'S. A form whose assignment List names this unit carries the badge; a form
  * carrying no artifact is assigned everywhere, so it appears plainly - which keeps the one or two
@@ -942,7 +952,11 @@ function FormCatalogSections({
     error: string | null
     dhis2BaseUrl: string | null
 }) {
-    const empty = catalog.dataSets.length === 0 && catalog.programs.length === 0 && catalog.other.length === 0
+    const empty =
+        catalog.dataSets.length === 0 &&
+        catalog.programs.length === 0 &&
+        catalog.people.length === 0 &&
+        catalog.other.length === 0
 
     return (
         // The testid scopes assertions to the shelves: a receipt in Captured here legitimately
@@ -997,6 +1011,31 @@ function FormCatalogSections({
                                         key={group.key}
                                         group={group}
                                         assignedHere={catalog.assignedHere}
+                                        dhis2BaseUrl={dhis2BaseUrl}
+                                    />
+                                ))}
+                            </ul>
+                        </section>
+                    )}
+
+                    {catalog.people.length > 0 && (
+                        <section className="space-y-2">
+                            <h4 className="text-sm font-semibold">
+                                People
+                                <span className="text-muted-foreground ml-2 font-mono text-xs">
+                                    {catalog.people.length}
+                                </span>
+                            </h4>
+                            <p className="text-muted-foreground text-xs">
+                                Registers a person here without enrolling them in a program.
+                            </p>
+                            <ul className="space-y-1">
+                                {catalog.people.map((questionnaire) => (
+                                    <FormRow
+                                        key={formIdentifier(questionnaire)}
+                                        formId={formIdentifier(questionnaire)}
+                                        questionnaire={questionnaire}
+                                        assignedHere={catalog.assignedHere.has(formIdentifier(questionnaire))}
                                         dhis2BaseUrl={dhis2BaseUrl}
                                     />
                                 ))}

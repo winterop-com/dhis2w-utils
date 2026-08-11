@@ -4,16 +4,23 @@ import { ArrowLeft, Eraser, Send, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AttributeOptionComboPicker } from '@/components/AttributeOptionComboPicker'
-import { EnrollmentPicker } from '@/components/EnrollmentPicker'
+import { EnrollmentPicker, type EnrollmentSource } from '@/components/EnrollmentPicker'
 import { OrgUnitScopeProvider } from '@/components/OrgUnitPicker'
 import { PageState } from '@/components/PageState'
-import { QuestionnaireForm } from '@/components/QuestionnaireItem'
+import {
+    LockedQuestionsProvider,
+    NO_LOCKED_QUESTIONS,
+    QuestionnaireForm,
+    type LockedQuestions,
+} from '@/components/QuestionnaireItem'
+import { EXISTING_PERSON_QUESTION_NOTE, PersonPicker, type PersonSource } from '@/components/PersonPicker'
 import { ReportingUnitPicker } from '@/components/ReportingUnitPicker'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useEnrollmentOptions } from '@/hooks/use-enrollment-options'
 import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
+import { usePatientSearchSupport } from '@/hooks/use-patient-search-support'
 import { FhirRequestError, generateResponse, postQuestionnaireResponse, readResource } from '@/lib/api'
 import { reloadedEnrollment, type EnrollmentOption } from '@/lib/enrollments'
 import {
@@ -23,7 +30,9 @@ import {
     formTypeOf,
     generateSeedOf,
     incidentAtOf,
+    programOf,
     questionCount,
+    registersAPerson,
     trackerEnrollmentOf,
     type Coding,
     type OperationOutcomeIssue,
@@ -31,10 +40,13 @@ import {
     type QuestionnaireResponse,
     type Reference, unescapeMarkup } from '@/lib/fhir'
 import { orgUnitReference, referencedUnitId } from '@/lib/orgunits'
+import type { PatientProjection } from '@/lib/patients'
 import {
     answersFromResponse,
     answersReducer,
     buildQuestionnaireResponse,
+    clearedEntityLevelAnswers,
+    entityLevelLinkIds,
     flattenQuestionnaire,
     initialAnswers,
     openedAttributeOptionCombo,
@@ -44,6 +56,7 @@ import {
     refilledReportingUnit,
     unansweredRequiredLinkIds,
     type AnswerState,
+    type ExistingSubject,
 } from '@/lib/questionnaire'
 import { ENROLLED_AT_FACT_LABEL, INCIDENT_AT_FACT_LABEL } from '@/lib/receipt'
 import { formatInstant, TRACKER_ENROLLMENT_FACT_LABEL } from '@/lib/spool'
@@ -97,6 +110,17 @@ import { cn } from '@/lib/utils'
  * registration's pair - a submission that lands - and with nothing to offer the synthetic draw
  * stands, said out loud rather than discovered in a rejection.
  *
+ * A FOURTH IS WHO A REGISTRATION IS ABOUT, AND IT IS THE ONLY ONE THAT REACHES THE DHIS2 INSTANCE.
+ * A registration form mints a new person by default, which is the whole of what this screen could
+ * do while the facade answered only from what a project published. A live facade also answers
+ * `GET /Patient?identifier=`, so the person can be found instead - and a registration answering for
+ * someone the instance already holds is a different submission: its subject is a real
+ * tracked-entity uid, it carries the `D2SubjectExists` marker, and it writes no entity-level
+ * answer at all, because the instance holds those values and `d2w fhir forward` refuses a
+ * submission that states its subject exists and carries one anyway. So those questions go
+ * read-only and cleared with the reason stated, which is the only place in this app where the
+ * capture context takes questions off the form.
+ *
  * EVERYTHING ELSE THE ENVELOPE CARRIES IS SHOWN AND NOT ASKED. A tracker registration files an
  * enrollment, and when it begins - `D2EnrolledAt`, plus `D2IncidentAt` on a program that collects
  * one - is context no question on the form holds. It is displayed above the questions rather than
@@ -120,22 +144,45 @@ export function FormFill() {
     const [attributeOptionCombo, setAttributeOptionCombo] = useState<Coding | null>(null)
     const [reportingUnit, setReportingUnit] = useState<Reference | null>(null)
     const [enrollment, setEnrollment] = useState<EnrollmentOption | null>(null)
+    const [enrollmentSource, setEnrollmentSource] = useState<EnrollmentSource>('spool')
+    const [personSource, setPersonSource] = useState<PersonSource>('new')
+    const [existingPerson, setExistingPerson] = useState<PatientProjection | null>(null)
     const orgUnitScope = useFormOrgUnitScope(questionnaire)
     const enrollmentOffer = useEnrollmentOptions(questionnaire)
+    const patientSearchSupport = usePatientSearchSupport()
 
     // Applied whenever the offer lands or reloads: a person's choice is re-read so its lifecycle
     // badge catches up with a forwarder run, and before anyone chose, the default rule picks the
-    // newest forwarded registration - the one pair a submission is known to land against.
+    // newest forwarded registration - the one pair a submission is known to land against. It runs
+    // for the spool source alone: the default rule is about receipts, and applying it while the
+    // instance source is open would answer a submission with a pair nobody picked.
     const { loading: offerLoading, options: offerOptions } = enrollmentOffer
     useEffect(() => {
-        if (offerLoading) return
+        if (offerLoading || enrollmentSource !== 'spool') return
         setEnrollment((current) => reloadedEnrollment(current, offerOptions))
-    }, [offerLoading, offerOptions])
+    }, [offerLoading, offerOptions, enrollmentSource])
 
     const spec = useMemo(
         () => flattenQuestionnaire(questionnaire ?? { resourceType: 'Questionnaire', status: 'unknown' }),
         [questionnaire],
     )
+
+    const existingSubject: ExistingSubject | null =
+        existingPerson === null ? null : { trackedEntity: existingPerson.trackedEntityUid }
+    const lockedQuestions: LockedQuestions =
+        existingSubject === null
+            ? NO_LOCKED_QUESTIONS
+            : { linkIds: entityLevelLinkIds(spec), note: EXISTING_PERSON_QUESTION_NOTE }
+
+    // The one rule that has to hold however the answers got there - typed, poured in by a refill,
+    // or declared as an item's `initial`: a submission about a person this instance already holds
+    // carries no entity-level answer. Clearing here rather than at each of those three places is
+    // what keeps the screen and the wire agreeing with one rule instead of three.
+    useEffect(() => {
+        if (existingPerson === null) return
+        const cleared = clearedEntityLevelAnswers(spec, answers)
+        if (cleared !== answers) dispatch({ kind: 'replace', answers: cleared })
+    }, [existingPerson, spec, answers])
 
     useEffect(() => {
         let cancelled = false
@@ -147,6 +194,9 @@ export function FormFill() {
         setAttributeOptionCombo(null)
         setReportingUnit(null)
         setEnrollment(null)
+        setEnrollmentSource('spool')
+        setPersonSource('new')
+        setExistingPerson(null)
         readResource<Questionnaire>('Questionnaire', questionnaireId)
             .then((resource) => {
                 if (cancelled) return
@@ -225,8 +275,13 @@ export function FormFill() {
         )
     }
 
-    const missingRequired = unansweredRequiredLinkIds(spec, answers)
+    const missingRequired = unansweredRequiredLinkIds(spec, answers, lockedQuestions.linkIds)
     const attributeOptionCombos = attributeOptionCombosOf(questionnaire)
+    const formKind = formTypeOf(questionnaire)
+    // The two kinds whose submission is about a person, and therefore the two the Person control
+    // belongs on. A stage form is about a person too, but the person is already named by the
+    // enrollment it answers for, which is the control it gets instead.
+    const registersAPersonHere = registersAPerson(formKind)
     // Read off the envelope rather than off the form kind: a registration response is the only one
     // that carries an enrollment date, so the presence of the fact is what decides the block is
     // shown, and a `$generate` that never answered simply has nothing to state.
@@ -246,6 +301,7 @@ export function FormFill() {
                     attributeOptionCombo,
                     reportingUnit,
                     enrollment,
+                    existingSubject,
                 }),
             )
             toast.success('The server accepted this submission', {
@@ -292,12 +348,15 @@ export function FormFill() {
                 <div
                     className={cn(
                         'mb-4 grid gap-4',
-                        (attributeOptionCombos !== null || enrolledAt !== null || enrollmentOffer.active) &&
+                        (attributeOptionCombos !== null ||
+                            enrolledAt !== null ||
+                            enrollmentOffer.active ||
+                            registersAPersonHere) &&
                             'lg:grid-cols-2',
                     )}
                 >
                     <ReportingUnitPicker
-                        formKind={formTypeOf(questionnaire)}
+                        formKind={formKind}
                         declaresAttributeOptionCombo={attributeOptionCombos !== null}
                         selectedUnitId={referencedUnitId(reportingUnit)}
                         onChange={(choice) => setReportingUnit(orgUnitReference(choice))}
@@ -309,15 +368,38 @@ export function FormFill() {
                             onChange={setAttributeOptionCombo}
                         />
                     )}
+                    {registersAPersonHere && (
+                        <PersonPicker
+                            support={patientSearchSupport}
+                            source={personSource}
+                            chosen={existingPerson}
+                            onChange={(source, patient) => {
+                                setPersonSource(source)
+                                setExistingPerson(patient)
+                            }}
+                        />
+                    )}
                     {enrollmentOffer.active && (
-                        <EnrollmentPicker offer={enrollmentOffer} selected={enrollment} onChange={setEnrollment} />
+                        <EnrollmentPicker
+                            offer={enrollmentOffer}
+                            selected={enrollment}
+                            source={enrollmentSource}
+                            support={patientSearchSupport}
+                            programUid={programOf(questionnaire)}
+                            onChange={(source, option) => {
+                                setEnrollmentSource(source)
+                                setEnrollment(option)
+                            }}
+                        />
                     )}
                     {enrolledAt !== null && envelope !== null && (
                         <EnrollmentContext enrolledAt={enrolledAt} envelope={envelope} />
                     )}
                 </div>
 
-                <QuestionnaireForm spec={spec} answers={answers} dispatch={dispatch} />
+                <LockedQuestionsProvider locked={lockedQuestions}>
+                    <QuestionnaireForm spec={spec} answers={answers} dispatch={dispatch} />
+                </LockedQuestionsProvider>
             </OrgUnitScopeProvider>
 
             {issues.length > 0 && (

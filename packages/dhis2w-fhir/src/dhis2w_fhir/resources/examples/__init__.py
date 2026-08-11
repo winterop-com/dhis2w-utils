@@ -213,10 +213,15 @@ _KIND_LABELS: dict[FormKind, str] = {
     "event": "event program",
     "tracker": "tracker program registration",
     "tracker-event": "tracker program stage",
+    "tracked-entity": "tracked entity type registration",
 }
 
 #: The form kinds whose response carries a tracker context - the enrollment and the person it is on.
 _TRACKER_KINDS: frozenset[FormKind] = frozenset({"tracker", "tracker-event"})
+
+#: The form kinds whose response names a tracked entity: the two tracker ones, plus the person-only
+#: one, whose response names the person and no enrollment because it creates no enrollment.
+_SUBJECT_KINDS: frozenset[FormKind] = frozenset({"tracker", "tracker-event", "tracked-entity"})
 
 #: How many days back a synthetic event may have occurred.
 _SYNTHETIC_EVENT_WINDOW_DAYS = 30
@@ -795,6 +800,9 @@ def _synthetic_response(
         if registration is not None:
             tracked_entity_uid = registration.tracked_entity_uid
             enrollment_uid = registration.enrollment_uid
+    elif source.kind == "tracked-entity":
+        # One draw, not two: a person-only registration creates nobody's enrollment.
+        tracked_entity_uid = synthetic_uid(generator)
     if source.kind == "tracker":
         enrolled_at = f"{window.pick_date(generator).isoformat()}T{_pick_hour(generator)}:00:00Z"
         if source.displays_incident_date:
@@ -1143,8 +1151,11 @@ def example_tracker_context(
     creates has to say when it began, which is what DHIS2 requires of every enrollment. Both of
     its dates go through the very normalisation `authored` goes through, because DHIS2 writes an
     enrollment date in the same zone-less spelling it writes an event's occurrence in (BUGS.md #62).
+
+    A person-only response is graded on one fact less than either: it names the person it creates
+    and no enrollment, because the form it answers enrols nobody in anything.
     """
-    if source.kind not in _TRACKER_KINDS:
+    if source.kind not in _SUBJECT_KINDS:
         return None
     registration = source.kind == "tracker"
     context = ExampleTrackerContext(
@@ -1154,10 +1165,18 @@ def example_tracker_context(
         enrolled_at=_example_date_time(response.enrolled_at, response, tally, rules) if registration else None,
         incident_at=_example_date_time(response.incident_at, response, tally, rules) if registration else None,
     )
-    complete = context.is_registration_complete if source.kind == "tracker" else context.is_complete
-    if not complete:
+    if not _context_is_complete(source.kind, context):
         tally.incomplete_tracker_responses.append(response.instance_id)
     return context
+
+
+def _context_is_complete(kind: FormKind, context: ExampleTrackerContext) -> bool:
+    """Whether one response's tracked-entity context carries every fact its own profile requires."""
+    if kind == "tracker":
+        return context.is_registration_complete
+    if kind == "tracked-entity":
+        return context.is_entity_complete
+    return context.is_complete
 
 
 def example_is_complete(
@@ -1174,10 +1193,8 @@ def example_is_complete(
     """
     if kind == "aggregate":
         return period is not None
-    if kind == "tracker":
-        return authored is not None and tracker is not None and tracker.is_registration_complete
-    if kind == "tracker-event":
-        return authored is not None and tracker is not None and tracker.is_complete
+    if kind in _SUBJECT_KINDS:
+        return authored is not None and tracker is not None and _context_is_complete(kind, tracker)
     return authored is not None
 
 
@@ -1306,6 +1323,8 @@ def _response_profile(kind: FormKind, foundation: FoundationNaming, *, complete:
         return foundation.tracker_registration_response_profile
     if kind == "tracker-event":
         return foundation.tracker_event_response_profile
+    if kind == "tracked-entity":
+        return foundation.tracked_entity_response_profile
     return foundation.event_response_profile
 
 

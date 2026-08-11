@@ -22,13 +22,19 @@ typed as a resource the form is not answered about are all warnings by default a
 `--strict-codes`.
 
 Phase 1 is where the tracker registration contract is read, and it is the one contract whose
-identifiers the client mints: the tracked entity the response is subject to and the enrollment its
-extension names do not exist on any instance yet. Two things follow. The identifiers are checked
-for **shape** - a DHIS2 UID, one ASCII letter and ten alphanumeric places - because that is
-everything a server without an instance can honestly say about a minted identifier. And a unique
+identifiers the client mints: the enrollment its extension names, and - unless the response states
+`D2SubjectExists` - the tracked entity it is subject to, neither of which exists on any instance
+yet. Two things follow. The identifiers are checked for **shape** - a DHIS2 UID, one ASCII letter
+and ten alphanumeric places - because that is everything a server without an instance can honestly
+say about an identifier whether it was minted here or read off the instance. And a unique
 tracked entity attribute is **not** checked for uniqueness: this facade holds no instance data, so
 a global uniqueness claim it cannot verify would be a lie. DHIS2 enforces uniqueness at import
 time, and the receipt is refused there rather than here.
+
+`D2SubjectExists` itself is graded on shape alone. Whether the UID it marks names a person the
+instance holds is the instance's answer, and what an enrollment-only import can carry is a
+translation question the forwarder settles - so capture admits the marker and grades the envelope
+exactly as it grades one without it.
 
 The incident date is graded the same honest way. `D2IncidentAt` is 0..1 on the registration
 profile and the compiled Questionnaire carries no statement of whether its program displays one, so
@@ -113,7 +119,7 @@ ONE_RESPONSE_PER_REQUEST = (
 LOCATION_REFERENCE_PREFIX = "Location/"
 
 #: The form kinds whose response is about a tracked entity rather than about an organisation unit.
-_TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event")
+_TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event", "tracked-entity")
 
 #: How a refusal spells the DHIS2 UID shape a tracker identifier is checked against.
 _UID_SHAPE_DESCRIPTION = f"one ASCII letter followed by {DHIS2_UID_LENGTH - 1} alphanumeric places"
@@ -283,6 +289,10 @@ def _profile_issues(
         issues.extend(_authored_issues(response))
         issues.extend(_tracker_subject_issues(response, naming))
         issues.extend(_registration_context_issues(response, naming))
+    elif form_kind == "tracked-entity":
+        issues.extend(_authored_issues(response))
+        issues.extend(_tracker_subject_issues(response, naming))
+        issues.extend(_organisation_unit_extension_issues(response, naming, "a registration"))
     else:
         issues.extend(_authored_issues(response))
         issues.extend(_tracker_subject_issues(response, naming))
@@ -451,7 +461,38 @@ def _registration_context_issues(response: QuestionnaireResponse, naming: Captur
     issues.extend(_enrollment_extension_issues(response, naming, "a registration"))
     issues.extend(_enrollment_date_issues(response, naming.enrolled_at_url, "enrolled at", required=True))
     issues.extend(_enrollment_date_issues(response, naming.incident_at_url, "incident at", required=False))
+    issues.extend(_subject_exists_issues(response, naming))
     return tuple(issues)
+
+
+def _subject_exists_issues(response: QuestionnaireResponse, naming: CaptureNaming) -> tuple[CaptureIssue, ...]:
+    """The marker stating that the person a registration is subject to is already held by the instance.
+
+    The profile admits it 0..1 and there is nothing beyond its shape for a facade to grade: whether
+    a DHIS2 UID names a person that exists is the instance's answer, not this server's, and the
+    registration subject is checked for UID shape either way. So a response carrying no marker is
+    read exactly as one was read before the marker existed, and one carrying it is admitted.
+    """
+    carried = list(_extensions(response, naming.subject_exists_url))
+    if not carried:
+        return ()
+    if len(carried) > 1:
+        return (
+            _error(
+                "invariant",
+                "QuestionnaireResponse.extension",
+                f"a registration carries at most one `{naming.subject_exists_url}` extension, not {len(carried)}",
+            ),
+        )
+    if carried[0].valueBoolean is None:
+        return (
+            _error(
+                "required",
+                "QuestionnaireResponse.extension",
+                f"the `{naming.subject_exists_url}` extension carries no `valueBoolean`",
+            ),
+        )
+    return ()
 
 
 def _organisation_unit_extension_issues(

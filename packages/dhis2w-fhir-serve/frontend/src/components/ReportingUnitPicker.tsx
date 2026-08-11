@@ -99,5 +99,8 @@ function unitMeaning(formKind: FormType | null, declaresAttributeOptionCombo: bo
     if (formKind === 'tracker') {
         return 'The organisation unit this person is enrolled at. It is context, not an answer - DHIS2 files the enrollment under it.'
     }
+    if (formKind === 'tracked-entity') {
+        return 'The organisation unit this person is registered at. It is context, not an answer - DHIS2 files the person under it, and this form enrols them in no program.'
+    }
     return 'The organisation unit this submission reports from. It is context, not an answer.'
 }

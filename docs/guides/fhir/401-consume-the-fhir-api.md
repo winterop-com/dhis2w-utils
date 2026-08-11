@@ -47,13 +47,13 @@ Operations are declared where R4 puts them - `$translate` at `rest.operation`
 
 Seven definitional types are served - `Questionnaire`, `CodeSystem`,
 `ValueSet`, `Location`, `Organization`, `List`, and `ConceptMap` - plus
-`QuestionnaireResponse`, the one type the facade also receives. Anything
-else is refused with an OperationOutcome saying so, rather than a bare 404
-that would read as "no such resource":
+`QuestionnaireResponse`, the one type the facade also receives, and, under
+`--live` only, `Patient`. Anything else is refused with an OperationOutcome
+saying so, rather than a bare 404 that would read as "no such resource":
 
 ```console
-$ curl -s localhost:8091/Patient/abc
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this server does not serve the resource type `Patient`"}]}
+$ curl -s localhost:8091/Observation/abc
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this server does not serve the resource type `Observation`"}]}
 ```
 
 A read is byte-faithful to what the project published; a missing id names
@@ -90,6 +90,137 @@ $ curl -s 'localhost:8091/Questionnaire?identifier=http://dhis2.org/fhir/id/prog
 "Child Programme"
 "Child Programme - Baby Postnatal"
 ```
+
+## `Patient`: who a person is in the instance
+
+Every search above answers from what the project published. This one answers
+from the DHIS2 instance the server runs against, at request time, which is why
+it exists only under `--live` - and why `/metadata` declares `Patient` only
+there. A compiled run says so instead of guessing:
+
+```console
+$ curl -s localhost:8091/Patient?identifier=SCEN-A-0001
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is answered from the DHIS2 instance this facade runs against, and this process serves a compiled implementation guide; start it with `--live` to search people."}]}
+```
+
+**`identifier` is the whole search surface**, in both of FHIR's token forms.
+A system-qualified token names which key the value is:
+
+```console
+$ curl -s -G localhost:8391/Patient \
+    --data-urlencode 'identifier=http://dhis2.org/fhir/tracked-entity-attribute/ScTeaAUniq1|SCEN-A-0001' \
+    | jq '.total, .entry[].resource.id'
+1
+"PLoWmEuLJl2"
+```
+
+Two systems answer. `{base}/id/tracked-entity` is the DHIS2 tracked entity UID
+itself, read directly rather than filtered for - a UID is not an attribute.
+`{base}/tracked-entity-attribute/{uid}` is one tracked entity attribute, and
+only the attributes DHIS2 declares **unique** get one: uniqueness is what makes
+a value name a person rather than describe one, and the guide already publishes
+the flag as a `unique` concept property on
+[`D2TEA_CS`](401-identifiers-and-extensions.md).
+
+A token naming no system tries every key at once and folds the results,
+deduplicated by tracked entity UID, so a client that has scanned a card without
+knowing which register issued it can still ask:
+
+```console
+$ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001' | jq .total
+1
+```
+
+An identifier nobody holds, and a system this guide publishes nothing for, are
+both an empty searchset - never a 404, which on a search path would say the
+endpoint does not exist:
+
+```console
+$ curl -s 'localhost:8391/Patient?identifier=NO-SUCH-ID' | jq '.type, .total'
+"searchset"
+0
+```
+
+**The Patient is identity and nothing else.** No `name`, no `gender`, no
+`birthDate` - DHIS2 has no attribute that means any of those, and which of an
+instance's attributes do is a decision each instance makes for itself. A wrong
+`gender` on a patient record is a worse answer than none, so the server states
+only what DHIS2 states:
+
+```json
+{
+  "resourceType": "Patient",
+  "id": "PLoWmEuLJl2",
+  "meta": {"tag": [{"system": "http://dhis2.org/fhir/id/tracked-entity-type", "code": "nEenWmSyUEp"}]},
+  "identifier": [
+    {"system": "http://dhis2.org/fhir/id/tracked-entity", "value": "PLoWmEuLJl2"},
+    {"system": "http://dhis2.org/fhir/tracked-entity-attribute/ScTeaAUniq1", "value": "SCEN-A-0001"}
+  ],
+  "extension": [
+    {
+      "url": "http://localhost:8090/fhir/StructureDefinition/d2-tracked-entity-attribute-value",
+      "extension": [
+        {"url": "attributeId", "valueString": "ScTeaComPh1"},
+        {"url": "value", "valueString": "+23276111001"}
+      ]
+    }
+  ]
+}
+```
+
+The tracked entity type rides as a `meta.tag`, because it classifies the
+resource rather than naming it. Every attribute value that is not an identifier
+rides the `D2TrackedEntityAttributeValue` extension - the attribute UID, its
+DHIS2 code where the instance set one, and the value as the string DHIS2 sent.
+Values collected at the program are carried alongside the ones collected at the
+tracked entity type, so a person found by a program attribute's unique value
+comes back holding it.
+
+`GET /Patient/{trackedEntityUid}` reads one person, which is what each Bundle
+entry's `fullUrl` points at. A UID the instance does not hold is a 404 there -
+a read, unlike a search, names a specific resource.
+
+## `/patients/{uid}/enrollments`: which programs a person is in
+
+A capture client that has found a person still has to answer a stage form
+against one of that person's enrollments. This is the list it picks from, and
+it is typed JSON on a lowercase path rather than a FHIR resource: whether a
+DHIS2 enrollment is an `EpisodeOfCare` or a `CarePlan` is
+[still an open decision](../../project/fhir-roadmap.md), and settling it inside
+a picker's data feed would settle it by accident.
+
+```console
+$ curl -s localhost:8391/patients/PLoWmEuLJl2/enrollments | jq .
+{
+  "tracked_entity_uid": "PLoWmEuLJl2",
+  "enrollments": [
+    {
+      "enrollment_uid": "zdXqGWfF8j0",
+      "program_uid": "ScProgAaa01",
+      "program_name": "Scenario A",
+      "status": "ACTIVE",
+      "active": true,
+      "enrolled_at": "2026-07-25T11:00:00",
+      "organisation_unit_uid": "Rp268JB6Ne4",
+      "organisation_unit_name": null
+    }
+  ]
+}
+```
+
+`program_name` and `organisation_unit_name` are joins onto what this project
+published, and stay `null` when it published nothing - a program outside the
+selection, or an organisation unit below the registry's `max_level`, gets no
+name rather than a guessed one.
+
+**A completed enrollment is listed, and said to be completed.** DHIS2 accepts an
+event into one with no error and no warning, so a client that hid it would let a
+user capture into a closed episode without a word. The server states the status
+and leaves `active` false; refusing the capture is the instance's call to make,
+not this facade's.
+
+Like `/Patient`, the listing is live-only, and answers the same
+`not-supported` OperationOutcome under a compiled guide.
 
 ## `$translate`: generated codes back to DHIS2 identifiers
 

@@ -1,0 +1,136 @@
+{
+  "resourceType": "CodeSystem",
+  "status": "draft",
+  "content": "complete",
+  "name": "D2TEA_CS",
+  "id": "d2-tea-cs",
+  "title": "DHIS2 tracked entity attributes",
+  "description": "DHIS2 tracked entity attributes captured by the generated tracker registration forms. Concept codes are DHIS2 tracked entity attribute UIDs.",
+  "url": "http://example.org/fhir/CodeSystem/d2-tea-cs",
+  "concept": [
+    {
+      "code": "Tea3aaaaaaa",
+      "display": "Household size",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "TEA_HOUSEHOLD_SIZE"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "INTEGER_POSITIVE"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable-Trk1aaaaaaa",
+          "valueBoolean": false
+        }
+      ]
+    },
+    {
+      "code": "Tea2aaaaaaa",
+      "display": "Marital status",
+      "property": [
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable-Trk1aaaaaaa",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable-Tet1aaaaaaa",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "code": "Tea1aaaaaaa",
+      "display": "National identifier",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "TEA_NATIONAL_ID"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable-Trk1aaaaaaa",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable-Tet1aaaaaaa",
+          "valueBoolean": false
+        }
+      ]
+    }
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://example.org/fhir/ValueSet/d2-tea-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 tracked entity attribute code.",
+      "type": "string"
+    },
+    {
+      "code": "value-type",
+      "uri": "http://dhis2.org/fhir/property/value-type",
+      "description": "DHIS2 tracked entity attribute value type.",
+      "type": "code"
+    },
+    {
+      "code": "unique",
+      "uri": "http://dhis2.org/fhir/property/unique",
+      "description": "Whether DHIS2 declares the tracked entity attribute unique.",
+      "type": "boolean"
+    },
+    {
+      "code": "searchable",
+      "uri": "http://dhis2.org/fhir/property/searchable",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in any context this guide publishes.",
+      "type": "boolean"
+    },
+    {
+      "code": "searchable-Tet1aaaaaaa",
+      "uri": "http://dhis2.org/fhir/property/searchable-Tet1aaaaaaa",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in tracked entity type Person (Tet1aaaaaaa).",
+      "type": "boolean"
+    },
+    {
+      "code": "searchable-Trk1aaaaaaa",
+      "uri": "http://dhis2.org/fhir/property/searchable-Trk1aaaaaaa",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in tracker program Child Programme (Trk1aaaaaaa).",
+      "type": "boolean"
+    }
+  ],
+  "count": 3
+}

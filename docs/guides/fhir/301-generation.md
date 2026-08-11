@@ -228,7 +228,7 @@ error: [generate.naming] source = "code" needs a usable, unique code on every se
 
 ### The name pieces and their shared rule { #the-token-rule }
 
-The remaining eight options are the name pieces themselves. One rule covers
+The remaining nine options are the name pieces themselves. One rule covers
 all of them:
 
 - a piece is **letters and digits only, starting with a letter** - `D2`,
@@ -426,6 +426,28 @@ program_stage = "Stage"
 Produces `D2Stage_...` instead of `D2PS_...`.
 
 **Default:** `"PS"` - **If you leave it out:** stage form names carry `PS`.
+
+**If you get it wrong:** the shared rule above refuses it.
+
+### `tracked_entity_type`
+
+**In plain words.** The kind piece on the person-only registration form a
+tracked entity type publishes - the form that creates a person and enrols them
+in nothing: `D2TET_<type>`.
+
+**When you would change it.** Almost never; preference only.
+
+**Example.**
+
+```toml
+[generate.naming]
+tracked_entity_type = "Entity"
+```
+
+Produces `D2Entity_...` instead of `D2TET_...`.
+
+**Default:** `"TET"` - **If you leave it out:** person-only form names carry
+`TET`.
 
 **If you get it wrong:** the shared rule above refuses it.
 

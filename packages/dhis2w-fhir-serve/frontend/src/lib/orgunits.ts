@@ -679,7 +679,7 @@ export function admittedUnitIds(list: ResourceList | null): ReadonlySet<string> 
  * is what the submission is about. A tracker response's subject is the tracked entity - a person,
  * not a place - so the unit rides the `d2-organisation-unit` extension instead, and
  * `dhis2w_fhir_serve.capture.validate._tracker_context_issues` requires exactly one of them.
- * Reading both here is what lets one picker serve all four kinds.
+ * Reading both here is what lets one picker serve every kind.
  */
 export function reportingUnitOf(response: QuestionnaireResponse, formKind: FormType | null): Reference | null {
     if (!carriesUnitOnExtension(formKind)) return response.subject ?? null
@@ -687,9 +687,16 @@ export function reportingUnitOf(response: QuestionnaireResponse, formKind: FormT
     return extension?.valueReference ?? null
 }
 
-/** Whether a form kind states its unit on the extension rather than on `subject`. */
+/**
+ * Whether a form kind states its unit on the extension rather than on `subject`.
+ *
+ * The three kinds whose subject is a person: a registration, a stage event, and a person-only
+ * registration. All three name the tracked entity as `subject`, so the organisation unit has
+ * nowhere to go but the extension - which is what
+ * `dhis2w_fhir_serve.capture.validate` requires of each of them.
+ */
 export function carriesUnitOnExtension(formKind: FormType | null): boolean {
-    return formKind === 'tracker' || formKind === 'tracker-event'
+    return formKind === 'tracker' || formKind === 'tracker-event' || formKind === 'tracked-entity'
 }
 
 /**

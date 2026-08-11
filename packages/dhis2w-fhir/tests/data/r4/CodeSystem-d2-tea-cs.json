@@ -23,6 +23,14 @@
         {
           "code": "unique",
           "valueBoolean": false
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable-Trk1aaaaaaa",
+          "valueBoolean": false
         }
       ]
     },
@@ -36,6 +44,14 @@
         },
         {
           "code": "unique",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable-Trk1aaaaaaa",
           "valueBoolean": false
         }
       ]
@@ -54,6 +70,14 @@
         },
         {
           "code": "unique",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable-Trk1aaaaaaa",
           "valueBoolean": true
         }
       ]
@@ -79,6 +103,18 @@
       "code": "unique",
       "uri": "http://dhis2.org/fhir/property/unique",
       "description": "Whether DHIS2 declares the tracked entity attribute unique.",
+      "type": "boolean"
+    },
+    {
+      "code": "searchable",
+      "uri": "http://dhis2.org/fhir/property/searchable",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in any context this guide publishes.",
+      "type": "boolean"
+    },
+    {
+      "code": "searchable-Trk1aaaaaaa",
+      "uri": "http://dhis2.org/fhir/property/searchable-Trk1aaaaaaa",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in tracker program Child Programme (Trk1aaaaaaa).",
       "type": "boolean"
     }
   ],

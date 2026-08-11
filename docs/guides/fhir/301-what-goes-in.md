@@ -9,16 +9,17 @@ app shows them).
 
 **You will be able to:**
 
-- add or remove a data set, event program, or tracker program from the guide
+- add or remove a data set, event program, tracker program, or person-only
+  registration form from the guide
 - narrow which option sets and categories become code lists
 - say what each tracked entity type is published as, scope the
   organisation-unit registry, and choose how example responses are made
 - tell a misspelled UID from a missing object after a run
 
 This page covers the options that decide which of your DHIS2 metadata the
-guide covers: the five selection tables (option sets, categories, data sets,
-event programs, tracker programs), the org-unit scope, what tracked entity
-types are, and the example responses. These are the options an M&E officer
+guide covers: the six selection tables (option sets, categories, data sets,
+event programs, tracker programs, tracked entity forms), the org-unit scope,
+what tracked entity types are, and the example responses. These are the options an M&E officer
 changes most often - adding a data set to the guide is one line here.
 
 Three rules apply to every selection table:
@@ -122,6 +123,37 @@ instance is covered.
 [data sets](#data-sets); an event program's UID listed here is refused by
 name, mirroring the refusal shown under
 [event programs](#event-programs).
+
+### `[generate.tracked_entity_forms]` include_ids { #tracked-entity-forms }
+
+**In plain words.** Which tracked entity types publish a **person-only
+registration form** - a form that creates a person and enrols them in nothing.
+DHIS2 accepts that on its own, and the person it creates can be enrolled in a
+programme later, so a project that registers people before deciding what to
+enrol them in has a form for exactly that.
+
+The form asks the attributes the *type itself* collects, which is the set DHIS2
+imports onto the tracked entity rather than onto an enrollment.
+
+**When you would change it.** When the guide should publish a person-only form
+for a type no selected tracker programme registers, or should publish it for
+only some of the types they do.
+
+**Example.**
+
+```toml
+[generate.tracked_entity_forms]
+include_ids = ["nEenWmSyUEp"]
+```
+
+**Default:** absent - **If you leave it out:** one form per tracked entity type
+that a selected tracker programme registers. This is the one selection table
+whose empty default is not the whole instance: a project that selects no tracker
+programme and names no type here publishes no person-only form at all, and costs
+no request for one.
+
+**If you get it wrong:** a UID that matches no tracked entity type is reported
+by name in the run's notes and skipped, the way an unmatched data set UID is.
 
 ### `[generate.option_sets]` include_ids { #option-sets }
 

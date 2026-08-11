@@ -129,6 +129,15 @@ LOCATION_RESOURCE_TYPE = "Location"
 #: The form kinds whose generated response carries a tracker context - the person and the enrollment.
 _TRACKER_FORM_KINDS: tuple[FormKind, ...] = ("tracker", "tracker-event")
 
+#: The form kind whose generated response names a person and no enrollment, because it creates none.
+_ENTITY_FORM_KIND: FormKind = "tracked-entity"
+
+#: Every form kind whose generated response is about a tracked entity rather than an organisation unit.
+_SUBJECT_FORM_KINDS: tuple[FormKind, ...] = (*_TRACKER_FORM_KINDS, _ENTITY_FORM_KIND)
+
+#: The form kinds that mint the person they are about, so a unique attribute is answered from that UID.
+_MINTING_FORM_KINDS: tuple[FormKind, ...] = ("tracker", _ENTITY_FORM_KIND)
+
 #: The form kind that mints a tracker context; the other tracker kind answers against an existing one.
 _REGISTRATION_FORM_KIND: FormKind = "tracker"
 
@@ -255,7 +264,9 @@ class _TrackerContext(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     tracked_entity_uid: str
-    enrollment_uid: str
+    enrollment_uid: str | None = None
+    """The enrollment the response belongs to, or None on a person-only registration, which creates none."""
+
     enrolled_at: str | None = None
     incident_at: str | None = None
 
@@ -290,11 +301,9 @@ class _Generator(BaseModel):
         question's value - a response's timestamp and its tracker UIDs stay what they were.
         """
         authored = self._date_time() if self.index.form_kind != "aggregate" else None
-        tracker = self._tracker_context() if self.index.form_kind in _TRACKER_FORM_KINDS else None
+        tracker = self._tracker_context() if self.index.form_kind in _SUBJECT_FORM_KINDS else None
         unique_token = (
-            tracker.tracked_entity_uid
-            if tracker is not None and self.index.form_kind == _REGISTRATION_FORM_KIND
-            else None
+            tracker.tracked_entity_uid if tracker is not None and self.index.form_kind in _MINTING_FORM_KINDS else None
         )
         return QuestionnaireResponse(
             meta=Meta(profile=[self.naming.response_profile_url(self.index.form_kind)]),
@@ -317,7 +326,12 @@ class _Generator(BaseModel):
 
         The two UIDs are drawn off the seeded stream whatever the kind, and whether or not the draw
         is then adopted over, so adoption moves those two identifiers and nothing else in the document.
+
+        A person-only registration draws one UID rather than two, because it names the person it
+        creates and no enrollment - there is none to name.
         """
+        if self.index.form_kind == _ENTITY_FORM_KIND:
+            return _TrackerContext(tracked_entity_uid=self._uid())
         tracked_entity_uid = self._uid()
         enrollment_uid = self._uid()
         if self.index.form_kind != _REGISTRATION_FORM_KIND:
@@ -344,14 +358,15 @@ class _Generator(BaseModel):
                     valueReference=Reference(reference=f"{LOCATION_RESOURCE_TYPE}/{self.location_id}"),
                 )
             )
-            extensions.append(
-                Extension(
-                    url=self.naming.tracker_enrollment_url,
-                    valueIdentifier=Identifier(
-                        system=self.naming.tracker_enrollment_system, value=tracker.enrollment_uid
-                    ),
+            if tracker.enrollment_uid is not None:
+                extensions.append(
+                    Extension(
+                        url=self.naming.tracker_enrollment_url,
+                        valueIdentifier=Identifier(
+                            system=self.naming.tracker_enrollment_system, value=tracker.enrollment_uid
+                        ),
+                    )
                 )
-            )
             if tracker.enrolled_at is not None:
                 extensions.append(Extension(url=self.naming.enrolled_at_url, valueDateTime=tracker.enrolled_at))
             if tracker.incident_at is not None:

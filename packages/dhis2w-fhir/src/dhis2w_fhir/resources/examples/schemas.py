@@ -210,3 +210,8 @@ class ExampleTrackerContext(BaseModel):
     def is_registration_complete(self) -> bool:
         """Whether the pair a registration mints is present and dated, which its profile requires 1..1."""
         return self.is_complete and self.enrolled_at is not None
+
+    @property
+    def is_entity_complete(self) -> bool:
+        """Whether the person a person-only registration mints is present, which is all its profile requires."""
+        return self.tracked_entity_uid is not None

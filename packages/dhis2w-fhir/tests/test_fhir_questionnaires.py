@@ -701,6 +701,7 @@ async def _generated_data_set(tmp_path: Path, operands: list[dict[str, object]])
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_operand_payload(operands)))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
     _mock_organisation_units()
@@ -721,6 +722,7 @@ async def test_the_data_set_fetch_asks_for_the_compulsory_operands(
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_operand_payload([])))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
 
@@ -1009,6 +1011,7 @@ async def test_generate_questionnaires_writes_the_target_directory(
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', event_programs='"VBqh0ynB2wv"')
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
 
@@ -1026,7 +1029,8 @@ async def test_generate_questionnaires_writes_the_target_directory(
         "data-dictionary/data-elements.fsh",
     ]
     assert report.target_directory == (
-        "fsh/data-sets, fsh/event-programs, fsh/tracker-programs, fsh/data-dictionary, resources/assignments, "
+        "fsh/data-sets, fsh/event-programs, fsh/tracker-programs, fsh/tracked-entity-types, fsh/data-dictionary, "
+        "resources/assignments, "
         "resources/attribute-option-combos, resources/concept-maps"
     )
     fsh = tmp_path / "ig" / "input" / "fsh"
@@ -1052,6 +1056,7 @@ async def test_an_absent_selection_covers_the_whole_instance(
     await _scaffold_project(tmp_path)
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_ALL_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
 
@@ -1094,6 +1099,7 @@ async def test_the_stages_of_a_tracker_program_are_ordered_by_their_dhis2_sort_o
     await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
 
@@ -1126,6 +1132,7 @@ async def test_an_explicit_tracker_selection_is_a_filtered_fetch_of_its_own(
     await _scaffold_project(tmp_path, event_programs="", tracker_programs='"IpHINAT79UW", "Missing1234"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     programs.mock(
         side_effect=lambda request: httpx.Response(
             200,
@@ -1180,6 +1187,7 @@ async def test_a_stage_mixing_sectioned_and_unsectioned_elements_is_noted_as_a_s
     }
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [loose]}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
 
@@ -1207,6 +1215,7 @@ async def test_a_program_the_target_does_not_map_is_one_note_on_the_sweep(
     respx.get(f"{_HOST}/api/programs").mock(
         return_value=httpx.Response(200, json={"programs": [*_ALL_PROGRAMS_PAYLOAD["programs"], _UNTYPED_PROGRAM]})
     )
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
 
@@ -1238,6 +1247,7 @@ async def test_each_directory_is_swept_against_its_own_files(
 
     respx.get(f"{_HOST}/api/dataSets").mock(side_effect=_data_sets)
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
     _mock_organisation_units()
@@ -1269,6 +1279,7 @@ async def test_a_registration_form_states_the_dhis2_level_of_every_attribute_it_
     programs = respx.get(f"{_HOST}/api/programs").mock(
         return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]})
     )
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
 
@@ -1288,6 +1299,120 @@ async def test_a_registration_form_states_the_dhis2_level_of_every_attribute_it_
     assert registration.index("valueBoolean = false") > marital_status
 
 
+#: The tracked entity type the demo tracker program registers, with the attributes it collects itself
+#: and the searchability flag DHIS2 holds on that join.
+_PERSON_TYPE_PAYLOAD = {
+    "trackedEntityTypes": [
+        {
+            "id": "nEenWmSyUEp",
+            "name": "Person",
+            "code": "TET_PERSON",
+            "trackedEntityTypeAttributes": [
+                {
+                    "mandatory": True,
+                    "searchable": True,
+                    "sortOrder": 1,
+                    "trackedEntityAttribute": {
+                        "id": "Tea1aaaaaaa",
+                        "name": "National identifier",
+                        "valueType": "TEXT",
+                        "unique": True,
+                    },
+                }
+            ],
+        }
+    ]
+}
+
+
+@respx.mock
+async def test_a_tracker_programs_type_publishes_a_person_only_form_by_default(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The default person-only selection is the types the selected tracker programs already register."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
+    types = respx.get(f"{_HOST}/api/trackedEntityTypes").mock(
+        return_value=httpx.Response(200, json=_PERSON_TYPE_PAYLOAD)
+    )
+    _mock_option_sets()
+    _mock_categories()
+
+    _mock_organisation_units()
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert types.calls[0].request.url.params["filter"] == "id:in:[nEenWmSyUEp]"
+    assert "searchable" in types.calls[0].request.url.params["fields"]
+    assert report.questionnaire_count == 4
+    form = (tmp_path / "ig" / "input" / "fsh" / "tracked-entity-types" / "nEenWmSyUEp.fsh").read_text(encoding="utf-8")
+    assert "* extension[D2FormType].valueCode = #tracked-entity" in form
+    assert '* identifier[+].system = $DHIS2-TET\n* identifier[=].value = "nEenWmSyUEp"' in form
+    assert '* item[+].linkId = "Tea1aaaaaaa"' in form
+    dictionary = (tmp_path / "ig" / "input" / "fsh" / "data-dictionary" / "tracked-entity-attributes.fsh").read_text(
+        encoding="utf-8"
+    )
+    assert "* ^property[+].code = #searchable-nEenWmSyUEp" in dictionary
+    assert "* ^property[+].code = #searchable-IpHINAT79UW" in dictionary
+
+
+@respx.mock
+async def test_a_run_selecting_no_tracker_program_reads_no_tracked_entity_types(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The person-only read is filtered or skipped, so a data-set-only project costs no extra request."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', event_programs='"VBqh0ynB2wv"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
+    types = respx.get(f"{_HOST}/api/trackedEntityTypes").mock(
+        return_value=httpx.Response(200, json={"trackedEntityTypes": []})
+    )
+    _mock_option_sets()
+    _mock_categories()
+
+    _mock_organisation_units()
+    await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert not types.called
+
+
+@respx.mock
+async def test_an_explicit_person_only_selection_overrides_the_default_set(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`[generate.tracked_entity_forms]` names the types outright, and an unmatched UID is noted by name."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, tracked_entity_forms='"nEenWmSyUEp", "Missing1234"')
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    types = respx.get(f"{_HOST}/api/trackedEntityTypes").mock(
+        return_value=httpx.Response(200, json=_PERSON_TYPE_PAYLOAD)
+    )
+    _mock_option_sets()
+    _mock_categories()
+
+    _mock_organisation_units()
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert types.calls[0].request.url.params["filter"] == "id:in:[nEenWmSyUEp,Missing1234]"
+    assert report.questionnaire_count == 1
+    assert any("Missing1234" in note.message for note in report.notes)
+
+
 @respx.mock
 async def test_a_tracker_program_under_the_event_table_is_refused_by_name(
     probe_profile: None,  # noqa: ARG001
@@ -1299,6 +1424,7 @@ async def test_a_tracker_program_under_the_event_table_is_refused_by_name(
     await _scaffold_project(tmp_path, event_programs='"IpHINAT79UW"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
 
     with pytest.raises(UnsupportedProgramError) as raised:
         _mock_organisation_units()
@@ -1322,6 +1448,7 @@ async def test_an_event_program_under_the_tracker_table_is_refused_by_name(
     await _scaffold_project(tmp_path, tracker_programs='"VBqh0ynB2wv"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
 
     with pytest.raises(UnsupportedProgramError) as raised:
         _mock_organisation_units()
@@ -1347,6 +1474,7 @@ async def test_an_unmatched_target_uid_is_noted(
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt", "Missing1234"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
 
@@ -1383,6 +1511,7 @@ async def test_a_form_mixing_sectioned_and_unsectioned_elements_is_noted(
     }
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=payload))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
 
@@ -1415,6 +1544,7 @@ async def test_option_set_selection_unions_the_target_closure(
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=option_sets_payload))
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
 
     report = await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
 
@@ -1469,6 +1599,7 @@ async def test_generate_full_without_selection_tables_still_emits_questionnaires
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json={"organisationUnits": []}))
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_ALL_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
 
     report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
 
@@ -1558,6 +1689,7 @@ async def test_a_data_sets_unsectioned_elements_are_ordered_independently_of_the
         "dataSets": [{"id": "Ds3aaaaaaaa", "name": "Wildlife", "sections": [], "dataSetElements": elements[::-1]}]
     }
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=shuffled))
@@ -1622,6 +1754,7 @@ async def test_category_option_combos_are_ordered_independently_of_the_wire(
     mock_attributes()
     await _scaffold_project(tmp_path, data_sets='"Ds3aaaaaaaa"')
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     _mock_option_sets()
     _mock_categories()
     respx.get(f"{_HOST}/api/dataSets").mock(
@@ -1829,6 +1962,7 @@ async def test_the_questionnaire_target_plans_option_set_names_over_the_whole_se
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     option_sets = respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
     _mock_categories()
 

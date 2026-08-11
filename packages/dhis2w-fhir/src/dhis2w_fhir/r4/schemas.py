@@ -50,12 +50,6 @@ class DomainResource(Resource):
     """`DomainResource` - a resource carrying narrative and extensions; every resource emitted here is one."""
 
 
-class Meta(Element):
-    """`Resource.meta` - the profiles a generated instance claims conformance to."""
-
-    profile: list[str] | None = None
-
-
 class Identifier(Element):
     """A business identifier: the DHIS2 UID or code under its identifier system."""
 
@@ -69,6 +63,13 @@ class Coding(Element):
     system: str | None = None
     code: str | None = None
     display: str | None = None
+
+
+class Meta(Element):
+    """`Resource.meta` - the profiles a generated instance claims conformance to, and the tags classifying it."""
+
+    profile: list[str] | None = None
+    tag: list[Coding] | None = None
 
 
 class CodeableConcept(Element):
@@ -238,6 +239,22 @@ class Organization(DomainResource):
     telecom: list[ContactPoint] | None = None
     contact: list[OrganizationContact] | None = None
     active: bool | None = None
+
+
+class Patient(DomainResource):
+    """A FHIR R4 Patient as projected from one DHIS2 tracked entity - identity only, no demographic claims.
+
+    The elements are the ones DHIS2 states without interpretation: `identifier` for the tracked
+    entity UID and the values of the attributes DHIS2 declares unique, `meta.tag` for the tracked
+    entity type, and `extension` for every other attribute value the entity holds. `name`, `gender`,
+    and `birthDate` are deliberately absent - see `dhis2w_fhir_serve.patients.projection`.
+    """
+
+    resourceType: Literal["Patient"] = "Patient"
+    id: str | None = None
+    meta: Meta | None = None
+    identifier: list[Identifier] | None = None
+    extension: list[Extension] | None = None
 
 
 class Location(DomainResource):

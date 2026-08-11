@@ -53,6 +53,9 @@ class CaptureNaming(BaseModel):
     incident_at_url: str
     """Extension url a registration response dates the incident that enrollment follows."""
 
+    subject_exists_url: str
+    """Extension url a registration response states that the person it is subject to is already held on."""
+
     tracked_entity_system: str
     tracker_enrollment_system: str
     program_identifier_system: str
@@ -63,6 +66,7 @@ class CaptureNaming(BaseModel):
     event_response_profile_url: str
     tracker_registration_response_profile_url: str
     tracker_event_response_profile_url: str
+    tracked_entity_response_profile_url: str
 
     @classmethod
     def from_project(cls, project: FhirProject) -> CaptureNaming:
@@ -82,6 +86,7 @@ class CaptureNaming(BaseModel):
             tracker_enrollment_url=_definition_url(canonical, names.tracker_enrollment_extension_id),
             enrolled_at_url=_definition_url(canonical, names.enrolled_at_extension_id),
             incident_at_url=_definition_url(canonical, names.incident_at_extension_id),
+            subject_exists_url=_definition_url(canonical, names.subject_exists_extension_id),
             tracked_entity_system=_identifier_system(base, "TrackedEntity"),
             tracker_enrollment_system=_identifier_system(base, "TrackerEnrollment"),
             program_identifier_system=_identifier_system(base, "Program"),
@@ -92,6 +97,7 @@ class CaptureNaming(BaseModel):
                 canonical, names.tracker_registration_response_profile_id
             ),
             tracker_event_response_profile_url=_definition_url(canonical, names.tracker_event_response_profile_id),
+            tracked_entity_response_profile_url=_definition_url(canonical, names.tracked_entity_response_profile_id),
         )
 
     def response_profile_url(self, form_kind: FormKind) -> str:
@@ -102,6 +108,8 @@ class CaptureNaming(BaseModel):
             return self.tracker_registration_response_profile_url
         if form_kind == "tracker-event":
             return self.tracker_event_response_profile_url
+        if form_kind == "tracked-entity":
+            return self.tracked_entity_response_profile_url
         return self.event_response_profile_url
 
 

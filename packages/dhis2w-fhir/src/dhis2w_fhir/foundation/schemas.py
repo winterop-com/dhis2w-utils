@@ -124,13 +124,15 @@ class FormTypeDefinition(BaseModel):
     display: str
 
 
-#: Every DHIS2 form kind a Questionnaire can be generated from. `tracker` and `tracker-event`
-#: are declared ahead of their generators so the terminology is stable once those land.
+#: Every DHIS2 form kind a Questionnaire can be generated from. `tracked-entity` is the kind that
+#: registers a person without enrolling them in anything, which is why its display names the
+#: tracked entity type rather than a program.
 FORM_TYPE_DEFINITIONS: tuple[FormTypeDefinition, ...] = (
     FormTypeDefinition(code="aggregate", display="Aggregate data set form"),
     FormTypeDefinition(code="event", display="Event program form"),
     FormTypeDefinition(code="tracker", display="Tracker registration form"),
     FormTypeDefinition(code="tracker-event", display="Tracker program stage form"),
+    FormTypeDefinition(code="tracked-entity", display="Tracked entity type registration form"),
 )
 
 #: The prose the form-type CodeSystem/ValueSet pair publishes under.
@@ -194,6 +196,8 @@ class ResponseProfileDeclaration(BaseModel):
     value set carries that third key. `registration_context_required` marks the tracker
     registration contract, whose response mints the tracked entity and the enrollment it is
     creating rather than naming ones that already exist, and states when the enrollment began.
+    `entity_context_required` marks the person-only contract, which mints the tracked entity and
+    stops there: there is no enrollment to name, because the form enrols nobody in anything.
     The flags are what the shared template branches on.
     """
 
@@ -208,6 +212,7 @@ class ResponseProfileDeclaration(BaseModel):
     authored_required: bool = False
     tracker_context_required: bool = False
     registration_context_required: bool = False
+    entity_context_required: bool = False
     attribute_option_combo_allowed: bool = False
 
     @property
@@ -335,6 +340,16 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "attribute", "value")
 
     @property
+    def tracked_entity_attribute_value_extension(self) -> str:
+        """FSH name of the tracked-entity-attribute-value Extension (e.g. `D2TrackedEntityAttributeValue`)."""
+        return f"{self.definition_prefix}TrackedEntityAttributeValue"
+
+    @property
+    def tracked_entity_attribute_value_extension_id(self) -> str:
+        """FHIR id of the tracked-entity-attribute-value Extension (e.g. `d2-tracked-entity-attribute-value`)."""
+        return join_id_tokens(self.definition_prefix, "tracked", "entity", "attribute", "value")
+
+    @property
     def attribute_option_combo_extension(self) -> str:
         """FSH name of the response-side attribute-option-combo Extension (e.g. `D2AttributeOptionCombo`).
 
@@ -436,6 +451,22 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "entity", "level")
 
     @property
+    def subject_exists_extension(self) -> str:
+        """FSH name of the existing-subject Extension (e.g. `D2SubjectExists`).
+
+        Named for the fact it carries rather than for the act that produced it: the boolean says
+        the person the response is subject to is already held by the instance, which is what the
+        translator branches on. `D2LinkedSubject` was the alternative and names a capture-client
+        gesture - linking - that a reader of the contract has no way to resolve. OWNER REVIEW.
+        """
+        return f"{self.definition_prefix}SubjectExists"
+
+    @property
+    def subject_exists_extension_id(self) -> str:
+        """FHIR id of the existing-subject Extension (e.g. `d2-subject-exists`)."""
+        return join_id_tokens(self.definition_prefix, "subject", "exists")
+
+    @property
     def aggregate_response_profile(self) -> str:
         """FSH name of the aggregate QuestionnaireResponse profile (e.g. `D2AggregateResponse`)."""
         return f"{self.definition_prefix}AggregateResponse"
@@ -464,6 +495,16 @@ class FoundationNaming(BaseModel):
     def tracker_registration_response_profile_id(self) -> str:
         """FHIR id of the registration QuestionnaireResponse profile (e.g. `d2-tracker-registration-response`)."""
         return join_id_tokens(self.definition_prefix, "tracker", "registration", "response")
+
+    @property
+    def tracked_entity_response_profile(self) -> str:
+        """FSH name of the person-only QuestionnaireResponse profile (e.g. `D2TrackedEntityResponse`)."""
+        return f"{self.definition_prefix}TrackedEntityResponse"
+
+    @property
+    def tracked_entity_response_profile_id(self) -> str:
+        """FHIR id of the person-only QuestionnaireResponse profile (e.g. `d2-tracked-entity-response`)."""
+        return join_id_tokens(self.definition_prefix, "tracked", "entity", "response")
 
     @property
     def tracker_event_response_profile(self) -> str:

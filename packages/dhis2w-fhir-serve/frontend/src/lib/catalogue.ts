@@ -1,12 +1,13 @@
 /**
  * Shelving served forms by the DHIS2 capture model they came from.
  *
- * A flat list of Questionnaires mixes three different things: a data set is a periodic report for
- * an organisation unit, an event program records single events with no person involved, and a
- * tracker program is one surface whose registration form enrols a person and whose stage forms
- * record that person's visits. The fold here is the one grouping algorithm for that split - the
- * Forms page renders it as sections and the organisation-units rail renders it as shelves, and
- * both read the same catalogue so the two listings can never disagree about what a form is.
+ * A flat list of Questionnaires mixes four different things: a data set is a periodic report for
+ * an organisation unit, an event program records single events with no person involved, a tracker
+ * program is one surface whose registration form enrols a person and whose stage forms record that
+ * person's visits, and a person-only form registers a person in the instance without enrolling
+ * them in anything. The fold here is the one grouping algorithm for that split - the Forms page
+ * renders it as sections and the organisation-units rail renders it as shelves, and both read the
+ * same catalogue so the two listings can never disagree about what a form is.
  *
  * Everything here is pure, like the rest of lib/: the kind comes off `formTypeOf` (the
  * `D2FormType` extension) and the program join off `programOf` (the `{base}/id/program`
@@ -26,12 +27,22 @@ export interface ProgramGroup {
     stages: Questionnaire[]
 }
 
-/** Served forms shelved by kind: data sets, programs, and the ones declaring no kind at all. */
+/** Served forms shelved by kind: data sets, programs, people, and the ones declaring no kind at all. */
 export interface FormCatalog {
     /** Aggregate forms, in title order. */
     dataSets: Questionnaire[]
     /** Event and tracker programs as groups, in title order; `isEventProgram` tells the two apart. */
     programs: ProgramGroup[]
+    /**
+     * Person-only registration forms, in title order - the `tracked-entity` kind.
+     *
+     * A shelf of its own, and honestly so: this form is generated from a DHIS2 tracked entity type
+     * rather than from a data set or a program, and it names no program to group under. Folding it
+     * into the tracker section would put a form that enrols nobody under a heading that says a
+     * person is enrolled once and then visited; folding it into data sets would say it is a
+     * periodic report. It is neither, so it is its own thing.
+     */
+    people: Questionnaire[]
     /** Forms declaring no `D2FormType` - listed, not hidden, because the server refuses to capture against them. */
     unclassified: Questionnaire[]
 }
@@ -45,6 +56,7 @@ export interface FormCatalog {
  */
 export function catalogueForms(questionnaires: Questionnaire[]): FormCatalog {
     const dataSets: Questionnaire[] = []
+    const people: Questionnaire[] = []
     const unclassified: Questionnaire[] = []
     const groups = new Map<string, ProgramGroup>()
     const groupFor = (key: string): ProgramGroup => {
@@ -58,6 +70,7 @@ export function catalogueForms(questionnaires: Questionnaire[]): FormCatalog {
     for (const questionnaire of questionnaires) {
         const kind = formTypeOf(questionnaire)
         if (kind === 'aggregate') dataSets.push(questionnaire)
+        else if (kind === 'tracked-entity') people.push(questionnaire)
         else if (kind === null) unclassified.push(questionnaire)
         else {
             const group = groupFor(programOf(questionnaire) ?? formIdentifier(questionnaire))
@@ -80,6 +93,7 @@ export function catalogueForms(questionnaires: Questionnaire[]): FormCatalog {
     return {
         dataSets: formsByTitle(dataSets),
         programs,
+        people: formsByTitle(people),
         unclassified: formsByTitle(unclassified),
     }
 }

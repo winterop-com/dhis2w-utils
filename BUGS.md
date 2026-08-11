@@ -4218,3 +4218,53 @@ tests (`packages/dhis2w-fhir/tests/data/forward-409/`) pin each major's actual s
 so a change in either direction surfaces.
 
 **Verifier:** none yet.
+
+### 77. A tracked entity is filterable by a `unique` program attribute it does not carry in `attributes[]`
+
+`/api/tracker/trackedEntities?trackedEntityType=<uid>&filter=<teaUid>:eq:<value>` happily
+filters on a tracked entity attribute the program collects, and returns the matching
+entity - whose own `attributes[]` array then does not contain that attribute at all.
+The value lives on `enrollments[].attributes[]`, and the endpoint's default projection
+omits `enrollments` entirely, so the default answer to "find the person holding national
+ID X" is a person who appears not to hold it.
+
+**Observed on:** DHIS2 2.43.1 (rev 9cbfbf3, 2026-08-11).
+
+**Repro:**
+
+```bash
+# ScTeaAUniq1 is unique=true and is collected by program ScProgAaa01, not by the
+# tracked entity type. The filter matches; the returned entity does not carry it.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities?trackedEntityType=nEenWmSyUEp&filter=ScTeaAUniq1:eq:SCEN-A-0001&ouMode=ACCESSIBLE'
+# {"trackedEntities":[{"trackedEntity":"PLoWmEuLJl2", ...,
+#   "attributes":[{"attribute":"ScTeaComTx1",...},{"attribute":"ScTeaComPh1",...}]}]}
+# No ScTeaAUniq1, and no `enrollments` key at all.
+
+# Asking for the enrollments and their attributes brings the matched value back.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities/PLoWmEuLJl2?fields=attributes[attribute,value],enrollments[enrollment,attributes[attribute,value]]'
+# enrollments[0].attributes includes {"attribute":"ScTeaAUniq1","value":"SCEN-A-0001"}
+```
+
+**Expected:** a search that matched on an attribute returns an entity carrying the value
+it matched on - either by folding program-level values into `attributes[]` on a
+type-scoped query, or by defaulting the projection to include the enrollments the match
+came from.
+
+**Actual:** the two disagree. `attributes[]` is the tracked-entity-type-level set alone,
+`enrollments` is absent from the default projection, and the search offers no hint that
+the value it matched lives one level down.
+
+**Impact:** any identifier lookup that renders "the person we found" from the default
+response drops the identifier that found them, which reads to a user as the wrong person.
+A caller has to know to ask for `enrollments[...attributes...]` explicitly, and to fold
+the two attribute lists itself.
+
+**Workaround in this repo:** every read in
+`packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/patients/wire.py` names its `fields`
+in full, enrollments and their attributes included, and
+`patients/projection.py` folds the entity-level and enrollment-level values into one
+list deduplicated by attribute and value.
+
+**Verifier:** none yet.

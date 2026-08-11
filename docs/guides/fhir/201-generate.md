@@ -42,6 +42,7 @@ full pipeline: 2,779 file(s) written across 7 target(s)
 │questionnaires │ ig/input/fsh/data-sets,         │ 21      │ 0         │ 0       │ 0    │
 │               │ fsh/event-programs,             │         │           │         │      │
 │               │ fsh/tracker-programs,           │         │           │         │      │
+│               │ fsh/tracked-entity-types,       │         │           │         │      │
 │               │ fsh/data-dictionary,            │         │           │         │      │
 │               │ resources/assignments,          │         │           │         │      │
 │               │ resources/attribute-option-comb │         │           │         │      │
@@ -118,7 +119,7 @@ What each target writes, and where:
 | `foundation` | `ig/input/fsh/foundation/` - the identifier aliases and NamingSystems, the `D2Period` / `D2FormType` / `D2AttributeValue` and tracker extensions, the response profiles, `$generate`, and the capture CapabilityStatement. Depends on `fhir.toml` alone; never touches DHIS2. Prerequisite for a compiling IG. |
 | `option-sets` | Pre-built CodeSystem/ValueSet JSON into `ig/input/resources/terminology/`, ConceptMaps into `resources/concept-maps/`. |
 | `categories` | Its own CodeSystem/ValueSet JSON into `ig/input/resources/categories/`, ConceptMaps into `resources/concept-maps/`. |
-| `questionnaires` | One Questionnaire per data set (`fsh/data-sets/`), per event program (`fsh/event-programs/`), per tracker stage plus the program's registration form (`fsh/tracker-programs/<program stem>/`), the shared data dictionary (`fsh/data-dictionary/`), assignment Lists (`resources/assignments/`), and attribute-option-combo terminology (`resources/attribute-option-combos/`). |
+| `questionnaires` | One Questionnaire per data set (`fsh/data-sets/`), per event program (`fsh/event-programs/`), per tracker stage plus the program's registration form (`fsh/tracker-programs/<program stem>/`), per tracked entity type's person-only registration form (`fsh/tracked-entity-types/`), the shared data dictionary (`fsh/data-dictionary/`), assignment Lists (`resources/assignments/`), and attribute-option-combo terminology (`resources/attribute-option-combos/`). |
 | `examples` | One `Usage: #example` response per target into `fsh/examples/<target stem>-<n>.fsh`. |
 | `org-units` | Profiles and level terminology into `fsh/organization/`; the registry as pre-built JSON - `Organization-<stem>.json` + `Location-<stem>.json` per unit - into `resources/registry/`. |
 | `pages` | Six site pages plus per-artifact intros into `ig/input/pagecontent/` - markdown, not FSH. |

@@ -42,6 +42,7 @@ organisation_unit = "OU"            # the one piece that must stay non-empty -> 
 data_set = "DS"                     # -> 301-generation#data_set
 program = "PR"                      # -> 301-generation#program
 program_stage = "PS"                # -> 301-generation#program_stage
+tracked_entity_type = "TET"         # the person-only registration form -> 301-generation#tracked_entity_type
 
 [generate.option_sets]
 # Option sets to publish code lists for, by UID (absent = all). -> 301-what-goes-in#option-sets
@@ -64,6 +65,11 @@ program_stage = "PS"                # -> 301-generation#program_stage
 [generate.tracker_programs]
 # Tracker programs (with registration), one form per stage, by UID (absent = all). -> 301-what-goes-in#tracker-programs
 # include_ids = ["IpHINAT79UW"]
+
+[generate.tracked_entity_forms]
+# Tracked entity types publishing a person-only registration form, by UID
+# (absent = the types the selected tracker programs register). -> 301-what-goes-in#tracked-entity-forms
+# include_ids = ["nEenWmSyUEp"]
 
 [generate.tracked_entity_types]
 # What each tracked entity type is; a type not named here is a person. -> 301-what-goes-in#tracked_entity_types

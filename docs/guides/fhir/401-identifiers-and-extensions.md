@@ -180,6 +180,23 @@ hold spaces, and a system URI may not. Every emitting surface follows the same r
 Organization and Location, an option set's and a category's CodeSystem/ValueSet pair,
 and a Questionnaire.
 
+**A unique tracked entity attribute's values are identifiers too**, under a family of
+their own:
+
+```
+{base}/tracked-entity-attribute/{attributeUid}
+```
+
+A tracked entity attribute is a different DHIS2 object from a metadata attribute - it
+is a question asked about a person, not an annotation on a metadata object - so it gets
+its own namespace rather than sharing the one above, and its own extension
+(`D2TrackedEntityAttributeValue`) for the values that are not identifiers. The rule for
+which is which is the same: DHIS2 enforces uniqueness on the attribute, so its value
+names the person. `D2TEA_CS` publishes that flag as a `unique` concept property, which
+is what a server reads to decide. This is the family
+[`GET /Patient?identifier=...`](401-consume-the-fhir-api.md#patient-who-a-person-is-in-the-instance)
+searches on.
+
 These per-attribute namespaces are declared **by convention rather than as
 NamingSystems**, and deliberately so: the foundation layer is built from `fhir.toml`
 alone and never reads an instance, so it cannot know which attributes exist, let alone

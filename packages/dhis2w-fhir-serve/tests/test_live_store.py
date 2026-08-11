@@ -23,7 +23,7 @@ from dhis2w_fhir import build_option_set_artifacts
 from dhis2w_fhir.config import FhirProject, load_fhir_config
 from dhis2w_fhir.service import fetch_live_ig_inputs, resolve_generation_profile
 from dhis2w_fhir_serve.app import create_app
-from dhis2w_fhir_serve.live import build_live_store
+from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import IdentifierToken, ResourceStore, SearchQuery
 
@@ -212,7 +212,9 @@ def live_project(tmp_path: Path) -> FhirProject:
 
 async def _built_store(project: FhirProject) -> ResourceStore:
     """Build the live store for a project against the mocked instance."""
-    return await build_live_store(project, ServeSettings(project_dir=project.project_root, live=True))
+    settings = ServeSettings(project_dir=project.project_root, live=True)
+    async with open_live_client(project, settings) as client:
+        return await build_live_store(project, settings, client)
 
 
 def _bodies(store: ResourceStore, resource_type: str) -> dict[str, dict[str, Any]]:
@@ -357,6 +359,7 @@ async def test_the_live_store_serves_the_terminology_the_foundation_fsh_declares
         "event",
         "tracker",
         "tracker-event",
+        "tracked-entity",
     ]
     assert value_sets["d2-form-type-vs"]["compose"]["include"] == [
         {"system": f"{_CANONICAL}/CodeSystem/d2-form-type-cs"}
