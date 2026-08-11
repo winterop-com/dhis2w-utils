@@ -12,6 +12,7 @@ from dhis2w_fhir.r4 import (
     CapabilityStatement,
     CodeSystem,
     CodeSystemConcept,
+    CodeSystemConceptProperty,
     ConceptMap,
     Element,
     Extension,
@@ -52,6 +53,8 @@ _ROUND_TRIP_CASES = [
     pytest.param(ValueSet, "ValueSet-richest.json", id="value_set"),
     pytest.param(CodeSystem, "CodeSystem-d2-de-cs.json", id="code_system_data_elements"),
     pytest.param(CodeSystem, "CodeSystem-d2-coc-cs.json", id="code_system_option_combos"),
+    pytest.param(CodeSystem, "CodeSystem-d2-ou-cs.json", id="code_system_organisation_units"),
+    pytest.param(ValueSet, "ValueSet-d2-ou-vs.json", id="value_set_organisation_units"),
     pytest.param(ConceptMap, "ConceptMap-d2-os-birth-type-cm.json", id="concept_map_option_set"),
     pytest.param(Questionnaire, "Questionnaire-BfMAe6Itzgt.json", id="questionnaire_aggregate"),
     pytest.param(Questionnaire, "Questionnaire-EVTsupVis01.json", id="questionnaire_event"),
@@ -138,6 +141,35 @@ def test_a_code_system_carries_its_concepts_properties_and_designations() -> Non
     assert first_concept.property[0].valueString == "1.0.0.0"
     assert first_concept.designation is not None
     assert first_concept.designation[0].language == "lo"
+
+
+def test_a_concept_property_reads_back_an_integer_value() -> None:
+    """The organisation-unit code system states each unit's hierarchy level on `valueInteger`.
+
+    The one `#integer` property the generated terminology declares, and the one whose concepts
+    a closed model has to name a `value[x]` for to read the compiled document at all.
+    """
+    parsed = json.loads((_DATA_DIRECTORY / "CodeSystem-d2-ou-cs.json").read_text(encoding="utf-8"))
+    model = CodeSystem.model_validate(parsed)
+    assert model.property is not None
+    assert [declaration.type for declaration in model.property] == ["integer", "code", "string"]
+    assert model.concept is not None
+    levels = [
+        concept_property.valueInteger
+        for concept in model.concept
+        for concept_property in concept.property or []
+        if concept_property.code == "level"
+    ]
+    assert levels == [1, 2, 3, 4]
+    assert _emit(model) == parsed
+
+
+def test_a_concept_property_emits_one_value_element_at_a_time() -> None:
+    """A property carrying an integer writes `valueInteger` and none of its sibling choices."""
+    emitted = json.loads(
+        CodeSystemConceptProperty(code="level", valueInteger=4).model_dump_json(exclude_none=True, by_alias=True)
+    )
+    assert emitted == {"code": "level", "valueInteger": 4}
 
 
 def test_a_value_set_composes_the_matching_code_system() -> None:

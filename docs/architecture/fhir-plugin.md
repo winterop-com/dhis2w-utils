@@ -1459,7 +1459,10 @@ what the project published, down to key order.
 **Live mode runs the JSON builders instead.** `live.py` resolves the generation profile,
 opens **one** client, fetches through `fetch_live_ig_inputs`, closes it, and builds the
 same read set from `build_questionnaire_documents`, `build_data_dictionary_documents`,
-`build_option_set_artifacts`, `build_category_artifacts`, and
+`build_foundation_terminology_documents`,
+`build_organisation_unit_level_terminology_documents`,
+`build_organisation_unit_terminology_documents`, `build_option_set_artifacts`,
+`build_category_artifacts`, and
 `build_organisation_unit_instances`. The first two are the JSON twins of the FSH
 questionnaire emitter - the same projection, the same item typing, the same ValueSet
 binding decisions, through the very functions the FSH path calls - and the equality is a
@@ -1467,11 +1470,18 @@ gate rather than an aspiration: `test_fhir_questionnaire_parity.py` rebuilds the
 compiled questionnaires from the committed source fixtures and asserts each equals the
 SUSHI output key for key. The last three already return serialised JSON artifacts, so
 `live.py` reads their documents back out of that exact text rather than serialising a
-second time. What live mode does not hold is the foundation artifacts: StructureDefinitions
-and the IG's `kind #requirements` CapabilityStatement exist only once SUSHI has compiled
-the FSH, and no FSH compiler runs in this process. That costs nothing - the served read
-set is `CAPTURE_SERVER_READ_RESOURCE_TYPES`, every one of which a JSON builder produces,
-and `/metadata` names the IG's statement by canonical, which needs no artifact to state.
+second time. Four CodeSystem/ValueSet pairs are declared inside FSH files rather than
+written as JSON - the form-type pair, the period-type pair, and the two organisation-unit
+pairs - so each has a builder beside its template and both render one Python vocabulary:
+`FORM_TYPE_DEFINITIONS`, `PERIOD_TYPE_DEFINITIONS`, and the level and concept projections
+of the selection, with the prose held once on a `TerminologyPairProfile`.
+`test_fhir_terminology_parity.py` gates that pair the same way the questionnaire parity
+test gates its own. What live mode does not hold is the definitional layer:
+StructureDefinitions and the IG's `kind #requirements` CapabilityStatement exist only
+once SUSHI has compiled the FSH, and no FSH compiler runs in this process. That costs
+nothing - the served read set is `CAPTURE_SERVER_READ_RESOURCE_TYPES`, every one of which
+a JSON builder produces, and `/metadata` names the IG's statement by canonical, which
+needs no artifact to state.
 
 **Capture is a phase machine.** `capture/` has four modules in the order a request
 passes through them: `naming` derives the extension urls and identifier systems this

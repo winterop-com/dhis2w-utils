@@ -1,0 +1,108 @@
+{
+  "resourceType": "CodeSystem",
+  "status": "draft",
+  "content": "complete",
+  "name": "D2PeriodType_CS",
+  "id": "d2-period-type-cs",
+  "title": "DHIS2 period types",
+  "description": "The period types DHIS2 registers, each with the ISO period format it is written in.",
+  "url": "http://localhost:8080/fhir/CodeSystem/d2-period-type-cs",
+  "concept": [
+    {
+      "code": "Daily",
+      "display": "Daily (yyyyMMdd)"
+    },
+    {
+      "code": "Weekly",
+      "display": "Weekly (yyyyWn)"
+    },
+    {
+      "code": "WeeklyWednesday",
+      "display": "WeeklyWednesday (yyyyWedWn)"
+    },
+    {
+      "code": "WeeklyThursday",
+      "display": "WeeklyThursday (yyyyThuWn)"
+    },
+    {
+      "code": "WeeklyFriday",
+      "display": "WeeklyFriday (yyyyFriWn)"
+    },
+    {
+      "code": "WeeklySaturday",
+      "display": "WeeklySaturday (yyyySatWn)"
+    },
+    {
+      "code": "WeeklySunday",
+      "display": "WeeklySunday (yyyySunWn)"
+    },
+    {
+      "code": "BiWeekly",
+      "display": "BiWeekly (yyyyBiWn)"
+    },
+    {
+      "code": "Monthly",
+      "display": "Monthly (yyyyMM)"
+    },
+    {
+      "code": "BiMonthly",
+      "display": "BiMonthly (yyyyMMB)"
+    },
+    {
+      "code": "Quarterly",
+      "display": "Quarterly (yyyyQn)"
+    },
+    {
+      "code": "QuarterlyNov",
+      "display": "QuarterlyNov (yyyyNovQn)"
+    },
+    {
+      "code": "SixMonthly",
+      "display": "SixMonthly (yyyySn)"
+    },
+    {
+      "code": "SixMonthlyApril",
+      "display": "SixMonthlyApril (yyyyAprilSn)"
+    },
+    {
+      "code": "SixMonthlyNov",
+      "display": "SixMonthlyNov (yyyyNovSn)"
+    },
+    {
+      "code": "Yearly",
+      "display": "Yearly (yyyy)"
+    },
+    {
+      "code": "FinancialFeb",
+      "display": "FinancialFeb (yyyyFeb)"
+    },
+    {
+      "code": "FinancialApril",
+      "display": "FinancialApril (yyyyApril)"
+    },
+    {
+      "code": "FinancialJuly",
+      "display": "FinancialJuly (yyyyJuly)"
+    },
+    {
+      "code": "FinancialAug",
+      "display": "FinancialAug (yyyyAug)"
+    },
+    {
+      "code": "FinancialSep",
+      "display": "FinancialSep (yyyySep)"
+    },
+    {
+      "code": "FinancialOct",
+      "display": "FinancialOct (yyyyOct)"
+    },
+    {
+      "code": "FinancialNov",
+      "display": "FinancialNov (yyyyNov)"
+    }
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-period-type-vs",
+  "count": 23
+}

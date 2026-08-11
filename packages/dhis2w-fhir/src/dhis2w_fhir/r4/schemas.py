@@ -162,22 +162,32 @@ class LocationPosition(BackboneElement):
     latitude: float | None = None
 
 
+#: The `value[x]` types R4 admits on a CodeSystem property, as `CodeSystem.property.type` names them.
+type CodeSystemPropertyType = Literal["code", "Coding", "string", "integer", "boolean", "dateTime", "decimal"]
+
+
 class CodeSystemProperty(BackboneElement):
     """`CodeSystem.property` - the declaration of a property the concepts in the code system may carry."""
 
     code: str | None = None
     uri: str | None = None
     description: str | None = None
-    type: Literal["code", "Coding", "string", "integer", "boolean", "dateTime", "decimal"] | None = None
+    type: CodeSystemPropertyType | None = None
 
 
 class CodeSystemConceptProperty(BackboneElement):
-    """`CodeSystem.concept.property` - one declared property carried by a single concept."""
+    """`CodeSystem.concept.property` - one declared property carried by a single concept.
+
+    The `value[x]` choices are the ones the generated code systems declare a property type for:
+    `#string` and `#code` on the DHIS2 code, domain, value type, and parent properties,
+    `#boolean` on the uniqueness flag, and `#integer` on the organisation-unit hierarchy level.
+    """
 
     code: str | None = None
     valueCode: str | None = None
     valueString: str | None = None
     valueBoolean: bool | None = None
+    valueInteger: int | None = None
 
 
 class CodeSystemConceptDesignation(BackboneElement):

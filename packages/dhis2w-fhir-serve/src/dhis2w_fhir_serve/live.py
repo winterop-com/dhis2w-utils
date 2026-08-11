@@ -7,16 +7,21 @@ builders turn that into resources, and the client is closed before the first req
 the store is a snapshot of the instance at startup, exactly as the compiled store is a snapshot
 of the last build.
 
-What the store holds is the served read-set and nothing else. The foundation artifacts -
+What the store holds is the served read-set and nothing else. The definitional artifacts -
 StructureDefinitions, the extensions, the IG's `kind #requirements` CapabilityStatement - are
 authored as FSH and only exist as JSON once SUSHI has compiled them, and no FSH compiler runs in
 this process. That costs the live store nothing: a capture server reads Questionnaire, CodeSystem,
 ValueSet, Location, and Organization (`CAPTURE_SERVER_READ_RESOURCE_TYPES`), every one of which
-comes out of a JSON builder here. All three ConceptMap families - option sets, categories, and
-the attribute option combos an aggregate form is keyed by - ride along with the terminology they
-map, so a live store serves the same reads, searches, and `$translate` answers over the maps that
-a compiled one does. The IG's own CapabilityStatement is still named by `/metadata`, which
-`instantiates` it by canonical - a URL derived from config, needing no artifact to state.
+comes out of a JSON builder here - the foundation terminology included. The form-type and
+period-type pairs backing the D2FormType and D2Period bindings, and the organisation-unit level and
+whole-selection pairs, are declared inside FSH files a live run never compiles, so each has a JSON
+twin that renders the same Python vocabulary the template renders: a client resolving a served
+form's form-type code system gets the code system, not a 404. All three ConceptMap families -
+option sets, categories, and the attribute option combos an aggregate form is keyed by - ride along
+with the terminology they map, so a live store serves the same reads, searches, and `$translate`
+answers over the maps that a compiled one does. The IG's own CapabilityStatement is still named by
+`/metadata`, which `instantiates` it by canonical - a URL derived from config, needing no artifact
+to state.
 """
 
 from __future__ import annotations
@@ -30,9 +35,12 @@ from dhis2w_fhir import (
     build_category_artifacts,
     build_category_concept_map_artifacts,
     build_data_dictionary_documents,
+    build_foundation_terminology_documents,
     build_option_set_artifacts,
     build_option_set_concept_map_artifacts,
     build_organisation_unit_instances,
+    build_organisation_unit_level_terminology_documents,
+    build_organisation_unit_terminology_documents,
     build_questionnaire_documents,
 )
 from dhis2w_fhir.resources.attribute_combos import (
@@ -47,8 +55,11 @@ from dhis2w_fhir_serve.log import LOGGER_NAME
 from dhis2w_fhir_serve.store import IdentifierToken, ResourceStore, StoreEntry
 
 if TYPE_CHECKING:
-    from dhis2w_fhir.config import FhirProject
+    from dhis2w_fhir.config import FhirProject, GenerateConfig
     from dhis2w_fhir.r4 import CodeSystem, Questionnaire, ValueSet
+    from dhis2w_fhir.resources.organisation_units import OrganisationUnitTerminologyBuild
+    from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+    from dhis2w_fhir.status import IgStatus
 
     from dhis2w_fhir_serve.settings import ServeSettings
 
@@ -99,6 +110,10 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
         attribute_combos=attribute_combos.plan,
     )
     data_dictionary = build_data_dictionary_documents(inputs.sources, config, canonical, ig_status=ig_status)
+    foundation_terminology = build_foundation_terminology_documents(config, canonical, ig_status=ig_status)
+    organisation_unit_terminology = _organisation_unit_terminology(
+        inputs.organisation_units, config, canonical, ig_status
+    )
     json_builds: tuple[JsonBuild, ...] = (
         build_option_set_artifacts(
             inputs.option_sets, config, canonical, ig_status=ig_status, attribute_codes=inputs.attribute_codes
@@ -127,6 +142,10 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
         *questionnaires.questionnaires,
         *data_dictionary.code_systems,
         *data_dictionary.value_sets,
+        *foundation_terminology.code_systems,
+        *foundation_terminology.value_sets,
+        *[code_system for build in organisation_unit_terminology for code_system in build.code_systems],
+        *[value_set for build in organisation_unit_terminology for value_set in build.value_sets],
     ]
     entries = [
         *(_entry(_document(resource)) for resource in documents),
@@ -135,6 +154,33 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
     for note in [*inputs.notes, *questionnaires.notes, *(note for build in json_builds for note in build.notes)]:
         logger.info("live store: %s", note.message)
     return ResourceStore(entries=tuple(entries))
+
+
+def _organisation_unit_terminology(
+    organisation_units: list[OrganisationUnitIn], config: GenerateConfig, canonical: str, ig_status: IgStatus
+) -> tuple[OrganisationUnitTerminologyBuild, ...]:
+    """The organisation-unit vocabularies this selection publishes, on the conditions the FSH target publishes them.
+
+    The level pair rides on there being a selection at all, since it is the vocabulary every
+    published Location states its level from. The whole-selection pair is the one
+    `[generate.organisation_units] terminology` turns on, so a project that leaves it off serves
+    no organisation-unit code list, exactly as its compiled guide holds none.
+    """
+    if not organisation_units:
+        return ()
+    builds = [
+        build_organisation_unit_level_terminology_documents(
+            [organisation_unit.level for organisation_unit in organisation_units],
+            config,
+            canonical,
+            ig_status=ig_status,
+        )
+    ]
+    if config.organisation_units.terminology:
+        builds.append(
+            build_organisation_unit_terminology_documents(organisation_units, config, canonical, ig_status=ig_status)
+        )
+    return tuple(builds)
 
 
 def _document(resource: CodeSystem | Questionnaire | ValueSet) -> dict[str, Any]:

@@ -1,0 +1,17 @@
+{
+  "resourceType": "ValueSet",
+  "status": "draft",
+  "name": "D2OU_Level_VS",
+  "id": "d2-ou-level-vs",
+  "title": "DHIS2 organisation unit levels",
+  "description": "Hierarchy levels of the DHIS2 organisation unit tree.",
+  "url": "http://localhost:8080/fhir/ValueSet/d2-ou-level-vs",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs"
+      }
+    ]
+  }
+}

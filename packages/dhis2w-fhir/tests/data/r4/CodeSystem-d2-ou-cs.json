@@ -1,0 +1,106 @@
+{
+  "resourceType": "CodeSystem",
+  "status": "draft",
+  "content": "complete",
+  "name": "D2OU_CS",
+  "id": "d2-ou-cs",
+  "title": "DHIS2 organisation units",
+  "description": "DHIS2 organisation units. Concept codes are DHIS2 organisation unit UIDs.",
+  "url": "http://localhost:8080/fhir/CodeSystem/d2-ou-cs",
+  "concept": [
+    {
+      "code": "ImspTQPwCqd",
+      "display": "Sierra Leone",
+      "property": [
+        {
+          "code": "level",
+          "valueInteger": 1
+        },
+        {
+          "code": "dhis2-code",
+          "valueString": "SL"
+        }
+      ]
+    },
+    {
+      "code": "O6uvpzGd5pu",
+      "display": "Bo",
+      "property": [
+        {
+          "code": "level",
+          "valueInteger": 2
+        },
+        {
+          "code": "parent",
+          "valueCode": "ImspTQPwCqd"
+        },
+        {
+          "code": "dhis2-code",
+          "valueString": "OU_539"
+        }
+      ],
+      "designation": [
+        {
+          "language": "lo",
+          "value": "ແຂວງ ບໍ"
+        }
+      ]
+    },
+    {
+      "code": "YuQRtpLP10I",
+      "display": "Badjia",
+      "property": [
+        {
+          "code": "level",
+          "valueInteger": 3
+        },
+        {
+          "code": "parent",
+          "valueCode": "O6uvpzGd5pu"
+        }
+      ]
+    },
+    {
+      "code": "DiszpKrYNg8",
+      "display": "Ngelehun CHC",
+      "property": [
+        {
+          "code": "level",
+          "valueInteger": 4
+        },
+        {
+          "code": "parent",
+          "valueCode": "YuQRtpLP10I"
+        },
+        {
+          "code": "dhis2-code",
+          "valueString": "OU_559"
+        }
+      ]
+    }
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-ou-vs",
+  "property": [
+    {
+      "code": "level",
+      "uri": "http://dhis2.org/fhir/property/level",
+      "description": "DHIS2 organisation unit hierarchy level.",
+      "type": "integer"
+    },
+    {
+      "code": "parent",
+      "uri": "http://dhis2.org/fhir/property/parent",
+      "description": "Parent organisation unit UID.",
+      "type": "code"
+    },
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 organisation unit code.",
+      "type": "string"
+    }
+  ],
+  "count": 4
+}

@@ -1,0 +1,17 @@
+{
+  "resourceType": "ValueSet",
+  "status": "draft",
+  "name": "D2PeriodType_VS",
+  "id": "d2-period-type-vs",
+  "title": "DHIS2 period types",
+  "description": "The period types DHIS2 registers, each with the ISO period format it is written in.",
+  "url": "http://localhost:8080/fhir/ValueSet/d2-period-type-vs",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://localhost:8080/fhir/CodeSystem/d2-period-type-cs"
+      }
+    ]
+  }
+}
