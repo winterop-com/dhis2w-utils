@@ -1474,6 +1474,9 @@ def forward_command(
     An imported response moves from .serve/responses/received/ to forwarded/, a DHIS2-rejected one to
     rejected/ beside a report, and a translator-refused one stays put - fix and forward again.
 
+    Every payload names its own DHIS2 object - an event's UID is derived from the receipt's logical id -
+    so one receipt forwarded twice is refused as an object the instance holds, never imported twice.
+
     Outcomes land in reports/fhir-forward-report.md; `--details` prints them here instead.
     """
     from dhis2w_fhir import FORWARD_STEPS, service

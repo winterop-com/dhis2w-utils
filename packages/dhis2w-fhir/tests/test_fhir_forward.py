@@ -43,7 +43,9 @@ from dhis2w_fhir.conversion import (
     bound_question_uids,
     build_project_context,
     load_compiled_artifacts,
+    receipt_event_uid,
 )
+from dhis2w_fhir.names import is_dhis2_uid
 from dhis2w_fhir.r4 import Identifier, Location, QuestionnaireResponse
 from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts, build_option_set_concept_maps
@@ -1078,3 +1080,65 @@ async def test_the_report_reads_back_in_spool_order_whatever_the_posting_order_w
     report = await _forward(tracker_forward_project, import_responses=True)
 
     assert [outcome.response_id for outcome in report.outcomes] == ["A03MvHHogjR-example-1", "En1aaaaaaaa"]
+
+
+def test_one_receipt_always_names_the_same_event_uid() -> None:
+    """A receipt-derived identity is a pure function of the receipt, so two translations agree on it."""
+    assert receipt_event_uid("A03MvHHogjR-example-1") == receipt_event_uid("A03MvHHogjR-example-1")
+
+
+def test_two_receipts_name_two_events() -> None:
+    """Two visits captured against one form are two events, so their derived UIDs must not collide."""
+    assert receipt_event_uid("A03MvHHogjR-example-1") != receipt_event_uid("A03MvHHogjR-example-2")
+
+
+def test_a_derived_event_uid_is_shaped_the_way_dhis2_reads_one() -> None:
+    """One ASCII letter and ten alphanumeric places, which is the only check a reader can make offline."""
+    assert is_dhis2_uid(receipt_event_uid("A03MvHHogjR-example-1"))
+    assert is_dhis2_uid(receipt_event_uid("En1aaaaaaaa"))
+
+
+@respx.mock
+async def test_a_posted_event_carries_the_uid_its_receipt_derives(forward_project: Path) -> None:
+    """The client names the event, so the import report DHIS2 answers with is about a UID the run already knows."""
+    routes = _mock_instance()
+
+    report = await _forward(forward_project, import_responses=True)
+
+    posted = json.loads(routes["tracker"].calls.last.request.content)["events"][0]
+    event_outcomes = [outcome for outcome in report.outcomes if outcome.target_kind is not None]
+    event_receipt = next(outcome.response_id for outcome in event_outcomes if outcome.target_kind.value == "event")
+    assert posted["event"] == receipt_event_uid(event_receipt)
+
+
+@respx.mock
+async def test_a_dry_run_and_the_import_behind_it_name_the_same_event(forward_project: Path) -> None:
+    """Dry-run diagnostics are readable against the objects the import creates because both name one UID."""
+    dry_routes = _mock_instance()
+    await _forward(forward_project)
+    validated = json.loads(dry_routes["tracker"].calls.last.request.content)["events"][0]["event"]
+
+    respx.reset()
+    import_routes = _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    imported = json.loads(import_routes["tracker"].calls.last.request.content)["events"][0]["event"]
+
+    assert validated == imported
+
+
+@respx.mock
+async def test_forwarding_one_receipt_twice_asks_dhis2_to_create_the_same_event_twice(
+    forward_project: Path,
+) -> None:
+    """A re-forward is a `CREATE` against a UID the instance already holds - a refusal, not a second visit."""
+    routes = _mock_instance()
+
+    await _forward(forward_project, import_responses=True)
+    first = json.loads(routes["tracker"].calls.last.request.content)["events"][0]["event"]
+
+    _fill_spool(forward_project, _documents(GenerateConfig()))
+    await _forward(forward_project, import_responses=True)
+    second = json.loads(routes["tracker"].calls.last.request.content)["events"][0]["event"]
+
+    assert first == second
+    assert dict(routes["tracker"].calls.last.request.url.params)["importStrategy"] == "CREATE"

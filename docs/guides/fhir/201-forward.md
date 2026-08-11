@@ -149,6 +149,39 @@ filed under an attribute option combo the published vocabulary does not hold
 is refused rather than posted, because DHIS2 refuses that write with `E8023`
 and a payload we know it will not take is worse than a named refusal.
 
+## Every payload names the DHIS2 object it imports
+
+No payload waits on the instance to be told what it is. A registration reads
+both its identities off the response - the tracked entity UID from
+`subject.identifier`, the enrollment UID from the `D2TrackerEnrollment`
+extension - because whoever filled the form minted them. An event carries no
+such field for a client to fill, so the forwarder derives one: SHA-256 over
+the receipt's own logical id, shaped into the eleven characters DHIS2 reads
+as a UID. One receipt names one event, on every run and every machine.
+
+Two things follow, and both are why the derivation exists:
+
+- **A dry run and the import behind it name the same objects.** The UID in a
+  validate-only diagnostic is the UID of the event the committing run then
+  creates, so a rejection you read before the import points at an object you
+  can look up after it.
+- **Forwarding one receipt twice is refused, not duplicated.** Every event
+  goes to `/api/tracker` under `importStrategy=CREATE`, so a receipt whose
+  event the instance already holds is refused as an object that exists - the
+  same refusal a re-forwarded registration earns on its tracked entity UID.
+  Moving a receipt back out of `forwarded/` and running again is a retry,
+  never a second copy of one visit.
+
+A response carrying no logical id at all - one handed to the translator
+directly rather than drained off the spool - leaves `event` unset and lets
+DHIS2 mint it, because there is no receipt identity to derive from.
+
+A load set posted at a running facade is a different question: the facade
+mints a fresh receipt id per capture, so posting one corpus twice produces
+two sets of receipts and two sets of events. What the instance refuses on the
+second import is the registrations, whose UIDs the corpus itself carries -
+see [Troubleshooting](201-troubleshooting.md) for the `--salt` answer.
+
 ## Coded answers: the same dial the facade captures under
 
 `[serve] strict_codes` is the default, so a project that captures strictly
