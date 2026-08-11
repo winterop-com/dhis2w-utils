@@ -1,0 +1,125 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "PrAncCare01",
+  "url": "http://localhost:8080/fhir/Questionnaire/PrAncCare01",
+  "title": "Antenatal care",
+  "description": "DHIS2 tracker program Antenatal care (PrAncCare01) as a registration form: the tracked entity attributes captured when a person is enrolled in the program.",
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "tracker"
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-assignment",
+      "valueReference": {
+        "reference": "List/d2-pr-PrAncCare01-org-units"
+      }
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "PrAncCare01"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program-code",
+      "value": "PR_ANC"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/tracked-entity-type",
+      "value": "TetPerson01"
+    }
+  ],
+  "name": "D2PR_PrAncCare01",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "system": "http://localhost:8080/fhir/CodeSystem/d2-form-type-cs",
+      "code": "tracker"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "TeaNationId",
+      "code": [
+        {
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
+          "code": "TeaNationId",
+          "display": "National identifier"
+        }
+      ],
+      "text": "National id",
+      "type": "string",
+      "required": true,
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "TeaBirthDat",
+      "code": [
+        {
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
+          "code": "TeaBirthDat",
+          "display": "Date of birth"
+        }
+      ],
+      "text": "Date of birth",
+      "type": "date",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "TeaSex00001",
+      "code": [
+        {
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
+          "code": "TeaSex00001",
+          "display": "Sex"
+        }
+      ],
+      "text": "Sex",
+      "type": "choice",
+      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-OsSex000001-vs",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "TeaHousehld",
+      "code": [
+        {
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
+          "code": "TeaHousehld",
+          "display": "Household size"
+        }
+      ],
+      "text": "Household size",
+      "type": "integer",
+      "extension": [
+        {
+          "url": "http://hl7.org/fhir/StructureDefinition/minValue",
+          "valueInteger": 1
+        },
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": false
+        }
+      ]
+    }
+  ]
+}
