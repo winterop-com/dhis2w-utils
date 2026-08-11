@@ -34,7 +34,7 @@ as the source dictates.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -93,6 +93,7 @@ if TYPE_CHECKING:
 __all__ = [
     "CONCEPT_MAP_DIRECTORY",
     "TERMINOLOGY_DIRECTORY",
+    "MemberPropertySource",
     "build_concepts",
     "build_option_set_artifacts",
     "build_option_set_concept_map_artifacts",
@@ -108,6 +109,19 @@ __all__ = [
     "option_set_identity_index",
     "value_set_canonical",
 ]
+
+
+class MemberPropertySource(Protocol):
+    """States the extra concept properties one member of a concept source carries beyond its identifier pair.
+
+    Structural rather than imported, so the concept builder stays the bottom of the terminology
+    stack: the category decomposition implements it without this module knowing what a category is.
+    """
+
+    def properties_for(self, member_uid: str) -> list[CodeSystemConceptProperty]:
+        """The extra properties the member with this DHIS2 UID carries, or an empty list when it carries none."""
+        ...
+
 
 #: The `ig/input/resources/` subdirectory the option-set pairs own outright - one JSON file per resource.
 TERMINOLOGY_DIRECTORY = "terminology"
@@ -692,13 +706,27 @@ def _ordered_options(source: ConceptSourceIn) -> list[OptionIn]:
 
 
 def build_concepts(
-    source: ConceptSourceIn, config: GenerateConfig, notes: list[GenerateNote]
+    source: ConceptSourceIn,
+    config: GenerateConfig,
+    notes: list[GenerateNote],
+    *,
+    member_properties: MemberPropertySource | None = None,
 ) -> list[CodeSystemConcept]:
-    """Build one source's concepts from the assigned codes, in emission order, reporting what assignment raised."""
+    """Build one source's concepts from the assigned codes, in emission order, reporting what assignment raised.
+
+    `member_properties` states the extra concept properties a member carries beyond the DHIS2
+    identifier pair every concept rides - the category axes a category option combo decomposes
+    over are the one source of them today.
+    """
     plan = concept_assignments(source, config)
     notes.extend(plan.notes)
-    return [
-        _concept_for(assignment.option, assignment.code, config)
-        for assignment in plan.assignments
-        if assignment.code is not None
-    ]
+    concepts: list[CodeSystemConcept] = []
+    for assignment in plan.assignments:
+        if assignment.code is None:
+            continue
+        concept = _concept_for(assignment.option, assignment.code, config)
+        extra = [] if member_properties is None else member_properties.properties_for(assignment.option.uid)
+        if extra:
+            concept = concept.model_copy(update={"property": [*(concept.property or []), *extra]})
+        concepts.append(concept)
+    return concepts

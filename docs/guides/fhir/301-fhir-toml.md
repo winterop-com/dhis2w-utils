@@ -72,14 +72,30 @@ The file format is called TOML. You need four rules:
    front of a line is how the example file shows an option without setting it,
    and removing the `#` is how you switch it on.
 
-Three things to know about getting it wrong:
+Four things to know about getting it wrong:
 
-**A misspelled option name is silently ignored.** If you write `max_lvl = 4`,
-nothing complains - the line simply does nothing, and the option keeps its
-default. This is the most treacherous mistake the file allows, because
-everything appears to work. It is the reason to copy option lines from
-`fhir.toml.example` rather than typing them from memory. If a setting seems to
-have no effect, check its spelling against the example file first.
+**A misspelled option name is refused, and the right name is suggested.** Write
+`max_lvl = 4` and the next command stops with:
+
+```text
+error: fhir.toml: unknown key 'max_lvl' in [generate.organisation_units]
+  did you mean 'max_level'?
+```
+
+The refusal names three things: the key you wrote, the section it sits in, and -
+when one of that section's real options is close enough to be worth naming - the
+spelling you probably meant. A name that resembles nothing in its section is
+reported without a suggestion, because a wrong guess is worse than none:
+
+```text
+error: fhir.toml: unknown key 'listen_on_every_interface' in [serve]
+```
+
+Every misspelling in the file is reported in one run, so you fix them in one
+edit rather than one command per typo. There is no such thing as an option that
+quietly does nothing: if `fhir.toml` loads, every line in it is a setting the
+commands understand. Copying option lines from `fhir.toml.example` is still the
+easiest way to get the spelling right first time.
 
 **A wrong value is refused before anything is written.** Misspell a *value* -
 `status = "published"`, a time zone with a typo, a name piece starting with a
@@ -87,10 +103,11 @@ digit - and the very next `d2w fhir generate` or `d2w fhir validate` stops
 before touching a single file. Nothing is half-generated: fix the line and run
 again.
 
-**Errors come in two shapes.** Some are a single friendly line starting with
-`error:` and a hint. Others are a long technical printout (a "traceback") -
-scroll to its last lines, which always name the setting and say what was
-expected:
+**Errors come in two shapes.** Some are friendly lines starting with `error:` -
+one per thing that is wrong, sometimes with an indented suggestion or a hint
+under them, as the misspelled name above. Others are a long technical printout
+(a "traceback") - scroll to its last lines, which always name the setting and
+say what was expected:
 
 ```text
 pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
@@ -153,7 +170,7 @@ wrong.
 | [Who the guide is](301-identity.md) | `profile`, `[ig]` | which DHIS2 server it reads, the guide's name, address, publisher, and life-cycle status |
 | [How things are generated](301-generation.md) | `[generate]`, `[generate.naming]` | identifier addresses, code choices, time zone, languages, and everything about naming |
 | [What goes in](301-what-goes-in.md) | the selection tables, `[generate.tracked_entity_types]`, `[generate.examples]`, `[generate.organisation_units]` | which data sets, programs, option sets, categories, and org units the guide covers, and the example responses |
-| [Serving it](301-serving.md) | `[serve]` | how the local capture server runs: address, port, strictness, data-entry screens, map background |
+| [Serving it](301-serving.md) | `[serve]` | how the local capture server runs: address, port, strictness, data-entry screens, map backgrounds |
 
 What the generated output itself looks like from the inside - the identifier
 families, the code-list structures - is the integrate-tier's territory:

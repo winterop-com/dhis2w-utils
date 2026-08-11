@@ -9,10 +9,13 @@ something refuses.
 **You will be able to:** match the exact error text a `d2w fhir` command or
 a build printed to its cause and its fix.
 
-Every refusal a `d2w fhir` command makes is a one-line `error:` message on
-stderr with exit 1 - never a traceback. Publisher and SUSHI failures come
-out of `make sushi` / `make build` instead, in Java's voice; those are the
-second half of this page.
+Every refusal a `d2w fhir` command makes is an `error:` message on stderr
+with exit 1 - one per thing that is wrong, and no traceback. The exception
+is a `fhir.toml` value the settings document rejects outright, which comes
+out as the technical printout
+[the settings file page reads for you](301-fhir-toml.md#editing-safely).
+Publisher and SUSHI failures come out of `make sushi` / `make build`
+instead, in Java's voice; those are the second half of this page.
 
 ## Project and configuration
 
@@ -20,6 +23,7 @@ second half of this page.
 | --- | --- | --- |
 | `error: no fhir.toml found in this directory or any parent. Run` `` `d2w fhir init [DIRECTORY]` `` `to scaffold a FHIR IG project first.` | A command that needs a project (`generate`, `serve`, `forward`) ran outside one. | `cd` into the project, or scaffold one. `validate` is the exception - it runs anywhere. |
 | `no fhir.toml in <dir> - there is no project to refresh. Run` `` `d2w fhir init <dir>` `` `to scaffold one.` | `init --refresh` pointed at a directory that is not a project. | Point it at the project root - the directory holding `fhir.toml`. |
+| `error: fhir.toml: unknown key '<key>' in [<section>]`, sometimes followed by `did you mean '<name>'?` | `fhir.toml` names an option the settings document does not declare - usually a typo (`max_lvl` for `max_level`). One line per unknown key. | Use the suggested spelling, or copy the option line out of `fhir.toml.example`. [The settings file](301-fhir-toml.md) lists every option. |
 | `error: no profile named '<name>' (available: ...). Run` `` `d2w profile list` `` `to see all profiles.` | The resolved profile does not exist in any `profiles.toml`. | `d2w profile list`, then fix the `-p` flag, `DHIS2_PROFILE`, or the `profile` key in `fhir.toml`; `d2w profile add <name> ...` creates one. |
 | `--refresh and --force are mutually exclusive: --force rewrites every scaffold file including the ones you edited, --refresh rewrites only what it can rewrite without losing your edits` | Both flags on one `init` run. | Pick one: `--refresh` preserves edits, `--force` overwrites everything. |
 | `--refresh takes the project's identity and generation tables from its own fhir.toml, so <flags> would be ignored: drop the flag, or edit fhir.toml and refresh` | Identity flags (`--id`, `--canonical`, ...) passed together with `--refresh`. | Edit `fhir.toml`, then refresh without the flags. |

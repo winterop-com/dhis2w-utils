@@ -1880,13 +1880,14 @@ commitment.
     **The basemap shipped as the default rather than as the later opt-in this entry
     planned.** Boundary-only was the right first posture and the wrong resting one: a
     polygon on a blank canvas answers what shape a district is and not where it is,
-    which is the question somebody opening a hierarchy has. `[serve] basemap` states a
-    `{z}/{x}/{y}` template (OpenStreetMap's standard tiles by default, `"none"` for the
-    self-contained canvas, `--basemap` per run), the UI reads it from a typed
-    `GET /uiconfig` on `/spool`'s pattern, and the tiles are muted per theme so they
-    read as ground rather than glare. `"none"` keeps every property this entry
-    originally asked for - same-origin, offline, nothing told to a tile vendor - and is
-    what the browser suite runs under.
+    which is the question somebody opening a hierarchy has. `[serve.basemaps]` names the
+    `{z}/{x}/{y}` layers on offer (one OpenStreetMap entry by default, `[]` for the
+    self-contained canvas, repeatable `--basemap` per run), the UI reads them from a
+    typed `GET /uiconfig` on `/spool`'s pattern and offers them through a layer control
+    carrying `None` beside them, and the tiles are muted per theme so they read as
+    ground rather than glare. An empty offer keeps every property this entry originally
+    asked for - same-origin, offline, nothing told to a tile vendor - and is what the
+    browser suite runs under.
 
     **Three rules the flat Bundle does not state, folded in `lib/orgunits.ts`.** A unit
     whose `partOf` names a Location the project never published is a flagged root

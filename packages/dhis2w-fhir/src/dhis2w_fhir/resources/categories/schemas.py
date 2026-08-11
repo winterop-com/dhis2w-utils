@@ -38,6 +38,8 @@ class CategorySelection(BaseModel):
     `include_ids` entry names it outright, in which case the explicit ask wins.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     include_ids: list[str] = Field(default_factory=list)
     include_default: bool = False
 

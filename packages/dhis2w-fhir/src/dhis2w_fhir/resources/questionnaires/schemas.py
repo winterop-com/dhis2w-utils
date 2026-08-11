@@ -124,6 +124,8 @@ class TargetSelection(BaseModel):
     program listed under the table its type does not belong to is refused by name.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     include_ids: list[str] = Field(default_factory=list)
 
 
@@ -196,13 +198,19 @@ class NumericBounds(BaseModel):
 
 
 class CategoryOptionComboIn(BaseModel):
-    """One category option combo of a data element's disaggregation."""
+    """One category option combo of a data element's disaggregation.
+
+    `category_option_uids` is what the combo is composed of - "Fixed, <1y" is the Fixed option met
+    with the <1y option - which is what the published combo concepts decompose themselves into, one
+    concept property per category axis.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
     name: str
     code: str | None = None
+    category_option_uids: list[str] = Field(default_factory=list)
 
 
 class CategoryComboIn(BaseModel):
@@ -211,6 +219,9 @@ class CategoryComboIn(BaseModel):
     A data element carries one to say how its question splits into cells; a data set carries one
     to say which attribute option combos its values are keyed under. `code` is the combo's DHIS2
     code, which the attribute-combo terminology resolves its identity stem from.
+
+    `category_uids` is the ordered list of categories the combo splits over, which is the order
+    DHIS2 reads an option combo's name in, so the decomposition properties follow it.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -219,6 +230,7 @@ class CategoryComboIn(BaseModel):
     name: str
     code: str | None = None
     is_default: bool = False
+    category_uids: list[str] = Field(default_factory=list)
     option_combos: list[CategoryOptionComboIn] = Field(default_factory=list)
 
 

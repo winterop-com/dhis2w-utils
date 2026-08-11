@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FeatureCollection } from 'geojson'
 import {
+    AttributionControl,
     FullscreenControl,
     Map as MapLibreMap,
     Popup,
@@ -21,10 +22,14 @@ import {
     BASEMAP_LAYER_ID,
     FLAT_SKY,
     GROUND_LAYER_ID,
+    NO_BASEMAP_LABEL,
     RASTER_MUTING,
     RASTER_PAINT_PROPERTIES,
     baseStyle,
     globeSky,
+    initialBasemap,
+    rasterLayer,
+    rasterSource,
     starfieldPaint,
     unitPopupContent,
     type MapPalette,
@@ -32,7 +37,7 @@ import {
 } from '@/lib/basemap'
 import type { OrgUnitBoundary, OrgUnitPoint, OrgUnitTree } from '@/lib/orgunits'
 import { boundsOf } from '@/lib/orgunits'
-import type { BasemapConfig } from '@/lib/uiconfig'
+import type { BasemapLayer } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -42,17 +47,22 @@ import 'maplibre-gl/dist/maplibre-gl.css'
  *
  * THE BASEMAP IS RASTER TILES, AND IT IS THE DEFAULT. A boundary floating on a blank canvas answers
  * "what shape is this district" and not "where is this district", and the second question is the
- * one somebody opening a hierarchy actually has. So `[serve] basemap` states a `{z}/{x}/{y}`
- * template - OpenStreetMap's standard tiles unless a deployment points it elsewhere - and this
- * draws it under everything. The boundary-only canvas is still here and is one config value away
- * (`basemap = "none"`), which is what an air-gapped deployment and the browser test suite both use;
- * it is the fallback rather than the posture.
+ * one somebody opening a hierarchy actually has. So `[serve.basemaps]` names the `{z}/{x}/{y}`
+ * layers this map may offer - OpenStreetMap's standard tiles unless a deployment names its own -
+ * and the map opens on the first of them.
+ *
+ * WHICH LAYER IS UP IS THE READER'S, and the layers control in the corner stack is where they say
+ * so: one entry per configured layer, plus `None`, which is always there. Switching is a source
+ * swap rather than a rebuilt map, so the camera, the selection, and the popup all survive it, and
+ * the boundaries restyle for the ground they land on. `None` is one click, not a config change,
+ * which is what makes the boundary-only canvas a view rather than a deployment decision - a
+ * deployment that must never fetch a tile states that instead by offering no layers at all.
  *
  * WHAT THAT COSTS, STATED PLAINLY. Tiles are the only thing in this UI that reaches an origin other
- * than the server it was served from, so the page no longer works offline by construction and the
- * tile host learns which places were looked at. That is why it is configurable rather than
- * hard-coded, why the server rather than the bundle decides, and why turning it off is a supported
- * state rather than a broken one.
+ * than the server it was served from, so a page drawing them does not work offline and the tile
+ * host learns which places were looked at. That is why the layers are configurable rather than
+ * hard-coded, why the server rather than the bundle decides what is on offer, and why offering
+ * none is a supported state rather than a broken one.
  *
  * WHY IT IS LAZY-LOADED. MapLibre is by a wide margin the heaviest thing this bundle can contain -
  * larger than React, the router, and every page put together. `pages/OrgUnits.tsx` mounts this
@@ -172,6 +182,19 @@ const RECENTER_SELECTION_LABEL = 'Center on the selected organisation unit'
 /** What it offers while nothing is - the framing target is then the whole registry. */
 const RECENTER_REGISTRY_LABEL = 'Center on the organisation units'
 
+/** What the layers button offers: the choice of what is drawn under the boundaries. */
+const BASEMAP_CONTROL_LABEL = 'Choose the basemap'
+
+/**
+ * The layers glyph: a stack of sheets, as a data-uri background image.
+ *
+ * Drawn the way MapLibre draws its own control glyphs - a dark image on the chip - so the
+ * `.dark ... invert(1)` rule in index.css themes it exactly like the fullscreen and globe icons.
+ */
+const BASEMAP_ICON = `url("data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 2.5 7.2 12 11.9l9.5-4.7z"/><path d="m2.5 12.3 9.5 4.7 9.5-4.7"/><path d="m2.5 17 9.5 4.5 9.5-4.5"/></svg>',
+)}")`
+
 /**
  * The recenter glyph: a crosshair, as a data-uri background image.
  *
@@ -196,8 +219,8 @@ export interface OrgUnitMapProps {
     points: OrgUnitPoint[]
     /** The folded registry, which is where the popup reads a unit's name, level, and parent. */
     tree: OrgUnitTree
-    /** The tiles under the shapes, or null for the boundary-only canvas. */
-    basemap: BasemapConfig | null
+    /** The tile layers this server offers, first one first; empty offers None alone. */
+    basemaps: BasemapLayer[]
     /** The unit the detail panel is showing, or null when nothing is selected. */
     selectedUnitId: string | null
     /** Every unit below the selected one, so the subtree can be lit at medium emphasis. */
@@ -215,7 +238,7 @@ export function OrgUnitMap({
     boundaries,
     points,
     tree,
-    basemap,
+    basemaps,
     selectedUnitId,
     descendantUnitIds,
     focusUnitIds,
@@ -238,6 +261,10 @@ export function OrgUnitMap({
     // an empty scene. `data-map-ready` is what a browser test waits for instead of guessing.
     const [painted, setPainted] = useState(false)
     const [dark, setDark] = useState(() => isDarkTheme())
+    // The same fact as a ref, for the layer switch: it needs the current theme to build a muted
+    // raster layer, but must not re-run when the theme alone changes.
+    const darkNow = useRef(dark)
+    darkNow.current = dark
     // The camera's real zoom after every movement settles, exposed as a data attribute: "the fit
     // framed something bounded rather than the world" is a fact only the engine holds, and a test
     // that read pixel colours to infer it would be guessing.
@@ -245,6 +272,9 @@ export function OrgUnitMap({
     // Which projection the canvas is drawing, exposed the same way and for the same reason.
     const [projection, setProjection] = useState<MapProjection>('mercator')
     const projectionNow = useRef<MapProjection>('mercator')
+    // Which of the offered layers is drawn, or null for None. The reader's choice, so it lives
+    // here rather than in the settings - and the map is never rebuilt to honour it.
+    const [basemap, setBasemap] = useState<BasemapLayer | null>(() => initialBasemap(basemaps))
 
     const shapes = useMemo(
         () => shapeCollection(boundaries, selectedUnitId, descendantUnitIds),
@@ -263,6 +293,8 @@ export function OrgUnitMap({
     focusNow.current = focus
     // The recenter control itself, held so a selection change can restate what it centres on.
     const recenter = useRef<RecenterControl | null>(null)
+    // The attribution control, which exists only while a layer that needs crediting is up.
+    const attribution = useRef<AttributionControl | null>(null)
 
     // The theme is a class on <html>, set by next-themes. Watching the attribute rather than
     // calling useTheme keeps this component usable outside the provider - and it is the resolved
@@ -281,17 +313,19 @@ export function OrgUnitMap({
             return
         }
 
+        const opening = initialBasemap(basemaps)
         let instance: MapLibreMap
         try {
             instance = new MapLibreMap({
                 container: element,
-                style: baseStyle(readPalette(element, isDarkTheme()), basemap, isDarkTheme()),
+                style: baseStyle(readPalette(element, isDarkTheme()), opening, isDarkTheme()),
                 center: [0, 0],
                 zoom: 1,
-                // MapLibre's own control, fed by the source's `attribution`, rather than a corner
-                // of markup this component draws: the credit is a condition of using the tiles, and
-                // the renderer that draws them is the right thing to be responsible for saying so.
-                attributionControl: basemap === null ? false : { compact: true },
+                // MapLibre's own attribution control is added and removed with the layer that needs
+                // it (see the effect below) rather than being asked for here: the credit belongs to
+                // whichever tiles are up, and a control left standing over None would render an
+                // empty credit box for a map crediting nobody.
+                attributionControl: false,
                 // Rotation and pitch stay off: district shapes are read north-up, and the globe
                 // view is a projection change through its own control, not a free camera.
                 pitchWithRotate: false,
@@ -325,6 +359,10 @@ export function OrgUnitMap({
                 'top-right',
             )
         }
+        // The layers control, offering every configured layer and None. Present even when nothing
+        // is configured: a control holding None alone is how the page says the choice exists and
+        // that this deployment offers no tiles, which is more honest than no control at all.
+        instance.addControl(new BasemapControl({ basemaps, initial: opening, onChoose: setBasemap }), 'top-right')
         // The recenter control, last in the stack: back to the current framing target - the
         // selection's extent, or the whole registry's - in whichever projection is up.
         const recenterControl = new RecenterControl(() => {
@@ -336,20 +374,20 @@ export function OrgUnitMap({
 
         map.current = instance
         instance.on('error', (event) => {
+            // A tile that could not be fetched carries the tile it failed for, and it is not an
+            // engine failure: the painted ground shows through wherever tiles are missing, which
+            // is the boundary-only map. A tile host that is down degrades to that rather than
+            // replacing the whole panel with a message about somebody else's uptime.
+            if ('tile' in event) return
             // A style or source error must not leave a blank rectangle with no explanation.
             setEngineFailure(event.error.message)
         })
-        instance.on('load', () => {
-            // The compact attribution starts expanded and only minimises on the first drag; this
-            // map starts it closed. The credit stays one tap away behind the i-button, which is
-            // what using the tiles requires.
-            const attribution = element.querySelector('.maplibregl-ctrl-attrib')
-            if (attribution !== null && attribution.classList.contains('maplibregl-compact')) {
-                attribution.classList.remove('maplibregl-compact-show')
-                attribution.setAttribute('open', '')
-            }
-            setReady(true)
-        })
+        // LEFT-CLICK ASKS, RIGHT-CLICK MOVES - registered on the map once, before any layer exists,
+        // because a layer switch rebuilds the shape layers and re-registering with them would
+        // stack a second handler on every gesture. MapLibre resolves a layer-scoped listener when
+        // the event fires, so a layer added later is covered by a listener registered now.
+        registerInteractions(instance, { select, registry, popup })
+        instance.on('load', () => setReady(true))
         instance.on('moveend', () => setZoom(instance.getZoom()))
 
         const resize = new ResizeObserver(() => instance.resize())
@@ -365,12 +403,41 @@ export function OrgUnitMap({
             popup.current?.remove()
             popup.current = null
             recenter.current = null
+            attribution.current = null
             map.current = null
             instance.remove()
         }
-        // Rebuilt when the tiles change, which in practice happens once - the settings are read
-        // before this mounts, and a running server does not change its mind about them.
-    }, [basemap])
+        // Rebuilt when the OFFER changes, which in practice happens once - the settings are read
+        // before this mounts, and a running server does not change its mind about them. Which
+        // layer of the offer is up is not in these deps: switching swaps a source, never a map.
+    }, [basemaps])
+
+    // A new offer is a new opening layer, since the reader's choice was made among the old one.
+    useEffect(() => setBasemap(initialBasemap(basemaps)), [basemaps])
+
+    // THE LAYER SWITCH, and the whole of what one costs: the raster source is removed and added
+    // back pointed elsewhere, under the same id, below the boundaries. The camera does not move,
+    // the shapes are not refetched, and the popup stays up.
+    //
+    // THE THEME IS READ, NOT DEPENDED ON. Muting is a paint property the theme effect below
+    // re-sets in place; if a theme flip ran through here it would drop the source and refetch
+    // every tile on screen to redraw them a shade darker, which is a network round trip to say
+    // something one `setPaintProperty` says.
+    useEffect(() => {
+        const instance = map.current
+        if (instance === null || !ready) return
+        if (instance.getLayer(BASEMAP_LAYER_ID) !== undefined) instance.removeLayer(BASEMAP_LAYER_ID)
+        if (instance.getSource(BASEMAP_LAYER_ID) !== undefined) instance.removeSource(BASEMAP_LAYER_ID)
+        if (basemap !== null) {
+            instance.addSource(BASEMAP_LAYER_ID, rasterSource(basemap))
+            // Below the fills: the tiles are the ground, and a ground drawn over the boundaries
+            // would hide the very thing the page is about. Before the shapes exist there is
+            // nothing to sit under, and the boundary layers are added over it a moment later.
+            const under = instance.getLayer('boundary-fill') === undefined ? undefined : 'boundary-fill'
+            instance.addLayer(rasterLayer(darkNow.current), under)
+        }
+        syncAttributionControl(instance, attribution, basemap)
+    }, [ready, basemap])
 
     // The layers are (re)built whenever the theme changes, because every paint value is a token
     // and a token means something different under `.dark`. Rebuilding rather than patching each
@@ -381,13 +448,13 @@ export function OrgUnitMap({
         if (instance === null || element === null || !ready) return
         const palette = readPalette(element, dark)
         instance.setPaintProperty(GROUND_LAYER_ID, 'background-color', palette.surface)
-        if (basemap !== null) {
+        if (instance.getLayer(BASEMAP_LAYER_ID) !== undefined) {
             const muting = RASTER_MUTING[dark ? 'dark' : 'light']
             for (const property of RASTER_PAINT_PROPERTIES) {
                 instance.setPaintProperty(BASEMAP_LAYER_ID, property, muting[property])
             }
         }
-        applyLayers(instance, palette, basemap !== null, shapes, markers, { select, registry, popup })
+        applyLayers(instance, palette, basemap !== null, shapes, markers)
         if (projectionNow.current === 'globe' && typeof instance.setSky === 'function') {
             // A theme flip while the globe is up re-tokens the sky with everything else.
             instance.setSky(globeSky(palette))
@@ -425,6 +492,9 @@ export function OrgUnitMap({
                 // Which projection the canvas is drawing - the globe toggle's effect is otherwise
                 // a fact only the renderer holds.
                 data-map-projection={projection}
+                // Which ground the boundaries are on, by the layer's own name - the layer
+                // control's effect is a fact only the renderer holds, for the same reason.
+                data-map-basemap={basemap === null ? NO_BASEMAP_LABEL : basemap.name}
                 aria-label="Organisation unit map"
                 role="img"
                 // `isolate` opens a stacking context so the starfield's negative z-index sits
@@ -567,6 +637,9 @@ function framing(
     return boundsOf(boundaries, points)
 }
 
+/** The ids of the shape layers, in the order they are stacked, so a ground change can rebuild them. */
+const SHAPE_LAYER_IDS = ['boundary-fill', 'boundary-casing', 'boundary-line', 'unit-point']
+
 /**
  * Put the sources and layers on the map, replacing whatever is there.
  *
@@ -575,7 +648,9 @@ function framing(
  *
  * THE STACK, BOTTOM UP: the painted ground, the muted tiles, the boundary fills, the casing, the
  * boundary strokes, the points. The casing exists only over tiles and is the reason the ramp keeps
- * its validated contrast there - see the module docstring.
+ * its validated contrast there - see the module docstring. Which is why a switch between tiles and
+ * None rebuilds these layers rather than restyling them: the stack itself is different over the
+ * two grounds, and the casing has to arrive and leave with the tiles it exists for.
  */
 function applyLayers(
     instance: MapLibreMap,
@@ -583,21 +658,30 @@ function applyLayers(
     overTiles: boolean,
     shapes: FeatureCollection,
     markers: FeatureCollection,
-    handles: InteractionHandles,
 ): void {
     const shapeSource = instance.getSource('org-unit-boundaries')
     const markerSource = instance.getSource('org-unit-points')
+    // The casing is present exactly when the layers were last built over tiles, so its presence is
+    // the record of which ground they are painted for - no second copy of that fact to go stale.
+    const builtOverTiles = instance.getLayer('boundary-casing') !== undefined
     if (shapeSource !== undefined && markerSource !== undefined) {
-        // The layers already exist and only the data changed, which is every selection after the
-        // first. Re-adding them would drop the click handlers with them.
         ;(shapeSource as GeoJSONSource).setData(shapes)
         ;(markerSource as GeoJSONSource).setData(markers)
-        repaint(instance, palette, overTiles)
-        return
+        if (builtOverTiles === overTiles) {
+            // Only the data or the theme changed, which is every selection after the first.
+            repaint(instance, palette, overTiles)
+            return
+        }
+        // The ground changed under them. The layers go and are rebuilt for the new one; the
+        // sources stay, so nothing is refetched and the gestures - registered on the map, not on
+        // these layers - survive untouched.
+        for (const layer of SHAPE_LAYER_IDS) {
+            if (instance.getLayer(layer) !== undefined) instance.removeLayer(layer)
+        }
+    } else {
+        instance.addSource('org-unit-boundaries', { type: 'geojson', data: shapes })
+        instance.addSource('org-unit-points', { type: 'geojson', data: markers })
     }
-
-    instance.addSource('org-unit-boundaries', { type: 'geojson', data: shapes })
-    instance.addSource('org-unit-points', { type: 'geojson', data: markers })
 
     instance.addLayer({
         id: 'boundary-fill',
@@ -685,14 +769,19 @@ function applyLayers(
             'circle-stroke-color': palette.surface,
         },
     })
+}
 
-    // LEFT-CLICK ASKS, RIGHT-CLICK MOVES. A left-click on any shape opens the popup naming its
-    // unit, with Open as the deliberate step into it - unless the map is still too far out for
-    // the click to have meant one shape, in which case it eases a step in toward the click
-    // instead: progressive drill, popup once the features read. A right-click is the drill-down
-    // whatever the zoom, and selects outright. Registered on the map rather than per layer so the
-    // gestures share one answer to "what did the cursor land on" - the point over the boundary,
-    // the topmost fill otherwise.
+/**
+ * The two gestures, registered on the map once and for the life of it.
+ *
+ * LEFT-CLICK ASKS, RIGHT-CLICK MOVES. A left-click on any shape opens the popup naming its unit,
+ * with Open as the deliberate step into it - unless the map is still too far out for the click to
+ * have meant one shape, in which case it eases a step in toward the click instead: progressive
+ * drill, popup once the features read. A right-click is the drill-down whatever the zoom, and
+ * selects outright. Registered on the map rather than per layer so the gestures share one answer to
+ * "what did the cursor land on" - the point over the boundary, the topmost fill otherwise.
+ */
+function registerInteractions(instance: MapLibreMap, handles: InteractionHandles): void {
     instance.on('click', (event) => {
         const hit = featureHitAt(instance, event.point)
         if (hit === null) return
@@ -716,6 +805,41 @@ function applyLayers(
         instance.on('mouseleave', layer, () => {
             instance.getCanvas().style.cursor = ''
         })
+    }
+}
+
+/**
+ * Keep the credit on screen exactly while a layer that requires one is up.
+ *
+ * MapLibre's own control, fed by the source's `attribution`, rather than a corner of markup this
+ * component draws: the credit is a condition of using the tiles, and the renderer that draws them
+ * is the right thing to be responsible for saying so. It arrives and leaves with the layer, because
+ * a control standing over None - or over a source this server could state no terms for - would be
+ * an empty credit box crediting nobody, which reads as a broken control rather than as no
+ * obligation.
+ */
+function syncAttributionControl(
+    instance: MapLibreMap,
+    held: { current: AttributionControl | null },
+    basemap: BasemapLayer | null,
+): void {
+    const wanted = basemap !== null && basemap.attribution !== null
+    if (!wanted) {
+        if (held.current !== null) instance.removeControl(held.current)
+        held.current = null
+        return
+    }
+    if (held.current !== null) return
+    const control = new AttributionControl({ compact: true })
+    instance.addControl(control, 'bottom-right')
+    held.current = control
+    // The compact attribution starts expanded and only minimises on the first drag; this map
+    // starts it closed. The credit stays one tap away behind the i-button, which is what using
+    // the tiles requires.
+    const rendered = instance.getContainer().querySelector('.maplibregl-ctrl-attrib')
+    if (rendered !== null && rendered.classList.contains('maplibregl-compact')) {
+        rendered.classList.remove('maplibregl-compact-show')
+        rendered.setAttribute('open', '')
     }
 }
 
@@ -914,6 +1038,117 @@ class RecenterControl implements IControl {
         const label = hasSelection ? RECENTER_SELECTION_LABEL : RECENTER_REGISTRY_LABEL
         button.title = label
         button.setAttribute('aria-label', label)
+    }
+}
+
+/** What the layers control needs from the component: the offer, what is up, and where to report. */
+interface BasemapControlOptions {
+    basemaps: BasemapLayer[]
+    initial: BasemapLayer | null
+    onChoose: (basemap: BasemapLayer | null) => void
+}
+
+/**
+ * The layers control: which ground the boundaries are drawn on.
+ *
+ * A button in the corner stack, in MapLibre's own control chrome so it reads as one row of the same
+ * column as fullscreen, the globe, and recenter - and a menu under it holding one radio entry per
+ * offered layer plus `None`. Radios rather than a list of buttons because exactly one ground is
+ * drawn at a time, and that is what a radio group means to a screen reader as much as to an eye.
+ *
+ * `None` IS ALWAYS THERE, and it is last: a deployment states which tile sources it is willing to
+ * reach, and a reader states whether to reach any right now. Where nothing is configured the menu
+ * holds `None` alone - the control still exists, saying plainly that this deployment offers no
+ * tiles rather than leaving a reader to wonder where the layers went.
+ *
+ * The menu closes on a choice, on a click anywhere else, and on Escape, and the button says whether
+ * it is open. Which layer is up is the component's state, not this control's: the control reports a
+ * choice and is told what to check, so the map and the menu can never disagree about the ground.
+ */
+class BasemapControl implements IControl {
+    private readonly options: BasemapControlOptions
+    private container: HTMLElement | null = null
+    private button: HTMLButtonElement | null = null
+    private menu: HTMLElement | null = null
+    private open = false
+    private readonly onDocumentPointerDown = (event: MouseEvent) => {
+        if (this.container !== null && !this.container.contains(event.target as Node)) this.setOpen(false)
+    }
+    private readonly onDocumentKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') this.setOpen(false)
+    }
+
+    constructor(options: BasemapControlOptions) {
+        this.options = options
+    }
+
+    /** Build the button and its menu in MapLibre's control chrome. */
+    onAdd(): HTMLElement {
+        const container = document.createElement('div')
+        container.className = 'maplibregl-ctrl maplibregl-ctrl-group map-basemap-control'
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.title = BASEMAP_CONTROL_LABEL
+        button.setAttribute('aria-label', BASEMAP_CONTROL_LABEL)
+        button.setAttribute('aria-haspopup', 'menu')
+        button.setAttribute('aria-expanded', 'false')
+        const icon = document.createElement('span')
+        icon.className = 'maplibregl-ctrl-icon'
+        icon.setAttribute('aria-hidden', 'true')
+        icon.style.backgroundImage = BASEMAP_ICON
+        button.append(icon)
+        button.addEventListener('click', () => this.setOpen(!this.open))
+        container.append(button, this.buildMenu())
+        this.container = container
+        this.button = button
+        document.addEventListener('pointerdown', this.onDocumentPointerDown)
+        document.addEventListener('keydown', this.onDocumentKeyDown)
+        return container
+    }
+
+    /** Take the chrome down, and the listeners that were watching the rest of the page with it. */
+    onRemove(): void {
+        document.removeEventListener('pointerdown', this.onDocumentPointerDown)
+        document.removeEventListener('keydown', this.onDocumentKeyDown)
+        this.container?.remove()
+        this.container = null
+        this.button = null
+        this.menu = null
+    }
+
+    /** The menu itself: every offered layer, then None, as one radio group. */
+    private buildMenu(): HTMLElement {
+        const menu = document.createElement('div')
+        menu.className = 'map-basemap-menu'
+        menu.setAttribute('role', 'menu')
+        menu.setAttribute('aria-label', BASEMAP_CONTROL_LABEL)
+        menu.hidden = true
+        const entries: (BasemapLayer | null)[] = [...this.options.basemaps, null]
+        for (const entry of entries) {
+            const item = document.createElement('button')
+            item.type = 'button'
+            item.setAttribute('role', 'menuitemradio')
+            item.setAttribute('aria-checked', String(entry?.url === this.options.initial?.url))
+            item.dataset.basemap = entry === null ? NO_BASEMAP_LABEL : entry.name
+            item.textContent = entry === null ? NO_BASEMAP_LABEL : entry.name
+            item.addEventListener('click', () => {
+                for (const sibling of menu.querySelectorAll('[role="menuitemradio"]')) {
+                    sibling.setAttribute('aria-checked', String(sibling === item))
+                }
+                this.setOpen(false)
+                this.options.onChoose(entry)
+            })
+            menu.append(item)
+        }
+        this.menu = menu
+        return menu
+    }
+
+    /** Open or close the menu, and say which of the two it now is. */
+    private setOpen(open: boolean): void {
+        this.open = open
+        if (this.menu !== null) this.menu.hidden = !open
+        this.button?.setAttribute('aria-expanded', String(open))
     }
 }
 

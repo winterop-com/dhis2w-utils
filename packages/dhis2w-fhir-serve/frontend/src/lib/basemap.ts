@@ -6,11 +6,12 @@
  * Split out of the map component so everything here is testable without a WebGL context, a canvas,
  * or the 900 kB engine. `StyleSpecification` and its siblings are imported as types only, so
  * nothing here pulls MapLibre in at runtime; the whole module is pure functions of colours, a
- * template, a theme, and a handful of numbers.
+ * layer, a theme, and a handful of numbers.
  *
  * WHAT A STYLE WITH NO TILES IS. One background layer painted from `--card`, and the project's own
  * GeoJSON added on top by the component. No sprite, no glyphs, no sources - the boundary-only
- * canvas this map shipped with, and still what `[serve] basemap = "none"` produces.
+ * canvas this map shipped with, and still what an empty `[serve.basemaps]` produces and what
+ * picking None in the layer control returns to.
  *
  * WHAT A STYLE WITH TILES ADDS. A raster source and one raster layer, above the same background.
  * The background is not removed: it is what shows through while tiles load, where they fail, and
@@ -18,15 +19,22 @@
  * boundary-only map rather than to a black rectangle. Raster rather than vector is deliberate -
  * a raster tile arrives with its labels already drawn into the image, so the map needs no font
  * server, no style document, and no origin beyond the tile host itself.
+ *
+ * ONE SOURCE ID, WHICHEVER LAYER IS UP. Switching layers is removing that source and adding it
+ * back pointed elsewhere, never a second raster stack - so the muting, the ordering under the
+ * boundaries, and the attribution have exactly one place they are decided, here.
  */
 
-import type { SkySpecification, StyleSpecification } from 'maplibre-gl'
+import type { RasterSourceSpecification, SkySpecification, StyleSpecification } from 'maplibre-gl'
 
 import type { OrgUnitLevel } from '@/lib/orgunits'
-import type { BasemapConfig } from '@/lib/uiconfig'
+import type { BasemapLayer } from '@/lib/uiconfig'
 
 /** The id the raster tiles are drawn under, so a theme change can re-mute them in place. */
 export const BASEMAP_LAYER_ID = 'basemap'
+
+/** What the layer control offers beside the configured layers, and what picking it means: no tiles. */
+export const NO_BASEMAP_LABEL = 'None'
 
 /** The id of the painted ground under everything, tiles included. */
 export const GROUND_LAYER_ID = 'ground'
@@ -93,10 +101,10 @@ export const RASTER_MUTING: Record<'light' | 'dark', Record<RasterPaintProperty,
     },
 }
 
-/** The style the map starts from: a painted ground, and the tiles when the server named any. */
+/** The style the map starts from: a painted ground, and the tiles when a layer is up. */
 export function baseStyle(
     palette: MapPalette,
-    basemap: BasemapConfig | null,
+    basemap: BasemapLayer | null,
     dark: boolean,
 ): StyleSpecification {
     const ground = {
@@ -109,19 +117,43 @@ export function baseStyle(
     }
     return {
         version: 8,
-        sources: {
-            [BASEMAP_LAYER_ID]: {
-                type: 'raster',
-                tiles: [basemap.template],
-                tileSize: RASTER_TILE_SIZE,
-                maxzoom: RASTER_MAX_ZOOM,
-                // Omitted rather than null when the server cannot state one: MapLibre's attribution
-                // control renders whatever is here, and an empty credit is worse than no control.
-                ...(basemap.attribution === null ? {} : { attribution: basemap.attribution }),
-            },
-        },
-        layers: [ground, { id: BASEMAP_LAYER_ID, type: 'raster', source: BASEMAP_LAYER_ID, paint: RASTER_MUTING[dark ? 'dark' : 'light'] }],
+        sources: { [BASEMAP_LAYER_ID]: rasterSource(basemap) },
+        layers: [ground, rasterLayer(dark)],
     }
+}
+
+/** One layer's tiles as a raster source, which is the only thing a layer switch replaces. */
+export function rasterSource(basemap: BasemapLayer): RasterSourceSpecification {
+    return {
+        type: 'raster',
+        tiles: [basemap.url],
+        tileSize: RASTER_TILE_SIZE,
+        maxzoom: RASTER_MAX_ZOOM,
+        // Omitted rather than null when the server cannot state one: MapLibre's attribution
+        // control renders whatever is here, and an empty credit is worse than no control.
+        ...(basemap.attribution === null ? {} : { attribution: basemap.attribution }),
+    }
+}
+
+/** The raster layer drawn from that source, muted for the theme it is being drawn in. */
+export function rasterLayer(dark: boolean): StyleSpecification['layers'][number] {
+    return {
+        id: BASEMAP_LAYER_ID,
+        type: 'raster',
+        source: BASEMAP_LAYER_ID,
+        paint: RASTER_MUTING[dark ? 'dark' : 'light'],
+    }
+}
+
+/**
+ * Which of the offered layers a map opens with, and what "None" is among them.
+ *
+ * The first configured layer, because a deployment's order is its statement of preference, and
+ * None when it configured none at all - the boundary-only canvas is then the only thing on offer,
+ * which is what an air-gapped deployment states by offering nothing.
+ */
+export function initialBasemap(basemaps: BasemapLayer[]): BasemapLayer | null {
+    return basemaps[0] ?? null
 }
 
 /**

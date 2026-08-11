@@ -11,8 +11,9 @@
 - decide who can reach the capture server, and understand why that is the
   one setting to read twice
 - change the port it listens on and read the refusal when the port is taken
-- turn strict code checking on, serve the data-entry screens, and set the
-  map background (or turn it off for an air-gapped deployment)
+- turn strict code checking on, serve the data-entry screens, and choose the
+  map backgrounds the screens offer (or offer none, for an air-gapped
+  deployment)
 
 `d2w fhir serve` (the `make serve` target runs exactly that) starts a small
 web server on your computer that serves the guide's content and accepts
@@ -162,41 +163,68 @@ screens.
 **If you get it wrong:** TOML wants bare `true` or `false`; anything
 unrecognisable stops the run with a printout naming `serve.ui`.
 
-### `basemap`
+### `basemaps`
 
 !!! note "The one outbound call"
     Everything else the capture server does stays on your machine. The map
     background is the single exception: the browser fetches map tiles from
-    whatever address this option names. `basemap = "none"` is the fully
-    offline posture - boundaries on a plain canvas, no outside request ever.
+    whatever address a layer names. `basemaps = []` is the fully offline
+    posture - boundaries on a plain canvas, no outside request ever.
 
-**In plain words.** The background map (streets, coastlines) drawn under the
-org-unit boundaries in the data-entry screens' map. It is a web address
-template pointing at a tile service.
+**In plain words.** The background maps (streets, coastlines, imagery) the
+data-entry screens can draw under the organisation-unit boundaries. Each entry
+gives a layer a name and a web address template pointing at a tile service.
+
+**How the screens use it.** The map's layer control lists these layers in the
+order you write them, opens on the first, and always carries a **None** entry
+beside them. So switching the background off is a click for whoever is reading
+the map, and offering no layer at all - `basemaps = []` - is how a deployment
+says the browser must never fetch a tile.
 
 **When you would change it.** Three situations. Air-gapped or no-outside-
-traffic environment: set `"none"`. A deployment serving other people: point it
-at your own tile service - the default is OpenStreetMap's volunteer-funded
+traffic environment: write `basemaps = []`. A deployment serving other people:
+name your own tile service - the default is OpenStreetMap's volunteer-funded
 servers, fine for one laptop for an afternoon, not for a district office's
-daily traffic. Otherwise: leave it alone.
+daily traffic. Somebody needs to see roofs and fields rather than street lines:
+add a satellite layer beside the street one, so both are a click apart.
 
 **Example.**
 
 ```toml
-[serve]
-basemap = "none"
+[[serve.basemaps]]
+name = "OpenStreetMap"
+url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+[[serve.basemaps]]
+name = "Satellite"
+url = "https://tiles.example.org/satellite/{z}/{x}/{y}.jpg?api_key=YOUR_KEY"
 ```
 
-The map shows org-unit boundaries on a plain background and makes no outside
-request.
+The map opens on OpenStreetMap, and its layer control offers Satellite and
+None beside it.
 
-**Default:** `"https://tile.openstreetmap.org/{z}/{x}/{y}.png"` - **If you
-leave it out:** the map draws OpenStreetMap tiles, which need no account or
-key - and each viewer's browser fetches them from openstreetmap.org.
+**Attribution is worked out here, not configured.** The capture server states
+OpenStreetMap's required credit line for OpenStreetMap's tiles, because it is
+the source this project ships. It states none for anybody else's, because it
+does not know their terms - crediting a tile service you point it at is your
+obligation, and a satellite provider will tell you the exact line they want.
 
-**If you get it wrong:** nothing refuses this - a wrong address just means the
-map's background comes up blank or broken in the browser while the boundaries
-still draw. (`"none"` in any capitalisation is understood as "off".)
+**Default:** one layer, `OpenStreetMap` at
+`https://tile.openstreetmap.org/{z}/{x}/{y}.png` - **If you leave it out:** the
+map offers OpenStreetMap's tiles, which need no account or key, and each
+viewer's browser fetches them from openstreetmap.org.
+
+**If you get it wrong:** nothing refuses this - a wrong address just means that
+layer's background comes up blank or broken in the browser while the boundaries
+still draw, and None is one click away. A layer with an empty `url` is dropped
+rather than offered.
+
+**From the command line.** `--basemap` overrides the whole table for one run
+and repeats: `--basemap "Streets=https://.../{z}/{x}/{y}.png" --basemap
+"https://aerial.example/{z}/{x}/{y}.jpg"`. A value with no `Name=` in front is
+named after its host. `--basemap none` offers no layer at all, which is what
+`basemaps = []` says in the file; naming it beside a real layer is refused
+rather than guessed at.
 
 Next: [The capture contract](401-capture-contract.md) - the integrate tier
 starts with what a valid submission carries. Or back to

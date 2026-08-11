@@ -17,6 +17,13 @@ seeded FHIR metadata (`make dhis2-up`, profile `local_basic`):
 3. Run `d2w fhir generate questionnaires` in the IG project the goldens came from, compile it
    with SUSHI, and copy the emitted `fsh-generated/resources/*.json` into `tests/data/r4/`.
 
+`categories.json` is the fourth source fixture, read the way `service.generate_questionnaires`
+reads it - `_fetch_categories` under the same default `GenerateConfig` - because both combo
+vocabularies decompose their concepts into the categories the same run publishes. The combos
+state what they are composed of on `sources.json` itself: `category_uids` on each category combo
+and `category_option_uids` on each of its option combos, which is what the questionnaire fetch
+now asks for.
+
 The goldens are SUSHI's own output and are never edited by hand: when this test fails, the
 builder is what changed.
 
@@ -40,11 +47,14 @@ from dhis2w_fhir import (
     OptionSetIn,
     QuestionnaireSourceIn,
     build_attribute_combo_artifacts,
+    build_category_decomposition,
     build_data_dictionary_documents,
     build_questionnaire_documents,
     option_set_identities,
 )
 from dhis2w_fhir.r4 import FhirBase
+from dhis2w_fhir.resources.categories.decomposition import CategoryDecomposition
+from dhis2w_fhir.resources.categories.schemas import CategoryIn
 
 _SOURCE_DIRECTORY = Path(__file__).parent / "data" / "questionnaire-sources"
 _GOLDEN_DIRECTORY = Path(__file__).parent / "data" / "r4"
@@ -72,6 +82,16 @@ def _fixture(name: str) -> Any:
 def _sources() -> list[QuestionnaireSourceIn]:
     """The forms the run fetched, as the emitter projection."""
     return [QuestionnaireSourceIn.model_validate(entry) for entry in _fixture("sources")]
+
+
+def _categories() -> list[CategoryIn]:
+    """The categories the same run publishes, which the combo vocabularies decompose their concepts into."""
+    return [CategoryIn.model_validate(entry) for entry in _fixture("categories")]
+
+
+def _decomposition() -> CategoryDecomposition:
+    """What every category option combo of the run is composed of, resolved against those categories."""
+    return build_category_decomposition(_sources(), _categories(), _config(), _CANONICAL)
 
 
 def _config() -> GenerateConfig:
@@ -121,7 +141,9 @@ def test_the_run_builds_exactly_the_questionnaires_it_compiled() -> None:
 @pytest.mark.parametrize("code_system_id", ["d2-de-cs", "d2-coc-cs"])
 def test_a_built_support_code_system_equals_the_one_sushi_compiled(code_system_id: str) -> None:
     """The data dictionary's concepts, properties, and count match the compiled support terminology."""
-    build = build_data_dictionary_documents(_sources(), _config(), _CANONICAL, ig_status="draft")
+    build = build_data_dictionary_documents(
+        _sources(), _config(), _CANONICAL, ig_status="draft", decomposition=_decomposition()
+    )
     built = {str(code_system.id): _emitted(code_system) for code_system in build.code_systems}
     assert built[code_system_id] == _golden(f"CodeSystem-{code_system_id}")
 
@@ -129,7 +151,9 @@ def test_a_built_support_code_system_equals_the_one_sushi_compiled(code_system_i
 @pytest.mark.parametrize("value_set_id", ["d2-de-vs", "d2-coc-vs"])
 def test_a_built_support_value_set_equals_the_one_sushi_compiled(value_set_id: str) -> None:
     """Each support ValueSet includes its whole CodeSystem, exactly as the compiled pair does."""
-    build = build_data_dictionary_documents(_sources(), _config(), _CANONICAL, ig_status="draft")
+    build = build_data_dictionary_documents(
+        _sources(), _config(), _CANONICAL, ig_status="draft", decomposition=_decomposition()
+    )
     built = {str(value_set.id): _emitted(value_set) for value_set in build.value_sets}
     assert built[value_set_id] == _golden(f"ValueSet-{value_set_id}")
 
@@ -137,6 +161,8 @@ def test_a_built_support_value_set_equals_the_one_sushi_compiled(value_set_id: s
 @pytest.mark.parametrize("stem", ["CodeSystem-d2-aoc-idcDPkDtepR-cs", "ValueSet-d2-aoc-idcDPkDtepR-vs"])
 def test_the_attribute_option_combo_pair_equals_the_one_sushi_compiled(stem: str) -> None:
     """The one data set on a non-default combo publishes the pair its Questionnaire binds by canonical."""
-    build = build_attribute_combo_artifacts(_sources(), _config(), _CANONICAL, ig_status="draft")
+    build = build_attribute_combo_artifacts(
+        _sources(), _config(), _CANONICAL, ig_status="draft", decomposition=_decomposition()
+    )
     built = {artifact.relative_path.rsplit("/", 1)[-1]: json.loads(artifact.content) for artifact in build.artifacts}
     assert built[f"{stem}.json"] == _golden(stem)

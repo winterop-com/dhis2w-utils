@@ -124,6 +124,50 @@ test('the tracked-entity dictionary states its codes, uniqueness, and the honest
     await expect(nationalId.getByRole('cell', { name: 'true', exact: true })).toHaveCount(1)
 })
 
+test('a category option combo digs down into the category options it is composed of', async ({
+    page,
+}) => {
+    await page.goto('/#/terminology/CodeSystem/d2-aoc-idcDPkDtepR-cs')
+
+    // One column per category the combo splits over, headed by the property code as words and
+    // carrying the category's own name as the header's tooltip - so the vocabulary alone says
+    // which axis this is without opening the category.
+    const axis = page.getByRole('columnheader', { name: 'Category yY2bQYqNt0o', exact: true })
+    await expect(axis).toBeVisible()
+    await expect(axis).toHaveAttribute('title', 'DHIS2 category Project')
+
+    // The cell is the category option's name, linked into that category's own CodeSystem.
+    const combo = page.getByRole('row').filter({ hasText: 'pO5CEqK6c1s' })
+    await expect(combo).toHaveCount(1)
+    await combo.getByRole('link', { name: 'Improve access to clean water' }).click()
+
+    // Landed on the category, filtered to the very option the combo names.
+    await expect(page).toHaveURL(/#\/terminology\/CodeSystem\/d2-cat-yY2bQYqNt0o-cs\?code=i4Nbp8S2G6A$/)
+    await expect(page.getByRole('heading', { name: 'Project', level: 2, exact: true })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Filter concepts' })).toHaveValue('i4Nbp8S2G6A')
+    await expect(page.getByText(/Showing 1 of 1 concepts/)).toBeVisible()
+    await expect(page.getByRole('row').filter({ hasText: 'i4Nbp8S2G6A' })).toContainText(
+        'Improve access to clean water',
+    )
+})
+
+test('a disaggregation cell states both of the categories it is met from', async ({ page }) => {
+    await page.goto('/#/terminology/CodeSystem/d2-coc-cs')
+
+    // "Fixed, <1y" is the location option met with the age group, and the two columns read in the
+    // order its category combo splits over them.
+    const cell = page.getByRole('row').filter({ hasText: 'Prlt0C1RF0s' })
+    await expect(cell).toHaveCount(1)
+    await expect(cell.getByRole('link', { name: 'Fixed', exact: true })).toHaveCount(1)
+    await expect(cell.getByRole('link', { name: '<1y', exact: true })).toHaveCount(1)
+
+    // A combo that splits over one category alone leaves the other axis a dash rather than
+    // inventing a value for it.
+    const discarded = page.getByRole('row').filter({ hasText: 'pn1upwnbxfn' })
+    await expect(discarded.getByRole('link', { name: 'Damages', exact: true })).toHaveCount(1)
+    await expect(discarded.getByRole('cell', { name: '-', exact: true })).toHaveCount(2)
+})
+
 test('the $translate tester answers with the DHIS2 identifiers a concept maps onto', async ({ page }) => {
     await page.goto('/#/terminology/CodeSystem/d2-os-OsSymptom01-cs')
 

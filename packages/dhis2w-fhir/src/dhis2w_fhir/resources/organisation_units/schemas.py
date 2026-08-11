@@ -35,6 +35,8 @@ ORGANISATION_UNIT_CONCEPT_PROPERTIES: tuple[TerminologyPropertyDeclaration, ...]
 class OrganisationUnitSelection(BaseModel):
     """Which DHIS2 organisation units to generate - the `[generate.organisation_units]` table of `fhir.toml`."""
 
+    model_config = ConfigDict(extra="forbid")
+
     root: str | None = None
     max_level: int | None = None
     terminology: bool = False

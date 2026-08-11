@@ -67,10 +67,28 @@ _CONNECT_HINT = [
 ]
 
 
+class CliUserError(Exception):
+    """An expected user error carrying one or more diagnostics, each rendered as its own `error:` line.
+
+    The extension point every package outside `dhis2w-core` reaches for when a failure is the
+    user's to fix rather than a bug to triage: raise it with one string per thing that is wrong
+    and the funnel prints each under the `error:` label, then exits 1. A diagnostic may span
+    several lines - the first carries the label and the rest are printed as written, which is how
+    a "did you mean ...?" suggestion sits under the key it belongs to.
+    """
+
+    def __init__(self, *diagnostics: str) -> None:
+        """Hold the diagnostics in the order they are printed; `str()` joins them with newlines."""
+        self.diagnostics: tuple[str, ...] = diagnostics
+        super().__init__("\n".join(diagnostics))
+
+
 def run_app(app: typer.Typer) -> NoReturn:
     """Invoke a Typer app with clean error rendering for known exceptions."""
     try:
         app()
+    except CliUserError as exc:
+        _render_diagnostics(exc)
     except NoProfileError as exc:
         _render("error", str(exc), _NO_PROFILE_HINT)
     except UnknownProfileError as exc:
@@ -92,6 +110,13 @@ def run_app(app: typer.Typer) -> NoReturn:
     except LookupError as exc:
         _render("error", str(exc))
     sys.exit(0)
+
+
+def _render_diagnostics(exc: CliUserError) -> NoReturn:
+    """Print every diagnostic under its own `error:` label and exit 1."""
+    for diagnostic in exc.diagnostics[:-1]:
+        typer.secho(f"error: {diagnostic}", err=True, fg=typer.colors.RED)
+    _render("error", exc.diagnostics[-1] if exc.diagnostics else str(exc))
 
 
 def _render_api_error(exc: Dhis2ApiError) -> NoReturn:

@@ -15,6 +15,14 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_360271"
+        },
+        {
+          "code": "category-Qzh0MSUx4RM",
+          "valueCoding": {
+            "code": "mInFlpnx6TQ",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-Qzh0MSUx4RM-cs",
+            "display": "Damages"
+          }
         }
       ]
     },
@@ -25,6 +33,14 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_360270"
+        },
+        {
+          "code": "category-Qzh0MSUx4RM",
+          "valueCoding": {
+            "code": "YHb43JqCAmI",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-Qzh0MSUx4RM-cs",
+            "display": "Expired"
+          }
         }
       ]
     },
@@ -35,6 +51,22 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_292"
+        },
+        {
+          "code": "category-fMZEcRHuamy",
+          "valueCoding": {
+            "code": "qkPbeWaFsnU",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-fMZEcRHuamy-cs",
+            "display": "Fixed"
+          }
+        },
+        {
+          "code": "category-YNZyaJHiHYq",
+          "valueCoding": {
+            "code": "btOyqprQ9e8",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-YNZyaJHiHYq-cs",
+            "display": "<1y"
+          }
         }
       ]
     },
@@ -45,6 +77,22 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_291"
+        },
+        {
+          "code": "category-fMZEcRHuamy",
+          "valueCoding": {
+            "code": "qkPbeWaFsnU",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-fMZEcRHuamy-cs",
+            "display": "Fixed"
+          }
+        },
+        {
+          "code": "category-YNZyaJHiHYq",
+          "valueCoding": {
+            "code": "GEqzEKCHoGA",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-YNZyaJHiHYq-cs",
+            "display": ">1y"
+          }
         }
       ]
     },
@@ -55,6 +103,22 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_290"
+        },
+        {
+          "code": "category-fMZEcRHuamy",
+          "valueCoding": {
+            "code": "wbrDrL2aYEc",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-fMZEcRHuamy-cs",
+            "display": "Outreach"
+          }
+        },
+        {
+          "code": "category-YNZyaJHiHYq",
+          "valueCoding": {
+            "code": "btOyqprQ9e8",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-YNZyaJHiHYq-cs",
+            "display": "<1y"
+          }
         }
       ]
     },
@@ -65,6 +129,22 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_289"
+        },
+        {
+          "code": "category-fMZEcRHuamy",
+          "valueCoding": {
+            "code": "wbrDrL2aYEc",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-fMZEcRHuamy-cs",
+            "display": "Outreach"
+          }
+        },
+        {
+          "code": "category-YNZyaJHiHYq",
+          "valueCoding": {
+            "code": "GEqzEKCHoGA",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-YNZyaJHiHYq-cs",
+            "display": ">1y"
+          }
         }
       ]
     },
@@ -75,6 +155,14 @@
         {
           "code": "dhis2-code",
           "valueString": "COC_360272"
+        },
+        {
+          "code": "category-Qzh0MSUx4RM",
+          "valueCoding": {
+            "code": "qKc2WhjMPKC",
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-Qzh0MSUx4RM-cs",
+            "display": "VVM Change"
+          }
         }
       ]
     }
@@ -88,6 +176,24 @@
       "uri": "http://dhis2.org/fhir/property/dhis2-code",
       "description": "DHIS2 category option combo code.",
       "type": "string"
+    },
+    {
+      "code": "category-YNZyaJHiHYq",
+      "uri": "http://dhis2.org/fhir/property/category-YNZyaJHiHYq",
+      "description": "DHIS2 category EPI/nutrition age.",
+      "type": "Coding"
+    },
+    {
+      "code": "category-fMZEcRHuamy",
+      "uri": "http://dhis2.org/fhir/property/category-fMZEcRHuamy",
+      "description": "DHIS2 category Location Fixed/Outreach.",
+      "type": "Coding"
+    },
+    {
+      "code": "category-Qzh0MSUx4RM",
+      "uri": "http://dhis2.org/fhir/property/category-Qzh0MSUx4RM",
+      "description": "DHIS2 category Stock discarded.",
+      "type": "Coding"
     }
   ],
   "count": 7

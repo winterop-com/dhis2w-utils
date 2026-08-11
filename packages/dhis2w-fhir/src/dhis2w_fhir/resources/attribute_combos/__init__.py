@@ -78,6 +78,7 @@ from dhis2w_fhir.writer import JsonArtifact, JsonBuild
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
     from dhis2w_fhir.notes import GenerateNote
+    from dhis2w_fhir.resources.categories.decomposition import CategoryDecomposition
     from dhis2w_fhir.resources.option_sets.schemas import ConceptAssignment, ConceptAssignmentPlan
     from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireSourceIn
 
@@ -257,12 +258,17 @@ def build_attribute_combo_artifacts(
     canonical: str,
     *,
     ig_status: IgStatus,
+    decomposition: CategoryDecomposition | None = None,
 ) -> AttributeComboBuild:
     """Build one CodeSystem/ValueSet pair per non-default attribute combo, plus the per-form plan.
 
     The plan is what the two questionnaire emitters read their `D2AttributeOptionCombos`
     extension from and what the example paths draw a valid attribute option combo out of, so
     the FSH source, the served documents, and every response name the one published ValueSet.
+
+    `decomposition` states what each attribute option combo is composed of, so every concept
+    carries one `Coding`-valued property per category axis into that category's own CodeSystem.
+    A caller that only wants the plan passes none and the concepts state their own code alone.
     """
     build = AttributeComboBuild()
     combos = attribute_combo_sources(sources)
@@ -270,7 +276,15 @@ def build_attribute_combo_artifacts(
     plan = attribute_combo_identities(combos, config)
     by_uid = {combo.uid: combo for combo in combos}
     for identity in plan.identities:
-        pair = _build_pair(by_uid[identity.uid], identity, config, systems, build.notes, ig_status=ig_status)
+        pair = _build_pair(
+            by_uid[identity.uid],
+            identity,
+            config,
+            systems,
+            build.notes,
+            ig_status=ig_status,
+            decomposition=decomposition,
+        )
         build.artifacts.append(
             _json_artifact(ATTRIBUTE_COMBO_DIRECTORY, f"CodeSystem-{identity.code_system_id}", pair.code_system)
         )
@@ -361,9 +375,10 @@ def _build_pair(
     notes: list[GenerateNote],
     *,
     ig_status: IgStatus,
+    decomposition: CategoryDecomposition | None = None,
 ) -> _AttributeComboPair:
     """Build the CodeSystem and the ValueSet of one attribute combo, reporting what assignment raised."""
-    concepts = build_concepts(combo, config, notes)
+    concepts = build_concepts(combo, config, notes, member_properties=decomposition)
     narrative = _narrative(combo, config, systems, ig_status=ig_status)
     code_system_url = systems.code_system_url(identity.code_system_id)
     code_system = CodeSystem(
@@ -380,7 +395,7 @@ def _build_pair(
         content="complete",
         count=len(concepts),
         valueSet=systems.value_set_url(identity.value_set_id),
-        property=_declarations(concepts, systems) or None,
+        property=_declarations(concepts, systems, decomposition) or None,
         concept=concepts or None,
     )
     value_set = ValueSet(
@@ -490,19 +505,30 @@ def _concept_map_element(assignment: ConceptAssignment, target_code: str) -> Con
     )
 
 
-def _declarations(concepts: list[CodeSystemConcept], systems: _AttributeComboSystems) -> list[CodeSystemProperty]:
-    """The CodeSystem-level declaration of every concept property the emitted concepts actually carry."""
+def _declarations(
+    concepts: list[CodeSystemConcept],
+    systems: _AttributeComboSystems,
+    decomposition: CategoryDecomposition | None,
+) -> list[CodeSystemProperty]:
+    """The CodeSystem-level declaration of every concept property the emitted concepts actually carry.
+
+    The DHIS2 identifier pair first, then one declaration per category axis the combo decomposes
+    over, each carrying that category's name so the vocabulary alone names its own axes.
+    """
     carried = {
         concept_property.code
         for concept in concepts
         for concept_property in concept.property or []
         if concept_property.code is not None
     }
-    return [
+    declarations = [
         declaration.model_copy(update={"uri": f"{systems.property_base}/{declaration.code}"})
         for declaration in _PROPERTY_DECLARATIONS
         if declaration.code in carried
     ]
+    if decomposition is not None:
+        declarations.extend(decomposition.declarations_for(carried))
+    return declarations
 
 
 def _id_stem(config: GenerateConfig) -> str:

@@ -646,6 +646,20 @@ no attributes writes no such file, the same way a run that disaggregates nothing
 template, because the two pairs describe different DHIS2 objects and would otherwise share
 wording that is true of only one.
 
+`D2COC_CS` and every `D2AOC_<stem>_CS` additionally decompose their concepts: one
+`Coding`-valued property per category the combo splits over, coded into that category's own
+published CodeSystem, declared under `category-<stem>` with the category's name as the
+description. `build_category_decomposition` resolves it once per run from the selected
+categories plus the combos the forms reference, and both emitters read that one object through
+the `MemberPropertySource` protocol `build_concepts` takes - so the FSH path and the JSON path
+carry byte-identical properties, and a coding can only name a concept the category pair really
+wrote. The categories ride the questionnaire target's own fetch (`_fetch_categories`, the read
+`generate categories` and `generate full` already make), and the combos state what they are
+composed of on the projection the forms already cost:
+`categories[id],categoryOptionCombos[id,name,code,categoryOptions[id]]`. A category outside
+`[generate.categories]` drops its axis with a `selection-gap` note rather than publishing a
+coding into a CodeSystem nobody wrote.
+
 The targets are `[generate.data_sets]` / `[generate.event_programs]` /
 `[generate.tracker_programs]` `include_ids`,
 absent or empty = all, exactly like the terminology and registry selections. The

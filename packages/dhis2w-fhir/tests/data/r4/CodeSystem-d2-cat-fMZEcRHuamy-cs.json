@@ -1,0 +1,54 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-cat-fMZEcRHuamy-cs",
+  "url": "http://localhost:8080/fhir/CodeSystem/d2-cat-fMZEcRHuamy-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/category",
+      "value": "fMZEcRHuamy"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/category-code",
+      "value": "LOC_FIX_OUTREACH"
+    }
+  ],
+  "name": "D2CAT_fMZEcRHuamy_CS",
+  "title": "Location Fixed/Outreach",
+  "description": "DHIS2 category Location Fixed/Outreach (fMZEcRHuamy). Concept codes are DHIS2 category option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 2,
+  "valueSet": "http://localhost:8080/fhir/ValueSet/d2-cat-fMZEcRHuamy-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 category option code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "qkPbeWaFsnU",
+      "display": "Fixed",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "FIXED"
+        }
+      ]
+    },
+    {
+      "code": "wbrDrL2aYEc",
+      "display": "Outreach",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "wbrDrL2aYEc"
+        }
+      ]
+    }
+  ]
+}

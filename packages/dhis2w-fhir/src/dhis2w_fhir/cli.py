@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
     from dhis2w_core.progress import ProgressReporter
 
+    from dhis2w_fhir.config import FhirProject
     from dhis2w_fhir.doctor import DoctorReport
     from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import (
@@ -1072,6 +1073,27 @@ def _preflight_bind(host: str, port: int) -> None:
         raise
 
 
+def _resolve_serve_profile(project: FhirProject, *, required: bool) -> GenerationProfile | None:
+    """The DHIS2 instance a serve run is about, or None when this machine names no profile at all.
+
+    Absence and error are different answers and are answered differently. A machine with no
+    `profiles.toml` anywhere is a compiled guide being served on its own - a valid, fully offline
+    posture - so it resolves to None and the screens simply link nothing out. A profile that IS
+    named, by `d2w -p`, by `DHIS2_PROFILE`, or by `fhir.toml`, and turns out not to exist is a
+    statement that is wrong, and it refuses the run whether or not `--live` needed to connect.
+    """
+    from dhis2w_client.profile import NoProfileError
+
+    from dhis2w_fhir import service
+
+    try:
+        return service.resolve_generation_profile(project)
+    except NoProfileError:
+        if required:
+            raise
+        return None
+
+
 @app.command("serve")
 def serve_command(
     directory: Annotated[
@@ -1117,14 +1139,16 @@ def serve_command(
         ),
     ] = None,
     basemap: Annotated[
-        str | None,
+        list[str] | None,
         typer.Option(
             "--basemap",
-            help="Raster tile template the capture UI's organisation-unit map draws under the "
-            "boundaries, overriding `\\[serve] basemap` (default: OpenStreetMap's standard tiles). "
-            "`--basemap none` turns the tiles off and leaves the boundaries on a plain canvas, which "
-            "is what an air-gapped deployment wants - it is the only thing in the UI that reaches "
-            "an origin other than this server.",
+            help="Raster tile layer the capture UI's organisation-unit map offers under the "
+            "boundaries, overriding `\\[serve.basemaps]` (default: OpenStreetMap's standard tiles). "
+            "Repeat it to offer several: `Name=https://.../{z}/{x}/{y}.png`, or a bare template "
+            "named after its host. The map's layer control always carries a None entry beside them, "
+            "and `--basemap none` offers nothing else - which is what an air-gapped deployment "
+            "wants, the tiles being the only thing in the UI that reaches an origin other than "
+            "this server.",
         ),
     ] = None,
 ) -> None:
@@ -1138,9 +1162,9 @@ def serve_command(
 
     `--ui` also serves the capture UI at `/`, same-origin with the FHIR routes it reads.
 
-    `--basemap` points the org-unit map at another tile source, and `--basemap none` draws no tiles at all.
+    `--basemap` offers another tile layer on the organisation-unit map, and `--basemap none` offers none.
 
-    Host, port, strict codes, the UI, and the basemap come from `[serve]` in fhir.toml unless a flag overrides them.
+    Host, port, strict codes, the UI, and the basemaps come from `[serve]` in fhir.toml unless a flag overrides them.
     """
     try:
         from dhis2w_fhir_serve import (
@@ -1153,7 +1177,7 @@ def serve_command(
     except ImportError as error:
         raise LookupError(_SERVE_PACKAGE_MISSING) from error
 
-    from dhis2w_fhir import service
+    from dhis2w_fhir.config import basemaps_from_options
 
     project = load_project(directory)
     serve_config = project.config.serve
@@ -1161,12 +1185,17 @@ def serve_command(
     resolved_port = port if port is not None else serve_config.port
     resolved_strict_codes = strict_codes if strict_codes is not None else serve_config.strict_codes
     resolved_ui = ui if ui is not None else serve_config.ui
-    resolved_basemap = basemap if basemap is not None else serve_config.basemap
-    if live:
-        # Resolve the profile the live store will connect with before anything says the server is
-        # starting, so an unknown profile fails as a failure rather than under a success banner.
-        service.resolve_generation_profile(project)
-    elif not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
+    stated_basemaps = list(basemap or [])
+    try:
+        resolved_basemaps = basemaps_from_options(stated_basemaps) if stated_basemaps else list(serve_config.basemaps)
+    except ValueError as error:
+        raise typer.BadParameter(str(error), param_hint="--basemap") from error
+    # Resolve the profile before anything says the server is starting, so an unknown profile fails
+    # as a failure rather than under a success banner. `--live` connects with it; every run that
+    # resolves one also hands the UI the instance's address, which is what lets an identity on a
+    # page link back to the object it was generated from.
+    generation = _resolve_serve_profile(project, required=live)
+    if not live and not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
         raise CompiledIgMissingError
     settings = ServeSettings(
         project_dir=directory,
@@ -1174,7 +1203,8 @@ def serve_command(
         profile=None,
         strict_codes=resolved_strict_codes,
         ui=resolved_ui,
-        basemap=resolved_basemap,
+        basemaps=resolved_basemaps,
+        dhis2_base_url=None if generation is None else generation.profile.base_url,
     )
     _preflight_bind(resolved_host, resolved_port)
     configure_logging()
@@ -1183,6 +1213,14 @@ def serve_command(
     application = create_app(settings)
     surface = "FHIR endpoint + capture UI" if resolved_ui else "FHIR endpoint"
     _line(f"starting {project.project_root} on http://{resolved_host}:{resolved_port} as a {surface} (ctrl-c to stop)")
+    if resolved_ui:
+        _hint(
+            "links",
+            f"the screens link identities into {generation.profile.base_url} ({generation.name}, "
+            f"from {generation.origin})"
+            if generation is not None
+            else "no profile resolved, so the screens link no identity to a DHIS2 instance",
+        )
     _run_server(application, host=resolved_host, port=resolved_port)
 
 

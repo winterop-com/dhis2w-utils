@@ -4,7 +4,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
  * The map's own interactions, beyond mounting: the globe view, the two click gestures, the legend.
  *
  * Everything here drives the fixture registry orgunits.spec.ts documents - ten organisation units
- * over four levels, four boundaries and four points, `basemap = "none"`. What this file adds is
+ * over four levels, four boundaries and four points, `basemaps = []`. What this file adds is
  * the interaction model on top of those shapes: a left-click on any shape opens the info popup and
  * Open is the deliberate selection; a right-click drills straight down; the globe control eases
  * the camera out to where the curvature reads and flies back to exactly the framing it left.

@@ -65,11 +65,13 @@ root = ""
 max_level = 0
 
 [serve]
-# No basemap tiles. The browser suite asserts that the org-units page issues no failing
-# request, and a run that reached tile.openstreetmap.org would be asserting on somebody
-# else's uptime - and would make a test suite that is meant to be offline talk to the
-# internet. The tiles-on path is covered by the vitest case over the style fork.
-basemap = "none"
+# No basemap layers, so the map's layer control offers None alone. The browser suite asserts
+# that the organisation-units page issues no failing request, and a run that reached
+# tile.openstreetmap.org would be asserting on somebody else's uptime - and would make a test
+# suite that is meant to be offline talk to the internet. The layers-on path is covered by the
+# vitest cases over the style fork and by the e2e spec that states its own layers over
+# `/uiconfig`, whose tiles are fulfilled in the browser and never fetched.
+basemaps = []
 """
 
 #: The compiled Questionnaires the capture project serves - one per form kind, plus the tracker
@@ -87,6 +89,10 @@ CAPTURE_QUESTIONNAIRE_FILES = (
 #: The data-dictionary terminology every generated form draws its question codes from, plus the
 #: attribute-option-combo pair the non-default-combo form binds - without which a capture client
 #: has a form declaring a vocabulary and no way to expand it.
+#:
+#: The category pairs ride with them because both combo vocabularies decompose their concepts into
+#: those categories: a reader who follows a combo's category property lands on the CodeSystem named
+#: here, so a project serving the combos without the categories would publish links to nothing.
 CAPTURE_SUPPORT_FILES = (
     "CodeSystem-d2-de-cs.json",
     "CodeSystem-d2-coc-cs.json",
@@ -94,7 +100,20 @@ CAPTURE_SUPPORT_FILES = (
     "ValueSet-d2-coc-vs.json",
     "CodeSystem-d2-aoc-idcDPkDtepR-cs.json",
     "ValueSet-d2-aoc-idcDPkDtepR-vs.json",
+    "CodeSystem-d2-cat-yY2bQYqNt0o-cs.json",
+    "ValueSet-d2-cat-yY2bQYqNt0o-vs.json",
+    "CodeSystem-d2-cat-fMZEcRHuamy-cs.json",
+    "ValueSet-d2-cat-fMZEcRHuamy-vs.json",
+    "CodeSystem-d2-cat-YNZyaJHiHYq-cs.json",
+    "ValueSet-d2-cat-YNZyaJHiHYq-vs.json",
+    "CodeSystem-d2-cat-Qzh0MSUx4RM-cs.json",
+    "ValueSet-d2-cat-Qzh0MSUx4RM-vs.json",
 )
+
+#: The category the attribute option combos of the non-default-combo form decompose over, and the
+#: concept property they name it under - what the browser follows from a combo row to its parts.
+PROJECT_CATEGORY_CODE_SYSTEM = f"{CAPTURE_CANONICAL}/CodeSystem/d2-cat-yY2bQYqNt0o-cs"
+PROJECT_CATEGORY_PROPERTY = "category-yY2bQYqNt0o"
 
 AGGREGATE_RESPONSE_FILE = "QuestionnaireResponse-BfMAe6Itzgt-example-1.json"
 EVENT_RESPONSE_FILE = "QuestionnaireResponse-EVTsupVis01-example-1.json"

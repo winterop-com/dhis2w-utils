@@ -17,6 +17,7 @@
 import type {
     CodeSystem,
     CodeSystemConcept,
+    Coding,
     ConceptMap,
     ConceptMapGroup,
     Identifier,
@@ -132,6 +133,52 @@ export function conceptPropertyValue(concept: CodeSystemConcept, code: string): 
     if (property.valueDateTime !== undefined) return property.valueDateTime
     if (property.valueCoding?.code !== undefined) return property.valueCoding.code
     return null
+}
+
+/**
+ * The concept-filter query parameter, which is what makes one concept of a system deep-linkable.
+ *
+ * A property valued as a coding links to the CodeSystem the coding names, filtered to the concept
+ * it codes - `#/terminology/CodeSystem/d2-cat-sex-cs?code=Female` opens that system already
+ * showing the one row. The filter box writes the same parameter as the reader types, so the
+ * address bar always states what the table is showing.
+ */
+export const CONCEPT_FILTER_PARAMETER = 'code'
+
+/** One property value that codes into another CodeSystem: where that system is read, and what to call it. */
+export interface ConceptPropertyCodingLink {
+    label: string
+    /** True when the label is the coding's own code rather than a name, so the cell keeps machine spelling. */
+    isCode: boolean
+    to: string
+}
+
+/** The coding one concept carries for one property, or null when that property is absent or not a coding. */
+export function conceptPropertyCoding(concept: CodeSystemConcept, code: string): Coding | null {
+    const property = concept.property?.find((candidate) => candidate.code === code)
+    return property?.valueCoding ?? null
+}
+
+/**
+ * Where a coding's own CodeSystem is read, with its concepts filtered to the one code.
+ *
+ * Generic on purpose: any concept property valued as a coding digs down this way, whichever
+ * vocabulary emitted it. The system has to be a published CodeSystem canonical - this server ids
+ * every resource by its canonical's last segment, so `.../CodeSystem/<id>` is exactly what a route
+ * can open. A coding into anything else (a ValueSet, an external terminology, no system at all)
+ * has no page here and stays plain text rather than becoming a link that leads nowhere.
+ */
+export function conceptPropertyCodingLink(coding: Coding): ConceptPropertyCodingLink | null {
+    if (coding.code === undefined || coding.code === '') return null
+    const segments = (coding.system ?? '').split('/').filter((segment) => segment !== '')
+    const id = segments.at(-1)
+    if (segments.at(-2) !== 'CodeSystem' || id === undefined) return null
+    const filter = `${CONCEPT_FILTER_PARAMETER}=${encodeURIComponent(coding.code)}`
+    return {
+        label: coding.display ?? coding.code,
+        isCode: coding.display === undefined,
+        to: `/terminology/CodeSystem/${encodeURIComponent(id)}?${filter}`,
+    }
 }
 
 /** Whether any of the given texts contains the query, case-insensitively; an empty query matches all. */

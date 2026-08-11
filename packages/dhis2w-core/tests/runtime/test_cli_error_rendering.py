@@ -8,7 +8,7 @@ import httpx
 import pytest
 import typer
 from dhis2w_client.errors import Dhis2ApiError
-from dhis2w_core.cli_errors import run_app
+from dhis2w_core.cli_errors import CliUserError, run_app
 
 _IMPORT_SUMMARY_409 = {
     "httpStatus": "Conflict",
@@ -202,3 +202,26 @@ def test_renders_metadata_import_errors_as_conflict_table(
     assert "parent" in combined
     # The "conflicts (N)" heading renders — N is the total across both resources.
     assert "(2)" in combined
+
+
+def test_renders_one_error_line_per_diagnostic(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A CliUserError carrying several diagnostics prints each under its own `error:` label, then exits 1."""
+    app = _app_raising(
+        CliUserError(
+            "fhir.toml: unknown key 'max_lvl' in [generate.organisation_units]\n  did you mean 'max_level'?",
+            "fhir.toml: unknown key 'strict_code' in [serve]\n  did you mean 'strict_codes'?",
+        )
+    )
+    monkeypatch.setattr(sys, "argv", ["d2w"])
+    with pytest.raises(SystemExit) as excinfo:
+        run_app(app)
+    assert excinfo.value.code == 1
+    combined = capsys.readouterr()
+    assert combined.err.splitlines() == [
+        "error: fhir.toml: unknown key 'max_lvl' in [generate.organisation_units]",
+        "  did you mean 'max_level'?",
+        "error: fhir.toml: unknown key 'strict_code' in [serve]",
+        "  did you mean 'strict_codes'?",
+    ]

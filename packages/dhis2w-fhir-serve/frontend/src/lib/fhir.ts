@@ -715,6 +715,33 @@ export function programOf(questionnaire: Questionnaire): string | null {
     return identifier?.value ?? null
 }
 
+/** The identifier system an aggregate form names the DHIS2 data set it was generated from under. */
+export const DATA_SET_IDENTIFIER_SYSTEM_SUFFIX = '/id/data-set'
+
+/** The identifier system a tracker stage form names the DHIS2 program stage it was generated from under. */
+export const PROGRAM_STAGE_IDENTIFIER_SYSTEM_SUFFIX = '/id/program-stage'
+
+/**
+ * The DHIS2 data set uid an aggregate form was generated from, or null when it names none.
+ *
+ * `/id/data-set-code` is a different system and does not match, because the suffix comparison is
+ * exact at the end - the same rule `programOf` relies on.
+ */
+export function dataSetOf(questionnaire: Questionnaire): string | null {
+    const identifier = questionnaire.identifier?.find((candidate) =>
+        candidate.system?.endsWith(DATA_SET_IDENTIFIER_SYSTEM_SUFFIX),
+    )
+    return identifier?.value ?? null
+}
+
+/** The DHIS2 program stage uid a stage form was generated from, or null when it names none. */
+export function programStageOf(questionnaire: Questionnaire): string | null {
+    const identifier = questionnaire.identifier?.find((candidate) =>
+        candidate.system?.endsWith(PROGRAM_STAGE_IDENTIFIER_SYSTEM_SUFFIX),
+    )
+    return identifier?.value ?? null
+}
+
 /**
  * The identifier-system base a form's DHIS2 identifiers are published under, or null.
  *

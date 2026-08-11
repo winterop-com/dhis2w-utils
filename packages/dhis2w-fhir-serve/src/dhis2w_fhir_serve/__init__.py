@@ -51,9 +51,10 @@ from dhis2w_fhir_serve.routes.spool import (
 from dhis2w_fhir_serve.routes.uiconfig import (
     OPENSTREETMAP_ATTRIBUTION,
     UI_CONFIG_PATH,
-    BasemapConfig,
+    BasemapLayer,
     UiConfig,
-    basemap_config,
+    basemap_layers,
+    public_instance_url,
 )
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import (
@@ -114,9 +115,10 @@ __all__ = [
     "SPOOL_RELATIVE_PATH",
     "OPENSTREETMAP_ATTRIBUTION",
     "UI_CONFIG_PATH",
-    "BasemapConfig",
+    "BasemapLayer",
     "UiConfig",
-    "basemap_config",
+    "basemap_layers",
+    "public_instance_url",
     "STATIC_DIRECTORY",
     "AmbiguousCodingError",
     "BadOperationError",

@@ -14,6 +14,7 @@ event has to name a tracked entity and an enrollment that exist. Both are what t
 
 from __future__ import annotations
 
+import random
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,12 @@ SERVED_UNIT_REFERENCES = {f"Location/{unit.uid}" for unit in ORG_UNITS} | {"Loca
 #: How many seeds the unit-variance tests range over - enough that a draw over two or more
 #: candidates lands on more than one of them, deterministically, since the draw is seed-keyed.
 VARIANCE_SEEDS = range(12)
+
+#: How many seedless calls the unseeded-variance test makes, and the stream it makes them over.
+#: A seedless call draws its seed off the `random` module's own generator, so pinning that stream
+#: is what makes "the drawn seeds, and the units they name, differ" an assertion rather than a coin.
+UNSEEDED_CALLS = 12
+UNSEEDED_STREAM_SEED = 20260811
 
 #: Every form the golden project serves, including the two extra event forms and the registration one.
 EVERY_FORM_ID = (
@@ -434,6 +441,23 @@ async def test_an_unrestricted_form_draws_its_unit_across_the_served_registry(
         assert reference in SERVED_UNIT_REFERENCES
         drawn.add(reference)
 
+    assert len(drawn) > 1
+
+
+async def test_a_seedless_call_draws_its_unit_across_the_admitted_set_too(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """A seedless call is answered from a drawn seed, so its unit varies exactly as a named seed's does."""
+    stream = random.getstate()
+    random.seed(UNSEEDED_STREAM_SEED)
+    try:
+        responses = [(await _generate(capture_client, REGISTRATION_ID)).json() for _ in range(UNSEEDED_CALLS)]
+    finally:
+        random.setstate(stream)
+
+    drawn = {_extensions(response, ORGANISATION_UNIT_URL)[0]["valueReference"]["reference"] for response in responses}
+
+    assert drawn <= ASSIGNED_UNIT_REFERENCES
     assert len(drawn) > 1
 
 

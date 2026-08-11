@@ -1,8 +1,9 @@
 """`GET /uiconfig` - the run-time settings the capture UI acts on, and what it refuses to carry.
 
-The endpoint exists because one thing the UI renders is not a property of the served guide: which
-raster tiles the organisation-unit map draws under the boundaries. That is decided when the process
-starts, and a bundle compiled weeks earlier cannot know it.
+The endpoint exists because two things the UI renders are not properties of the served guide: which
+raster layers the organisation-unit map may draw under the boundaries, and which DHIS2 instance the
+guide was generated from. Both are decided when the process starts, and a bundle compiled weeks
+earlier cannot know either.
 
 These tests hold two contracts. The first is the shape - a plain JSON body, mounted ahead of the
 read catch-alls that would otherwise answer that `uiconfig` is not a served resource type. The
@@ -15,23 +16,43 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
-from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, FhirProject
+from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, BasemapSource, FhirProject
 from dhis2w_fhir_serve.app import create_app
-from dhis2w_fhir_serve.routes.uiconfig import OPENSTREETMAP_ATTRIBUTION, UI_CONFIG_PATH, basemap_config
+from dhis2w_fhir_serve.routes.uiconfig import (
+    OPENSTREETMAP_ATTRIBUTION,
+    UI_CONFIG_PATH,
+    basemap_layers,
+    public_instance_url,
+)
 from dhis2w_fhir_serve.settings import ServeSettings
 from fastapi import FastAPI
 
-
-@pytest.fixture
-def basemap() -> str:
-    """The `[serve] basemap` value the app under test was started with; override to change it."""
-    return DEFAULT_BASEMAP_TEMPLATE
+#: The layers the app under test is started with unless a test overrides the `basemaps` fixture.
+OPENSTREETMAP_LAYERS = [BasemapSource(name="OpenStreetMap", url=DEFAULT_BASEMAP_TEMPLATE)]
 
 
 @pytest.fixture
-def ui_config_app(compiled_project: FhirProject, basemap: str) -> FastAPI:
-    """The facade over the compiled project, started with one basemap setting."""
-    return create_app(ServeSettings(project_dir=compiled_project.project_root, basemap=basemap))
+def basemaps() -> list[BasemapSource]:
+    """The `[serve.basemaps]` layers the app under test was started with; override to change them."""
+    return OPENSTREETMAP_LAYERS
+
+
+@pytest.fixture
+def dhis2_base_url() -> str | None:
+    """The instance address the run resolved a profile for; override to serve one, or none."""
+    return None
+
+
+@pytest.fixture
+def ui_config_app(compiled_project: FhirProject, basemaps: list[BasemapSource], dhis2_base_url: str | None) -> FastAPI:
+    """The facade over the compiled project, started with one set of run-time settings."""
+    return create_app(
+        ServeSettings(
+            project_dir=compiled_project.project_root,
+            basemaps=basemaps,
+            dhis2_base_url=dhis2_base_url,
+        )
+    )
 
 
 @pytest.fixture
@@ -43,7 +64,7 @@ async def ui_config_client(ui_config_app: FastAPI) -> AsyncIterator[httpx.AsyncC
             yield client
 
 
-async def test_the_default_answers_the_openstreetmap_template_with_its_attribution(
+async def test_the_default_answers_the_openstreetmap_layer_with_its_attribution(
     ui_config_client: httpx.AsyncClient,
 ) -> None:
     """A project stating nothing gets tiles, because a boundary on a blank canvas says where nothing is."""
@@ -51,28 +72,58 @@ async def test_the_default_answers_the_openstreetmap_template_with_its_attributi
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/json")
-    body = response.json()
-    assert body["basemap"]["template"] == DEFAULT_BASEMAP_TEMPLATE
-    assert body["basemap"]["attribution"] == OPENSTREETMAP_ATTRIBUTION
+    assert response.json()["basemaps"] == [
+        {
+            "name": "OpenStreetMap",
+            "url": DEFAULT_BASEMAP_TEMPLATE,
+            "attribution": OPENSTREETMAP_ATTRIBUTION,
+        }
+    ]
 
 
-@pytest.mark.parametrize("basemap", ["none", "None", " NONE "])
-async def test_none_turns_the_tiles_off_however_it_is_spelled(ui_config_client: httpx.AsyncClient) -> None:
-    """`none` is a word rather than an empty string, so it is matched the way a person would write it."""
-    response = await ui_config_client.get(UI_CONFIG_PATH)
-
-    assert response.json() == {"basemap": None}
-
-
-@pytest.mark.parametrize("basemap", ["https://tiles.example.org/{z}/{x}/{y}.png"])
-async def test_a_custom_source_is_served_without_an_attribution_this_server_cannot_know(
+@pytest.mark.parametrize("basemaps", [[]])
+async def test_no_configured_layer_is_served_as_an_empty_list_rather_than_as_an_absence(
     ui_config_client: httpx.AsyncClient,
 ) -> None:
-    """Crediting somebody else's tiles is the deployment's obligation; inventing a credit is worse than none."""
+    """`basemaps = []` is the air-gapped posture: the map's layer control then offers None alone."""
+    assert (await ui_config_client.get(UI_CONFIG_PATH)).json()["basemaps"] == []
+
+
+@pytest.mark.parametrize(
+    "basemaps",
+    [
+        [
+            BasemapSource(name="OpenStreetMap", url=DEFAULT_BASEMAP_TEMPLATE),
+            BasemapSource(name="Satellite", url="https://tiles.example.org/{z}/{x}/{y}.jpg"),
+        ]
+    ],
+)
+async def test_the_layers_are_served_in_the_order_they_were_configured(
+    ui_config_client: httpx.AsyncClient,
+) -> None:
+    """The order is the deployment's own statement of which layer the map opens with - the first."""
+    served = (await ui_config_client.get(UI_CONFIG_PATH)).json()["basemaps"]
+
+    assert [layer["name"] for layer in served] == ["OpenStreetMap", "Satellite"]
+    # Crediting somebody else's tiles is the deployment's obligation; inventing a credit is worse.
+    assert served[1]["attribution"] is None
+
+
+@pytest.mark.parametrize("dhis2_base_url", ["https://play.example.org/dhis"])
+async def test_a_resolved_profile_puts_its_instance_address_where_the_screens_can_link_to_it(
+    ui_config_client: httpx.AsyncClient,
+) -> None:
+    """The address is the whole of what makes a link; the profile's name and credentials stay here."""
     body = (await ui_config_client.get(UI_CONFIG_PATH)).json()
 
-    assert body["basemap"]["template"] == "https://tiles.example.org/{z}/{x}/{y}.png"
-    assert body["basemap"]["attribution"] is None
+    assert body["dhis2_base_url"] == "https://play.example.org/dhis"
+
+
+async def test_no_resolved_profile_is_served_as_null_rather_than_as_a_guess(
+    ui_config_client: httpx.AsyncClient,
+) -> None:
+    """A compiled guide on a machine that names no profile has nowhere honest to point, and says so."""
+    assert (await ui_config_client.get(UI_CONFIG_PATH)).json()["dhis2_base_url"] is None
 
 
 async def test_the_settings_carry_nothing_a_browser_has_no_business_knowing(
@@ -81,7 +132,7 @@ async def test_the_settings_carry_nothing_a_browser_has_no_business_knowing(
     """The model is the enumeration of what the UI acts on, and the omissions are the point."""
     body = (await ui_config_client.get(UI_CONFIG_PATH)).json()
 
-    assert set(body) == {"basemap"}
+    assert set(body) == {"basemaps", "dhis2_base_url"}
     serialised = str(body)
     for leaked in ("profile", "project_dir", "strict_codes", "live", "port"):
         assert leaked not in serialised, serialised
@@ -94,18 +145,33 @@ async def test_the_path_is_not_claimed_by_the_read_catch_all(client: httpx.Async
     assert response.status_code == 200
     # The read catch-all would have answered an OperationOutcome naming an unserved resource type.
     assert "resourceType" not in response.json()
-    assert "basemap" in response.json()
+    assert "basemaps" in response.json()
 
 
 def test_a_tile_host_this_server_knows_is_credited_however_the_template_is_written() -> None:
     """The OSM attribution follows the host, so a deployment mirroring their tiles still credits them."""
-    resolved = basemap_config("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png")
+    layers = basemap_layers([BasemapSource(name="Mirror", url="https://a.tile.openstreetmap.org/{z}/{x}/{y}.png")])
 
-    assert resolved is not None
-    assert resolved.attribution == OPENSTREETMAP_ATTRIBUTION
+    assert [layer.attribution for layer in layers] == [OPENSTREETMAP_ATTRIBUTION]
 
 
-def test_an_empty_template_is_read_as_no_basemap_rather_than_as_a_broken_one() -> None:
-    """`basemap = ""` is somebody clearing the value, and the honest reading of that is no tiles."""
-    assert basemap_config("") is None
-    assert basemap_config("   ") is None
+def test_a_layer_with_an_empty_template_is_dropped_rather_than_offered_as_one_that_draws_nothing() -> None:
+    """A control entry that draws nothing when picked lies about what picking it does; None is already there."""
+    assert basemap_layers([BasemapSource(name="Cleared", url="   ")]) == []
+
+
+def test_a_layer_naming_itself_nothing_is_named_by_its_own_template() -> None:
+    """A blank name would render a blank row in the layer control, which names no layer at all."""
+    layers = basemap_layers([BasemapSource(name=" ", url="https://tiles.example.org/{z}/{x}/{y}.png")])
+
+    assert [layer.name for layer in layers] == ["https://tiles.example.org/{z}/{x}/{y}.png"]
+
+
+def test_a_password_written_into_a_base_url_does_not_cross_to_the_browser() -> None:
+    """The address is the fact the links are made of; whatever userinfo rides on it is a credential."""
+    assert public_instance_url("https://admin:district@play.example.org:8080/dhis") == (
+        "https://play.example.org:8080/dhis"
+    )
+    assert public_instance_url("https://play.example.org/dhis") == "https://play.example.org/dhis"
+    assert public_instance_url(None) is None
+    assert public_instance_url("   ") is None

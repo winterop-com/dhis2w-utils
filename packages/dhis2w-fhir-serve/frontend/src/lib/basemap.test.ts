@@ -11,6 +11,9 @@ import {
     STARFIELD_SEED,
     baseStyle,
     globeSky,
+    initialBasemap,
+    rasterLayer,
+    rasterSource,
     starfieldPaint,
     starfieldTile,
     unitPopupContent,
@@ -23,7 +26,7 @@ import type { UiConfig } from '@/lib/uiconfig'
  * The one fork the map's style has: tiles, or no tiles.
  *
  * Worth its own tests because both sides are load-bearing and only one of them is exercised by the
- * browser suite - the e2e project sets `basemap = "none"` so a test run makes no external request,
+ * browser suite - the e2e project sets `basemaps = []` so a test run makes no external request,
  * which means the tiles-on style would otherwise ship unchecked.
  */
 
@@ -37,8 +40,15 @@ const PALETTE: MapPalette = {
 }
 
 const OSM = {
-    template: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    name: 'OpenStreetMap',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors',
+}
+
+const AERIAL = {
+    name: 'Aerial',
+    url: 'https://tiles.example/aerial/{z}/{x}/{y}.jpg',
+    attribution: null,
 }
 
 describe('the style with no basemap', () => {
@@ -61,12 +71,40 @@ describe('the style with no basemap', () => {
         })
     })
 
-    it('is what the served settings ask for when the project turns tiles off', () => {
+    it('is what the served settings ask for when the project offers no layer', () => {
         // The e2e fixture project's own answer, harvested from the running server.
         const config = uiConfigNoneFixture as unknown as UiConfig
 
-        expect(config.basemap).toBeNull()
-        expect(baseStyle(PALETTE, config.basemap, false).sources).toEqual({})
+        expect(config.basemaps).toEqual([])
+        expect(baseStyle(PALETTE, initialBasemap(config.basemaps), false).sources).toEqual({})
+    })
+})
+
+describe('which layer a map opens with', () => {
+    it('is the first the deployment configured, because the order is its statement of preference', () => {
+        expect(initialBasemap([OSM, AERIAL])).toBe(OSM)
+    })
+
+    it('is None when it configured none, which is the whole of the air-gapped posture', () => {
+        expect(initialBasemap([])).toBeNull()
+    })
+})
+
+describe('switching a layer', () => {
+    it('is one source under one id, so a switch replaces the ground rather than stacking one', () => {
+        // The switch removes and re-adds `BASEMAP_LAYER_ID`; these are the two halves it re-adds,
+        // and they have to agree with what `baseStyle` builds or the first switch would restyle
+        // the map. Same source id, same tile size, same muting.
+        const built = baseStyle(PALETTE, AERIAL, false)
+
+        expect(rasterSource(AERIAL)).toEqual(built.sources[BASEMAP_LAYER_ID])
+        expect(rasterLayer(false)).toEqual(built.layers[1])
+        expect(rasterLayer(true).paint).toEqual(RASTER_MUTING.dark)
+    })
+
+    it('carries each layer its own credit, so a switch cannot leave the last one standing', () => {
+        expect(rasterSource(OSM)).toHaveProperty('attribution', OSM.attribution)
+        expect(rasterSource(AERIAL)).not.toHaveProperty('attribution')
     })
 })
 
@@ -79,7 +117,7 @@ describe('the style with a basemap', () => {
         expect(style.layers.map((layer) => layer.id)).toEqual([GROUND_LAYER_ID, BASEMAP_LAYER_ID])
         expect(style.sources[BASEMAP_LAYER_ID]).toMatchObject({
             type: 'raster',
-            tiles: [OSM.template],
+            tiles: [OSM.url],
             tileSize: RASTER_TILE_SIZE,
         })
     })
@@ -93,7 +131,7 @@ describe('the style with a basemap', () => {
     })
 
     it('states no attribution at all for a source the server could not credit', () => {
-        const style = baseStyle(PALETTE, { template: 'https://tiles.example/{z}/{x}/{y}.png', attribution: null }, false)
+        const style = baseStyle(PALETTE, AERIAL, false)
 
         expect(style.sources[BASEMAP_LAYER_ID]).not.toHaveProperty('attribution')
     })

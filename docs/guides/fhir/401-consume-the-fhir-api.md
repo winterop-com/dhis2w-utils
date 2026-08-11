@@ -208,6 +208,19 @@ the stored receipt, so a corpus generated last week can be regenerated
 exactly by reading the seeds off it. Seeds are R4 `integer`s, `0` to
 `2147483647`; anything else is a 400 OperationOutcome.
 
+The organisation unit a response reports for is drawn from the seed like
+every other value. The set it is drawn over is the one the form admits: the
+organisation units its published assignment names, intersected with the
+served registry, and the whole registry for a form publishing no assignment.
+Same seed, same organisation unit; a different seed ranges over the rest of
+the set, so a corpus generated from a handful of seeds is spread across the
+places the form is captured at rather than filed at one of them. Staying
+inside the assignment is what keeps that corpus importable - DHIS2 refuses a
+capture at an organisation unit the form is not assigned to with `E1029`. A
+project that published no registry at all gets a shaped UID, which the
+[capture contract](401-capture-contract.md) admits because it checks the
+reference's shape rather than its target.
+
 A generated **registration** mints the tracked entity and the enrollment it
 creates, exactly as a real client does - shaped UIDs, which is what the
 [capture contract](401-capture-contract.md) checks. A generated **stage**
@@ -330,20 +343,31 @@ between - see [Forward captures into DHIS2](201-forward.md).
 ## `/uiconfig`: what the UI is allowed to know
 
 The handful of run-time settings the capture UI has to act on - today, the
-basemap tile template and the attribution the server can honestly state for
-it. Deliberately not the profile, the host, or the strictness dial: those
-describe the process to whoever runs it, and a browser that could read them
-would be a browser that leaks them.
+basemap layers this run offers with the attribution the server can honestly
+state for each, and the address of the DHIS2 instance it resolved a profile
+for, which is what an identity on a page links back to. Deliberately not the
+profile's name, its credentials, the host this process listens on, or the
+strictness dial: those describe the process to whoever runs it, and a browser
+that could read them would be a browser that leaks them.
 
 ```console
 $ curl -s localhost:8091/uiconfig | jq .
 {
-  "basemap": {
-    "template": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noreferrer\">OpenStreetMap</a> contributors"
-  }
+  "basemaps": [
+    {
+      "name": "OpenStreetMap",
+      "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noreferrer\">OpenStreetMap</a> contributors"
+    }
+  ],
+  "dhis2_base_url": "https://play.dhis2.org/40"
 }
 ```
+
+`basemaps` is `[]` when this run offers no tiles, and `dhis2_base_url` is
+`null` when it resolved no profile. Both are states the UI renders rather than
+absences it guesses at: the map's layer control holds `None` alone, and the
+screens carry no links out.
 
 Both live on single lowercase path segments precisely so they can never
 shadow a FHIR resource type, which is PascalCase.

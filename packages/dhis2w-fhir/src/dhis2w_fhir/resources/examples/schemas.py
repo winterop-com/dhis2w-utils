@@ -24,6 +24,8 @@ class ExampleSelection(BaseModel):
     off a production instance would travel into the IG, so reading them is opt-in.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     per_target: int = Field(default=1, ge=0, le=MAXIMUM_EXAMPLES_PER_TARGET)
     source: ExampleSource = "synthetic"
 

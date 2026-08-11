@@ -405,6 +405,7 @@ async def test_every_generate_target_resolves_the_attribute_codes_it_emits(
         )
     )
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
 
     generate = {
         "organisation_units": service.generate_organisation_units,
