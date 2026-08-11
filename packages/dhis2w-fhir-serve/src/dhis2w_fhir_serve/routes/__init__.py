@@ -2,8 +2,13 @@
 
 `/{resource_type}` and `/{resource_type}/{resource_id}` match any path of their shape, so the
 read router mounts last and every router carrying a fixed path mounts ahead of it. `/metadata`,
-`/spool`, and `/uiconfig` are one-segment fixed paths and all sit in that group; FHIR resource
-types are PascalCase, so a lowercase segment can never be one the read router should have claimed.
+`/spool`, and `/uiconfig` are one-segment fixed paths and all sit in that group, as does the
+`/patients/{uid}/enrollments` listing; FHIR resource types are PascalCase, so a lowercase segment
+can never be one the read router should have claimed.
+
+`/Patient` is the one PascalCase path in that group. It is a FHIR resource type, and it is answered
+from the DHIS2 instance rather than from the store the read router holds, so it mounts ahead of the
+catch-alls that would otherwise answer it out of a store that has never held a Patient.
 
 The capture UI sits on both sides of that line, which is why `serve_ui` is an argument here rather
 than something the UI module could arrange for itself. Its asset tree is a fixed path and mounts
@@ -33,7 +38,9 @@ def register_routes(app: FastAPI, serve_ui: bool = False) -> None:
     """
     from dhis2w_fhir_serve.metadata import router as metadata_router
     from dhis2w_fhir_serve.routes.capture import router as capture_router
+    from dhis2w_fhir_serve.routes.enrollments import router as enrollments_router
     from dhis2w_fhir_serve.routes.generate import router as generate_router
+    from dhis2w_fhir_serve.routes.patient import router as patient_router
     from dhis2w_fhir_serve.routes.read import router as read_router
     from dhis2w_fhir_serve.routes.spool import router as spool_router
     from dhis2w_fhir_serve.routes.translate import router as translate_router
@@ -47,8 +54,10 @@ def register_routes(app: FastAPI, serve_ui: bool = False) -> None:
         capture_router,
         spool_router,
         ui_config_router,
+        enrollments_router,
         translate_router,
         generate_router,
+        patient_router,
         read_router,
     ):
         _accept_head_wherever_get_is_served(router)

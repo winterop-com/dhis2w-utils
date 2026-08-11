@@ -25,6 +25,12 @@ instance-level operation on a resource type this server does read - and it is de
 store holds Questionnaires, for the same reason `$translate` waits for ConceptMaps. Its definition is
 the OperationDefinition the project's own IG publishes, not an HL7 one: `$generate` is a custom
 operation, deliberately not SDC's `$populate`.
+
+Patient is the one entry that is not about the store at all. It is answered from the DHIS2 instance
+per request, so it is declared only by a process that has one - `--live`, over a project that
+publishes a registration form and therefore names a tracked entity type. A compiled run declares no
+Patient, which is the same refusal `GET /Patient` gives, stated before the request rather than
+after it.
 """
 
 from __future__ import annotations
@@ -54,6 +60,7 @@ from dhis2w_fhir_serve.store import CONCEPT_MAP_RESOURCE_TYPE
 if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject
 
+    from dhis2w_fhir_serve.patients.index import PatientIndex
     from dhis2w_fhir_serve.settings import ServeSettings
     from dhis2w_fhir_serve.store import StoreSummary
 
@@ -84,6 +91,14 @@ GENERATE_DOCUMENTATION = (
     "QuestionnaireResponse endpoint unchanged."
 )
 
+#: The resource type answered from the DHIS2 instance rather than from the store, and what it states.
+PATIENT_RESOURCE_TYPE = "Patient"
+PATIENT_DOCUMENTATION = (
+    "One DHIS2 tracked entity per Patient, read from the instance at request time. Identity only - "
+    "the tracked entity UID, the values of the attributes DHIS2 declares unique, and the rest of the "
+    "attribute values as extensions. No name, gender, or birth date: DHIS2 states no mapping for them."
+)
+
 #: What the QuestionnaireResponse entry states about the resources it holds.
 RESPONSE_DOCUMENTATION = "One response per request; stored responses are receipts of what was submitted"
 
@@ -98,9 +113,10 @@ def build_server_capability(
     store_summary: StoreSummary,
     spool_count: int,
     settings: ServeSettings,
+    patient_index: PatientIndex,
     server_version: str,
 ) -> CapabilityStatement:
-    """State what this process serves: the capture contract, plus the read types the store holds."""
+    """State what this process serves: the capture contract, the read types the store holds, and live Patient."""
     canonical = project.config.ig.canonical
     names = FoundationNaming.from_naming(project.config.generate.naming)
     store_mode = "live" if settings.live else "compiled"
@@ -111,6 +127,7 @@ def build_server_capability(
             for resource_type in SERVED_READ_RESOURCE_TYPES
             if resource_type in store_summary.counts_by_type
         ),
+        *_patient_resource(settings, patient_index),
     ]
     return CapabilityStatement(
         status="active",
@@ -139,6 +156,41 @@ def build_server_capability(
             )
         ],
     )
+
+
+def _patient_resource(settings: ServeSettings, patient_index: PatientIndex) -> list[CapabilityStatementResource]:
+    """Declare Patient only when this process can actually answer for one.
+
+    Two conditions, and both are properties of how the process was started rather than of the IG:
+    the store has to be live, because a Patient is read from the DHIS2 instance and there is no
+    instance behind a compiled guide, and the project has to publish a registration form, because
+    the tracked entity type it names is what a DHIS2 search must be given. A statement that declared
+    Patient anyway would advertise an interaction every request to it refuses.
+    """
+    if not settings.live or not patient_index.serves_patients():
+        return []
+    return [
+        CapabilityStatementResource(
+            type=PATIENT_RESOURCE_TYPE,
+            documentation=PATIENT_DOCUMENTATION,
+            interaction=[
+                CapabilityStatementInteraction(code="read"),
+                CapabilityStatementInteraction(code="search-type"),
+            ],
+            searchParam=[
+                CapabilityStatementSearchParam(
+                    name="identifier",
+                    type="token",
+                    documentation=(
+                        f"The DHIS2 tracked entity UID under `{patient_index.tracked_entity_system}`, or the value "
+                        "of a tracked entity attribute DHIS2 declares unique under "
+                        f"`{patient_index.identifier_system_base}/tracked-entity-attribute/<uid>`. A token naming "
+                        "no system is searched across every one of them."
+                    ),
+                )
+            ],
+        )
+    ]
 
 
 def _operations(store_summary: StoreSummary) -> list[CapabilityStatementOperation] | None:

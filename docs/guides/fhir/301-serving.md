@@ -30,7 +30,12 @@ Two things to know before the options:
   server instead.)
 - The server has **no login**. Anyone who can reach it can read everything it
   serves and submit forms to it. That is why `host` below is the option to
-  read most carefully.
+  read most carefully. `make serve-live` widens what "everything" means: that
+  mode also answers `GET /Patient`, which searches the DHIS2 instance for a
+  person by identifier and returns the attribute values DHIS2 holds about them.
+  A default run serves only what the guide published and can answer no such
+  question, so an exposed live server is a materially different decision from
+  an exposed compiled one.
 
 ### `host`
 

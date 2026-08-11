@@ -8,7 +8,9 @@ reporting-period Extension plus the period-type CodeSystem/ValueSet backing its 
 binding; `d2-form-type.fsh` defines the form-type Extension every generated Questionnaire
 carries, plus its own CodeSystem/ValueSet pair; `d2-attribute-value.fsh` defines the complex
 Extension that carries a DHIS2 attribute value onto every resource that can hold one;
-`d2-organisation-unit.fsh` defines the Extension pointing a response at the Location of the
+`d2-tracked-entity-attribute-value.fsh` defines its counterpart for the tracked entity attribute
+values a projected Patient holds, which is a different DHIS2 object and therefore a family of its
+own; `d2-organisation-unit.fsh` defines the Extension pointing a response at the Location of the
 organisation unit it was captured at, `d2-organisation-unit-assignment.fsh` the Extension
 naming the List of Locations a form may be captured against, `d2-organisation-unit-level.fsh`
 the Extension stating the hierarchy level a published Location sits at,
@@ -68,6 +70,18 @@ from dhis2w_fhir.foundation.schemas import (
     TerminologyPropertyDeclaration,
     TrackerSubjectTypes,
 )
+from dhis2w_fhir.foundation.tracked_entity_attribute_values import (
+    TRACKED_ENTITY_ATTRIBUTE_CODE_SUB_EXTENSION,
+    TRACKED_ENTITY_ATTRIBUTE_ID_SUB_EXTENSION,
+    TRACKED_ENTITY_ATTRIBUTE_IDENTIFIER_SEGMENT,
+    TRACKED_ENTITY_ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES,
+    TRACKED_ENTITY_ATTRIBUTE_VALUE_SUB_EXTENSION,
+    TrackedEntityAttributeValueIn,
+    tracked_entity_attribute_identifier_system,
+    tracked_entity_attribute_identifiers,
+    tracked_entity_attribute_value_extension_url,
+    tracked_entity_attribute_value_extensions,
+)
 from dhis2w_fhir.names import page_text
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
 from dhis2w_fhir.resources.organisation_units.naming import OrganisationUnitNaming
@@ -89,6 +103,11 @@ __all__ = [
     "GENERATE_OPERATION_CODE",
     "GENERATE_SEED_PARAMETER",
     "PERIOD_TYPE_TERMINOLOGY",
+    "TRACKED_ENTITY_ATTRIBUTE_CODE_SUB_EXTENSION",
+    "TRACKED_ENTITY_ATTRIBUTE_ID_SUB_EXTENSION",
+    "TRACKED_ENTITY_ATTRIBUTE_IDENTIFIER_SEGMENT",
+    "TRACKED_ENTITY_ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES",
+    "TRACKED_ENTITY_ATTRIBUTE_VALUE_SUB_EXTENSION",
     "FormTypeDefinition",
     "FoundationNaming",
     "FoundationTerminologyBuild",
@@ -97,6 +116,7 @@ __all__ = [
     "TerminologyPair",
     "TerminologyPairProfile",
     "TerminologyPropertyDeclaration",
+    "TrackedEntityAttributeValueIn",
     "attribute_value_extension_url",
     "attribute_value_extensions",
     "build_captured_response_profile_declarations",
@@ -104,6 +124,10 @@ __all__ = [
     "build_foundation_terminology_documents",
     "build_response_profile_declarations",
     "build_terminology_pair",
+    "tracked_entity_attribute_identifier_system",
+    "tracked_entity_attribute_identifiers",
+    "tracked_entity_attribute_value_extension_url",
+    "tracked_entity_attribute_value_extensions",
 ]
 
 #: The `NamingSystem.date` every declaration carries. R4 makes the element mandatory, and a
@@ -217,6 +241,15 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
         experimental=experimental,
     )
+    tracked_entity_attribute_value = _ENVIRONMENT.get_template("d2-tracked-entity-attribute-value.fsh.jinja").render(
+        names=names,
+        context_resource_types=TRACKED_ENTITY_ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES,
+        attribute_id_sub_extension=TRACKED_ENTITY_ATTRIBUTE_ID_SUB_EXTENSION,
+        attribute_code_sub_extension=TRACKED_ENTITY_ATTRIBUTE_CODE_SUB_EXTENSION,
+        attribute_value_sub_extension=TRACKED_ENTITY_ATTRIBUTE_VALUE_SUB_EXTENSION,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     organisation_unit = _ENVIRONMENT.get_template("d2-organisation-unit.fsh.jinja").render(
         names=names,
         location_profile=location_profile,
@@ -323,6 +356,12 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             kind="extension",
             fsh_name=names.attribute_value_extension,
             content=attribute_value,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-tracked-entity-attribute-value.fsh",
+            kind="extension",
+            fsh_name=names.tracked_entity_attribute_value_extension,
+            content=tracked_entity_attribute_value,
         ),
         FshArtifact(
             relative_path="foundation/d2-organisation-unit.fsh",

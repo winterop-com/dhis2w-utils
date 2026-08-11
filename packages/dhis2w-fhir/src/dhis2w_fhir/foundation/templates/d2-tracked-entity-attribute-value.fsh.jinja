@@ -1,0 +1,22 @@
+Extension: {{ names.tracked_entity_attribute_value_extension }}
+Id: {{ names.tracked_entity_attribute_value_extension_id }}
+Title: "DHIS2 tracked entity attribute value"
+Description: "One DHIS2 tracked entity attribute value: the attribute it answers, the code DHIS2 gave that attribute, and the value the tracked entity holds. A value of an attribute DHIS2 declares unique is an identifier instead and does not appear here."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+{% for resource_type in context_resource_types %}
+* ^context[+].type = #element
+* ^context[=].expression = "{{ resource_type }}"
+{% endfor %}
+* extension contains
+    {{ attribute_id_sub_extension }} 1..1 and
+    {{ attribute_code_sub_extension }} 0..1 and
+    {{ attribute_value_sub_extension }} 1..1
+* extension[{{ attribute_id_sub_extension }}] ^short = "The UID of the DHIS2 tracked entity attribute the value answers."
+* extension[{{ attribute_id_sub_extension }}].value[x] only string
+* extension[{{ attribute_id_sub_extension }}].valueString 1..1
+* extension[{{ attribute_code_sub_extension }}] ^short = "The tracked entity attribute's code, absent when the instance left it unset."
+* extension[{{ attribute_code_sub_extension }}].value[x] only string
+* extension[{{ attribute_value_sub_extension }}] ^short = "The value the tracked entity holds for the attribute, as DHIS2 sends it."
+* extension[{{ attribute_value_sub_extension }}].value[x] only string
+* extension[{{ attribute_value_sub_extension }}].valueString 1..1

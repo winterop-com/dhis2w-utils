@@ -20,6 +20,11 @@ answers that, along with the rest of the receipt envelope.
 Search is lenient in FHIR's own sense: an unrecognised parameter is ignored rather than refused,
 and the Bundle's `self` link echoes only the parameters that were honored, so a client can see
 what the server actually applied.
+
+`alternatives`, `identifier_token`, `base_url`, and `bundle_response` are the parts of that
+grammar that are not about the store at all - how FHIR spells a token, and what a searchset Bundle
+looks like - so `dhis2w_fhir_serve.routes.patient` builds its answers with the same four, and a
+result set from DHIS2 is shaped exactly like one from the store.
 """
 
 from __future__ import annotations
@@ -81,11 +86,11 @@ def parse_store_search(params: QueryParams) -> ParsedSearch:
     honored: list[HonoredParameter] = []
     for name, raw in params.multi_items():
         if name == "_id":
-            ids.extend(_alternatives(name, raw))
+            ids.extend(alternatives(name, raw))
         elif name == "url":
-            urls.extend(_alternatives(name, raw))
+            urls.extend(alternatives(name, raw))
         elif name == "identifier":
-            identifiers.extend(_identifier_token(value) for value in _alternatives(name, raw))
+            identifiers.extend(identifier_token(value) for value in alternatives(name, raw))
         else:
             continue
         honored.append(HonoredParameter(name=name, value=raw))
@@ -100,9 +105,9 @@ def parse_response_search(params: QueryParams) -> ParsedResponseSearch:
     honored: list[HonoredParameter] = []
     for name, raw in params.multi_items():
         if name == "_id":
-            ids.extend(_alternatives(name, raw))
+            ids.extend(alternatives(name, raw))
         elif name == "questionnaire":
-            questionnaires.extend(_alternatives(name, raw))
+            questionnaires.extend(alternatives(name, raw))
         else:
             continue
         honored.append(HonoredParameter(name=name, value=raw))
@@ -114,7 +119,7 @@ async def search_resource_type(request: Request, resource_type: str) -> Response
     """Search one served resource type, answering with a `searchset` Bundle."""
     context = serve_context(request)
     _require_served(resource_type)
-    base_url = _base_url(request)
+    service_base = base_url(request)
     if resource_type == QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE:
         parsed_responses = parse_response_search(request.query_params)
         receipts = [
@@ -123,15 +128,15 @@ async def search_resource_type(request: Request, resource_type: str) -> Response
             if not parsed_responses.questionnaires or receipt.questionnaire in parsed_responses.questionnaires
         ]
         entries = [
-            _bundle_entry(base_url, resource_type, receipt.response_id, receipt.response) for receipt in receipts
+            _bundle_entry(service_base, resource_type, receipt.response_id, receipt.response) for receipt in receipts
         ]
-        return _bundle_response(base_url, resource_type, parsed_responses.honored, entries)
+        return bundle_response(service_base, resource_type, parsed_responses.honored, entries)
     parsed = parse_store_search(request.query_params)
     entries = [
-        _bundle_entry(base_url, entry.resource_type, entry.resource_id, entry.body)
+        _bundle_entry(service_base, entry.resource_type, entry.resource_id, entry.body)
         for entry in context.store.search(resource_type, parsed.query)
     ]
-    return _bundle_response(base_url, resource_type, parsed.honored, entries)
+    return bundle_response(service_base, resource_type, parsed.honored, entries)
 
 
 @router.get("/{resource_type}/{resource_id}")
@@ -156,7 +161,7 @@ def _require_served(resource_type: str) -> None:
         raise NotServedError(resource_type)
 
 
-def _alternatives(name: str, raw: str) -> list[str]:
+def alternatives(name: str, raw: str) -> list[str]:
     """Split one parameter into its comma-separated alternatives, refusing an empty one."""
     values = [value.strip() for value in raw.split(",")]
     if any(not value for value in values):
@@ -164,7 +169,7 @@ def _alternatives(name: str, raw: str) -> list[str]:
     return values
 
 
-def _identifier_token(value: str) -> IdentifierToken:
+def identifier_token(value: str) -> IdentifierToken:
     """Read a `system|value` token; a bare value, or an empty system, matches the value in any system."""
     if "|" not in value:
         return IdentifierToken(value=value)
@@ -174,7 +179,7 @@ def _identifier_token(value: str) -> IdentifierToken:
     return IdentifierToken(system=system or None, value=token)
 
 
-def _base_url(request: Request) -> str:
+def base_url(request: Request) -> str:
     """The service base every `fullUrl` and `self` link is built from, without its trailing slash."""
     return str(request.base_url).rstrip("/")
 
@@ -188,7 +193,7 @@ def _bundle_entry(base_url: str, resource_type: str, resource_id: str, body: dic
     )
 
 
-def _bundle_response(
+def bundle_response(
     base_url: str,
     resource_type: str,
     honored: tuple[HonoredParameter, ...],

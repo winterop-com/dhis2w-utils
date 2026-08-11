@@ -1,0 +1,118 @@
+"""The DHIS2 reads behind a patient lookup, and the contract `/api/tracker/trackedEntities` actually holds to.
+
+Four facts decide every request here, each established against a running instance and recorded in
+the repository's `BUGS.md`:
+
+1. **A search names a tracked entity type or a program, or it is refused** with `E1003`. The type
+   comes from the published forms (`dhis2w_fhir_serve.patients.index`); a program is never named,
+   for the reason in point 3.
+2. **A unique attribute gets no org-unit-scope exemption** (BUGS.md 74). The legacy documentation
+   describes a unique value as an instance-wide key; the tracker endpoint scopes it like any other
+   filter, so a lookup scoped to the capture unit misses exactly the people identifier search
+   exists to find. Every search here therefore sends `ouMode=ACCESSIBLE`: as wide as the requesting
+   user may see, and no wider.
+3. **An entity-scoped read with a program the entity is not enrolled in answers 404 `E1005`,
+   claiming the tracked entity does not exist** (BUGS.md 72). So nothing here ever probes by
+   program. The enrollments are read off the entity itself, without `program=`, and inspected here.
+4. **The default projection omits the enrollments entirely**, and folds no program-level attribute
+   value into the entity's own `attributes`. Both are field-selection defaults rather than
+   statements about the person, so every read names its `fields` explicitly - including
+   `enrollments[...]` and the attribute values those enrollments carry, without which a person
+   found by a program attribute's unique value would come back not carrying it.
+
+The client is held open for the life of the process and passed in, because these are the only
+routes on this server that talk to DHIS2 per request.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import TYPE_CHECKING
+
+from dhis2w_client.errors import Dhis2ApiError
+from dhis2w_client.generated.v42.oas import TrackerTrackedEntity
+from pydantic import BaseModel, ConfigDict
+
+if TYPE_CHECKING:
+    from dhis2w_client import Dhis2Client
+
+#: The tracker endpoint a lookup reads, and the one-entity form of it.
+TRACKED_ENTITIES_PATH = "/api/tracker/trackedEntities"
+
+#: What DHIS2 will accept in the UID slot of a path. A value of any other shape is refused with a
+#: 400 naming the rule, so a lookup checks the shape here instead of spending a round trip to be
+#: told - and a search value that is plainly not a UID is never read as one.
+_DHIS2_UID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9]{10}$")
+
+#: The org-unit scope every search runs under - as wide as the requesting user may see (BUGS.md 74).
+SEARCH_ORG_UNIT_MODE = "ACCESSIBLE"
+
+#: How many people one identifier lookup will carry back. An identifier is meant to name one person;
+#: a page this size is enough to show a client that its instance disagrees.
+SEARCH_PAGE_SIZE = 50
+
+#: The projection every read asks for. Named in full because the endpoint's default omits the
+#: enrollments and the attribute values they carry - see this module's docstring, point 4.
+_ATTRIBUTE_FIELDS = "attribute,code,displayName,value,valueType"
+_ENROLLMENT_FIELDS = f"enrollment,program,status,enrolledAt,orgUnit,attributes[{_ATTRIBUTE_FIELDS}]"
+TRACKED_ENTITY_FIELDS = (
+    f"trackedEntity,trackedEntityType,orgUnit,attributes[{_ATTRIBUTE_FIELDS}],enrollments[{_ENROLLMENT_FIELDS}]"
+)
+
+
+class TrackedEntitiesPage(BaseModel):
+    """One page of `/api/tracker/trackedEntities`, keyed only on the array a lookup reads."""
+
+    model_config = ConfigDict(extra="allow")
+
+    trackedEntities: list[TrackerTrackedEntity] = []
+
+
+async def search_tracked_entities(
+    client: Dhis2Client,
+    *,
+    tracked_entity_type_uid: str,
+    attribute_uid: str,
+    value: str,
+) -> list[TrackerTrackedEntity]:
+    """Find every tracked entity of one type whose attribute holds one exact value."""
+    raw = await client.get_raw(
+        TRACKED_ENTITIES_PATH,
+        params={
+            "trackedEntityType": tracked_entity_type_uid,
+            "filter": f"{attribute_uid}:eq:{value}",
+            "ouMode": SEARCH_ORG_UNIT_MODE,
+            "fields": TRACKED_ENTITY_FIELDS,
+            "pageSize": SEARCH_PAGE_SIZE,
+        },
+    )
+    return TrackedEntitiesPage.model_validate(raw).trackedEntities
+
+
+def is_tracked_entity_uid(value: str) -> bool:
+    """Whether a value could be a DHIS2 UID at all - eleven alphanumerics starting with a letter."""
+    return _DHIS2_UID_PATTERN.match(value) is not None
+
+
+async def fetch_tracked_entity(client: Dhis2Client, tracked_entity_uid: str) -> TrackerTrackedEntity | None:
+    """Read one tracked entity by its UID, or None when the instance holds none under it.
+
+    A value that is not UID-shaped is None without a request: DHIS2 answers 400 for one, and a
+    bare identifier search tries this read for every value it is given, most of which are national
+    IDs rather than UIDs.
+
+    No `program=` parameter, ever: passing one turns "not enrolled in that program" into a 404
+    asserting the tracked entity does not exist (BUGS.md 72), which would make an unenrolled person
+    indistinguishable from a wrong UID.
+    """
+    if not is_tracked_entity_uid(tracked_entity_uid):
+        return None
+    try:
+        raw = await client.get_raw(
+            f"{TRACKED_ENTITIES_PATH}/{tracked_entity_uid}", params={"fields": TRACKED_ENTITY_FIELDS}
+        )
+    except Dhis2ApiError as error:
+        if error.status_code == 404:
+            return None
+        raise
+    return TrackerTrackedEntity.model_validate(raw)

@@ -335,6 +335,16 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "attribute", "value")
 
     @property
+    def tracked_entity_attribute_value_extension(self) -> str:
+        """FSH name of the tracked-entity-attribute-value Extension (e.g. `D2TrackedEntityAttributeValue`)."""
+        return f"{self.definition_prefix}TrackedEntityAttributeValue"
+
+    @property
+    def tracked_entity_attribute_value_extension_id(self) -> str:
+        """FHIR id of the tracked-entity-attribute-value Extension (e.g. `d2-tracked-entity-attribute-value`)."""
+        return join_id_tokens(self.definition_prefix, "tracked", "entity", "attribute", "value")
+
+    @property
     def attribute_option_combo_extension(self) -> str:
         """FSH name of the response-side attribute-option-combo Extension (e.g. `D2AttributeOptionCombo`).
 

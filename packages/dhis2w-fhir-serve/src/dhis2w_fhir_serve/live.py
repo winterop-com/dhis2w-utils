@@ -2,10 +2,14 @@
 
 `--live` is the mode with no build step in front of it - point the server at a project and an
 instance, and it answers with the documents `d2w fhir generate` would have written and SUSHI
-would have compiled. One connected client reads the whole instance side of the build, the JSON
-builders turn that into resources, and the client is closed before the first request arrives:
-the store is a snapshot of the instance at startup, exactly as the compiled store is a snapshot
-of the last build.
+would have compiled. One connected client reads the whole instance side of the build and the JSON
+builders turn that into resources: the store is a snapshot of the instance at startup, exactly as
+the compiled store is a snapshot of the last build, and no read of it ever touches DHIS2 again.
+
+That one client stays open for the life of the process, because `/Patient` is answered from the
+instance per request rather than from the store - see `dhis2w_fhir_serve.patients`. The caller owns
+it through `open_live_client`, so the store build and the patient routes share one connection and
+one profile resolution.
 
 What the store holds is the served read-set and nothing else. The definitional artifacts -
 StructureDefinitions, the extensions, the IG's `kind #requirements` CapabilityStatement - are
@@ -28,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from dhis2w_core.client_context import open_client
@@ -56,6 +61,9 @@ from dhis2w_fhir_serve.log import LOGGER_NAME
 from dhis2w_fhir_serve.store import IdentifierToken, ResourceStore, StoreEntry
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from dhis2w_client import Dhis2Client
     from dhis2w_fhir.config import FhirProject, GenerateConfig
     from dhis2w_fhir.r4 import CodeSystem, Questionnaire, ValueSet
     from dhis2w_fhir.resources.organisation_units import OrganisationUnitTerminologyBuild
@@ -70,15 +78,13 @@ LIVE_SOURCE = "live"
 logger = logging.getLogger(LOGGER_NAME)
 
 
-async def build_live_store(project: FhirProject, settings: ServeSettings) -> ResourceStore:
-    """Build the store the facade serves from one DHIS2 instance, over a single client held for the fetch.
+@asynccontextmanager
+async def open_live_client(project: FhirProject, settings: ServeSettings) -> AsyncGenerator[Dhis2Client]:
+    """Open the DHIS2 client a live run reads through, named by the profile the project resolves.
 
-    The builders come in two shapes and both land in the same store. The questionnaires and the
-    data dictionary are returned as R4 models, so they are dumped to their wire documents here.
-    The option sets, the categories, the ConceptMaps of both, and the registry are returned as the
-    serialised JSON artifacts the generate targets write to disk, so their documents are read
-    back out of that exact text - what the facade serves live is then byte-identical to what the
-    project would have committed, with no second serialisation path to drift from it.
+    The server holds this open for the whole process rather than closing it after the store is
+    built: `/Patient` answers from the instance per request, so a live facade has one connection to
+    DHIS2 for its lifetime and closes it when the lifespan unwinds.
     """
     generation = resolve_generation_profile(project, settings.profile)
     logger.info(
@@ -87,11 +93,24 @@ async def build_live_store(project: FhirProject, settings: ServeSettings) -> Res
         generation.name,
         generation.origin,
     )
+    async with open_client(generation.profile) as client:
+        yield client
+
+
+async def build_live_store(project: FhirProject, settings: ServeSettings, client: Dhis2Client) -> ResourceStore:
+    """Build the store the facade serves from one DHIS2 instance, over the client the caller holds open.
+
+    The builders come in two shapes and both land in the same store. The questionnaires and the
+    data dictionary are returned as R4 models, so they are dumped to their wire documents here.
+    The option sets, the categories, the ConceptMaps of both, and the registry are returned as the
+    serialised JSON artifacts the generate targets write to disk, so their documents are read
+    back out of that exact text - what the facade serves live is then byte-identical to what the
+    project would have committed, with no second serialisation path to drift from it.
+    """
     config = project.config.generate
     canonical = project.config.ig.canonical
     ig_status = project.config.ig.status
-    async with open_client(generation.profile) as client:
-        inputs = await fetch_live_ig_inputs(client, config)
+    inputs = await fetch_live_ig_inputs(client, config)
     assignments = build_assignment_artifacts(
         inputs.sources,
         inputs.assignments,
