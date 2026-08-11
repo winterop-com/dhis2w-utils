@@ -70,7 +70,7 @@ from dhis2w_fhir.conversion.values import (
     wall_clock_reading,
 )
 from dhis2w_fhir.period import parse_period
-from dhis2w_fhir.resources.examples import _seed, _synthetic_uid
+from dhis2w_fhir.resources.examples import derived_seed, synthetic_uid
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -251,8 +251,8 @@ def receipt_event_uid(response_id: str) -> str:
     a receipt naming more than one event would move; a receipt reports exactly one.
     """
     material = f"{response_id}:{_EVENT_IDENTITY_TOKEN}"
-    generator = random.Random(_seed(material, _SOLE_EVENT_ORDINAL))  # noqa: S311 - an identity, not a secret
-    return _synthetic_uid(generator)
+    generator = random.Random(derived_seed(material, _SOLE_EVENT_ORDINAL))  # noqa: S311 - an identity, not a secret
+    return synthetic_uid(generator)
 
 
 def translate_event_response(

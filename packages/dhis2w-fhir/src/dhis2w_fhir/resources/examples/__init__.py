@@ -653,10 +653,8 @@ def registration_identities(program_uid: str, ordinal: int, salt: str = "") -> R
     identities out of another's - an event answering an enrollment of the wrong program is what
     DHIS2 refuses with `E1079`. Drawn on a stream of its own, seeded the way every other draw is.
     """
-    generator = random.Random(_seed(f"{program_uid}:registration", ordinal, salt))  # noqa: S311 - not a secret
-    return RegistrationIdentities(
-        tracked_entity_uid=_synthetic_uid(generator), enrollment_uid=_synthetic_uid(generator)
-    )
+    generator = random.Random(derived_seed(f"{program_uid}:registration", ordinal, salt))  # noqa: S311 - not a secret
+    return RegistrationIdentities(tracked_entity_uid=synthetic_uid(generator), enrollment_uid=synthetic_uid(generator))
 
 
 def build_synthetic_responses(
@@ -779,7 +777,7 @@ def _synthetic_response(
     salt: str = "",
 ) -> ExampleResponseIn:
     """Generate one target's `n`-th example: its period or occurrence, its tracker context, then its answers."""
-    generator = random.Random(_seed(source.uid, ordinal, salt))  # noqa: S311 - illustrative values, not a secret
+    generator = random.Random(derived_seed(source.uid, ordinal, salt))  # noqa: S311 - illustrative values, not a secret
     period = _synthetic_period(source, today)
     window = _SyntheticWindow.of_period(period) if period is not None else _SyntheticWindow.recent(today)
     instance_id = f"{source.uid}-example-{ordinal}"
@@ -792,8 +790,8 @@ def _synthetic_response(
     incident_at: str | None = None
     if source.kind in _TRACKER_KINDS:
         # Drawn whatever the assignment, so an assigned response's other values stay where they were.
-        tracked_entity_uid = _synthetic_uid(generator)
-        enrollment_uid = _synthetic_uid(generator)
+        tracked_entity_uid = synthetic_uid(generator)
+        enrollment_uid = synthetic_uid(generator)
         if registration is not None:
             tracked_entity_uid = registration.tracked_entity_uid
             enrollment_uid = registration.enrollment_uid
@@ -846,7 +844,7 @@ def _placed_organisation_unit(
     """
     if placement is None:
         return fallback
-    seed = _seed(f"{target_uid}:organisation-unit", ordinal, salt)
+    seed = derived_seed(f"{target_uid}:organisation-unit", ordinal, salt)
     generator = random.Random(seed)  # noqa: S311 - an illustrative placement, not a secret
     return placement.organisation_unit_uids[generator.randrange(len(placement.organisation_unit_uids))]
 
@@ -861,19 +859,19 @@ def _drawn_attribute_option_combo(source: QuestionnaireSourceIn, ordinal: int, s
     combo = source.attribute_combo
     if source.kind != "aggregate" or combo is None or combo.is_default or not combo.option_combos:
         return None
-    generator = random.Random(_seed(f"{source.uid}:attribute-option-combo", ordinal, salt))  # noqa: S311 - drawn
+    generator = random.Random(derived_seed(f"{source.uid}:attribute-option-combo", ordinal, salt))  # noqa: S311 - drawn
     return combo.option_combos[generator.randrange(len(combo.option_combos))].uid
 
 
-def _seed(target_uid: str, ordinal: int, salt: str = "") -> int:
+def derived_seed(material: str, ordinal: int, salt: str = "") -> int:
     """The RNG seed for one target's `n`-th example: the leading 64 bits of a SHA-256 digest.
 
     `salt` moves every draw of a run at once, which is what mints a *second* corpus rather than a
     second copy of the first. An empty salt - the default, and every examples build - hashes the
     same material it always did, so an unsalted run stays byte-identical.
     """
-    material = f"{target_uid}:{ordinal}:{salt}" if salt else f"{target_uid}:{ordinal}"
-    digest = hashlib.sha256(material.encode()).digest()
+    keyed_material = f"{material}:{ordinal}:{salt}" if salt else f"{material}:{ordinal}"
+    digest = hashlib.sha256(keyed_material.encode()).digest()
     return int.from_bytes(digest[:_SEED_BYTES], "big")
 
 
@@ -921,7 +919,7 @@ def _distinct_integer(value_type: str, token: str) -> int:
     return drawn
 
 
-def _synthetic_uid(generator: random.Random) -> str:
+def synthetic_uid(generator: random.Random) -> str:
     """A seeded DHIS2-shaped UID: one ASCII letter followed by ten alphanumeric places."""
     leading = generator.choice(_UID_LEADING_CHARACTERS)
     trailing = "".join(generator.choice(_UID_TRAILING_CHARACTERS) for _ in range(_UID_TRAILING_LENGTH))

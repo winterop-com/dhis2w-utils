@@ -137,6 +137,7 @@ from dhis2w_fhir.resources.examples import (
     answer_element,
     build_example_artifacts,
     build_synthetic_responses,
+    derived_seed,
     distinct_unique_value,
     example_answers,
     example_attribute_combo_assignments,
@@ -150,6 +151,7 @@ from dhis2w_fhir.resources.examples import (
     location_stem,
     response_status_code,
     seeded_format_constrained_value,
+    synthetic_uid,
     zoned_date_time,
 )
 from dhis2w_fhir.resources.examples.documents import (
@@ -600,6 +602,7 @@ __all__ = [
     "collect_referenced_objects",
     "concept_assignments",
     "concept_map_canonical",
+    "derived_seed",
     "distinct_unique_value",
     "domain_code",
     "example_answers",
@@ -658,6 +661,7 @@ __all__ = [
     "resolve_identity_stems",
     "response_status_code",
     "seeded_format_constrained_value",
+    "synthetic_uid",
     "source_description",
     "source_display_name",
     "source_items",

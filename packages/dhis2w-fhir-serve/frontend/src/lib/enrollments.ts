@@ -1,11 +1,12 @@
 /**
  * The enrollments this server knows, joined to the stage form that answers against one.
  *
- * WHY THIS MODULE EXISTS. A tracker stage submission names a tracked entity and an enrollment,
- * and the `$generate` skeleton mints synthetic uids for both - a pair that names nothing real,
- * so a stage submission carrying it is refused by DHIS2 at forward time (`E1079`/`E1313`: the
- * enrollment does not exist). The real pairs are minted by registration captures and sit in this
- * very server's spool, so the join is entirely local: the stage form names its program on the
+ * WHY THIS MODULE EXISTS. A tracker stage submission names a tracked entity and an enrollment.
+ * The `$generate` skeleton adopts the newest spooled registration's pair for the program and
+ * mints synthetic uids - a pair that names nothing real, refused by DHIS2 at forward time
+ * (`E1079`/`E1313`: the enrollment does not exist) - only when no registration receipt exists.
+ * The real pairs are minted by registration captures and sit in this very server's spool, and
+ * which one a stage answers for is the user's call, so the join is entirely local: the stage form names its program on the
  * `{base}/id/program` identifier, the registration form of that program carries the same
  * identifier as its own identity, and every receipt answering the registration form holds one
  * minted pair. This module is that join, pure; the reads live in hooks/use-enrollment-options.ts.
@@ -110,8 +111,9 @@ export function enrollmentOptionOf(
  * Forwarded is the bar because it is the one state in which the pair names objects DHIS2 already
  * holds - a submission against it lands. A received pair is offered but not defaulted: it will
  * import only after the forwarder runs, and a default should not quietly stake a submission on a
- * step nobody has taken yet. Null means the skeleton's synthetic draw stands, and the page says
- * so out loud rather than letting a doomed submission look ordinary.
+ * step nobody has taken yet. Null means no forwarded pair exists to default to - the skeleton
+ * already answers for the newest received registration when one exists - and the page says which
+ * registration the unpicked submission answers for rather than letting it look ordinary.
  *
  * The options arrive in the spool's newest-first order, so the first forwarded one is the most
  * recent registration DHIS2 has - the person most plausibly being followed up right now.
