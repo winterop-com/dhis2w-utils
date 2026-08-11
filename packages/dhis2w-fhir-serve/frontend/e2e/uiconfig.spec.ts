@@ -71,9 +71,9 @@ test('switching the layer swaps the raster source, and None draws no tiles at al
 
     const tileHosts: string[] = []
     page.on('request', (request) => {
-        const url = request.url()
-        if (url.startsWith('https://streets.test') || url.startsWith('https://aerial.test')) {
-            tileHosts.push(new URL(url).host)
+        const host = new URL(request.url()).hostname
+        if (host === 'streets.test' || host === 'aerial.test') {
+            tileHosts.push(host)
         }
     })
 
