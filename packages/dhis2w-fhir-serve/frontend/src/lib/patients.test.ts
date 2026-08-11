@@ -1,18 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
 import registrationFixture from '@/lib/__fixtures__/questionnaire-PrAncCare01.json'
-import type { Patient, Questionnaire } from '@/lib/fhir'
+import type { Bundle, CodeSystem, Patient, Questionnaire } from '@/lib/fhir'
 import {
     enrollmentStatusLabel,
     enrollmentsInProgram,
+    holdsTrackedEntityAttributeConcepts,
     isCompletedEnrollment,
     subjectExistsExtensionUrl,
     marksAnExistingSubject,
     MINIMUM_PATIENT_SEARCH_LENGTH,
+    pageTokenOf,
     patientLeadValue,
+    patientPage,
     patientProjection,
     patientSearchQuery,
     PATIENT_SEARCH_DEBOUNCE_MS,
+    trackedEntityAttributeLabel,
+    trackedEntityAttributeNames,
+    trackedEntityTypeLabel,
+    trackedEntityTypeNames,
     type PatientEnrollment,
 } from '@/lib/patients'
 
@@ -217,5 +224,164 @@ describe('the subject-exists marker', () => {
                 { url: 'http://elsewhere.example/StructureDefinition/d2-subject-exists', valueBoolean: true },
             ]),
         ).toBe(true)
+    })
+})
+
+/**
+ * One page of the listing, read off the Bundle's own links.
+ *
+ * THE TOKENS ARE NEVER CONSTRUCTED, only echoed - which is why this is tested at all. `page` is
+ * opaque: the server mints it, the server reads it, and a UI that derived the next one would be
+ * deciding how the DHIS2 instance is paged. What is under test is that a token comes back byte for
+ * byte, that a missing link reads as "there is no page that way" rather than as an error, and that
+ * a stated total is told apart from an absent one.
+ */
+describe('one page of everyone the instance holds', () => {
+    const bundle = (links: { relation: string; url: string }[], total?: number): Bundle<Patient> => ({
+        resourceType: 'Bundle',
+        type: 'searchset',
+        total,
+        link: links,
+        entry: [{ resource: person, search: { mode: 'match' } }],
+    })
+
+    it('reads the people, the tokens either side, and the total the server stated', () => {
+        const page = patientPage(
+            bundle(
+                [
+                    { relation: 'self', url: '/Patient?_count=25&page=NOW' },
+                    { relation: 'previous', url: '/Patient?_count=25&page=BACK' },
+                    { relation: 'next', url: '/Patient?_count=25&page=ON' },
+                ],
+                412,
+            ),
+        )
+        expect(page.people.map((row) => row.trackedEntityUid)).toEqual(['TeiPerson001'])
+        expect(page.previous).toBe('BACK')
+        expect(page.next).toBe('ON')
+        expect(page.total).toBe(412)
+    })
+
+    it('reads a link the server wrote absolute exactly as one it wrote relative', () => {
+        const page = patientPage(
+            bundle([{ relation: 'next', url: 'https://facade.example/Patient?page=ON&_count=25' }]),
+        )
+        expect(page.next).toBe('ON')
+    })
+
+    it('echoes the token verbatim, however the server spelled it', () => {
+        // A token is whatever this server minted - a cursor, an encoded offset, a signed blob - and
+        // it survives the round trip unparsed, punctuation and all.
+        expect(pageTokenOf('/Patient?page=eyJvIjoyNX0%3D%2F%2B&_count=25')).toBe('eyJvIjoyNX0=/+')
+    })
+
+    it('reads a missing link as no page that way rather than as a failure', () => {
+        const page = patientPage(bundle([{ relation: 'self', url: '/Patient?_count=25' }]))
+        expect(page.previous).toBeNull()
+        expect(page.next).toBeNull()
+    })
+
+    it('tells a total the server did not state apart from a total of zero', () => {
+        expect(patientPage(bundle([])).total).toBeNull()
+        expect(patientPage(bundle([], 0)).total).toBe(0)
+    })
+
+    it('reads no token out of a link that carries none', () => {
+        expect(pageTokenOf(null)).toBeNull()
+        expect(pageTokenOf('/Patient')).toBeNull()
+        expect(pageTokenOf('/Patient?_count=25')).toBeNull()
+        expect(pageTokenOf('/Patient?page=')).toBeNull()
+    })
+})
+
+/**
+ * What a uid is called, joined through what this project published rather than through the instance.
+ *
+ * A served Patient carries uids and no display for any of them, because the projection refuses to
+ * invent one. The names do exist, in the guide: `D2TEA_CS` names every attribute the selected forms
+ * ask, and a person-only form is titled with the name of the tracked entity type it was generated
+ * from. So these are the two joins, and what an unpublished object falls back to is the other half
+ * of the rule - a spelling DHIS2 sent, never one this screen made up.
+ */
+describe('naming what a person is described in terms of', () => {
+    const attributeDictionary: CodeSystem = {
+        resourceType: 'CodeSystem',
+        id: 'd2-tea-cs',
+        status: 'draft',
+        concept: [
+            { code: 'TeaNationId', display: 'National identifier' },
+            { code: 'TeaBirthDat', display: 'Date of birth' },
+            // Escaped at emit time, like every published display, and unescaped for the screen.
+            { code: 'TeaHousehld', display: 'Household size &lt; 10' },
+        ],
+    }
+    const personForm: Questionnaire = {
+        resourceType: 'Questionnaire',
+        id: 'TetPerson01',
+        title: 'Person',
+        status: 'draft',
+        extension: [{ url: `${CANONICAL}/StructureDefinition/d2-form-type`, valueCode: 'tracked-entity' }],
+        identifier: [{ system: `${IDENTIFIER_BASE}/id/tracked-entity-type`, value: 'TetPerson01' }],
+    }
+
+    it('finds the attribute dictionary by the id rule rather than by a hard-coded name', () => {
+        expect(holdsTrackedEntityAttributeConcepts(attributeDictionary)).toBe(true)
+        // A project with no prefix publishes the bare id; every other vocabulary answers false.
+        expect(holdsTrackedEntityAttributeConcepts({ ...attributeDictionary, id: 'tea-cs' })).toBe(true)
+        for (const id of ['d2-de-cs', 'd2-coc-cs', 'd2-tea-vs', 'd2-ou-cs']) {
+            expect(holdsTrackedEntityAttributeConcepts({ ...attributeDictionary, id }), id).toBe(false)
+        }
+    })
+
+    it('names an attribute by what the dictionary published, unescaped', () => {
+        const names = trackedEntityAttributeNames([
+            {
+                resourceType: 'CodeSystem',
+                id: 'd2-de-cs',
+                status: 'draft',
+                concept: [{ code: 'TeaNationId', display: 'A data element of the same code' }],
+            },
+            attributeDictionary,
+        ])
+        expect(trackedEntityAttributeLabel(names, 'TeaNationId')).toEqual({
+            text: 'National identifier',
+            isMachineSpelling: false,
+        })
+        expect(trackedEntityAttributeLabel(names, 'TeaHousehld').text).toBe('Household size < 10')
+    })
+
+    it('falls back to the DHIS2 code, then to the uid, for an attribute this project never published', () => {
+        const names = trackedEntityAttributeNames([attributeDictionary])
+        expect(trackedEntityAttributeLabel(names, 'TeaUnknown1', 'TEA_UNKNOWN')).toEqual({
+            text: 'TEA_UNKNOWN',
+            isMachineSpelling: true,
+        })
+        expect(trackedEntityAttributeLabel(names, 'TeaUnknown1')).toEqual({
+            text: 'TeaUnknown1',
+            isMachineSpelling: true,
+        })
+        expect(trackedEntityAttributeLabel(names, 'TeaUnknown1', '')).toEqual({
+            text: 'TeaUnknown1',
+            isMachineSpelling: true,
+        })
+    })
+
+    it('names a tracked entity type by the person-only form generated from it', () => {
+        // The tracker registration form beside it carries the very same tracked-entity-type
+        // identifier - it is the type it enrols people as - and is titled with its program's name.
+        // Joining on the identifier alone would call every person here "Antenatal care".
+        const names = trackedEntityTypeNames([registration, personForm])
+        expect([...names.entries()]).toEqual([['TetPerson01', 'Person']])
+        expect(trackedEntityTypeLabel(names, 'TetPerson01')).toEqual({ text: 'Person', isMachineSpelling: false })
+    })
+
+    it('keeps the uid for a type this project publishes no form for, and states nothing for none', () => {
+        const names = trackedEntityTypeNames([personForm])
+        expect(trackedEntityTypeLabel(names, 'TetOther001')).toEqual({
+            text: 'TetOther001',
+            isMachineSpelling: true,
+        })
+        expect(trackedEntityTypeLabel(names, null)).toBeNull()
+        expect(trackedEntityTypeLabel(names, '')).toBeNull()
     })
 })

@@ -1,13 +1,15 @@
 /**
  * A person this DHIS2 instance already holds, read as the two things a capture screen needs.
  *
- * WHAT THIS MODULE IS. `GET /Patient?identifier=` and `GET /patients/{uid}/enrollments` are the
- * only two routes on this facade whose answer comes from the DHIS2 instance rather than from what
- * the project published, and both exist to answer one question: is the person in front of me
- * already registered, and if so, in what. This module is the reading half of that - the Patient
- * projection unpacked into rows a picker renders, the enrollment listing narrowed to one program -
- * and it is pure, like the rest of lib/. The reads live in hooks/use-patient-search.ts and
- * hooks/use-patient-enrollments.ts.
+ * WHAT THIS MODULE IS. The person routes are the only ones on this facade whose answer comes from
+ * the DHIS2 instance rather than from what the project published: `GET /Patient` pages through
+ * everyone the instance holds, `GET /Patient?identifier=` finds the one whose card is in front of
+ * you, `GET /Patient/{uid}` opens a person, and `GET /patients/{uid}/enrollments` states what they
+ * are enrolled in. This module is the reading half of all four - the projection unpacked into rows,
+ * one page of the listing read off the Bundle's own links, the enrollment listing narrowed to one
+ * program, and the joins that turn DHIS2 uids into the names the guide published for them - and it
+ * is pure, like the rest of lib/. The reads live in hooks/use-patient-search.ts,
+ * hooks/use-patient-listing.ts, and hooks/use-patient-enrollments.ts.
  *
  * WHY NOTHING HERE INVENTS A NAME. The projection carries no `name`, no `gender`, and no
  * `birthDate`, because DHIS2 has no attribute that means any of them and
@@ -18,9 +20,17 @@
  */
 
 import {
+    bundleLink,
+    bundleResources,
     ENTITY_LEVEL_EXTENSION_SUFFIX,
     FORM_TYPE_EXTENSION_SUFFIX,
+    formTitle,
+    formTypeOf,
     TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX,
+    trackedEntityTypeOf,
+    unescapeMarkup,
+    type Bundle,
+    type CodeSystem,
     type Extension,
     type Patient,
     type Questionnaire,
@@ -158,6 +168,170 @@ export const MINIMUM_PATIENT_SEARCH_LENGTH = 2
  * the instance rather than this server's memory.
  */
 export const PATIENT_SEARCH_DEBOUNCE_MS = 350
+
+/**
+ * The search parameter the listing carries its place in the set on.
+ *
+ * The value is opaque - a token this server mints and this server reads - so nothing here parses
+ * one, compares two, or counts with them. It is taken off a link and sent back exactly as it
+ * arrived, which is the whole contract: a UI that derived the next token would be deciding how the
+ * instance is paged, and DHIS2 is what decides that.
+ */
+export const PATIENT_PAGE_PARAMETER = 'page'
+
+/** The search parameter that asks for a page of a given size. */
+export const PATIENT_COUNT_PARAMETER = '_count'
+
+/** How many people one page of the listing asks for. */
+export const PATIENT_PAGE_SIZE = 25
+
+/**
+ * One page of the listing: who is on it, where its neighbours are, and how many there are in all.
+ *
+ * `previous` and `next` are the tokens the Bundle's own links carry, and null means the server
+ * stated no such link - which is how the first and last pages are known. There is no page number
+ * anywhere in this shape, because the tokens are opaque: this UI can move a page at a time in
+ * either direction and cannot say which page it is on, and stating a number it inferred would be
+ * inventing one. `total` is null when the server does not state it, which is a different fact from
+ * zero.
+ */
+export interface PatientPage {
+    people: PatientProjection[]
+    previous: string | null
+    next: string | null
+    total: number | null
+}
+
+/** The state a listing holds before its first page has landed. */
+export const NO_PATIENT_PAGE: PatientPage = { people: [], previous: null, next: null, total: null }
+
+/** One searchset Bundle read as a page: the people on it, and the way on and back. */
+export function patientPage(bundle: Bundle<Patient>): PatientPage {
+    return {
+        people: bundleResources<Patient>(bundle).map(patientProjection),
+        previous: pageTokenOf(bundleLink(bundle, 'previous')),
+        next: pageTokenOf(bundleLink(bundle, 'next')),
+        total: bundle.total ?? null,
+    }
+}
+
+/**
+ * The page token one Bundle link carries, or null when it carries none.
+ *
+ * The link is read for its query string alone rather than resolved as a URL: this server states its
+ * links relative on one route and absolute on another depending on what it was mounted behind, and
+ * a reader that needed an origin would break on the relative form. What is wanted is one parameter,
+ * verbatim, and a query string is where it is.
+ */
+export function pageTokenOf(link: string | null): string | null {
+    if (link === null) return null
+    const marker = link.indexOf('?')
+    if (marker < 0) return null
+    const token = new URLSearchParams(link.slice(marker + 1)).get(PATIENT_PAGE_PARAMETER)
+    return token === null || token === '' ? null : token
+}
+
+/**
+ * The suffix of the FHIR id the guide publishes its tracked entity attribute dictionary under.
+ *
+ * `QuestionnaireNames.tracked_entity_attribute_code_system_id` joins the project's own prefix with
+ * `tea` and `cs`, so a project keeping the default prefix publishes `d2-tea-cs` and one with no
+ * prefix publishes `tea-cs`. Matching the suffix is what finds that one CodeSystem - and no other -
+ * whatever the project named itself, which is the same rule `holdsDataElementConcepts` reads.
+ */
+export const TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_ID_SUFFIX = 'tea-cs'
+
+/** Whether a served CodeSystem is the tracked entity attribute dictionary. */
+export function holdsTrackedEntityAttributeConcepts(codeSystem: CodeSystem): boolean {
+    const id = codeSystem.id ?? ''
+    return (
+        id === TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_ID_SUFFIX ||
+        id.endsWith(`-${TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_ID_SUFFIX}`)
+    )
+}
+
+/**
+ * What each tracked entity attribute uid is called, as the published dictionary names it.
+ *
+ * The projection carries a uid and sometimes a DHIS2 code, and neither is what an attribute is
+ * called - the name is a fact the guide published, in the one CodeSystem whose concept codes are
+ * attribute uids. An instance holding an attribute this project never published is the ordinary
+ * case rather than an error, and it simply has no entry here.
+ */
+export function trackedEntityAttributeNames(codeSystems: readonly CodeSystem[]): Map<string, string> {
+    const names = new Map<string, string>()
+    for (const codeSystem of codeSystems) {
+        if (!holdsTrackedEntityAttributeConcepts(codeSystem)) continue
+        for (const concept of codeSystem.concept ?? []) {
+            if (concept.display !== undefined) names.set(concept.code, unescapeMarkup(concept.display))
+        }
+    }
+    return names
+}
+
+/**
+ * What each tracked entity type uid is called, as the published person-only forms name them.
+ *
+ * A `tracked-entity` form is generated from a type and titled with that type's name, so the forms
+ * of that kind are the whole of what this project knows about type names. A project publishing none
+ * joins nothing, and every person then states their type as the uid DHIS2 knows it by.
+ *
+ * ONLY THAT KIND, WHICH IS THE WHOLE OF THE RULE. A tracker registration form carries the same
+ * `/id/tracked-entity-type` identifier - it is the type a registration enrols a person as, and the
+ * conversion layer reads it there - but that form's identity is its program and its title is the
+ * program's name. Joining on the identifier alone would call every person in an antenatal programme
+ * "Antenatal care", which is a program's name standing in for a type's.
+ */
+export function trackedEntityTypeNames(questionnaires: readonly Questionnaire[]): Map<string, string> {
+    const names = new Map<string, string>()
+    for (const questionnaire of questionnaires) {
+        if (formTypeOf(questionnaire) !== 'tracked-entity') continue
+        const uid = trackedEntityTypeOf(questionnaire)
+        if (uid !== null && !names.has(uid)) names.set(uid, formTitle(questionnaire))
+    }
+    return names
+}
+
+/**
+ * How one DHIS2 object is spelled on screen: the name the guide published, else what DHIS2 sent.
+ *
+ * The flag is what keeps a uid in the mono face it belongs in and a name out of it, so a table can
+ * make the two apparent without stating twice which is which.
+ */
+export interface PublishedName {
+    text: string
+    isMachineSpelling: boolean
+}
+
+/**
+ * What one tracked entity attribute is called: its published name, its DHIS2 code, else its uid.
+ *
+ * Three steps down, and each is honest about what it is. The published name is the only one a
+ * reader can read; the DHIS2 code is what the instance's own administrators call it; and the uid is
+ * the last thing that is certainly true. Nothing is invented for an attribute this project never
+ * published - it is shown under the spelling it arrived in.
+ */
+export function trackedEntityAttributeLabel(
+    names: ReadonlyMap<string, string>,
+    attributeUid: string,
+    attributeCode: string | null = null,
+): PublishedName {
+    const published = names.get(attributeUid)
+    if (published !== undefined) return { text: published, isMachineSpelling: false }
+    if (attributeCode !== null && attributeCode !== '') return { text: attributeCode, isMachineSpelling: true }
+    return { text: attributeUid, isMachineSpelling: true }
+}
+
+/** What one tracked entity type is called: its published name, else the uid - null when it names none. */
+export function trackedEntityTypeLabel(
+    names: ReadonlyMap<string, string>,
+    trackedEntityTypeUid: string | null,
+): PublishedName | null {
+    if (trackedEntityTypeUid === null || trackedEntityTypeUid === '') return null
+    const published = names.get(trackedEntityTypeUid)
+    if (published !== undefined) return { text: published, isMachineSpelling: false }
+    return { text: trackedEntityTypeUid, isMachineSpelling: true }
+}
 
 /** One enrollment of one person, as `GET /patients/{uid}/enrollments` states it, field for field. */
 export interface PatientEnrollment {

@@ -60,7 +60,7 @@ import {
     type Patient,
     type QuestionnaireResponse,
 } from '@/lib/fhir'
-import type { PatientEnrollments } from '@/lib/patients'
+import { PATIENT_COUNT_PARAMETER, PATIENT_PAGE_PARAMETER, type PatientEnrollments } from '@/lib/patients'
 import type { SpoolListing } from '@/lib/spool'
 import type { UiConfig } from '@/lib/uiconfig'
 
@@ -287,6 +287,28 @@ export async function postQuestionnaireResponse(
  */
 export async function searchPatients(identifier: string): Promise<Bundle<Patient>> {
     return searchResources<Patient>(PATIENT_RESOURCE_TYPE, { [PATIENT_IDENTIFIER_SEARCH_PARAMETER]: identifier })
+}
+
+/**
+ * One page of everyone the DHIS2 instance behind a live facade holds.
+ *
+ * The same route with no search parameter on it, which is what makes it a listing rather than a
+ * lookup. `page` is the token the previous answer's own link carried and is sent back verbatim -
+ * this server mints it and this server reads it, and a caller that took it apart would be deciding
+ * how the instance is paged. Null asks for the first page, which is the state a browser opens in.
+ *
+ * A deployment can publish the search and decline the listing, so callers ask `/uiconfig` first and
+ * never offer the table at all in that case.
+ */
+export async function listPatients(pageToken: string | null, count: number): Promise<Bundle<Patient>> {
+    const parameters: Record<string, string> = { [PATIENT_COUNT_PARAMETER]: String(count) }
+    if (pageToken !== null) parameters[PATIENT_PAGE_PARAMETER] = pageToken
+    return searchResources<Patient>(PATIENT_RESOURCE_TYPE, parameters)
+}
+
+/** One person the DHIS2 instance holds, by their tracked entity uid. */
+export async function readPatient(trackedEntityUid: string): Promise<Patient> {
+    return readResource<Patient>(PATIENT_RESOURCE_TYPE, trackedEntityUid)
 }
 
 /**
