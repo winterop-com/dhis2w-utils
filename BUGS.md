@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-75 entries grouped by area. **Status tags** carry the result of the most
+80 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -105,6 +105,11 @@ filing.
 - [#67](#67-get-apitrackereventsprogramstageuid-demands-program-even-though-the-stage-pins-it) — `programStage` events read demands `program`; HTML 400
 - [#68](#68-a-tracker-event-naming-a-non-existent-enrollment-is-reported-as-e1079-different-program-not-as-a-missing-enrollment) — Event naming a non-existent enrollment reported as `E1079` "different Program"
 - [#69](#69-get-apitrackereventsprogramxorgunity-filters-by-the-enrollment-owners-org-unit-not-the-events-own-orgunit) — Events listing `orgUnit=` filters by enrollment owner's unit, not the event's own
+- [#70](#70-events-import-into-a-completed-enrollment-with-no-error-or-warning) — Events import into a `COMPLETED` enrollment with no error or warning
+- [#71](#71-an-events-trackedentity-is-silently-ignored-when-it-contradicts-the-enrollments-owner) — Event `trackedEntity` silently ignored when it contradicts the enrollment's owner
+- [#72](#72-entity-scoped-get-with-a-program-the-entity-is-not-enrolled-in-answers-404-trackedentity-could-not-be-found) — Entity-scoped `GET` with an unenrolled program answers 404 "could not be found"
+- [#73](#73-create_and_update-enrolling-an-existing-tracked-entity-silently-rewrites-the-entitys-owning-org-unit) — `CREATE_AND_UPDATE` enrolling an existing entity rewrites its owning org unit
+- [#74](#74-unique-tracked-entity-attributes-are-not-searched-instance-wide-by-apitrackertrackedentities) — Unique attributes not searched instance-wide when org-unit scoped
 
 ### v43-specific
 
@@ -3820,6 +3825,12 @@ happens (`distinct_unique_value` in
 time its events are read (`FORWARD_TARGET_ORDER` in
 `packages/dhis2w-fhir/src/dhis2w_fhir/conversion/schemas.py`).
 
+**Also observed on 2.43.1** (rev 9cbfbf3, 2026-08-11): an event naming a completely
+fabricated enrollment (no earlier refusal involved, the UID never existed) draws the
+same pair - `E1079` asserting a program mismatch against the absent enrollment plus
+`E1313` - in both `importMode=VALIDATE` and real import. `E1081` ("Enrollment ...
+could not be found") never fires for events on either version tested.
+
 **Verifier:** none yet.
 
 ### 69. `GET /api/tracker/events?program=X&orgUnit=Y` filters by the enrollment owner's org unit, not the event's own `orgUnit`
@@ -3885,5 +3896,213 @@ events outside the enrolling unit.
 by `orgUnit`. Read-backs that must find every event of a submission are owner-aware:
 they scope by `?trackedEntity=` (which serves the enrollment's events whatever unit each
 was recorded at) or fetch by event UID.
+
+**Verifier:** none yet.
+
+### 70. Events import into a `COMPLETED` enrollment with no error or warning
+
+Completing an enrollment does not close it to new data. A tracker event posted
+against an enrollment whose status is `COMPLETED` is accepted in `importMode=VALIDATE`
+and in real import alike - `status OK, created 1`, zero warnings - and the event sits
+in the completed enrollment afterwards. Nothing in the import report distinguishes
+this from an event entering an `ACTIVE` enrollment.
+
+**Observed on:** DHIS2 2.43.1 (rev 9cbfbf3, 2026-08-11).
+
+**Repro:**
+
+```bash
+# Complete an existing enrollment.
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/tracker?importStrategy=UPDATE&async=false' -d '{
+    "enrollments": [{"enrollment": "<enrollment-uid>", "trackedEntity": "<te-uid>",
+                     "program": "PrAncCare01", "orgUnit": "<owner-org-unit>",
+                     "enrolledAt": "2026-08-11T09:00:00", "status": "COMPLETED"}]}'
+
+# Post a new event of that program against the now-completed enrollment.
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/tracker?importStrategy=CREATE&async=false' -d '{
+    "events": [{"program": "PrAncCare01", "programStage": "PsAncVisit1",
+                "enrollment": "<enrollment-uid>", "orgUnit": "<owner-org-unit>",
+                "occurredAt": "2026-08-11T10:00:00", "status": "COMPLETED"}]}'
+```
+
+**Expected:** a refusal (the Capture app blocks data entry into completed enrollments,
+and the error catalogue has an E1042 family for exactly this) or at minimum a warning
+naming the enrollment's status.
+
+**Actual:** `status OK`, `created 1`, no warnings. Evidence: event `b6nuB7ql304`
+created inside completed enrollment `BTV5JXb8wgF`.
+
+**Impact:** the API enforces none of the lifecycle the Capture UI implies. Any client
+that treats "completed" as "closed" must check the enrollment's status itself before
+posting.
+
+**Workaround in this repo:** none yet - a status guard belongs in the planned
+pick-an-existing-enrollment flow, which should refuse or warn before capture rather
+than rely on DHIS2 to.
+
+**Verifier:** none yet.
+
+### 71. An event's `trackedEntity` is silently ignored when it contradicts the enrollment's owner
+
+An event payload carries both `trackedEntity` and `enrollment`. When the two disagree -
+the named enrollment belongs to a different tracked entity - DHIS2 raises no
+consistency error: the import succeeds and the event is filed under the enrollment's
+real owner. The payload's `trackedEntity` field has no effect at all.
+
+**Observed on:** DHIS2 2.43.1 (rev 9cbfbf3, 2026-08-11).
+
+**Repro:**
+
+```bash
+# TE-A and an enrollment that belongs to TE-B (different person, same program).
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/tracker?importStrategy=CREATE&async=false' -d '{
+    "events": [{"program": "IpHINAT79UW", "programStage": "A03MvHHogjR",
+                "trackedEntity": "<te-A-uid>", "enrollment": "<enrollment-of-te-B>",
+                "orgUnit": "<org-unit>", "occurredAt": "2026-08-11T10:00:00",
+                "status": "COMPLETED"}]}'
+```
+
+**Expected:** a consistency error - the same import machinery already cross-checks
+event program against enrollment program (`E1079`), so the analogous
+event-trackedEntity-against-enrollment-owner check is the natural sibling.
+
+**Actual:** `status OK, created 1` in both VALIDATE and import; the event lands under
+TE-B. Evidence: event `CkSxOD8w8L0` whose payload named `PQfMcpmXeFE` sits under
+enrollment `KgKvDJwSKcD` of `PPyuOWLCNyw`.
+
+**Impact:** a client bug that pairs the wrong enrollment with a patient files clinical
+data under another person without any signal. The enrollment UID is the only fact
+DHIS2 honours; the tracked-entity field is decoration.
+
+**Workaround in this repo:** the conversion layer mints or resolves the pair together
+from one source (a registration receipt), so the two cannot disagree in shipped
+payloads. Any future flow accepting externally supplied pairs must verify ownership
+itself with an entity-scoped read before forwarding.
+
+**Verifier:** none yet.
+
+### 72. Entity-scoped `GET` with a program the entity is not enrolled in answers 404 "TrackedEntity could not be found"
+
+`GET /api/tracker/trackedEntities/<uid>?program=<uid>` conflates "no such tracked
+entity" with "no enrollment in that program". For an existing tracked entity and a
+real program the entity simply is not enrolled in, the endpoint answers HTTP 404 with
+`E1005` and a message asserting the tracked entity itself could not be found.
+
+**Observed on:** DHIS2 2.43.1 (rev 9cbfbf3, 2026-08-11).
+
+**Repro:**
+
+```bash
+# <te-uid> exists (readable without the program parameter); the program is real.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities/<te-uid>?program=<program-not-enrolled-in>'
+```
+
+**Expected:** 200 with the entity and an empty `enrollments` array, or an error that
+names the actual condition (not enrolled in / no access through that program).
+
+**Actual:** `{"httpStatus":"Not Found","httpStatusCode":404,"status":"ERROR",
+"errorCode":"E1005","message":"TrackedEntity with id <te-uid> could not be found."}` -
+while the same UID without `program=` returns the entity.
+
+**Impact:** a client probing "is this person enrolled in program X" by entity-scoped
+read cannot distinguish a wrong UID from a missing enrollment. Program access control
+plausibly motivates hiding the entity, but the message states a falsehood either way.
+
+**Workaround in this repo:** none needed yet; the planned enrollment picker should
+probe via the entity read WITHOUT `program=` and inspect the enrollments list
+client-side.
+
+**Verifier:** none yet.
+
+### 73. `CREATE_AND_UPDATE` enrolling an existing tracked entity silently rewrites the entity's owning org unit
+
+Importing a `trackedEntities` payload that references an EXISTING tracked entity under
+`importStrategy=CREATE_AND_UPDATE` - the natural strategy for "enroll this existing
+person in another program" - updates more than it enrolls: the tracked entity's owning
+`orgUnit` is overwritten with the payload's `orgUnit`. Attributes merge additively
+(nothing is wiped), but ownership moves, silently, as a side effect of an enrollment.
+
+**Observed on:** DHIS2 2.43.1 (rev 9cbfbf3, 2026-08-11).
+
+**Repro:**
+
+```bash
+# <te-uid> exists and is owned at org unit A. Enroll it in a program assigned to
+# org unit B, with the payload orgUnit set to B (required when A lacks the program).
+curl -s -u admin:district -H 'Content-Type: application/json' \
+  'http://localhost:8080/api/tracker?importStrategy=CREATE_AND_UPDATE&async=false' -d '{
+    "trackedEntities": [{
+      "trackedEntity": "<te-uid>", "trackedEntityType": "nEenWmSyUEp", "orgUnit": "<unit-B>",
+      "enrollments": [{"enrollment": "<fresh-uid>", "trackedEntity": "<te-uid>",
+                       "program": "<program-uid>", "orgUnit": "<unit-B>",
+                       "enrolledAt": "2026-08-11T09:00:00", "status": "ACTIVE",
+                       "attributes": []}]}]}'
+
+# Read the entity back: its orgUnit now names <unit-B>, not the original owner.
+curl -s -u admin:district 'http://localhost:8080/api/tracker/trackedEntities/<te-uid>'
+```
+
+**Expected:** the enrollment created and the entity's ownership untouched - ownership
+transfer has its own dedicated endpoint
+(`PUT /api/tracker/ownership/transfer`) and should not ride an enrollment import.
+
+**Actual:** enrollment created AND the entity's root `orgUnit` rewritten (observed:
+`DiszpKrYNg8` to `Rp268JB6Ne4` on TE `PQfMcpmXeFE`).
+
+**Impact:** reusing a registration-shaped payload to enroll an existing person moves
+that person's home facility. Combined with #69 (owner-scoped event listings), the
+moved ownership then changes which facility's listings show every event of that
+person.
+
+**Workaround in this repo:** the planned enroll-existing flow uses an enrollment-only
+payload (top-level `enrollments` array, no `trackedEntities` wrapper) under plain
+`importStrategy=CREATE`, which creates the enrollment without touching the entity -
+verified on the same instance.
+
+**Verifier:** none yet.
+
+### 74. Unique tracked entity attributes are not searched instance-wide by `/api/tracker/trackedEntities`
+
+The legacy tracker documentation describes unique attributes as searchable
+instance-wide regardless of the requester's org-unit scope. On the current tracker
+endpoint, an org-unit-scoped query filtered on a `unique=true` attribute value is
+constrained by the scope like any other filter: scoping to a unit (or subtree) that
+does not hold the entity returns an empty page even though the value is unique and the
+entity exists.
+
+**Observed on:** DHIS2 2.43.1 (rev 9cbfbf3, 2026-08-11).
+
+**Repro:**
+
+```bash
+# ScTeaAUniq1 is unique=true; the value belongs to a TE owned elsewhere.
+# Unscoped: returns the entity.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities?trackedEntityType=nEenWmSyUEp&filter=ScTeaAUniq1:eq:SCEN-A-0001'
+
+# Scoped to a facility that does not hold it: empty page, no error.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities?trackedEntityType=nEenWmSyUEp&filter=ScTeaAUniq1:eq:SCEN-A-0001&orgUnits=DiszpKrYNg8'
+```
+
+**Expected:** per the documented unique-attribute semantics, a hit regardless of
+org-unit scope (uniqueness makes the value a global identifier), or an explicit
+statement that the new endpoint dropped the exemption.
+
+**Actual:** the scope always constrains; the unique filter gets no exemption. Possibly
+working-as-intended on the new endpoint, but it inverts the documented behaviour the
+identifier use-case depends on.
+
+**Impact:** an identifier lookup ("find the patient holding national ID X") scoped to
+the capture org unit misses patients registered elsewhere - the exact case identifier
+search exists for. Lookups must broaden the scope deliberately.
+
+**Workaround in this repo:** none shipped yet; the planned identifier-search backend
+queries with `ouMode=ACCESSIBLE` (or `ALL` where the user may) rather than the capture
+unit's scope.
 
 **Verifier:** none yet.
