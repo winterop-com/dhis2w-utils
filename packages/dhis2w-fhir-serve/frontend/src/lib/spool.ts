@@ -88,6 +88,22 @@ export interface SpoolRejection {
     issues: SpoolRejectionIssue[]
 }
 
+/**
+ * What DHIS2 counted when it took one receipt, off its stored import report.
+ *
+ * No issue rows, unlike a rejection: an import DHIS2 accepted named nothing against the payload, so
+ * the counts are the whole answer - and an accepted receipt that ignored every value is the case
+ * they exist to make visible.
+ */
+export interface SpoolImport {
+    status?: string | null
+    message?: string | null
+    created: number
+    updated: number
+    ignored: number
+    deleted: number
+}
+
 /** One stored receipt: when it arrived, what it answers, where it is, and what DHIS2 said. */
 export interface SpoolResponseSummary {
     response_id: string
@@ -109,7 +125,10 @@ export interface SpoolResponseSummary {
     organisation_unit?: string | null
     tracked_entity?: string | null
     tracker_enrollment?: string | null
+    /** Why DHIS2 refused this receipt, on a rejected row whose report reads. */
     rejection?: SpoolRejection | null
+    /** What DHIS2 counted for this receipt, on a forwarded row whose report reads. */
+    imported?: SpoolImport | null
 }
 
 /** How many receipts sit in each state - the queue depth, and what became of the rest. */

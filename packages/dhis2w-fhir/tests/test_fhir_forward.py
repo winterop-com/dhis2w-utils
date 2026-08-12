@@ -60,9 +60,9 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
 )
 from dhis2w_fhir.spool import (
     FORWARDED_RESPONSES_RELATIVE_PATH,
+    IMPORT_REPORT_SUFFIX,
     RECEIVED_RESPONSES_RELATIVE_PATH,
     REJECTED_RESPONSES_RELATIVE_PATH,
-    REJECTION_REPORT_SUFFIX,
     SpoolReadError,
 )
 from pydantic import BaseModel, ConfigDict
@@ -673,8 +673,9 @@ async def test_an_accepted_run_counts_and_files_every_response(forward_project: 
     assert (len(report.accepted), len(report.rejected), len(report.refused)) == (2, 0, 0)
     assert report.posted_count == 2
     assert not list((forward_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"))
-    forwarded = sorted(path.name for path in (forward_project / FORWARDED_RESPONSES_RELATIVE_PATH).glob("*.json"))
-    assert len(forwarded) == 2
+    directory = forward_project / FORWARDED_RESPONSES_RELATIVE_PATH
+    receipts = sorted(path.name for path in directory.glob("*.json") if not path.name.endswith(IMPORT_REPORT_SUFFIX))
+    assert len(receipts) == 2
     assert all(outcome.spool_path.startswith(FORWARDED_RESPONSES_RELATIVE_PATH) for outcome in report.accepted)
 
 
@@ -731,13 +732,150 @@ async def test_an_imported_rejection_moves_beside_a_report_that_says_why(forward
     for outcome in report.rejected:
         assert outcome.import_outcome is not None
         assert (directory / f"{outcome.response_id}.json").is_file()
-        sidecar = directory / f"{outcome.response_id}{REJECTION_REPORT_SUFFIX}"
+        sidecar = directory / f"{outcome.response_id}{IMPORT_REPORT_SUFFIX}"
         written = json.loads(sidecar.read_text(encoding="utf-8"))
         assert written["status"] == outcome.import_outcome.status
         assert [issue["error_code"] for issue in written["issues"]] == [
             issue.error_code for issue in outcome.import_outcome.issues
         ]
         assert written["issues"][0]["message"]
+
+
+@respx.mock
+async def test_an_accepted_receipt_is_filed_beside_a_report_of_what_the_import_counted(
+    forward_project: Path,
+) -> None:
+    """An acceptance takes its import report along, so what DHIS2 did with it survives the run."""
+    _mock_instance()
+    report = await _forward(forward_project, import_responses=True)
+    directory = forward_project / FORWARDED_RESPONSES_RELATIVE_PATH
+    assert len(report.accepted) == 2
+    for outcome in report.accepted:
+        assert outcome.import_outcome is not None
+        sidecar = directory / f"{outcome.response_id}{IMPORT_REPORT_SUFFIX}"
+        written = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert written["status"] == outcome.import_outcome.status
+        assert written["created"] == outcome.import_outcome.created
+        assert written["target_kind"] == outcome.target_kind
+        # An acceptance names no rows against the payload, which is what separates the two sidecars.
+        assert written.get("issues", []) == []
+
+
+#: Three event responses go to one endpoint, so the posting order inside the drain is the spool order
+#: and "the first was taken, the second met the failure, the third was never asked about" is expressible.
+def _event_documents(count: int) -> list[QuestionnaireResponse]:
+    """`count` published event responses, every one of which posts to `/api/tracker`."""
+    config = GenerateConfig()
+    plan = option_set_identities(_OPTION_SETS, config)
+    captured = build_synthetic_responses(
+        [_EVENT_PROGRAM], _OPTION_SETS, count, _ROOT_ORG_UNIT, _REFERENCE_DATE
+    ).responses
+    return list(
+        build_example_documents(
+            [_EVENT_PROGRAM], captured, _OPTION_SETS, config, _CANONICAL, option_set_plan=plan
+        ).responses
+    )
+
+
+@pytest.fixture
+def three_event_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A project whose spool holds three event receipts, drained one POST at a time in spool order."""
+    _write_probe_profile(tmp_path, monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    _write_project(root)
+    _fill_spool(root, _event_documents(3))
+    monkeypatch.chdir(root)
+    return root
+
+
+def _server_error() -> httpx.Response:
+    """A 500 carrying the `WebMessage` DHIS2 and the proxies in front of it answer a server error with.
+
+    The body states `status: ERROR` exactly as a refused import does, which is the whole reason the
+    status has to decide: read as a report, this is a rejection DHIS2 never made.
+    """
+    return httpx.Response(
+        500,
+        json={
+            "httpStatus": "Internal Server Error",
+            "httpStatusCode": 500,
+            "status": "ERROR",
+            "message": "PSQLException: connection pool exhausted",
+        },
+    )
+
+
+@respx.mock
+async def test_a_500_mid_drain_stops_and_moves_nothing_more(three_event_project: Path) -> None:
+    """The instance failing part-way leaves the first import filed and everything behind it in the queue."""
+    route = respx.post(f"{_BASE_URL}/api/tracker").mock(side_effect=[_accepted_tracker(), _server_error()])
+    respx.get(f"{_BASE_URL}/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": _HARVESTED_INSTANCE_VERSIONS["v42"]})
+    )
+    respx.get(f"{_BASE_URL}/api/dataElements").mock(
+        return_value=httpx.Response(
+            200, json={"dataElements": [{"id": uid, "valueType": value} for uid, value in _VALUE_TYPES.items()]}
+        )
+    )
+
+    report = await _forward(three_event_project, import_responses=True)
+
+    # The drain stopped at the failure rather than posting the third payload into an unwell instance.
+    assert route.call_count == 2
+    assert report.stopped is not None
+    assert report.stopped.status_code == 500
+    assert "500" in report.stopped.reason
+
+    # The one DHIS2 took is filed; the one that met the 500 and the one behind it are untouched.
+    kinds = {outcome.response_id: outcome.kind for outcome in report.outcomes}
+    ordered = sorted(kinds)
+    assert kinds[ordered[0]] == ForwardOutcomeKind.ACCEPTED
+    assert kinds[ordered[1]] == ForwardOutcomeKind.NOT_POSTED
+    assert kinds[ordered[2]] == ForwardOutcomeKind.NOT_POSTED
+
+    received = sorted(path.name for path in (three_event_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"))
+    assert received == [f"{ordered[1]}.json", f"{ordered[2]}.json"]
+    forwarded = three_event_project / FORWARDED_RESPONSES_RELATIVE_PATH
+    assert sorted(path.name for path in forwarded.glob("*.json")) == [
+        f"{ordered[0]}.json",
+        f"{ordered[0]}{IMPORT_REPORT_SUFFIX}",
+    ]
+    # A 500 is not DHIS2 refusing a payload, so nothing is filed as a rejection.
+    assert not (three_event_project / REJECTED_RESPONSES_RELATIVE_PATH).exists()
+    assert not report.rejected
+
+    # The report says so rather than reading as a clean run that happened to be short.
+    assert len(report.not_posted) == 2
+    assert "2 not posted" in report.counts_line
+
+
+@respx.mock
+async def test_a_drain_that_cannot_reach_the_instance_stops_without_losing_what_it_posted(
+    three_event_project: Path,
+) -> None:
+    """A connection that never completes stops the drain too, and the receipt it met stays put."""
+    route = respx.post(f"{_BASE_URL}/api/tracker").mock(
+        side_effect=[_accepted_tracker(), httpx.ConnectError("connection refused")]
+    )
+    respx.get(f"{_BASE_URL}/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": _HARVESTED_INSTANCE_VERSIONS["v42"]})
+    )
+    respx.get(f"{_BASE_URL}/api/dataElements").mock(
+        return_value=httpx.Response(
+            200, json={"dataElements": [{"id": uid, "valueType": value} for uid, value in _VALUE_TYPES.items()]}
+        )
+    )
+
+    report = await _forward(three_event_project, import_responses=True)
+
+    assert route.call_count == 2
+    assert report.stopped is not None
+    assert report.stopped.status_code is None
+    assert "could not be reached" in report.stopped.reason
+    assert len(report.accepted) == 1
+    assert len(report.not_posted) == 2
+    assert len(list((three_event_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"))) == 2
 
 
 @respx.mock
@@ -1384,7 +1522,7 @@ async def test_a_rejected_enrollment_only_import_names_its_payload_kind_in_the_s
 
     report = await _forward(linked_forward_project, import_responses=True)
 
-    sidecar = linked_forward_project / REJECTED_RESPONSES_RELATIVE_PATH / f"En1aaaaaaaa{REJECTION_REPORT_SUFFIX}"
+    sidecar = linked_forward_project / REJECTED_RESPONSES_RELATIVE_PATH / f"En1aaaaaaaa{IMPORT_REPORT_SUFFIX}"
     written = json.loads(sidecar.read_text(encoding="utf-8"))
     assert written["target_kind"] == "tracker-enrollment"
     assert written["issues"]

@@ -1266,7 +1266,13 @@ _DRY_RUN_BANNER = (
 )
 
 #: The Rich style each outcome kind renders in, so a glance separates what landed from what did not.
-_OUTCOME_STYLES = {"accepted": "green", "rejected": "red", "refused": "yellow", "unverifiable": "cyan"}
+_OUTCOME_STYLES = {
+    "accepted": "green",
+    "rejected": "red",
+    "refused": "yellow",
+    "unverifiable": "cyan",
+    "not-posted": "yellow",
+}
 
 
 def _outcome_cell(value: Any) -> str:
@@ -1477,6 +1483,19 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
         f"- Counts: {report.counts_line}",
         "",
     ]
+    if report.stopped is not None:
+        lines.extend(
+            [
+                "## The drain stopped early",
+                "",
+                f"It stopped at `{report.stopped.response_id}`: {report.stopped.reason}",
+                "",
+                f"{len(report.not_posted)} response(s) were never posted. They are untouched in the queue, "
+                "as is the receipt that met the failure, so forwarding again once the instance is healthy "
+                "is the retry.",
+                "",
+            ]
+        )
     reasons = report.rejection_reasons
     if reasons:
         lines.extend(
@@ -1503,6 +1522,7 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
         ("Rejected by DHIS2", report.rejected),
         ("Unverifiable in a dry run", report.unverifiable),
         ("Refused by the translator", report.refused),
+        ("Not yet sent to DHIS2", report.not_posted),
         ("Accepted", report.accepted),
     ):
         if not outcomes:
@@ -1567,6 +1587,7 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
             DetailRow("rejected", str(len(report.rejected))),
             DetailRow("unverifiable in a dry run", str(len(report.unverifiable))),
             *([DetailRow("data set completeness", report.completeness_line)] if report.completeness_line else []),
+            *([DetailRow("not posted", str(len(report.not_posted)))] if report.stopped is not None else []),
         ],
         console=STDERR_CONSOLE,
     )
@@ -1586,6 +1607,14 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
         _hint(
             "note",
             f"{len(report.outcomes)} response(s), {noted} note(s); full outcomes in {destination} (--details to print)",
+        )
+    if report.stopped is not None:
+        _hint(
+            "error",
+            f"the drain stopped at `{report.stopped.response_id}` - {report.stopped.reason}. "
+            f"{len(report.not_posted)} response(s) were never posted and are untouched in the queue; "
+            "forwarding again once the instance is healthy is the retry",
+            style="red",
         )
     if report.rejected:
         _hint(
@@ -1692,7 +1721,7 @@ def forward_command(
         typer.echo(report.model_dump_json(indent=2))
     else:
         _render_forward_report(report, generation, details=details)
-    if report.rejected:
+    if report.rejected or report.stopped is not None:
         raise typer.Exit(code=1)
 
 

@@ -20,7 +20,7 @@ from dhis2w_fhir.config import FhirProject
 from dhis2w_fhir.service import ForwardImportIssue, ForwardImportOutcome
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.settings import ServeSettings
-from dhis2w_fhir_serve.spool import REJECTION_REPORT_SUFFIX, ResponseLifecycle, ResponseSpool
+from dhis2w_fhir_serve.spool import IMPORT_REPORT_SUFFIX, ResponseLifecycle, ResponseSpool
 from fastapi import FastAPI
 
 #: The service base the in-process client uses, matching every other serve test.
@@ -44,7 +44,7 @@ def write_report(project: FhirProject, response_id: str, report: ForwardImportOu
     """Leave the sidecar import report beside a rejected receipt, as `move_to_rejected` does."""
     directory = ResponseSpool.at(project.project_root).directory_for(ResponseLifecycle.REJECTED)
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / f"{response_id}{REJECTION_REPORT_SUFFIX}").write_text(
+    (directory / f"{response_id}{IMPORT_REPORT_SUFFIX}").write_text(
         report.model_dump_json(indent=2, exclude_none=True) + "\n", encoding="utf-8"
     )
 
@@ -150,7 +150,7 @@ async def test_a_rejection_with_an_unreadable_report_is_still_listed(
     """A corrupt diagnostic is not a lost receipt: the row still says rejected, and says nothing more."""
     drain(compiled_project, "receipt-middle", ResponseLifecycle.REJECTED)
     directory = ResponseSpool.at(compiled_project.project_root).directory_for(ResponseLifecycle.REJECTED)
-    (directory / f"receipt-middle{REJECTION_REPORT_SUFFIX}").write_text("{not json", encoding="utf-8")
+    (directory / f"receipt-middle{IMPORT_REPORT_SUFFIX}").write_text("{not json", encoding="utf-8")
 
     body = (await client.get("/spool")).json()
 

@@ -11,6 +11,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+import httpx
 from dhis2w_client.errors import Dhis2ApiError
 
 # The v41 generated OAS tree carries no import-summary, import-conflict, or import-count module, so
@@ -3679,6 +3680,12 @@ _QUOTED_IDENTIFIER = re.compile(r"`[^`]*`")
 #: How often the posting step re-captions itself, so a 300-response drain narrates without one line each.
 _POST_TICK_INTERVAL = 10
 
+#: The status at and above which an answer is about the instance rather than about the payload. DHIS2
+#: states a verdict on a payload with 409 and its own import report; a 5xx is the instance failing to
+#: reach a verdict at all, and reading one as "your payload was refused" would file a receipt under a
+#: rejection DHIS2 never made.
+_SERVER_ERROR_STATUS = 500
+
 #: The two codes DHIS2 answers a tracker event whose enrollment it cannot find with: `E1313` for the
 #: enrollment nobody has, and the `E1079` program mismatch it asserts against that same absent
 #: enrollment (BUGS.md 68). A rejection carrying only these is the whole shape a dry run cannot check.
@@ -3716,6 +3723,17 @@ class ForwardOutcomeKind(StrEnum):
 
     #: A dry run could not check the payload, because what it answers into is created by the same run.
     UNVERIFIABLE = "unverifiable"
+
+    #: The drain stopped before this receipt's turn, so DHIS2 was never asked about it and it stays put.
+    NOT_POSTED = "not-posted"
+
+
+#: The three states that leave a receipt exactly where the run found it: one the translator would not
+#: read, one a dry run could not check, and one the drain stopped short of. Each is a receipt the next
+#: run has to try again, so each stays in `received/` whatever mode ran.
+_UNMOVED_OUTCOME_KINDS = frozenset(
+    {ForwardOutcomeKind.REFUSED, ForwardOutcomeKind.UNVERIFIABLE, ForwardOutcomeKind.NOT_POSTED}
+)
 
 
 class ForwardCompletenessKind(StrEnum):
@@ -3835,13 +3853,17 @@ class ForwardImportOutcome(BaseModel):
         return f"{self.created} created, {self.updated} updated, {self.ignored} ignored"
 
 
-class ForwardRejectionRecord(ForwardImportOutcome):
-    """The sidecar beside a rejected receipt: DHIS2's own answer, plus which payload was posted.
+class ForwardImportRecord(ForwardImportOutcome):
+    """The sidecar beside a drained receipt: DHIS2's own answer, plus which payload was posted.
 
-    The target kind is what tells an operator reading `rejected/<id>.report.json` cold which of the
-    tracker shapes DHIS2 turned down - a person and their enrollment, or the enrollment alone for a
-    person the instance already held - without opening the receipt beside it and reading its
-    extensions back.
+    One shape for both drained states. `rejected/<id>.report.json` says why DHIS2 refused the payload;
+    `forwarded/<id>.report.json` says what it did with the one it took, which is the import counts -
+    a receipt filed with nothing beside it makes "how much of this landed" a question the spool cannot
+    answer, and the number is the same one an operator chases when a report comes out short.
+
+    The target kind is what tells an operator reading either file cold which of the tracker shapes
+    DHIS2 was given - a person and their enrollment, or the enrollment alone for a person the instance
+    already held - without opening the receipt beside it and reading its extensions back.
     """
 
     target_kind: ConversionTargetKind | None = None
@@ -3876,6 +3898,27 @@ class ForwardUnverifiableReason(BaseModel):
 
     reason: str
     responses: int
+
+
+class ForwardStop(BaseModel):
+    """Why a drain stopped posting before it had been through everything it translated.
+
+    A stop is the instance failing rather than a payload being refused: a 5xx, or a connection that
+    never completed. Neither says anything about the receipt that met it, so the receipt is left in
+    the queue for the next drain along with everything behind it - and the run says so, because a
+    drain that quietly posted half a spool and reported success is the one failure mode that costs
+    data the operator does not know to go looking for.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    response_id: str
+    """The receipt whose post met the failure, which is the one the next drain tries first."""
+
+    status_code: int | None = None
+    """The HTTP status the instance answered with, or None when the request never got an answer."""
+
+    reason: str
 
 
 class ForwardOutcome(BaseModel):
@@ -3921,6 +3964,9 @@ class ForwardReport(BaseModel):
     unreadable_artifacts: tuple[str, ...] = ()
     """Every published non-form document the R4 models could not read, and so translated against nothing."""
 
+    stopped: ForwardStop | None = None
+    """Why the drain stopped short, when it did; None is a run that was through the whole spool."""
+
     @property
     def refused(self) -> tuple[ForwardOutcome, ...]:
         """Every response the translator would not read whole, which is every response that stayed put."""
@@ -3942,6 +3988,11 @@ class ForwardReport(BaseModel):
         return tuple(outcome for outcome in self.outcomes if outcome.kind == ForwardOutcomeKind.UNVERIFIABLE)
 
     @property
+    def not_posted(self) -> tuple[ForwardOutcome, ...]:
+        """Every response the drain stopped short of, which is every response still waiting its turn."""
+        return tuple(outcome for outcome in self.outcomes if outcome.kind == ForwardOutcomeKind.NOT_POSTED)
+
+    @property
     def translated_count(self) -> int:
         """How many responses produced a payload."""
         return self.spooled - len(self.refused)
@@ -3953,12 +4004,18 @@ class ForwardReport(BaseModel):
 
     @property
     def counts_line(self) -> str:
-        """The whole run in one line, which is what a progress reporter and a summary hint both want."""
-        return (
+        """The whole run in one line, which is what a progress reporter and a summary hint both want.
+
+        The not-posted clause is stated only by a run that stopped short. It is not a count every run
+        has a zero for - it is the shape of a run that ended early, and a reader who sees it needs to
+        read no further to know the spool still holds work.
+        """
+        line = (
             f"{self.spooled:,} spooled, {self.translated_count:,} translated, {len(self.refused):,} refused, "
             f"{self.posted_count:,} posted, {len(self.accepted):,} accepted, {len(self.rejected):,} rejected, "
             f"{len(self.unverifiable):,} unverifiable in a dry run"
         )
+        return f"{line}, {len(self.not_posted):,} not posted" if self.stopped is not None else line
 
     @property
     def completeness_outcomes(self) -> tuple[ForwardCompletenessOutcome, ...]:
@@ -4110,15 +4167,18 @@ async def forward_responses(
         progress.complete(f"{len(conversion.translated):,} translated, {len(conversion.refused):,} refused")
 
         progress.step("post", _post_caption(0, len(conversion.translated), dry_run=dry_run))
-        imports = await _post_translations(client, spooled, conversion, dry_run=dry_run, progress=progress)
-        progress.complete(f"{len(imports):,} payload(s) posted{' (validate only)' if dry_run else ''}")
+        posted = await _post_translations(client, spooled, conversion, dry_run=dry_run, progress=progress)
+        stopped_note = f", stopped: {posted.stopped.reason}" if posted.stopped is not None else ""
+        progress.complete(
+            f"{len(posted.imports):,} payload(s) posted{' (validate only)' if dry_run else ''}{stopped_note}"
+        )
 
         progress.step("completeness", "registering the completed reports")
         completeness = await _register_completeness(
             client,
             spooled,
             conversion,
-            imports,
+            posted.imports,
             dry_run=dry_run,
             registering=register_completeness,
             progress=progress,
@@ -4130,7 +4190,7 @@ async def forward_responses(
     outcomes = _file_outcomes(
         spooled,
         conversion,
-        imports,
+        posted.imports,
         completeness,
         project.project_root,
         moving=import_responses,
@@ -4144,6 +4204,7 @@ async def forward_responses(
         spooled=len(spooled),
         outcomes=outcomes,
         unreadable_artifacts=artifacts.unreadable_resources,
+        stopped=posted.stopped,
     )
     progress.complete(report.counts_line)
     return report
@@ -4203,6 +4264,17 @@ def _post_caption(posted: int, total: int, *, dry_run: bool) -> str:
     return f"{verb} payloads ({posted:,}/{total:,})"
 
 
+class _PostedPayloads(BaseModel):
+    """What one drain's posting pass got through, and why it stopped if it did not get through it all."""
+
+    model_config = ConfigDict(frozen=True)
+
+    imports: dict[str, ForwardImportOutcome] = Field(default_factory=dict)
+    """DHIS2's answer per receipt, holding an entry only for the receipts that were actually posted."""
+
+    stopped: ForwardStop | None = None
+
+
 async def _post_translations(
     client: Dhis2Client,
     spooled: Sequence[SpooledResponse],
@@ -4210,7 +4282,7 @@ async def _post_translations(
     *,
     dry_run: bool,
     progress: _StepAnnouncer,
-) -> dict[str, ForwardImportOutcome]:
+) -> _PostedPayloads:
     """Post every translated payload, one response at a time, keyed by the receipt it came from.
 
     One payload per POST is what makes the outcome attributable: DHIS2 answers a bundle with one
@@ -4223,6 +4295,13 @@ async def _post_translations(
     by kind is the whole of the coordination - there is no dependency graph, and a registration
     DHIS2 rejects still leaves its stage events to fail `E1313`, which the next drain retries once
     the cause is fixed.
+
+    **An instance that fails mid-drain stops the drain.** A 5xx or a connection that never completed
+    is the instance being unwell, not a verdict on the payload that met it, and the two things that
+    must not happen next are posting the remaining two hundred payloads into it and filing the
+    receipt that met it as though DHIS2 had refused it. So the pass stops where it is and answers
+    with the outcomes it did get, which the caller files; everything from the failure onwards is
+    untouched in `received/` and the report names what stopped it.
     """
     translated = sorted(
         ((entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused),
@@ -4230,10 +4309,24 @@ async def _post_translations(
     )
     imports: dict[str, ForwardImportOutcome] = {}
     for posted, (entry, result) in enumerate(translated, start=1):
-        imports[entry.response_id] = await _post_result(client, result, dry_run=dry_run)
+        try:
+            imports[entry.response_id] = await _post_result(client, result, dry_run=dry_run)
+        except (Dhis2ApiError, httpx.HTTPError) as error:
+            return _PostedPayloads(imports=imports, stopped=_forward_stop(entry, error))
         if posted % _POST_TICK_INTERVAL == 0 or posted == len(translated):
             progress.tick(_post_caption(posted, len(translated), dry_run=dry_run))
-    return imports
+    return _PostedPayloads(imports=imports)
+
+
+def _forward_stop(entry: SpooledResponse, error: Dhis2ApiError | httpx.HTTPError) -> ForwardStop:
+    """Name what stopped one drain, in the terms the operator has to act on."""
+    if isinstance(error, Dhis2ApiError):
+        return ForwardStop(
+            response_id=entry.response_id,
+            status_code=error.status_code,
+            reason=f"the instance answered {error.status_code} rather than an import report: {error.message}",
+        )
+    return ForwardStop(response_id=entry.response_id, reason=f"the instance could not be reached: {error}")
 
 
 async def _register_completeness(
@@ -4391,10 +4484,17 @@ async def _post_body(
     is the body itself, and each family unwraps its own. Anything the error carries no JSON object for -
     an authentication failure, an unreachable instance - is about the run and not about one response,
     and is raised.
+
+    A 5xx is raised whatever it carries. DHIS2 and the proxies in front of it answer a server error with
+    a `WebMessage` of their own, `status` and all, and reading that as the endpoint's verdict would
+    project `status=ERROR` into a rejection and file the receipt under a refusal DHIS2 never made. The
+    status is what separates the two: 409 is the endpoint reaching a verdict, 500 is it failing to.
     """
     try:
         return await client.post_raw(path, body, params=params)
     except Dhis2ApiError as error:
+        if error.status_code >= _SERVER_ERROR_STATUS:
+            raise
         if isinstance(error.body, dict):
             return error.body
         raise
@@ -4564,9 +4664,16 @@ def _outcome_kind(
     imported: ForwardImportOutcome | None,
     minted_enrollments: frozenset[str],
 ) -> ForwardOutcomeKind:
-    """Which of the four states one receipt ended in."""
-    if result.is_refused or imported is None:
+    """Which of the five states one receipt ended in.
+
+    A translated receipt with no import answer is one the drain stopped short of, not one the
+    translator refused: the two are different facts about different failures, and calling the first
+    the second would report a healthy receipt as unreadable and hide that the run ended early.
+    """
+    if result.is_refused:
         return ForwardOutcomeKind.REFUSED
+    if imported is None:
+        return ForwardOutcomeKind.NOT_POSTED
     if not imported.is_rejected:
         return ForwardOutcomeKind.ACCEPTED
     if _is_unverifiable(result, imported, minted_enrollments):
@@ -4604,18 +4711,18 @@ def _filed_path(
 
     A dry run moves nothing at all, so a run that validated the whole spool leaves the queue exactly
     as it found it and can be run again as the import. `unverifiable` is a dry-run reading and so is
-    named here for the same reason: what a run could not check stays where the next run finds it.
+    named here for the same reason: what a run could not check stays where the next run finds it. A
+    receipt the drain stopped short of stays put on the same principle - nothing was asked about it,
+    so nothing is known about it, and the next drain is the retry.
 
-    A rejection takes its report along, and the report names the payload kind DHIS2 turned down as
-    well as what DHIS2 said about it.
+    Both drained states take their import report along, and the report names the payload kind DHIS2
+    was given as well as what DHIS2 said about it.
     """
-    if not moving or kind in (ForwardOutcomeKind.REFUSED, ForwardOutcomeKind.UNVERIFIABLE):
+    if not moving or kind in _UNMOVED_OUTCOME_KINDS or imported is None:
         return entry.path
+    record = ForwardImportRecord(**dict(imported), target_kind=target_kind)
     if kind == ForwardOutcomeKind.ACCEPTED:
-        return move_to_forwarded(entry)
-    if imported is None:
-        return entry.path
-    record = ForwardRejectionRecord(**dict(imported), target_kind=target_kind)
+        return move_to_forwarded(entry, record)
     return move_to_rejected(entry, record)
 
 

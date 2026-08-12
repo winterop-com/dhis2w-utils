@@ -91,6 +91,37 @@ class SpoolRejection(BaseModel):
         )
 
 
+class SpoolImport(BaseModel):
+    """What DHIS2 counted when it took one receipt, projected out of the report the forwarder stored.
+
+    The counts without the issue rows a rejection carries, because an import DHIS2 accepted named no
+    rows against the payload - `created`, `updated`, `ignored` and `deleted` are the whole of what it
+    said. They are what answers "the receipt is forwarded, but did any of it land": an import that
+    ignored every value is an accepted receipt that changed nothing in the instance.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    status: str | None = None
+    message: str | None = None
+    created: int = 0
+    updated: int = 0
+    ignored: int = 0
+    deleted: int = 0
+
+    @classmethod
+    def from_outcome(cls, outcome: ForwardImportOutcome) -> SpoolImport:
+        """Reduce one stored import report to the counts an accepted row shows."""
+        return cls(
+            status=outcome.status,
+            message=outcome.message,
+            created=outcome.created,
+            updated=outcome.updated,
+            ignored=outcome.ignored,
+            deleted=outcome.deleted,
+        )
+
+
 class SpoolResponseSummary(BaseModel):
     """One receipt as a listing row: when it arrived, what it answers, where it is, and what DHIS2 said."""
 
@@ -120,6 +151,10 @@ class SpoolResponseSummary(BaseModel):
     tracked_entity: str | None = None
     tracker_enrollment: str | None = None
     rejection: SpoolRejection | None = None
+    """Why DHIS2 refused this receipt, on a rejected row that has a readable report beside it."""
+
+    imported: SpoolImport | None = None
+    """What DHIS2 counted for this receipt, on a forwarded row that has a readable report beside it."""
 
 
 class SpoolCounts(BaseModel):
@@ -154,20 +189,23 @@ async def read_spool(request: Request) -> SpoolListing:
         rejected=sum(1 for receipt in receipts if receipt.lifecycle is ResponseLifecycle.REJECTED),
     )
     responses = tuple(
-        _summary(
-            receipt,
-            naming,
-            context.spool.rejection(receipt.response_id) if receipt.lifecycle is ResponseLifecycle.REJECTED else None,
-        )
+        _summary(receipt, naming, context.spool.import_report(receipt.response_id, receipt.lifecycle))
         for receipt in receipts
     )
     return SpoolListing(total=len(responses), counts=counts, responses=responses)
 
 
 def _summary(
-    receipt: StoredReceipt, naming: CaptureNaming, rejection: ForwardImportOutcome | None
+    receipt: StoredReceipt, naming: CaptureNaming, report: ForwardImportOutcome | None
 ) -> SpoolResponseSummary:
-    """Build one listing row, deriving the capture context out of the stored resource where it reads."""
+    """Build one listing row, deriving the capture context out of the stored resource where it reads.
+
+    The stored report reads as a rejection or as an import by which state the receipt is in, rather
+    than by what the document says: a report is written beside a receipt at the moment it is moved,
+    so the directory it is in is the forwarder's own statement of which answer it was.
+    """
+    rejected = receipt.lifecycle is ResponseLifecycle.REJECTED
+    forwarded = receipt.lifecycle is ResponseLifecycle.FORWARDED
     row = SpoolResponseSummary(
         response_id=receipt.response_id,
         received_at=receipt.received_at,
@@ -176,7 +214,8 @@ def _summary(
         questionnaire=receipt.questionnaire,
         questionnaire_id=_last_segment(receipt.questionnaire),
         warnings=receipt.warnings,
-        rejection=SpoolRejection.from_outcome(rejection) if rejection is not None else None,
+        rejection=SpoolRejection.from_outcome(report) if report is not None and rejected else None,
+        imported=SpoolImport.from_outcome(report) if report is not None and forwarded else None,
     )
     response = _parsed(receipt)
     if response is None:
