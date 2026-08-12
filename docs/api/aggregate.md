@@ -2,11 +2,14 @@
 
 `DataValue` and `DataValueSet` — the typed wire shapes for DHIS2's aggregate-data path (`/api/dataValueSets` GET / POST and the per-value `/api/dataValues` endpoint). Pairs with [Data values (streaming)](data-values.md), which exposes the same shape via `client.data_values.stream(...)` for very large imports.
 
+`CompleteDataSetRegistration` and `CompleteDataSetRegistrations` are the sibling completeness resource: DHIS2 records whether a data set is *finished* for a period separately from the values, under the same `(dataSet, period, organisationUnit, attributeOptionCombo)` key, at `/api/completeDataSetRegistrations`.
+
 ## When to reach for it
 
 - Pushing a small or medium batch of aggregate values from a script (CSV-to-DHIS2 sync, ETL pipeline, integration test fixture).
 - Reading values back to verify a write landed or to drive an analytics-side check.
 - Building the typed payload the streaming accessor and the bulk-grouped helper both consume.
+- Marking a data set complete for a period once its values are in.
 
 ## Worked example — typed write, then read-back
 
@@ -56,6 +59,45 @@ async with open_client(profile_from_env()) as client:
     for v in dvs.dataValues or []:
         print(f"  DE={v.dataElement}  pe={v.period}  ou={v.orgUnit}  value={v.value}")
 ```
+
+## Worked example — mark a data set complete for a period
+
+```python
+from dhis2w_client import CompleteDataSetRegistration, CompleteDataSetRegistrations
+from dhis2w_core.client_context import open_client
+from dhis2w_core.profile import profile_from_env
+
+async with open_client(profile_from_env()) as client:
+    # Register completeness only once the values are in: the claim is about
+    # data DHIS2 has taken, and a claim about data it refused would be false.
+    registrations = CompleteDataSetRegistrations(
+        completeDataSetRegistrations=[
+            CompleteDataSetRegistration(
+                dataSet="BfMAe6Itzgt",
+                period="202604",
+                organisationUnit="ImspTQPwCqd",
+                # Omit attributeOptionCombo on a default-combo data set - DHIS2 fills it.
+                date="2026-05-02",
+                completed=True,
+            )
+        ]
+    )
+    answer = await client.post_raw(
+        "/api/completeDataSetRegistrations",
+        registrations.model_dump(by_alias=True, exclude_none=True, mode="json"),
+    )
+    print(answer["response"]["importCount"])  # {'imported': 1, ...}
+
+    # Read the tuple back. DHIS2 answers `{}` - not an empty list - when it
+    # holds no registration for it.
+    stored = await client.get_raw(
+        "/api/completeDataSetRegistrations",
+        params={"dataSet": "BfMAe6Itzgt", "period": "202604", "orgUnit": "ImspTQPwCqd"},
+    )
+    print(stored.get("completeDataSetRegistrations", []))
+```
+
+Registering a tuple DHIS2 already holds counts `updated` rather than conflicting, so re-running the same registration is safe.
 
 ## When to use which write path
 

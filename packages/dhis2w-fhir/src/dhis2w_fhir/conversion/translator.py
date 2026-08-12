@@ -92,6 +92,7 @@ def _aggregate_result(response: QuestionnaireResponse, form: FormSpec, context: 
         questionnaire=form.canonical,
         target_kind=TARGET_KINDS_BY_FORM_KIND[form.form_kind],
         data_value_set=translation.data_value_set,
+        completeness=translation.completeness,
         notes=translation.notes,
         refusals=translation.refusals,
     )

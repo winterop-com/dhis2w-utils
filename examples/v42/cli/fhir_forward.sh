@@ -94,6 +94,28 @@ ls .serve/responses/rejected 2>/dev/null | wc -l
 cat .serve/responses/rejected/*.report.json 2>/dev/null | head -c 300 || true
 echo
 
+# Data set completeness. DHIS2 records whether a data set is *finished* for a period
+# separately from the values, keyed by the same (data set, period, organisation unit,
+# attribute option combo) tuple. QuestionnaireResponse.status is what states it: an
+# aggregate response whose status is `completed` registers that tuple complete once DHIS2
+# has taken its values; one whose status is `in-progress` imports its values and registers
+# nothing. The claim is a second write, made only after the values landed - a completeness
+# claim about data the instance refused would be a lie - and a refused registration does
+# NOT un-import the values: they stay imported, and forwarding the same tuple again is the
+# retry, since DHIS2 answers a registration it already holds with `updated`.
+#
+# The summary carries a `data set completeness` row counting the run, and --details prints
+# the tuple each response claimed, because a registration has no UID to look it up by.
+d2w fhir forward --import --details
+
+# Off for a whole run. The values still import; every `completed` response is reported
+# `not-registered` rather than silently skipped.
+d2w fhir forward --import --no-register-completeness
+
+# A dry run posts nothing to the completeness endpoint - it wrote no values, so there is
+# nothing for the claim to be about - and states the tuple it would register instead.
+d2w fhir forward --details
+
 # The scaffolded project has both as make targets, reading the same [serve] and [generate]
 # tables the rest of the project does:
 #   make forward          # the dry run above

@@ -1353,6 +1353,50 @@ def _render_unverifiable_reasons(report: ForwardReport) -> None:
     )
 
 
+#: The Rich style each completeness outcome renders in, matching the outcome palette a row above it.
+_COMPLETENESS_STYLES = {
+    "registered": "green",
+    "would-register": "cyan",
+    "not-claimed": "dim",
+    "not-registered": "dim",
+    "refused": "red",
+}
+
+
+def _completeness_cell(value: Any) -> str:
+    """Render one completeness outcome kind in the style it carries."""
+    kind = str(value)
+    return f"[{_COMPLETENESS_STYLES.get(kind, 'default')}]{kind}[/]"
+
+
+def _render_completeness(report: ForwardReport) -> None:
+    """State what every aggregate response of the run claimed about completeness, and what came of it."""
+    from dhis2w_fhir.service import ForwardCompletenessKind
+
+    outcomes = report.completeness_outcomes
+    if not outcomes:
+        return
+    render_list(
+        "data set completeness",
+        [
+            {
+                "outcome": outcome.kind,
+                "tuple": outcome.tuple_line,
+                "date": outcome.date or "",
+                "reason": outcome.reason if outcome.kind == ForwardCompletenessKind.REFUSED else "",
+            }
+            for outcome in outcomes
+        ],
+        [
+            ColumnSpec("Completeness", "outcome", formatter=_completeness_cell, no_wrap=True),
+            ColumnSpec("Data set / period / organisation unit / attribute option combo", "tuple"),
+            ColumnSpec("Completed on", "date", no_wrap=True),
+            ColumnSpec("Why", "reason"),
+        ],
+        console=STDERR_CONSOLE,
+    )
+
+
 def _render_forward_outcomes(report: ForwardReport) -> None:
     """List every response the run drained, with what became of it and why."""
     if not report.outcomes:
@@ -1382,6 +1426,38 @@ def _render_forward_outcomes(report: ForwardReport) -> None:
     )
 
 
+def _completeness_report_lines(report: ForwardReport) -> list[str]:
+    """The written report's completeness section: the tuple every aggregate response claimed, and its answer."""
+    from dhis2w_fhir.service import ForwardCompletenessKind
+
+    outcomes = report.completeness_outcomes
+    if not outcomes:
+        return []
+    lines = [
+        "## Data set completeness",
+        "",
+        "An aggregate response whose status is `completed` registers the data set complete for the",
+        "tuple its values landed under. The registration is a second write, made only once DHIS2 has",
+        "taken the values; a response reporting itself `in-progress` imports its values and claims",
+        "nothing. A refused registration does not un-import the values - they are imported and stay",
+        "imported, and forwarding the same tuple again registers it.",
+        "",
+        "| Completeness | Data set | Period | Organisation unit | Attribute option combo | Completed on | Why |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    lines.extend(
+        f"| {outcome.kind} | {outcome.data_set or ''} | {outcome.period or ''} | "
+        f"{outcome.organisation_unit or ''} | {outcome.attribute_option_combo or ''} | {outcome.date or ''} | "
+        f"{outcome.reason if outcome.kind == ForwardCompletenessKind.REFUSED else ''} |"
+        for outcome in outcomes
+    )
+    lines.append("")
+    reason = report.completeness_dry_run_reason
+    if reason:
+        lines.extend([reason, ""])
+    return lines
+
+
 def _write_forward_report(report: ForwardReport, generation: GenerationProfile) -> Path:
     """Write every response's outcome to `reports/fhir-forward-report.md`, grouped by what became of it."""
     from datetime import UTC, datetime
@@ -1396,6 +1472,7 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
         f"- Profile: {generation.name} ({generation.profile.base_url})",
         f"- Mode: {'dry run (validate only)' if report.dry_run else 'import'}",
         f"- Coded answers: {report.coded_answer_mode}",
+        f"- Data set completeness: {report.completeness_line or 'no aggregate response claimed any'}",
         f"- Forwarded: {datetime.now(tz=UTC).isoformat(timespec='seconds')}",
         f"- Counts: {report.counts_line}",
         "",
@@ -1421,6 +1498,7 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
         lines.extend(["## What a dry run could not check", ""])
         for reason in unverifiable_reasons:
             lines.extend([f"{reason.reason} ({reason.responses} response(s))", ""])
+    lines.extend(_completeness_report_lines(report))
     for heading, outcomes in (
         ("Rejected by DHIS2", report.rejected),
         ("Unverifiable in a dry run", report.unverifiable),
@@ -1452,6 +1530,24 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
     return destination
 
 
+def _render_completeness_hints(report: ForwardReport) -> None:
+    """Say what a completeness refusal means for the values, which is the one thing a reader must not guess."""
+    from dhis2w_fhir.service import ForwardCompletenessKind
+
+    refused = report.completeness_of(ForwardCompletenessKind.REFUSED)
+    if refused:
+        _hint(
+            "note",
+            f"{len(refused)} report(s) imported and DHIS2 refused the completeness registration. The values "
+            "are imported and stay imported - only the completeness claim failed. Forwarding the same tuple "
+            "again registers it; a tuple registered twice is an update, not a conflict.",
+            style="yellow",
+        )
+    reason = report.completeness_dry_run_reason
+    if reason:
+        _hint("note", reason)
+
+
 def _render_forward_report(report: ForwardReport, generation: GenerationProfile, *, details: bool) -> None:
     """Render one forward run: the mode first, the counts, then either every response or where they are."""
     if report.dry_run:
@@ -1470,6 +1566,7 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
             DetailRow("accepted", str(len(report.accepted))),
             DetailRow("rejected", str(len(report.rejected))),
             DetailRow("unverifiable in a dry run", str(len(report.unverifiable))),
+            *([DetailRow("data set completeness", report.completeness_line)] if report.completeness_line else []),
         ],
         console=STDERR_CONSOLE,
     )
@@ -1481,6 +1578,7 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
     _render_rejection_reasons(report)
     _render_unverifiable_reasons(report)
     if details:
+        _render_completeness(report)
         _render_forward_outcomes(report)
     else:
         destination = _write_forward_report(report, generation)
@@ -1508,6 +1606,7 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
             f"{len(report.unverifiable)} response(s) this dry run could not check - each is a stage event whose "
             "enrollment a registration of the same run creates, and only an import creates it",
         )
+    _render_completeness_hints(report)
     if report.dry_run:
         _hint("dry run", _DRY_RUN_BANNER, style="bold yellow")
 
@@ -1534,6 +1633,14 @@ def forward_command(
             "`\\[serve] strict_codes`. Lenient resolves the DHIS2 option UID and code too, and notes it.",
         ),
     ] = None,
+    register_completeness: Annotated[
+        bool,
+        typer.Option(
+            "--register-completeness/--no-register-completeness",
+            help="Register the data set complete for every aggregate response whose status is `completed`, "
+            "once DHIS2 has taken its values. On by default - the response said it was finished.",
+        ),
+    ] = True,
     details: Annotated[
         bool,
         typer.Option("--details", help="Print every response's outcome instead of writing them to the report."),
@@ -1550,6 +1657,11 @@ def forward_command(
 
     Every payload names its own DHIS2 object - an event's UID is derived from the receipt's logical id -
     so one receipt forwarded twice is refused as an object the instance holds, never imported twice.
+
+    An aggregate response whose status is `completed` also registers the data set complete for the
+    period, organisation unit, and attribute option combo its values landed under - a second write,
+    made only after DHIS2 has taken the values. `in-progress` imports the values and registers
+    nothing, and `--no-register-completeness` turns the second write off for the whole run.
 
     A DHIS2 rejection exits 1. A dry run counts a stage event whose enrollment a registration of the
     same run creates as unverifiable rather than rejected - a dry run writes nothing, so there is no
@@ -1570,6 +1682,7 @@ def forward_command(
                 project,
                 import_responses=import_responses,
                 coded_answer_mode=mode,
+                register_completeness=register_completeness,
                 reporter=reporter,
             )
         )

@@ -20,6 +20,8 @@ from dhis2w_fhir import (
     ConversionRefusal,
     ConversionRefusalCategory,
     ConversionTargetKind,
+    ForwardCompletenessKind,
+    ForwardCompletenessOutcome,
     ForwardImportIssue,
     ForwardImportOutcome,
     ForwardOutcome,
@@ -82,11 +84,18 @@ def _report(root: Path, *, dry_run: bool = True) -> ForwardReport:
                 kind=ForwardOutcomeKind.ACCEPTED,
                 notes=(
                     ConversionNote(
-                        category=ConversionNoteCategory.COMPLETE_DATE_DERIVED,
-                        message="completeDate taken from the response's authored instant",
+                        category=ConversionNoteCategory.COMPLETENESS_CLAIMED,
+                        message="the response reports itself `completed`, so the data set is registered complete",
                     ),
                 ),
                 import_outcome=ForwardImportOutcome(status="SUCCESS", created=2),
+                completeness=ForwardCompletenessOutcome(
+                    kind=(ForwardCompletenessKind.WOULD_REGISTER if dry_run else ForwardCompletenessKind.REGISTERED),
+                    data_set="BfMAe6Itzgt",
+                    period="202601",
+                    organisation_unit="ImspTQPwCqd",
+                    date="2026-02-03",
+                ),
                 spool_path=".serve/responses/received/accepted-1.json",
             ),
             ForwardOutcome(
@@ -219,6 +228,68 @@ def test_no_flag_leaves_the_dial_to_the_project(forward_project: Path) -> None:
     _, mock = _invoke(["--no-progress"], _report(forward_project))
     assert mock.await_args is not None
     assert mock.await_args.kwargs["coded_answer_mode"] is None
+
+
+@pytest.mark.parametrize(
+    ("flag", "expected"),
+    [("--register-completeness", True), ("--no-register-completeness", False)],
+)
+def test_the_completeness_flag_reaches_the_service(forward_project: Path, flag: str, expected: bool) -> None:
+    """Both halves of the dial are reachable, and the default is on - the response said it was finished."""
+    _, mock = _invoke(["--no-progress", flag], _report(forward_project))
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["register_completeness"] is expected
+
+
+def test_completeness_is_registered_by_default(forward_project: Path) -> None:
+    """A bare run registers what the responses claim, because claiming it is what `completed` means."""
+    _, mock = _invoke(["--no-progress"], _report(forward_project))
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["register_completeness"] is True
+
+
+def test_the_summary_states_what_became_of_the_completeness_claims(forward_project: Path) -> None:
+    """A completeness outcome nobody can see is a silent write, which is the one thing it must not be."""
+    result, _ = _invoke(["--no-progress", "--details"], _report(forward_project, dry_run=False))
+    assert "data set completeness" in result.output
+    assert "registered" in result.output
+    assert "BfMAe6Itzgt" in result.output
+    assert "202601" in result.output
+
+
+def test_a_dry_run_states_what_it_would_register_and_why_it_cannot_check_it(forward_project: Path) -> None:
+    """A dry run wrote no values, so it says what would be registered rather than that anything was."""
+    result, _ = _invoke(["--no-progress", "--details"], _report(forward_project))
+    assert "would-register" in result.output
+    assert "nothing for a completeness registration to be a claim about" in result.output
+
+
+def test_the_written_report_carries_the_completeness_tuple(forward_project: Path) -> None:
+    """The registration has no UID, only its four keys, so the report writes them down."""
+    _invoke(["--no-progress"], _report(forward_project, dry_run=False))
+    written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
+    assert "## Data set completeness" in written
+    assert "BfMAe6Itzgt" in written
+    assert "ImspTQPwCqd" in written
+    assert "does not un-import the values" in written
+
+
+def test_a_refused_registration_says_the_values_stay_imported(forward_project: Path) -> None:
+    """The one thing a reader must not have to guess is whether a failed claim cost them the report."""
+    report = _report(forward_project, dry_run=False)
+    refused = report.outcomes[0].model_copy(
+        update={
+            "completeness": ForwardCompletenessOutcome(
+                kind=ForwardCompletenessKind.REFUSED,
+                data_set="BfMAe6Itzgt",
+                period="202601",
+                organisation_unit="ImspTQPwCqd",
+                message="Data set not found or not accessible",
+            )
+        }
+    )
+    result, _ = _invoke(["--no-progress"], report.model_copy(update={"outcomes": (refused, *report.outcomes[1:])}))
+    assert "stay imported" in result.output
 
 
 def test_json_puts_the_whole_report_on_stdout_and_nothing_else(forward_project: Path) -> None:

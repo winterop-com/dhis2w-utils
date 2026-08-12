@@ -57,6 +57,7 @@ def register(mcp: Any) -> None:
         project_directory: str | None = None,
         dry_run: bool = True,
         strict_codes: bool | None = None,
+        register_completeness: bool = True,
     ) -> ForwardReport:
         """Drain a FHIR project's capture spool into DHIS2 - translate every received response and post it.
 
@@ -74,6 +75,12 @@ def register(mcp: Any) -> None:
         DHIS2 to check the event against, and an import posts registrations first. A stage event
         naming an enrollment no registration of the run creates is a rejection in either mode.
 
+        An aggregate response whose status is `completed` also registers the data set complete for the
+        tuple its values landed under, as a second write made only after DHIS2 has taken the values.
+        An `in-progress` response imports its values and registers nothing, and
+        `register_completeness=False` turns the second write off for the whole run. A refused
+        registration does not un-import the values.
+
         `strict_codes` overrides `[serve] strict_codes`: strict refuses a coded answer outside the
         served terminology, lenient resolves the DHIS2 option UID and code too and notes what it did.
         """
@@ -85,4 +92,5 @@ def register(mcp: Any) -> None:
             project,
             import_responses=not dry_run,
             coded_answer_mode=mode,
+            register_completeness=register_completeness,
         )

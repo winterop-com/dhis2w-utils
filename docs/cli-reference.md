@@ -10052,6 +10052,11 @@ rejected/ beside a report, and a translator-refused one stays put - fix and forw
 Every payload names its own DHIS2 object - an event&#x27;s UID is derived from the receipt&#x27;s logical id -
 so one receipt forwarded twice is refused as an object the instance holds, never imported twice.
 
+An aggregate response whose status is `completed` also registers the data set complete for the
+period, organisation unit, and attribute option combo its values landed under - a second write,
+made only after DHIS2 has taken the values. `in-progress` imports the values and registers
+nothing, and `--no-register-completeness` turns the second write off for the whole run.
+
 A DHIS2 rejection exits 1. A dry run counts a stage event whose enrollment a registration of the
 same run creates as unverifiable rather than rejected - a dry run writes nothing, so there is no
 enrollment to check it against - and a run whose only failures are those exits 0.
@@ -10072,6 +10077,7 @@ $ d2w fhir forward [OPTIONS] [directory]
 
 * `--import / --dry-run`: Commit the payloads to DHIS2 and move the receipts. The default is a dry run: every payload still goes to the real endpoint under its own validate-only mode, and nothing is written and nothing moves.  [default: dry-run]
 * `--strict-codes / --no-strict-codes`: Refuse a coded answer whose code is outside the served terminology, overriding `[serve] strict_codes`. Lenient resolves the DHIS2 option UID and code too, and notes it.
+* `--register-completeness / --no-register-completeness`: Register the data set complete for every aggregate response whose status is `completed`, once DHIS2 has taken its values. On by default - the response said it was finished.  [default: register-completeness]
 * `--details`: Print every response&#x27;s outcome instead of writing them to the report.
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.

@@ -22,6 +22,7 @@ from dhis2w_core.profile import resolve
 from dhis2w_fhir import (
     AttributeCodeIndex,
     CodedAnswerMode,
+    ForwardCompletenessKind,
     ForwardOutcomeKind,
     GenerateConfig,
     OptionSetIn,
@@ -40,6 +41,7 @@ from dhis2w_fhir.conversion import (
     CompiledArtifactReadError,
     CompiledIgMissingError,
     ConversionNaming,
+    ConversionTargetKind,
     bound_question_uids,
     build_project_context,
     load_compiled_artifacts,
@@ -363,8 +365,9 @@ def _mock_instance(
     wire_version: str = "v42",
     aggregate_response: httpx.Response | None = None,
     tracker_response: httpx.Response | None = None,
+    completeness_response: httpx.Response | None = None,
 ) -> dict[str, respx.Route]:
-    """Mock everything a forward run touches: the version probe, the value types, and the two imports."""
+    """Mock everything a forward run touches: the version probe, the value types, and the three writes."""
     version = _HARVESTED_INSTANCE_VERSIONS[wire_version]
     respx.get(f"{_BASE_URL}/api/system/info").mock(return_value=httpx.Response(200, json={"version": version}))
     value_types = respx.get(f"{_BASE_URL}/api/dataElements").mock(
@@ -377,7 +380,62 @@ def _mock_instance(
         return_value=aggregate_response or _accepted_aggregate()
     )
     tracker = respx.post(f"{_BASE_URL}/api/tracker").mock(return_value=tracker_response or _accepted_tracker())
-    return {"value_types": value_types, "aggregate": aggregate, "tracker": tracker}
+    completeness = respx.post(f"{_BASE_URL}/api/completeDataSetRegistrations").mock(
+        return_value=completeness_response or _accepted_completeness()
+    )
+    return {
+        "value_types": value_types,
+        "aggregate": aggregate,
+        "tracker": tracker,
+        "completeness": completeness,
+    }
+
+
+def _accepted_completeness() -> httpx.Response:
+    """What `/api/completeDataSetRegistrations` answers when it registered the tuple, verbatim off 2.43.1.
+
+    The envelope is `/api/dataValueSets`' own - a `WebMessage` wrapping an `ImportSummary` - which is why
+    one projection reads both. A tuple registered for the first time counts `imported`; the same tuple
+    registered again counts `updated`, and neither is a conflict.
+    """
+    return httpx.Response(
+        200,
+        json={
+            "httpStatus": "OK",
+            "httpStatusCode": 200,
+            "status": "OK",
+            "message": "Import was successful.",
+            "response": {
+                "responseType": "ImportSummary",
+                "status": "SUCCESS",
+                "description": "Import process complete.",
+                "importCount": {"imported": 1, "updated": 0, "ignored": 0, "deleted": 0},
+                "conflicts": [],
+                "rejectedIndexes": [],
+            },
+        },
+    )
+
+
+def _refused_completeness() -> httpx.Response:
+    """What `/api/completeDataSetRegistrations` answers a tuple it will not take, verbatim off 2.43.1."""
+    return httpx.Response(
+        409,
+        json={
+            "httpStatus": "Conflict",
+            "httpStatusCode": 409,
+            "status": "ERROR",
+            "message": "An error occurred, please check import summary.",
+            "response": {
+                "responseType": "ImportSummary",
+                "status": "ERROR",
+                "description": "Import process complete.",
+                "importCount": {"imported": 0, "updated": 0, "ignored": 1, "deleted": 0},
+                "conflicts": [{"object": "NOSUCHDSXXX", "value": "Data set not found or not accessible"}],
+                "rejectedIndexes": [],
+            },
+        },
+    )
 
 
 def _accepted_aggregate() -> httpx.Response:
@@ -1405,6 +1463,134 @@ async def test_forwarding_one_receipt_twice_asks_dhis2_to_create_the_same_event_
 
     assert first == second
     assert dict(routes["tracker"].calls.last.request.url.params)["importStrategy"] == "CREATE"
+
+
+@respx.mock
+async def test_a_completed_report_is_registered_complete_for_the_tuple_its_values_landed_under(
+    forward_project: Path,
+) -> None:
+    """The second write names the same four keys the data value set did, and claims the day authored."""
+    routes = _mock_instance()
+    report = await _forward(forward_project, import_responses=True)
+
+    values = json.loads(routes["aggregate"].calls.last.request.content)
+    registration = json.loads(routes["completeness"].calls.last.request.content)["completeDataSetRegistrations"][0]
+    assert registration["dataSet"] == values["dataSet"]
+    assert registration["period"] == values["period"]
+    assert registration["organisationUnit"] == values["orgUnit"]
+    assert registration["completed"] is True
+    assert dict(routes["completeness"].calls.last.request.url.params) == {}
+    assert "storedBy" not in registration
+
+    outcomes = report.completeness_of(ForwardCompletenessKind.REGISTERED)
+    assert len(outcomes) == 1
+    assert outcomes[0].data_set == values["dataSet"]
+    assert outcomes[0].period == values["period"]
+
+
+@respx.mock
+async def test_the_registration_claims_the_day_the_response_records_itself_authored(
+    forward_project: Path,
+) -> None:
+    """`authored` is the only statement of when the report was finished a receipt carries."""
+    _stamp_aggregate_receipts_authored(forward_project, "2026-02-03T08:00:00")
+    routes = _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    registration = json.loads(routes["completeness"].calls.last.request.content)["completeDataSetRegistrations"][0]
+    assert registration["date"] == "2026-02-03"
+
+
+@respx.mock
+async def test_the_data_value_set_never_carries_a_complete_date(forward_project: Path) -> None:
+    """`completeDate` registers completeness before DHIS2 has taken anything (BUGS.md 76, 77), so it is unsent."""
+    routes = _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    assert "completeDate" not in json.loads(routes["aggregate"].calls.last.request.content)
+
+
+@respx.mock
+async def test_completeness_is_registered_only_after_the_values_are_in(forward_project: Path) -> None:
+    """A claim about data DHIS2 refused would be a lie, so a rejected import registers nothing."""
+    routes = _mock_instance(aggregate_response=_rejected_aggregate())
+    report = await _forward(forward_project, import_responses=True)
+
+    assert routes["aggregate"].call_count == 1
+    assert routes["completeness"].call_count == 0
+    assert report.completeness_of(ForwardCompletenessKind.REGISTERED) == ()
+
+
+@respx.mock
+async def test_an_in_progress_report_imports_its_values_and_registers_nothing(forward_project: Path) -> None:
+    """`in-progress` is the reporter saying they are not finished, and nothing may claim otherwise."""
+    _mock_in_progress_spool(forward_project)
+    routes = _mock_instance()
+    report = await _forward(forward_project, import_responses=True)
+
+    assert routes["aggregate"].call_count == 1
+    assert routes["completeness"].call_count == 0
+    assert len(report.completeness_of(ForwardCompletenessKind.NOT_CLAIMED)) == 1
+
+
+@respx.mock
+async def test_a_dry_run_states_what_it_would_register_and_posts_nothing(forward_project: Path) -> None:
+    """A dry run wrote no values, so there is nothing for a completeness claim to be about."""
+    routes = _mock_instance()
+    report = await _forward(forward_project)
+
+    assert routes["completeness"].call_count == 0
+    would = report.completeness_of(ForwardCompletenessKind.WOULD_REGISTER)
+    assert len(would) == 1
+    assert would[0].data_set
+    assert would[0].period
+    assert report.completeness_dry_run_reason
+
+
+@respx.mock
+async def test_a_refused_registration_leaves_the_values_imported(forward_project: Path) -> None:
+    """The values landed and stay landed; only the claim failed, and the run still counts the response accepted."""
+    routes = _mock_instance(completeness_response=_refused_completeness())
+    report = await _forward(forward_project, import_responses=True)
+
+    assert routes["completeness"].call_count == 1
+    aggregate = next(
+        outcome for outcome in report.outcomes if outcome.target_kind == ConversionTargetKind.DATA_VALUE_SET
+    )
+    assert aggregate.kind == ForwardOutcomeKind.ACCEPTED
+    assert aggregate.spool_path.startswith(FORWARDED_RESPONSES_RELATIVE_PATH)
+    refused = report.completeness_of(ForwardCompletenessKind.REFUSED)
+    assert len(refused) == 1
+    assert "Data set not found or not accessible" in refused[0].reason
+
+
+@respx.mock
+async def test_the_registration_can_be_turned_off_for_a_whole_run(forward_project: Path) -> None:
+    """`--no-register-completeness` imports the values and states that nothing was registered."""
+    routes = _mock_instance()
+    report = await _forward(forward_project, import_responses=True, register_completeness=False)
+
+    assert routes["aggregate"].call_count == 1
+    assert routes["completeness"].call_count == 0
+    assert len(report.completeness_of(ForwardCompletenessKind.NOT_REGISTERED)) == 1
+
+
+def _mock_in_progress_spool(root: Path) -> None:
+    """Re-spool the fixture's aggregate response as one the reporter has not finished."""
+    _rewrite_aggregate_receipts(root, "status", "in-progress")
+
+
+def _stamp_aggregate_receipts_authored(root: Path, authored: str) -> None:
+    """Give the fixture's aggregate response an `authored` instant, which is the day it claims complete."""
+    _rewrite_aggregate_receipts(root, "authored", authored)
+
+
+def _rewrite_aggregate_receipts(root: Path, field: str, value: str) -> None:
+    """Set one field on every spooled aggregate receipt, so a test can state what the response said."""
+    for path in (root / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"):
+        envelope = json.loads(path.read_text(encoding="utf-8"))
+        if envelope["form_kind"] != "aggregate":
+            continue
+        envelope["response"][field] = value
+        path.write_text(json.dumps(envelope, indent=2), encoding="utf-8")
 
 
 def _mock_tracker_instance_answering_the_stage_event(event_response: httpx.Response) -> respx.Route:
