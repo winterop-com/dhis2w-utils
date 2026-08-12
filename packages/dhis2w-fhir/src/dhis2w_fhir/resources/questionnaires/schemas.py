@@ -19,7 +19,7 @@ from dhis2w_fhir.names import (
     join_name_segments,
     resolve_identity_stems,
 )
-from dhis2w_fhir.notes import GenerateNote
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE
 
 if TYPE_CHECKING:
@@ -198,6 +198,37 @@ TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY = SupportTerminologyProfile(
     code_property_description="DHIS2 tracked entity attribute code.",
     value_type_property_description="DHIS2 tracked entity attribute value type.",
 )
+
+#: The support pair over every tracked entity type the generated forms register an entity as.
+TRACKED_ENTITY_TYPE_TERMINOLOGY = SupportTerminologyProfile(
+    title="DHIS2 tracked entity types",
+    description=(
+        "DHIS2 tracked entity types the generated forms register an entity as. "
+        "Concept codes are DHIS2 tracked entity type UIDs."
+    ),
+    code_property_description="DHIS2 tracked entity type code.",
+)
+
+#: The prose the tracked-entity-type resource map is published under - what it maps and what a
+#: type nobody mapped lands on. `[generate.tracked_entity_types]` is exceptions-only, so the map
+#: is where the whole resolution is readable: a consumer holding a type UID reads the resource its
+#: registrations are published as without holding the project's `fhir.toml`.
+TRACKED_ENTITY_TYPE_RESOURCE_MAP_TITLE = "DHIS2 tracked entity types as FHIR resource types"
+TRACKED_ENTITY_TYPE_RESOURCE_MAP_DESCRIPTION = (
+    "Every DHIS2 tracked entity type the generated forms register, mapped onto the FHIR resource type its "
+    f"registrations are published as. A type this project maps to nothing is a {DEFAULT_SUBJECT_RESOURCE_TYPE}."
+)
+
+#: The R4 code system every FHIR resource type is a code of, which is what the resource map targets.
+RESOURCE_TYPE_CODE_SYSTEM_URL = "http://hl7.org/fhir/resource-types"
+
+#: The R4 value set holding that code system whole, which the map names as its target value set.
+RESOURCE_TYPE_VALUE_SET_URL = "http://hl7.org/fhir/ValueSet/resource-types"
+
+#: How closely a resource-map row holds, in the vocabulary the option-set and category maps use.
+#: `equal`: the concept and the resource type name the same thing, since the type is what the
+#: project has said its registrations are.
+RESOURCE_MAP_EQUIVALENCE: Literal["equal"] = "equal"
 
 #: The support pair over every category option combo the generated questionnaires disaggregate by.
 CATEGORY_OPTION_COMBO_TERMINOLOGY = SupportTerminologyProfile(
@@ -523,25 +554,121 @@ def form_tracked_entity_type_uid(source: QuestionnaireSourceIn) -> str | None:
     return None
 
 
+def tracked_entity_type_subject_type(uid: str, tracked_entity_types: Mapping[str, str]) -> str:
+    """The FHIR resource type one DHIS2 tracked entity type's registrations are published as.
+
+    The whole rule, in one expression: `[generate.tracked_entity_types]` where the project states
+    a type, `Patient` where it states nothing. Every consumer reads the resolution through here -
+    the `subjectType` of a registration or person-only form, the `subject.type` of its examples,
+    and the resource map the guide publishes over the type vocabulary - so a type's resource is
+    one fact rather than a rule copied per surface.
+    """
+    return tracked_entity_types.get(uid, DEFAULT_SUBJECT_RESOURCE_TYPE)
+
+
 def form_subject_type(source: QuestionnaireSourceIn, tracked_entity_types: Mapping[str, str]) -> str:
     """The FHIR resource type one form's subject is, resolved once for every consumer of the form.
 
     A DHIS2 tracked entity type is whatever the project tracks - a person, a household, a
     building, a herd - so `[generate.tracked_entity_types]` maps the type's UID onto the R4
-    resource type it really is and every form of every program tracking it follows. A type the
-    project maps to nothing keeps the form kind's own subject: a `Patient` for the two tracker
-    kinds, the reporting `Location` for the two organisation-unit kinds.
+    resource type it really is and every form of every program tracking it follows. A form about
+    no tracked entity type keeps its own kind's subject: the reporting `Location` of the two
+    organisation-unit kinds. A form that is about one reads `tracked_entity_type_subject_type`,
+    which is the same call the published resource map is built from.
 
     The map is keyed by tracked entity type rather than by program because the type is what owns
     the nature of the thing: two programs tracking the same type agree by construction, and
     naming the type once is what makes a registration form and every stage form of that program
     state the same subject.
     """
-    default = FORM_KIND_PROFILES[source.kind].subject_type
     uid = form_tracked_entity_type_uid(source)
     if uid is None:
-        return default
-    return tracked_entity_types.get(uid, default)
+        return FORM_KIND_PROFILES[source.kind].subject_type
+    return tracked_entity_type_subject_type(uid, tracked_entity_types)
+
+
+class PublishedTrackedEntityType(BaseModel):
+    """One DHIS2 tracked entity type the run publishes: its identity, its names, and the resource it is.
+
+    The boundary object between the tracked-entity-type vocabulary and everything that reads it.
+    `resource_type` is already resolved through `tracked_entity_type_subject_type`, so a concept,
+    a mapping row, and a form's `subjectType` cannot state three different answers, and `mapped`
+    says whether the project named the type or the default stood in - which is what the unmapped
+    note counts without re-reading the config.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    name: str
+    code: str | None = None
+    translations: list[TranslationIn] = Field(default_factory=list)
+    resource_type: str
+    mapped: bool
+
+    @property
+    def label(self) -> str:
+        """The type as a note names it: the instance's own name, then the UID that disambiguates it."""
+        return f"{self.name} ({self.uid})"
+
+
+def published_tracked_entity_types(
+    sources: list[QuestionnaireSourceIn], tracked_entity_types: Mapping[str, str]
+) -> list[PublishedTrackedEntityType]:
+    """The tracked entity types one run publishes a vocabulary over, in name order, resource already resolved.
+
+    The set is the run's person-only forms: `[generate.tracked_entity_forms]` where it names
+    anything, the types the selected tracker programs register where it does not. A person-only
+    form *is* its type, so the form's projection carries the type's own UID, name, DHIS2 code, and
+    translations - which is why the vocabulary needs no read of its own and every concept display
+    is the name the instance holds rather than a word this project invented.
+    """
+    published: dict[str, PublishedTrackedEntityType] = {}
+    for source in sources:
+        if source.kind != "tracked-entity":
+            continue
+        published.setdefault(
+            source.uid,
+            PublishedTrackedEntityType(
+                uid=source.uid,
+                name=source.name,
+                code=source.code,
+                translations=source.translations,
+                resource_type=tracked_entity_type_subject_type(source.uid, tracked_entity_types),
+                mapped=source.uid in tracked_entity_types,
+            ),
+        )
+    return sorted(published.values(), key=lambda entry: (entry.name, entry.uid))
+
+
+#: How many unmapped tracked entity types the note names before the rest are counted. Generous,
+#: because the whole point of the note is that the reader writes one config line per type it names.
+_UNMAPPED_TYPE_SAMPLE_SIZE = 20
+
+
+def unmapped_tracked_entity_type_notes(published: list[PublishedTrackedEntityType]) -> list[GenerateNote]:
+    """Say that several published types share the default resource, or nothing when at most one does.
+
+    One unmapped type is the ordinary shape: a project tracking people alone maps nothing and every
+    form of it is answered about a `Patient`, which is right. Two or more unmapped types is the
+    shape worth a word, because they are being published as the same resource while the instance
+    holds them apart - and a project tracking households, herds, or water points beside its people
+    almost certainly meant to say so.
+    """
+    unmapped = [entry for entry in published if not entry.mapped]
+    if len(unmapped) < 2:
+        return []
+    example = unmapped[0]
+    return [
+        aggregate_generate_note(
+            GenerateNoteCategory.SELECTION_GAP,
+            f"{len(unmapped)} tracked entity types the published forms register are absent from "
+            f"[generate.tracked_entity_types], so all of them are published as {DEFAULT_SUBJECT_RESOURCE_TYPE}; map "
+            f'the ones that are not people, one line each ({example.uid} = "{DEFAULT_SUBJECT_RESOURCE_TYPE}")',
+            [entry.label for entry in unmapped],
+            sample_size=_UNMAPPED_TYPE_SAMPLE_SIZE,
+        )
+    ]
 
 
 #: The surface label questionnaire-target stem notes and refusals name their offenders under.
@@ -711,6 +838,42 @@ class QuestionnaireNaming(BaseModel):
     def tracked_entity_attribute_value_set_id(self) -> str:
         """FHIR id of the tracked-entity-attribute support ValueSet (e.g. `d2-tea-vs`)."""
         return join_id_tokens(self.prefix, "tea", "vs")
+
+    @property
+    def tracked_entity_type_code_system(self) -> str:
+        """FSH name of the tracked-entity-type support CodeSystem (e.g. `D2TET_CS`).
+
+        The tracked-entity-type token rather than a fixed one, because the token already exists and
+        already names the person-only forms: a project that renames it moves the form and its
+        vocabulary together. `D2TET_<stem>` is one form; `D2TET_CS` is the list of what a form of
+        that kind registers.
+        """
+        return join_name_segments(f"{self.prefix}{self.tracked_entity_type}", "CS")
+
+    @property
+    def tracked_entity_type_code_system_id(self) -> str:
+        """FHIR id of the tracked-entity-type support CodeSystem (e.g. `d2-tet-cs`)."""
+        return join_id_tokens(self.prefix, self.tracked_entity_type, "cs")
+
+    @property
+    def tracked_entity_type_value_set(self) -> str:
+        """FSH name of the tracked-entity-type support ValueSet (e.g. `D2TET_VS`)."""
+        return join_name_segments(f"{self.prefix}{self.tracked_entity_type}", "VS")
+
+    @property
+    def tracked_entity_type_value_set_id(self) -> str:
+        """FHIR id of the tracked-entity-type support ValueSet (e.g. `d2-tet-vs`)."""
+        return join_id_tokens(self.prefix, self.tracked_entity_type, "vs")
+
+    @property
+    def tracked_entity_type_resource_map(self) -> str:
+        """FSH name of the ConceptMap taking each published type to its FHIR resource type (e.g. `D2TET_CM`)."""
+        return join_name_segments(f"{self.prefix}{self.tracked_entity_type}", "CM")
+
+    @property
+    def tracked_entity_type_resource_map_id(self) -> str:
+        """FHIR id of that ConceptMap (e.g. `d2-tet-cm`)."""
+        return join_id_tokens(self.prefix, self.tracked_entity_type, "cm")
 
     @property
     def category_option_combo_code_system(self) -> str:

@@ -273,6 +273,89 @@ a fact about the attribute *and* the tracked entity type together - one dictiona
 shared by every form of the run, and two programmes on different types can disagree
 about one attribute.
 
+## What the guide says about a tracked entity type
+
+The attribute pair is over the objects a form *asks*. Beside it sits `D2TET_CS`,
+over the objects the forms are *about*: one concept per DHIS2 tracked entity type
+the run's person-only forms register - the types the selected tracker programmes
+follow, or the types `[generate.tracked_entity_forms]` names where it names any.
+
+The concept code is the type's DHIS2 UID, the display is the name the instance
+holds for it, and the DHIS2 code rides as a `dhis2-code` property where the
+instance states one - the same shape `D2TEA_CS` publishes, over a different kind
+of object. Translations land as designations under `[generate] locales` like every
+other vocabulary on this page. `D2TET_VS` includes the code system whole.
+
+```json
+{
+  "code": "nEenWmSyUEp",
+  "display": "Person",
+  "property": [{ "code": "dhis2-code", "valueString": "TET_PERSON" }],
+  "designation": [{ "language": "fr", "value": "Personne" }]
+}
+```
+
+The names are never written into `fhir.toml`. The instance owns what a type is
+called, so the vocabulary reads them off the same fetch the person-only forms are
+built from - which is also why a renamed type in DHIS2 shows up in the guide on the
+next `d2w fhir generate` with nothing to edit.
+
+### The resource each type is published as
+
+A DHIS2 tracked entity is not always a person, and
+[`[generate.tracked_entity_types]`](301-what-goes-in.md#tracked_entity_types) is
+exceptions-only: it names the types that are *not* people and says nothing about
+the rest. That keeps a person-tracking project's config empty, but it also leaves
+the resolution in a file nobody reading the published guide has.
+
+So the guide publishes it. `D2TET_CM` sits in
+`ig/input/fsh/data-dictionary/tracked-entity-types.fsh` beside the pair it maps,
+and holds one row per published type: source `D2TET_CS`, target the R4
+`http://hl7.org/fhir/resource-types` code system, equivalence `equal`.
+
+```json
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-tet-cm",
+  "url": "http://example.org/fhir/ConceptMap/d2-tet-cm",
+  "name": "D2TET_CM",
+  "title": "DHIS2 tracked entity types as FHIR resource types",
+  "sourceCanonical": "http://example.org/fhir/ValueSet/d2-tet-vs",
+  "targetCanonical": "http://hl7.org/fhir/ValueSet/resource-types",
+  "group": [
+    {
+      "source": "http://example.org/fhir/CodeSystem/d2-tet-cs",
+      "target": "http://hl7.org/fhir/resource-types",
+      "element": [
+        {
+          "code": "nEenWmSyUEp",
+          "display": "Person",
+          "target": [{ "code": "Patient", "equivalence": "equal" }]
+        },
+        {
+          "code": "Tet2aaaaaaa",
+          "display": "Specimen batch",
+          "target": [{ "code": "Specimen", "equivalence": "equal" }]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Every row is stated, not only the exceptions: a type the project never names is
+published with a `Patient` target, so a consumer reads the answer rather than
+inferring it from an absence. The row's target is the very resolution the form's
+own `subjectType` came out of, so a `Questionnaire` and this map cannot disagree.
+
+The map answers over `$translate` like every other:
+
+```bash
+curl "http://localhost:8080/ConceptMap/\$translate?system=http://example.org/fhir/CodeSystem/d2-tet-cs&code=nEenWmSyUEp"
+```
+
+comes back with `Patient` in the `http://hl7.org/fhir/resource-types` system.
+
 ## Translations: designations on a concept, extensions on a title
 
 Every vocabulary on this page publishes its DHIS2 `NAME` translations, and the
@@ -372,6 +455,12 @@ ig/input/resources/concept-maps/ConceptMap-d2-cat-<stem>-cm.json   categories
 | --- | --- | --- | --- |
 | Option sets | `option-sets` | Which DHIS2 **option** does this answer code name? | `<base>/id/option`, `<base>/id/option-code` |
 | Categories | `categories` | Which DHIS2 **category option** does this disaggregation code name? | `<base>/id/category-option`, `<base>/id/category-option-code` |
+
+`D2TET_CM` is a map too, and the one that runs the other way - from a DHIS2 concept
+to a FHIR resource type rather than back to a DHIS2 identifier. It is authored in
+FSH beside the vocabulary it maps rather than written as JSON here, so it compiles
+out of `data-dictionary/` and needs no glob of its own; see
+[the resource each type is published as](#the-resource-each-type-is-published-as).
 
 Each map takes its id, its FSH name, and its URL from the same identity stem its
 CodeSystem and ValueSet do, carries the source object's UID as its single

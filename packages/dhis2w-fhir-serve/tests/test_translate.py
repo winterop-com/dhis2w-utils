@@ -2,8 +2,14 @@
 
 Self-contained by design - the fixtures here write their own project tree and emit its ConceptMaps
 with the generator itself, so what the operation is asked to translate is exactly what
-`d2w fhir generate` writes into `ig/input/resources/concept-maps/`. Both families land there, so
+`d2w fhir generate` writes into `ig/input/resources/concept-maps/`. Two families land there, so
 the operation is asked about an option set and about a category over the one store.
+
+The third is asked over the compiled tree: the tracked-entity-type resource map is authored in FSH
+beside the vocabulary it maps, so a compiled guide holds it in `fsh-generated/resources/` rather
+than in the predefined tree. The operation reads every served map alike, which is what this proves -
+hand it a DHIS2 tracked entity type and it answers with the FHIR resource type its registrations
+are published as.
 """
 
 from __future__ import annotations
@@ -20,6 +26,8 @@ from dhis2w_fhir import build_category_concept_map_artifacts, build_option_set_c
 from dhis2w_fhir.config import FhirProject, load_fhir_config
 from dhis2w_fhir.resources.categories.schemas import CategoryIn
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
+from dhis2w_fhir.resources.questionnaires.documents import build_data_dictionary_documents
+from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireItemIn, QuestionnaireSourceIn
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.settings import ServeSettings
 from fastapi import FastAPI
@@ -79,6 +87,23 @@ _CATEGORY_CONCEPT_MAP = f"{_CANONICAL}/ConceptMap/d2-cat-O5P6e8yu1T6-cm"
 _CATEGORY_OPTION_SYSTEM = f"{_IDENTIFIER_BASE}/id/category-option"
 _CATEGORY_OPTION_CODE_SYSTEM = f"{_IDENTIFIER_BASE}/id/category-option-code"
 
+#: The tracked entity type family: the vocabulary the concept comes from, the map over it, and the
+#: R4 code system of resource types the map answers in. The type is left unmapped by the project,
+#: so what comes back is the default every person-tracking project relies on.
+_TYPE_CODE_SYSTEM = f"{_CANONICAL}/CodeSystem/d2-tet-cs"
+_TYPE_CONCEPT_MAP = f"{_CANONICAL}/ConceptMap/d2-tet-cm"
+_RESOURCE_TYPE_SYSTEM = "http://hl7.org/fhir/resource-types"
+_TYPE_CONCEPT_CODE = "nEenWmSyUEp"
+
+#: The person-only form of that type, which is what makes the run publish the type as a concept.
+_PERSON_FORM = QuestionnaireSourceIn(
+    uid=_TYPE_CONCEPT_CODE,
+    name="Person",
+    kind="tracked-entity",
+    tracked_entity_type_uid=_TYPE_CONCEPT_CODE,
+    flat_items=[QuestionnaireItemIn(uid="w75KJ2mc4zz", name="First name", value_type="TEXT")],
+)
+
 #: The concept the tests translate, and the two DHIS2 identifiers the map states for it.
 _CONCEPT_CODE = "kRRUtYaGett"
 _OPTION_CODE = "NB"
@@ -106,6 +131,16 @@ def translate_project(tmp_path: Path) -> FhirProject:
     compiled = project.ig_directory / "fsh-generated" / "resources"
     compiled.mkdir(parents=True)
     (compiled / "Questionnaire-d2-pr-anc-visit-q.json").write_text(json.dumps(_QUESTIONNAIRE), encoding="utf-8")
+    dictionary = build_data_dictionary_documents(
+        [_PERSON_FORM],
+        project.config.generate,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+    )
+    for concept_map in dictionary.concept_maps:
+        (compiled / f"ConceptMap-{concept_map.id}.json").write_text(
+            concept_map.model_dump_json(exclude_none=True, by_alias=True), encoding="utf-8"
+        )
 
     artifacts = [
         *build_option_set_concept_map_artifacts(
@@ -213,6 +248,27 @@ async def test_translate_answers_both_dhis2_identifiers_for_one_category_concept
         {"system": _CATEGORY_OPTION_CODE_SYSTEM, "code": _CATEGORY_OPTION_CODE, "display": "Female"},
     ]
     assert _parts(_matches(body)[0])["source"] == {"name": "source", "valueUri": _CATEGORY_CONCEPT_MAP}
+
+
+async def test_translate_answers_the_resource_type_a_tracked_entity_type_is_published_as(
+    translate_client: httpx.AsyncClient,
+) -> None:
+    """The map rides the same operation every other does: a type UID in, a FHIR resource type out."""
+    response = await translate_client.get(
+        _TRANSLATE_PATH, params={"system": _TYPE_CODE_SYSTEM, "code": _TYPE_CONCEPT_CODE}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["parameter"][0] == {"name": "result", "valueBoolean": True}
+    parts = _parts(_matches(body)[0])
+    assert parts["concept"]["valueCoding"] == {
+        "system": _RESOURCE_TYPE_SYSTEM,
+        "code": "Patient",
+        "display": "Person",
+    }
+    assert parts["equivalence"] == {"name": "equivalence", "valueCode": "equal"}
+    assert parts["source"] == {"name": "source", "valueUri": _TYPE_CONCEPT_MAP}
 
 
 async def test_a_target_system_narrows_a_category_answer_to_one_group(translate_client: httpx.AsyncClient) -> None:
@@ -329,13 +385,18 @@ async def test_a_concept_map_is_read_as_the_document_the_project_published(
     assert _CONCEPT_CODE in [element["code"] for element in body["group"][0]["element"]]
 
 
-async def test_searching_concept_maps_answers_both_families(translate_client: httpx.AsyncClient) -> None:
+async def test_searching_concept_maps_answers_every_family(translate_client: httpx.AsyncClient) -> None:
+    """The search reads the whole store, so the compiled tree's maps sit beside the predefined tree's."""
     response = await translate_client.get("/ConceptMap")
 
     assert response.status_code == 200
     body = response.json()
     assert body["type"] == "searchset"
-    assert sorted(entry["resource"]["url"] for entry in body["entry"]) == [_CATEGORY_CONCEPT_MAP, _CONCEPT_MAP]
+    assert sorted(entry["resource"]["url"] for entry in body["entry"]) == [
+        _CATEGORY_CONCEPT_MAP,
+        _CONCEPT_MAP,
+        _TYPE_CONCEPT_MAP,
+    ]
 
 
 async def test_searching_concept_maps_by_url_selects_one_map(translate_client: httpx.AsyncClient) -> None:

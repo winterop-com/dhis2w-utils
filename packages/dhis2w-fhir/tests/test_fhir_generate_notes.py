@@ -46,6 +46,7 @@ _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
         GenerateNoteCategory.SELECTION_GAP: 1,
     },
     "resources/questionnaires/documents.py": {GenerateNoteCategory.SELECTION_GAP: 1},
+    "resources/questionnaires/schemas.py": {GenerateNoteCategory.SELECTION_GAP: 1},
     "service.py": {
         GenerateNoteCategory.BUILD_COST: 1,
         GenerateNoteCategory.EMPTY_SELECTION: 4,

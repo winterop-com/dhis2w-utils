@@ -92,3 +92,28 @@ Description: {{ terminology.description_literal }}
 * ^status = #{{ terminology.ig_status }}
 * ^experimental = {{ "true" if terminology.experimental else "false" }}
 * include codes from system {{ terminology.code_system }}
+{% if terminology.resource_map is not none %}
+{% set map = terminology.resource_map %}
+
+// The resource each concept stands for, published so a consumer resolves it off the guide rather
+// than off this project's fhir.toml, which states only the types that are not the default.
+Instance: {{ map.fsh_name }}
+InstanceOf: ConceptMap
+Title: {{ map.title_literal }}
+Description: {{ map.description_literal }}
+Usage: #definition
+* id = "{{ map.concept_map_id }}"
+* name = "{{ map.fsh_name }}"
+* status = #{{ terminology.ig_status }}
+* experimental = {{ "true" if terminology.experimental else "false" }}
+* sourceCanonical = Canonical({{ map.value_set }})
+* targetCanonical = "{{ map.target_value_set_url }}"
+* group[0].source = "{{ map.source_url }}"
+* group[0].target = "{{ map.target_code_system_url }}"
+{% for mapping in map.mappings %}
+* group[0].element[{{ loop.index0 }}].code = #{{ mapping.uid }}
+* group[0].element[{{ loop.index0 }}].display = {{ mapping.display_literal }}
+* group[0].element[{{ loop.index0 }}].target[0].code = #{{ mapping.resource_type }}
+* group[0].element[{{ loop.index0 }}].target[0].equivalence = #{{ map.equivalence }}
+{% endfor %}
+{% endif %}

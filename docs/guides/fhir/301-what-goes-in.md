@@ -263,9 +263,21 @@ matching FHIR kind - one of `Patient`, `Person`, `Practitioner`,
 Every form of every program tracking those types now says its subject is a
 group or a place, not a person.
 
+**Only the exceptions go here, and only UIDs.** What a type is *called* is the
+instance's to say, so no name is ever written into this table - the generated
+guide reads the names off DHIS2 and publishes them as the `D2TET_CS` vocabulary,
+with a `D2TET_CM` row per type naming the resource its registrations are published
+as. A consumer of the guide therefore resolves a type without holding this file
+(see [Terminology and ConceptMaps](401-terminology-and-conceptmaps.md#the-resource-each-type-is-published-as)),
+and renaming a type in DHIS2 changes the guide on the next run with nothing to edit
+here.
+
 **Default:** absent - **If you leave it out:** every tracked entity type is
 treated as a person, which is right for the typical health project - a
-person-tracking project leaves this table out entirely.
+person-tracking project leaves this table out entirely. A run whose forms register
+two or more types that this table never names says so as a generate note, naming
+each one - two kinds of thing published as one resource is usually a table someone
+meant to fill in.
 
 **If you get it wrong:** a kind outside the list refuses the run:
 
