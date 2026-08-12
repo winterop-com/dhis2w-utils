@@ -70,7 +70,11 @@ async def test_forward_defaults_to_a_dry_run(monkeypatch: pytest.MonkeyPatch, tm
         async with Client(_server()) as client:
             result = await client.call_tool("fhir_forward", {})
     assert mock.await_args is not None
-    assert mock.await_args.kwargs == {"import_responses": False, "coded_answer_mode": None}
+    assert mock.await_args.kwargs == {
+        "import_responses": False,
+        "coded_answer_mode": None,
+        "register_completeness": True,
+    }
     structured = result.structured_content or {}
     assert structured.get("dry_run") is True
 
@@ -87,7 +91,11 @@ async def test_forward_commits_and_takes_the_code_dial(monkeypatch: pytest.Monke
                 {"project_directory": str(project), "dry_run": False, "strict_codes": True},
             )
     assert mock.await_args is not None
-    assert mock.await_args.kwargs == {"import_responses": True, "coded_answer_mode": CodedAnswerMode.STRICT}
+    assert mock.await_args.kwargs == {
+        "import_responses": True,
+        "coded_answer_mode": CodedAnswerMode.STRICT,
+        "register_completeness": True,
+    }
 
 
 async def test_validate_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -20,6 +20,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from dhis2w_client.generated.v42.oas import DataValueSet, TrackerEnrollment, TrackerEvent, TrackerTrackedEntity
+from dhis2w_client.v42.aggregate import CompleteDataSetRegistration
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import IDENTIFIER_SYSTEM_SUBJECTS, FoundationNaming
@@ -188,8 +189,11 @@ class ConversionNoteCategory(StrEnum):
     #: The context knows no DHIS2 value type for a boolean question, so it is read as `BOOLEAN`.
     BOOLEAN_VALUE_TYPE_ASSUMED = "boolean-value-type-assumed"
 
-    #: The data value set's `completeDate` was taken from the response's `authored` instant.
-    COMPLETE_DATE_DERIVED = "complete-date-derived"
+    #: The response reports itself `completed`, so the tuple it imports is registered complete.
+    COMPLETENESS_CLAIMED = "completeness-claimed"
+
+    #: The response reports itself `in-progress`, so its values import and no completeness is claimed.
+    COMPLETENESS_NOT_CLAIMED = "completeness-not-claimed"
 
     #: A tracker response carries a subject reference, which its tracked-entity identifier supersedes.
     SUBJECT_REFERENCE_IGNORED = "subject-reference-ignored"
@@ -597,6 +601,14 @@ class ConversionResult(BaseModel):
     Set instead of `tracked_entity`, and posted as a top-level `enrollments` array: an enrollment
     that rides inside a `trackedEntities` wrapper rewrites the person's owning organisation unit
     (BUGS.md 73), and a person this response did not create is not this response's to move.
+    """
+
+    completeness: CompleteDataSetRegistration | None = None
+    """The completeness the aggregate response claims, set only where its `status` is `completed`.
+
+    Carried beside the data value set rather than inside it, because it is a second write to a second
+    resource and it only happens once DHIS2 has taken the values. A response reporting itself
+    `in-progress` translates its values and carries nothing here.
     """
 
     notes: tuple[ConversionNote, ...] = ()

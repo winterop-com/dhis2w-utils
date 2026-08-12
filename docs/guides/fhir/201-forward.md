@@ -105,6 +105,53 @@ only failures are unverifiable exits 0: it proved everything a dry run can
 prove, and the unverifiable section says what is left for `--import` to
 answer.
 
+## Data set completeness
+
+DHIS2 keeps a separate record of whether a data set is *finished* for a
+period - a `completeDataSetRegistration`, keyed by the same
+`(data set, period, organisation unit, attribute option combo)` the values are
+filed under. The capture contract already states it, and needs no extension to
+do so: `QuestionnaireResponse.status` is `completed` when the reporter finished
+the report and `in-progress` when they did not.
+
+| The response says | The values | The completeness |
+| --- | --- | --- |
+| `completed` | imported | the tuple is registered complete |
+| `in-progress` | imported | nothing is registered |
+
+The registration is a **second write, made only after DHIS2 has taken the
+values**. A completeness claim about data the instance refused would be a lie,
+so a rejected import registers nothing at all. `--no-register-completeness`
+turns the second write off for a whole run, and the report says
+`not-registered` for every response that would have made one.
+
+The `Data set completeness` row of the summary counts the run, and `--details`
+(or the written report) lists the tuple each response claimed - the four keys
+are written out because a registration has no UID to look it up by.
+
+| Outcome | What it means |
+| --- | --- |
+| `registered` | DHIS2 took the registration; the data set is complete for that tuple |
+| `would-register` | a dry run: the tuple a `completed` response would register |
+| `not-claimed` | the response reports itself `in-progress` |
+| `not-registered` | the run ran under `--no-register-completeness` |
+| `refused` | the values imported and DHIS2 refused the registration |
+
+**A refused registration does not un-import the values.** They are imported and
+they stay imported; only the claim failed, and the response still counts
+`accepted`. Forwarding the same tuple again is the retry - DHIS2 answers a
+registration it already holds with `updated`, not a conflict.
+
+A dry run posts nothing here. It wrote no values, so there is nothing for a
+completeness claim to be about; what it states is the tuple that *would* be
+registered, and whether DHIS2 accepts that write is answered by the import.
+
+The forwarder never writes `/api/dataValueSets`' own `completeDate`, even
+though that field registers completeness too. On 2.42 it registers even when
+every value in the envelope was refused, and even under `dryRun=true`
+(`BUGS.md` 76, 77) - so the claim is made in a call of its own, after the
+values are known to have landed.
+
 ## The three states a receipt can end in
 
 ```
@@ -155,9 +202,11 @@ aggregate envelope (`POST /api/dataValueSets`):
 | `period` | the `D2Period` extension's `iso` sub-extension, re-parsed | refused (`missing-period` / `malformed-period`) |
 | `orgUnit` | `subject.reference`, resolved through the published Location's `{base}/id/org-unit` identifier | refused (`missing-organisation-unit` / `unresolvable-organisation-unit`) |
 | `attributeOptionCombo` | the `D2AttributeOptionCombo` extension's coding, resolved against the vocabulary the form declares | refused where the form declares one; unset where it does not |
-| `completeDate` | the day of the response's `authored` instant, noted | left unset |
 | `dataValues[].dataElement` / `.categoryOptionCombo` | the answered item's link id, `<dataElement>.<categoryOptionCombo>` for a disaggregated cell | refused (`unknown-link-id`) |
 | `dataValues[].value` | the answer's `value[x]`, per the question's DHIS2 value type | refused, per the reason |
+
+The envelope carries no `completeDate`. Completeness is a second write, and
+[Data set completeness](#data-set-completeness) is where it happens.
 
 A registration response becomes one `/api/tracker` `trackedEntities` entry
 carrying the single enrollment it creates. Both DHIS2 identities travel as

@@ -819,13 +819,40 @@ def test_a_period_range_disagreeing_with_its_iso_period_is_noted_and_the_iso_per
     assert ConversionNoteCategory.PERIOD_RANGE_IGNORED in _note_categories(result)
 
 
-def test_an_aggregate_response_takes_its_complete_date_from_the_authored_instant() -> None:
-    """A data value set is reported complete for a period, and `authored` is when that happened."""
+def test_a_completed_aggregate_response_claims_the_tuple_its_values_ride_under() -> None:
+    """`status` is the claim: `completed` registers the data set complete for the very tuple imported."""
     response = _aggregate_response().model_copy(update={"authored": "2026-02-03T08:00:00"})
     result = translate_response(_document(response, [_DATA_SET]), _context([_DATA_SET]))
     assert result.data_value_set is not None
-    assert result.data_value_set.completeDate == "2026-02-03"
-    assert ConversionNoteCategory.COMPLETE_DATE_DERIVED in _note_categories(result)
+    assert result.completeness is not None
+    assert result.completeness.dataSet == result.data_value_set.dataSet
+    assert result.completeness.period == result.data_value_set.period
+    assert result.completeness.organisationUnit == result.data_value_set.orgUnit
+    assert result.completeness.attributeOptionCombo == result.data_value_set.attributeOptionCombo
+    assert result.completeness.date == "2026-02-03"
+    assert result.completeness.completed is True
+    assert ConversionNoteCategory.COMPLETENESS_CLAIMED in _note_categories(result)
+
+
+def test_the_data_value_set_never_carries_a_complete_date_of_its_own() -> None:
+    """`completeDate` registers completeness ungated - on a dry run and on a refused import (BUGS.md 76, 77).
+
+    The forwarder states the claim through `/api/completeDataSetRegistrations` after the values land, so
+    the field DHIS2 acts on before it has taken anything is never written.
+    """
+    result = translate_response(_aggregate_document(), _context([_DATA_SET]))
+    assert result.data_value_set is not None
+    assert result.data_value_set.completeDate is None
+
+
+def test_an_in_progress_aggregate_response_imports_its_values_and_claims_nothing() -> None:
+    """A report the reporter has not finished is not a report anybody may call complete."""
+    response = _aggregate_response().model_copy(update={"status_code": "in-progress"})
+    result = translate_response(_document(response, [_DATA_SET]), _context([_DATA_SET]))
+    assert result.data_value_set is not None
+    assert result.data_value_set.dataValues
+    assert result.completeness is None
+    assert ConversionNoteCategory.COMPLETENESS_NOT_CLAIMED in _note_categories(result)
 
 
 def test_a_group_item_answering_nothing_is_skipped_rather_than_refused() -> None:

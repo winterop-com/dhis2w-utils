@@ -16,6 +16,7 @@ from dhis2w_client.errors import Dhis2ApiError
 # The v41 generated OAS tree carries no import-summary, import-conflict, or import-count module, so
 # the import-report shapes come from v42 on every major - they are the wire shape all three answer with.
 from dhis2w_client.generated.v42.oas import ImportConflict, ImportSummary, TrackerImportError, TrackerImportReport
+from dhis2w_client.v42.aggregate import CompleteDataSetRegistration, CompleteDataSetRegistrations
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile, resolve
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -3617,11 +3618,15 @@ def _organisation_unit_input(
 
 
 #: How many steps `forward_responses` announces: read the spool, read the guide, read the value types,
-#: translate, post, file what each response became.
-FORWARD_STEPS = 6
+#: translate, post, register the completed reports, file what each response became.
+FORWARD_STEPS = 7
 
 #: The `/api/dataValueSets` endpoint one aggregate response is imported through.
 _DATA_VALUE_SETS_PATH = "/api/dataValueSets"
+
+#: The `/api/completeDataSetRegistrations` endpoint a `completed` aggregate response is registered
+#: complete through, once DHIS2 has taken its values.
+_COMPLETE_DATA_SET_REGISTRATIONS_PATH = "/api/completeDataSetRegistrations"
 
 #: The `/api/tracker` endpoint both event kinds and every registration are imported through.
 _TRACKER_PATH = "/api/tracker"
@@ -3679,6 +3684,16 @@ _POST_TICK_INTERVAL = 10
 #: enrollment (BUGS.md 68). A rejection carrying only these is the whole shape a dry run cannot check.
 _ABSENT_ENROLLMENT_ERROR_CODES = frozenset({"E1079", "E1313"})
 
+#: What a dry run can and cannot say about a completeness registration it did not make. The endpoint
+#: has a `dryRun` of its own, but a dry run wrote no values for it to be a claim about, so the honest
+#: statement is what would be registered rather than a validation of the tuple.
+_COMPLETENESS_DRY_RUN_REASON = (
+    "A dry run writes no values, so there is nothing for a completeness registration to be a claim about "
+    "and none is posted. What the run states is the tuple each `completed` response would register - the "
+    "data set, period, organisation unit, and attribute option combo its values ride under. Whether DHIS2 "
+    "accepts that write is checked by the import, which registers only after it has taken the values."
+)
+
 #: What a dry run says about a stage event whose enrollment only a registration of the same run creates.
 _UNVERIFIABLE_IN_DRY_RUN_REASON = (
     "The enrollment this event answers into is created by a registration validated in the same run. A dry "
@@ -3701,6 +3716,25 @@ class ForwardOutcomeKind(StrEnum):
 
     #: A dry run could not check the payload, because what it answers into is created by the same run.
     UNVERIFIABLE = "unverifiable"
+
+
+class ForwardCompletenessKind(StrEnum):
+    """What became of one aggregate response's completeness claim."""
+
+    #: DHIS2 took the registration: the data set is complete for the tuple the values landed under.
+    REGISTERED = "registered"
+
+    #: A dry run states the tuple a `completed` response would register, and posts nothing.
+    WOULD_REGISTER = "would-register"
+
+    #: The response reports itself `in-progress`, so its values imported and it claims nothing.
+    NOT_CLAIMED = "not-claimed"
+
+    #: The values imported and DHIS2 refused the registration; the values stay imported.
+    REFUSED = "refused"
+
+    #: The run was told not to register completeness, so a `completed` response claims and posts nothing.
+    NOT_REGISTERED = "not-registered"
 
 
 class ForwardImportIssue(BaseModel):
@@ -3729,6 +3763,42 @@ class ForwardImportIssue(BaseModel):
     def reason(self) -> str:
         """What the row says, falling back to the code when DHIS2 gave no message at all."""
         return self.message or self.error_code or "no reason given"
+
+
+class ForwardCompletenessOutcome(BaseModel):
+    """The tuple one aggregate response claims complete, and what DHIS2 said about the claim.
+
+    The four keys are named here rather than left to the import summary because a completeness
+    registration is DHIS2's one write with no identity of its own: there is no UID to look it up by,
+    only the tuple, so a reader who wants to check it needs the tuple written down.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: ForwardCompletenessKind
+    data_set: str | None = None
+    period: str | None = None
+    organisation_unit: str | None = None
+    attribute_option_combo: str | None = None
+    """Unset where the data set rides the default category combo, which is what DHIS2 files it under."""
+
+    date: str | None = None
+    message: str | None = None
+    """What DHIS2 said when it refused the registration, which is the only thing a refusal can be acted on."""
+
+    issues: tuple[ForwardImportIssue, ...] = ()
+
+    @property
+    def tuple_line(self) -> str:
+        """The four keys as the one cell a report shows, since the registration has no other name."""
+        parts = [self.data_set, self.period, self.organisation_unit, self.attribute_option_combo]
+        return " / ".join(part for part in parts if part) or "no tuple"
+
+    @property
+    def reason(self) -> str:
+        """Why a refused registration was refused, as the one line a table cell and a report both want."""
+        lines = [issue.line for issue in self.issues]
+        return "; ".join(lines) if lines else (self.message or "DHIS2 gave no reason")
 
 
 class ForwardImportOutcome(BaseModel):
@@ -3820,6 +3890,9 @@ class ForwardOutcome(BaseModel):
     notes: tuple[ConversionNote, ...] = ()
     refusals: tuple[ConversionRefusal, ...] = ()
     import_outcome: ForwardImportOutcome | None = None
+    completeness: ForwardCompletenessOutcome | None = None
+    """What became of an aggregate response's completeness claim; unset for every other payload kind."""
+
     spool_path: str
     """Where the receipt sits now, relative to the project root - unmoved on a dry run and on a refusal."""
 
@@ -3840,6 +3913,9 @@ class ForwardReport(BaseModel):
     project_root: Path
     dry_run: bool
     coded_answer_mode: CodedAnswerMode
+    register_completeness: bool = True
+    """Whether the run registered completeness for the `completed` aggregate responses DHIS2 took."""
+
     spooled: int = 0
     outcomes: tuple[ForwardOutcome, ...] = ()
     unreadable_artifacts: tuple[str, ...] = ()
@@ -3883,6 +3959,31 @@ class ForwardReport(BaseModel):
             f"{self.posted_count:,} posted, {len(self.accepted):,} accepted, {len(self.rejected):,} rejected, "
             f"{len(self.unverifiable):,} unverifiable in a dry run"
         )
+
+    @property
+    def completeness_outcomes(self) -> tuple[ForwardCompletenessOutcome, ...]:
+        """What every aggregate response of the run said about completeness, in spool order."""
+        return tuple(outcome.completeness for outcome in self.outcomes if outcome.completeness is not None)
+
+    def completeness_of(self, kind: ForwardCompletenessKind) -> tuple[ForwardCompletenessOutcome, ...]:
+        """Every completeness outcome of one kind, which is what the counts and the report sections read."""
+        return tuple(outcome for outcome in self.completeness_outcomes if outcome.kind == kind)
+
+    @property
+    def completeness_line(self) -> str:
+        """The run's completeness in one line, or nothing at all when no aggregate response claimed any."""
+        outcomes = self.completeness_outcomes
+        if not outcomes:
+            return ""
+        counted = Counter(outcome.kind for outcome in outcomes)
+        return ", ".join(f"{counted[kind]:,} {kind}" for kind in ForwardCompletenessKind if counted[kind])
+
+    @property
+    def completeness_dry_run_reason(self) -> str:
+        """What this dry run could not check about the completeness it would register, or nothing at all."""
+        if not self.dry_run or not self.completeness_of(ForwardCompletenessKind.WOULD_REGISTER):
+            return ""
+        return _COMPLETENESS_DRY_RUN_REASON
 
     @property
     def rejection_reasons(self) -> tuple[ForwardRejectionReason, ...]:
@@ -3933,6 +4034,7 @@ async def forward_responses(
     *,
     import_responses: bool = False,
     coded_answer_mode: CodedAnswerMode | None = None,
+    register_completeness: bool = True,
     reporter: ProgressReporter | None = None,
 ) -> ForwardReport:
     """Drain a project's capture spool into DHIS2: translate every receipt, post it, and file what it became.
@@ -3963,6 +4065,15 @@ async def forward_responses(
     the absent enrollment. Those responses are counted `unverifiable` rather than `rejected`: the
     enrollment they name is one this run's registrations mint, and an import posts registrations
     first. An event naming an enrollment no registration of the run mints is a rejection either way.
+
+    An aggregate response reporting itself `completed` also registers completeness - the data set is
+    marked complete for the very tuple its values landed under. That is a second write to a second
+    resource (`/api/completeDataSetRegistrations`), and it happens **only after DHIS2 has taken the
+    values**: a completeness claim about data the instance refused would be a lie. A response
+    reporting itself `in-progress` imports its values and registers nothing, and a run under
+    `register_completeness=False` registers nothing at all. A registration DHIS2 refuses does not
+    un-import the values - they stay imported, and the response is still `accepted` - so the refusal
+    is carried on the outcome and stated in the report rather than folded into the import answer.
 
     `coded_answer_mode` defaults to what `[serve] strict_codes` says, so a project that captures
     strictly forwards strictly without stating it twice.
@@ -4002,12 +4113,25 @@ async def forward_responses(
         imports = await _post_translations(client, spooled, conversion, dry_run=dry_run, progress=progress)
         progress.complete(f"{len(imports):,} payload(s) posted{' (validate only)' if dry_run else ''}")
 
+        progress.step("completeness", "registering the completed reports")
+        completeness = await _register_completeness(
+            client,
+            spooled,
+            conversion,
+            imports,
+            dry_run=dry_run,
+            registering=register_completeness,
+            progress=progress,
+        )
+        progress.complete(_completeness_completion(completeness, dry_run=dry_run, registering=register_completeness))
+
     progress.step("spool", "filing what each response became")
     minted_enrollments = _minted_enrollment_uids(conversion) if dry_run else frozenset[str]()
     outcomes = _file_outcomes(
         spooled,
         conversion,
         imports,
+        completeness,
         project.project_root,
         moving=import_responses,
         minted_enrollments=minted_enrollments,
@@ -4016,6 +4140,7 @@ async def forward_responses(
         project_root=project.project_root,
         dry_run=dry_run,
         coded_answer_mode=mode,
+        register_completeness=register_completeness,
         spooled=len(spooled),
         outcomes=outcomes,
         unreadable_artifacts=artifacts.unreadable_resources,
@@ -4109,6 +4234,115 @@ async def _post_translations(
         if posted % _POST_TICK_INTERVAL == 0 or posted == len(translated):
             progress.tick(_post_caption(posted, len(translated), dry_run=dry_run))
     return imports
+
+
+async def _register_completeness(
+    client: Dhis2Client,
+    spooled: Sequence[SpooledResponse],
+    conversion: ConversionReport,
+    imports: dict[str, ForwardImportOutcome],
+    *,
+    dry_run: bool,
+    registering: bool,
+    progress: _StepAnnouncer,
+) -> dict[str, ForwardCompletenessOutcome]:
+    """Register the data set complete for every `completed` aggregate response DHIS2 has just taken.
+
+    The order is the whole safety property: this runs after `_post_translations`, and a response is
+    only registered when its own import answer says DHIS2 took the values. A response the instance
+    rejected registers nothing, because completeness is a claim about data that landed - and DHIS2
+    itself is looser than that, registering off `/api/dataValueSets`' own `completeDate` even when
+    every value in the envelope was refused and even under `dryRun=true` (BUGS.md 78, 79), which is
+    exactly why the forwarder never writes that field and states the claim here instead.
+
+    A dry run posts nothing. The endpoint has a `dryRun` of its own, but a dry run wrote no values for
+    the claim to be about, so the honest outcome is the tuple that would be registered.
+
+    A refusal is recorded and does not change what the response became. The values are imported and
+    stay imported; unwinding them over a failed second write would turn one refused claim into a lost
+    report. The next run is the retry: registering a tuple twice is an update, not a conflict.
+    """
+    claims = [
+        (entry, result)
+        for entry, result in zip(spooled, conversion.results, strict=True)
+        if result.completeness is not None or (result.data_value_set is not None and not result.is_refused)
+    ]
+    outcomes: dict[str, ForwardCompletenessOutcome] = {}
+    posted = 0
+    for entry, result in claims:
+        claim = result.completeness
+        if claim is None:
+            outcomes[entry.response_id] = ForwardCompletenessOutcome(kind=ForwardCompletenessKind.NOT_CLAIMED)
+            continue
+        if not registering:
+            outcomes[entry.response_id] = _completeness_outcome(ForwardCompletenessKind.NOT_REGISTERED, claim)
+            continue
+        if dry_run:
+            outcomes[entry.response_id] = _completeness_outcome(ForwardCompletenessKind.WOULD_REGISTER, claim)
+            continue
+        imported = imports.get(entry.response_id)
+        if imported is None or imported.is_rejected:
+            continue
+        posted += 1
+        progress.tick(f"registering completed reports ({posted:,})")
+        outcomes[entry.response_id] = await _post_completeness(client, claim)
+    return outcomes
+
+
+async def _post_completeness(client: Dhis2Client, claim: CompleteDataSetRegistration) -> ForwardCompletenessOutcome:
+    """POST one completeness registration and project DHIS2's answer onto the outcome the report reads.
+
+    The answer is `/api/dataValueSets`' own envelope - a `WebMessage` wrapping an `ImportSummary` - so
+    the aggregate projection reads it unchanged. A registration DHIS2 has already stored counts
+    `updated` rather than conflicting, which is what makes forwarding the same tuple twice safe.
+    """
+    body = CompleteDataSetRegistrations(completeDataSetRegistrations=[claim]).model_dump(
+        by_alias=True, exclude_none=True, mode="json"
+    )
+    answer = _aggregate_import_outcome(await _post_body(client, _COMPLETE_DATA_SET_REGISTRATIONS_PATH, body, {}))
+    if answer.is_rejected:
+        return _completeness_outcome(
+            ForwardCompletenessKind.REFUSED, claim, message=answer.message, issues=answer.issues
+        )
+    return _completeness_outcome(ForwardCompletenessKind.REGISTERED, claim)
+
+
+def _completeness_outcome(
+    kind: ForwardCompletenessKind,
+    claim: CompleteDataSetRegistration,
+    *,
+    message: str | None = None,
+    issues: tuple[ForwardImportIssue, ...] = (),
+) -> ForwardCompletenessOutcome:
+    """One claim as the outcome the report reads, carrying its four keys however the claim ended."""
+    return ForwardCompletenessOutcome(
+        kind=kind,
+        data_set=claim.dataSet,
+        period=claim.period,
+        organisation_unit=claim.organisationUnit,
+        attribute_option_combo=claim.attributeOptionCombo,
+        date=claim.date,
+        message=message,
+        issues=issues,
+    )
+
+
+def _completeness_completion(
+    completeness: dict[str, ForwardCompletenessOutcome], *, dry_run: bool, registering: bool
+) -> str:
+    """What the completeness step announces when it finishes, in the terms of the mode that ran."""
+    if not completeness:
+        return "no aggregate response to register"
+    if not registering:
+        return f"{len(completeness):,} aggregate response(s), completeness registration off"
+    counted = Counter(outcome.kind for outcome in completeness.values())
+    claimed = len(completeness) - counted[ForwardCompletenessKind.NOT_CLAIMED]
+    if dry_run:
+        return f"{claimed:,} report(s) would be registered complete (validate only)"
+    return (
+        f"{counted[ForwardCompletenessKind.REGISTERED]:,} report(s) registered complete, "
+        f"{counted[ForwardCompletenessKind.REFUSED]:,} refused"
+    )
 
 
 def _post_order(result: ConversionResult) -> int:
@@ -4277,6 +4511,7 @@ def _file_outcomes(
     spooled: Sequence[SpooledResponse],
     conversion: ConversionReport,
     imports: dict[str, ForwardImportOutcome],
+    completeness: dict[str, ForwardCompletenessOutcome],
     project_root: Path,
     *,
     moving: bool,
@@ -4301,6 +4536,7 @@ def _file_outcomes(
                 notes=result.notes,
                 refusals=result.refusals,
                 import_outcome=imported,
+                completeness=completeness.get(entry.response_id),
                 spool_path=_relative_path(path, project_root),
             )
         )

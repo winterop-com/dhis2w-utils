@@ -627,6 +627,7 @@ Drain a FHIR project's capture spool into DHIS2 - translate every received respo
 | `project_directory` | `string` | no | — |
 | `dry_run` | `boolean` | no | — |
 | `strict_codes` | `boolean` | no | — |
+| `register_completeness` | `boolean` | no | — |
 
 ### `fhir_validate`
 

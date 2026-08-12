@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-82 entries grouped by area. **Status tags** carry the result of the most
+87 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -112,6 +112,11 @@ filing.
 - [#74](#74-unique-tracked-entity-attributes-are-not-searched-instance-wide-by-apitrackertrackedentities) — Unique attributes not searched instance-wide when org-unit scoped
 - [#75](#75-e1302-puts-the-value-type---or-nothing-at-all---where-the-data-element-identifier-belongs) — `E1302` names the value type, or nothing, where the data element belongs
 - [#76](#76-v43-aggregate-conflicts-no-longer-name-the-offending-object-e8122-drops-object-and-property) — v43 aggregate conflicts drop `object`/`property`; the failing data element is unnamed
+- [#77](#77-a-tracked-entity-is-filterable-by-a-unique-program-attribute-it-does-not-carry-in-attributes) — A tracked entity is filterable by a unique program attribute absent from `attributes[]`
+- [#78](#78-dryruntrue-on-apidatavaluesets-still-persists-the-completeness-registration) — `dryRun=true` data value set import persists the completeness registration (2.42)
+- [#79](#79-completeness-registers-off-completedate-even-when-every-data-value-is-refused) — Completeness registers off `completeDate` even when every value is refused (2.42)
+- [#80](#80-apicompletedatasetregistrations-has-no-component-schema-in-the-openapi-document) — `/api/completeDataSetRegistrations` has no component schema
+- [#81](#81-first-completeness-registration-for-a-never-persisted-period-fails-with-an-opaque-failed-to-flush-batchhandler-the-identical-retry-succeeds) — First registration for a virgin period fails opaquely; the retry succeeds (2.43.1)
 
 ### v43-specific
 
@@ -4266,5 +4271,113 @@ the two attribute lists itself.
 in full, enrollments and their attributes included, and
 `patients/projection.py` folds the entity-level and enrollment-level values into one
 list deduplicated by attribute and value.
+
+**Verifier:** none yet.
+
+### 78. `dryRun=true` on `/api/dataValueSets` still persists the completeness registration
+
+A dry-run data value set import carrying `completeDate` writes no values - and stores
+the complete-data-set registration anyway. The one thing a dry run promises is that
+nothing persists.
+
+**Observed on:** DHIS2 2.42.6-SNAPSHOT rev `9f44cd4` (play dev-2-42, 2026-08-12). NOT
+reproducible on 2.43.1 rev `9cbfbf3`, which persists nothing under `dryRun=true`.
+
+**Repro:**
+
+```bash
+B=https://play.im.dhis2.org/dev-2-42; A=admin:district
+curl -s -u $A -H Accept:application/json \
+  "$B/api/completeDataSetRegistrations?dataSet=BfMAe6Itzgt&period=204001&orgUnit=y77LiPqLMoq"   # {}
+echo '{"dataSet":"BfMAe6Itzgt","period":"204001","orgUnit":"y77LiPqLMoq","completeDate":"2020-05-05",
+       "dataValues":[{"dataElement":"dU0GquGkGQr","categoryOptionCombo":"V6L425pT3A0","value":"9"}]}' \
+ | curl -s -u $A -H Accept:application/json -H Content-Type:application/json -X POST --data-binary @- \
+   "$B/api/dataValueSets?dryRun=true"
+curl -s -u $A -H Accept:application/json \
+  "$B/api/completeDataSetRegistrations?dataSet=BfMAe6Itzgt&period=204001&orgUnit=y77LiPqLMoq"
+```
+
+**Expected:** still `{}` - a dry run persists nothing.
+
+**Actual:** a stored registration.
+
+**Workaround in this repo:** the forwarder never sends `completeDate` on a data value
+set - the completeness claim is a separate `POST /api/completeDataSetRegistrations`
+made only after a real import succeeds (`translate_aggregate_response` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/conversion/payloads.py`; `_register_completeness`
+in `packages/dhis2w-fhir/src/dhis2w_fhir/service.py`).
+
+**Verifier:** none yet.
+
+### 79. Completeness registers off `completeDate` even when every data value is refused
+
+The same import without `dryRun`: every value refused (`importCount
+{imported: 0, updated: 0, ignored: 1}`, HTTP 409, conflict `E7641`) - and the tuple is
+registered `completed: true` anyway. A completeness claim about data the import
+refused is a statement nothing supports.
+
+**Observed on:** DHIS2 2.42.6-SNAPSHOT rev `9f44cd4` (2026-08-12). 2.43.1 rev
+`9cbfbf3` answers `dataSetComplete: "false"` and registers nothing - sound.
+
+**Repro:** the entry-78 repro without `dryRun=true`, against a payload whose value the
+instance refuses.
+
+**Expected:** no registration when the values were refused, as 2.43 behaves.
+
+**Actual (2.42):** HTTP 409 with the conflict, and the registration stored.
+
+**Workaround in this repo:** same as entry 78 - `completeDate` is never sent; the
+separate completeness call fires only after the import report says the values landed.
+
+**Verifier:** none yet.
+
+### 80. `/api/completeDataSetRegistrations` has no component schema in the OpenAPI document
+
+The paths are declared with an untyped request body; `components.schemas` carries only
+`CompleteStatusDto` and `CompletenessMethod`. Nothing describes the registration row
+itself, so codegen emits no model for the one payload the endpoint exists to accept.
+
+**Observed on:** DHIS2 2.41 / 2.42 / 2.43 OpenAPI documents alike (2026-08-12).
+
+**Expected:** a component schema for the registration row (dataSet, period,
+organisationUnit, attributeOptionCombo, date, storedBy, completed), as the sibling
+data-value-set payloads have.
+
+**Actual:** untyped request body on every major.
+
+**Workaround in this repo:** hand-written `CompleteDataSetRegistration` /
+`CompleteDataSetRegistrations` in `dhis2w_client/v4{1,2,3}/aggregate.py`, docstrings
+citing this entry.
+
+**Verifier:** none yet.
+
+### 81. First completeness registration for a never-persisted period fails with an opaque `Failed to flush BatchHandler`; the identical retry succeeds
+
+**Observed on:** DHIS2 2.43.1 rev `9cbfbf3` (local stack, 2026-08-12). Not
+reproducible on 2.42.6-SNAPSHOT. Measured 12/20 failures on fresh periods versus 0/8
+on periods a data value had already touched.
+
+**Repro:**
+
+```bash
+B=http://localhost:8080; A=admin:district
+BODY='{"completeDataSetRegistrations":[{"dataSet":"BfMAe6Itzgt","period":"203401",
+       "organisationUnit":"y77LiPqLMoq","completed":true}]}'
+echo "$BODY" | curl -s -u $A -H Accept:application/json -H Content-Type:application/json \
+  -X POST --data-binary @- "$B/api/completeDataSetRegistrations"   # 409
+echo "$BODY" | curl -s -u $A -H Accept:application/json -H Content-Type:application/json \
+  -X POST --data-binary @- "$B/api/completeDataSetRegistrations"   # 200
+```
+
+**Expected:** the first attempt registers, or fails with a conflict naming a cause.
+
+**Actual:** 409 carrying `description: "The import process failed: Failed to flush
+BatchHandler"`, empty `conflicts`, all counts zero - indistinguishable from a real
+refusal; the byte-identical retry succeeds because the first attempt created the
+period row as a side effect.
+
+**Workaround in this repo:** none needed in practice - the forwarder posts the data
+values first, which persists the period properly, so the completeness call never sees
+a virgin period.
 
 **Verifier:** none yet.

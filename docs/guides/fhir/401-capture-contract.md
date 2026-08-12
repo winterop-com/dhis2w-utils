@@ -68,6 +68,31 @@ the profile documents and a server enforces: a response answering a form
 that carries `D2AttributeOptionCombos` has to carry `D2AttributeOptionCombo`,
 coded from the ValueSet that extension names.
 
+## `status` is the completeness claim
+
+`QuestionnaireResponse.status` is not bookkeeping. On an aggregate response it
+is the statement DHIS2 files as a `completeDataSetRegistration`, so a client
+picks it deliberately:
+
+| `status` | What a forward run does |
+| --- | --- |
+| `completed` | imports the values, then registers the data set complete for the `(data set, period, organisation unit, attribute option combo)` tuple those values landed under |
+| `in-progress` | imports the values and registers nothing |
+
+There is no extension for this and there does not need to be one: R4 already
+has the field, and the two codes already mean what DHIS2 means. A client that
+lets a reporter save a half-filled form sends `in-progress`, and switches to
+`completed` on the submit that finishes it - re-sending the same response as
+`completed` later is what registers it, because a registration DHIS2 already
+holds is updated rather than refused.
+
+`authored` rides along as the day claimed: it is the only statement of *when*
+the report was finished a response carries. Nothing states *who* finished it -
+the contract carries no reporter identity, so DHIS2 stores the API user.
+
+On an event response the same field means something else - it maps onto the
+DHIS2 event status - and [Forward](../fhir/201-forward.md) has that table.
+
 ## The tracked-entity subject is logical, not resolvable
 
 The guide publishes no `Patient` instances - DHIS2 holds the tracked

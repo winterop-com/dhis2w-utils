@@ -901,13 +901,34 @@ writes `DataValueSet.attributeOptionCombo` off the coding, resolved on the same
 tiers a coded answer resolves through. The shipped record is in
 [9.1](#91-near-term).
 
-**Completeness registration is still OPEN.** Nothing above expresses whether a
-reported period is *complete*: `/api/dataValueSets` takes a `completeDate` the
-forwarder currently derives from `QuestionnaireResponse.authored`, and DHIS2's
-`completeDataSetRegistrations` is a separate resource with its own
-`(dataSet, period, orgUnit, attributeOptionCombo)` key and its own completed-by
-and completed-on facts. Whether that becomes a second extension, a status code on
-the response, or an out-of-scope declaration is untouched by this decision.
+**Completeness registration is RESOLVED: `QuestionnaireResponse.status`, and a
+second write.** The carrier needed no extension, because R4 already has the
+field and its two codes already mean what DHIS2 means: `completed` is the
+reporter saying the report is finished, `in-progress` is them saying it is not.
+A `completed` aggregate response registers the data set complete for the very
+`(dataSet, period, orgUnit, attributeOptionCombo)` tuple its values landed
+under, claiming the day the response records itself `authored`; an
+`in-progress` one imports its values and claims nothing. Nothing states *who*
+completed it - the contract carries no reporter identity, and DHIS2 stores the
+API user rather than a name the guide would have to invent.
+
+The write is a second call to `/api/completeDataSetRegistrations`, made **only
+after DHIS2 has taken the values**, and the reason it is not the `completeDate`
+field `/api/dataValueSets` already carries is empirical: on 2.42 that field
+registers completeness even when every value in the envelope was refused, and
+even under `dryRun=true` (BUGS.md 76, 77). So the field is never written, and
+the claim is made in a call of its own once the values are known to have
+landed. A refused registration does not un-import the values - they stay
+imported, the response stays `accepted`, and forwarding the same tuple again is
+the retry, because DHIS2 answers a registration it already holds with `updated`
+rather than a conflict. A dry run posts nothing and states the tuple it would
+register. `--register-completeness/--no-register-completeness` (default on) is
+the dial; the outcomes are typed (`registered`, `would-register`,
+`not-claimed`, `not-registered`, `refused`) and carry the four keys, since a
+registration has no UID anybody could look it up by. The shipped record is in
+[9.1](#91-near-term).
+
+**Decision 5.4 is now closed in both halves.**
 
 ### 5.5 Event geometry
 
@@ -1927,7 +1948,18 @@ commitment.
     would answer `E8023` to, under two refusal kinds of its own
     (`missing-attribute-option-combo`, `unresolvable-attribute-option-combo`).
 
-    What is left open is the other half of 5.4: data-set completeness registration.
+    The other half of 5.4 lands beside it: **data-set completeness**, carried by
+    `QuestionnaireResponse.status` and written to `/api/completeDataSetRegistrations`
+    after the values are in. `completed` registers the tuple the values landed under
+    and claims the `authored` day; `in-progress` imports and claims nothing. The
+    `completeDate` on the data value set is deliberately never written - on 2.42 it
+    registers completeness even when every value was refused, and even under
+    `dryRun=true` (BUGS.md 76, 77) - so the claim is a second call made only once
+    DHIS2 has taken the values, and a claim it refuses does not un-import them. The
+    dial is `--register-completeness/--no-register-completeness` (default on), a dry
+    run states the tuple it would register rather than posting one, and the outcomes
+    are typed and carried on the report, because a registration has no UID to name it
+    by - only its four keys.
 
 - **The organisation-unit browser, with a map** - shipped as the capture UI's **Org
   units** page. The registry already carried everything a browser needs, in standard

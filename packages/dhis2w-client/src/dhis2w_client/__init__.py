@@ -52,6 +52,12 @@ if TYPE_CHECKING:
     from dhis2w_client.profile import (
         validate_profile_name as validate_profile_name,
     )
+    from dhis2w_client.v42.aggregate import (
+        CompleteDataSetRegistration as CompleteDataSetRegistration,
+    )
+    from dhis2w_client.v42.aggregate import (
+        CompleteDataSetRegistrations as CompleteDataSetRegistrations,
+    )
     from dhis2w_client.v42.aggregate import DataValue as DataValue
     from dhis2w_client.v42.aggregate import DataValueSet as DataValueSet
     from dhis2w_client.v42.analytics import (
@@ -675,6 +681,8 @@ __all__ = [
     "CategoryOptionGroupSetsAccessor",
     "CategoryOptionGroupsAccessor",
     "CategoryOptionsAccessor",
+    "CompleteDataSetRegistration",
+    "CompleteDataSetRegistrations",
     "Conflict",
     "ConflictRow",
     "CopyOp",
@@ -904,6 +912,8 @@ _LAZY_EXPORTS: dict[str, str] = {
     "CategoryOptionGroupSetsAccessor": "dhis2w_client.v42.category_option_group_sets",
     "CategoryOptionGroupsAccessor": "dhis2w_client.v42.category_option_groups",
     "CategoryOptionsAccessor": "dhis2w_client.v42.category_options",
+    "CompleteDataSetRegistration": "dhis2w_client.v42.aggregate",
+    "CompleteDataSetRegistrations": "dhis2w_client.v42.aggregate",
     "Conflict": "dhis2w_client.v42.envelopes",
     "ConflictRow": "dhis2w_client.v42.envelopes",
     "CopyOp": "dhis2w_client.v42.json_patch",

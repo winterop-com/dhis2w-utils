@@ -53,6 +53,7 @@ from dhis2w_client.generated.v42.oas import (
     TrackerEvent,
     TrackerTrackedEntity,
 )
+from dhis2w_client.v42.aggregate import CompleteDataSetRegistration
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir.conversion.schemas import (
@@ -128,8 +129,12 @@ COMPLETED_EVENT_STATUSES = (
 #: The response statuses whose DHIS2 event status several response statuses would have produced.
 _COLLAPSING_RESPONSE_STATUSES = frozenset({"completed", "amended"})
 
-#: How many dash-separated parts a full calendar date carries, which is what a `completeDate` is.
+#: What separates the day of an R4 instant from its wall clock, which is where a completeness date ends.
 _DATE_PART_SEPARATOR = "T"
+
+#: The `QuestionnaireResponse.status` an aggregate report is finished at, and so the one that claims
+#: completeness. Every other status - `in-progress` above all - imports its values and claims nothing.
+_COMPLETED_RESPONSE_STATUS = "completed"
 
 #: The status the enrollment a registration creates is imported under. A registration form is
 #: answered when a person is enrolled, and DHIS2 spells a live enrollment `ACTIVE` - completing or
@@ -177,6 +182,8 @@ class AggregateTranslation(_Outcome):
     """One aggregate response translated: its data value set, or the reasons it produced none."""
 
     data_value_set: DataValueSet | None = None
+    completeness: CompleteDataSetRegistration | None = None
+    """What the response claims about completeness, set only where it reports itself `completed`."""
 
 
 class EventTranslation(_Outcome):
@@ -219,20 +226,28 @@ def translate_aggregate_response(
     period = _period(response, context, notes, refusals)
     organisation_unit = _subject_organisation_unit(response, context, notes, refusals)
     attribute_option_combo = _attribute_option_combo(response, form, context, notes, refusals)
-    complete_date = _complete_date(response, context, notes)
     translated = translate_answers(response, form, context)
     notes.extend(translated.notes)
     refusals.extend(translated.refusals)
     if refusals or data_set is None or period is None or organisation_unit is None:
         return AggregateTranslation(notes=tuple(notes), refusals=tuple(refusals))
+    completeness = _completeness(
+        response,
+        context,
+        notes,
+        data_set=data_set,
+        period=period,
+        organisation_unit=organisation_unit,
+        attribute_option_combo=attribute_option_combo,
+    )
     return AggregateTranslation(
         notes=tuple(notes),
+        completeness=completeness,
         data_value_set=DataValueSet(
             dataSet=data_set,
             period=period,
             orgUnit=organisation_unit,
             attributeOptionCombo=attribute_option_combo,
-            completeDate=complete_date,
             dataValues=[
                 DataValue(
                     dataElement=answer.question.data_element_uid,
@@ -829,26 +844,58 @@ def _organisation_unit(
     return resolution.uid
 
 
-def _complete_date(
-    response: QuestionnaireResponse, context: ConversionContext, notes: list[ConversionNote]
-) -> str | None:
-    """The day an aggregate report was completed, taken from the response's `authored` instant.
+def _completeness(
+    response: QuestionnaireResponse,
+    context: ConversionContext,
+    notes: list[ConversionNote],
+    *,
+    data_set: str,
+    period: str,
+    organisation_unit: str,
+    attribute_option_combo: str | None,
+) -> CompleteDataSetRegistration | None:
+    """What an aggregate response claims about completeness, off the one field R4 already states it in.
 
-    A data value set is reported as complete for a period, and the moment the response records
-    itself as authored is the only statement of when that happened it carries.
+    `QuestionnaireResponse.status` is the FHIR-native carrier and needs no extension beside it: a
+    response the reporter finished is `completed`, and one they have not is `in-progress`. A
+    `completed` response claims the tuple its values ride under - the same data set, period,
+    organisation unit, and attribute option combo the data value set names - and an `in-progress` one
+    claims nothing and imports its values alone.
+
+    The day claimed is the response's own `authored` instant, which is the only statement of when the
+    report was finished it carries. `storedBy` goes unwritten: the capture contract carries no
+    reporter identity, and DHIS2 stores the string verbatim without checking it, so naming anyone
+    would be inventing a reporter rather than reporting one. DHIS2 fills the API user instead.
     """
-    if not response.authored:
+    if response.status != _COMPLETED_RESPONSE_STATUS:
+        notes.append(
+            ConversionNote(
+                category=ConversionNoteCategory.COMPLETENESS_NOT_CLAIMED,
+                message=f"the response reports itself `{response.status}` rather than `"
+                f"{_COMPLETED_RESPONSE_STATUS}`, so its values are imported and the data set is not "
+                f"registered complete for the period",
+            )
+        )
         return None
-    reading = wall_clock_reading(response.authored, context.timezone)
-    complete_date = reading.value.partition(_DATE_PART_SEPARATOR)[0]
+    claimed_on = None
+    if response.authored:
+        claimed_on = wall_clock_reading(response.authored, context.timezone).value.partition(_DATE_PART_SEPARATOR)[0]
     notes.append(
         ConversionNote(
-            category=ConversionNoteCategory.COMPLETE_DATE_DERIVED,
-            message=f"the data value set is reported complete on `{complete_date}`, the day the response "
-            f"records itself as authored",
+            category=ConversionNoteCategory.COMPLETENESS_CLAIMED,
+            message=f"the response reports itself `{_COMPLETED_RESPONSE_STATUS}`, so the data set is registered "
+            f"complete for the period"
+            + (f" on `{claimed_on}`, the day the response records itself as authored" if claimed_on else ""),
         )
     )
-    return complete_date
+    return CompleteDataSetRegistration(
+        dataSet=data_set,
+        period=period,
+        organisationUnit=organisation_unit,
+        attributeOptionCombo=attribute_option_combo,
+        date=claimed_on,
+        completed=True,
+    )
 
 
 def _program(form: FormSpec, context: ConversionContext, refusals: list[ConversionRefusal]) -> str | None:

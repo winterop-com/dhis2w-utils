@@ -428,6 +428,30 @@ async with open_client(profile_from_env()) as client:
         print(f"  conflict: {conflict.property} = {conflict.value} [{conflict.errorCode}]")
 ```
 
+Values and *completeness* are two different writes. DHIS2 records whether a data set is finished for a period at `/api/completeDataSetRegistrations`, under the same `(dataSet, period, organisationUnit, attributeOptionCombo)` key — so register it after the values are in, never before:
+
+```python
+from dhis2w_client import CompleteDataSetRegistration, CompleteDataSetRegistrations
+
+registrations = CompleteDataSetRegistrations(
+    completeDataSetRegistrations=[
+        CompleteDataSetRegistration(
+            dataSet="BfMAe6Itzgt",
+            period="202603",
+            organisationUnit="PMa2VCrupOd",
+            date="2026-04-02",
+            completed=True,
+        )
+    ]
+)
+answer = await client.post_raw(
+    "/api/completeDataSetRegistrations",
+    registrations.model_dump(by_alias=True, exclude_none=True, mode="json"),
+)
+```
+
+Registering a tuple DHIS2 already holds counts `updated`, not a conflict, so the call is safe to repeat. Leave `attributeOptionCombo` unset on a data set riding the default category combo — DHIS2 fills it. See [Aggregate data values](../api/aggregate.md) for the read-back.
+
 Helpers on `WebMessageResponse`:
 
 - `.status`, `.httpStatus`, `.httpStatusCode`, `.message` — envelope scalar fields
