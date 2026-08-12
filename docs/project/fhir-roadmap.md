@@ -2126,6 +2126,18 @@ commitment.
   rather than running an FML engine at runtime. `MeasureReport` as the lossy
   summary projection over the same data belongs here, per decision 3.3.
 
+- **Harmonization across country guides.** A project is one instance's FHIR home
+  (decision 3.10), and the fleet this toolkit is pointed at is roughly ten
+  country instances. How those guides relate to each other is three separate
+  products - cross-instance terminology alignment carried by `ConceptMap`, a
+  master guide the country guides derive from, and comparable indicators - each
+  with its own prerequisites and its own reasons not to start yet. The design,
+  the staged plan, the owner decisions it reserves, and the non-goals it states
+  hard are in [harmonization across country guides](fhir-harmonization.md). Two
+  things gate the whole line and are named there: no command in `d2w fhir` reads
+  more than one profile in a run, and nobody has yet measured code coverage
+  across the fleet.
+
 ### 9.4 Terminology source candidates
 
 What else in DHIS2 is shaped like terminology, and which naming token each lands
@@ -2191,6 +2203,10 @@ what order.
 - [`d2w fhir` series](../guides/fhir/index.md) - the task-oriented manual: the
   quickstart, the full `fhir.toml` reference, the capture contract, and the
   build-time table, as graded 101/201/301/401 pages.
+- [The FHIR conversion layer](fhir-conversion.md) - the phased plan behind open
+  decision 5.3.
+- [Harmonization across country guides](fhir-harmonization.md) - the three tiers,
+  the staged prerequisites, and the decisions a multi-country fleet reserves.
 - [`dhis2w_fhir` API reference](../api/fhir.md) - the importable surface.
 - [Upstream DHIS2 quirks](upstream-quirks.md) - `BUGS.md` rendered, including
   entries #62, #63, and #64.
