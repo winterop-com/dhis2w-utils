@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.attributes import AttributeValueIn
+from dhis2w_fhir.i18n import TranslationIn, composed_translations, name_translations
 from dhis2w_fhir.names import (
     FHIR_ID_MAX_LENGTH,
     NamingSource,
@@ -337,6 +338,10 @@ class QuestionnaireItemIn(BaseModel):
     `compulsory` marks the data element itself (a registration form's `mandatory` attribute lands
     here too), and `required_option_combo_uids` marks the single disaggregated cells a data set
     names through a compulsory operand.
+
+    `translations` is the object's own DHIS2 translation list, both properties a question is
+    labelled from: `NAME` names the dictionary concept, `FORM_NAME` labels the question where the
+    object carries a form name.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -345,6 +350,7 @@ class QuestionnaireItemIn(BaseModel):
     name: str
     code: str | None = None
     form_name: str | None = None
+    translations: list[TranslationIn] = Field(default_factory=list)
     value_type: str
     domain_type: str = ""
     option_set_uid: str | None = None
@@ -363,6 +369,7 @@ class QuestionnaireSectionIn(BaseModel):
 
     uid: str
     name: str
+    translations: list[TranslationIn] = Field(default_factory=list)
     items: list[QuestionnaireItemIn] = Field(default_factory=list)
 
 
@@ -381,6 +388,7 @@ class ProgramContextIn(BaseModel):
     uid: str
     name: str
     code: str | None = None
+    translations: list[TranslationIn] = Field(default_factory=list)
     tracked_entity_type_uid: str | None = None
 
 
@@ -416,6 +424,7 @@ class QuestionnaireSourceIn(BaseModel):
     name: str
     code: str | None = None
     description: str | None = None
+    translations: list[TranslationIn] = Field(default_factory=list)
     kind: FormKind
     period_type: str | None = None
     program: ProgramContextIn | None = None
@@ -480,11 +489,29 @@ def source_program(source: QuestionnaireSourceIn) -> ProgramContextIn:
     return source.program
 
 
+#: What joins a program stage's two identities into the one name its form is shown under.
+DISPLAY_NAME_SEPARATOR = " - "
+
+
 def source_display_name(source: QuestionnaireSourceIn) -> str:
     """The name one form is shown under: a program stage carries both identities, everything else its own."""
     if source.program is None:
         return source.name
-    return f"{source.program.name} - {source.name}"
+    return f"{source.program.name}{DISPLAY_NAME_SEPARATOR}{source.name}"
+
+
+def source_title_translations(source: QuestionnaireSourceIn, locales: list[str]) -> list[TranslationIn]:
+    """The translations of the name one form is shown under, composed the way the name itself is.
+
+    A program stage's title is `<program> - <stage>`, so a locale reaches the title only by
+    translating both halves: `composed_translations` keeps the locales every part carries and drops
+    the rest rather than pairing a translated stage with an untranslated program.
+    """
+    own = name_translations(source.translations, locales)
+    if source.program is None:
+        return own
+    program = name_translations(source.program.translations, locales)
+    return composed_translations([program, own], DISPLAY_NAME_SEPARATOR)
 
 
 def form_tracked_entity_type_uid(source: QuestionnaireSourceIn) -> str | None:

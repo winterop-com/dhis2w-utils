@@ -1,0 +1,157 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "nEenWmSyUEp",
+  "url": "http://localhost:8080/fhir/Questionnaire/nEenWmSyUEp",
+  "title": "Person (Play)",
+  "description": "DHIS2 tracked entity type Person (Play) (nEenWmSyUEp) as a registration form: the tracked entity attributes the type itself collects, captured when a person is registered without being enrolled in any program.",
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "tracked-entity"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/tracked-entity-type",
+      "value": "nEenWmSyUEp"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/tracked-entity-type-code",
+      "value": "nEenWmSyUEp"
+    }
+  ],
+  "name": "D2TET_nEenWmSyUEp",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "code": "tracked-entity",
+      "system": "http://localhost:8080/fhir/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "w75KJ2mc4zz",
+      "code": [
+        {
+          "code": "w75KJ2mc4zz",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
+          "display": "First name (Play)"
+        }
+      ],
+      "text": "First name (Play)",
+      "_text": {
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "fr"
+              },
+              {
+                "url": "content",
+                "valueString": "Prenom"
+              }
+            ]
+          },
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "lo"
+              },
+              {
+                "url": "content",
+                "valueString": "ຊື່"
+              }
+            ]
+          }
+        ]
+      },
+      "type": "string",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "zDhUuAYrxNC",
+      "code": [
+        {
+          "code": "zDhUuAYrxNC",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
+          "display": "Last name (Play)"
+        }
+      ],
+      "text": "Last name (Play)",
+      "type": "string",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "ScTeaComTx1",
+      "code": [
+        {
+          "code": "ScTeaComTx1",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
+          "display": "Scenario Common Note"
+        }
+      ],
+      "text": "Scenario Common Note",
+      "type": "string",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "ScTeaComPh1",
+      "code": [
+        {
+          "code": "ScTeaComPh1",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
+          "display": "Scenario Common Phone"
+        }
+      ],
+      "text": "Scenario Common Phone",
+      "type": "string",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "lZGmxYbs97q",
+      "code": [
+        {
+          "code": "lZGmxYbs97q",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
+          "display": "Unique ID (Play)"
+        }
+      ],
+      "text": "Unique ID (Play)",
+      "type": "string",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    }
+  ]
+}

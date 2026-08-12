@@ -871,6 +871,12 @@ async def seed_play(client: Dhis2Client) -> None:
     variation_count = await seed_fhir_variations(client)
     print(f"    variation objects: {variation_count}", flush=True)
 
+    _log(">>> Seeding FHIR form translations (Lao + French on the play-bundle forms)")
+    from .fhir_variations import seed_form_translations  # noqa: PLC0415
+
+    translated_count = await seed_form_translations(client)
+    print(f"    objects translated: {translated_count}", flush=True)
+
     _log(">>> Seeding ANC follow-up tracker program (repeatable visit stage)")
     from .anc_program import seed_anc_program  # noqa: PLC0415
 

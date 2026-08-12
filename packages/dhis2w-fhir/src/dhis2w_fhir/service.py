@@ -202,7 +202,9 @@ _DISAGGREGATION_COMBO_FIELDS = f"categoryCombo[id,name,isDefault,{_CATEGORY_COMB
 #: the attribute dictionary publishes an attribute's - a data element DHIS2 left uncoded publishes
 #: no code rather than its UID under a `dhis2-code` label.
 _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
-    f"dataElement[id,code,name,formName,valueType,domainType,optionSet[id],{_DISAGGREGATION_COMBO_FIELDS}]"
+    "dataElement[id,code,name,formName,valueType,domainType,optionSet[id],"
+    f"{_TRANSLATION_FIELDS},"
+    f"{_DISAGGREGATION_COMBO_FIELDS}]"
 )
 
 #: The data-set element projection: the data element the question is asked from, and the join's own
@@ -220,7 +222,8 @@ _DATA_SET_ELEMENT_FIELDS = f"{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS},{_DISAGGREGATI
 _ATTRIBUTE_COMBO_FIELDS = f"categoryCombo[id,code,name,isDefault,{_CATEGORY_COMBO_DECOMPOSITION_FIELDS}]"
 
 _DATA_SET_FIELDS = (
-    "id,name,code,description,periodType,sections[id,name,dataElements[id]],"
+    f"id,name,code,description,periodType,{_TRANSLATION_FIELDS},"
+    f"sections[id,name,{_TRANSLATION_FIELDS},dataElements[id]],"
     f"{_ATTRIBUTE_VALUE_FIELDS},{_ATTRIBUTE_COMBO_FIELDS},"
     "compulsoryDataElementOperands[dataElement[id],categoryOptionCombo[id]],"
     f"dataSetElements[{_DATA_SET_ELEMENT_FIELDS}]"
@@ -230,8 +233,8 @@ _DATA_SET_FIELDS = (
 #: a tracker program takes one Questionnaire per stage, so a stage carries its own identity, its own
 #: attribute values, and the sort orders DHIS2 holds the stages and their questions in.
 _PROGRAM_STAGE_FIELDS = (
-    f"id,name,code,description,sortOrder,{_ATTRIBUTE_VALUE_FIELDS},"
-    "programStageSections[id,name,dataElements[id]],"
+    f"id,name,code,description,sortOrder,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS},"
+    f"programStageSections[id,name,{_TRANSLATION_FIELDS},dataElements[id]],"
     f"programStageDataElements[compulsory,sortOrder,{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
 )
 #: The registration projection a tracker program's own form is built from: the type of person it
@@ -249,19 +252,20 @@ _PROGRAM_STAGE_FIELDS = (
 _PROGRAM_ATTRIBUTE_FIELDS = (
     "trackedEntityType[id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]],displayIncidentDate,"
     "programTrackedEntityAttributes[mandatory,searchable,sortOrder,"
-    "trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id]]]"
+    f"trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id],{_TRANSLATION_FIELDS}]]"
 )
 
 #: The tracked entity type projection a person-only registration form is built from: the type's own
 #: identity, and the attributes it collects itself through the join that carries their order,
 #: whether the type requires them, and whether DHIS2 will find a person by them.
 _TRACKED_ENTITY_TYPE_FIELDS = (
-    f"id,name,code,description,{_ATTRIBUTE_VALUE_FIELDS},"
+    f"id,name,code,description,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS},"
     "trackedEntityTypeAttributes[mandatory,searchable,sortOrder,"
-    "trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id]]]"
+    f"trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id],{_TRANSLATION_FIELDS}]]"
 )
 _PROGRAM_FIELDS = (
-    f"id,name,code,description,programType,{_ATTRIBUTE_VALUE_FIELDS},{_PROGRAM_ATTRIBUTE_FIELDS},"
+    f"id,name,code,description,programType,{_TRANSLATION_FIELDS},"
+    f"{_ATTRIBUTE_VALUE_FIELDS},{_PROGRAM_ATTRIBUTE_FIELDS},"
     f"programStages[{_PROGRAM_STAGE_FIELDS}]"
 )
 
@@ -2771,6 +2775,7 @@ def _data_set_source(model: DataSet, notes: list[GenerateNote]) -> Questionnaire
         name=model.name or uid,
         code=model.code,
         description=model.description,
+        translations=_translation_inputs(model.translations),
         kind="aggregate",
         period_type=str(model.periodType) if model.periodType is not None else None,
         items=items,
@@ -2912,6 +2917,7 @@ def _event_program_source(model: Program, notes: list[GenerateNote]) -> Question
         name=name,
         code=model.code,
         description=model.description,
+        translations=_translation_inputs(model.translations),
         kind="event",
         items=items,
         raw_sections=raw_sections,
@@ -2937,7 +2943,11 @@ def _tracker_program_sources(model: Program, notes: list[GenerateNote]) -> list[
             "selected under [generate.event_programs]"
         )
     program = ProgramContextIn(
-        uid=uid, name=name, code=model.code, tracked_entity_type_uid=_tracked_entity_type_uid(model)
+        uid=uid,
+        name=name,
+        code=model.code,
+        translations=_translation_inputs(model.translations),
+        tracked_entity_type_uid=_tracked_entity_type_uid(model),
     )
     sources: list[QuestionnaireSourceIn] = [_registration_source(model, notes)]
     for stage in sorted(_program_stages(model), key=_stage_sort_key):
@@ -2948,6 +2958,7 @@ def _tracker_program_sources(model: Program, notes: list[GenerateNote]) -> list[
                 name=_optional_text(stage.get("name")) or stage_uid,
                 code=_optional_text(stage.get("code")),
                 description=_optional_text(stage.get("description")),
+                translations=_translation_inputs(stage.get("translations")),
                 kind="tracker-event",
                 items=_stage_items(stage),
                 raw_sections=stage.get("programStageSections"),
@@ -2973,6 +2984,7 @@ def _registration_source(model: Program, notes: list[GenerateNote]) -> Questionn
         name=model.name or uid,
         code=model.code,
         description=model.description,
+        translations=_translation_inputs(model.translations),
         kind="tracker",
         items=_registration_items(model),
         raw_sections=None,
@@ -2997,6 +3009,7 @@ def _tracked_entity_type_source(model: TrackedEntityType, notes: list[GenerateNo
         name=model.name or uid,
         code=model.code,
         description=model.description,
+        translations=_translation_inputs(model.translations),
         kind="tracked-entity",
         items=_tracked_entity_type_items(model),
         raw_sections=None,
@@ -3135,6 +3148,7 @@ def _tracked_entity_attribute_item(
         unique=bool(raw.get("unique")),
         searchable=searchable,
         entity_level=entity_level,
+        translations=_translation_inputs(raw.get("translations")),
     )
 
 
@@ -3193,6 +3207,7 @@ def _questionnaire_source(
     raw_sections: object,
     attribute_values: list[AttributeValueIn],
     notes: list[GenerateNote],
+    translations: list[TranslationIn],
     period_type: str | None = None,
     program: ProgramContextIn | None = None,
     attribute_combo: CategoryComboIn | None = None,
@@ -3217,6 +3232,7 @@ def _questionnaire_source(
         name=name,
         code=code,
         description=description,
+        translations=translations,
         kind=kind,
         period_type=period_type,
         program=program,
@@ -3251,6 +3267,7 @@ def _questionnaire_sections(raw_sections: object, items: list[QuestionnaireItemI
             QuestionnaireSectionIn(
                 uid=uid,
                 name=_optional_text(raw.get("name")) or uid,
+                translations=_translation_inputs(raw.get("translations")),
                 items=[items_by_uid[member_id] for member_id in member_ids if member_id in items_by_uid],
             )
         )
@@ -3272,6 +3289,7 @@ def _questionnaire_item(raw: dict[str, object], *, compulsory: bool) -> Question
         option_set_uid=option_set_uid,
         compulsory=compulsory,
         category_combo=_category_combo_input(raw.get("categoryCombo")),
+        translations=_translation_inputs(raw.get("translations")),
     )
 
 

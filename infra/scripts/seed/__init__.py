@@ -23,7 +23,7 @@ from __future__ import annotations
 from .anc_program import seed_anc_program
 from .event_program import build_event_program
 from .fhir_attributes import seed_fhir_attributes
-from .fhir_variations import seed_fhir_variations
+from .fhir_variations import seed_fhir_variations, seed_form_translations
 from .loader import (
     FIXTURE_DIR,
     SIERRA_LEONE_ROOT_UID,
@@ -63,5 +63,6 @@ __all__ = [
     "seed_anc_program",
     "seed_fhir_attributes",
     "seed_fhir_variations",
+    "seed_form_translations",
     "seed_play",
 ]

@@ -1,0 +1,4095 @@
+[
+ {
+  "uid": "BfMAe6Itzgt",
+  "name": "Child Health",
+  "code": "DS_359711",
+  "translations": [
+   {
+    "locale": "fr",
+    "property": "NAME",
+    "value": "Sante de l'enfant"
+   },
+   {
+    "locale": "lo",
+    "property": "NAME",
+    "value": "ສຸຂະພາບເດັກ"
+   }
+  ],
+  "kind": "aggregate",
+  "period_type": "Monthly",
+  "attribute_combo": {
+   "uid": "bjDvmb4bfuf",
+   "name": "default",
+   "code": "default",
+   "is_default": true,
+   "category_uids": [
+    "GLevLNI9wkl"
+   ],
+   "option_combos": [
+    {
+     "uid": "HllvX50cXC0",
+     "name": "default",
+     "code": "default",
+     "category_option_uids": [
+      "xYerKDKCefk"
+     ]
+    }
+   ]
+  },
+  "displays_incident_date": false,
+  "sections": [
+   {
+    "uid": "Y2rk0vzgvAx",
+    "name": "Immunization",
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ການສັກຢາກັນພະຍາດ"
+     },
+     {
+      "locale": "fr",
+      "property": "NAME",
+      "value": "Vaccination"
+     }
+    ],
+    "items": [
+     {
+      "uid": "s46m5MS0hxu",
+      "name": "BCG doses given",
+      "code": "DE_359706",
+      "translations": [
+       {
+        "locale": "fr",
+        "property": "NAME",
+        "value": "Doses de BCG administrees"
+       },
+       {
+        "locale": "lo",
+        "property": "NAME",
+        "value": "ຈຳນວນເຂັມ BCG ທີ່ໃຫ້"
+       }
+      ],
+      "value_type": "INTEGER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "UOlfIjgN8X6",
+      "name": "Fully Immunized child",
+      "code": "DE_36",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "z7duEFcpApd",
+      "name": "LLITN given at Penta3",
+      "code": "DE_359709",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "x3Do5e7g4Qo",
+      "name": "OPV0 doses given",
+      "code": "DE_359707",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "pikOziyCXbM",
+      "name": "OPV1 doses given",
+      "code": "DE_19",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "O05mAByOgAv",
+      "name": "OPV2 doses given",
+      "code": "DE_20",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "vI2csg55S9C",
+      "name": "OPV3 doses given",
+      "code": "DE_21",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "xc8gmAKfO95",
+      "name": "PCV1 doses given",
+      "code": "DE_359722",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "mGN1az8Xub6",
+      "name": "PCV2 doses given",
+      "code": "DE_359723",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "L2kxa2IA2cs",
+      "name": "PCV3 doses given",
+      "code": "DE_359724",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "fClA2Erf6IO",
+      "name": "Penta1 doses given",
+      "code": "DE_23",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "I78gJm4KBo7",
+      "name": "Penta2 doses given",
+      "code": "DE_24",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "n6aMJNLdvep",
+      "name": "Penta3 doses given",
+      "code": "DE_25",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "l6byfWFUGaP",
+      "name": "Yellow Fever doses given",
+      "code": "DE_35",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "YtbsuPPo010",
+      "name": "Measles doses given",
+      "code": "DE_34",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "uid": "vtOr8PTJVxS",
+    "name": "Nutrition",
+    "translations": [],
+    "items": [
+     {
+      "uid": "qw2sIef52Fu",
+      "name": "Children getting therapeutic feeding",
+      "code": "DE_359738",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "Y53Jcc9LBYh",
+      "name": "Children supplied with food supplemements",
+      "code": "DE_359737",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "d5xTg3WR3DP",
+      "name": "Mebendazole/Albendazole (for children 12-59 months)",
+      "code": "DE_359732",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "DUSpd8Jq3M7",
+      "name": "Newborn protected at birth against tetanus (TT2+)",
+      "code": "DE_359710",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "dU0GquGkGQr",
+      "name": "Q_Early breastfeeding (within 1 hr after delivery) at BCG",
+      "code": "DE_22",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "pEOVd4Z3TAS",
+      "name": "Q_Exclusive breastfeeding at time of Penta 3",
+      "code": "DE_33",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "Rmixc9wJl0G",
+      "name": "Q_LLITN given at time of 2nd Vit A dose",
+      "code": "DE_359735",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "GCGfEY82Wz6",
+      "name": "Q_Slept under LLIN last night Measles",
+      "code": "DE_268",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "ca8lfO062zg",
+      "name": "Q_Vitamin A received 4-6 months ago at 12-59 dose",
+      "code": "DE_359734",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "tU7GixyHhsv",
+      "name": "Vitamin A given to < 5y",
+      "code": "DE_359733",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "bTcRDVjC66S",
+      "name": "Weight for age below lower line (red)",
+      "code": "DE_359731",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "ldGXl6SEdqf",
+      "name": "Weight for age between middle and lower line (yellow)",
+      "code": "DE_359730",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "NLnXLV5YpZF",
+      "name": "Weight for age on or above middle line (green)",
+      "code": "DE_359729",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "pnL2VG8Bn7N",
+      "name": "Weight for height 70-79 percent",
+      "code": "DE_359726",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "qPVDd87kS9Z",
+      "name": "Weight for height 80 percent and above",
+      "code": "DE_359725",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "uid": "lVsbKXoF0zX",
+      "name": "Weight for height below 70 percent",
+      "code": "DE_359727",
+      "translations": [],
+      "value_type": "NUMBER",
+      "domain_type": "AGGREGATE",
+      "compulsory": false,
+      "unique": false,
+      "searchable": false,
+      "required_option_combo_uids": [],
+      "category_combo": {
+       "uid": "dzjKKQq0cSO",
+       "name": "Location and age group",
+       "is_default": false,
+       "category_uids": [
+        "fMZEcRHuamy",
+        "YNZyaJHiHYq"
+       ],
+       "option_combos": [
+        {
+         "uid": "Prlt0C1RF0s",
+         "name": "Fixed, <1y",
+         "code": "COC_292",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "psbwp3CQEhs",
+         "name": "Fixed, >1y",
+         "code": "COC_291",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "qkPbeWaFsnU"
+         ]
+        },
+        {
+         "uid": "V6L425pT3A0",
+         "name": "Outreach, <1y",
+         "code": "COC_290",
+         "category_option_uids": [
+          "btOyqprQ9e8",
+          "wbrDrL2aYEc"
+         ]
+        },
+        {
+         "uid": "hEFKSsPV5et",
+         "name": "Outreach, >1y",
+         "code": "COC_289",
+         "category_option_uids": [
+          "GEqzEKCHoGA",
+          "wbrDrL2aYEc"
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "flat_items": [],
+  "attribute_values": [
+   {
+    "attribute_uid": "AtrFhirDsQ1",
+    "value": "Paper register 12A, revision 2025-03"
+   }
+  ]
+ },
+ {
+  "uid": "TuL8IOPzpHh",
+  "name": "EPI Stock",
+  "code": "DS_1149441",
+  "translations": [],
+  "kind": "aggregate",
+  "period_type": "Monthly",
+  "attribute_combo": {
+   "uid": "idcDPkDtepR",
+   "name": "Project",
+   "is_default": false,
+   "category_uids": [
+    "yY2bQYqNt0o"
+   ],
+   "option_combos": [
+    {
+     "uid": "pO5CEqK6c1s",
+     "name": "Improve access to clean water",
+     "code": "COC_1452092",
+     "category_option_uids": [
+      "i4Nbp8S2G6A"
+     ]
+    },
+    {
+     "uid": "sSeEjeQ0Rgt",
+     "name": "Improve access to medicines",
+     "code": "COC_1452091",
+     "category_option_uids": [
+      "yMj2MnmNI8L"
+     ]
+    },
+    {
+     "uid": "oawMLLH7OjA",
+     "name": "Provide access to basic education",
+     "code": "COC_1452090",
+     "category_option_uids": [
+      "M58XdOfhiJ7"
+     ]
+    },
+    {
+     "uid": "BqblOcSwGey",
+     "name": "Provide access to primary health care",
+     "code": "COC_1452093",
+     "category_option_uids": [
+      "OUUdG3sdOqb"
+     ]
+    }
+   ]
+  },
+  "displays_incident_date": false,
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "cZnQDuF3IDz",
+    "name": "Stock PHU discarded BCG",
+    "code": "DE_360103",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "WA3HunbaGt0",
+     "name": "Stock discarded",
+     "is_default": false,
+     "category_uids": [
+      "Qzh0MSUx4RM"
+     ],
+     "option_combos": [
+      {
+       "uid": "pn1upwnbxfn",
+       "name": "Damages",
+       "code": "COC_360271",
+       "category_option_uids": [
+        "mInFlpnx6TQ"
+       ]
+      },
+      {
+       "uid": "fsFN9T4ck3E",
+       "name": "Expired",
+       "code": "COC_360270",
+       "category_option_uids": [
+        "YHb43JqCAmI"
+       ]
+      },
+      {
+       "uid": "TxaWpw1pN5G",
+       "name": "VVM Change",
+       "code": "COC_360272",
+       "category_option_uids": [
+        "qKc2WhjMPKC"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "FvKdfA2SuWI",
+    "name": "Stock PHU discarded Measles",
+    "code": "DE_360126",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "WA3HunbaGt0",
+     "name": "Stock discarded",
+     "is_default": false,
+     "category_uids": [
+      "Qzh0MSUx4RM"
+     ],
+     "option_combos": [
+      {
+       "uid": "pn1upwnbxfn",
+       "name": "Damages",
+       "code": "COC_360271",
+       "category_option_uids": [
+        "mInFlpnx6TQ"
+       ]
+      },
+      {
+       "uid": "fsFN9T4ck3E",
+       "name": "Expired",
+       "code": "COC_360270",
+       "category_option_uids": [
+        "YHb43JqCAmI"
+       ]
+      },
+      {
+       "uid": "TxaWpw1pN5G",
+       "name": "VVM Change",
+       "code": "COC_360272",
+       "category_option_uids": [
+        "qKc2WhjMPKC"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "WVrH6j3Wfye",
+    "name": "Stock PHU discarded OPV",
+    "code": "DE_360129",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "WA3HunbaGt0",
+     "name": "Stock discarded",
+     "is_default": false,
+     "category_uids": [
+      "Qzh0MSUx4RM"
+     ],
+     "option_combos": [
+      {
+       "uid": "pn1upwnbxfn",
+       "name": "Damages",
+       "code": "COC_360271",
+       "category_option_uids": [
+        "mInFlpnx6TQ"
+       ]
+      },
+      {
+       "uid": "fsFN9T4ck3E",
+       "name": "Expired",
+       "code": "COC_360270",
+       "category_option_uids": [
+        "YHb43JqCAmI"
+       ]
+      },
+      {
+       "uid": "TxaWpw1pN5G",
+       "name": "VVM Change",
+       "code": "COC_360272",
+       "category_option_uids": [
+        "qKc2WhjMPKC"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "p1MDHOT6ENy",
+    "name": "Stock PHU dispensed  BCG",
+    "code": "DE_360049",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "lVknokmR4Ip",
+    "name": "Stock PHU dispensed Measles",
+    "code": "DE_360072",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "FTINmL2lehN",
+    "name": "Stock PHU dispensed OPV",
+    "code": "DE_360075",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "axVhq1itoQD",
+    "name": "Stock PHU received  BCG",
+    "code": "DE_359995",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "XNrjXqZrHD8",
+    "name": "Stock PHU received Measles",
+    "code": "DE_360018",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "nGCLjZDn0Q4",
+    "name": "Stock PHU received OPV",
+    "code": "DE_360021",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "t99PL3gUxIl",
+    "name": "Stock PHU start balance BCG",
+    "code": "DE_359941",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "vEAo4KwsAzl",
+    "name": "Stock PHU start balance Measles",
+    "code": "DE_359964",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "iuSIObmKutb",
+    "name": "Stock PHU start balance OPV",
+    "code": "DE_359967",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "PrAncCare01",
+  "name": "ANC follow-up",
+  "description": "Antenatal care follow-up: one enrollment per pregnancy, one repeatable visit stage.",
+  "translations": [
+   {
+    "locale": "lo",
+    "property": "NAME",
+    "value": "ຕິດຕາມການຝາກທ້ອງ"
+   },
+   {
+    "locale": "fr",
+    "property": "NAME",
+    "value": "Suivi des CPN"
+   }
+  ],
+  "kind": "tracker",
+  "displays_incident_date": false,
+  "tracked_entity_type_uid": "nEenWmSyUEp",
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "w75KJ2mc4zz",
+    "name": "First name (Play)",
+    "code": "MMD_PER_NAM",
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ຊື່"
+     },
+     {
+      "locale": "fr",
+      "property": "NAME",
+      "value": "Prenom"
+     }
+    ],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "zDhUuAYrxNC",
+    "name": "Last name (Play)",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "PsAncVisit1",
+  "name": "ANC visit",
+  "translations": [
+   {
+    "locale": "fr",
+    "property": "NAME",
+    "value": "Visite de CPN"
+   },
+   {
+    "locale": "lo",
+    "property": "NAME",
+    "value": "ການມາກວດຝາກທ້ອງ"
+   }
+  ],
+  "kind": "tracker-event",
+  "program": {
+   "uid": "PrAncCare01",
+   "name": "ANC follow-up",
+   "translations": [
+    {
+     "locale": "lo",
+     "property": "NAME",
+     "value": "ຕິດຕາມການຝາກທ້ອງ"
+    },
+    {
+     "locale": "fr",
+     "property": "NAME",
+     "value": "Suivi des CPN"
+    }
+   ],
+   "tracked_entity_type_uid": "nEenWmSyUEp"
+  },
+  "displays_incident_date": false,
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "DeAncVisNo1",
+    "name": "ANC visit number",
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ຄັ້ງທີ່ມາກວດ"
+     },
+     {
+      "locale": "fr",
+      "property": "NAME",
+      "value": "Numero de visite CPN"
+     }
+    ],
+    "value_type": "INTEGER_POSITIVE",
+    "domain_type": "TRACKER",
+    "compulsory": true,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "DeAncBpSys1",
+    "name": "ANC systolic blood pressure",
+    "translations": [],
+    "value_type": "INTEGER",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "DeAncDanger",
+    "name": "ANC danger signs present",
+    "translations": [],
+    "value_type": "BOOLEAN",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "lxAQ7Zs9VYR",
+  "name": "Antenatal care visit",
+  "translations": [],
+  "kind": "event",
+  "displays_incident_date": false,
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "sWoqcoByYmD",
+    "name": "WHOMCH Smoking",
+    "code": "STA_SMO",
+    "translations": [],
+    "value_type": "BOOLEAN",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "Ok9OQpitjQr",
+    "name": "WHOMCH Smoking cessation counselling provided ",
+    "code": "EA5_TRE_SMO",
+    "translations": [],
+    "value_type": "BOOLEAN",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "vANAXwtLwcT",
+    "name": "WHOMCH Hemoglobin value",
+    "code": "LAB_HB",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "IpHINAT79UW",
+  "name": "Child Programme",
+  "translations": [],
+  "kind": "tracker",
+  "displays_incident_date": true,
+  "tracked_entity_type_uid": "nEenWmSyUEp",
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "w75KJ2mc4zz",
+    "name": "First name (Play)",
+    "code": "MMD_PER_NAM",
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ຊື່"
+     },
+     {
+      "locale": "fr",
+      "property": "NAME",
+      "value": "Prenom"
+     }
+    ],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": true,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "zDhUuAYrxNC",
+    "name": "Last name (Play)",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": true,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "cejWyOfXge6",
+    "name": "Gender (Play)",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "option_set_uid": "pC3N9N77UmT",
+    "compulsory": false,
+    "unique": false,
+    "searchable": true,
+    "entity_level": false,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "lZGmxYbs97q",
+    "name": "Unique ID (Play)",
+    "code": "MMD_PER_ID",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": true,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "A03MvHHogjR",
+  "name": "Birth",
+  "description": "Birth of the baby",
+  "translations": [],
+  "kind": "tracker-event",
+  "program": {
+   "uid": "IpHINAT79UW",
+   "name": "Child Programme",
+   "translations": [],
+   "tracked_entity_type_uid": "nEenWmSyUEp"
+  },
+  "displays_incident_date": false,
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "a3kGcGDCuk6",
+    "name": "MCH Apgar Score",
+    "code": "DE_2006098",
+    "form_name": "Apgar Score",
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "FORM_NAME",
+      "value": "ຄະແນນ Apgar"
+     },
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ຄະແນນ Apgar ຂອງແມ່ ແລະ ເດັກ"
+     },
+     {
+      "locale": "fr",
+      "property": "NAME",
+      "value": "Score d'Apgar SMI"
+     },
+     {
+      "locale": "fr",
+      "property": "FORM_NAME",
+      "value": "Score d'Apgar"
+     }
+    ],
+    "value_type": "NUMBER",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "H6uSAMO5WLD",
+    "name": "MCH Apgar comment",
+    "code": "DE_391382",
+    "form_name": "Apgar comment",
+    "translations": [],
+    "value_type": "LONG_TEXT",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "UXz7xuGCEhU",
+    "name": "MCH Weight (g)",
+    "code": "DE_2005736",
+    "form_name": "Weight (g)",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "wQLfBvPrXqq",
+    "name": "MCH ARV at birth",
+    "code": "DE_2008294",
+    "form_name": "ARV at birth",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "f38bstJioPs",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "bx6fsa0t90x",
+    "name": "MCH BCG dose",
+    "code": "DE_2006101",
+    "form_name": "BCG dose",
+    "translations": [],
+    "value_type": "BOOLEAN",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "ebaJjqltK5N",
+    "name": "MCH OPV dose",
+    "code": "DE_2006104",
+    "form_name": "OPV dose",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "kzgQRhOCadd",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "X8zyunlgUfM",
+    "name": "MCH Infant Feeding",
+    "code": "DE_2006103",
+    "form_name": "Infant Feeding",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "x31y45jvIQL",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "uf3svrmp8Oj",
+    "name": "Birth certificate",
+    "code": "DE_424405",
+    "translations": [],
+    "value_type": "FILE_RESOURCE",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "ZzYYXq4fJie",
+  "name": "Baby Postnatal",
+  "description": "Baby Postnatal",
+  "translations": [],
+  "kind": "tracker-event",
+  "program": {
+   "uid": "IpHINAT79UW",
+   "name": "Child Programme",
+   "translations": [],
+   "tracked_entity_type_uid": "nEenWmSyUEp"
+  },
+  "displays_incident_date": false,
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "GQY2lXrypjO",
+    "name": "MCH Infant Weight  (g)",
+    "code": "DE_2006099",
+    "form_name": "Infant Weight (g)",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "X8zyunlgUfM",
+    "name": "MCH Infant Feeding",
+    "code": "DE_2006103",
+    "form_name": "Infant Feeding",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "x31y45jvIQL",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "FqlgKAG8HOu",
+    "name": "MCH Measles dose",
+    "code": "DE_2006125",
+    "form_name": "Measles dose",
+    "translations": [],
+    "value_type": "BOOLEAN",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "vTUhAUZFoys",
+    "name": "MCH Penta dose",
+    "code": "DE_347311",
+    "form_name": "Penta dose",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "kzgQRhOCadd",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "rxBfISxXS2U",
+    "name": "MCH Yellow fever dose",
+    "code": "DE_2006126",
+    "form_name": "Yellow fever dose",
+    "translations": [],
+    "value_type": "BOOLEAN",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "lNNb3truQoi",
+    "name": "MCH IPT dose",
+    "code": "DE_2005744",
+    "form_name": "IPT dose",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "nH8Y04zS7UV",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "pOe0ogW4OWd",
+    "name": "MCH DPT dose",
+    "code": "DE_2006105",
+    "form_name": "DPT dose",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "udkr3ihaeD3",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "HLmTEmupdX0",
+    "name": "MCH Vit A",
+    "code": "DE_2006106",
+    "form_name": "Vit A",
+    "translations": [],
+    "value_type": "BOOLEAN",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "cYGaxwK615G",
+    "name": "MCH Infant HIV Test Result",
+    "code": "DE_2006107",
+    "form_name": "Infant HIV Test Result",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "oXR37f2wOb1",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "hDZbpskhqDd",
+    "name": "MCH HIV Test Type",
+    "code": "DE_2006108",
+    "form_name": "HIV Test Type",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "OGmE3wUMEzu",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "sj3j9Hwc7so",
+    "name": "MCH Child ARVs",
+    "code": "DE_2006100",
+    "form_name": "Child ARVs",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "dgsftM0rXu2",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "aei1xRjSU2l",
+    "name": "MCH Septrin Given",
+    "code": "DE_2006109",
+    "form_name": "Septrin Given",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "XdI8KRJiRoZ",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "BeynU4L6VCQ",
+    "name": "MCH Results given to caretaker",
+    "code": "DE_2006110",
+    "form_name": "Results given to caretaker",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "TRACKER",
+    "option_set_uid": "XdI8KRJiRoZ",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "OuJ6sgPyAbC",
+    "name": "MCH Visit Comment",
+    "code": "DE_2008126",
+    "form_name": "Visit comment (optional)",
+    "translations": [],
+    "value_type": "LONG_TEXT",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "ScProgAaa01",
+  "name": "Scenario A",
+  "translations": [],
+  "kind": "tracker",
+  "displays_incident_date": false,
+  "tracked_entity_type_uid": "nEenWmSyUEp",
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "ScTeaAUniq1",
+    "name": "Scenario A Registry Code",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": true,
+    "unique": true,
+    "searchable": false,
+    "entity_level": false,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaComTx1",
+    "name": "Scenario Common Note",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaAInt01",
+    "name": "Scenario A Household Size",
+    "translations": [],
+    "value_type": "INTEGER",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": false,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaComPh1",
+    "name": "Scenario Common Phone",
+    "translations": [],
+    "value_type": "PHONE_NUMBER",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaADate1",
+    "name": "Scenario A Arrival Date",
+    "translations": [],
+    "value_type": "DATE",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": false,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaABool1",
+    "name": "Scenario A Consent Given",
+    "translations": [],
+    "value_type": "BOOLEAN",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": false,
+    "required_option_combo_uids": []
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "ScStageAaa1",
+  "name": "Scenario A Visit",
+  "translations": [],
+  "kind": "tracker-event",
+  "program": {
+   "uid": "ScProgAaa01",
+   "name": "Scenario A",
+   "translations": [],
+   "tracked_entity_type_uid": "nEenWmSyUEp"
+  },
+  "displays_incident_date": false,
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "UXz7xuGCEhU",
+    "name": "MCH Weight (g)",
+    "code": "DE_2005736",
+    "form_name": "Weight (g)",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "a3kGcGDCuk6",
+    "name": "MCH Apgar Score",
+    "code": "DE_2006098",
+    "form_name": "Apgar Score",
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "FORM_NAME",
+      "value": "ຄະແນນ Apgar"
+     },
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ຄະແນນ Apgar ຂອງແມ່ ແລະ ເດັກ"
+     },
+     {
+      "locale": "fr",
+      "property": "NAME",
+      "value": "Score d'Apgar SMI"
+     },
+     {
+      "locale": "fr",
+      "property": "FORM_NAME",
+      "value": "Score d'Apgar"
+     }
+    ],
+    "value_type": "NUMBER",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "ScProgBbb01",
+  "name": "Scenario B",
+  "translations": [],
+  "kind": "tracker",
+  "displays_incident_date": false,
+  "tracked_entity_type_uid": "nEenWmSyUEp",
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "ScTeaComPh1",
+    "name": "Scenario Common Phone",
+    "translations": [],
+    "value_type": "PHONE_NUMBER",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaBOpt01",
+    "name": "Scenario B Blood Group",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "option_set_uid": "ScOptBldGrp",
+    "compulsory": true,
+    "unique": false,
+    "searchable": false,
+    "entity_level": false,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaBInt01",
+    "name": "Scenario B Visit Count",
+    "translations": [],
+    "value_type": "INTEGER",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": false,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaComTx1",
+    "name": "Scenario Common Note",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaBDate1",
+    "name": "Scenario B Screening Date",
+    "translations": [],
+    "value_type": "DATE",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": false,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaBBool1",
+    "name": "Scenario B Insurance Active",
+    "translations": [],
+    "value_type": "BOOLEAN",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": false,
+    "required_option_combo_uids": []
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "ScStageBbb1",
+  "name": "Scenario B Visit",
+  "translations": [],
+  "kind": "tracker-event",
+  "program": {
+   "uid": "ScProgBbb01",
+   "name": "Scenario B",
+   "translations": [],
+   "tracked_entity_type_uid": "nEenWmSyUEp"
+  },
+  "displays_incident_date": false,
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "UXz7xuGCEhU",
+    "name": "MCH Weight (g)",
+    "code": "DE_2005736",
+    "form_name": "Weight (g)",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "a3kGcGDCuk6",
+    "name": "MCH Apgar Score",
+    "code": "DE_2006098",
+    "form_name": "Apgar Score",
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "FORM_NAME",
+      "value": "ຄະແນນ Apgar"
+     },
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ຄະແນນ Apgar ຂອງແມ່ ແລະ ເດັກ"
+     },
+     {
+      "locale": "fr",
+      "property": "NAME",
+      "value": "Score d'Apgar SMI"
+     },
+     {
+      "locale": "fr",
+      "property": "FORM_NAME",
+      "value": "Score d'Apgar"
+     }
+    ],
+    "value_type": "NUMBER",
+    "domain_type": "TRACKER",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "bjDvmb4bfuf",
+     "name": "default",
+     "is_default": true,
+     "category_uids": [
+      "GLevLNI9wkl"
+     ],
+     "option_combos": [
+      {
+       "uid": "HllvX50cXC0",
+       "name": "default",
+       "code": "default",
+       "category_option_uids": [
+        "xYerKDKCefk"
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "EVTsupVis01",
+  "name": "Supervision visit",
+  "translations": [],
+  "kind": "event",
+  "displays_incident_date": false,
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "s46m5MS0hxu",
+    "name": "BCG doses given",
+    "code": "DE_359706",
+    "translations": [
+     {
+      "locale": "fr",
+      "property": "NAME",
+      "value": "Doses de BCG administrees"
+     },
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ຈຳນວນເຂັມ BCG ທີ່ໃຫ້"
+     }
+    ],
+    "value_type": "INTEGER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "dzjKKQq0cSO",
+     "name": "Location and age group",
+     "is_default": false,
+     "category_uids": [
+      "fMZEcRHuamy",
+      "YNZyaJHiHYq"
+     ],
+     "option_combos": [
+      {
+       "uid": "Prlt0C1RF0s",
+       "name": "Fixed, <1y",
+       "code": "COC_292",
+       "category_option_uids": [
+        "btOyqprQ9e8",
+        "qkPbeWaFsnU"
+       ]
+      },
+      {
+       "uid": "psbwp3CQEhs",
+       "name": "Fixed, >1y",
+       "code": "COC_291",
+       "category_option_uids": [
+        "GEqzEKCHoGA",
+        "qkPbeWaFsnU"
+       ]
+      },
+      {
+       "uid": "V6L425pT3A0",
+       "name": "Outreach, <1y",
+       "code": "COC_290",
+       "category_option_uids": [
+        "btOyqprQ9e8",
+        "wbrDrL2aYEc"
+       ]
+      },
+      {
+       "uid": "hEFKSsPV5et",
+       "name": "Outreach, >1y",
+       "code": "COC_289",
+       "category_option_uids": [
+        "GEqzEKCHoGA",
+        "wbrDrL2aYEc"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "uid": "YtbsuPPo010",
+    "name": "Measles doses given",
+    "code": "DE_34",
+    "translations": [],
+    "value_type": "NUMBER",
+    "domain_type": "AGGREGATE",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "required_option_combo_uids": [],
+    "category_combo": {
+     "uid": "dzjKKQq0cSO",
+     "name": "Location and age group",
+     "is_default": false,
+     "category_uids": [
+      "fMZEcRHuamy",
+      "YNZyaJHiHYq"
+     ],
+     "option_combos": [
+      {
+       "uid": "Prlt0C1RF0s",
+       "name": "Fixed, <1y",
+       "code": "COC_292",
+       "category_option_uids": [
+        "btOyqprQ9e8",
+        "qkPbeWaFsnU"
+       ]
+      },
+      {
+       "uid": "psbwp3CQEhs",
+       "name": "Fixed, >1y",
+       "code": "COC_291",
+       "category_option_uids": [
+        "GEqzEKCHoGA",
+        "qkPbeWaFsnU"
+       ]
+      },
+      {
+       "uid": "V6L425pT3A0",
+       "name": "Outreach, <1y",
+       "code": "COC_290",
+       "category_option_uids": [
+        "btOyqprQ9e8",
+        "wbrDrL2aYEc"
+       ]
+      },
+      {
+       "uid": "hEFKSsPV5et",
+       "name": "Outreach, >1y",
+       "code": "COC_289",
+       "category_option_uids": [
+        "GEqzEKCHoGA",
+        "wbrDrL2aYEc"
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "nEenWmSyUEp",
+  "name": "Person (Play)",
+  "description": "Person",
+  "translations": [],
+  "kind": "tracked-entity",
+  "displays_incident_date": false,
+  "tracked_entity_type_uid": "nEenWmSyUEp",
+  "sections": [],
+  "flat_items": [
+   {
+    "uid": "w75KJ2mc4zz",
+    "name": "First name (Play)",
+    "code": "MMD_PER_NAM",
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ຊື່"
+     },
+     {
+      "locale": "fr",
+      "property": "NAME",
+      "value": "Prenom"
+     }
+    ],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": true,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "zDhUuAYrxNC",
+    "name": "Last name (Play)",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": true,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaComTx1",
+    "name": "Scenario Common Note",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "ScTeaComPh1",
+    "name": "Scenario Common Phone",
+    "translations": [],
+    "value_type": "PHONE_NUMBER",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": false,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   },
+   {
+    "uid": "lZGmxYbs97q",
+    "name": "Unique ID (Play)",
+    "code": "MMD_PER_ID",
+    "translations": [],
+    "value_type": "TEXT",
+    "domain_type": "",
+    "compulsory": false,
+    "unique": true,
+    "searchable": false,
+    "entity_level": true,
+    "required_option_combo_uids": []
+   }
+  ],
+  "attribute_values": []
+ }
+]

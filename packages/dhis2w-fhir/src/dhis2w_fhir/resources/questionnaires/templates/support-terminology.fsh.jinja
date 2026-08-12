@@ -79,6 +79,10 @@ Description: {{ terminology.description_literal }}
 * #{{ concept.uid }} ^property[+].code = #{{ category_property.property_code }}
 * #{{ concept.uid }} ^property[=].valueCoding = {{ category_property.coding_literal }}
 {% endfor %}
+{% for designation in concept.designations %}
+* #{{ concept.uid }} ^designation[+].language = #{{ designation.locale }}
+* #{{ concept.uid }} ^designation[=].value = {{ designation.value_literal }}
+{% endfor %}
 {% endfor %}
 
 ValueSet: {{ terminology.value_set }}

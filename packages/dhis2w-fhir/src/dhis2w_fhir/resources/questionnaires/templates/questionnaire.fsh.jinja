@@ -33,6 +33,13 @@ Usage: #definition
 {% endfor %}
 * name = "{{ questionnaire.name }}"
 * title = {{ questionnaire.title_element_literal }}
+{% for translation in questionnaire.title_translations %}
+* title.extension[+].url = "{{ translation_extension_url }}"
+* title.extension[=].extension[+].url = "lang"
+* title.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* title.extension[=].extension[+].url = "content"
+* title.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
 * status = #{{ questionnaire.ig_status }}
 * experimental = {{ "true" if questionnaire.experimental else "false" }}
 * subjectType = #{{ questionnaire.subject_type }}
@@ -43,6 +50,13 @@ Usage: #definition
 * {{ item.path }}.code = {{ item.code_token }}
 {% endif %}
 * {{ item.path }}.text = {{ item.text_literal }}
+{% for translation in item.text_translations %}
+* {{ item.path }}.text.extension[+].url = "{{ translation_extension_url }}"
+* {{ item.path }}.text.extension[=].extension[+].url = "lang"
+* {{ item.path }}.text.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* {{ item.path }}.text.extension[=].extension[+].url = "content"
+* {{ item.path }}.text.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
 * {{ item.path }}.type = #{{ item.type_code }}
 {% if item.answer_value_set is not none %}
 * {{ item.path }}.answerValueSet = Canonical({{ item.answer_value_set }})

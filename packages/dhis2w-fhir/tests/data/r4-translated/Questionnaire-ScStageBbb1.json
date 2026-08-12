@@ -1,0 +1,95 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "ScStageBbb1",
+  "url": "http://localhost:8080/fhir/Questionnaire/ScStageBbb1",
+  "title": "Scenario B - Scenario B Visit",
+  "description": "DHIS2 tracker program stage Scenario B Visit (ScStageBbb1) of program Scenario B (ScProgBbb01) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "tracker-event"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage",
+      "value": "ScStageBbb1"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage-code",
+      "value": "ScStageBbb1"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "ScProgBbb01"
+    }
+  ],
+  "name": "D2PS_ScStageBbb1",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "code": "tracker-event",
+      "system": "http://localhost:8080/fhir/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "UXz7xuGCEhU",
+      "code": [
+        {
+          "code": "UXz7xuGCEhU",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH Weight (g)"
+        }
+      ],
+      "text": "Weight (g)",
+      "type": "decimal"
+    },
+    {
+      "linkId": "a3kGcGDCuk6",
+      "code": [
+        {
+          "code": "a3kGcGDCuk6",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH Apgar Score"
+        }
+      ],
+      "text": "Apgar Score",
+      "_text": {
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "fr"
+              },
+              {
+                "url": "content",
+                "valueString": "Score d'Apgar"
+              }
+            ]
+          },
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "lo"
+              },
+              {
+                "url": "content",
+                "valueString": "ຄະແນນ Apgar"
+              }
+            ]
+          }
+        ]
+      },
+      "type": "decimal"
+    }
+  ]
+}
