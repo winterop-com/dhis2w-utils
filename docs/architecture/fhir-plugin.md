@@ -734,7 +734,15 @@ whose type comes from the DHIS2 `valueType` table, or `#choice` plus an
 program-stage element is `required`; on an *aggregate* source a non-default category combo turns
 the question into a group
 with one child per option combo, `linkId` `<deUid>.<cocUid>` - the same key a DHIS2
-data value carries. Disaggregation is aggregate-only by construction: a data set's values land
+data value carries. Which combo that is comes from one resolution point,
+`service._effective_category_combo`: DHIS2 holds a disaggregation on the data set element - the
+join between a data set and an element it carries - as well as on the element itself, and the
+join's wins. `dataSetElements[].categoryCombo` is the combo a data set holds that element's cells
+over, `dataElement.categoryCombo` is the fallback when the join states none, and every reader of a
+data-set cell is downstream of the pair: the questionnaire's children, the `D2COC_CS` concepts, the
+examples and the load set, and the conversion that writes each answer back under its own
+`categoryOptionCombo`. The join's combo rides the same projection the elements ride, so reading it
+costs no second request. Disaggregation is aggregate-only by construction: a data set's values land
 on `/api/dataValueSets`, where every value carries a category option combo, while an event data
 value has no `categoryOptionCombo` slot on the wire - so an event or tracker-stage question
 stays flat whatever combo its data element declares, because a form must not ask a question the

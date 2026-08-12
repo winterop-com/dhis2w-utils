@@ -39,7 +39,11 @@ Three rules apply to every selection table:
 
 **In plain words.** Which aggregate data sets become forms in the guide. Each
 selected data set is published as one fill-in form with the same sections,
-data elements, and disaggregations as its DHIS2 entry screen.
+data elements, and disaggregations as its DHIS2 entry screen. A data set may
+restate the disaggregation of an element it carries, and that restatement is
+what the form asks: the cells come from the data set's own category combo for
+that element when it states one, and from the data element's own when it does
+not - the same rule the DHIS2 entry screen follows.
 
 **When you would change it.** The most common edit in the file: the guide
 should cover the HIV monthly summary, so you add its UID. Or a national
