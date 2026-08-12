@@ -1454,6 +1454,13 @@ def _with_subject_exists(
 #: The one attribute of that program the program itself asks, whose answer belongs on the enrollment.
 _PROGRAM_LEVEL_ATTRIBUTE = "cejWyOfXge6"
 
+#: The entity-level attribute the program marks mandatory. DHIS2 answers `E1018` when it arrives on
+#: nothing, so a linked registration states the person's existing value on the enrollment.
+_MANDATORY_ENTITY_LEVEL_ATTRIBUTE = "w75KJ2mc4zz"
+
+#: The entity-level attribute the program leaves optional, which a linked registration may not state.
+_OPTIONAL_ENTITY_LEVEL_ATTRIBUTE = "iESIqZ0R0R0"
+
 
 def _linked_registration_response(**overrides: object) -> ExampleResponseIn:
     """One registration of a person the instance already holds, answering only what the program asks."""
@@ -1533,8 +1540,8 @@ def test_the_enrollment_uid_of_a_linked_registration_is_the_one_the_receipt_mint
     assert first.enrollment.enrollment == second.enrollment.enrollment == _ENROLLMENT
 
 
-def test_an_answer_of_the_person_s_own_record_is_refused_when_the_instance_already_holds_them() -> None:
-    """An enrollment-only import carries no entity attribute, and dropping the answer silently is data loss."""
+def test_an_optional_answer_of_the_person_s_own_record_is_refused_when_the_instance_already_holds_them() -> None:
+    """An enrollment-only import carries no optional entity attribute, and dropping it silently is data loss."""
     context = _context([_LEVELLED_PROGRAMME])
     document = _document(_registration_response(tracked_entity_uid=_EXISTING_PERSON), [_LEVELLED_PROGRAMME])
 
@@ -1545,8 +1552,63 @@ def test_an_answer_of_the_person_s_own_record_is_refused_when_the_instance_alrea
     assert {refusal.category for refusal in refused.refusals} == {
         ConversionRefusalCategory.ENTITY_LEVEL_ANSWER_ON_EXISTING_SUBJECT
     }
-    assert {refusal.link_id for refusal in refused.refusals} == set(_ENTITY_LEVEL_ATTRIBUTES)
+    assert {refusal.link_id for refusal in refused.refusals} == {_OPTIONAL_ENTITY_LEVEL_ATTRIBUTE}
     assert all("Answer it on that person's own record" in refusal.reason for refusal in refused.refusals)
+
+
+def _linked_registration_stating_mandatory_attributes() -> ConversionResult:
+    """A linked registration answering the program's mandatory entity-level question and its own."""
+    context = _context([_LEVELLED_PROGRAMME])
+    document = _document(
+        _registration_response(
+            tracked_entity_uid=_EXISTING_PERSON,
+            answers=[
+                ExampleAnswerIn(
+                    data_element_uid=_MANDATORY_ENTITY_LEVEL_ATTRIBUTE,
+                    value=_REGISTRATION_VALUES[_MANDATORY_ENTITY_LEVEL_ATTRIBUTE],
+                ),
+                ExampleAnswerIn(
+                    data_element_uid=_PROGRAM_LEVEL_ATTRIBUTE, value=_REGISTRATION_VALUES[_PROGRAM_LEVEL_ATTRIBUTE]
+                ),
+            ],
+        ),
+        [_LEVELLED_PROGRAMME],
+    )
+    return translate_response(_with_subject_exists(document, context), context)
+
+
+def test_a_mandatory_answer_of_the_person_s_own_record_rides_the_enrollment_of_an_existing_person() -> None:
+    """Refusing it would make every program with a mandatory type attribute uncapturable through a link.
+
+    DHIS2 answers `E1018` to a program-mandatory attribute that arrives on nothing, and an enrollment
+    attribute value is stored against the very attribute the person already carries - so stating the
+    value the picker read off that person satisfies the rule without changing the record.
+    """
+    result = _linked_registration_stating_mandatory_attributes()
+
+    assert result.refusals == ()
+    assert result.tracked_entity is None
+    assert result.enrollment is not None
+    assert [(attribute.attribute, attribute.value) for attribute in result.enrollment.attributes or []] == [
+        (_MANDATORY_ENTITY_LEVEL_ATTRIBUTE, _REGISTRATION_VALUES[_MANDATORY_ENTITY_LEVEL_ATTRIBUTE]),
+        (_PROGRAM_LEVEL_ATTRIBUTE, _REGISTRATION_VALUES[_PROGRAM_LEVEL_ATTRIBUTE]),
+    ]
+
+
+def test_a_registration_minting_its_own_person_keeps_every_entity_level_answer_on_that_person() -> None:
+    """Mandatory or not, an answer of a person this response creates belongs on the person it creates."""
+    context = _context([_LEVELLED_PROGRAMME])
+    document = _document(_registration_response(), [_LEVELLED_PROGRAMME])
+
+    result = translate_response(document, context)
+
+    assert result.tracked_entity is not None
+    assert {attribute.attribute for attribute in result.tracked_entity.attributes or []} == set(
+        _ENTITY_LEVEL_ATTRIBUTES
+    )
+    enrollments = result.tracked_entity.enrollments or []
+    assert len(enrollments) == 1
+    assert [attribute.attribute for attribute in enrollments[0].attributes or []] == [_PROGRAM_LEVEL_ATTRIBUTE]
 
 
 def test_a_registration_stating_the_marker_false_creates_the_person_it_enrols() -> None:

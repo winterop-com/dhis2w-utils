@@ -50,15 +50,85 @@ describe('the lifecycle vocabulary', () => {
     })
 })
 
+/**
+ * The environment this suite's own zone is set in.
+ *
+ * Reached through `globalThis` because the app's TypeScript configuration types a browser and these
+ * tests run in Node: `TZ` is real at runtime and simply not declared here.
+ */
+const nodeEnvironment = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env
+
+/**
+ * Read one instant while the runtime stands in a given zone.
+ *
+ * The zone is the whole subject of the rule under test, and Node resolves it from `TZ` each time a
+ * date is formatted - so the variable is set, the reading taken, and the previous value put back
+ * before the next test runs in whatever zone the suite was started in.
+ */
+function inTimeZone(timeZone: string, read: () => string): string {
+    if (nodeEnvironment === undefined) return read()
+    const started = nodeEnvironment.TZ
+    nodeEnvironment.TZ = timeZone
+    try {
+        return read()
+    } finally {
+        nodeEnvironment.TZ = started
+    }
+}
+
+/** The wall clock a rendering states, as `Intl` writes those fields with no zone arithmetic on them. */
+function wallClock(year: number, month: number, day: number, hour: number, minute: number): string {
+    return new Date(Date.UTC(year, month - 1, day, hour, minute)).toLocaleString(undefined, {
+        timeZone: 'UTC',
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+}
+
 describe('formatInstant', () => {
-    it('renders a FHIR instant as something a person reads', () => {
-        const rendered = formatInstant('2026-08-09T09:30:00Z')
-        expect(rendered).not.toBe('2026-08-09T09:30:00Z')
-        expect(rendered).toContain('2026')
+    it('renders the wall clock the wire carries, digit for digit', () => {
+        expect(formatInstant('2026-08-09T09:30:00Z')).toBe(wallClock(2026, 8, 9, 9, 30))
+    })
+
+    it('reads a zoned value and a zone-less one as the same wall clock', () => {
+        // The two spellings DHIS2 sends for one moment. A rule that applied the offset would put
+        // them under different hours on one screen.
+        expect(formatInstant('2026-08-09T09:30:00Z')).toBe(formatInstant('2026-08-09T09:30:00'))
+        expect(formatInstant('2026-08-09T09:30:00+05:00')).toBe(formatInstant('2026-08-09T09:30:00'))
+    })
+
+    it('renders one instant the same wherever the browser stands', () => {
+        // Half past eleven at night, which is the reading a zone shift moves to another day.
+        const late = '2026-08-09T23:30:00Z'
+        // The two zones are a day apart on this instant, so the reading below is a real comparison
+        // rather than one taken twice in the same zone.
+        expect(inTimeZone('Pacific/Kiritimati', () => new Date(late).toLocaleString())).not.toBe(
+            inTimeZone('Pacific/Honolulu', () => new Date(late).toLocaleString()),
+        )
+        expect(inTimeZone('Pacific/Kiritimati', () => formatInstant(late))).toBe(
+            inTimeZone('Pacific/Honolulu', () => formatInstant(late)),
+        )
+        expect(inTimeZone('Pacific/Honolulu', () => formatInstant(late))).toBe(wallClock(2026, 8, 9, 23, 30))
+    })
+
+    it('renders a date with no time of day as that date', () => {
+        expect(formatInstant('2026-08-09')).toBe(wallClock(2026, 8, 9, 0, 0))
     })
 
     it('shows an unparseable value verbatim rather than as Invalid Date', () => {
         expect(formatInstant('not an instant')).toBe('not an instant')
+    })
+
+    it('shows a date nobody has verbatim, rather than rolling it into a real one', () => {
+        expect(formatInstant('2026-02-30')).toBe('2026-02-30')
+        expect(formatInstant('2026-08-09T25:30:00Z')).toBe('2026-08-09T25:30:00Z')
+    })
+
+    it('shows a value that is only shaped like an instant at its head verbatim', () => {
+        expect(formatInstant('2026-08-09 and then some')).toBe('2026-08-09 and then some')
     })
 })
 

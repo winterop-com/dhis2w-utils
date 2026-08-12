@@ -378,6 +378,26 @@ def basemaps_from_options(values: list[str]) -> list[BasemapSource]:
     return [_basemap_from_option(value) for value in values]
 
 
+class ForwardConfig(BaseModel):
+    """How `d2w fhir forward` drains this project's spool - the `[forward]` table of `fhir.toml`.
+
+    `live` is what a project with no compiled guide forwards through. A drain reads the published
+    Questionnaires and terminology to translate a receipt against, and a project that has run SUSHI
+    has them on disk. A project captured through `d2w fhir serve --live` has never built anything,
+    so the same documents are built off the instance instead - one full metadata read per drain,
+    where a compiled guide costs a directory listing.
+
+    Left on, that read happens only when there is no compiled guide to read instead; a project that
+    builds its IG never pays it. Turned off, a drain against a project with no compiled guide is
+    refused and says which two commands produce one - which is the posture for a deployment that
+    wants its forwards reading a reviewed, published guide and nothing else.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    live: bool = True
+
+
 class FhirProjectConfig(BaseModel):
     """The full parsed `fhir.toml` document."""
 
@@ -387,6 +407,7 @@ class FhirProjectConfig(BaseModel):
     ig: IgConfig
     generate: GenerateConfig = Field(default_factory=GenerateConfig)
     serve: ServeConfig = Field(default_factory=ServeConfig)
+    forward: ForwardConfig = Field(default_factory=ForwardConfig)
 
 
 class FhirProject(BaseModel):

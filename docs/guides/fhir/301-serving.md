@@ -1,4 +1,4 @@
-# Serving it: the `[serve]` section
+# Serving it: the `[serve]` and `[forward]` sections
 
 **Who this is for:** the person editing `fhir.toml`.
 
@@ -567,6 +567,41 @@ itself already treats as worth looking somebody up by.
 **If you get it wrong:** as with the types above, no check is possible before
 the server connects, so a mistyped id is a key nothing is ever found under. The
 symptom is a value you know a person holds finding nobody.
+
+## Forwarding it: the `[forward]` section { #forward }
+
+`d2w fhir forward` is the other half of the loop the capture server opens - see
+[Forward captures into DHIS2](201-forward.md). One option in `fhir.toml`
+belongs to it.
+
+### `live`
+
+**In plain words.** What a drain does when the project holds no compiled guide.
+On (the default), it builds the guide it needs off the DHIS2 instance, using
+the same builders `make serve-live` reads through. Off, it refuses and names the
+two commands that produce a compiled guide.
+
+**When you would change it.** Turn it off when forwards must read a reviewed,
+published guide and nothing else - a production drain where "whatever the
+instance says today" is not an acceptable answer to "which form was this
+answered against". Leave it on for the live workflow, where nothing was ever
+built: `make serve-live` captures receipts a compiled guide would refuse to
+explain, and this is what lets those receipts reach DHIS2.
+
+**Example.**
+
+```toml
+[forward]
+live = false
+```
+
+**Default:** `true` - **If you leave it out:** a project with a compiled guide
+reads it off disk exactly as before, and a project without one builds a guide
+off the instance instead, paying one full metadata read per drain. The progress
+step says which happened.
+
+**If you get it wrong:** TOML wants bare `true` or `false`; anything
+unrecognisable stops the run with a printout naming `forward.live`.
 
 Next: [The capture contract](401-capture-contract.md) - the integrate tier
 starts with what a valid submission carries. Or back to

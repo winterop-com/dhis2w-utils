@@ -4,8 +4,9 @@
 DHIS2 instance - the one step in the whole loop that writes.
 
 **Before you start:** a project with receipts in
-`.serve/responses/received/` ([Serve the guide](201-serve.md)), a compiled
-IG on disk, and a DHIS2 profile the run can resolve.
+`.serve/responses/received/` ([Serve the guide](201-serve.md)) and a DHIS2
+profile the run can resolve. A compiled IG on disk is the usual case and the
+faster one; a project that has never run SUSHI forwards too.
 
 **You will be able to:**
 
@@ -54,13 +55,14 @@ run the same command with `--import`.
 
 ## What one run does
 
-Six steps, each narrated on stderr:
+Seven steps, each narrated on stderr:
 
 1. **Read the spool** - every `.serve/responses/received/*.json`, in
    file-name order.
-2. **Read the published guide** - the same two trees `d2w fhir serve`
-   loads. Forwarding an uncompiled project is a one-line refusal naming
-   `d2w fhir generate` and `make sushi`.
+2. **Read the guide** - the same two trees `d2w fhir serve` loads. A project
+   holding no compiled guide has one built off the instance instead, by the
+   very builders `d2w fhir serve --live` answers reads from (see
+   [A project with no compiled guide](#a-project-with-no-compiled-guide)).
 3. **Read the value types** - one id-only request per kind, for the one
    fact the compiled IG cannot carry: R4 spells DHIS2's `BOOLEAN` and
    `TRUE_ONLY` as the same `#boolean` item type, and only the value type
@@ -69,7 +71,9 @@ Six steps, each narrated on stderr:
    all-or-nothing.
 5. **Post** - one payload per response, **people first and then the payloads
    that create an enrollment**, through the one client the run opened.
-6. **File** - each receipt into what it became (import runs only).
+6. **Register completeness** - the tuple every `completed` aggregate response
+   claimed, and only once DHIS2 has taken its values.
+7. **File** - each receipt into what it became (import runs only).
 
 The posting order is what one drain's own creations depend on: a person-only
 capture creates the person a registration of the same drain enrols, and a
@@ -83,6 +87,43 @@ as they would have, the receipts stay in the queue, and the next run is the
 retry. One POST per response is deliberate - DHIS2 answers a bundle with one
 report for the bundle, and a spool whose receipts move individually needs
 one answer each.
+
+## A project with no compiled guide
+
+A drain translates each receipt against the published Questionnaires and
+terminology. A project that has run `d2w fhir generate` and `make sushi` has
+them in `ig/fsh-generated/resources`, and the run reads them off disk.
+
+`d2w fhir serve --live` has no build step in front of it, so a project captured
+that way has never written those files. Rather than refuse the receipts a
+working capture screen produced, the run builds the same documents off the
+instance - one metadata read through the same builders the live facade serves
+from, so the forms a response was captured against and the forms it is
+translated against are built by the same code from the same read.
+
+Which path a run takes is decided by what the project holds, not by a flag:
+
+| The project holds | The run reads | Cost |
+| --- | --- | --- |
+| `ig/fsh-generated/resources` | the compiled guide, off disk | a directory listing |
+| no compiled guide | a guide built off the instance | one full metadata read per drain |
+
+The progress step says which happened, and the second one names its own cost:
+
+```
+[2/7] guide: building the guide off the instance, this project holding no compiled one
+```
+
+A deployment that wants its forwards reading a reviewed, published guide and
+nothing else turns the stand-in off:
+
+```toml
+[forward]
+live = false
+```
+
+Forwarding an uncompiled project is then the one-line refusal naming
+`d2w fhir generate` and `make sushi`.
 
 ## What a dry run cannot check
 
@@ -319,12 +360,13 @@ records it:
 
 ```console
 $ d2w fhir forward
-[1/6] spool: 286 pending response(s)
-[2/6] compiled IG: 1,412 resource(s), 7 form(s)
-[3/6] value types: 214 of 214 data element(s) typed
-[4/6] translate: 284 translated, 2 refused
-[5/6] post: 284 payload(s) posted (validate only)
-[6/6] spool: 286 spooled, 284 translated, 2 refused, 284 posted, 281 accepted, 2 rejected,
+[1/7] spool: 286 pending response(s)
+[2/7] guide: 1,412 resource(s), 7 form(s)
+[3/7] value types: 214 of 214 question object(s) typed
+[4/7] translate: 284 translated, 2 refused
+[5/7] post: 284 payload(s) posted (validate only)
+[6/7] completeness: 12 tuple(s) registered
+[7/7] spool: 286 spooled, 284 translated, 2 refused, 284 posted, 281 accepted, 2 rejected,
       1 unverifiable in a dry run
 
 dry run: DRY RUN - every payload was posted to DHIS2 under its own validate-only mode

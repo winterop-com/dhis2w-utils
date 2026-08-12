@@ -26,8 +26,12 @@ from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
 from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, load_project
 from dhis2w_fhir.conversion.artifacts import (
     BoundQuestionUids,
+    CompiledArtifacts,
+    CompiledIgMissingError,
+    SourcedDocument,
     bound_question_uids,
     build_project_context,
+    collect_artifacts,
     load_compiled_artifacts,
 )
 from dhis2w_fhir.conversion.schemas import (
@@ -118,6 +122,7 @@ from dhis2w_fhir.resources.questionnaires.assignments import (
     assignment_container_uid,
     build_assignment_artifacts,
 )
+from dhis2w_fhir.resources.questionnaires.documents import build_questionnaire_documents
 from dhis2w_fhir.resources.questionnaires.schemas import (
     FORM_KIND_PROFILES,
     CategoryComboIn,
@@ -140,7 +145,14 @@ from dhis2w_fhir.validation.schemas import (
     MetadataItemIn,
     ValidationScope,
 )
-from dhis2w_fhir.writer import FshArtifact, JsonArtifact, clean_generated_files, sync_artifacts, sync_json_artifacts
+from dhis2w_fhir.writer import (
+    FshArtifact,
+    JsonArtifact,
+    JsonBuild,
+    clean_generated_files,
+    sync_artifacts,
+    sync_json_artifacts,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -2471,6 +2483,98 @@ async def fetch_live_ig_inputs(
     )
 
 
+#: What a live-built Questionnaire names as its source in a diagnostic, where a compiled one names the
+#: file it was read from. Every other live document is named by the path the build would have written.
+_LIVE_ARTIFACT_SOURCE = "built live"
+
+
+async def fetch_live_artifacts(
+    client: Dhis2Client, project: FhirProject, *, progress: _StepAnnouncer | None = None
+) -> CompiledArtifacts:
+    """Build the artifacts the translator reads off the instance, for a project holding no compiled guide.
+
+    The forward-side twin of `d2w fhir serve --live`. Both read the instance through
+    `fetch_live_ig_inputs` and hand the result to the same document builders, so the forms a live
+    capture UI served and the forms a live forward translates against are built by the same code
+    from the same read - which is what makes a receipt captured without a build step forwardable
+    without one.
+
+    Only the five resource types `collect_artifacts` keeps are built, and only the builders that
+    produce them: the Questionnaires a response answers, the option-set and category terminology a
+    coded answer resolves against, the attribute-option-combo vocabulary an aggregate response is
+    keyed by, the ConceptMaps that carry the DHIS2 spellings back under code-mode naming, and the
+    Locations a `Location/<id>` reference resolves to an organisation unit UID through. The
+    foundation terminology and the data dictionary a served store also holds say nothing the
+    response direction reads, so a forward does not pay to build them.
+
+    The cost is a full metadata read per drain, where a compiled guide is read from disk. That is
+    the trade a project without a build step takes, and the caller narrates it.
+    """
+    config = project.config.generate
+    canonical = project.config.ig.canonical
+    ig_status = project.config.ig.status
+    inputs = await fetch_live_ig_inputs(client, config, progress=progress)
+    assignments = build_assignment_artifacts(
+        inputs.sources,
+        inputs.assignments,
+        config,
+        published=inputs.organisation_unit_stems,
+        stem_plan=inputs.questionnaire_stems,
+    )
+    decomposition = build_category_decomposition(inputs.sources, inputs.categories, config, canonical)
+    attribute_combos = build_attribute_combo_artifacts(
+        inputs.sources, config, canonical, ig_status=ig_status, decomposition=decomposition
+    )
+    questionnaires = build_questionnaire_documents(
+        inputs.sources,
+        config,
+        canonical,
+        ig_status=ig_status,
+        option_set_plan=inputs.option_set_plan,
+        attribute_codes=inputs.attribute_codes,
+        assignments=assignments.plan,
+        attribute_combos=attribute_combos.plan,
+    )
+    json_builds: tuple[JsonBuild, ...] = (
+        build_option_set_artifacts(
+            inputs.option_sets, config, canonical, ig_status=ig_status, attribute_codes=inputs.attribute_codes
+        ),
+        JsonBuild(
+            artifacts=build_option_set_concept_map_artifacts(inputs.option_sets, config, canonical, ig_status=ig_status)
+        ),
+        build_category_artifacts(
+            inputs.categories, config, canonical, ig_status=ig_status, attribute_codes=inputs.attribute_codes
+        ),
+        JsonBuild(
+            artifacts=build_category_concept_map_artifacts(inputs.categories, config, canonical, ig_status=ig_status)
+        ),
+        build_organisation_unit_instances(
+            inputs.organisation_units, config, canonical, attribute_codes=inputs.attribute_codes
+        ),
+        attribute_combos,
+        JsonBuild(
+            artifacts=build_attribute_combo_concept_map_artifacts(
+                inputs.sources, config, canonical, ig_status=ig_status
+            )
+        ),
+    )
+    documents = [
+        SourcedDocument(source=_LIVE_ARTIFACT_SOURCE, body=_wire_document(questionnaire))
+        for questionnaire in questionnaires.questionnaires
+    ]
+    documents.extend(
+        SourcedDocument(source=artifact.relative_path, body=json.loads(artifact.content))
+        for build in json_builds
+        for artifact in build.artifacts
+    )
+    return collect_artifacts(documents)
+
+
+def _wire_document(resource: BaseModel) -> dict[str, Any]:
+    """One built resource as the wire document a guide publishes it as, aliases applied and absences dropped."""
+    return resource.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
 def _selected_option_sets(
     inputs: list[OptionSetIn], sources: list[QuestionnaireSourceIn], config: GenerateConfig, notes: list[GenerateNote]
 ) -> list[OptionSetIn]:
@@ -4103,6 +4207,27 @@ class ForwardReport(BaseModel):
         )
 
 
+def _compiled_artifacts_or_none(project: FhirProject) -> CompiledArtifacts | None:
+    """The project's compiled guide, or None when it holds none and the live build stands in for it.
+
+    Absence of the compiled tree is the whole trigger - a project that has run SUSHI reads its own
+    build, and one that never has had nothing to read. `[forward] live = false` turns the stand-in
+    off, and the refusal naming the two commands that produce a build is then what a drain answers.
+    """
+    try:
+        return load_compiled_artifacts(project)
+    except CompiledIgMissingError:
+        if not project.config.forward.live:
+            raise
+        return None
+
+
+def _artifacts_completion(artifacts: CompiledArtifacts) -> str:
+    """What one guide amounted to, however it was read: the resources kept, the forms among them."""
+    unreadable = f", {len(artifacts.unreadable_resources):,} unreadable" if artifacts.unreadable_resources else ""
+    return f"{artifacts.resource_count:,} resource(s), {len(artifacts.questionnaires):,} form(s){unreadable}"
+
+
 async def forward_responses(
     profile: Profile,
     project: FhirProject,
@@ -4126,6 +4251,14 @@ async def forward_responses(
     One client serves the run. It reads the DHIS2 value types behind the questions the published forms
     bind - the one fact the compiled IG cannot carry, since R4 spells `BOOLEAN` and `TRUE_ONLY` as the
     same `#boolean` item type - and then posts every translated payload through the same connection.
+
+    A guide reaches the run one of two ways, and the project decides which by what it holds. A
+    compiled `ig/fsh-generated/resources` is read off disk. A project that has never run SUSHI - which
+    is every project captured through `d2w fhir serve --live` - has that guide built off the instance
+    instead, by the very builders the live facade serves from, so a receipt captured without a build
+    step forwards without one. The cost is a full metadata read per drain and the progress step says
+    so. `[forward] live = false` turns the stand-in off and restores the refusal naming
+    `d2w fhir generate` and `make sushi`.
 
     Registrations post first. A tracker program's registration response creates the enrollment its
     stage responses answer against, and a client captures both in one sitting, so a drain holding
@@ -4159,17 +4292,22 @@ async def forward_responses(
     spooled = read_received_responses(project.project_root)
     progress.complete(f"{len(spooled):,} pending response(s)")
 
-    progress.step("compiled IG", "reading the published guide")
-    artifacts = load_compiled_artifacts(project)
-    unreadable = f", {len(artifacts.unreadable_resources):,} unreadable" if artifacts.unreadable_resources else ""
-    progress.complete(
-        f"{artifacts.resource_count:,} resource(s), {len(artifacts.questionnaires):,} form(s){unreadable}"
-    )
+    compiled = _compiled_artifacts_or_none(project)
+    if compiled is not None:
+        progress.step("guide", "reading the published guide")
+        progress.complete(_artifacts_completion(compiled))
 
     naming = ConversionNaming.from_config(project.config.generate, project.config.ig.canonical)
-    bound = bound_question_uids(artifacts, naming)
     dry_run = not import_responses
     async with open_client(profile) as client:
+        if compiled is None:
+            progress.step("guide", "building the guide off the instance, this project holding no compiled one")
+            artifacts = await fetch_live_artifacts(client, project, progress=progress)
+            progress.complete(_artifacts_completion(artifacts))
+        else:
+            artifacts = compiled
+        bound = bound_question_uids(artifacts, naming)
+
         progress.step("value types", "reading the value types the forms bind")
         value_types = await _fetch_value_types(client, bound, progress=progress)
         progress.complete(f"{len(value_types):,} of {bound.total:,} question object(s) typed")

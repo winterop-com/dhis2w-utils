@@ -29,11 +29,20 @@ const CONTROL_ID = 'reporting-organisation-unit'
  * whenever `$generate` answered, and when it did not there is no envelope at all - so refusing to
  * submit would withhold the server's own refusal, which names the missing context better than this
  * screen can. The control says which of the two it is in instead.
+ *
+ * WHY IT SAYS IT IS KEPT. A chosen organisation unit stays chosen for the rest of the browser tab,
+ * so the next form opens reporting from the same place - a supervisor filing six forms for one
+ * facility answers this control once. That is a fact about what the next form will do, so the
+ * control states it rather than leaving a person to discover it. When the kept unit is one this
+ * form's assignment excludes, the draft's own unit stands and the mismatch is stated too: the
+ * difference between "the same unit as last time" and "some other unit" is exactly what a person
+ * checking their submission needs to see.
  */
 export function ReportingUnitPicker({
     formKind,
     declaresAttributeOptionCombo,
     selectedUnitId,
+    keptUnitNotAdmitted,
     onChange,
 }: {
     /** The form's DHIS2 kind, which decides what the organisation unit means for the submission. */
@@ -41,6 +50,8 @@ export function ReportingUnitPicker({
     /** True when the form declares an attribute-option-combo vocabulary as a second key. */
     declaresAttributeOptionCombo: boolean
     selectedUnitId: string | null
+    /** True when this browser tab keeps an organisation unit that this form is not assigned to. */
+    keptUnitNotAdmitted: boolean
     onChange: (choice: OrgUnitChoice) => void
 }) {
     const scope = useOrgUnitScope()
@@ -75,6 +86,16 @@ export function ReportingUnitPicker({
                         : `This form is assigned everywhere, so any of the ${String(offered)} published organisation units may report it.`}
                 </p>
             )}
+            {keptUnitNotAdmitted && (
+                <p className="text-muted-foreground text-xs">
+                    This form is not assigned to the organisation unit kept for this browser tab, so
+                    it opens on the organisation unit the server drafted.
+                </p>
+            )}
+            <p className="text-muted-foreground text-xs">
+                The chosen organisation unit is kept for this browser tab, so the next form opens
+                reporting from it.
+            </p>
             {selectedUnitId === null && !scope.loading && offered > 0 && (
                 <p className="text-muted-foreground text-xs">
                     Nothing is chosen yet, because the server has not answered with its generated

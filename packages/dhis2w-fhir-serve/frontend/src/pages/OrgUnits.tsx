@@ -26,6 +26,7 @@ import {
     buildOrgUnitTree,
     descendantIdsOf,
     hasGeometry,
+    levelLabel,
     matchingUnitIds,
     readGeometry,
     reportableFormsAt,
@@ -541,9 +542,11 @@ function UnitBranch({
                     <span className="truncate" title={node.name}>
                         {node.name}
                     </span>
+                    {/* The level is spelled the way the panel beside it spells the level, because
+                        it is the same fact: `levelLabel` is where that rule lives. */}
                     {node.level !== null && (
-                        <span className="text-muted-foreground shrink-0 font-mono text-[10px]" aria-hidden>
-                            {node.level.code}
+                        <span className="text-muted-foreground shrink-0 text-[10px]" aria-hidden>
+                            {levelLabel(node.level)}
                         </span>
                     )}
                     {node.orphaned && (
@@ -681,11 +684,11 @@ function UnitHeader({
                         no level stated
                     </Badge>
                 ) : (
-                    // One spelling of one fact: the human one. The machine casing (`level-1`)
-                    // stays in machine contexts - the tree row's mono chip - not beside its own
-                    // translation.
+                    // One spelling of one fact, and `levelLabel` is the one place it is decided.
+                    // The machine casing (`level-1`) is the concept code and stays where codes go:
+                    // the identifier badges below, never beside its own translation.
                     <Badge variant="secondary" data-testid="org-unit-level">
-                        {node.level.display ?? node.level.code}
+                        {levelLabel(node.level)}
                     </Badge>
                 )}
             </div>
@@ -841,8 +844,10 @@ function UnitChildren({ node, onSelect }: { node: OrgUnitNode; onSelect: (unitId
     const direct = node.children.length
     return (
         <section className="space-y-2" data-testid="org-unit-children">
+            {/* The space is load-bearing: without it the heading and the count beside it are read
+                off as the one word "Children4 direct". */}
             <h4 className="text-sm font-semibold">
-                Children
+                Children{' '}
                 {direct > 0 && (
                     <span className="text-muted-foreground ml-2 text-xs font-normal">
                         {direct.toLocaleString('en')} direct
@@ -977,7 +982,13 @@ function FormCatalogSections({
                 <div className="space-y-4">
                     {catalog.dataSets.length > 0 && (
                         <section className="space-y-2">
-                            <h4 className="text-sm font-semibold">
+                            {/* Two facts, said as two: the count is its own element for the mono
+                                face it is set in, and a name read off the elements alone would run
+                                the shelf and its count together into "Data sets26". */}
+                            <h4
+                                className="text-sm font-semibold"
+                                aria-label={`Data sets, ${String(catalog.dataSets.length)}`}
+                            >
                                 Data sets
                                 <span className="text-muted-foreground ml-2 font-mono text-xs">
                                     {catalog.dataSets.length}
@@ -999,7 +1010,10 @@ function FormCatalogSections({
 
                     {catalog.programs.length > 0 && (
                         <section className="space-y-2">
-                            <h4 className="text-sm font-semibold">
+                            <h4
+                                className="text-sm font-semibold"
+                                aria-label={`Programs, ${String(catalog.programs.length)}`}
+                            >
                                 Programs
                                 <span className="text-muted-foreground ml-2 font-mono text-xs">
                                     {catalog.programs.length}
@@ -1020,7 +1034,10 @@ function FormCatalogSections({
 
                     {catalog.people.length > 0 && (
                         <section className="space-y-2">
-                            <h4 className="text-sm font-semibold">
+                            <h4
+                                className="text-sm font-semibold"
+                                aria-label={`People, ${String(catalog.people.length)}`}
+                            >
                                 People
                                 <span className="text-muted-foreground ml-2 font-mono text-xs">
                                     {catalog.people.length}
@@ -1045,7 +1062,10 @@ function FormCatalogSections({
 
                     {catalog.other.length > 0 && (
                         <section className="space-y-2">
-                            <h4 className="text-sm font-semibold">
+                            <h4
+                                className="text-sm font-semibold"
+                                aria-label={`Other forms, ${String(catalog.other.length)}`}
+                            >
                                 Other forms
                                 <span className="text-muted-foreground ml-2 font-mono text-xs">
                                     {catalog.other.length}
@@ -1182,7 +1202,10 @@ function FormRow({
                     className="self-center"
                 />
             )}
-            {note !== undefined && <span className="text-muted-foreground shrink-0 text-xs">{note}</span>}
+            {/* The space before the note is the whole reason it is written out: the title and the
+                note are two facts, and adjacent elements with nothing between them are read as one
+                word - "Child Programmeregistration". */}
+            {note !== undefined && <span className="text-muted-foreground shrink-0 text-xs">{` ${note}`}</span>}
             {assignedHere && (
                 <Badge variant="outline" className="text-muted-foreground shrink-0 text-[10px]">
                     assigned to this organisation unit
@@ -1236,7 +1259,10 @@ function CapturedHere({
 
     return (
         <section className="space-y-2" data-testid="org-unit-captured">
-            <h4 className="text-sm font-semibold">
+            <h4
+                className="text-sm font-semibold"
+                aria-label={here.length > 0 ? `Captured here, ${String(here.length)}` : undefined}
+            >
                 Captured here
                 {here.length > 0 && (
                     <span className="text-muted-foreground ml-2 font-mono text-xs">{here.length}</span>

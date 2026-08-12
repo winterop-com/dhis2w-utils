@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 
 import { COMPLETED_ENROLLMENT_CHOICE_NOTE, EnrollmentFacts } from '@/components/PatientEnrollments'
 import { PatientSearch } from '@/components/PatientSearch'
+import { ChosenPerson } from '@/components/PersonPicker'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -21,7 +22,6 @@ import type { EnrollmentOption } from '@/lib/enrollments'
 import {
     enrollmentsInProgram,
     isCompletedEnrollment,
-    patientLeadValue,
     type PatientEnrollment,
     type PatientProjection,
 } from '@/lib/patients'
@@ -167,7 +167,13 @@ function SpoolOffer({
                     </SelectTrigger>
                     <SelectContent>
                         {offer.options.map((option) => (
-                            <SelectItem key={option.enrollment} value={option.enrollment}>
+                            // The three facts on the row are said as three: read off the elements
+                            // alone they are one word, "EnMinted00109 Aug 2026, 09:30Received".
+                            <SelectItem
+                                key={option.enrollment}
+                                value={option.enrollment}
+                                aria-label={optionLabel(option)}
+                            >
                                 <span className="font-mono text-xs">{option.enrollment}</span>
                                 {option.enrolledAt !== null && (
                                     <span className="text-muted-foreground text-xs">
@@ -253,12 +259,7 @@ function InstanceOffer({
                 />
             ) : (
                 <div className="grid gap-2">
-                    <p className="text-sm">
-                        <span className="font-mono text-xs">{patientLeadValue(patient)}</span>
-                        <span className="text-muted-foreground ml-2 font-mono text-xs">
-                            {patient.trackedEntityUid}
-                        </span>
-                    </p>
+                    <ChosenPerson person={patient} />
                     <div>
                         <Button type="button" variant="outline" size="sm" onClick={() => setPatient(null)}>
                             Choose a different person
@@ -319,7 +320,7 @@ function InstanceOffer({
  *
  * `lifecycle` reads `forwarded` because that is what the field means - DHIS2 holds this pair - and
  * `responseId` is empty because no receipt on this server minted it. `receivedAt` carries the
- * enrolment date when DHIS2 stated one: the field orders the spool's offer by recency, and an
+ * enrollment date when DHIS2 stated one: the field orders the spool's offer by recency, and an
  * instance enrollment has no capture instant of its own to order by.
  */
 function instanceOption(enrollment: PatientEnrollment, trackedEntity: string): EnrollmentOption {
@@ -331,6 +332,12 @@ function instanceOption(enrollment: PatientEnrollment, trackedEntity: string): E
         lifecycle: 'forwarded',
         receivedAt: enrollment.enrolled_at ?? '',
     }
+}
+
+/** One offered enrollment as a sentence: the pair's handle, when it began, and where it stands. */
+function optionLabel(option: EnrollmentOption): string {
+    const began = option.enrolledAt === null ? [] : [`enrolled ${formatInstant(option.enrolledAt)}`]
+    return [option.enrollment, ...began, LIFECYCLE_LABELS[option.lifecycle]].join(', ')
 }
 
 /** What the trigger says while there is nothing to pick from yet. */

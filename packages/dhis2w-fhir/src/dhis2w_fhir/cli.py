@@ -1288,13 +1288,25 @@ _TERMINAL_REASON_SAMPLE = 1
 #: How many of a rejection's reasons the written report lists per response before it counts the rest.
 _REPORT_REASON_SAMPLE = 5
 
-#: The width one reason is truncated to in the terminal cell, so a row stays one line on a normal tty.
-_REASON_CELL_WIDTH = 90
+#: The width one reason is truncated to in the terminal cell. The outcomes table has six columns, so
+#: what a cell may claim is what the other five leave: a reason wide enough to squeeze a neighbour to
+#: nothing costs more than it carries, and the written report is where a whole reason is read.
+_REASON_CELL_WIDTH = 60
+
+#: The width one spool path is truncated to in the terminal cell, for the same reason. A path is
+#: truncated from its front rather than its end, because the receipt's own file name is the half that
+#: says which response the row is - and the directory above it repeats what the Outcome column states.
+_SPOOL_CELL_WIDTH = 30
 
 
 def _truncate(text: str, width: int) -> str:
     """One reason cut to the width a table cell has for it, with the cut marked rather than hidden."""
     return text if len(text) <= width else f"{text[: width - 1]}..."
+
+
+def _truncate_path(path: str, width: int) -> str:
+    """One path cut to the width a table cell has for it, keeping the end - which is what names the file."""
+    return path if len(path) <= width else f"...{path[-(width - 3) :]}"
 
 
 def _outcome_reasons(outcome: ForwardOutcome, sample: int, width: int | None = None) -> str:
@@ -1416,12 +1428,15 @@ def _render_forward_outcomes(report: ForwardReport) -> None:
                 "outcome": outcome.kind,
                 "notes": str(len(outcome.notes)),
                 "reason": _outcome_reasons(outcome, _TERMINAL_REASON_SAMPLE, _REASON_CELL_WIDTH),
-                "spool": outcome.spool_path,
+                "spool": _truncate_path(outcome.spool_path, _SPOOL_CELL_WIDTH),
             }
             for outcome in report.outcomes
         ],
         [
-            ColumnSpec("Response", "response", no_wrap=True),
+            # A receipt id is thirty-two characters and every row carries one, so holding it on a
+            # single line claims most of an eighty-column fall-back and leaves the two columns that
+            # explain the row a character apiece. It folds; the four short columns do not.
+            ColumnSpec("Response", "response"),
             ColumnSpec("Target", "target", no_wrap=True),
             ColumnSpec("Outcome", "outcome", formatter=_outcome_cell, no_wrap=True),
             ColumnSpec("Notes", "notes", no_wrap=True),

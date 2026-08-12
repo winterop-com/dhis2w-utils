@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
 
 import { PageHeader, PageState } from '@/components/PageState'
@@ -43,6 +43,13 @@ import { cn } from '@/lib/utils'
  * catches the sequence this is actually used in - drain in the other terminal,
  * switch back to the browser.
  *
+ * AND ON EVERY ARRIVAL AT THE ROUTE. Coming from another page mounts this one
+ * and its first read is fresh by construction; arriving from this page - the
+ * Responses nav item pressed while the table is already open, or a lifecycle
+ * chosen - does not, so the effect below reads again for it. Between arrivals
+ * nothing polls: a window left open and unfocused shows what it last read until
+ * it regains focus, is arrived at again, or the Reload button is pressed.
+ *
  * The form title comes from a second read. The spool states the canonical each
  * receipt answered but not the form's title, because a receipt is a fact about
  * a submission and the title is a fact about the guide - and the guide can be
@@ -71,6 +78,17 @@ export function Responses() {
     const forms = useFhirSearch<Questionnaire>('Questionnaire')
     const [searchParameters, setSearchParameters] = useSearchParams()
     const [formFilter, setFormFilter] = useState<string | null>(null)
+
+    // One read per arrival, and no more: the key changes on every navigation to this route, and the
+    // one the page mounted on is the read already in flight - reloading for it would ask the same
+    // question twice in a frame.
+    const arrival = useLocation().key
+    const arrivalRead = useRef(arrival)
+    useEffect(() => {
+        if (arrivalRead.current === arrival) return
+        arrivalRead.current = arrival
+        reload()
+    }, [arrival, reload])
 
     const asked = searchParameters.get('lifecycle')
     // Validated against the vocabulary rather than trusted: `?lifecycle=nonsense` filters
@@ -206,6 +224,10 @@ export function Responses() {
  * The counts are the point. "Received 12" is the queue depth and the one number
  * that says whether a forward run is overdue; a filter that only narrowed the
  * table would make a person count rows to learn it.
+ *
+ * Each button states the state and its count as two facts, because they are two:
+ * the count sits in its own element for the mono face it is set in, and a name
+ * read off the elements alone would run them into the single word "Received12".
  */
 function LifecycleFilter({
     counts,
@@ -224,6 +246,7 @@ function LifecycleFilter({
                 variant={selected === null ? 'secondary' : 'ghost'}
                 size="sm"
                 aria-pressed={selected === null}
+                aria-label={`All, ${String(total)}`}
                 onClick={() => onSelect(null)}
             >
                 All
@@ -236,6 +259,7 @@ function LifecycleFilter({
                             variant={selected === lifecycle ? 'secondary' : 'ghost'}
                             size="sm"
                             aria-pressed={selected === lifecycle}
+                            aria-label={`${LIFECYCLE_LABELS[lifecycle]}, ${String(counts[lifecycle])}`}
                             onClick={() => onSelect(selected === lifecycle ? null : lifecycle)}
                         >
                             <span

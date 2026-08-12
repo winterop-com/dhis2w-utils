@@ -36,13 +36,16 @@ import {
     attributeOptionComboExtensionUrl,
     attributeOptionComboOf,
     ATTRIBUTE_OPTION_COMBO_EXTENSION_SUFFIX,
+    ENROLLED_AT_EXTENSION_SUFFIX,
     formTypeOf,
     identifierSystemBaseOf,
+    INCIDENT_AT_EXTENSION_SUFFIX,
     registersAPerson,
     TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX,
     TRACKER_ENROLLMENT_EXTENSION_SUFFIX,
     TRACKER_ENROLLMENT_IDENTIFIER_SYSTEM_SUFFIX,
     trackerEnrollmentExtensionUrl,
+    type CodeSystem,
     type Coding,
     type Extension,
     type Questionnaire,
@@ -62,13 +65,46 @@ import {
     carriesUnitOnExtension,
     ORG_UNIT_EXTENSION_SUFFIX,
     organisationUnitExtensionUrl,
+    orgUnitReference,
     reportingUnitOf,
+    type OrgUnitChoice,
 } from '@/lib/orgunits'
 import { isEntityLevelExtension, subjectExistsExtensionUrl, SUBJECT_EXISTS_EXTENSION_SUFFIX } from '@/lib/patients'
+import { conceptPropertyValue } from '@/lib/terminology'
 
 /** The standard R4 extensions a numeric question carries its inclusive bounds on. */
 export const MINIMUM_VALUE_EXTENSION_URL = 'http://hl7.org/fhir/StructureDefinition/minValue'
 export const MAXIMUM_VALUE_EXTENSION_URL = 'http://hl7.org/fhir/StructureDefinition/maxValue'
+
+/** The extension a registration form declares whether its program collects an incident date on. */
+export const COLLECTS_INCIDENT_DATE_EXTENSION_SUFFIX = '/StructureDefinition/d2-collects-incident-date'
+
+/**
+ * The extension an aggregate response states the period it reports for on.
+ *
+ * Complex rather than valued: the three sub-extensions below are what it carries, and the capture
+ * validator grades them against each other. Matched on the suffix like every other canonical-rooted
+ * url this UI meets - the canonical is whatever that project's fhir.toml declares.
+ */
+export const PERIOD_EXTENSION_SUFFIX = '/StructureDefinition/d2-period'
+
+/** The sub-extension carrying the DHIS2 ISO period identifier - the period that is captured. */
+export const PERIOD_ISO_SUB_EXTENSION = 'iso'
+
+/** The sub-extension carrying the DHIS2 period type the ISO identifier reads as. */
+export const PERIOD_TYPE_SUB_EXTENSION = 'type'
+
+/** The sub-extension carrying the date range the ISO identifier resolves to. */
+export const PERIOD_RANGE_SUB_EXTENSION = 'period'
+
+/** The concept property a served data dictionary states a question's DHIS2 value type on. */
+export const VALUE_TYPE_CONCEPT_PROPERTY = 'value-type'
+
+/** The DHIS2 value type that stores `true` or no value at all - never `false`. */
+export const TRUE_ONLY_VALUE_TYPE = 'TRUE_ONLY'
+
+/** No value type known for any concept, which is what a form opens on before its dictionary lands. */
+export const NO_VALUE_TYPES: ReadonlyMap<string, string> = new Map()
 
 /**
  * The `value[x]` element each answerable item type answers on.
@@ -163,6 +199,19 @@ export interface QuestionnaireNode {
      */
     code: Coding | null
     /**
+     * The DHIS2 value type the served data dictionary gives this question's concept, or null.
+     *
+     * R4 spells `BOOLEAN` and `TRUE_ONLY` as one `#boolean` item type, so the form itself cannot
+     * tell the two apart. The fact lives on the concept the item's `code` names, as the
+     * `value-type` property of the support CodeSystem the guide publishes beside the form -
+     * `D2DE_CS` for a data element, `D2TEA_CS` for a tracked entity attribute.
+     *
+     * Null means the dictionary says nothing here, which is also what a form opened before its
+     * CodeSystem was read holds. It is read as "the form does not say" rather than as any
+     * particular type, so a boolean question keeps the three states a `BOOLEAN` has.
+     */
+    valueType: string | null
+    /**
      * Which DHIS2 level this question's answer is written at, or null when the form states none.
      *
      * True is the tracked entity - the person themselves - and false is the enrollment. Null is
@@ -222,15 +271,73 @@ export type AnswerAction =
     | { kind: 'remove-repeat'; linkId: string; index: number }
     | { kind: 'replace'; answers: AnswerState }
 
-/** Flatten one Questionnaire's item tree into the ordered spec every other function here reads. */
-export function flattenQuestionnaire(questionnaire: Questionnaire): QuestionnaireSpec {
+/**
+ * Flatten one Questionnaire's item tree into the ordered spec every other function here reads.
+ *
+ * `valueTypes` is the served data dictionary, keyed by the concept each question's `code` names -
+ * see `valueTypesByConcept`. It is optional because the form is on screen before its CodeSystem
+ * has been read, and because every reader but the boolean control works without it: a spec
+ * flattened with no dictionary states no value type, which is what an unread dictionary is.
+ */
+export function flattenQuestionnaire(
+    questionnaire: Questionnaire,
+    valueTypes: ReadonlyMap<string, string> = NO_VALUE_TYPES,
+): QuestionnaireSpec {
     const nodes: QuestionnaireNode[] = []
-    const rootLinkIds = collectItems(questionnaire.item ?? [], [], nodes)
+    const rootLinkIds = collectItems(questionnaire.item ?? [], [], nodes, valueTypes)
     const byLinkId = new Map(nodes.map((node) => [node.linkId, node]))
     const questionLinkIds = nodes
         .filter((node) => node.type !== 'group' && node.type !== 'display')
         .map((node) => node.linkId)
     return { nodes, byLinkId, rootLinkIds, questionLinkIds }
+}
+
+/**
+ * The DHIS2 value types a set of served CodeSystems states, keyed by the concept each belongs to.
+ *
+ * WHY THE KEY IS SYSTEM AND CODE. A question's `code` names both, and two dictionaries can hold the
+ * same code for different objects - a data element and a tracked entity attribute are separate DHIS2
+ * uid spaces. Keying by the pair is what makes this one map safe to build over every dictionary a
+ * form draws from, rather than one map per system with a lookup order to get wrong.
+ *
+ * A concept carrying no `value-type` property contributes nothing, which is the honest reading: the
+ * property is optional, and a guide compiled before it was published states none at all.
+ */
+export function valueTypesByConcept(codeSystems: CodeSystem[]): ReadonlyMap<string, string> {
+    const valueTypes = new Map<string, string>()
+    for (const codeSystem of codeSystems) {
+        for (const concept of codeSystem.concept ?? []) {
+            const valueType = conceptPropertyValue(concept, VALUE_TYPE_CONCEPT_PROPERTY)
+            if (valueType === null) continue
+            valueTypes.set(conceptKey(codeSystem.url, concept.code), valueType)
+        }
+    }
+    return valueTypes
+}
+
+/**
+ * The ids of the CodeSystems one form's questions are coded in, in first-seen order.
+ *
+ * This server ids every resource by the last segment of its canonical, so a question coded in
+ * `.../CodeSystem/d2-de-cs` is a dictionary read at `/CodeSystem/d2-de-cs` - which is what lets a
+ * capture screen read the two or three dictionaries its own form uses rather than the whole
+ * terminology. A coding into anything else names no served CodeSystem and is left out.
+ */
+export function questionCodeSystemIds(spec: QuestionnaireSpec): string[] {
+    const ids: string[] = []
+    for (const node of spec.nodes) {
+        const id = codeSystemId(node.code?.system)
+        if (id !== null && !ids.includes(id)) ids.push(id)
+    }
+    return ids
+}
+
+/** The id a served CodeSystem is read under, off a coding's system, or null when it names none. */
+function codeSystemId(system: string | undefined): string | null {
+    if (system === undefined) return null
+    const segments = system.split('/').filter((segment) => segment !== '')
+    const id = segments.at(-1)
+    return segments.at(-2) === 'CodeSystem' && id !== undefined ? id : null
 }
 
 /** The answers a freshly opened form starts with: whatever its items declare as `initial`. */
@@ -356,6 +463,16 @@ export function isEnabled(spec: QuestionnaireSpec, linkId: string, answers: Answ
  * holds those values, and `d2w fhir forward` refuses a submission that states its subject exists
  * and carries one anyway. The rewrite runs only for the two kinds that register a person, because
  * no other kind's subject is one.
+ *
+ * THE FIFTH IS THE DATE THE SUBMISSION IS ABOUT, and it is the one the person filling the form knows
+ * better than any draw can. An event is recorded on a day - the forwarder reads `TrackerEvent.occurredAt`
+ * off `authored` - a registration files an enrollment that begins on a day, and an aggregate
+ * submission reports for one DHIS2 period. `$generate` draws all three so the draft is postable, and
+ * a capture of last Tuesday's visit is a capture of last Tuesday: the drafted value is the default
+ * and an edit rides the envelope in the slot the draft put it in. Each of these rewrites replaces
+ * what the envelope states and writes nothing where it states nothing, so a context of a kind the
+ * response does not carry is a no-op rather than an invention - an aggregate envelope holds no
+ * enrollment date to replace, and an event envelope holds no period.
  */
 export function buildQuestionnaireResponse(
     spec: QuestionnaireSpec,
@@ -381,12 +498,20 @@ export function buildQuestionnaireResponse(
     const chosenEnrollment = formKind === 'tracker-event' ? context.enrollment : null
     const withEnrollment =
         chosenEnrollment === null ? withUnit : extensionsWithEnrollment(questionnaire, withUnit, chosenEnrollment)
+    const withDates = extensionsWithIncidentAt(
+        extensionsWithEnrolledAt(withEnrollment, context.enrolledAt),
+        context.incidentAt,
+    )
+    const withPeriod = extensionsWithReportingPeriod(withDates, context.reportingPeriodIso)
     const extension =
-        existingSubject === null ? withEnrollment : extensionsWithSubjectExists(questionnaire, withEnrollment)
+        existingSubject === null ? withPeriod : extensionsWithSubjectExists(questionnaire, withPeriod)
     const statedSubject = onExtension ? envelope?.subject : (context.reportingUnit ?? envelope?.subject)
     const namedEntity = chosenEnrollment?.trackedEntity ?? existingSubject?.trackedEntity ?? null
     const subject =
         namedEntity === null ? statedSubject : subjectWithTrackedEntity(questionnaire, statedSubject, namedEntity)
+    // The visit date of an event, on the one element that carries it: the forwarder reads
+    // `TrackerEvent.occurredAt` off `authored`, so editing when the visit happened is editing this.
+    const authored = context.authored ?? envelope?.authored
     return {
         resourceType: 'QuestionnaireResponse',
         ...(envelope?.meta ? { meta: envelope.meta } : {}),
@@ -394,7 +519,7 @@ export function buildQuestionnaireResponse(
         status: 'completed',
         ...(extension.length > 0 ? { extension } : {}),
         ...(subject ? { subject } : {}),
-        ...(envelope?.authored ? { authored: envelope.authored } : {}),
+        ...(authored ? { authored } : {}),
         ...(item.length > 0 ? { item } : {}),
     }
 }
@@ -407,6 +532,19 @@ export interface CaptureContext {
     reportingUnit: Reference | null
     /** The enrollment a stage submission answers against, or null to keep the synthetic draw. */
     enrollment: EnrollmentChoice | null
+    /**
+     * When an event was recorded, as an R4 `dateTime`, or null to keep the instant the draft authored.
+     *
+     * The visit date of an event or a stage submission: DHIS2 has no element of its own for it here,
+     * because the forwarder derives `TrackerEvent.occurredAt` from `QuestionnaireResponse.authored`.
+     */
+    authored: string | null
+    /** When the enrollment a registration files begins, or null to keep the date the draft drew. */
+    enrolledAt: string | null
+    /** When the incident that enrollment follows occurred, or null to keep the date the draft drew. */
+    incidentAt: string | null
+    /** The DHIS2 ISO period an aggregate submission reports for, or null to keep the drafted one. */
+    reportingPeriodIso: string | null
     /**
      * The person this DHIS2 instance already holds that a registration is about, or null for a new one.
      *
@@ -448,6 +586,10 @@ export const NO_CAPTURE_CONTEXT: CaptureContext = {
     attributeOptionCombo: null,
     reportingUnit: null,
     enrollment: null,
+    authored: null,
+    enrolledAt: null,
+    incidentAt: null,
+    reportingPeriodIso: null,
     existingSubject: null,
 }
 
@@ -482,22 +624,54 @@ export function refilledAttributeOptionCombo(
     return (envelope === null ? null : attributeOptionComboOf(envelope)) ?? current
 }
 
+/** What a form opens reporting from, and whether a kept organisation unit is why it is not that one. */
+export interface OpenedReportingUnit {
+    /** The organisation unit the picker holds, or null when there is nothing to hold yet. */
+    unit: Reference | null
+    /**
+     * True when this browser tab keeps an organisation unit and this form's assignment excludes it.
+     *
+     * The form then reports from the unit the draft drew, and the picker states the mismatch: a kept
+     * unit that quietly changes between two forms is the one outcome worse than keeping none.
+     */
+    keptUnitNotAdmitted: boolean
+}
+
 /**
- * The reporting unit when a form is first opened: whatever is chosen, else what the server drew.
+ * The reporting unit when a form is first opened: whatever is chosen, then what this tab keeps,
+ * then what the server drew.
  *
- * The same rule the combo follows, and for the same two reasons. `$generate` picks a unit the
- * form's assignment admits (`_capture_location_id` in `dhis2w_fhir_serve.synthesize`), so the form
- * opens already reporting from somewhere postable; and the skeleton is read after the form is on
- * screen, so a person who picked while it was in flight keeps their choice.
+ * A CHOICE ALREADY MADE ALWAYS WINS, on the rule the combo follows: the skeleton is read after the
+ * form is on screen, so a person who picked while it was in flight keeps their choice.
+ *
+ * THE KEPT UNIT COMES BEFORE THE DRAW because it is the one a person actually reports from. A
+ * supervisor filling six forms for one facility answers this control once, and every form after that
+ * opens on the same unit rather than on whichever unit the draw happened to land on. It is kept for
+ * the browser tab and no longer - see the store in pages/FormFill.tsx.
+ *
+ * THE ASSIGNMENT HAS THE LAST WORD. `$generate` picks a unit the form's assignment admits
+ * (`_capture_location_id` in `dhis2w_fhir_serve.synthesize`), and a kept unit carries no such
+ * promise - a form assigned to two facilities is refused at DHIS2 for any unit outside them. So a
+ * kept unit the offer does not hold is not adopted, the draw stands, and the mismatch is stated
+ * rather than left for the person to notice.
+ *
+ * `admitted` is the offer a picker would show, or null while it is still being read - null adopts
+ * nothing and reports no mismatch, because a unit cannot be graded against an offer nobody has yet.
  */
 export function openedReportingUnit(
     current: Reference | null,
     envelope: QuestionnaireResponse | null,
     questionnaire: Questionnaire | null,
-): Reference | null {
-    if (current !== null) return current
-    if (envelope === null || questionnaire === null) return null
-    return reportingUnitOf(envelope, formTypeOf(questionnaire))
+    keptUnitId: string | null = null,
+    admitted: ReadonlyMap<string, OrgUnitChoice> | null = null,
+): OpenedReportingUnit {
+    if (current !== null) return { unit: current, keptUnitNotAdmitted: false }
+    const drawn =
+        envelope === null || questionnaire === null ? null : reportingUnitOf(envelope, formTypeOf(questionnaire))
+    if (keptUnitId === null || admitted === null) return { unit: drawn, keptUnitNotAdmitted: false }
+    const kept = admitted.get(keptUnitId)
+    if (kept === undefined) return { unit: drawn, keptUnitNotAdmitted: true }
+    return { unit: orgUnitReference(kept), keptUnitNotAdmitted: false }
 }
 
 /**
@@ -564,6 +738,102 @@ export function clearedEntityLevelAnswers(spec: QuestionnaireSpec, answers: Answ
  */
 export function refilledEnrollment<Choice extends EnrollmentChoice>(current: Choice | null): Choice | null {
     return current
+}
+
+/** The period an aggregate response reports for: the identifier DHIS2 keys it by, and its type. */
+export interface ReportingPeriod {
+    /** The DHIS2 ISO period identifier, as `202607` is July 2026. */
+    iso: string
+    /** The DHIS2 period type the identifier reads as, as `Monthly`, or null when none is stated. */
+    periodType: string | null
+}
+
+/**
+ * The period a response reports for, or null when it states none - which every non-aggregate kind is.
+ *
+ * The type is read beside the identifier because it is not derivable here: turning `202607` into
+ * `Monthly` is DHIS2 period arithmetic, and this UI holds none of it. The draft states both, and
+ * what a person edits is the identifier.
+ */
+export function reportingPeriodOf(response: QuestionnaireResponse | null): ReportingPeriod | null {
+    const stated = periodExtension(response?.extension ?? [])
+    const iso = subExtension(stated, PERIOD_ISO_SUB_EXTENSION)?.valueString
+    if (iso === undefined) return null
+    return { iso, periodType: subExtension(stated, PERIOD_TYPE_SUB_EXTENSION)?.valueCode ?? null }
+}
+
+/** Whether a registration form's program collects an incident date, as the form itself declares. */
+export function collectsIncidentDate(questionnaire: Questionnaire): boolean {
+    const declared = questionnaire.extension?.find((candidate) =>
+        candidate.url.endsWith(COLLECTS_INCIDENT_DATE_EXTENSION_SUFFIX),
+    )
+    return declared?.valueBoolean === true
+}
+
+/**
+ * The extensions with an edited ISO period written into them, for an aggregate response.
+ *
+ * THE RANGE IS DROPPED RATHER THAN RECOMPUTED, and that is the whole of this function. The capture
+ * validator grades all three sub-extensions against each other: the `type` has to be the type the
+ * ISO identifier parses as, and the `period` range has to be the range that identifier resolves to.
+ * The range is optional - zero of it is valid, and the validator says so in the same breath ("the
+ * ISO period is what is captured") - and this UI has no DHIS2 period arithmetic to resolve a new
+ * identifier with. So an edited period writes the identifier, keeps the type the draft stated, and
+ * carries no range at all rather than a range it cannot stand behind. An identifier of a different
+ * type is then refused by the server, naming both types, which is a better answer than a client
+ * guess at what the operator meant.
+ *
+ * The drafted identifier passes the whole extension through untouched, so a submission nobody
+ * edited is byte-for-byte the one `$generate` drew.
+ */
+export function extensionsWithReportingPeriod(carried: Extension[], iso: string | null): Extension[] {
+    if (iso === null) return carried
+    const stated = periodExtension(carried)
+    const drafted = subExtension(stated, PERIOD_ISO_SUB_EXTENSION)
+    if (stated === undefined || drafted === undefined || drafted.valueString === iso) return carried
+    const written: Extension = {
+        ...stated,
+        extension: (stated.extension ?? []).flatMap((sub) => {
+            if (sub.url === PERIOD_RANGE_SUB_EXTENSION) return []
+            return [sub === drafted ? { ...sub, valueString: iso } : sub]
+        }),
+    }
+    return carried.map((candidate) => (candidate === stated ? written : candidate))
+}
+
+/** The extensions with an edited enrollment date written into them, for a registration response. */
+export function extensionsWithEnrolledAt(carried: Extension[], enrolledAt: string | null): Extension[] {
+    return extensionsWithInstant(carried, ENROLLED_AT_EXTENSION_SUFFIX, enrolledAt)
+}
+
+/** The extensions with an edited incident date written into them, for a registration response. */
+export function extensionsWithIncidentAt(carried: Extension[], incidentAt: string | null): Extension[] {
+    return extensionsWithInstant(carried, INCIDENT_AT_EXTENSION_SUFFIX, incidentAt)
+}
+
+/**
+ * One dated extension replaced in place, or the list unchanged when it carries no such extension.
+ *
+ * Replace-in-place and nothing else, unlike its neighbours below, which fall back to a url derived
+ * from the form. These two dates are drawn by `$generate` as part of what makes a registration
+ * postable, and the controls over them exist exactly when the draft states them - so there is never
+ * an edit to place under a url nobody wrote, and a guessed one would be a fact nobody can read back.
+ */
+function extensionsWithInstant(carried: Extension[], suffix: string, instant: string | null): Extension[] {
+    if (instant === null) return carried
+    const stated = carried.find((candidate) => candidate.url.endsWith(suffix))
+    if (stated === undefined || stated.valueDateTime === instant) return carried
+    return carried.map((candidate) => (candidate === stated ? { ...candidate, valueDateTime: instant } : candidate))
+}
+
+/** The one D2Period extension a list carries, or undefined for the kinds that report for no period. */
+function periodExtension(carried: Extension[]): Extension | undefined {
+    return carried.find((candidate) => candidate.url.endsWith(PERIOD_EXTENSION_SUFFIX))
+}
+
+/** One sub-extension of a complex extension, named by the bare url the IG slices it under. */
+function subExtension(extension: Extension | undefined, url: string): Extension | undefined {
+    return extension?.extension?.find((candidate) => candidate.url === url)
 }
 
 /**
@@ -740,7 +1010,10 @@ export function slotAnswer(node: QuestionnaireNode, slot: AnswerSlot): Questionn
     switch (node.answerElement) {
         case 'valueBoolean':
             if (slot.text === 'true') return { valueBoolean: true }
-            if (slot.text === 'false') return { valueBoolean: false }
+            // A TRUE_ONLY question stores `true` or no value at all, so `false` is not an answer it
+            // has: the forwarder drops one, and a submission carrying it would claim something DHIS2
+            // never records. The control for one offers no No either - see components/AnswerControl.tsx.
+            if (slot.text === 'false' && node.valueType !== TRUE_ONLY_VALUE_TYPE) return { valueBoolean: false }
             return null
         case 'valueDecimal': {
             const parsed = Number(slot.text)
@@ -851,20 +1124,26 @@ function collectItems(
     items: QuestionnaireItem[],
     ancestorLinkIds: string[],
     nodes: QuestionnaireNode[],
+    valueTypes: ReadonlyMap<string, string>,
 ): string[] {
     const linkIds: string[] = []
     for (const item of items) {
-        const node = readItem(item, ancestorLinkIds)
+        const node = readItem(item, ancestorLinkIds, valueTypes)
         nodes.push(node)
         linkIds.push(node.linkId)
-        node.childLinkIds = collectItems(item.item ?? [], [...ancestorLinkIds, item.linkId], nodes)
+        node.childLinkIds = collectItems(item.item ?? [], [...ancestorLinkIds, item.linkId], nodes, valueTypes)
     }
     return linkIds
 }
 
 /** One item, read into the node a control renders from. */
-function readItem(item: QuestionnaireItem, ancestorLinkIds: string[]): QuestionnaireNode {
+function readItem(
+    item: QuestionnaireItem,
+    ancestorLinkIds: string[],
+    valueTypes: ReadonlyMap<string, string>,
+): QuestionnaireNode {
     const answerElement = ANSWER_ELEMENTS_BY_ITEM_TYPE[item.type] ?? null
+    const code = item.code?.[0] ?? null
     return {
         linkId: item.linkId,
         ancestorLinkIds,
@@ -887,10 +1166,16 @@ function readItem(item: QuestionnaireItem, ancestorLinkIds: string[]): Questionn
         // is the reading that asks fewer questions - the safe direction for a capture form.
         enableBehavior: item.enableBehavior ?? 'all',
         initial: item.initial ?? [],
-        code: item.code?.[0] ?? null,
+        code,
+        valueType: code === null ? null : (valueTypes.get(conceptKey(code.system, code.code)) ?? null),
         entityLevel: item.extension?.find(isEntityLevelExtension)?.valueBoolean ?? null,
         childLinkIds: [],
     }
+}
+
+/** One concept as the value-type map keys it: the system that defines the code, then the code. */
+function conceptKey(system: string | undefined, code: string | undefined): string {
+    return `${system ?? ''}|${code ?? ''}`
 }
 
 /** The number one bounds extension states, on whichever numeric `value[x]` it was written with. */

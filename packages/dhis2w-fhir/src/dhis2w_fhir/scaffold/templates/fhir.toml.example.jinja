@@ -101,6 +101,10 @@ port = 8080                         # a local dev DHIS2 commonly owns 8080; port
 strict_codes = false                # true refuses an out-of-list answer instead of warning -> 301-serving#strict_codes
 ui = false                          # true also serves the data-entry screens at / -> 301-serving#ui
 
+[forward]
+# What `d2w fhir forward` reads when this project holds no compiled guide. -> 301-serving#forward
+live = true                         # false refuses instead, naming generate and sushi -> 301-serving#forward
+
 [serve.tracked_entities]
 # What a live run answers about the instance's tracked entities; a compiled guide answers none of it. -> 301-serving#tracked_entities
 enabled = true                      # false answers nothing about tracked entities, even under --live -> 301-serving#tracked_entities-enabled

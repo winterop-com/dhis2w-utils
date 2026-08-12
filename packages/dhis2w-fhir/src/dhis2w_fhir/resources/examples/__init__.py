@@ -239,8 +239,12 @@ _SEED_BYTES = 8
 #: The host a synthetic URL points at - `.invalid` is reserved by RFC 2606 and resolves nowhere.
 _SYNTHETIC_URL_HOST = "https://example.invalid"
 
-#: The domain a synthetic EMAIL answer lands in, reserved by RFC 2606 for the same reason.
-_SYNTHETIC_EMAIL_DOMAIN = "example.invalid"
+#: The domain a synthetic EMAIL answer lands in. RFC 2606 reserves `example.com` for documentation
+#: exactly as it reserves `.invalid`, and the two differ on the one axis that decides an import:
+#: DHIS2 grades an EMAIL against its top-level domain and answers `E1007` to an address at
+#: `.invalid`, so a seeded address lands at the reserved domain DHIS2 accepts. A URL is graded as a
+#: URI rather than as an address, so `_SYNTHETIC_URL_HOST` stays at `.invalid` and resolves nowhere.
+_SYNTHETIC_EMAIL_DOMAIN = "example.com"
 
 #: The DHIS2 value types a *unique* attribute's value can be spelled corpus-distinct in by carrying
 #: the response's own minted identity: a free-text field takes it verbatim, and the three shaped
@@ -1079,7 +1083,7 @@ def _seeded_coordinate(generator: random.Random) -> str:
 
 
 def _seeded_email(generator: random.Random) -> str:
-    """A seeded address at the RFC 2606 `.invalid` domain, which is what an EMAIL question stores."""
+    """A seeded address at the RFC 2606 domain DHIS2 imports, which is what an EMAIL question stores."""
     return f"{_seeded_account_name(generator)}@{_SYNTHETIC_EMAIL_DOMAIN}"
 
 

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import {
     enabledLinkIds,
+    TRUE_ONLY_VALUE_TYPE,
     type AnswerAction,
     type AnswerState,
     type QuestionnaireNode,
@@ -192,12 +193,17 @@ function CodeBadge({ code, className }: { code: string; className?: string }) {
     )
 }
 
-/** Whatever the form says about this question beyond its label: bounds, repetition, read-only. */
+/** What this question takes beyond its label: bounds, the two answers a tick has, repetition, read-only. */
 function QuestionHint({ node }: { node: QuestionnaireNode }) {
     const notes: string[] = []
     if (node.minimum !== null && node.maximum !== null) notes.push(`between ${node.minimum} and ${node.maximum}`)
     else if (node.minimum !== null) notes.push(`${node.minimum} or more`)
     else if (node.maximum !== null) notes.push(`${node.maximum} or less`)
+    // The one note that comes from the data dictionary rather than from the form: a TRUE_ONLY data
+    // element holds `true` or nothing, so the two answers the control offers are the two DHIS2 keeps.
+    if (node.valueType === TRUE_ONLY_VALUE_TYPE) {
+        notes.push('yes or not answered - DHIS2 stores no No for this question')
+    }
     if (node.repeats) notes.push('takes more than one answer')
     if (node.readOnly) notes.push('read only')
     if (notes.length === 0) return null

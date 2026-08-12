@@ -30,8 +30,10 @@ from dhis2w_fhir.conversion.artifacts import (
     CompiledArtifactReadError,
     CompiledArtifacts,
     CompiledIgMissingError,
+    SourcedDocument,
     bound_question_uids,
     build_project_context,
+    collect_artifacts,
     load_compiled_artifacts,
 )
 from dhis2w_fhir.conversion.context import (
@@ -127,6 +129,7 @@ __all__ = [
     "CodedAnswerMode",
     "CompiledArtifactReadError",
     "CompiledArtifacts",
+    "SourcedDocument",
     "CompiledIgMissingError",
     "ConversionContext",
     "ConversionContextError",
@@ -159,6 +162,7 @@ __all__ = [
     "build_option_table",
     "build_project_context",
     "decimal_wire_value",
+    "collect_artifacts",
     "load_compiled_artifacts",
     "receipt_event_uid",
     "resolve_option",

@@ -987,6 +987,59 @@ def test_a_project_with_no_compiled_ig_says_which_two_commands_fill_it(tmp_path:
         load_compiled_artifacts(load_project(root))
 
 
+def test_a_project_with_no_compiled_guide_builds_one_off_the_instance(tmp_path: Path) -> None:
+    """A live capture UI needs no build step, so the drain that empties its spool needs none either."""
+    root = tmp_path / "uncompiled"
+    root.mkdir()
+    _write_project(root, compiled=False)
+
+    assert service._compiled_artifacts_or_none(load_project(root)) is None
+
+
+def test_turning_the_live_build_off_restores_the_refusal_naming_the_two_commands(tmp_path: Path) -> None:
+    """`[forward] live = false` is the posture for a deployment forwarding only a reviewed, published guide."""
+    root = tmp_path / "uncompiled-strict"
+    root.mkdir()
+    _write_project(root, compiled=False)
+    (root / "fhir.toml").write_text(
+        f"{(root / 'fhir.toml').read_text(encoding='utf-8')}\n[forward]\nlive = false\n", encoding="utf-8"
+    )
+
+    with pytest.raises(CompiledIgMissingError, match="make sushi"):
+        service._compiled_artifacts_or_none(load_project(root))
+
+
+def test_a_compiled_guide_is_read_off_disk_rather_than_built(forward_project: Path) -> None:
+    """The live build is what a project holding no guide falls to, never what one holding a guide pays for."""
+    artifacts = service._compiled_artifacts_or_none(load_project(forward_project))
+
+    assert artifacts is not None
+    assert artifacts.questionnaires
+
+
+def test_built_documents_are_collected_into_the_five_types_the_translator_reads() -> None:
+    """One collection point serves both ways a guide reaches the translator, so neither can drift."""
+    from dhis2w_fhir.conversion.artifacts import SourcedDocument, collect_artifacts
+
+    collected = collect_artifacts(
+        [
+            SourcedDocument(source="built live", body={"resourceType": "Questionnaire", "url": f"{_CANONICAL}/Q/one"}),
+            SourcedDocument(source="built live", body={"resourceType": "CodeSystem", "url": f"{_CANONICAL}/CS/one"}),
+            SourcedDocument(source="built live", body={"resourceType": "ValueSet", "url": f"{_CANONICAL}/VS/one"}),
+            SourcedDocument(source="built live", body={"resourceType": "ConceptMap", "url": f"{_CANONICAL}/CM/one"}),
+            SourcedDocument(source="built live", body={"resourceType": "Location", "id": _ROOT_ORG_UNIT}),
+            SourcedDocument(source="built live", body={"resourceType": "StructureDefinition", "id": "passed-over"}),
+        ]
+    )
+
+    assert len(collected.questionnaires) == 1
+    assert len(collected.code_systems) == 1
+    assert len(collected.value_sets) == 1
+    assert len(collected.concept_maps) == 1
+    assert len(collected.locations) == 1
+    assert collected.resource_count == 5
+
+
 def test_the_bound_data_elements_are_read_through_the_link_id_grammar(forward_project: Path) -> None:
     """A disaggregated cell's `<dataElement>.<combo>` link id contributes its data element once."""
     project = load_project(forward_project)
