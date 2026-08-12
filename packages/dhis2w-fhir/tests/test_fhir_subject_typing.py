@@ -168,7 +168,8 @@ def _example_documents(sources: list[QuestionnaireSourceIn], config: GenerateCon
 def _responses_fsh(config: GenerateConfig) -> str:
     """The `foundation/d2-responses.fsh` artifact one project publishes."""
     artifacts = {
-        artifact.relative_path: artifact.content for artifact in build_foundation_artifacts(config, ig_status="draft")
+        artifact.relative_path: artifact.content
+        for artifact in build_foundation_artifacts(config, _CANONICAL, ig_status="draft")
     }
     return artifacts["foundation/d2-responses.fsh"]
 

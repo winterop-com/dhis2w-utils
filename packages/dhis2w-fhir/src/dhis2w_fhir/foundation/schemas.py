@@ -63,6 +63,10 @@ IDENTIFIER_SYSTEM_SUBJECTS = (
 )
 
 
+#: The identifier-system segment of every declared DHIS2 object kind, keyed by its subject token.
+IDENTIFIER_SYSTEM_SEGMENTS: dict[str, str] = {subject.token: subject.segment for subject in IDENTIFIER_SYSTEM_SUBJECTS}
+
+
 class TerminologyPairProfile(BaseModel):
     """The fixed prose one CodeSystem/ValueSet pair publishes under, shared by both emitters.
 
@@ -141,10 +145,219 @@ FORM_TYPE_TERMINOLOGY = TerminologyPairProfile(
     description="The DHIS2 form kinds a Questionnaire is generated from.",
 )
 
+#: The sub-extension urls D2Period slices its three facts under, as `d2-period.fsh.jinja` names them.
+#: They live with the extension's own declaration, because everything that reads a reporting period -
+#: the example builder writing one, the translator reading one back, the published map naming where a
+#: DHIS2 period comes from - has to spell these three slices the same way.
+PERIOD_ISO_SUB_EXTENSION = "iso"
+PERIOD_TYPE_SUB_EXTENSION = "type"
+PERIOD_RANGE_SUB_EXTENSION = "period"
+
 #: The prose the period-type CodeSystem/ValueSet pair publishes under.
 PERIOD_TYPE_TERMINOLOGY = TerminologyPairProfile(
     title="DHIS2 period types",
     description="The period types DHIS2 registers, each with the ISO period format it is written in.",
+)
+
+
+class LogicalModelElement(BaseModel):
+    """One element of a DHIS2 wire shape published as a logical model, in the words both readers take.
+
+    The FSH template renders these into the `kind = logical` StructureDefinition SUSHI compiles, and
+    the conversion contract gate reads the compiled differential back to judge the forwarder's output
+    against it. One declaration, two readers, so the published contract and the checked contract
+    cannot drift apart without a test saying so.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str
+    """Dotted path relative to the model root, as the FSH rule and the compiled differential spell it."""
+
+    minimum: int
+    maximum: str
+    """`1` for a single value, `*` for a repeating one - the right half of the FSH cardinality."""
+
+    element_type: str
+    """The FHIR type the element carries: `string`, `date`, or `BackboneElement` for a nested group."""
+
+    short: str
+    definition: str
+
+    @property
+    def cardinality(self) -> str:
+        """The FSH cardinality literal (e.g. `0..*`)."""
+        return f"{self.minimum}..{self.maximum}"
+
+    @property
+    def short_literal(self) -> str:
+        """The short label as the quoted FSH literal an element rule takes."""
+        return quote(self.short)
+
+    @property
+    def definition_literal(self) -> str:
+        """The definition as the quoted FSH literal an element rule takes."""
+        return quote(self.definition)
+
+    @property
+    def required(self) -> bool:
+        """Whether the wire shape always carries this element."""
+        return self.minimum >= 1
+
+    @property
+    def repeats(self) -> bool:
+        """Whether the wire shape carries this element more than once."""
+        return self.maximum != "1"
+
+
+#: The `/api/dataValueSets` envelope one aggregate QuestionnaireResponse is imported as, element by
+#: element, exactly as `dhis2w_fhir.conversion.payloads.translate_aggregate_response` writes it. The
+#: three keys DHIS2 stores a data value under - the data set, the reporting period, and the
+#: organisation unit - are the required ones; the attribute option combo is the fourth key only a
+#: data set on a non-default category combo carries, and the complete date is the day the response
+#: records itself as authored.
+DATA_VALUE_SET_ELEMENTS: tuple[LogicalModelElement, ...] = (
+    LogicalModelElement(
+        path="dataSet",
+        minimum=1,
+        maximum="1",
+        element_type="string",
+        short="Data set",
+        definition=(
+            "The DHIS2 data set the values are reported for, as its UID. It comes off the "
+            "`$DHIS2-DS` identifier of the Questionnaire the response answers, never off the "
+            "response itself."
+        ),
+    ),
+    LogicalModelElement(
+        path="period",
+        minimum=1,
+        maximum="1",
+        element_type="string",
+        short="Reporting period",
+        definition=(
+            "The DHIS2 ISO period the values are reported for (e.g. `202401`), off the `iso` "
+            "sub-extension of the response's reporting-period extension."
+        ),
+    ),
+    LogicalModelElement(
+        path="orgUnit",
+        minimum=1,
+        maximum="1",
+        element_type="string",
+        short="Organisation unit",
+        definition=(
+            "The DHIS2 organisation unit the values are reported for, as its UID. It is the DHIS2 "
+            "identifier of the published Location the response is subject to."
+        ),
+    ),
+    LogicalModelElement(
+        path="attributeOptionCombo",
+        minimum=0,
+        maximum="1",
+        element_type="string",
+        short="Attribute option combo",
+        definition=(
+            "The DHIS2 attribute option combo the values are keyed under, as its UID. A data set on "
+            "the default category combo carries none, and DHIS2 fills the field itself."
+        ),
+    ),
+    LogicalModelElement(
+        path="completeDate",
+        minimum=0,
+        maximum="1",
+        element_type="date",
+        short="Complete date",
+        definition=(
+            "The day the report was completed, as a calendar date. It is the day the response "
+            "records itself as authored, read in the project's own time zone."
+        ),
+    ),
+    LogicalModelElement(
+        path="dataValues",
+        minimum=0,
+        maximum="*",
+        element_type="BackboneElement",
+        short="Data values",
+        definition="One cell of the report per answered question of the form.",
+    ),
+    LogicalModelElement(
+        path="dataValues.dataElement",
+        minimum=1,
+        maximum="1",
+        element_type="string",
+        short="Data element",
+        definition=(
+            "The DHIS2 data element the cell reports, as its UID. It is the first segment of the "
+            "answered question's link id."
+        ),
+    ),
+    LogicalModelElement(
+        path="dataValues.categoryOptionCombo",
+        minimum=0,
+        maximum="1",
+        element_type="string",
+        short="Category option combo",
+        definition=(
+            "The DHIS2 category option combo the cell is disaggregated by, as its UID. It is the "
+            "second segment of the answered question's link id, and a question asking an "
+            "undisaggregated data element carries none."
+        ),
+    ),
+    LogicalModelElement(
+        path="dataValues.value",
+        minimum=1,
+        maximum="1",
+        element_type="string",
+        short="Value",
+        definition=(
+            "The value as DHIS2 stores it. Every DHIS2 data value is a string on the wire, whatever "
+            "the data element's value type, so a lexical decimal and a DHIS2 option code both "
+            "survive the crossing byte for byte."
+        ),
+    ),
+)
+
+
+class ArtifactProfile(BaseModel):
+    """The fixed prose one definitional artifact publishes under, in the form its FSH template takes."""
+
+    model_config = ConfigDict(frozen=True)
+
+    title: str
+    description: str
+
+    @property
+    def title_literal(self) -> str:
+        """The title as the page-facing FSH `Title:` literal, markup characters HTML-escaped."""
+        return page_text(self.title)
+
+    @property
+    def description_literal(self) -> str:
+        """The description as the page-facing FSH `Description:` literal, markup characters HTML-escaped."""
+        return page_text(self.description)
+
+
+#: The prose the data value set logical model publishes under.
+DATA_VALUE_SET_MODEL = ArtifactProfile(
+    title="DHIS2 data value set",
+    description=(
+        "The `/api/dataValueSets` envelope one aggregate QuestionnaireResponse is imported as: the "
+        "data set, the reporting period, the organisation unit, and the attribute option combo the "
+        "report is keyed by, plus one data value per answered question. This is the DHIS2 wire shape "
+        "stated in FHIR terms, so a map targeting it says where each DHIS2 field comes from."
+    ),
+)
+
+#: The prose the aggregate conversion StructureMap publishes under.
+AGGREGATE_CONVERSION_MAP = ArtifactProfile(
+    title="DHIS2 aggregate response to data value set",
+    description=(
+        "How one aggregate QuestionnaireResponse becomes the DHIS2 data value set it is imported as, "
+        "element by element. The map is the conversion contract a third party builds their own bridge "
+        "from; it is not executed at runtime, and the rules whose meaning exceeds what a transform can "
+        "state carry that on their own documentation."
+    ),
 )
 
 
@@ -515,6 +728,26 @@ class FoundationNaming(BaseModel):
     def tracker_event_response_profile_id(self) -> str:
         """FHIR id of the tracker-event QuestionnaireResponse profile (e.g. `d2-tracker-event-response`)."""
         return join_id_tokens(self.definition_prefix, "tracker", "event", "response")
+
+    @property
+    def data_value_set_model(self) -> str:
+        """FSH name of the data value set logical model (e.g. `D2DataValueSet`)."""
+        return f"{self.definition_prefix}DataValueSet"
+
+    @property
+    def data_value_set_model_id(self) -> str:
+        """FHIR id of the data value set logical model (e.g. `d2-data-value-set`)."""
+        return join_id_tokens(self.definition_prefix, "data", "value", "set")
+
+    @property
+    def aggregate_conversion_map(self) -> str:
+        """FSH name of the aggregate conversion StructureMap (e.g. `D2AggregateResponseToDataValueSet`)."""
+        return f"{self.definition_prefix}AggregateResponseToDataValueSet"
+
+    @property
+    def aggregate_conversion_map_id(self) -> str:
+        """FHIR id of the aggregate conversion StructureMap (e.g. `d2-aggregate-response-to-data-value-set`)."""
+        return join_id_tokens(self.definition_prefix, "aggregate", "response", "to", "data", "value", "set")
 
     @property
     def generate_operation(self) -> str:

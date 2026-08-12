@@ -470,6 +470,7 @@ def test_the_program_grouping_alias_and_its_segment_name_the_same_system() -> No
 def _aliases(config: GenerateConfig) -> str:
     """The `foundation/d2-aliases.fsh` the run writes, which every FSH identifier system resolves through."""
     artifacts = {
-        artifact.relative_path: artifact.content for artifact in build_foundation_artifacts(config, ig_status="draft")
+        artifact.relative_path: artifact.content
+        for artifact in build_foundation_artifacts(config, _CANONICAL, ig_status="draft")
     }
     return artifacts["foundation/d2-aliases.fsh"]
