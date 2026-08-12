@@ -149,6 +149,7 @@ if TYPE_CHECKING:
         Category,
         DataElement,
         DataSet,
+        DataSetElement,
         OptionSet,
         OrganisationUnit,
         Program,
@@ -188,14 +189,28 @@ _ORGANISATION_UNIT_FIELDS = (
 #: category projection the same run reads, so a combo says which options it is and nothing more.
 _CATEGORY_COMBO_DECOMPOSITION_FIELDS = "categories[id],categoryOptionCombos[id,name,code,categoryOptions[id]]"
 
+#: The projection a disaggregation is read under, wherever one is read: the combo's own identity plus
+#: what it decomposes into. Both places a question's cells can be disaggregated from ride it - the
+#: data element's own combo and the data set element's override - so the two are the same shape and
+#: an override naming the element's own combo resolves to the very same projection.
+_DISAGGREGATION_COMBO_FIELDS = f"categoryCombo[id,name,isDefault,{_CATEGORY_COMBO_DECOMPOSITION_FIELDS}]"
+
 #: The data-element projection every form kind's questions are built from. `code` rides it for the
 #: data dictionary, which publishes the DHIS2 code of the object a question is asked from the way
 #: the attribute dictionary publishes an attribute's - a data element DHIS2 left uncoded publishes
 #: no code rather than its UID under a `dhis2-code` label.
 _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
-    "dataElement[id,code,name,formName,valueType,domainType,optionSet[id],"
-    f"categoryCombo[id,name,isDefault,{_CATEGORY_COMBO_DECOMPOSITION_FIELDS}]]"
+    f"dataElement[id,code,name,formName,valueType,domainType,optionSet[id],{_DISAGGREGATION_COMBO_FIELDS}]"
 )
+
+#: The data-set element projection: the data element the question is asked from, and the join's own
+#: category combo. DHIS2 holds a disaggregation on the join as well as on the element, and the join's
+#: is what the data set's cells are held over - a data element on the default combo carried by a data
+#: set that overrides it to a four-way age split holds four cells there, not one. The override rides
+#: the projection the elements already ride, so knowing it costs no second request, and
+#: `_effective_category_combo` is the one place the two meet.
+_DATA_SET_ELEMENT_FIELDS = f"{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS},{_DISAGGREGATION_COMBO_FIELDS}"
+
 #: The data set's own category combo - the attribute combo whose option combos are the third key
 #: of every value it holds. It rides the very projection the disaggregation combos ride, so the
 #: attribute-option-combo vocabulary is read on the metadata sweep the forms already cost rather
@@ -206,7 +221,7 @@ _DATA_SET_FIELDS = (
     "id,name,code,description,periodType,sections[id,name,dataElements[id]],"
     f"{_ATTRIBUTE_VALUE_FIELDS},{_ATTRIBUTE_COMBO_FIELDS},"
     "compulsoryDataElementOperands[dataElement[id],categoryOptionCombo[id]],"
-    f"dataSetElements[{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
+    f"dataSetElements[{_DATA_SET_ELEMENT_FIELDS}]"
 )
 
 #: The stage projection both program kinds read: an event program takes its single stage's questions,
@@ -2745,10 +2760,9 @@ def _data_set_source(model: DataSet, notes: list[GenerateNote]) -> Questionnaire
     compulsory = _compulsory_operands(model)
     items: list[QuestionnaireItemIn] = []
     for element in model.dataSetElements or []:
-        reference = element.dataElement
-        if reference is None or not reference.id:
-            continue
-        items.append(_marked_required(_questionnaire_item(reference.model_dump(), compulsory=False), compulsory))
+        item = _data_set_item(element, compulsory)
+        if item is not None:
+            items.append(item)
     items.sort(key=lambda item: (item.name, item.uid))
     return _questionnaire_source(
         uid=uid,
@@ -2763,6 +2777,42 @@ def _data_set_source(model: DataSet, notes: list[GenerateNote]) -> Questionnaire
         attribute_combo=_category_combo_input(_attribute_combo_wire(model)),
         notes=notes,
     )
+
+
+def _data_set_item(element: DataSetElement, compulsory: _CompulsoryOperands) -> QuestionnaireItemIn | None:
+    """One data-set element as a question, disaggregated by the combo that data set holds its cells over.
+
+    The combo is resolved before the compulsory operands are carried, because an operand naming a
+    single cell names it by the option combo of the disaggregation the data set actually holds.
+    A join carrying no data element is no question, and answers None.
+    """
+    reference = element.dataElement
+    if reference is None or not reference.id:
+        return None
+    item = _questionnaire_item(reference.model_dump(), compulsory=False)
+    combo = _effective_category_combo(element, item.category_combo)
+    return _marked_required(item.model_copy(update={"category_combo": combo}), compulsory)
+
+
+def _effective_category_combo(
+    element: DataSetElement, data_element_combo: CategoryComboIn | None
+) -> CategoryComboIn | None:
+    """The disaggregation one data set holds an element's cells over: the join's combo, else the element's own.
+
+    This is the single resolution point for a data-set cell's category combo, and every reader of one
+    is downstream of it: the questionnaire's per-option-combo child items and their `<dataElement>
+    .<categoryOptionCombo>` link ids, the `D2COC_CS` concepts and the category decomposition they
+    state their axes from, the example responses and the load set that answer those cells, and the
+    conversion that writes each answer back under its own `categoryOptionCombo`.
+
+    A data set that restates nothing sends no join combo and the element's own stands. A data set
+    that restates an element to the combo it already carries resolves to the same projection, so
+    an override that changes nothing changes nothing.
+    """
+    override = element.categoryCombo
+    if override is None:
+        return data_element_combo
+    return _category_combo_input(override.model_dump()) or data_element_combo
 
 
 def _attribute_combo_wire(model: DataSet) -> object:
