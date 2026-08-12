@@ -724,6 +724,14 @@ at generate time rather than at the end of a long build - and
 Each needs an owner call. State the question, weigh the options, do not decide
 them in a review.
 
+The decisions below are the ones this document opened. A second set - what the
+generated guide should carry of DHIS2's own distinctive semantics - is audited
+concept by concept in [the DHIS2 fidelity audit](fhir-dhis2-fidelity.md), which
+gives every one of them a verdict (carried, worth carrying with a named carrier,
+or deliberately not with the reason), ranks the worth-carrying ones by whether a
+consumer exists today, and closes with six further owner calls. Decisions 5.4 and
+5.5 below are restated there rather than resolved, so the audit reads as complete.
+
 ### 5.1 Coded-answer leniency at the ingesting proxy
 
 **Question.** When the future proxy ingests a `QuestionnaireResponse`, does a

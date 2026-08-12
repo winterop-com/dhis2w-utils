@@ -56,6 +56,15 @@ reference.
 
     [Read the conversion plan](fhir-conversion.md)
 
+- **DHIS2 fidelity audit**
+
+    ---
+
+    Every concept that makes DHIS2 distinctively DHIS2, with a verdict: carried,
+    worth carrying with a named carrier, or deliberately not with the reason.
+
+    [Read the fidelity audit](fhir-dhis2-fidelity.md)
+
 - **FHIR harmonization**
 
     ---
