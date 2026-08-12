@@ -1,0 +1,101 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "ScStageAaa1",
+  "url": "http://localhost:8080/fhir/Questionnaire/ScStageAaa1",
+  "title": "Scenario A - Scenario A Visit",
+  "description": "DHIS2 tracker program stage Scenario A Visit (ScStageAaa1) of program Scenario A (ScProgAaa01) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "tracker-event"
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-assignment",
+      "valueReference": {
+        "reference": "List/d2-pr-ScProgAaa01-org-units"
+      }
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage",
+      "value": "ScStageAaa1"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage-code",
+      "value": "ScStageAaa1"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "ScProgAaa01"
+    }
+  ],
+  "name": "D2PS_ScStageAaa1",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "code": "tracker-event",
+      "system": "http://localhost:8080/fhir/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "UXz7xuGCEhU",
+      "code": [
+        {
+          "code": "UXz7xuGCEhU",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH Weight (g)"
+        }
+      ],
+      "text": "Weight (g)",
+      "type": "decimal"
+    },
+    {
+      "linkId": "a3kGcGDCuk6",
+      "code": [
+        {
+          "code": "a3kGcGDCuk6",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH Apgar Score"
+        }
+      ],
+      "text": "Apgar Score",
+      "_text": {
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "fr"
+              },
+              {
+                "url": "content",
+                "valueString": "Score d'Apgar"
+              }
+            ]
+          },
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "lo"
+              },
+              {
+                "url": "content",
+                "valueString": "ຄະແນນ Apgar"
+              }
+            ]
+          }
+        ]
+      },
+      "type": "decimal"
+    }
+  ]
+}

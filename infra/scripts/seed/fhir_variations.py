@@ -23,6 +23,17 @@ actually shipped and fixed:
    the validation PDF's Lao fallback font exists for. Lao is the script the emitters were
    first exercised against on a real national instance.
 
+   The vocabulary objects carry theirs on the bundle below. The *forms* carry theirs
+   through `seed_form_translations`, which writes `PUT /api/<collection>/<uid>/translations`
+   over objects the play bundle already holds - a data set and its section, a tracker
+   program and its stage, three data elements, and a tracked entity attribute. Two locales
+   (Lao and French) rather than one, because a single locale cannot show that
+   `[generate] locales` narrows anything, and the program-and-stage pair because a stage
+   form is titled `<program> - <stage>` and only a locale translating both halves can
+   state that title. One data element carries a `FORM_NAME` translation different from its
+   `NAME` one: a question is labelled with the DHIS2 form name where the object has one, so
+   its `text` translation has to come from that property rather than from `NAME`.
+
 3. **Absent codes.** `concept_code_source = "code"` has to fall back to the UID for a
    category option DHIS2 left uncoded. The play bundle codes almost everything, so the
    fallback was untested; the uncoded category option covers it.
@@ -66,6 +77,7 @@ from dhis2w_client.generated.v42.enums import DataDimensionType, ValueType
 from dhis2w_client.generated.v42.oas import Sharing
 from dhis2w_client.generated.v42.schemas import Category, CategoryOption, Option, OptionSet
 from dhis2w_client.v42.sharing import ACCESS_READ_WRITE_DATA
+from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
     from dhis2w_client.v42.client import Dhis2Client
@@ -197,6 +209,99 @@ def metadata_bundle() -> dict[str, list[dict[str, Any]]]:
     }
 
 
+class TranslationEntry(BaseModel):
+    """One DHIS2 translation: the property translated, the locale it is written in, and the words."""
+
+    model_config = ConfigDict(frozen=True)
+
+    property: str
+    locale: str
+    value: str
+
+
+class ObjectTranslations(BaseModel):
+    """Every translation one DHIS2 object carries, addressed by the collection it lives in and its UID."""
+
+    model_config = ConfigDict(frozen=True)
+
+    collection: str
+    uid: str
+    label: str
+    translations: list[TranslationEntry]
+
+
+def _translations(*, name: dict[str, str], form_name: dict[str, str] | None = None) -> list[TranslationEntry]:
+    """One object's translations from a `locale -> value` mapping per translated DHIS2 property."""
+    entries = [TranslationEntry(property="NAME", locale=locale, value=value) for locale, value in name.items()]
+    entries.extend(
+        TranslationEntry(property="FORM_NAME", locale=locale, value=value)
+        for locale, value in (form_name or {}).items()
+    )
+    return entries
+
+
+#: The play-bundle objects the questionnaire surface is generated from, translated into Lao and French.
+#:
+#: A data set and one of its sections, a tracker program with its stage, the three data elements those
+#: forms ask questions from, and one tracked entity attribute - which is one object of every kind the
+#: emitters read a translation off. `MCH Apgar Score` is the form-named one: DHIS2 labels that question
+#: `Apgar Score` rather than the object name, so its `FORM_NAME` translations are what the question text
+#: is translated from and its `NAME` translations stay on the dictionary concept.
+FORM_TRANSLATIONS: list[ObjectTranslations] = [
+    ObjectTranslations(
+        collection="dataSets",
+        uid="BfMAe6Itzgt",
+        label="Child Health",
+        translations=_translations(name={"lo": "ສຸຂະພາບເດັກ", "fr": "Sante de l'enfant"}),
+    ),
+    ObjectTranslations(
+        collection="sections",
+        uid="Y2rk0vzgvAx",
+        label="Immunization",
+        translations=_translations(name={"lo": "ການສັກຢາກັນພະຍາດ", "fr": "Vaccination"}),
+    ),
+    ObjectTranslations(
+        collection="dataElements",
+        uid="s46m5MS0hxu",
+        label="BCG doses given",
+        translations=_translations(name={"lo": "ຈຳນວນເຂັມ BCG ທີ່ໃຫ້", "fr": "Doses de BCG administrees"}),
+    ),
+    ObjectTranslations(
+        collection="dataElements",
+        uid="a3kGcGDCuk6",
+        label="MCH Apgar Score",
+        translations=_translations(
+            name={"lo": "ຄະແນນ Apgar ຂອງແມ່ ແລະ ເດັກ", "fr": "Score d'Apgar SMI"},
+            form_name={"lo": "ຄະແນນ Apgar", "fr": "Score d'Apgar"},
+        ),
+    ),
+    ObjectTranslations(
+        collection="programs",
+        uid="PrAncCare01",
+        label="ANC follow-up",
+        translations=_translations(name={"lo": "ຕິດຕາມການຝາກທ້ອງ", "fr": "Suivi des CPN"}),
+    ),
+    ObjectTranslations(
+        collection="programStages",
+        uid="PsAncVisit1",
+        label="ANC visit",
+        translations=_translations(name={"lo": "ການມາກວດຝາກທ້ອງ", "fr": "Visite de CPN"}),
+    ),
+    ObjectTranslations(
+        collection="dataElements",
+        uid="DeAncVisNo1",
+        label="ANC visit number",
+        translations=_translations(name={"lo": "ຄັ້ງທີ່ມາກວດ", "fr": "Numero de visite CPN"}),
+    ),
+    ObjectTranslations(
+        collection="trackedEntityAttributes",
+        uid="w75KJ2mc4zz",
+        label="First name (Play)",
+        translations=_translations(name={"lo": "ຊື່", "fr": "Prenom"}),
+    ),
+]
+
+
 async def seed_fhir_variations(client: Dhis2Client) -> int:
     """Post the text-handling fixtures and return how many objects the bundle carried.
 
@@ -210,3 +315,19 @@ async def seed_fhir_variations(client: Dhis2Client) -> int:
         params={"importStrategy": "CREATE_AND_UPDATE", "atomicMode": "OBJECT"},
     )
     return sum(len(objects) for objects in bundle.values())
+
+
+async def seed_form_translations(client: Dhis2Client) -> int:
+    """Write the form-side translations and return how many objects were translated.
+
+    `PUT /api/<collection>/<uid>/translations` replaces the object's whole translation list and
+    touches nothing else, which is what makes this safe to run over objects the play bundle owns:
+    a re-run restores exactly the same list, and no other field of the object is rewritten. DHIS2
+    answers `204 No Content`; `POST` on the same path is refused with `E1004` (BUGS.md #78).
+    """
+    for entry in FORM_TRANSLATIONS:
+        await client.put_raw(
+            f"/api/{entry.collection}/{entry.uid}/translations",
+            body={"translations": [translation.model_dump(mode="json") for translation in entry.translations]},
+        )
+    return len(FORM_TRANSLATIONS)

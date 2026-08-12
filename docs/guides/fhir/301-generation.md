@@ -140,6 +140,21 @@ generate.timezone
 DHIS2 metadata may carry names in several languages; this list picks which of
 them travel into the guide.
 
+**What a translated guide gives whom.** A nurse filling in a form on a tablet
+reads the question, not the data element. A form published with translations
+carries the local-language wording of every question, every section heading,
+and every form title beside the English one, so an app rendering the form can
+show the reader their own language without asking DHIS2 anything. The answer
+lists are the same story and the bigger win: a choice question offers a list of
+options, and those options in Lao or Khmer script are what makes the list
+readable at all. Nothing about the form's identity changes - the codes and the
+question ids are the same in every language, so a response captured in Lao and
+one captured in English are the same response.
+
+The person the guide is *written* for benefits too. A reviewer reading the
+published data dictionary sees the local-language name beside each entry, which
+is how they check the guide describes the thing they think it describes.
+
 **When you would change it.** Your instance holds translations in five
 languages but the guide is for a two-language audience: list those two and the
 rest stay home. Language tags are the short standard ones - `"lo"`, `"en"`,
@@ -160,6 +175,23 @@ instance is published.
 **If you get it wrong:** nothing refuses an unknown tag - a language your
 metadata does not carry simply contributes nothing, and you find out when the
 expected translations are missing from the guide.
+
+**What DHIS2 has to hold for this to show anything.** Only the `NAME`
+translations reach the guide, plus the `FORM_NAME` ones on a question DHIS2
+gives a form name to. A `SHORT_NAME` or `DESCRIPTION` translation is not
+published, and an object nobody translated publishes nothing rather than
+repeating its English name under a language tag.
+
+Two consequences worth knowing before you look for missing words:
+
+- **A program stage form is titled `<program> - <stage>`**, so its title is
+  translated only in a language that translates *both* the program and the
+  stage. Translating the stage alone leaves the title in English, because the
+  alternative is to publish a half-translated title nobody wrote.
+- **A question labelled by a DHIS2 form name is translated from that form
+  name.** If the data element has a form name and only its `NAME` is
+  translated, the question keeps its English label - the guide will not put a
+  translation of one piece of text under another.
 
 ## The `[generate.naming]` section { #naming }
 

@@ -1,0 +1,2108 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "BfMAe6Itzgt",
+  "url": "http://localhost:8080/fhir/Questionnaire/BfMAe6Itzgt",
+  "title": "Child Health",
+  "_title": {
+    "extension": [
+      {
+        "url": "http://hl7.org/fhir/StructureDefinition/translation",
+        "extension": [
+          {
+            "url": "lang",
+            "valueCode": "fr"
+          },
+          {
+            "url": "content",
+            "valueString": "Sante de l'enfant"
+          }
+        ]
+      },
+      {
+        "url": "http://hl7.org/fhir/StructureDefinition/translation",
+        "extension": [
+          {
+            "url": "lang",
+            "valueCode": "lo"
+          },
+          {
+            "url": "content",
+            "valueString": "ສຸຂະພາບເດັກ"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "DHIS2 data set Child Health (BfMAe6Itzgt) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "aggregate"
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-assignment",
+      "valueReference": {
+        "reference": "List/d2-ds-BfMAe6Itzgt-org-units"
+      }
+    },
+    {
+      "extension": [
+        {
+          "url": "attributeId",
+          "valueString": "AtrFhirDsQ1"
+        },
+        {
+          "url": "value",
+          "valueString": "Paper register 12A, revision 2025-03"
+        }
+      ],
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-attribute-value"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/data-set",
+      "value": "BfMAe6Itzgt"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/data-set-code",
+      "value": "DS_359711"
+    }
+  ],
+  "name": "D2DS_BfMAe6Itzgt",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Location"
+  ],
+  "code": [
+    {
+      "code": "aggregate",
+      "system": "http://localhost:8080/fhir/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "Y2rk0vzgvAx",
+      "text": "Immunization",
+      "_text": {
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "fr"
+              },
+              {
+                "url": "content",
+                "valueString": "Vaccination"
+              }
+            ]
+          },
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "lo"
+              },
+              {
+                "url": "content",
+                "valueString": "ການສັກຢາກັນພະຍາດ"
+              }
+            ]
+          }
+        ]
+      },
+      "type": "group",
+      "extension": [
+        {
+          "url": "http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl",
+          "valueCodeableConcept": {
+            "coding": [
+              {
+                "code": "gtable",
+                "system": "http://hl7.org/fhir/questionnaire-item-control"
+              }
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "linkId": "s46m5MS0hxu",
+          "code": [
+            {
+              "code": "s46m5MS0hxu",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "BCG doses given"
+            }
+          ],
+          "text": "BCG doses given",
+          "_text": {
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/StructureDefinition/translation",
+                "extension": [
+                  {
+                    "url": "lang",
+                    "valueCode": "fr"
+                  },
+                  {
+                    "url": "content",
+                    "valueString": "Doses de BCG administrees"
+                  }
+                ]
+              },
+              {
+                "url": "http://hl7.org/fhir/StructureDefinition/translation",
+                "extension": [
+                  {
+                    "url": "lang",
+                    "valueCode": "lo"
+                  },
+                  {
+                    "url": "content",
+                    "valueString": "ຈຳນວນເຂັມ BCG ທີ່ໃຫ້"
+                  }
+                ]
+              }
+            ]
+          },
+          "type": "group",
+          "item": [
+            {
+              "linkId": "s46m5MS0hxu.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "integer"
+            },
+            {
+              "linkId": "s46m5MS0hxu.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "integer"
+            },
+            {
+              "linkId": "s46m5MS0hxu.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "integer"
+            },
+            {
+              "linkId": "s46m5MS0hxu.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "integer"
+            }
+          ]
+        },
+        {
+          "linkId": "UOlfIjgN8X6",
+          "code": [
+            {
+              "code": "UOlfIjgN8X6",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Fully Immunized child"
+            }
+          ],
+          "text": "Fully Immunized child",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "UOlfIjgN8X6.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "UOlfIjgN8X6.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "UOlfIjgN8X6.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "UOlfIjgN8X6.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "z7duEFcpApd",
+          "code": [
+            {
+              "code": "z7duEFcpApd",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "LLITN given at Penta3"
+            }
+          ],
+          "text": "LLITN given at Penta3",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "z7duEFcpApd.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "z7duEFcpApd.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "z7duEFcpApd.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "z7duEFcpApd.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "x3Do5e7g4Qo",
+          "code": [
+            {
+              "code": "x3Do5e7g4Qo",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "OPV0 doses given"
+            }
+          ],
+          "text": "OPV0 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "x3Do5e7g4Qo.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "x3Do5e7g4Qo.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "x3Do5e7g4Qo.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "x3Do5e7g4Qo.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "pikOziyCXbM",
+          "code": [
+            {
+              "code": "pikOziyCXbM",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "OPV1 doses given"
+            }
+          ],
+          "text": "OPV1 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "pikOziyCXbM.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "pikOziyCXbM.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "pikOziyCXbM.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "pikOziyCXbM.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "O05mAByOgAv",
+          "code": [
+            {
+              "code": "O05mAByOgAv",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "OPV2 doses given"
+            }
+          ],
+          "text": "OPV2 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "O05mAByOgAv.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "O05mAByOgAv.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "O05mAByOgAv.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "O05mAByOgAv.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "vI2csg55S9C",
+          "code": [
+            {
+              "code": "vI2csg55S9C",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "OPV3 doses given"
+            }
+          ],
+          "text": "OPV3 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "vI2csg55S9C.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "vI2csg55S9C.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "vI2csg55S9C.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "vI2csg55S9C.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "xc8gmAKfO95",
+          "code": [
+            {
+              "code": "xc8gmAKfO95",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "PCV1 doses given"
+            }
+          ],
+          "text": "PCV1 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "xc8gmAKfO95.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "xc8gmAKfO95.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "xc8gmAKfO95.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "xc8gmAKfO95.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "mGN1az8Xub6",
+          "code": [
+            {
+              "code": "mGN1az8Xub6",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "PCV2 doses given"
+            }
+          ],
+          "text": "PCV2 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "mGN1az8Xub6.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "mGN1az8Xub6.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "mGN1az8Xub6.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "mGN1az8Xub6.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "L2kxa2IA2cs",
+          "code": [
+            {
+              "code": "L2kxa2IA2cs",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "PCV3 doses given"
+            }
+          ],
+          "text": "PCV3 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "L2kxa2IA2cs.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "L2kxa2IA2cs.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "L2kxa2IA2cs.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "L2kxa2IA2cs.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "fClA2Erf6IO",
+          "code": [
+            {
+              "code": "fClA2Erf6IO",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Penta1 doses given"
+            }
+          ],
+          "text": "Penta1 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "fClA2Erf6IO.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "fClA2Erf6IO.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "fClA2Erf6IO.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "fClA2Erf6IO.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "I78gJm4KBo7",
+          "code": [
+            {
+              "code": "I78gJm4KBo7",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Penta2 doses given"
+            }
+          ],
+          "text": "Penta2 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "I78gJm4KBo7.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "I78gJm4KBo7.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "I78gJm4KBo7.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "I78gJm4KBo7.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "n6aMJNLdvep",
+          "code": [
+            {
+              "code": "n6aMJNLdvep",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Penta3 doses given"
+            }
+          ],
+          "text": "Penta3 doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "n6aMJNLdvep.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "n6aMJNLdvep.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "n6aMJNLdvep.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "n6aMJNLdvep.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "l6byfWFUGaP",
+          "code": [
+            {
+              "code": "l6byfWFUGaP",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Yellow Fever doses given"
+            }
+          ],
+          "text": "Yellow Fever doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "l6byfWFUGaP.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "l6byfWFUGaP.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "l6byfWFUGaP.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "l6byfWFUGaP.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "YtbsuPPo010",
+          "code": [
+            {
+              "code": "YtbsuPPo010",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Measles doses given"
+            }
+          ],
+          "text": "Measles doses given",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "YtbsuPPo010.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "YtbsuPPo010.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "YtbsuPPo010.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "YtbsuPPo010.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "linkId": "vtOr8PTJVxS",
+      "text": "Nutrition",
+      "type": "group",
+      "extension": [
+        {
+          "url": "http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl",
+          "valueCodeableConcept": {
+            "coding": [
+              {
+                "code": "gtable",
+                "system": "http://hl7.org/fhir/questionnaire-item-control"
+              }
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "linkId": "qw2sIef52Fu",
+          "code": [
+            {
+              "code": "qw2sIef52Fu",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Children getting therapeutic feeding"
+            }
+          ],
+          "text": "Children getting therapeutic feeding",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "qw2sIef52Fu.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "qw2sIef52Fu.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "qw2sIef52Fu.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "qw2sIef52Fu.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "Y53Jcc9LBYh",
+          "code": [
+            {
+              "code": "Y53Jcc9LBYh",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Children supplied with food supplemements"
+            }
+          ],
+          "text": "Children supplied with food supplemements",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "Y53Jcc9LBYh.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "Y53Jcc9LBYh.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "Y53Jcc9LBYh.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "Y53Jcc9LBYh.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "d5xTg3WR3DP",
+          "code": [
+            {
+              "code": "d5xTg3WR3DP",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Mebendazole/Albendazole (for children 12-59 months)"
+            }
+          ],
+          "text": "Mebendazole/Albendazole (for children 12-59 months)",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "d5xTg3WR3DP.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "d5xTg3WR3DP.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "d5xTg3WR3DP.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "d5xTg3WR3DP.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "DUSpd8Jq3M7",
+          "code": [
+            {
+              "code": "DUSpd8Jq3M7",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Newborn protected at birth against tetanus (TT2+)"
+            }
+          ],
+          "text": "Newborn protected at birth against tetanus (TT2+)",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "DUSpd8Jq3M7.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "DUSpd8Jq3M7.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "DUSpd8Jq3M7.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "DUSpd8Jq3M7.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "dU0GquGkGQr",
+          "code": [
+            {
+              "code": "dU0GquGkGQr",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Q_Early breastfeeding (within 1 hr after delivery) at BCG"
+            }
+          ],
+          "text": "Q_Early breastfeeding (within 1 hr after delivery) at BCG",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "dU0GquGkGQr.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "dU0GquGkGQr.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "dU0GquGkGQr.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "dU0GquGkGQr.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "pEOVd4Z3TAS",
+          "code": [
+            {
+              "code": "pEOVd4Z3TAS",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Q_Exclusive breastfeeding at time of Penta 3"
+            }
+          ],
+          "text": "Q_Exclusive breastfeeding at time of Penta 3",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "pEOVd4Z3TAS.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "pEOVd4Z3TAS.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "pEOVd4Z3TAS.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "pEOVd4Z3TAS.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "Rmixc9wJl0G",
+          "code": [
+            {
+              "code": "Rmixc9wJl0G",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Q_LLITN given at time of 2nd Vit A dose"
+            }
+          ],
+          "text": "Q_LLITN given at time of 2nd Vit A dose",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "Rmixc9wJl0G.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "Rmixc9wJl0G.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "Rmixc9wJl0G.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "Rmixc9wJl0G.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "GCGfEY82Wz6",
+          "code": [
+            {
+              "code": "GCGfEY82Wz6",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Q_Slept under LLIN last night Measles"
+            }
+          ],
+          "text": "Q_Slept under LLIN last night Measles",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "GCGfEY82Wz6.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "GCGfEY82Wz6.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "GCGfEY82Wz6.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "GCGfEY82Wz6.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "ca8lfO062zg",
+          "code": [
+            {
+              "code": "ca8lfO062zg",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Q_Vitamin A received 4-6 months ago at 12-59 dose"
+            }
+          ],
+          "text": "Q_Vitamin A received 4-6 months ago at 12-59 dose",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "ca8lfO062zg.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "ca8lfO062zg.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "ca8lfO062zg.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "ca8lfO062zg.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "tU7GixyHhsv",
+          "code": [
+            {
+              "code": "tU7GixyHhsv",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Vitamin A given to < 5y"
+            }
+          ],
+          "text": "Vitamin A given to < 5y",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "tU7GixyHhsv.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "tU7GixyHhsv.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "tU7GixyHhsv.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "tU7GixyHhsv.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "bTcRDVjC66S",
+          "code": [
+            {
+              "code": "bTcRDVjC66S",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Weight for age below lower line (red)"
+            }
+          ],
+          "text": "Weight for age below lower line (red)",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "bTcRDVjC66S.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "bTcRDVjC66S.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "bTcRDVjC66S.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "bTcRDVjC66S.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "ldGXl6SEdqf",
+          "code": [
+            {
+              "code": "ldGXl6SEdqf",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Weight for age between middle and lower line (yellow)"
+            }
+          ],
+          "text": "Weight for age between middle and lower line (yellow)",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "ldGXl6SEdqf.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "ldGXl6SEdqf.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "ldGXl6SEdqf.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "ldGXl6SEdqf.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "NLnXLV5YpZF",
+          "code": [
+            {
+              "code": "NLnXLV5YpZF",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Weight for age on or above middle line (green)"
+            }
+          ],
+          "text": "Weight for age on or above middle line (green)",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "NLnXLV5YpZF.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "NLnXLV5YpZF.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "NLnXLV5YpZF.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "NLnXLV5YpZF.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "pnL2VG8Bn7N",
+          "code": [
+            {
+              "code": "pnL2VG8Bn7N",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Weight for height 70-79 percent"
+            }
+          ],
+          "text": "Weight for height 70-79 percent",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "pnL2VG8Bn7N.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "pnL2VG8Bn7N.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "pnL2VG8Bn7N.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "pnL2VG8Bn7N.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "qPVDd87kS9Z",
+          "code": [
+            {
+              "code": "qPVDd87kS9Z",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Weight for height 80 percent and above"
+            }
+          ],
+          "text": "Weight for height 80 percent and above",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "qPVDd87kS9Z.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "qPVDd87kS9Z.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "qPVDd87kS9Z.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "qPVDd87kS9Z.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        },
+        {
+          "linkId": "lVsbKXoF0zX",
+          "code": [
+            {
+              "code": "lVsbKXoF0zX",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+              "display": "Weight for height below 70 percent"
+            }
+          ],
+          "text": "Weight for height below 70 percent",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "lVsbKXoF0zX.Prlt0C1RF0s",
+              "code": [
+                {
+                  "code": "Prlt0C1RF0s",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, <1y"
+                }
+              ],
+              "text": "Fixed, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "lVsbKXoF0zX.psbwp3CQEhs",
+              "code": [
+                {
+                  "code": "psbwp3CQEhs",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Fixed, >1y"
+                }
+              ],
+              "text": "Fixed, >1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "lVsbKXoF0zX.V6L425pT3A0",
+              "code": [
+                {
+                  "code": "V6L425pT3A0",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, <1y"
+                }
+              ],
+              "text": "Outreach, <1y",
+              "type": "decimal"
+            },
+            {
+              "linkId": "lVsbKXoF0zX.hEFKSsPV5et",
+              "code": [
+                {
+                  "code": "hEFKSsPV5et",
+                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+                  "display": "Outreach, >1y"
+                }
+              ],
+              "text": "Outreach, >1y",
+              "type": "decimal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

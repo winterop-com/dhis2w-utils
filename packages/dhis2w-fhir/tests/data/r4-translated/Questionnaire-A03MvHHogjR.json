@@ -1,0 +1,176 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "A03MvHHogjR",
+  "url": "http://localhost:8080/fhir/Questionnaire/A03MvHHogjR",
+  "title": "Child Programme - Birth",
+  "description": "DHIS2 tracker program stage Birth (A03MvHHogjR) of program Child Programme (IpHINAT79UW) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
+      "valueCode": "tracker-event"
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-assignment",
+      "valueReference": {
+        "reference": "List/d2-pr-IpHINAT79UW-org-units"
+      }
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage",
+      "value": "A03MvHHogjR"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage-code",
+      "value": "A03MvHHogjR"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "IpHINAT79UW"
+    }
+  ],
+  "name": "D2PS_A03MvHHogjR",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "code": "tracker-event",
+      "system": "http://localhost:8080/fhir/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "a3kGcGDCuk6",
+      "code": [
+        {
+          "code": "a3kGcGDCuk6",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH Apgar Score"
+        }
+      ],
+      "text": "Apgar Score",
+      "_text": {
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "fr"
+              },
+              {
+                "url": "content",
+                "valueString": "Score d'Apgar"
+              }
+            ]
+          },
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/translation",
+            "extension": [
+              {
+                "url": "lang",
+                "valueCode": "lo"
+              },
+              {
+                "url": "content",
+                "valueString": "ຄະແນນ Apgar"
+              }
+            ]
+          }
+        ]
+      },
+      "type": "decimal"
+    },
+    {
+      "linkId": "H6uSAMO5WLD",
+      "code": [
+        {
+          "code": "H6uSAMO5WLD",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH Apgar comment"
+        }
+      ],
+      "text": "Apgar comment",
+      "type": "text"
+    },
+    {
+      "linkId": "UXz7xuGCEhU",
+      "code": [
+        {
+          "code": "UXz7xuGCEhU",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH Weight (g)"
+        }
+      ],
+      "text": "Weight (g)",
+      "type": "decimal"
+    },
+    {
+      "linkId": "wQLfBvPrXqq",
+      "code": [
+        {
+          "code": "wQLfBvPrXqq",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH ARV at birth"
+        }
+      ],
+      "text": "ARV at birth",
+      "type": "choice",
+      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-f38bstJioPs-vs"
+    },
+    {
+      "linkId": "bx6fsa0t90x",
+      "code": [
+        {
+          "code": "bx6fsa0t90x",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH BCG dose"
+        }
+      ],
+      "text": "BCG dose",
+      "type": "boolean"
+    },
+    {
+      "linkId": "ebaJjqltK5N",
+      "code": [
+        {
+          "code": "ebaJjqltK5N",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH OPV dose"
+        }
+      ],
+      "text": "OPV dose",
+      "type": "choice",
+      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-kzgQRhOCadd-vs"
+    },
+    {
+      "linkId": "X8zyunlgUfM",
+      "code": [
+        {
+          "code": "X8zyunlgUfM",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "MCH Infant Feeding"
+        }
+      ],
+      "text": "Infant Feeding",
+      "type": "choice",
+      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-x31y45jvIQL-vs"
+    },
+    {
+      "linkId": "uf3svrmp8Oj",
+      "code": [
+        {
+          "code": "uf3svrmp8Oj",
+          "system": "http://localhost:8080/fhir/CodeSystem/d2-de-cs",
+          "display": "Birth certificate"
+        }
+      ],
+      "text": "Birth certificate",
+      "type": "attachment"
+    }
+  ]
+}

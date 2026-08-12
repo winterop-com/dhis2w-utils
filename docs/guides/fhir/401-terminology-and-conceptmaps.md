@@ -13,6 +13,7 @@ what a CodeSystem, ValueSet, and ConceptMap are; a generated project
 - find the emitted terminology files and know what each pair carries
 - read a generated ConceptMap and pick the right target group
 - predict the fall-back behaviour when DHIS2 codes are missing or unusable
+- read a concept's local-language renderings off its designations
 
 ## Option sets
 
@@ -271,6 +272,85 @@ reading: the roll-up answers for the guide, not for the whole instance.
 a fact about the attribute *and* the tracked entity type together - one dictionary is
 shared by every form of the run, and two programmes on different types can disagree
 about one attribute.
+
+## Translations: designations on a concept, extensions on a title
+
+Every vocabulary on this page publishes its DHIS2 `NAME` translations, and the
+slot each one lands in is decided by what FHIR offers on the element being
+translated.
+
+**A concept display is translated by a `designation`.** Every emitted
+CodeSystem concept - an option, a category option, a data element, a tracked
+entity attribute, an organisation unit - carries one designation per configured
+locale beside its properties. The `display` stays the DHIS2 name verbatim,
+because that is the data; the designations are the alternate renderings of it:
+
+```json
+{
+  "code": "s46m5MS0hxu",
+  "display": "BCG doses given",
+  "property": [
+    { "code": "dhis2-code", "valueString": "DE_359706" },
+    { "code": "domain", "valueCode": "aggregate" },
+    { "code": "value-type", "valueCode": "INTEGER" }
+  ],
+  "designation": [
+    { "language": "fr", "value": "Doses de BCG administrees" },
+    { "language": "lo", "value": "ຈຳນວນເຂັມ BCG ທີ່ໃຫ້" }
+  ]
+}
+```
+
+`designation.use` is left off: DHIS2 says which *property* it translated, not
+what the translation is for, and a use code chosen here would be one this
+toolkit invented rather than one the instance stated.
+
+**A title or a name is translated by the standard extension.** A CodeSystem, a
+ValueSet, and a Questionnaire carry their translations on the `_title` sibling
+of `title`, an `Organization` and a `Location` on `_name`, and a
+`Questionnaire.item` on `_text` - each as one
+[`http://hl7.org/fhir/StructureDefinition/translation`](https://hl7.org/fhir/R4/extension-translation.html)
+extension per locale, with `lang` and `content` sub-extensions:
+
+```json
+"_title": {
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/translation",
+      "extension": [
+        { "url": "lang", "valueCode": "lo" },
+        { "url": "content", "valueString": "ສຸຂະພາບເດັກ" }
+      ]
+    }
+  ]
+}
+```
+
+**The language tag is BCP-47.** DHIS2 stores a Java locale, so `pt_BR` is
+published as `pt-BR`: underscores become hyphens, the language subtag
+lowercases, and a two-letter region subtag uppercases. A tag the rule cannot
+place is normalised as far as the rule reaches and then published as it stands
+rather than dropped, because the words beside it are a translation somebody
+wrote into the instance.
+
+**The order is the locale tag, always.** DHIS2 holds translations in a set and
+answers them in a different order on every read
+([BUGS.md #83](https://github.com/winterop-com/dhis2w-utils/blob/main/BUGS.md)),
+so every emitted list is sorted by the normalised tag and deduplicated on it. A
+regenerate of unchanged metadata therefore produces an unchanged file.
+
+**Which languages travel is `[generate] locales`.** Absent, every language the
+instance holds is published; listed, only those. See
+[the `locales` option](301-generation.md#locales) for what a translated guide
+gives whom, and for the two cases where a translation the instance holds is
+deliberately not published.
+
+`d2w fhir serve` serves all of this without doing anything: the designations
+and the extensions are elements of the resources it hands over, so a client
+reading `GET /CodeSystem/d2-de-cs` gets them verbatim, Lao script included. The
+terminology browser in `serve --ui` does not yet render a language picker - the
+concept tables show the primary display - so a reader wanting the local-language
+rendering today reads it off the JSON.
 
 ## ConceptMaps: the route back to DHIS2
 

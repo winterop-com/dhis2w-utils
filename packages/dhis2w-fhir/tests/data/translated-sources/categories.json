@@ -1,0 +1,166 @@
+[
+ {
+  "uid": "CatFhirEsc1",
+  "name": "Age (<5 >5) & sex",
+  "options": [
+   {
+    "uid": "CoFhirLt5A1",
+    "code": "FHIR_CO_LT5",
+    "name": "<5",
+    "sort_order": 0,
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "<5 ປີ"
+     }
+    ]
+   },
+   {
+    "uid": "CoFhirGt5A1",
+    "name": ">5 & over",
+    "sort_order": 1,
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": ">5 ແລະ ຫຼາຍກວ່າ"
+     }
+    ]
+   },
+   {
+    "uid": "CoFhirMty11",
+    "name": "Sex not stated",
+    "sort_order": 2,
+    "translations": [
+     {
+      "locale": "lo",
+      "property": "NAME",
+      "value": "ບໍ່ໄດ້ລະບຸເພດ"
+     }
+    ]
+   }
+  ],
+  "translations": [
+   {
+    "locale": "lo",
+    "property": "NAME",
+    "value": "ອາຍຸ (<5 >5) ແລະ ເພດ"
+   }
+  ],
+  "attribute_values": []
+ },
+ {
+  "uid": "YNZyaJHiHYq",
+  "code": "EPI_NUTR_AGE",
+  "name": "EPI/nutrition age",
+  "options": [
+   {
+    "uid": "btOyqprQ9e8",
+    "code": "<1y",
+    "name": "<1y",
+    "sort_order": 0,
+    "translations": []
+   },
+   {
+    "uid": "GEqzEKCHoGA",
+    "code": ">1y",
+    "name": ">1y",
+    "sort_order": 1,
+    "translations": []
+   }
+  ],
+  "translations": [],
+  "attribute_values": []
+ },
+ {
+  "uid": "fMZEcRHuamy",
+  "code": "LOC_FIX_OUTREACH",
+  "name": "Location Fixed/Outreach",
+  "options": [
+   {
+    "uid": "qkPbeWaFsnU",
+    "code": "FIXED",
+    "name": "Fixed",
+    "sort_order": 0,
+    "translations": []
+   },
+   {
+    "uid": "wbrDrL2aYEc",
+    "code": "OUTREACH\nOUTREACH",
+    "name": "Outreach",
+    "sort_order": 1,
+    "translations": []
+   }
+  ],
+  "translations": [],
+  "attribute_values": []
+ },
+ {
+  "uid": "yY2bQYqNt0o",
+  "code": "PROJECT",
+  "name": "Project",
+  "options": [
+   {
+    "uid": "i4Nbp8S2G6A",
+    "code": "Project01",
+    "name": "Improve access to clean water",
+    "sort_order": 0,
+    "translations": []
+   },
+   {
+    "uid": "yMj2MnmNI8L",
+    "code": "Project03",
+    "name": "Improve access to medicines",
+    "sort_order": 1,
+    "translations": []
+   },
+   {
+    "uid": "OUUdG3sdOqb",
+    "code": "Project02",
+    "name": "Provide access to primary health care",
+    "sort_order": 2,
+    "translations": []
+   },
+   {
+    "uid": "M58XdOfhiJ7",
+    "code": "Project05",
+    "name": "Provide access to basic education",
+    "sort_order": 3,
+    "translations": []
+   }
+  ],
+  "translations": [],
+  "attribute_values": []
+ },
+ {
+  "uid": "Qzh0MSUx4RM",
+  "code": "STOCK_DISC",
+  "name": "Stock discarded",
+  "options": [
+   {
+    "uid": "YHb43JqCAmI",
+    "code": "EXPIRED",
+    "name": "Expired",
+    "sort_order": 0,
+    "translations": []
+   },
+   {
+    "uid": "mInFlpnx6TQ",
+    "code": "DAMAGES",
+    "name": "Damages",
+    "sort_order": 1,
+    "translations": []
+   },
+   {
+    "uid": "qKc2WhjMPKC",
+    "code": "VVM_CHANGE",
+    "name": "VVM Change",
+    "sort_order": 2,
+    "translations": []
+   }
+  ],
+  "translations": [],
+  "attribute_values": []
+ }
+]

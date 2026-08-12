@@ -6,7 +6,13 @@ from typing import Any
 import pytest
 from dhis2w_fhir.attributes import AttributeCodeIndex
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
-from dhis2w_fhir.i18n import TranslationIn, name_translations, normalize_locale
+from dhis2w_fhir.i18n import (
+    TranslationIn,
+    composed_translations,
+    name_translations,
+    normalize_locale,
+    text_translations,
+)
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.resources.organisation_units import (
@@ -14,6 +20,12 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_terminology,
 )
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from dhis2w_fhir.resources.questionnaires.schemas import (
+    ProgramContextIn,
+    QuestionnaireItemIn,
+    QuestionnaireSourceIn,
+    source_title_translations,
+)
 from dhis2w_fhir.validation import build_code_validation
 
 _LAO_BIRTH_TYPE = "ປະເພດການເກີດ"
@@ -253,3 +265,80 @@ def test_findings_without_translations_keep_the_plain_name() -> None:
     )
     report = build_code_validation([option_set], [], GenerateConfig(), "code")
     assert [finding.name for finding in report.findings] == ["Bad [in Birth type]"]
+
+
+def test_normalize_locale_keeps_a_tag_the_rule_cannot_place() -> None:
+    """A DHIS2 locale outside the language-region shape is normalised as far as the rule reaches, not refused.
+
+    The value beside such a tag is words somebody wrote into the instance, and the emitters publish
+    them rather than dropping a translation because its tag is unusual.
+    """
+    assert normalize_locale("EN_gb_POSIX") == "en-GB-POSIX"
+    assert normalize_locale("qqq") == "qqq"
+
+
+def test_a_form_named_question_reads_its_text_from_the_form_name_translations() -> None:
+    """A question DHIS2 labels with a form name takes FORM_NAME; the NAME entries stay off its text."""
+    translations = [
+        TranslationIn(locale="lo", property="NAME", value="ຄະແນນ Apgar ຂອງແມ່ ແລະ ເດັກ"),
+        TranslationIn(locale="lo", property="FORM_NAME", value="ຄະແນນ Apgar"),
+    ]
+    form_named = text_translations(translations, [], form_named=True)
+    plain = text_translations(translations, [], form_named=False)
+    assert [item.value for item in form_named] == ["ຄະແນນ Apgar"]
+    assert [item.value for item in plain] == ["ຄະແນນ Apgar ຂອງແມ່ ແລະ ເດັກ"]
+
+
+def test_a_form_named_question_with_no_form_name_translation_carries_none() -> None:
+    """A form name nobody translated publishes no translation rather than borrowing the NAME one."""
+    translations = [TranslationIn(locale="lo", property="NAME", value="ຄະແນນ Apgar ຂອງແມ່ ແລະ ເດັກ")]
+    assert text_translations(translations, [], form_named=True) == []
+
+
+def test_composed_translations_keep_only_the_locales_every_part_carries() -> None:
+    """A composed name is translated in a locale exactly when every part of it is."""
+    program = [
+        TranslationIn(locale="fr", property="NAME", value="Suivi des CPN"),
+        TranslationIn(locale="lo", property="NAME", value="ຕິດຕາມການຝາກທ້ອງ"),
+    ]
+    stage = [TranslationIn(locale="lo", property="NAME", value="ການມາກວດຝາກທ້ອງ")]
+    composed = composed_translations([program, stage], " - ")
+    assert [(item.locale, item.value) for item in composed] == [("lo", "ຕິດຕາມການຝາກທ້ອງ - ການມາກວດຝາກທ້ອງ")]
+
+
+def test_a_stage_form_title_composes_its_program_and_stage_translations() -> None:
+    """The stage form is titled `<program> - <stage>`, and so is each of its translations."""
+    source = QuestionnaireSourceIn(
+        uid="PsAncVisit1",
+        name="ANC visit",
+        kind="tracker-event",
+        translations=[TranslationIn(locale="lo", property="NAME", value="ການມາກວດຝາກທ້ອງ")],
+        program=ProgramContextIn(
+            uid="PrAncCare01",
+            name="ANC follow-up",
+            translations=[TranslationIn(locale="lo", property="NAME", value="ຕິດຕາມການຝາກທ້ອງ")],
+        ),
+    )
+    assert [(item.locale, item.value) for item in source_title_translations(source, [])] == [
+        ("lo", "ຕິດຕາມການຝາກທ້ອງ - ການມາກວດຝາກທ້ອງ")
+    ]
+
+
+def test_a_form_that_is_not_a_stage_titles_itself_from_its_own_translations() -> None:
+    """A data set is shown under its own name alone, so its title translations are its own."""
+    source = QuestionnaireSourceIn(
+        uid="BfMAe6Itzgt",
+        name="Child Health",
+        kind="aggregate",
+        translations=[
+            TranslationIn(locale="lo", property="NAME", value="ສຸຂະພາບເດັກ"),
+            TranslationIn(locale="lo", property="SHORT_NAME", value="ເດັກ"),
+        ],
+    )
+    assert [(item.locale, item.value) for item in source_title_translations(source, [])] == [("lo", "ສຸຂະພາບເດັກ")]
+
+
+def test_a_question_carrying_no_translation_states_none() -> None:
+    """An untranslated question emits no text translations at all - the untranslated run is unchanged."""
+    item = QuestionnaireItemIn(uid="DeAncVisNo1", name="ANC visit number", value_type="INTEGER")
+    assert text_translations(item.translations, [], form_named=False) == []

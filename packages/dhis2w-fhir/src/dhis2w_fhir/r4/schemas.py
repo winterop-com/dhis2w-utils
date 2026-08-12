@@ -2,10 +2,10 @@
 
 The models mirror the JSON SUSHI produces for the generated implementation guide, so every
 model round-trips: `Model.model_validate(payload).model_dump_json(exclude_none=True, by_alias=True)`
-reproduces the input document key for key. The primitive-extension keys `_name` and `_title` are not
-legal Pydantic field names, so they are carried by `name_element` and `title_element`: validation
-accepts either the underscore key or the field name, and serialisation under `by_alias=True` writes
-the underscore key back.
+reproduces the input document key for key. The primitive-extension keys `_name`, `_title`, and
+`_text` are not legal Pydantic field names, so they are carried by `name_element`, `title_element`,
+and `text_element`: validation accepts either the underscore key or the field name, and
+serialisation under `by_alias=True` writes the underscore key back.
 
 Every optional field defaults to `None`, never to an empty list: FHIR has no empty collection, so a
 field either carries values or is absent from the document, and `exclude_none=True` is what makes
@@ -413,6 +413,9 @@ class QuestionnaireItem(BackboneElement):
     linkId: str | None = None
     code: list[Coding] | None = None
     text: str | None = None
+    text_element: Element | None = Field(
+        default=None, validation_alias=AliasChoices("_text", "text_element"), serialization_alias="_text"
+    )
     type: (
         Literal[
             "group",
@@ -476,6 +479,9 @@ class Questionnaire(DomainResource):
     id: str | None = None
     url: str | None = None
     title: str | None = None
+    title_element: Element | None = Field(
+        default=None, validation_alias=AliasChoices("_title", "title_element"), serialization_alias="_title"
+    )
     description: str | None = None
     extension: list[Extension] | None = None
     identifier: list[Identifier] | None = None

@@ -165,7 +165,9 @@ org-unit terminology and `domain` on `D2DE_CS`; each gets a
 guide. DHIS2 `NAME` translations become designations where the target is a concept,
 and the standard
 [translation extension](https://hl7.org/fhir/R4/extension-translation.html) where it
-is a title or a name.
+is a title, a name, or the text of a question. See
+[Translations](401-terminology-and-conceptmaps.md#translations-designations-on-a-concept-extensions-on-a-title)
+for both shapes side by side.
 
 Further reading:
 [concept properties](https://hl7.org/fhir/R4/codesystem-definitions.html#CodeSystem.property).
@@ -460,7 +462,8 @@ Every row is something `d2w fhir generate` actually emits.
 | Tracked entity | A logical subject of the form's own `subjectType` - `subject.identifier`, no `reference` |
 | Enrollment | The `D2TrackerEnrollment` extension, as a `valueIdentifier` |
 | Organisation unit of a tracker event | The `D2OrganisationUnit` extension |
-| `NAME` translation | A concept `designation`, or the standard translation extension |
+| `NAME` translation | A concept `designation`, or the standard translation extension on `_title` / `_name` |
+| `FORM_NAME` translation | The standard translation extension on a question's `_text` |
 
 ## Further reading
 

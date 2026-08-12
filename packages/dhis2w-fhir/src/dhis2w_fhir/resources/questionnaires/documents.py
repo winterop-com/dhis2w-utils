@@ -29,12 +29,14 @@ from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_identifiers,
 )
 from dhis2w_fhir.foundation.schemas import FoundationNaming
+from dhis2w_fhir.i18n import TranslationIn, name_translations, text_translations, translated_element
 from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_string
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import (
     CodeableConcept,
     CodeSystem,
     CodeSystemConcept,
+    CodeSystemConceptDesignation,
     CodeSystemConceptProperty,
     CodeSystemProperty,
     Coding,
@@ -94,6 +96,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     form_subject_type,
     plan_questionnaire_stems,
     source_display_name,
+    source_title_translations,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 
@@ -290,6 +293,7 @@ def build_questionnaire_documents(
             assignments=assignment_plan,
             attribute_combos=attribute_combo_plan,
             tracked_entity_types=config.tracked_entity_types,
+            locales=config.locales,
         )
         for source in sorted(sources, key=lambda item: (item.name, item.uid))
     ]
@@ -331,7 +335,7 @@ def build_data_dictionary_documents(
     if referenced.data_elements:
         pairs.append(
             _support_pair(
-                _data_element_concepts(referenced.data_elements),
+                _data_element_concepts(referenced.data_elements, config.locales),
                 DATA_ELEMENT_TERMINOLOGY,
                 config,
                 canonical,
@@ -345,7 +349,7 @@ def build_data_dictionary_documents(
     if referenced.tracked_entity_attributes:
         pairs.append(
             _support_pair(
-                _tracked_entity_attribute_concepts(referenced),
+                _tracked_entity_attribute_concepts(referenced, config.locales),
                 TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
                 config,
                 canonical,
@@ -390,6 +394,7 @@ def _questionnaire_document(
     assignments: AssignmentPlan,
     attribute_combos: AttributeComboPlan,
     tracked_entity_types: Mapping[str, str],
+    locales: list[str],
 ) -> Questionnaire:
     """Build one form's Questionnaire, every name already resolved to the URL it is served under.
 
@@ -405,6 +410,7 @@ def _questionnaire_document(
         id=stem_plan.targets.stem_for(source.uid),
         url=systems.questionnaire_url(stem_plan.targets.stem_for(source.uid)),
         title=flatten_whitespace(source_display_name(source)),
+        title_element=translated_element(source_title_translations(source, locales)),
         description=page_string(source_description(source, profile)),
         extension=[
             Extension(url=systems.form_type_extension_url, valueCode=source.kind),
@@ -420,7 +426,7 @@ def _questionnaire_document(
         experimental=experimental_for_status(ig_status),
         subjectType=[form_subject_type(source, tracked_entity_types)],
         code=[Coding(system=systems.form_type_code_system_url, code=source.kind)],
-        item=_items(source, systems, identities) or None,
+        item=_items(source, systems, identities, locales) or None,
     )
 
 
@@ -474,16 +480,22 @@ def _identifiers(
 
 
 def _items(
-    source: QuestionnaireSourceIn, systems: _QuestionnaireSystems, identities: dict[str, OptionSetIdentity]
+    source: QuestionnaireSourceIn,
+    systems: _QuestionnaireSystems,
+    identities: dict[str, OptionSetIdentity],
+    locales: list[str],
 ) -> list[QuestionnaireItem]:
     """Build the form's item tree: one group per section holding its questions, then the unsectioned tail."""
     items: list[QuestionnaireItem] = []
     for section in source.sections:
-        children = [child for item in section.items for child in _data_element_items(item, source, systems, identities)]
+        children = [
+            child for item in section.items for child in _data_element_items(item, source, systems, identities, locales)
+        ]
         items.append(
             QuestionnaireItem(
                 linkId=section.uid,
                 text=flatten_whitespace(section.name),
+                text_element=translated_element(name_translations(section.translations, locales)),
                 type="group",
                 extension=[_item_control_extension()]
                 if any(is_disaggregated(item, source.kind) for item in section.items)
@@ -492,7 +504,7 @@ def _items(
             )
         )
     for item in source.flat_items:
-        items.extend(_data_element_items(item, source, systems, identities))
+        items.extend(_data_element_items(item, source, systems, identities, locales))
     return items
 
 
@@ -501,6 +513,7 @@ def _data_element_items(
     source: QuestionnaireSourceIn,
     systems: _QuestionnaireSystems,
     identities: dict[str, OptionSetIdentity],
+    locales: list[str],
 ) -> list[QuestionnaireItem]:
     """Build one data element's items: a question, or a group holding one cell per category option combo.
 
@@ -516,6 +529,9 @@ def _data_element_items(
         )
     ]
     text = flatten_whitespace(item.form_name or item.name)
+    text_element = translated_element(
+        text_translations(item.translations, locales, form_named=item.form_name is not None)
+    )
     resolved_item_type = _item_type_code(item_type(item))
     answer_value_set = _answer_value_set(item, identities, systems.canonical)
     repeats = is_multi_valued(item.value_type, resolved_item_type) or None
@@ -527,6 +543,7 @@ def _data_element_items(
                 linkId=item.uid,
                 code=code,
                 text=text,
+                text_element=text_element,
                 type=resolved_item_type,
                 answerValueSet=answer_value_set,
                 required=item.compulsory or None,
@@ -560,6 +577,7 @@ def _data_element_items(
             linkId=item.uid,
             code=code,
             text=text,
+            text_element=text_element,
             type="group",
             required=item.compulsory or None,
             item=cells or None,
@@ -620,7 +638,9 @@ def _item_type_code(value: str) -> _ItemTypeCode:
     return cast(_ItemTypeCode, value)
 
 
-def _data_element_concepts(data_elements: dict[str, QuestionnaireItemIn]) -> list[CodeSystemConcept]:
+def _data_element_concepts(
+    data_elements: dict[str, QuestionnaireItemIn], locales: list[str]
+) -> list[CodeSystemConcept]:
     """One concept per referenced data element, carrying its DHIS2 code and its domain type."""
     concepts: list[CodeSystemConcept] = []
     for item in sorted(data_elements.values(), key=lambda entry: (entry.name, entry.uid)):
@@ -629,11 +649,27 @@ def _data_element_concepts(data_elements: dict[str, QuestionnaireItemIn]) -> lis
         if domain is not None:
             properties.append(CodeSystemConceptProperty(code=_DOMAIN_PROPERTY, valueCode=domain))
         properties.append(CodeSystemConceptProperty(code=_VALUE_TYPE_PROPERTY, valueCode=item.value_type))
-        concepts.append(CodeSystemConcept(code=item.uid, display=flatten_whitespace(item.name), property=properties))
+        concepts.append(
+            CodeSystemConcept(
+                code=item.uid,
+                display=flatten_whitespace(item.name),
+                property=properties,
+                designation=_designations(item.translations, locales),
+            )
+        )
     return concepts
 
 
-def _tracked_entity_attribute_concepts(referenced: ReferencedObjects) -> list[CodeSystemConcept]:
+def _designations(translations: list[TranslationIn], locales: list[str]) -> list[CodeSystemConceptDesignation] | None:
+    """One concept's NAME translations as designations, or None when it carries none in the configured locales."""
+    designations = [
+        CodeSystemConceptDesignation(language=translation.locale, value=flatten_whitespace(translation.value))
+        for translation in name_translations(translations, locales)
+    ]
+    return designations or None
+
+
+def _tracked_entity_attribute_concepts(referenced: ReferencedObjects, locales: list[str]) -> list[CodeSystemConcept]:
     """One concept per referenced tracked entity attribute: its code, value type, uniqueness, searchability.
 
     The searchability answers follow the same order the FSH path writes them in: the roll-up over
@@ -655,6 +691,7 @@ def _tracked_entity_attribute_concepts(referenced: ReferencedObjects) -> list[Co
                     for context in referenced.contexts_for(item.uid)
                 ),
             ],
+            designation=_designations(item.translations, locales),
         )
         for item in sorted(referenced.tracked_entity_attributes.values(), key=lambda entry: (entry.name, entry.uid))
     ]

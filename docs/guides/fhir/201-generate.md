@@ -189,7 +189,9 @@ as given). Points worth knowing:
   in a document you are about to publish).
 - **Locales**: `[generate] locales = []` means every locale found on the
   instance; list BCP-47 or DHIS2-style tags (`pt_BR` and `pt-BR` both work)
-  to narrow. Only `NAME` translations are emitted.
+  to narrow. `NAME` translations become concept designations and title/name
+  translation extensions; a question DHIS2 gives a form name to takes its
+  label translation from `FORM_NAME`. Nothing else is emitted.
 
 ## Read the notes
 

@@ -207,7 +207,10 @@ async def test_the_data_set_fetch_asks_for_the_join_category_combo(
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
     combo = "categoryCombo[id,name,isDefault,categories[id],categoryOptionCombos[id,name,code,categoryOptions[id]]]"
-    element = f"dataElement[id,code,name,formName,valueType,domainType,optionSet[id],{combo}]"
+    element = (
+        "dataElement[id,code,name,formName,valueType,domainType,optionSet[id],"
+        f"translations[locale,property,value],{combo}]"
+    )
     projections = [str(call.request.url.params["fields"]) for call in data_sets.calls]
     carrying_elements = [fields for fields in projections if "dataSetElements[" in fields]
     assert len(carrying_elements) == 1

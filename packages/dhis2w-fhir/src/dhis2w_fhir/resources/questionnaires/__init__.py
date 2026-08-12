@@ -48,6 +48,7 @@ from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_identifier_system,
 )
 from dhis2w_fhir.foundation.schemas import FoundationNaming
+from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, text_translations
 from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
@@ -77,6 +78,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     plan_questionnaire_stems,
     source_display_name,
     source_program,
+    source_title_translations,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
@@ -279,6 +281,9 @@ class _ItemView(BaseModel):
     path: str
     link_id: str
     text_literal: str
+    text_translations: list[TranslationIn] = Field(default_factory=list)
+    """The translations of whichever DHIS2 text the item is labelled with, one extension each."""
+
     type_code: str
     code_token: str | None = None
     answer_value_set: str | None = None
@@ -353,6 +358,9 @@ class _QuestionnaireView(BaseModel):
     url: str
     title_literal: str
     title_element_literal: str
+    title_translations: list[TranslationIn] = Field(default_factory=list)
+    """The form's NAME translations, riding the title as one standard translation extension each."""
+
     description_literal: str
     subject_type: str
     identifier_system: str
@@ -445,6 +453,8 @@ class _SupportConcept(BaseModel):
     searchable_literal: str | None = None
     searchable_contexts: list[_SupportBooleanProperty] = Field(default_factory=list)
     category_properties: list[_SupportCategoryProperty] = Field(default_factory=list)
+    designations: list[TranslationIn] = Field(default_factory=list)
+    """The object's NAME translations, which render the concept display in each configured locale."""
 
 
 class _SupportTerminologyView(BaseModel):
@@ -558,6 +568,7 @@ def build_questionnaire_artifacts(
             assignments=assignment_plan,
             attribute_combos=attribute_combo_plan,
             tracked_entity_types=config.tracked_entity_types,
+            locales=config.locales,
         )
         build.artifacts.append(
             FshArtifact(
@@ -566,6 +577,7 @@ def build_questionnaire_artifacts(
                 fsh_name=f"Questionnaire-{plan.targets.stem_for(source.uid)}",
                 content=template.render(
                     questionnaire=view,
+                    translation_extension_url=TRANSLATION_EXTENSION_URL,
                     item_control_extension_url=ITEM_CONTROL_EXTENSION_URL,
                     item_control_code_system_url=ITEM_CONTROL_CODE_SYSTEM_URL,
                     attribute_id_sub_extension=ATTRIBUTE_ID_SUB_EXTENSION,
@@ -697,6 +709,7 @@ def _questionnaire_view(
     assignments: AssignmentPlan,
     attribute_combos: AttributeComboPlan,
     tracked_entity_types: Mapping[str, str],
+    locales: list[str],
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders.
 
@@ -714,6 +727,7 @@ def _questionnaire_view(
         url=f"{canonical}/Questionnaire/{stem_plan.targets.stem_for(source.uid)}",
         title_literal=page_text(f"Questionnaire - {display_name}"),
         title_element_literal=quote(display_name),
+        title_translations=source_title_translations(source, locales),
         description_literal=page_text(source_description(source, profile)),
         subject_type=form_subject_type(source, tracked_entity_types),
         identifier_system=profile.identifier_system,
@@ -737,7 +751,7 @@ def _questionnaire_view(
         entity_level_extension_url=f"{canonical}/StructureDefinition/{foundation.entity_level_extension_id}",
         ig_status=ig_status,
         attribute_values=_attribute_value_views(source.attribute_values, attribute_codes),
-        items=_item_views(source, names, identities),
+        items=_item_views(source, names, identities, locales),
     )
 
 
@@ -842,7 +856,10 @@ def _attribute_value_views(
 
 
 def _item_views(
-    source: QuestionnaireSourceIn, names: QuestionnaireNaming, identities: dict[str, OptionSetIdentity]
+    source: QuestionnaireSourceIn,
+    names: QuestionnaireNaming,
+    identities: dict[str, OptionSetIdentity],
+    locales: list[str],
 ) -> list[_ItemView]:
     """Flatten the source's sections and unsectioned items into depth-first FSH item lines."""
     views: list[_ItemView] = []
@@ -853,14 +870,15 @@ def _item_views(
                 path=_set_path(0),
                 link_id=section.uid,
                 text_literal=quote(section.name),
+                text_translations=name_translations(section.translations, locales),
                 type_code="group",
                 item_control=any(is_disaggregated(item, source.kind) for item in section.items),
             )
         )
         for item in section.items:
-            views.extend(_question_views(item, names, identities, depth=1, kind=source.kind))
+            views.extend(_question_views(item, names, identities, locales, depth=1, kind=source.kind))
     for item in source.flat_items:
-        views.extend(_question_views(item, names, identities, depth=0, kind=source.kind))
+        views.extend(_question_views(item, names, identities, locales, depth=0, kind=source.kind))
     return views
 
 
@@ -868,6 +886,7 @@ def _question_views(
     item: QuestionnaireItemIn,
     names: QuestionnaireNaming,
     identities: dict[str, OptionSetIdentity],
+    locales: list[str],
     depth: int,
     kind: FormKind,
 ) -> list[_ItemView]:
@@ -880,6 +899,7 @@ def _question_views(
     """
     code_token = f"{question_code_system(kind, names)}#{item.uid} {quote(item.name)}"
     text_literal = quote(item.form_name or item.name)
+    text_translated = text_translations(item.translations, locales, form_named=item.form_name is not None)
     resolved_item_type = item_type(item)
     answer_value_set = _answer_value_set(item, identities)
     repeats = is_multi_valued(item.value_type, resolved_item_type)
@@ -892,6 +912,7 @@ def _question_views(
                 link_id=item.uid,
                 code_token=code_token,
                 text_literal=text_literal,
+                text_translations=text_translated,
                 type_code=resolved_item_type,
                 answer_value_set=answer_value_set,
                 required=item.compulsory,
@@ -907,6 +928,7 @@ def _question_views(
             link_id=item.uid,
             code_token=code_token,
             text_literal=text_literal,
+            text_translations=text_translated,
             type_code="group",
             required=item.compulsory,
         )
@@ -1067,6 +1089,7 @@ def _data_element_terminology(
             code_literal=quote(item.code) if item.code else None,
             domain_code=domain_code(item.domain_type),
             value_type_code=item.value_type,
+            designations=name_translations(item.translations, config.locales),
         )
         for item in sorted(data_elements.values(), key=lambda item: (item.name, item.uid))
     ]
@@ -1114,6 +1137,7 @@ def _tracked_entity_attribute_terminology(
                 )
                 for context in referenced.contexts_for(item.uid)
             ],
+            designations=name_translations(item.translations, config.locales),
         )
         for item in sorted(attributes.values(), key=lambda item: (item.name, item.uid))
     ]

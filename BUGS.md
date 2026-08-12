@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-87 entries grouped by area. **Status tags** carry the result of the most
+89 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -102,6 +102,8 @@ filing.
 - [#26](#26-admin-ou-scope-is-cached-per-session--scope-changes-need-a-re-login) — Admin OU scope cached per session
 - [#65](#65-optioncode-is-required-while-its-sibling-categoryoptioncode-is-optional-and--counts-as-missing) — `Option.code` required, `CategoryOption.code` optional; `""` counts as missing
 - [#66](#66-an-empty-string-code-is-silently-stored-as-absent-rather-than-kept-or-rejected) — Empty-string `code` silently stored as absent
+- [#82](#82-post-apitypeuidtranslations-is-refused-with-e1004-only-identifiable-object-collections-can-be-removed-from) — `POST /api/<type>/{uid}/translations` refused with a message about removal
+- [#83](#83-an-objects-translations-list-comes-back-in-a-different-order-on-every-read) — An object's `translations` list comes back in a different order on every read
 - [#67](#67-get-apitrackereventsprogramstageuid-demands-program-even-though-the-stage-pins-it) — `programStage` events read demands `program`; HTML 400
 - [#68](#68-a-tracker-event-naming-a-non-existent-enrollment-is-reported-as-e1079-different-program-not-as-a-missing-enrollment) — Event naming a non-existent enrollment reported as `E1079` "different Program"
 - [#69](#69-get-apitrackereventsprogramxorgunity-filters-by-the-enrollment-owners-org-unit-not-the-events-own-orgunit) — Events listing `orgUnit=` filters by enrollment owner's unit, not the event's own
@@ -4379,5 +4381,84 @@ period row as a side effect.
 **Workaround in this repo:** none needed in practice - the forwarder posts the data
 values first, which persists the period properly, so the completeness call never sees
 a virgin period.
+
+**Verifier:** none yet.
+
+### 82. `POST /api/<type>/{uid}/translations` is refused with `E1004` "Only identifiable object collections can be removed from"
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`). Login as `admin/district`.
+
+**Repro:**
+
+```bash
+# PUT writes the whole translation list and answers 204 No Content.
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:district \
+  -X PUT 'http://localhost:8080/api/dataElements/s46m5MS0hxu/translations' \
+  -H 'Content-Type: application/json' \
+  -d '{"translations":[{"property":"NAME","locale":"lo","value":"BCG"}]}'
+# 204
+
+# POST with the same body and the same path is refused.
+curl -s -u admin:district \
+  -X POST 'http://localhost:8080/api/dataElements/s46m5MS0hxu/translations' \
+  -H 'Content-Type: application/json' \
+  -d '{"translations":[{"property":"NAME","locale":"lo","value":"BCG"}]}'
+# {"httpStatus":"Conflict","httpStatusCode":409,"status":"ERROR",
+#  "message":"Only identifiable object collections can be removed from.","errorCode":"E1004"}
+```
+
+**Expected:** either `POST` adds to the translation list - the verb's usual meaning on a
+sub-collection - or it is refused as an unsupported method on this path.
+
+**Actual:** `409 E1004` with a message about **removal**, answering a request that adds.
+The sub-collection router treats `/translations` as an identifiable-object collection and
+reports the failure in the vocabulary of the `DELETE` handler, so the message names the
+wrong operation and the wrong reason. `PATCH` on the same path answers `405 Method Not
+Allowed`, which is the honest shape the `POST` answer should have had.
+
+**Impact:** a caller reading the message looks for what it is trying to remove, and there
+is nothing. The path is discoverable and the verb is the obvious one to reach for, so this
+costs a round of debugging on first contact with the endpoint.
+
+**Workaround in this repo:** `infra/scripts/seed/fhir_variations.py` writes translations
+with `PUT` and records the refusal beside the call. Whole-list replacement is what makes
+the seed idempotent, so `PUT` is the right verb here regardless.
+
+**Verifier:** none yet.
+
+### 83. An object's `translations` list comes back in a different order on every read
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`), and on
+`https://laohmis.dhis2.asia/hmis` (`2.42.5.1`). Login as `admin/district` locally.
+
+**Repro:**
+
+```bash
+# Write two translations in a stated order.
+curl -s -o /dev/null -u admin:district \
+  -X PUT 'http://localhost:8080/api/dataSets/BfMAe6Itzgt/translations' \
+  -H 'Content-Type: application/json' \
+  -d '{"translations":[{"property":"NAME","locale":"lo","value":"A"},{"property":"NAME","locale":"fr","value":"B"}]}'
+
+# Read it back a few times; the two entries swap places between reads.
+for i in 1 2 3 4 5; do
+  curl -s -u admin:district 'http://localhost:8080/api/dataSets/BfMAe6Itzgt?fields=translations'; echo
+done
+```
+
+**Expected:** a stable order - the write order, or any other deterministic one.
+
+**Actual:** `Translation` is held in a Java `Set`, so the serialisation order varies
+between reads of an unchanged object. The same is true of every translated class tried:
+`dataElements`, `dataSets`, `programs`, `programStages`, `trackedEntityAttributes`,
+`optionSets`, `organisationUnits`.
+
+**Impact:** anything that writes DHIS2 translations into a generated file has to impose an
+order of its own, or the file churns on every regeneration with no metadata change behind
+it. Same shape as #64 (`CategoryCombo.categoryOptionCombos`).
+
+**Workaround in this repo:** `packages/dhis2w-fhir/src/dhis2w_fhir/i18n.py` sorts every
+selected translation list by the normalised locale tag and deduplicates on it, so a
+regenerate of unchanged metadata produces an unchanged file.
 
 **Verifier:** none yet.
