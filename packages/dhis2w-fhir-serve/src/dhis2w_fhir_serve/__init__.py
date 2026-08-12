@@ -72,6 +72,7 @@ from dhis2w_fhir_serve.routes.enrollments import (
 from dhis2w_fhir_serve.routes.spool import (
     SPOOL_PATH,
     SpoolCounts,
+    SpoolImport,
     SpoolListing,
     SpoolRejection,
     SpoolRejectionIssue,
@@ -90,9 +91,9 @@ from dhis2w_fhir_serve.routes.uiconfig import (
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import (
     FORWARDED_RESPONSES_RELATIVE_PATH,
+    IMPORT_REPORT_SUFFIX,
     RECEIVED_RESPONSES_RELATIVE_PATH,
     REJECTED_RESPONSES_RELATIVE_PATH,
-    REJECTION_REPORT_SUFFIX,
     SPOOL_RELATIVE_PATH,
     ResponseLifecycle,
     ResponseSpool,
@@ -144,7 +145,7 @@ __all__ = [
     "PATIENT_ENROLLMENTS_PATH",
     "RECEIVED_RESPONSES_RELATIVE_PATH",
     "REJECTED_RESPONSES_RELATIVE_PATH",
-    "REJECTION_REPORT_SUFFIX",
+    "IMPORT_REPORT_SUFFIX",
     "SPOOL_PATH",
     "SEARCH_ORG_UNIT_MODE",
     "SPOOL_RELATIVE_PATH",
@@ -196,6 +197,7 @@ __all__ = [
     "ServeError",
     "ServeSettings",
     "SpoolCounts",
+    "SpoolImport",
     "SpoolListing",
     "SpoolRejection",
     "SpoolRejectionIssue",

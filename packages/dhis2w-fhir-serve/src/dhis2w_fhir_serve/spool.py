@@ -48,15 +48,16 @@ SPOOL_RELATIVE_PATH = ".serve/responses"
 #: Where a receipt waits for the forwarder to drain it.
 RECEIVED_RESPONSES_RELATIVE_PATH = f"{SPOOL_RELATIVE_PATH}/received"
 
-#: Where a receipt DHIS2 accepted is moved to.
+#: Where a receipt DHIS2 accepted is moved to, beside the report saying what the import counted.
 FORWARDED_RESPONSES_RELATIVE_PATH = f"{SPOOL_RELATIVE_PATH}/forwarded"
 
 #: Where a receipt DHIS2 refused is moved to, beside the report saying why.
 REJECTED_RESPONSES_RELATIVE_PATH = f"{SPOOL_RELATIVE_PATH}/rejected"
 
-#: What the sibling file carrying a rejection's import report is named, after the response id.
-#: The listing globs `*.json`, so this suffix is also what keeps a report out of the receipt set.
-REJECTION_REPORT_SUFFIX = ".report.json"
+#: What the sibling file carrying a drained receipt's import report is named, after the response id.
+#: The forwarder writes one into `forwarded/` and into `rejected/` alike. The listing globs `*.json`,
+#: so this suffix is also what keeps a report out of the receipt set, in either directory.
+IMPORT_REPORT_SUFFIX = ".report.json"
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -192,25 +193,29 @@ class ResponseSpool(BaseModel):
             if not directory.is_dir():
                 continue
             for path in sorted(directory.glob("*.json")):
-                if path.name.endswith(REJECTION_REPORT_SUFFIX):
+                if path.name.endswith(IMPORT_REPORT_SUFFIX):
                     continue
                 found.append(_read_receipt(path, lifecycle))
         return tuple(found)
 
-    def rejection(self, response_id: str) -> ForwardImportOutcome | None:
-        """What DHIS2 said when it refused one receipt, read off the report the forwarder left beside it.
+    def import_report(self, response_id: str, lifecycle: ResponseLifecycle) -> ForwardImportOutcome | None:
+        """What DHIS2 said about one drained receipt, read off the report the forwarder left beside it.
+
+        Either drained state answers: `rejected/` holds why the payload was refused and `forwarded/`
+        holds what the import counted. A receipt still in `received/` has no report because nothing
+        has been asked about it yet, and answers None like any receipt whose report is not there.
 
         A report that will not parse answers None rather than raising: it is the diagnostic that got
-        corrupted, not the receipt that got lost, so a listing still names the rejection and simply
-        says nothing about why.
+        corrupted, not the receipt that got lost, so a listing still names the receipt and simply
+        says nothing about what DHIS2 made of it.
         """
-        path = self.directory_for(ResponseLifecycle.REJECTED) / f"{response_id}{REJECTION_REPORT_SUFFIX}"
+        path = self.directory_for(lifecycle) / f"{response_id}{IMPORT_REPORT_SUFFIX}"
         if not path.is_file():
             return None
         try:
             return ForwardImportOutcome.model_validate_json(path.read_text(encoding="utf-8"))
         except (OSError, ValidationError, ValueError):
-            logger.warning("%s is not a readable import report; the rejection is listed without one", path)
+            logger.warning("%s is not a readable import report; the receipt is listed without one", path)
             return None
 
     def count(self) -> int:

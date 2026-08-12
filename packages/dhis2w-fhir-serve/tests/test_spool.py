@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from dhis2w_fhir.service import ForwardImportIssue, ForwardImportOutcome
 from dhis2w_fhir_serve.spool import (
-    REJECTION_REPORT_SUFFIX,
+    IMPORT_REPORT_SUFFIX,
     ResponseLifecycle,
     ResponseSpool,
     StoredResponseEnvelope,
@@ -220,11 +220,11 @@ def test_a_rejection_report_is_read_back_beside_its_receipt(tmp_path: Path) -> N
         ignored=1,
         issues=(ForwardImportIssue(error_code="E1120", subject="ImspTQPwCqd", message="Data element not found"),),
     )
-    (spool.directory_for(ResponseLifecycle.REJECTED) / f"refused{REJECTION_REPORT_SUFFIX}").write_text(
+    (spool.directory_for(ResponseLifecycle.REJECTED) / f"refused{IMPORT_REPORT_SUFFIX}").write_text(
         report.model_dump_json(indent=2, exclude_none=True), encoding="utf-8"
     )
 
-    found = spool.rejection("refused")
+    found = spool.import_report("refused", ResponseLifecycle.REJECTED)
 
     assert found is not None
     assert found.status == "ERROR"
@@ -236,7 +236,7 @@ def test_a_report_file_is_not_mistaken_for_a_receipt(tmp_path: Path) -> None:
     spool = ResponseSpool.at(tmp_path)
     spool.save(make_envelope(response_id="refused"))
     drain(spool, "refused", ResponseLifecycle.REJECTED)
-    (spool.directory_for(ResponseLifecycle.REJECTED) / f"refused{REJECTION_REPORT_SUFFIX}").write_text(
+    (spool.directory_for(ResponseLifecycle.REJECTED) / f"refused{IMPORT_REPORT_SUFFIX}").write_text(
         ForwardImportOutcome(status="ERROR").model_dump_json(), encoding="utf-8"
     )
 
@@ -249,7 +249,7 @@ def test_a_receipt_with_no_report_answers_none(tmp_path: Path) -> None:
     spool.save(make_envelope(response_id="refused"))
     drain(spool, "refused", ResponseLifecycle.REJECTED)
 
-    assert spool.rejection("refused") is None
+    assert spool.import_report("refused", ResponseLifecycle.REJECTED) is None
 
 
 def test_an_unreadable_report_does_not_fail_the_listing(tmp_path: Path) -> None:
@@ -257,11 +257,11 @@ def test_an_unreadable_report_does_not_fail_the_listing(tmp_path: Path) -> None:
     spool = ResponseSpool.at(tmp_path)
     spool.save(make_envelope(response_id="refused"))
     drain(spool, "refused", ResponseLifecycle.REJECTED)
-    (spool.directory_for(ResponseLifecycle.REJECTED) / f"refused{REJECTION_REPORT_SUFFIX}").write_text(
+    (spool.directory_for(ResponseLifecycle.REJECTED) / f"refused{IMPORT_REPORT_SUFFIX}").write_text(
         "{not json", encoding="utf-8"
     )
 
-    assert spool.rejection("refused") is None
+    assert spool.import_report("refused", ResponseLifecycle.REJECTED) is None
     assert [receipt.response_id for receipt in spool.search()] == ["refused"]
 
 

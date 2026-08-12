@@ -315,6 +315,11 @@ def grade_forward(report: ForwardReport) -> PhaseOutcome:
     and two hundred responses breaking the same rule are one thing to fix. What a dry run could not
     check is left out of the findings entirely: an event whose enrollment this very run would have
     created is unverifiable rather than refused, and an import is what settles it.
+
+    A drain that stopped early is an error of its own. It says the instance stopped answering
+    part-way through, which is a fact about the instance this run is judging rather than about any
+    payload, and a phase that passed on the strength of the half it managed would be reporting the
+    quiet failure as a clean bill.
     """
     findings = [
         DoctorFinding(
@@ -325,6 +330,18 @@ def grade_forward(report: ForwardReport) -> PhaseOutcome:
         )
         for reason in report.rejection_reasons
     ]
+    if report.stopped is not None:
+        findings.append(
+            DoctorFinding(
+                phase=DoctorPhase.FORWARD,
+                severity="error",
+                subject=report.stopped.response_id,
+                detail=(
+                    f"the drain stopped here and left {len(report.not_posted)} response(s) unposted: "
+                    f"{report.stopped.reason}"
+                ),
+            )
+        )
     findings.extend(
         DoctorFinding(
             phase=DoctorPhase.FORWARD,

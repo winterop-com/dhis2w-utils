@@ -157,14 +157,33 @@ values are known to have landed.
 ```
 .serve/responses/
   received/    captured, not yet forwarded  - the queue
-  forwarded/   DHIS2 accepted it
+  forwarded/   DHIS2 accepted it, and <id>.report.json says what it counted
   rejected/    DHIS2 refused it, and <id>.report.json says why
 ```
 
+Both drained states carry the report. A rejection needs one to say why it
+was refused; an acceptance needs one because "DHIS2 took it" is not the
+whole answer either - the import counts are what say how much of it landed,
+and an accepted receipt that ignored every value changed nothing in the
+instance. The Responses page reads both off the same sidecar.
+
 Moves are renames within one filesystem, so a receipt is in exactly one
-state at every instant. A rejection's report is written before the receipt
-moves, so a process killed mid-move leaves a report with no receipt - which
-the next run overwrites - rather than a rejected receipt nothing explains.
+state at every instant. The report is written before the receipt moves, so a
+process killed mid-move leaves a report with no receipt - which the next run
+overwrites - rather than a drained receipt nothing explains.
+
+## When the instance stops answering
+
+A 5xx, or a connection that never completes, is the instance failing rather
+than a verdict on the payload that met it. The drain stops there. The
+receipt that met the failure stays in `received/` along with everything
+behind it, whatever the run already posted stays filed, and the report names
+what stopped it and how many responses were never sent. Forwarding again
+once the instance is healthy is the retry.
+
+The alternative would be worse in both directions: posting the remaining two
+hundred payloads into an instance that is falling over, and filing the
+receipt that met the 500 under a rejection DHIS2 never made.
 
 ## Refusal is not rejection
 

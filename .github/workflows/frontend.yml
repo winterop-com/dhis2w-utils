@@ -1,0 +1,114 @@
+name: Frontend
+
+# The capture UI's own three suites, which need node and so sit outside the
+# pure-Python `make lint` / `make test` that CI runs:
+#
+#   - oxlint + tsc over the app,
+#   - the vitest layer over src/lib (the wire types, the guarded-path regex,
+#     the FHIR shapes the pages read),
+#   - the Playwright suite, which drives a REAL `d2w fhir serve --ui` on 8377
+#     over a fixture IG project rather than a mock.
+#
+# That last one is why this job provisions uv and Python as well as node: the
+# suite's own webServer runs `uv run python .../fixture_project.py` to write the
+# project and `uv run d2w fhir serve --ui` to serve it, so the browser tests
+# need the Python environment as much as the Node one.
+#
+# Triggers:
+#   - pull_request + push to main, both path-filtered to the package that owns
+#     the UI, so a Python-only PR does not spend the Chromium download on a
+#     bundle it did not touch.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/dhis2w-fhir-serve/**"
+      - "Makefile"
+      - "uv.lock"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    paths:
+      - "packages/dhis2w-fhir-serve/**"
+      - "Makefile"
+      - "uv.lock"
+      - ".github/workflows/frontend.yml"
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege token: the job only reads the checkout to build and test the UI.
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: lint + vitest + playwright
+    runs-on: ubuntu-latest
+    # The Playwright suite is ~2 min of specs; the rest is provisioning two
+    # toolchains and a browser. 25 leaves headroom for a cold uv/pnpm cache.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: packages/dhis2w-fhir-serve/frontend/pnpm-lock.yaml
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python (pinned to 3.13 — matches CLAUDE.md)
+        run: uv python install 3.13
+
+      - name: Sync workspace
+        # For the Playwright webServer, which runs the fixture builder and
+        # `d2w fhir serve` out of this environment.
+        run: make install
+
+      - name: Build the capture UI
+        # Runs `pnpm install --frozen-lockfile && pnpm build`, writing the bundle
+        # into the Python package's static/. `--ui` refuses to start without it,
+        # so this is a prerequisite of the browser suite rather than a separate
+        # artifact, and it installs the node_modules the two steps below use.
+        run: make build-frontend
+
+      - name: Lint + type-check the capture UI
+        run: make lint-frontend
+
+      - name: Unit tests (vitest)
+        run: make test-frontend
+
+      - name: Install Playwright Chromium
+        # Deliberately not a make target: the Makefile does not download a
+        # browser behind your back, and CI is the one place that choice is made
+        # explicitly. --with-deps pulls the system libraries headless Chromium
+        # needs on ubuntu-latest, as the E2E workflow does for its own run.
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: packages/dhis2w-fhir-serve/frontend
+
+      - name: Browser tests (playwright, real server on 8377)
+        run: make e2e-frontend
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: packages/dhis2w-fhir-serve/frontend/playwright-report
+          # The suite keeps a trace only for a failing spec, so a run that failed
+          # before the browser started leaves nothing to upload.
+          if-no-files-found: ignore
+          retention-days: 14

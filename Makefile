@@ -4,7 +4,8 @@ UV := $(shell command -v uv 2> /dev/null)
 
 # The capture UI. It is the one part of this workspace that needs node, and it is
 # deliberately kept out of `make lint` / `make test` so those stay a pure-Python run
-# on a machine with no node at all. CI wiring for the frontend targets is a follow-up.
+# on a machine with no node at all. CI runs these targets in their own workflow,
+# .github/workflows/frontend.yml, path-filtered to the package that owns the UI.
 FRONTEND_DIR := packages/dhis2w-fhir-serve/frontend
 # Where a running `d2w fhir serve` is, for the dev server to proxy FHIR calls to.
 # Match `[serve] port` in the project you are serving.
