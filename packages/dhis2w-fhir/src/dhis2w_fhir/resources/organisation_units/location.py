@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from dhis2w_fhir.foundation.attribute_values import attribute_value_extensions, attribute_value_identifiers
 from dhis2w_fhir.i18n import name_translations, translated_element
-from dhis2w_fhir.names import StemResolution, code_or_uid, flatten_whitespace, page_string
+from dhis2w_fhir.names import StemResolution, code_or_uid, flatten_whitespace
 from dhis2w_fhir.r4 import (
     BOUNDARY_EXTENSION_URL,
     Attachment,
@@ -64,7 +64,7 @@ def build_location(
         ],
         name=flatten_whitespace(organisation_unit.name),
         name_element=translated_element(name_translations(organisation_unit.translations, locales)),
-        description=page_string(description),
+        description=flatten_whitespace(description),
         status="inactive" if organisation_unit.closed else "active",
         position=position,
         extension=_extensions(organisation_unit, urls, attribute_codes, extension_url),

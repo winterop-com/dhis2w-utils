@@ -281,8 +281,8 @@ async def test_the_cursor_crosses_from_one_tracked_entity_type_to_the_next(
 
     assert [entry["resource"]["id"] for entry in first["entry"]] == ["PerAaa00001"]
     assert [entry["resource"]["id"] for entry in second["entry"]] == ["HouAaa00001"]
-    assert _cursor(_link(first, "next") or "") == ListingCursor(type_index=1, upstream_page=1)
-    assert _cursor(_link(second, "previous") or "") == ListingCursor(type_index=0, upstream_page=1)
+    assert _cursor(_link(first, "next") or "") == ListingCursor(type_index=1, upstream_page=1, searchset_total=2)
+    assert _cursor(_link(second, "previous") or "") == ListingCursor(type_index=0, upstream_page=1, searchset_total=2)
     assert [entry["resource"]["id"] for entry in back["entry"]] == ["PerAaa00001"]
     assert _link(second, "next") is None
     assert person.called
@@ -293,10 +293,67 @@ async def test_the_cursor_crosses_from_one_tracked_entity_type_to_the_next(
     "patients",
     [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
 )
-async def test_a_searchset_over_several_types_states_no_total(listing_client: httpx.AsyncClient) -> None:
-    """The total of two types is a sum of counts this server did not ask for, so it states none."""
-    respx.get(_TRACKER_URL).mock(
+async def test_a_searchset_over_several_types_sums_the_total_of_each(listing_client: httpx.AsyncClient) -> None:
+    """DHIS2 counts one type at a time, so the searchset's total is asked for once per type and summed."""
+    person = respx.get(_TRACKER_URL, params__contains={"trackedEntityType": REGISTRATION_TRACKED_ENTITY_TYPE_UID}).mock(
+        return_value=httpx.Response(200, json=_tracker_page(_person("PerAaa00001"), page=1, page_size=1, total=643))
+    )
+    household = respx.get(_TRACKER_URL, params__contains={"trackedEntityType": _HOUSEHOLD_TYPE_UID}).mock(
+        return_value=httpx.Response(
+            200, json=_tracker_page(_person("HouAaa00001", _HOUSEHOLD_TYPE_UID), page=1, page_size=1, total=57)
+        )
+    )
+
+    first = (await listing_client.get("/Patient?_count=1")).json()
+
+    assert first["total"] == 700
+    assert person.called
+    assert household.called
+
+
+@pytest.mark.parametrize(
+    "patients",
+    [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
+)
+async def test_a_deeper_page_reuses_the_total_the_first_page_counted(listing_client: httpx.AsyncClient) -> None:
+    """The count is spent once per walk: the page token carries the figure the links hand forward."""
+    respx.get(_TRACKER_URL, params__contains={"trackedEntityType": REGISTRATION_TRACKED_ENTITY_TYPE_UID}).mock(
         return_value=httpx.Response(200, json=_tracker_page(_person("PerAaa00001"), page=1, page_size=1, total=1))
+    )
+    respx.get(_TRACKER_URL, params__contains={"trackedEntityType": _HOUSEHOLD_TYPE_UID}).mock(
+        return_value=httpx.Response(
+            200, json=_tracker_page(_person("HouAaa00001", _HOUSEHOLD_TYPE_UID), page=1, page_size=1, total=1)
+        )
+    )
+
+    first = (await listing_client.get("/Patient?_count=1")).json()
+    # The system-info handshake, the page itself, then one count-only request per type in scope.
+    assert len(respx.calls) == 4
+    counted_calls = len(respx.calls)
+    second = (await listing_client.get(_link(first, "next") or "")).json()
+
+    assert first["total"] == 2
+    assert second["total"] == 2
+    # The second page reads its total off the token, so it spends the page and the one request a
+    # `previous` link across a type boundary costs - and no count of its own.
+    assert len(respx.calls) - counted_calls == 2
+
+
+@pytest.mark.parametrize(
+    "patients",
+    [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
+)
+async def test_a_type_the_instance_states_no_total_for_leaves_the_searchset_stating_none(
+    listing_client: httpx.AsyncClient,
+) -> None:
+    """A sum missing one of its terms is not a total, and a partial number would be worse than none."""
+    respx.get(_TRACKER_URL, params__contains={"trackedEntityType": REGISTRATION_TRACKED_ENTITY_TYPE_UID}).mock(
+        return_value=httpx.Response(200, json=_tracker_page(_person("PerAaa00001"), page=1, page_size=1, total=643))
+    )
+    respx.get(_TRACKER_URL, params__contains={"trackedEntityType": _HOUSEHOLD_TYPE_UID}).mock(
+        return_value=httpx.Response(
+            200, json=_tracker_page(_person("HouAaa00001", _HOUSEHOLD_TYPE_UID), page=1, page_size=1, total=None)
+        )
     )
 
     assert "total" not in (await listing_client.get("/Patient?_count=1")).json()

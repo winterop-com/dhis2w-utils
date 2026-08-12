@@ -13,6 +13,7 @@ from dhis2w_fhir_serve.capture import (
     build_capture_index,
 )
 from dhis2w_fhir_serve.store import ResourceStore
+from fixture_project import COLLECTS_INCIDENT_DATE_EXTENSION
 
 #: The canonical the dhis2w-fhir goldens were compiled under, as `capture_project` serves them.
 CANONICAL = "http://localhost:8080/fhir"
@@ -135,6 +136,43 @@ def test_required_questions_and_their_bounds_are_indexed(
     assert visit_number.bounds.maximum_value is None
     assert index.questions["DeAncBpSys1"].required is False
     assert index.questions["DeAncBpSys1"].bounds is None
+
+
+def test_the_index_reads_the_incident_date_off_the_forms_own_declaration(
+    capture_indexes: CaptureIndexCache,
+    capture_naming: CaptureNaming,
+    capture_store: ResourceStore,
+    load_golden: Golden,
+) -> None:
+    """One declared fact, read the same way whichever store serves the form - no example is consulted."""
+    declared = build_capture_index(_registration_declaring(True, load_golden), capture_naming, capture_store)
+    disclaimed = build_capture_index(_registration_declaring(False, load_golden), capture_naming, capture_store)
+
+    assert declared.collects_incident_date is True
+    assert disclaimed.collects_incident_date is False
+    assert _index(ANC_QUESTIONNAIRE, capture_indexes, capture_naming, capture_store).collects_incident_date is False
+
+
+def test_a_form_declaring_nothing_collects_no_incident_date(
+    capture_naming: CaptureNaming, capture_store: ResourceStore, load_golden: Golden
+) -> None:
+    """A response leaving D2IncidentAt off is complete, so silence and an explicit false mean one thing."""
+    body = _registration_declaring(True, load_golden)
+    body["extension"] = [
+        extension for extension in body["extension"] if extension["url"] != COLLECTS_INCIDENT_DATE_EXTENSION
+    ]
+
+    assert build_capture_index(body, capture_naming, capture_store).collects_incident_date is False
+
+
+def _registration_declaring(collects: bool, load_golden: Golden) -> dict[str, Any]:  # noqa: FBT001
+    """The stage golden retyped as a registration form declaring one answer about its program's incident date."""
+    body = load_golden("Questionnaire-PsAncVisit1.json")
+    body["extension"] = [
+        {"url": f"{CANONICAL}/StructureDefinition/d2-form-type", "valueCode": "tracker"},
+        {"url": COLLECTS_INCIDENT_DATE_EXTENSION, "valueBoolean": collects},
+    ]
+    return body
 
 
 def test_an_index_is_built_once_and_then_read_from_the_cache(

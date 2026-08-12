@@ -487,11 +487,11 @@ definition SUSHI compiles from FSH and a predefined resource of the same identit
 are a duplicate, and SUSHI rejects the pair, so the target follows
 `sync_json_artifacts` with `clean_generated_files` over
 `ig/input/fsh/terminology/`. Only a file carrying the generated header is removed,
-which leaves anything hand-authored in that directory alone. Every page-facing
-`title` and `description` it writes goes through `page_string`, the JSON
-counterpart of the `page_text` the FSH emitters use: a predefined resource reaches
-the same breadcrumb template an FSH-authored one does, so it takes the same
-HTML-escaping.
+which leaves anything hand-authored in that directory alone. Every `title` and
+`description` it writes goes through `flatten_whitespace` and nothing else: those
+are elements a client reads back, so they carry the DHIS2 text byte for byte. The
+HTML-escaping `escape_markup` does belongs to page furniture alone - the FSH
+`Title:` and `Description:` keywords, and the generated markdown pages.
 
 **The FSH name is what carries across the FSH/JSON boundary.** A Questionnaire is
 FSH and binds its question with `answerValueSet = Canonical(D2OS_<stem>_VS)`, an

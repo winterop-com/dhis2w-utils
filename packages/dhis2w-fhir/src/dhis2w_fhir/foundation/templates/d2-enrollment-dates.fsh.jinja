@@ -12,10 +12,21 @@ Description: "The moment a DHIS2 tracker enrollment began - the enrolledAt of th
 Extension: {{ names.incident_at_extension }}
 Id: {{ names.incident_at_extension_id }}
 Title: "DHIS2 incident date"
-Description: "The moment the incident a DHIS2 tracker enrollment follows occurred - the occurredAt of the enrollment. A program states whether it collects one through displayIncidentDate, and a registration form generated from a program that does not carries none."
+Description: "The moment the incident a DHIS2 tracker enrollment follows occurred - the occurredAt of the enrollment. A registration form states on {{ names.collects_incident_date_extension }} whether its program collects one, and a response to a form declaring false carries none."
 * ^status = #{{ ig_status }}
 * ^experimental = {{ "true" if experimental else "false" }}
 * ^context[+].type = #element
 * ^context[=].expression = "QuestionnaireResponse"
 * value[x] only dateTime
 * valueDateTime 1..1
+
+Extension: {{ names.collects_incident_date_extension }}
+Id: {{ names.collects_incident_date_extension_id }}
+Title: "DHIS2 program collects an incident date"
+Description: "Whether the DHIS2 tracker program a registration form enrols a person into collects the date of the incident the enrollment follows. True means every enrollment the program creates states that date and a response to this form carries {{ names.incident_at_extension }}; false means the program collects none and a response carries none. Only a registration form declares it, because only a program has enrollments."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "Questionnaire"
+* value[x] only boolean
+* valueBoolean 1..1

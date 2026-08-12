@@ -52,7 +52,6 @@ from dhis2w_fhir.names import (
     is_valid_fhir_code,
     join_id_tokens,
     join_name_segments,
-    page_string,
     resolve_identity_stems,
 )
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note
@@ -470,9 +469,9 @@ def _build_concept_map(
         url=systems.concept_map_url(identity.concept_map_id),
         identifier=Identifier(system=systems.identifier_system, value=option_set.uid),
         name=identity.concept_map_name,
-        title=page_string(option_set.name),
+        title=flatten_whitespace(option_set.name),
         title_element=translated_element(name_translations(option_set.translations, config.locales)),
-        description=page_string(
+        description=flatten_whitespace(
             f"DHIS2 option set {option_set.name} ({option_set.uid}). Every concept of "
             f"{identity.code_system_name} mapped to its DHIS2 option UID and, where the option carries "
             "one, its DHIS2 option code."
@@ -601,9 +600,9 @@ def _narrative(
             *attribute_value_identifiers(option_set.attribute_values, attribute_codes, config.identifier_system_base),
         ],
         extensions=attribute_value_extensions(option_set.attribute_values, attribute_codes, extension_url),
-        title=page_string(option_set.name),
+        title=flatten_whitespace(option_set.name),
         title_element=translated_element(name_translations(option_set.translations, config.locales)),
-        description=page_string(
+        description=flatten_whitespace(
             f"DHIS2 option set {option_set.name} ({option_set.uid}). Concept codes are DHIS2 {code_kind}."
         ),
         status=ig_status,

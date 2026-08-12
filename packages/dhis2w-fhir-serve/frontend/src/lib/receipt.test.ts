@@ -295,12 +295,12 @@ describe('naming the form a receipt answered', () => {
         expect(formLabel(summary({ questionnaire_id: null }), undefined)).toBe('BfMAe6Itzgt')
     })
 
-    it('unescapes the markup the guide emits into a title', () => {
+    it('spells a title holding markup characters the way the server sent it', () => {
         expect(
             formLabel(summary(), {
                 resourceType: 'Questionnaire',
                 status: 'active',
-                title: 'Weight &lt; 5kg &amp; under',
+                title: 'Weight < 5kg & under',
             }),
         ).toBe('Weight < 5kg & under')
     })

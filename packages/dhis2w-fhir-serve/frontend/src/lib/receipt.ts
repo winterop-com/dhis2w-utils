@@ -20,7 +20,7 @@
  * Everything here is pure. The reads happen in the page.
  */
 
-import { attributeOptionComboLabel, attributeOptionComboOf, canonicalId, conceptDisplay, enrolledAtOf, incidentAtOf, trackedEntityOf, trackerEnrollmentOf, type CodeSystem, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseAnswer, type QuestionnaireResponseItem, unescapeMarkup } from '@/lib/fhir'
+import { attributeOptionComboLabel, attributeOptionComboOf, canonicalId, conceptDisplay, enrolledAtOf, incidentAtOf, trackedEntityOf, trackerEnrollmentOf, type CodeSystem, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseAnswer, type QuestionnaireResponseItem } from '@/lib/fhir'
 import { referencedUnitId } from '@/lib/orgunits'
 import type { QuestionnaireSpec } from '@/lib/questionnaire'
 import { formatInstant, TRACKED_ENTITY_FACT_LABEL, TRACKER_ENROLLMENT_FACT_LABEL, type SpoolResponseSummary } from '@/lib/spool'
@@ -96,11 +96,10 @@ export function joinAnswersToQuestions(
         return [
             {
                 linkId: node.linkId,
-                text: node.text === null ? null : unescapeMarkup(node.text),
+                text: node.text,
                 groupPath: node.ancestorLinkIds.map((ancestorLinkId) => {
                     const ancestor = spec.byLinkId.get(ancestorLinkId)
-                    const text = ancestor?.text
-                    return text === undefined || text === null ? ancestorLinkId : unescapeMarkup(text)
+                    return ancestor?.text ?? ancestorLinkId
                 }),
                 known: true,
                 values: item.values,
@@ -131,12 +130,12 @@ export function joinAnswersToQuestions(
  * render as something readable rather than as a blank cell.
  */
 export function formLabel(summary: SpoolResponseSummary, form: Questionnaire | undefined): string {
-    return unescapeMarkup(
+    return (
         form?.title ??
-            form?.name ??
-            summary.questionnaire_id ??
-            canonicalId(summary.questionnaire) ??
-            summary.questionnaire,
+        form?.name ??
+        summary.questionnaire_id ??
+        canonicalId(summary.questionnaire) ??
+        summary.questionnaire
     )
 }
 
@@ -172,8 +171,7 @@ export function attributeOptionComboFact(
     if (coding === null) return null
     const label = attributeOptionComboLabel(codeSystem?.title ?? codeSystem?.name)
     const resolved =
-        conceptDisplay(codeSystem, coding.code) ??
-        (coding.display === undefined ? null : unescapeMarkup(coding.display))
+        conceptDisplay(codeSystem, coding.code) ?? coding.display ?? null
     if (resolved === null) {
         return { label, value: `${coding.system ?? 'no system'} | ${coding.code ?? 'no code'}`, mono: true }
     }
@@ -252,7 +250,7 @@ function answeredItems(response: QuestionnaireResponse): AnsweredItem[] {
     const items: AnsweredItem[] = []
     const walk = (nodes: QuestionnaireResponseItem[], ancestorTexts: string[]): void => {
         for (const node of nodes) {
-            const label = node.text === undefined ? node.linkId : unescapeMarkup(node.text)
+            const label = node.text ?? node.linkId
             const values = (node.answer ?? []).flatMap((answer) => {
                 const value = answerValue(answer)
                 return value === null ? [] : [value]
@@ -260,7 +258,7 @@ function answeredItems(response: QuestionnaireResponse): AnsweredItem[] {
             if (values.length > 0) {
                 items.push({
                     linkId: node.linkId,
-                    text: node.text === undefined ? null : unescapeMarkup(node.text),
+                    text: node.text ?? null,
                     ancestorTexts,
                     values,
                 })
@@ -288,7 +286,7 @@ function answerValue(answer: QuestionnaireResponseAnswer): ReceiptAnswerValue | 
         const coding = answer.valueCoding
         return {
             kind: 'coding',
-            display: unescapeMarkup(coding.display ?? coding.code ?? ''),
+            display: coding.display ?? coding.code ?? '',
             code: coding.code ?? null,
             system: coding.system ?? null,
         }
@@ -307,7 +305,7 @@ function answerValue(answer: QuestionnaireResponseAnswer): ReceiptAnswerValue | 
         if (stated === undefined) return { kind: 'text', text: 'a reference' }
         return {
             kind: 'reference',
-            display: reference.display === undefined ? null : unescapeMarkup(reference.display),
+            display: reference.display ?? null,
             reference: stated,
             unitId: referencedUnitId(reference),
         }

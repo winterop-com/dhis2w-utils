@@ -38,7 +38,7 @@ import type {
     Reference,
     ResourceList,
 } from '@/lib/fhir'
-import { FORM_TYPE_EXTENSION_SUFFIX, formIdentifier, unescapeMarkup } from '@/lib/fhir'
+import { FORM_TYPE_EXTENSION_SUFFIX, formIdentifier } from '@/lib/fhir'
 
 /**
  * The extension a Location states its DHIS2 hierarchy level on.
@@ -389,7 +389,7 @@ export function levelOf(location: Location): OrgUnitLevel | null {
 export function orgUnitName(location: Location): string {
     const raw = location.name
     if (raw === undefined || raw === '') return location.id ?? ''
-    return unescapeMarkup(raw)
+    return raw
 }
 
 /** The unit its `partOf` names, or null when it states none - which is what makes a unit a root. */

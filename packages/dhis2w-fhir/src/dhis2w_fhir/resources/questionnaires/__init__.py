@@ -123,6 +123,7 @@ __all__ = [
     "build_questionnaire_artifacts",
     "collect_referenced_objects",
     "domain_code",
+    "form_collects_incident_date",
     "is_disaggregated",
     "is_multi_valued",
     "item_type",
@@ -366,11 +367,19 @@ class _QuestionnaireView(BaseModel):
     name: str
     url: str
     title_literal: str
-    title_element_literal: str
-    title_translations: list[TranslationIn] = Field(default_factory=list)
-    """The form's NAME translations, riding the title as one standard translation extension each."""
-
     description_literal: str
+    """The `Title:` and `Description:` keyword literals, which name the artifact in the guide's own pages.
+
+    Page furniture, so both carry the markup escaping the publisher's HTML needs. The two element
+    literals below assign `title` and `description` on the resource itself, and those are data: a
+    served Questionnaire spells the DHIS2 text byte for byte.
+    """
+
+    title_element_literal: str
+    description_element_literal: str
+    title_translations: list[TranslationIn] = Field(default_factory=list)
+    """The form's NAME translations, riding the title element as one standard translation extension each."""
+
     subject_type: str
     identifier_system: str
     identifier_code_system: str
@@ -380,6 +389,10 @@ class _QuestionnaireView(BaseModel):
     form_type_extension: str
     form_type_code_system: str
     form_type_code: str
+    collects_incident_date_extension: str
+    collects_incident_date: bool | None = None
+    """Whether the program this registration form enrols into collects an incident date, or None off that kind."""
+
     assignment_extension: str
     assignment_reference: str | None = None
     """Literal `List/<id>` reference of the form's assignment artifact, or None when it publishes none."""
@@ -770,9 +783,10 @@ def _questionnaire_view(
         name=names.questionnaire_name(source.kind, stem_plan.targets.fsh_segment_for(source.uid)),
         url=f"{canonical}/Questionnaire/{stem_plan.targets.stem_for(source.uid)}",
         title_literal=page_text(f"Questionnaire - {display_name}"),
-        title_element_literal=quote(display_name),
-        title_translations=source_title_translations(source, locales),
         description_literal=page_text(source_description(source, profile)),
+        title_element_literal=quote(display_name),
+        description_element_literal=quote(source_description(source, profile)),
+        title_translations=source_title_translations(source, locales),
         subject_type=form_subject_type(source, tracked_entity_types),
         identifier_system=profile.identifier_system,
         identifier_code_system=profile.identifier_code_system,
@@ -787,6 +801,8 @@ def _questionnaire_view(
         form_type_extension=foundation.form_type_extension,
         form_type_code_system=foundation.form_type_code_system,
         form_type_code=source.kind,
+        collects_incident_date_extension=foundation.collects_incident_date_extension,
+        collects_incident_date=form_collects_incident_date(source),
         assignment_extension=foundation.organisation_unit_assignment_extension,
         assignment_reference=assignments.reference_for(source),
         attribute_option_combos_extension=foundation.attribute_option_combos_extension,
@@ -1009,6 +1025,19 @@ def _bound_views(value_type: str, item_type: str) -> list[_BoundView]:
     if bounds.maximum_value is not None:
         views.append(_BoundView(url=MAXIMUM_VALUE_EXTENSION_URL, element=element, literal=str(bounds.maximum_value)))
     return views
+
+
+def form_collects_incident_date(source: QuestionnaireSourceIn) -> bool | None:
+    """Whether the program a registration form enrols into collects an incident date, or None off that kind.
+
+    Only a tracker registration form has an enrollment to date, so only it declares the fact - and it
+    declares it either way, true and false alike, because the whole point of publishing it is that a
+    reader never has to guess. Every other form kind states nothing: a data set, an event program, a
+    stage, and a person-only registration create no enrollment, so there is no incident for one to follow.
+    """
+    if source.kind != "tracker":
+        return None
+    return source.displays_incident_date
 
 
 def question_entity_level(item: QuestionnaireItemIn, kind: FormKind) -> bool | None:

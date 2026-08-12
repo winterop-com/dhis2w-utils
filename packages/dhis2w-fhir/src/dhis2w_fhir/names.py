@@ -70,10 +70,13 @@ def quote(value: str) -> str:
 def escape_markup(value: str) -> str:
     """HTML-escape the three markup characters IG page furniture cannot carry raw.
 
-    The `fhir2.base.template` breadcrumb pastes a resource's page title straight into HTML and the
-    publisher then strict-parses the result, so a DHIS2 name holding `<` aborts the build. Only the
-    page-facing text takes this: the element-level `name` and `alias` carry the DHIS2 text verbatim,
-    because those are data rather than page furniture.
+    The `fhir2.base.template` breadcrumb pastes a page title straight into HTML and the publisher
+    then strict-parses the result, so a DHIS2 name holding `<` aborts the build. Page furniture is
+    the whole of what takes this, and page furniture is exactly two things: the `Title:` and
+    `Description:` keywords of an FSH definition, which name the artifact in the guide's own pages,
+    and the generated markdown pages. Every element of every served resource - `title`,
+    `description`, `name`, `alias`, `display`, `text` - carries the DHIS2 text byte for byte, so a
+    client reading this API reads what DHIS2 holds rather than what an HTML template needed.
     """
     return (value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -81,15 +84,6 @@ def escape_markup(value: str) -> str:
 def page_text(value: str) -> str:
     """Render an IG page title or description as a quoted FSH literal, HTML-escaping the markup characters."""
     return quote(escape_markup(value))
-
-
-def page_string(value: str) -> str:
-    """Render an IG page title or description as a one-line JSON string, HTML-escaping the markup characters.
-
-    The JSON counterpart of `page_text`: a pre-defined resource reaches the same breadcrumb template
-    the FSH-authored ones do, so its `title` and `description` take the same escaping.
-    """
-    return flatten_whitespace(escape_markup(value))
 
 
 def markdown_text(value: str, *, table_cell: bool = False) -> str:

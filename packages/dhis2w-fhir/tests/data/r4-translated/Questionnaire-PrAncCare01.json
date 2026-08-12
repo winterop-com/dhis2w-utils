@@ -40,6 +40,10 @@
       "valueCode": "tracker"
     },
     {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-collects-incident-date",
+      "valueBoolean": false
+    },
+    {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-assignment",
       "valueReference": {
         "reference": "List/d2-pr-PrAncCare01-org-units"

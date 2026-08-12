@@ -15,7 +15,7 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
-import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet, unescapeMarkup } from '@/lib/fhir'
+import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet } from '@/lib/fhir'
 import {
     composedSystems,
     enumeratedConceptCount,
@@ -165,7 +165,7 @@ function listingRow(
     url: string | undefined,
 ): { key: string; title: string; identifier: string } {
     const identifier = id ?? canonicalId(url) ?? ''
-    return { key: url ?? identifier, title: unescapeMarkup(title ?? name ?? identifier), identifier }
+    return { key: url ?? identifier, title: title ?? name ?? identifier, identifier }
 }
 
 /** One titled table of terminology resources, in whichever of the three states it is in. */

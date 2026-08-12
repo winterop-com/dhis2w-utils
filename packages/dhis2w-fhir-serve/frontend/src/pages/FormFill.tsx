@@ -38,7 +38,7 @@ import {
     type OperationOutcomeIssue,
     type Questionnaire,
     type QuestionnaireResponse,
-    type Reference, unescapeMarkup } from '@/lib/fhir'
+    type Reference } from '@/lib/fhir'
 import { orgUnitReference, referencedUnitId } from '@/lib/orgunits'
 import type { PatientProjection } from '@/lib/patients'
 import {
@@ -564,7 +564,7 @@ function FormFillHeader({
                 </Link>
             </Button>
             <h2 className="text-xl font-semibold tracking-tight">
-                {unescapeMarkup(questionnaire?.title ?? questionnaire?.name ?? questionnaireId)}
+                {questionnaire?.title ?? questionnaire?.name ?? questionnaireId}
             </h2>
             <div className="flex flex-wrap items-center gap-2">
                 {kind !== null && <Badge variant="secondary">{FORM_TYPE_LABELS[kind]}</Badge>}

@@ -39,7 +39,7 @@ from pydantic import BaseModel, ConfigDict
 from dhis2w_fhir import service
 from dhis2w_fhir.config import FhirProject, UnknownFhirConfigKeyError, load_project, write_fhir_config
 from dhis2w_fhir.foundation import CAPTURE_SERVER_READ_RESOURCE_TYPES
-from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_string, pascal
+from dhis2w_fhir.names import code_or_uid, flatten_whitespace, pascal
 from dhis2w_fhir.scaffold.schemas import DEFAULT_SUSHI_TIMEOUT_SECONDS, InitOptions
 from dhis2w_fhir.service import GenerationProfile
 
@@ -1633,10 +1633,9 @@ def _compare_human_name(
         actual = served.name
         field_path = "name"
     else:
-        # A CodeSystem's title is IG page furniture, so it carries the markup escaping every page
-        # title takes; a Questionnaire's title is data and carries the DHIS2 name verbatim.
-        escape = page_string if family.resource_type == "CodeSystem" else flatten_whitespace
-        expected = escape(instance.name)
+        # Every served element carries the DHIS2 name verbatim, whatever the resource type: the
+        # markup escaping belongs to the guide's own pages and never reaches an element.
+        expected = flatten_whitespace(instance.name)
         actual = served.title
         field_path = "title"
     if actual is None or actual == expected:

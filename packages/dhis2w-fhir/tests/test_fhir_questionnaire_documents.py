@@ -365,14 +365,12 @@ def test_a_single_valued_question_carries_no_repeats_element() -> None:
     assert "repeats" not in _emitted(_items(_one(_STAGE))[0])
 
 
-def test_the_title_carries_the_dhis2_name_verbatim_while_the_description_escapes_markup() -> None:
-    """The title is data and keeps its `<`; the description is page furniture the publisher parses as HTML."""
+def test_the_title_and_the_description_both_carry_the_dhis2_name_verbatim() -> None:
+    """Both are elements a client reads, so both keep the `<` DHIS2 holds - the escaping is the pages' alone."""
     source = _EVENT_PROGRAM.model_copy(update={"name": "Mortality < 5 years"})
     document = _emitted(_one(source))
     assert document["title"] == "Mortality < 5 years"
-    assert document["description"] == (
-        "DHIS2 event program Mortality &lt; 5 years (VBqh0ynB2wv) as a data capture form."
-    )
+    assert document["description"] == "DHIS2 event program Mortality < 5 years (VBqh0ynB2wv) as a data capture form."
 
 
 def test_a_tracker_program_stage_title_and_description_carry_both_identities() -> None:

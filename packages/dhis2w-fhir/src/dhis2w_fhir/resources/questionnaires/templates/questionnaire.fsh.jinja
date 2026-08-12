@@ -5,6 +5,9 @@ Description: {{ questionnaire.description_literal }}
 Usage: #definition
 * id = "{{ questionnaire.stem }}"
 * extension[{{ questionnaire.form_type_extension }}].valueCode = #{{ questionnaire.form_type_code }}
+{% if questionnaire.collects_incident_date is not none %}
+* extension[{{ questionnaire.collects_incident_date_extension }}].valueBoolean = {{ "true" if questionnaire.collects_incident_date else "false" }}
+{% endif %}
 {% if questionnaire.assignment_reference is not none %}
 * extension[{{ questionnaire.assignment_extension }}].valueReference = Reference({{ questionnaire.assignment_reference }})
 {% endif %}
@@ -40,6 +43,7 @@ Usage: #definition
 * title.extension[=].extension[+].url = "content"
 * title.extension[=].extension[=].valueString = {{ translation.value_literal }}
 {% endfor %}
+* description = {{ questionnaire.description_element_literal }}
 * status = #{{ questionnaire.ig_status }}
 * experimental = {{ "true" if questionnaire.experimental else "false" }}
 * subjectType = #{{ questionnaire.subject_type }}

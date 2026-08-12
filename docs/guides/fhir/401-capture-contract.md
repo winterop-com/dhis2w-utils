@@ -137,7 +137,11 @@ events in one breath, naming the enrollment its stage responses answer
 against before any of them is sent. The response dates the enrollment too:
 `D2EnrolledAt` 1..1 is when it begins, and `D2IncidentAt` 0..1 is when the
 incident it follows occurred - `0..1` because a DHIS2 program states whether
-it collects one at all.
+it collects one at all, and the registration form publishes that statement on
+`D2CollectsIncidentDate`. So a client knows before it fills anything whether
+the response it is about to build carries an incident date, and a form served
+from a compiled guide and one served `--live` say the same thing about the
+same program.
 
 What a capture server can honestly check about a minted identifier is its
 *shape* - and nothing else. A facade holds no instance data, so "does this
@@ -150,10 +154,14 @@ consequences the capture path states out loud:
   instance state. The facade stores the receipt; DHIS2 refuses the duplicate
   at import, and the rejection comes back through the forwarder like any
   other.
-- **The incident date is graded on its primitive alone.** The compiled
-  Questionnaire publishes no statement of whether the program collects one,
-  so a response is accepted with `D2IncidentAt` and without it; what capture
-  does check is that a carried one reads as an R4 `dateTime`.
+- **The incident date is graded on its primitive, and its absence is a
+  warning.** `D2IncidentAt` is 0..1 on the profile, so a response is accepted
+  with it and without it, and what capture checks about a carried one is that
+  it reads as an R4 `dateTime`. Where the form's `D2CollectsIncidentDate` says
+  true and the response carries no date, the receipt comes back with a warning
+  naming the `E1023` DHIS2 will answer that enrollment with - refusing a shape
+  the published profile admits would be the server arguing with its own
+  contract.
 
 **Identifier-keyed, and only identifier-keyed.** A registration response
 publishes no `Patient`, no `EpisodeOfCare`, and no `CarePlan` - it mints the

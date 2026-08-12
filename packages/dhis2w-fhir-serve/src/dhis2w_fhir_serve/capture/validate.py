@@ -36,10 +36,12 @@ instance holds is the instance's answer, and what an enrollment-only import can 
 translation question the forwarder settles - so capture admits the marker and grades the envelope
 exactly as it grades one without it.
 
-The incident date is graded the same honest way. `D2IncidentAt` is 0..1 on the registration
-profile and the compiled Questionnaire carries no statement of whether its program displays one, so
-capture checks that a carried incident date reads as an R4 `dateTime` and never that it is present
-or absent - the form does not say, and inventing the rule would refuse valid submissions.
+The incident date is graded the same honest way. `D2IncidentAt` is 0..1 on the registration profile,
+so capture checks that a carried incident date reads as an R4 `dateTime` and never refuses one for
+being absent - refusing what the published profile admits would be the server arguing with its own
+contract. The form does say whether its program collects one, on `D2CollectsIncidentDate`, and a
+registration that leaves the date out where the form says it belongs is warned about rather than
+refused, naming the `E1023` DHIS2 answers such an enrollment with.
 
 Warnings never reject. They record what the server had to interpret or could not check - a code
 sent in a spelling the contract does not ask for, a required question left unanswered, a date
@@ -181,6 +183,7 @@ def validate_response(
     resolvers = CodingResolverSet(store=store)
     index = _resolve_index(response.questionnaire or "", form_kind, indexes, naming, store)
     _settle(_subject_type_issues(response, index, form_kind, strict=strict_codes), warnings)
+    _settle(_incident_date_issues(response, index, naming, form_kind), warnings)
     _settle(_assignment_issues(response, index, naming, form_kind, strict=strict_codes), warnings)
     _settle(_attribute_option_combo_issues(response, index, naming, resolvers, strict=strict_codes), warnings)
     if form_kind == "aggregate":
@@ -443,6 +446,30 @@ def _tracker_subject_issues(response: QuestionnaireResponse, naming: CaptureNami
     return tuple(issues)
 
 
+def _incident_date_issues(
+    response: QuestionnaireResponse, index: CaptureIndex, naming: CaptureNaming, form_kind: FormKind
+) -> tuple[CaptureIssue, ...]:
+    """Note a registration that leaves out the incident date the form says its program collects.
+
+    A warning rather than a refusal, because the profile publishes `D2IncidentAt` 0..1 and a server
+    that refused what its own contract admits would be arguing with itself. What the note says is
+    what happens next: DHIS2 refuses that enrollment at import with `E1023`, and a client reading
+    the receipt learns it here rather than one forward later.
+    """
+    if form_kind != "tracker" or not index.collects_incident_date:
+        return ()
+    if _extensions(response, naming.incident_at_url):
+        return ()
+    return (
+        _warning(
+            "business-rule",
+            "QuestionnaireResponse.extension",
+            f"the form declares that its program collects an incident date, and this registration carries no "
+            f"`{naming.incident_at_url}`; DHIS2 refuses such an enrollment at import with E1023",
+        ),
+    )
+
+
 def _tracker_context_issues(response: QuestionnaireResponse, naming: CaptureNaming) -> tuple[CaptureIssue, ...]:
     """The two facts a tracker event carries beyond its answers: where it happened, and which enrollment it is on."""
     issues = list(_organisation_unit_extension_issues(response, naming, "a tracker event"))
@@ -454,8 +481,9 @@ def _registration_context_issues(response: QuestionnaireResponse, naming: Captur
     """The enrollment a registration response creates: where it is owned, its minted UID, and its dates.
 
     `D2EnrolledAt` is required because DHIS2 requires every enrollment to say when it began.
-    `D2IncidentAt` is optional and only graded on the primitive it carries - whether the program
-    displays an incident date is a fact the compiled Questionnaire does not publish.
+    `D2IncidentAt` is optional here and graded on the primitive it carries; whether the form's
+    program collects one at all is read off the form in `_incident_date_issues`, which notes the
+    gap rather than refusing a shape the profile publishes as 0..1.
     """
     issues = list(_organisation_unit_extension_issues(response, naming, "a registration"))
     issues.extend(_enrollment_extension_issues(response, naming, "a registration"))

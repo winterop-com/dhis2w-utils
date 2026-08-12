@@ -163,14 +163,14 @@
               "type": "token",
               "documentation": "The DHIS2 identifiers the resource carries. A system-qualified token groups a form's artifacts by the DHIS2 object they came from - `identifier=http://dhis2.org/fhir/id/program|<uid>` selects everything generated from one program."
             }
+          ],
+          "operation": [
+            {
+              "name": "translate",
+              "definition": "http://hl7.org/fhir/OperationDefinition/ConceptMap-translate",
+              "documentation": "Translate a generated concept code into the DHIS2 option UID and option code the published ConceptMaps map it onto."
+            }
           ]
-        }
-      ],
-      "operation": [
-        {
-          "name": "translate",
-          "definition": "http://hl7.org/fhir/OperationDefinition/ConceptMap-translate",
-          "documentation": "Translate a generated concept code into the DHIS2 option UID and option code the published ConceptMaps map it onto."
         }
       ]
     }

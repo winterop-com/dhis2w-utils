@@ -390,8 +390,8 @@ def test_an_include_ids_list_not_naming_the_default_category_leaves_it_out_witho
     assert notes == []
 
 
-def test_page_furniture_escapes_the_markup_characters_the_publisher_parses() -> None:
-    """A name holding `<` aborts the IG publisher: `fhir2.base.template` pastes the title into HTML raw."""
+def test_every_emitted_element_carries_the_markup_characters_dhis2_holds() -> None:
+    """A served document is data: a category named with `<` reads back with `<`, title and display alike."""
     hostile = CategoryIn(
         uid="Xa1b2c3d4e5",
         name="Age (<5 >5) & up",
@@ -401,11 +401,8 @@ def test_page_furniture_escapes_the_markup_characters_the_publisher_parses() -> 
     documents = _documents(_build([hostile], GenerateConfig()))
 
     for document in documents.values():
-        assert document["title"] == "Age (&lt;5 &gt;5) &amp; up"
-        for character in "<>":
-            assert character not in document["title"]
-            assert character not in document["description"]
-    # The other half of the rule: a concept display is data a consumer reads back, not page
-    # furniture, so it carries the DHIS2 text verbatim.
+        assert document["title"] == "Age (<5 >5) & up"
+        assert "Age (<5 >5) & up" in document["description"]
+        assert "&lt;" not in document["description"]
     code_system = documents["categories/CodeSystem-d2-cat-Xa1b2c3d4e5-cs.json"]
     assert [concept["display"] for concept in code_system["concept"]] == ["<5"]

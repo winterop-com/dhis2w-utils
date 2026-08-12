@@ -307,7 +307,7 @@ function Paging({
     onNext,
 }: {
     shown: number
-    /** What the server stated it holds in all, or null when it stated nothing. */
+    /** How many the whole searchset holds, or null when the DHIS2 instance stated no count. */
     total: number | null
     hasPrevious: boolean
     hasNext: boolean

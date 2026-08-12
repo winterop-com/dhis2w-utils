@@ -16,15 +16,17 @@ them - it is what a forwarder reads a concept back into DHIS2 identifiers with. 
 serves it all the same, because the maps are published IG artifacts sitting in the same store as
 everything else, and an instance is free to support more than the statement it instantiates.
 
-`$translate` follows the same rule as the read types: it is declared only when the store actually
-holds ConceptMaps. It is declared on `rest` rather than on the ConceptMap entry because R4 defines
-it as a type-level operation, which is where `rest.operation` belongs.
+Both operations are declared on the resource entry they are answered under, which is the entry a
+client resolves the URL from. `$translate` is answered at `/ConceptMap/$translate` and is declared on
+the ConceptMap entry; `$generate` is answered at `/Questionnaire/{id}/$generate` and is declared on
+the Questionnaire entry. `rest.operation` would send a client following the statement to
+`[base]/$translate`, which this server does not serve - a server-level slot is for a server-level
+URL, and declaring a resource operation there names an endpoint that answers 404. Each rides its
+entry, so each is declared exactly when the store holds that type: no ConceptMaps, no `$translate`.
 
-`$generate` is declared the other way round, on the Questionnaire resource entry, because it is an
-instance-level operation on a resource type this server does read - and it is declared only when the
-store holds Questionnaires, for the same reason `$translate` waits for ConceptMaps. Its definition is
-the OperationDefinition the project's own IG publishes, not an HL7 one: `$generate` is a custom
-operation, deliberately not SDC's `$populate`.
+`$generate`'s definition is the OperationDefinition the project's own IG publishes, not an HL7 one:
+it is a custom operation, deliberately not SDC's `$populate`. `$translate` conforms to R4's own
+ConceptMap definition and names it.
 
 Patient is the one entry that is not about the store at all. It is answered from the DHIS2 instance
 per request, so it is declared only by a process that has one - `--live`, over a project that
@@ -161,7 +163,6 @@ def build_server_capability(
                 mode="server",
                 documentation=_REST_DOCUMENTATION,
                 resource=resources,
-                operation=_operations(store_summary),
             )
         ],
     )
@@ -215,40 +216,32 @@ def _patient_documentation(patient_surface: PatientSurface) -> str:
     return f"{PATIENT_DOCUMENTATION} {LISTING_DOCUMENTATION}"
 
 
-def _operations(store_summary: StoreSummary) -> list[CapabilityStatementOperation] | None:
-    """Declare `$translate` when the store holds ConceptMaps, and declare nothing when it does not.
-
-    The operation is declared on `rest` rather than on the ConceptMap resource entry: R4 defines
-    `$translate` as a type-level operation, and `rest.operation` is where a type-level one belongs.
-    """
-    if CONCEPT_MAP_RESOURCE_TYPE not in store_summary.counts_by_type:
-        return None
-    return [
-        CapabilityStatementOperation(
-            name=TRANSLATE_OPERATION_NAME,
-            definition=TRANSLATE_OPERATION_DEFINITION,
-            documentation=TRANSLATE_DOCUMENTATION,
-        )
-    ]
-
-
-def _generate_operation(
+def _operations(
     resource_type: str, canonical: str, names: FoundationNaming
 ) -> list[CapabilityStatementOperation] | None:
-    """Declare `$generate` on the Questionnaire entry, naming the OperationDefinition this IG publishes.
+    """The operations one read type is answered under, or nothing for a type this server only reads.
 
-    Every other read type gets nothing: `$generate` fills a form, and Questionnaire is the only
-    resource type this server serves that is one.
+    Two types carry one each, and each is the type its own URL names: `$generate` fills a served
+    form, so it rides Questionnaire; `$translate` reads a mapping back into DHIS2 identifiers, so it
+    rides ConceptMap. A client following either entry reaches the endpoint that answers it.
     """
-    if resource_type != QUESTIONNAIRE_RESOURCE_TYPE:
-        return None
-    return [
-        CapabilityStatementOperation(
-            name=GENERATE_OPERATION_CODE,
-            definition=f"{canonical}/OperationDefinition/{names.generate_operation_id}",
-            documentation=GENERATE_DOCUMENTATION,
-        )
-    ]
+    if resource_type == QUESTIONNAIRE_RESOURCE_TYPE:
+        return [
+            CapabilityStatementOperation(
+                name=GENERATE_OPERATION_CODE,
+                definition=f"{canonical}/OperationDefinition/{names.generate_operation_id}",
+                documentation=GENERATE_DOCUMENTATION,
+            )
+        ]
+    if resource_type == CONCEPT_MAP_RESOURCE_TYPE:
+        return [
+            CapabilityStatementOperation(
+                name=TRANSLATE_OPERATION_NAME,
+                definition=TRANSLATE_OPERATION_DEFINITION,
+                documentation=TRANSLATE_DOCUMENTATION,
+            )
+        ]
+    return None
 
 
 def _response_resource(project: FhirProject, canonical: str) -> CapabilityStatementResource:
@@ -288,7 +281,7 @@ def _read_resource(
     """Declare one read type the store holds, with the three search parameters the facade answers."""
     return CapabilityStatementResource(
         type=resource_type,
-        operation=_generate_operation(resource_type, canonical, names),
+        operation=_operations(resource_type, canonical, names),
         interaction=[
             CapabilityStatementInteraction(code="read"),
             CapabilityStatementInteraction(code="search-type"),

@@ -109,8 +109,8 @@ def test_concept_map_joins_the_read_types_when_the_store_holds_maps(compiled_pro
     ]
     concept_map = resources[-1]
     assert [interaction.code for interaction in concept_map.interaction or []] == ["read", "search-type"]
-    assert concept_map.operation is None
-    assert [operation.name for operation in capability.rest[0].operation or []] == ["translate"]
+    assert [operation.name for operation in concept_map.operation or []] == ["translate"]
+    assert capability.rest[0].operation is None
 
 
 def test_a_store_without_maps_declares_neither_the_read_type_nor_the_operation(
@@ -121,6 +121,24 @@ def test_a_store_without_maps_declares_neither_the_read_type_nor_the_operation(
     assert capability.rest is not None
     assert "ConceptMap" not in [resource.type for resource in capability.rest[0].resource or []]
     assert capability.rest[0].operation is None
+
+
+def test_every_declared_operation_rides_the_resource_entry_whose_url_answers_it(
+    compiled_project: FhirProject,
+) -> None:
+    """Nothing is declared server-level, because this server answers no operation at `[base]/$name`."""
+    with_maps = StoreSummary(counts_by_type={**FULL_SUMMARY.counts_by_type, "ConceptMap": 3})
+
+    capability = _capability(compiled_project, with_maps)
+
+    assert capability.rest is not None
+    assert capability.rest[0].operation is None
+    declared = {
+        resource.type: [operation.name for operation in resource.operation or []]
+        for resource in capability.rest[0].resource or []
+        if resource.operation
+    }
+    assert declared == {"Questionnaire": ["generate"], "ConceptMap": ["translate"]}
 
 
 def test_a_type_the_store_lost_drops_out_of_the_statement(compiled_project: FhirProject) -> None:

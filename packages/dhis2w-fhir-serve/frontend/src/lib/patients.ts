@@ -28,7 +28,6 @@ import {
     formTypeOf,
     TRACKED_ENTITY_IDENTIFIER_SYSTEM_SUFFIX,
     trackedEntityTypeOf,
-    unescapeMarkup,
     type Bundle,
     type CodeSystem,
     type Extension,
@@ -192,7 +191,8 @@ export const PATIENT_PAGE_SIZE = 25
  * stated no such link - which is how the first and last pages are known. There is no page number
  * anywhere in this shape, because the tokens are opaque: this UI can move a page at a time in
  * either direction and cannot say which page it is on, and stating a number it inferred would be
- * inventing one. `total` is null when the server does not state it, which is a different fact from
+ * inventing one. `total` is the whole searchset, summed across every tracked entity type in scope,
+ * and null when the DHIS2 instance stated no count for one of them - which is a different fact from
  * zero.
  */
 export interface PatientPage {
@@ -263,7 +263,7 @@ export function trackedEntityAttributeNames(codeSystems: readonly CodeSystem[]):
     for (const codeSystem of codeSystems) {
         if (!holdsTrackedEntityAttributeConcepts(codeSystem)) continue
         for (const concept of codeSystem.concept ?? []) {
-            if (concept.display !== undefined) names.set(concept.code, unescapeMarkup(concept.display))
+            if (concept.display !== undefined) names.set(concept.code, concept.display)
         }
     }
     return names

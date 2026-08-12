@@ -30,7 +30,7 @@ from dhis2w_fhir.foundation.attribute_values import (
 )
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.i18n import TranslationIn, name_translations, text_translations, translated_element
-from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_string
+from dhis2w_fhir.names import code_or_uid, flatten_whitespace
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import (
     CodeableConcept,
@@ -70,6 +70,7 @@ from dhis2w_fhir.resources.questionnaires import (
     bound_option_set_uids,
     collect_referenced_objects,
     domain_code,
+    form_collects_incident_date,
     grouping_identifiers,
     is_disaggregated,
     is_multi_valued,
@@ -208,6 +209,7 @@ class _QuestionnaireSystems(BaseModel):
     identifier_system_base: str
     form_type_extension_url: str
     form_type_code_system_url: str
+    collects_incident_date_extension_url: str
     assignment_extension_url: str
     attribute_option_combos_extension_url: str
     attribute_value_extension_url: str
@@ -227,6 +229,9 @@ class _QuestionnaireSystems(BaseModel):
             identifier_system_base=config.identifier_system_base,
             form_type_extension_url=f"{canonical}/StructureDefinition/{foundation.form_type_extension_id}",
             form_type_code_system_url=code_system_canonical(canonical, foundation.form_type_code_system_id),
+            collects_incident_date_extension_url=(
+                f"{canonical}/StructureDefinition/{foundation.collects_incident_date_extension_id}"
+            ),
             assignment_extension_url=(
                 f"{canonical}/StructureDefinition/{foundation.organisation_unit_assignment_extension_id}"
             ),
@@ -507,9 +512,10 @@ def _questionnaire_document(
         url=systems.questionnaire_url(stem_plan.targets.stem_for(source.uid)),
         title=flatten_whitespace(source_display_name(source)),
         title_element=translated_element(source_title_translations(source, locales)),
-        description=page_string(source_description(source, profile)),
+        description=flatten_whitespace(source_description(source, profile)),
         extension=[
             Extension(url=systems.form_type_extension_url, valueCode=source.kind),
+            *_collects_incident_date_extension(source, systems),
             *_assignment_extension(source, systems, assignments),
             *_attribute_option_combos_extension(source, systems, attribute_combos),
             *attribute_value_extensions(
@@ -524,6 +530,16 @@ def _questionnaire_document(
         code=[Coding(system=systems.form_type_code_system_url, code=source.kind)],
         item=_items(source, systems, identities, locales) or None,
     )
+
+
+def _collects_incident_date_extension(
+    source: QuestionnaireSourceIn, systems: _QuestionnaireSystems
+) -> tuple[Extension, ...]:
+    """The D2CollectsIncidentDate extension a registration form declares, or nothing on every other kind."""
+    collects = form_collects_incident_date(source)
+    if collects is None:
+        return ()
+    return (Extension(url=systems.collects_incident_date_extension_url, valueBoolean=collects),)
 
 
 def _assignment_extension(

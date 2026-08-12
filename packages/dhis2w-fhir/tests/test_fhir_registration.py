@@ -31,6 +31,7 @@ from dhis2w_fhir.r4 import FhirBase
 from dhis2w_fhir.resources.questionnaires import (
     REGISTRATION_FILE_STEM,
     bound_option_set_uids,
+    form_collects_incident_date,
     grouping_identifiers,
     question_code_system,
     question_entity_level,
@@ -301,6 +302,40 @@ def test_only_a_registration_question_states_a_dhis2_level() -> None:
     assert all("extension" not in item for item in _document(levelled)["item"])
 
 
+#: The URL a registration form declares whether its program collects an incident date under.
+_COLLECTS_INCIDENT_DATE_EXTENSION = f"{_CANONICAL}/StructureDefinition/d2-collects-incident-date"
+
+
+def _form_extension(document: dict[str, Any], url: str) -> Any:
+    """The value one form-level extension carries, or None when the form declares none."""
+    for extension in document["extension"]:
+        if extension["url"] == url:
+            return extension["valueBoolean"]
+    return None
+
+
+def test_a_registration_form_declares_whether_its_program_collects_an_incident_date() -> None:
+    """The fact is the program's and the form publishes it, so a reader never infers it from an example."""
+    content = _fsh()[f"tracker-programs/Trk1aaaaaaa/{REGISTRATION_FILE_STEM}.fsh"]
+    assert "* extension[D2CollectsIncidentDate].valueBoolean = true" in content
+    assert _form_extension(_document(), _COLLECTS_INCIDENT_DATE_EXTENSION) is True
+
+
+def test_a_program_collecting_no_incident_date_declares_that_rather_than_staying_silent() -> None:
+    """False is a published answer: a reader learns the program collects none instead of learning nothing."""
+    without = _REGISTRATION.model_copy(update={"displays_incident_date": False})
+    content = _fsh([without])[f"tracker-programs/Trk1aaaaaaa/{REGISTRATION_FILE_STEM}.fsh"]
+    assert "* extension[D2CollectsIncidentDate].valueBoolean = false" in content
+    assert _form_extension(_document(without), _COLLECTS_INCIDENT_DATE_EXTENSION) is False
+
+
+def test_only_a_registration_form_declares_an_incident_date() -> None:
+    """Every other kind creates no enrollment, so there is no incident for one of its responses to follow."""
+    assert form_collects_incident_date(_BIRTH_STAGE) is None
+    assert "D2CollectsIncidentDate" not in _fsh([_BIRTH_STAGE])["tracker-programs/Trk1aaaaaaa/Stg1aaaaaaa.fsh"]
+    assert _form_extension(_document(_BIRTH_STAGE), _COLLECTS_INCIDENT_DATE_EXTENSION) is None
+
+
 def test_the_data_element_vocabulary_keeps_its_own_property_prose() -> None:
     """Each pair describes the object it is about, so the value-type property is not shared wording."""
     content = _fsh([_BIRTH_STAGE])["data-dictionary/data-elements.fsh"]
@@ -340,7 +375,10 @@ def test_a_registration_form_publishes_no_attribute_option_combo_vocabulary() ->
     """Tracker capture has no attribute option combo, so the form declares none whatever the plan holds."""
     content = _fsh()[f"tracker-programs/Trk1aaaaaaa/{REGISTRATION_FILE_STEM}.fsh"]
     assert "D2AttributeOptionCombos" not in content
-    assert all(extension["url"].endswith("d2-form-type") for extension in _document()["extension"])
+    assert [extension["url"].rsplit("/", 1)[-1] for extension in _document()["extension"]] == [
+        "d2-form-type",
+        "d2-collects-incident-date",
+    ]
 
 
 def test_the_registration_kind_is_captured_like_every_other_kind() -> None:

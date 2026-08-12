@@ -43,7 +43,7 @@ import {
     type CodeSystem,
     type Questionnaire,
     type QuestionnaireResponse,
-    type ValueSet, unescapeMarkup } from '@/lib/fhir'
+    type ValueSet } from '@/lib/fhir'
 
 /**
  * The parsing rules, checked against what the server actually answers.
@@ -178,11 +178,12 @@ describe('a real /metadata document', () => {
         const operations = declaredOperations(metadata)
         const generate = operations.find((operation) => operation.name === 'generate')
         expect(generate?.on).toBe('Questionnaire')
-        // $translate is type-level, so it is declared on `rest` rather than on a
-        // resource entry - and only because this fixture's store holds maps. A
-        // store without them declares neither, which is what the Server page reports.
+        // Each operation is declared on the resource entry whose URL answers it:
+        // `/Questionnaire/{id}/$generate` and `/ConceptMap/$translate`. The ConceptMap
+        // entry is only there because this fixture's store holds maps, so a store
+        // without them declares neither the type nor the operation.
         const translate = operations.find((operation) => operation.name === 'translate')
-        expect(translate?.on).toBe('server')
+        expect(translate?.on).toBe('ConceptMap')
     })
 
     it('declares ConceptMap as a read type, not only as something to translate through', () => {
@@ -306,12 +307,10 @@ describe('naming a served form', () => {
         ])
     })
 
-    it('orders on the string it renders, not the escaped one the wire carries', () => {
-        // `&lt;` sorts under the ampersand while `<` sorts where a reader expects it, so a
-        // comparison taken before the unescape puts the row somewhere the eye cannot follow.
+    it('orders on the string it renders, which is the one the wire carries', () => {
         const forms: Questionnaire[] = [
             { resourceType: 'Questionnaire', status: 'active', id: 'b', title: 'Bravo' },
-            { resourceType: 'Questionnaire', status: 'active', id: 'a', title: 'Age &lt;5' },
+            { resourceType: 'Questionnaire', status: 'active', id: 'a', title: 'Age <5' },
         ]
         expect(formsByTitle(forms).map(formTitle)).toEqual(['Age <5', 'Bravo'])
     })
@@ -364,8 +363,8 @@ describe('formSlice', () => {
 })
 
 describe('operationNames', () => {
-    it('names each declared operation once, rest-level first', () => {
-        expect(operationNames(metadata)).toEqual(['translate', 'generate'])
+    it('names each declared operation once, in declaration order', () => {
+        expect(operationNames(metadata)).toEqual(['generate', 'translate'])
     })
 
     it('drops the duplicate when one operation is declared on several resources', () => {
@@ -390,15 +389,17 @@ describe('operationNames', () => {
     })
 })
 
-describe('unescapeMarkup', () => {
-    it('reverses the emit-time escaping of the three markup entities', () => {
-        expect(unescapeMarkup('Age (&lt;5 - 49) &amp; over')).toBe('Age (<5 - 49) & over')
-        expect(unescapeMarkup('Age (&lt;5 &gt;5) &amp; sex')).toBe('Age (<5 >5) & sex')
-    })
-
-    it('leaves text without entities untouched and survives a real ampersand', () => {
-        expect(unescapeMarkup('Malaria cases')).toBe('Malaria cases')
-        expect(unescapeMarkup('A &amp;amp; B')).toBe('A &amp; B')
+describe('served text', () => {
+    it('is shown exactly as the server sends it, entities and all', () => {
+        // The server carries the DHIS2 text byte for byte, so a name that really holds `&lt;`
+        // holds it here too - the UI decodes nothing, because nothing was encoded.
+        const named = {
+            resourceType: 'Questionnaire',
+            status: 'draft',
+            title: 'Age (<5 - 49) & over',
+        } as const satisfies Questionnaire
+        expect(formTitle(named)).toBe('Age (<5 - 49) & over')
+        expect(formTitle({ ...named, title: 'A &amp; B' })).toBe('A &amp; B')
     })
 })
 
@@ -449,7 +450,7 @@ describe('the attribute option combo a form reports for', () => {
         expect(attributeOptionComboLabel(attributeCodeSystem.title)).toBe('Reporting for Project')
         expect(attributeOptionComboLabel(null)).toBe('Attribute option combo')
         expect(attributeOptionComboLabel('   ')).toBe('Attribute option combo')
-        expect(attributeOptionComboLabel('Weight &lt; 5kg')).toBe('Reporting for Weight < 5kg')
+        expect(attributeOptionComboLabel('Weight < 5kg')).toBe('Reporting for Weight < 5kg')
     })
 
     it('resolves a concept display through the served CodeSystem', () => {

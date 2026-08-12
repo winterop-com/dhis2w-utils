@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.names import flatten_whitespace, page_string
+from dhis2w_fhir.names import flatten_whitespace
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import CodeSystemConceptProperty, CodeSystemProperty, Coding
 from dhis2w_fhir.resources.categories import category_identities
@@ -211,7 +211,7 @@ def _axes(categories: list[CategoryIn], config: GenerateConfig, canonical: str) 
                 category_name=category.name,
                 property_code=category_property_code(identity.slug),
                 property_uri=f"{config.identifier_system_base}/property/{category_property_code(identity.slug)}",
-                property_description=page_string(f"DHIS2 category {category.name}."),
+                property_description=flatten_whitespace(f"DHIS2 category {category.name}."),
                 code_system_url=code_system_canonical(canonical, identity.code_system_id),
                 codings=[
                     CategoryOptionCoding(

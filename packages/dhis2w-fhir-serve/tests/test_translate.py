@@ -411,12 +411,26 @@ async def test_searching_concept_maps_by_url_selects_one_map(translate_client: h
 async def test_metadata_declares_the_operation_when_the_store_holds_concept_maps(
     translate_client: httpx.AsyncClient,
 ) -> None:
+    """The operation rides the ConceptMap entry, which is the type its own URL names."""
     body = (await translate_client.get("/metadata")).json()
 
-    operations = body["rest"][0]["operation"]
+    entry = next(resource for resource in body["rest"][0]["resource"] if resource["type"] == "ConceptMap")
+    operations = entry["operation"]
     assert [operation["name"] for operation in operations] == ["translate"]
     assert operations[0]["definition"] == "http://hl7.org/fhir/OperationDefinition/ConceptMap-translate"
     assert operations[0]["documentation"]
+    assert "operation" not in body["rest"][0]
+
+
+async def test_the_declared_operation_is_reachable_at_the_url_its_entry_names(
+    translate_client: httpx.AsyncClient,
+) -> None:
+    """A type-level operation on ConceptMap is `/ConceptMap/$translate`, and that is what answers."""
+    declared = await translate_client.get(_TRANSLATE_PATH, params={"system": _CODE_SYSTEM, "code": _CONCEPT_CODE})
+    server_level = await translate_client.get("/$translate", params={"system": _CODE_SYSTEM, "code": _CONCEPT_CODE})
+
+    assert declared.status_code == 200
+    assert server_level.status_code == 404
 
 
 async def test_metadata_declares_concept_map_as_a_read_type(translate_client: httpx.AsyncClient) -> None:
@@ -426,7 +440,6 @@ async def test_metadata_declares_concept_map_as_a_read_type(translate_client: ht
     entry = next(resource for resource in body["rest"][0]["resource"] if resource["type"] == "ConceptMap")
     assert [interaction["code"] for interaction in entry["interaction"]] == ["read", "search-type"]
     assert [parameter["name"] for parameter in entry["searchParam"]] == ["_id", "url", "identifier"]
-    assert "operation" not in entry
 
 
 async def test_metadata_declares_no_operation_when_the_store_holds_no_concept_map(
@@ -435,6 +448,7 @@ async def test_metadata_declares_no_operation_when_the_store_holds_no_concept_ma
     body = (await client.get("/metadata")).json()
 
     assert "operation" not in body["rest"][0]
+    assert "ConceptMap" not in [resource["type"] for resource in body["rest"][0]["resource"]]
 
 
 async def test_translate_over_a_store_without_concept_maps_answers_false(client: httpx.AsyncClient) -> None:

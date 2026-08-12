@@ -549,29 +549,54 @@ Extension: D2IncidentAt
 Id: d2-incident-at
 Title: "DHIS2 incident date"
 Description: "The moment the incident a DHIS2 tracker enrollment follows occurred - the occurredAt \
-of the enrollment. A program states whether it collects one through displayIncidentDate, and a \
-registration form generated from a program that does not carries none."
+of the enrollment. A registration form states on D2CollectsIncidentDate whether its program \
+collects one, and a response to a form declaring false carries none."
 * ^status = #draft
 * ^experimental = true
 * ^context[+].type = #element
 * ^context[=].expression = "QuestionnaireResponse"
 * value[x] only dateTime
 * valueDateTime 1..1
+
+Extension: D2CollectsIncidentDate
+Id: d2-collects-incident-date
+Title: "DHIS2 program collects an incident date"
+Description: "Whether the DHIS2 tracker program a registration form enrols a person into collects \
+the date of the incident the enrollment follows. True means every enrollment the program creates \
+states that date and a response to this form carries D2IncidentAt; false means the program collects \
+none and a response carries none. Only a registration form declares it, because only a program has \
+enrollments."
+* ^status = #draft
+* ^experimental = true
+* ^context[+].type = #element
+* ^context[=].expression = "Questionnaire"
+* value[x] only boolean
+* valueBoolean 1..1
 """
 
 
 def test_the_enrollment_date_extensions_are_a_stable_golden() -> None:
-    """The two dates a DHIS2 enrollment carries land as one foundation file of two dateTime extensions."""
+    """The dates a DHIS2 enrollment carries land as one foundation file, beside the form's declaration of them."""
     assert _by_path(GenerateConfig())["foundation/d2-enrollment-dates.fsh"] == _ENROLLMENT_DATES_GOLDEN
 
 
+def test_the_incident_date_declaration_is_stated_on_the_form_rather_than_on_the_response() -> None:
+    """The fact is a Questionnaire's, so a live store and a compiled one both read it off the published form."""
+    golden = _by_path(GenerateConfig())["foundation/d2-enrollment-dates.fsh"]
+    declaration = golden[golden.index("Extension: D2CollectsIncidentDate") :]
+    assert '* ^context[=].expression = "Questionnaire"' in declaration
+    assert "* value[x] only boolean" in declaration
+
+
 def test_the_enrollment_date_extensions_follow_the_naming_prefix() -> None:
-    """Both extensions take the `[generate.naming]` prefix the rest of the D2 family takes."""
+    """All three extensions take the `[generate.naming]` prefix the rest of the D2 family takes."""
     custom = _by_path(GenerateConfig(naming=NamingConfig(prefix="Dhis2")))["foundation/d2-enrollment-dates.fsh"]
     assert "Extension: Dhis2EnrolledAt" in custom
     assert "Id: dhis2-enrolled-at" in custom
     assert "Extension: Dhis2IncidentAt" in custom
     assert "Id: dhis2-incident-at" in custom
+    assert "Extension: Dhis2CollectsIncidentDate" in custom
+    assert "Id: dhis2-collects-incident-date" in custom
 
 
 def test_the_capture_server_claims_every_profile_it_translates() -> None:
