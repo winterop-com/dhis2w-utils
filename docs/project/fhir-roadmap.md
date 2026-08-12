@@ -267,7 +267,7 @@ Base directory is `<project_root>/ig/input/fsh/` for FSH,
 
 | Target | Directory | Files |
 | --- | --- | --- |
-| `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-organisation-unit.fsh`, `d2-tracker-enrollment.fsh`, `d2-responses.fsh`, `d2-generate-operation.fsh`, `d2-capture-server.fsh` - ten, always, with no client opened. |
+| `foundation` | `foundation/` | `d2-aliases.fsh`, `d2-naming-systems.fsh`, `d2-period.fsh`, `d2-form-type.fsh`, `d2-attribute-value.fsh`, `d2-organisation-unit.fsh`, `d2-tracker-enrollment.fsh`, `d2-responses.fsh`, `d2-generate-operation.fsh`, `d2-capture-server.fsh`, plus the conversion contract - `d2-data-value-set.fsh` (the DHIS2 aggregate wire shape as a `kind = logical` StructureDefinition) and `d2-aggregate-map.fsh` (the StructureMap from an aggregate response onto it) - always, with no client opened. |
 | `option-sets` | `resources/terminology/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected option set, ids `d2-os-<stem>-cs` / `-vs`, pre-built R4 JSON that SUSHI loads as predefined resources rather than compiling. A Questionnaire's `Canonical(D2OS_<stem>_VS)` resolves against them, because SUSHI fishes a predefined resource by its `name` element. |
 | `option-sets` | `resources/concept-maps/` | One `ConceptMap-<id-stem><slug>-cm.json` per selected option set that emitted concepts, taking every emitted concept code back to the DHIS2 option UID and the DHIS2 option code. Shares the directory with the category maps and sweeps its own `ConceptMap-<id stem>` prefix. |
 | `categories` | `resources/categories/` | `CodeSystem-<id>.json` and `ValueSet-<id>.json` per selected category, ids `d2-cat-<slug>-cs` / `-vs`, concepts being that category's category options in their DHIS2 `categoryOptions` order. Its own directory because `sync_json_artifacts` owns its target outright. |
@@ -848,6 +848,18 @@ typed Python forwarder first and asks this question of the result. **Phase A has
 shipped** as `d2w fhir forward` over `dhis2w_fhir.conversion`, so the reference
 implementation exists and what is left to decide is the phase-B carrier -
 StructureMaps with a residue manifest, or a manifest alone.
+
+**The first phase-B slice has shipped too**, which is what the decision now rests on:
+the `foundation` target publishes `D2DataValueSet` (the `/api/dataValueSets` envelope
+as a `kind = logical` StructureDefinition) and `D2AggregateResponseToDataValueSet`
+(the StructureMap onto it), and `test_fhir_conversion_contract.py` holds the Python
+forwarder's aggregate output against the compiled model. Two findings came out of it.
+**SUSHI compiles no FHIR Mapping Language** - a `.fml` file is ignored wherever it sits
+in an IG, so the map is authored as an `Instance:` of StructureMap and compiles to the
+same resource. And the aggregate residue is four rules that need documentation rather
+than four rules that cannot be written, so no invented extension function was needed.
+The counter-case is the tracker registration path, where `D2EntityLevel` decides which
+of two payloads an answer lands in.
 
 ### 5.4 Where `attributeOptionCombo` and data-set completeness live
 

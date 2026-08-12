@@ -31,6 +31,16 @@ to carry - `d2-capture-server.fsh` states the interactions a server accepting th
 responses supports, and `d2-generate-operation.fsh` defines `$generate`, the instance-level
 operation that answers a served Questionnaire with a synthetic response postable straight back.
 
+Two more state the conversion contract the other way round - what a captured response becomes
+in DHIS2. `d2-data-value-set.fsh` publishes the `/api/dataValueSets` envelope as a
+`kind = logical` StructureDefinition, so the DHIS2 wire shape is a machine-readable target
+rather than prose; `d2-aggregate-map.fsh` publishes the StructureMap from the aggregate
+response profile onto it. The map is a contract, never an engine: nothing here executes it,
+and each rule whose meaning exceeds what a transform can state carries that on its own
+`documentation`. It is authored as an `Instance:` of StructureMap because SUSHI compiles no
+FHIR Mapping Language - a `.fml` file is ignored wherever it is placed in an IG - and the
+artifact a consumer reads is the StructureMap resource either way.
+
 The two vocabularies those extensions bind - the form types and the period types - also have a
 JSON path in `documents.py`, because a server running without a compiled guide still has to answer
 for the code system a served form's `D2FormType` extension names. Template and builder render one
@@ -58,14 +68,23 @@ from dhis2w_fhir.foundation.documents import (
     build_terminology_pair,
 )
 from dhis2w_fhir.foundation.schemas import (
+    AGGREGATE_CONVERSION_MAP,
+    DATA_VALUE_SET_ELEMENTS,
+    DATA_VALUE_SET_MODEL,
     FORM_TYPE_DEFINITIONS,
     FORM_TYPE_TERMINOLOGY,
     GENERATE_OPERATION_CODE,
     GENERATE_SEED_PARAMETER,
+    IDENTIFIER_SYSTEM_SEGMENTS,
     IDENTIFIER_SYSTEM_SUBJECTS,
+    PERIOD_ISO_SUB_EXTENSION,
+    PERIOD_RANGE_SUB_EXTENSION,
+    PERIOD_TYPE_SUB_EXTENSION,
     PERIOD_TYPE_TERMINOLOGY,
+    ArtifactProfile,
     FormTypeDefinition,
     FoundationNaming,
+    LogicalModelElement,
     NamingSystemDeclaration,
     ResponseProfileDeclaration,
     TerminologyPairProfile,
@@ -95,24 +114,32 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
 
 __all__ = [
+    "AGGREGATE_CONVERSION_MAP",
     "ATTRIBUTE_CODE_SUB_EXTENSION",
     "ATTRIBUTE_ID_SUB_EXTENSION",
     "ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES",
     "ATTRIBUTE_VALUE_SUB_EXTENSION",
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
+    "DATA_VALUE_SET_ELEMENTS",
+    "DATA_VALUE_SET_MODEL",
     "FORM_TYPE_DEFINITIONS",
     "FORM_TYPE_TERMINOLOGY",
     "GENERATE_OPERATION_CODE",
     "GENERATE_SEED_PARAMETER",
+    "PERIOD_ISO_SUB_EXTENSION",
+    "PERIOD_RANGE_SUB_EXTENSION",
+    "PERIOD_TYPE_SUB_EXTENSION",
     "PERIOD_TYPE_TERMINOLOGY",
     "TRACKED_ENTITY_ATTRIBUTE_CODE_SUB_EXTENSION",
     "TRACKED_ENTITY_ATTRIBUTE_ID_SUB_EXTENSION",
     "TRACKED_ENTITY_ATTRIBUTE_IDENTIFIER_SEGMENT",
     "TRACKED_ENTITY_ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES",
     "TRACKED_ENTITY_ATTRIBUTE_VALUE_SUB_EXTENSION",
+    "ArtifactProfile",
     "FormTypeDefinition",
     "FoundationNaming",
     "FoundationTerminologyBuild",
+    "LogicalModelElement",
     "NamingSystemDeclaration",
     "ResponseProfileDeclaration",
     "TerminologyPair",
@@ -196,6 +223,9 @@ _CAPTURE_SERVER_DESCRIPTION = (
     "resources a capture client resolves a form from."
 )
 
+#: The R4 base definition of the resource the aggregate conversion map reads a data value set out of.
+_QUESTIONNAIRE_RESPONSE_DEFINITION = "http://hl7.org/fhir/StructureDefinition/QuestionnaireResponse"
+
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.foundation", "templates"),
     autoescape=select_autoescape(default=False),
@@ -206,8 +236,13 @@ _ENVIRONMENT = Environment(
 )
 
 
-def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -> list[FshArtifact]:
-    """Build the `foundation/` artifacts: the DHIS2 identifier systems and the D2Period extension."""
+def build_foundation_artifacts(config: GenerateConfig, canonical: str, *, ig_status: IgStatus) -> list[FshArtifact]:
+    """Build the `foundation/` artifacts: the DHIS2 identifier systems and the D2Period extension.
+
+    `canonical` is the IG's own base URL. Every artifact here names a sibling with FSH's
+    `Canonical(...)`, which SUSHI resolves for itself; the conversion StructureMap is the one that
+    cannot, because the extension urls its rules match on ride inside FHIRPath string literals.
+    """
     names = FoundationNaming.from_naming(config.naming)
     experimental = experimental_for_status(ig_status)
     organisation_unit_naming = OrganisationUnitNaming.from_naming(config.naming)
@@ -322,6 +357,26 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
         ig_status=ig_status,
         experimental=experimental,
     )
+    data_value_set = _ENVIRONMENT.get_template("d2-data-value-set.fsh.jinja").render(
+        names=names,
+        model=DATA_VALUE_SET_MODEL,
+        elements=DATA_VALUE_SET_ELEMENTS,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    aggregate_map = _ENVIRONMENT.get_template("d2-aggregate-map.fsh.jinja").render(
+        names=names,
+        map=AGGREGATE_CONVERSION_MAP,
+        questionnaire_response_definition=_QUESTIONNAIRE_RESPONSE_DEFINITION,
+        period_url=f"{canonical}/StructureDefinition/{names.period_extension_id}",
+        period_iso_sub_extension=PERIOD_ISO_SUB_EXTENSION,
+        attribute_option_combo_url=(f"{canonical}/StructureDefinition/{names.attribute_option_combo_extension_id}"),
+        data_set_system=_identifier_system(config, "DataSet"),
+        organisation_unit_system=_identifier_system(config, "OrgUnit"),
+        attribute_option_combo_system=_identifier_system(config, "CategoryOptionCombo"),
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     capture_server = _ENVIRONMENT.get_template("d2-capture-server.fsh.jinja").render(
         names=names,
         profiles=build_captured_response_profile_declarations(config),
@@ -431,6 +486,18 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             content=responses,
         ),
         FshArtifact(
+            relative_path="foundation/d2-data-value-set.fsh",
+            kind="logical",
+            fsh_name=names.data_value_set_model,
+            content=data_value_set,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-aggregate-map.fsh",
+            kind="instances",
+            fsh_name=names.aggregate_conversion_map,
+            content=aggregate_map,
+        ),
+        FshArtifact(
             relative_path="foundation/d2-generate-operation.fsh",
             kind="instances",
             fsh_name=names.generate_operation,
@@ -443,6 +510,11 @@ def build_foundation_artifacts(config: GenerateConfig, *, ig_status: IgStatus) -
             content=capture_server,
         ),
     ]
+
+
+def _identifier_system(config: GenerateConfig, subject_token: str) -> str:
+    """The DHIS2 identifier system one object kind is named under, as `d2-aliases.fsh` declares it."""
+    return f"{config.identifier_system_base}/id/{IDENTIFIER_SYSTEM_SEGMENTS[subject_token]}"
 
 
 def build_response_profile_declarations(config: GenerateConfig) -> list[ResponseProfileDeclaration]:

@@ -1,15 +1,22 @@
 """Golden tests for the foundation artifacts: the DHIS2 identifier aliases and the D2Period extension."""
 
 from dhis2w_fhir.config import GenerateConfig, NamingConfig
-from dhis2w_fhir.foundation import CAPTURE_SERVER_READ_RESOURCE_TYPES, FoundationNaming, build_foundation_artifacts
+from dhis2w_fhir.foundation import (
+    CAPTURE_SERVER_READ_RESOURCE_TYPES,
+    DATA_VALUE_SET_ELEMENTS,
+    FoundationNaming,
+    build_foundation_artifacts,
+)
 from dhis2w_fhir.period import PERIOD_TYPE_DEFINITIONS
 from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS
 from dhis2w_fhir.status import IgStatus
 
+_CANONICAL = "http://example.org/fhir"
+
 
 def _by_path(config: GenerateConfig, *, ig_status: IgStatus = "draft") -> dict[str, str]:
     """Build the foundation artifacts and index them by relative path."""
-    artifacts = build_foundation_artifacts(config, ig_status=ig_status)
+    artifacts = build_foundation_artifacts(config, _CANONICAL, ig_status=ig_status)
     return {artifact.relative_path: artifact.content for artifact in artifacts}
 
 
@@ -19,8 +26,10 @@ _IDENTIFIER_SYSTEM_COUNT = 26
 
 
 def test_foundation_covers_expected_files() -> None:
-    """The target emits the aliases, the NamingSystems, the fourteen extensions, and the capture contract."""
+    """The aliases, the NamingSystems, the extensions, the capture contract, and the conversion contract."""
     assert set(_by_path(GenerateConfig())) == {
+        "foundation/d2-data-value-set.fsh",
+        "foundation/d2-aggregate-map.fsh",
         "foundation/d2-entity-level.fsh",
         "foundation/d2-aliases.fsh",
         "foundation/d2-naming-systems.fsh",
@@ -814,3 +823,65 @@ def test_the_tracker_capture_names_derive_from_the_prefix_token() -> None:
     assert bare.tracker_enrollment_extension_id == "d2-tracker-enrollment"
     assert bare.tracker_event_response_profile == "D2TrackerEventResponse"
     assert bare.tracker_event_response_profile_id == "d2-tracker-event-response"
+
+
+def test_the_data_value_set_logical_model_states_the_dhis2_aggregate_wire_shape() -> None:
+    """A `kind = logical` StructureDefinition carrying every element the forwarder writes."""
+    content = _by_path(GenerateConfig())["foundation/d2-data-value-set.fsh"]
+
+    assert "Logical: D2DataValueSet" in content
+    assert "Id: d2-data-value-set" in content
+    for element in DATA_VALUE_SET_ELEMENTS:
+        assert f"* {element.path} {element.cardinality} {element.element_type} " in content
+    assert '* dataValues 0..* BackboneElement "Data values"' in content
+    assert '* dataValues.categoryOptionCombo 0..1 string "Category option combo"' in content
+
+
+def test_the_aggregate_conversion_map_targets_the_logical_model_it_is_published_beside() -> None:
+    """The StructureMap reads a QuestionnaireResponse and writes the DHIS2 data value set model."""
+    content = _by_path(GenerateConfig())["foundation/d2-aggregate-map.fsh"]
+
+    assert "Instance: D2AggregateResponseToDataValueSet" in content
+    assert "InstanceOf: StructureMap" in content
+    assert '* id = "d2-aggregate-response-to-data-value-set"' in content
+    assert '* structure[0].url = "http://hl7.org/fhir/StructureDefinition/QuestionnaireResponse"' in content
+    assert "* structure[1].url = Canonical(D2DataValueSet)" in content
+    assert '* group[0].name = "AggregateResponseToDataValueSet"' in content
+    assert '* group[1].name = "ResponseItemToDataValues"' in content
+
+
+def test_the_aggregate_conversion_map_matches_extensions_on_this_projects_own_canonical() -> None:
+    """The urls a rule condition matches on are FHIRPath string literals, so they carry the IG canonical."""
+    artifacts = build_foundation_artifacts(GenerateConfig(), "https://example.test/ig", ig_status="draft")
+    content = next(
+        artifact.content for artifact in artifacts if artifact.relative_path == "foundation/d2-aggregate-map.fsh"
+    )
+
+    assert "url = 'https://example.test/ig/StructureDefinition/d2-period'" in content
+    assert "url = 'https://example.test/ig/StructureDefinition/d2-attribute-option-combo'" in content
+    assert "url = 'iso'" in content
+
+
+def test_the_conversion_contract_names_derive_from_the_prefix_token() -> None:
+    """Both conversion artifacts take the naming prefix, falling back to D2 when it is empty."""
+    custom = FoundationNaming.from_naming(NamingConfig(prefix="Dhis2"))
+    assert custom.data_value_set_model == "Dhis2DataValueSet"
+    assert custom.data_value_set_model_id == "dhis2-data-value-set"
+    assert custom.aggregate_conversion_map == "Dhis2AggregateResponseToDataValueSet"
+    assert custom.aggregate_conversion_map_id == "dhis2-aggregate-response-to-data-value-set"
+    bare = FoundationNaming.from_naming(NamingConfig(prefix=""))
+    assert bare.data_value_set_model == "D2DataValueSet"
+    assert bare.data_value_set_model_id == "d2-data-value-set"
+    assert bare.aggregate_conversion_map == "D2AggregateResponseToDataValueSet"
+    assert bare.aggregate_conversion_map_id == "d2-aggregate-response-to-data-value-set"
+
+
+def test_the_conversion_artifacts_derive_their_publication_state_from_the_ig_status() -> None:
+    """A draft guide publishes both as draft and experimental; an active one as active and not."""
+    draft = _by_path(GenerateConfig(), ig_status="draft")
+    active = _by_path(GenerateConfig(), ig_status="active")
+    for path in ("foundation/d2-data-value-set.fsh", "foundation/d2-aggregate-map.fsh"):
+        assert "#draft" in draft[path]
+        assert "experimental = true" in draft[path]
+        assert "#active" in active[path]
+        assert "experimental = false" in active[path]

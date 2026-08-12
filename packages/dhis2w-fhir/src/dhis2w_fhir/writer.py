@@ -37,7 +37,7 @@ class FshArtifact(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     relative_path: str
-    kind: Literal["aliases", "extension", "terminology-pair", "profile", "instances", "page"]
+    kind: Literal["aliases", "extension", "terminology-pair", "profile", "logical", "instances", "page"]
     fsh_name: str
     content: str
 

@@ -258,6 +258,32 @@ Typed `valueInteger` on an integer item and `valueDecimal` on a decimal
 one; disaggregated cells share their data element's value type, so they
 carry the same bounds.
 
+## Where an aggregate response ends up in DHIS2
+
+The profiles say what a valid submission looks like. Two more artifacts say
+what it *becomes*, for the aggregate kind:
+
+- **`D2DataValueSet`** is a `kind = logical` StructureDefinition over the
+  DHIS2 `/api/dataValueSets` envelope - the data set, the reporting period,
+  and the organisation unit required, the attribute option combo and the
+  completeness date optional, and one repeating data value carrying its data
+  element, its category option combo, and a `string` value. Every DHIS2 data
+  value is a string on the wire whatever its value type, which is why a
+  lexical decimal survives the crossing unchanged.
+- **`D2AggregateResponseToDataValueSet`** is the StructureMap onto it. Two
+  groups: the envelope's facts, then a recursive walk of the item tree
+  writing one data value per answered question, splitting
+  `<dataElement>.<categoryOptionCombo>` out of the link id.
+
+The map is a **contract, not an engine**. Nothing in this project executes
+it, and four of its rules carry `documentation` stating what a transform
+cannot: the data set comes off the *Questionnaire's* DHIS2 identifier rather
+than off the response, the organisation unit needs the published Location
+resolved, the attribute option combo goes through a ConceptMap where the
+guide's concept codes are DHIS2 codes, and the wire value is the whole
+serialisation table. Read those four before building a bridge from the map
+alone.
+
 Next: [Consume the FHIR API](401-consume-the-fhir-api.md) - the running
 server that accepts what this contract describes - and
 [Custom subject types](401-custom-subject-types.md) when the things being

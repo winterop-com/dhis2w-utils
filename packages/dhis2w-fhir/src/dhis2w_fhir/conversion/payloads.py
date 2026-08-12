@@ -71,6 +71,11 @@ from dhis2w_fhir.conversion.values import (
     wall_clock_notes,
     wall_clock_reading,
 )
+from dhis2w_fhir.foundation.schemas import (
+    PERIOD_ISO_SUB_EXTENSION,
+    PERIOD_RANGE_SUB_EXTENSION,
+    PERIOD_TYPE_SUB_EXTENSION,
+)
 from dhis2w_fhir.period import parse_period
 from dhis2w_fhir.resources.examples import derived_seed, synthetic_uid
 
@@ -96,11 +101,6 @@ __all__ = [
     "translate_tracker_event_response",
     "translate_tracker_registration_response",
 ]
-
-#: The sub-extension urls D2Period slices its three facts under, as `d2-period.fsh.jinja` names them.
-PERIOD_ISO_SUB_EXTENSION = "iso"
-PERIOD_TYPE_SUB_EXTENSION = "type"
-PERIOD_RANGE_SUB_EXTENSION = "period"
 
 #: The DHIS2 event status each `QuestionnaireResponse.status` reports as.
 #:

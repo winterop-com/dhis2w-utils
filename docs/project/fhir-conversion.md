@@ -110,15 +110,12 @@ disk.
 **Phase B - lift the contract into the IG.** In order:
 1. **ConceptMaps per terminology family** - shipped for option sets and categories,
    described below.
-2. **Two DHIS2 logical models** (data value set row, tracker event) as
-   `kind=logical` StructureDefinitions - they document the wire faithfully and are a
-   prerequisite for any map.
-3. **StructureMaps QR -> logical model**, scoped honestly: express what FML expresses
-   well, and record what it cannot beside it. CI gate: execute the maps over the golden
-   example QRs with the Java validator and assert the output equals what the Python
-   forwarder produces. If the un-expressible residue is large, pivot to the mapping
-   manifest for the residue and keep the maps for the structural 80% - the gate stays
-   identical either way.
+2. **DHIS2 logical models** as `kind=logical` StructureDefinitions - they document the
+   wire faithfully and are a prerequisite for any map. `D2DataValueSet` (the aggregate
+   envelope) is shipped and described below; the tracker event is the one still owed.
+3. **StructureMaps QR -> logical model**, scoped honestly: express what the language
+   expresses well, and record what it cannot beside it.
+   `D2AggregateResponseToDataValueSet` is shipped, with the CI gate described below.
 4. The reverse maps (logical model -> QR) documenting the existing DHIS2->QR direction,
    held to the same gate against the instance-source examples.
 
@@ -208,6 +205,138 @@ All four DHIS2 identifier namespaces - `{base}/id/option`, `{base}/id/option-cod
 NamingSystems by the `foundation` target and aliased in `d2-aliases.fsh`, so a validator
 meeting one has a definition to resolve.
 
+## Phase B items 2 and 3: the aggregate path, end to end
+
+One conversion is now expressed as FHIR artifacts the guide publishes: an aggregate
+QuestionnaireResponse becoming a DHIS2 data value set. Both artifacts come out of the
+`foundation` target, so they depend on `fhir.toml` alone and every generated guide carries
+them.
+
+### `D2DataValueSet`, the wire shape as a logical model
+
+`foundation/d2-data-value-set.fsh` declares the `/api/dataValueSets` envelope as a
+`kind = logical` StructureDefinition - nine elements, exactly what
+`translate_aggregate_response` writes:
+
+```
+Logical: D2DataValueSet
+Id: d2-data-value-set
+* dataSet 1..1 string "Data set" "..."
+* period 1..1 string "Reporting period" "..."
+* orgUnit 1..1 string "Organisation unit" "..."
+* attributeOptionCombo 0..1 string "Attribute option combo" "..."
+* completeDate 0..1 date "Complete date" "..."
+* dataValues 0..* BackboneElement "Data values" "..."
+* dataValues.dataElement 1..1 string "Data element" "..."
+* dataValues.categoryOptionCombo 0..1 string "Category option combo" "..."
+* dataValues.value 1..1 string "Value" "..."
+```
+
+The three required elements are the three keys DHIS2 stores every data value under; the
+attribute option combo is the fourth key only a data set on a non-default category combo
+carries. Every element is a `string` except the completeness date, because every DHIS2 data
+value is a string on the wire whatever the data element's value type - which is what lets a
+lexical decimal and a DHIS2 option code cross untouched.
+
+The elements are declared once, in Python, as `DATA_VALUE_SET_ELEMENTS`. The FSH template
+renders them and the CI gate reads them back; a test asserts the compiled differential equals
+the declaration, so the published artifact and the checked one cannot drift apart.
+
+### `D2AggregateResponseToDataValueSet`, the map
+
+`foundation/d2-aggregate-map.fsh` publishes the StructureMap from the response profile onto
+that model. Two groups: the envelope, and a recursive one over the item tree.
+
+```
+Instance: D2AggregateResponseToDataValueSet
+InstanceOf: StructureMap
+Usage: #definition
+* structure[0].url = "http://hl7.org/fhir/StructureDefinition/QuestionnaireResponse"
+* structure[0].mode = #source
+* structure[1].url = Canonical(D2DataValueSet)
+* structure[1].mode = #target
+* group[0].name = "AggregateResponseToDataValueSet"
+* group[0].rule[1].name = "period"
+* group[0].rule[1].source[0].context = "response"
+* group[0].rule[1].source[0].element = "extension"
+* group[0].rule[1].source[0].variable = "reportingPeriod"
+* group[0].rule[1].source[0].condition = "url = '<canonical>/StructureDefinition/d2-period'"
+...
+* group[1].name = "ResponseItemToDataValues"
+```
+
+Group one takes the five envelope facts and hands the item tree to group two; group two
+recurses through the section groups and writes one data value per answered question,
+splitting `<dataElement>.<categoryOptionCombo>` out of the link id.
+
+**The authoring form is the load-bearing finding: SUSHI compiles no FHIR Mapping Language.**
+A `.fml` file is ignored wherever it is placed in an IG - `input/maps/`, `input/fsh/`,
+anywhere - and only `.fsh` under `input/fsh` is read. So the map is authored as an
+`Instance:` of StructureMap with its groups and rules written out, which SUSHI compiles to
+the same resource an FML compiler would have produced. The contract a consumer reads is the
+StructureMap resource either way; the syntax it was written in is not part of it.
+
+**Four rules carry documentation because their meaning exceeds what a transform states.**
+This is the FML residue the plan predicted, and it is recorded on the artifact rather than
+in prose beside it:
+
+- `dataSet` is a fact about the *form*, not the response - the `$DHIS2-DS` identifier of the
+  Questionnaire being answered, which an executing engine needs in scope.
+- `orgUnit` is the DHIS2 identifier of the published Location the response is subject to, so
+  the Location registry has to be in scope too; reading the UID off the reference's own id
+  is only correct where the guide names its Locations by DHIS2 id.
+- `attributeOptionCombo` is a coding of the form's own vocabulary, and under
+  `concept_code_source = "code"` the combo's ConceptMap is what turns that code into the UID.
+- `dataValues.value` is the whole wire-serialisation table: a `TRUE_ONLY` question answered
+  false drops the cell, a `MULTI_TEXT` answer is comma-joined, a decimal keeps its lexical
+  form, a coded answer resolves through the question's terminology, a zoned timestamp is read
+  to the wall clock. `dhis2w_fhir.conversion.values` is the reference implementation of it.
+
+`completeDate` carries a fifth note: the substring is the structural claim, and the zone
+arithmetic behind it (BUGS.md #62) is not.
+
+### The CI gate
+
+`packages/dhis2w-fhir/tests/test_fhir_conversion_contract.py` is the gate.
+`tests/data/r4/StructureDefinition-d2-data-value-set.json` is what SUSHI compiled the FSH
+into, committed and never hand-edited. The test reads the shape claims out of that
+differential and holds every data value set the Python forwarder produces from the conversion
+corpus - 142 cells across the two aggregate examples - against them.
+
+**What the gate proves.** The forwarder writes no field the published contract does not
+declare and omits none it declares required; nothing typed single arrives as a list and
+nothing typed repeating arrives as a scalar; every value's JSON type is the one the contract
+states. And the emitted FSH and the compiled artifact are one thing, because the differential
+is asserted equal to the declaration the template renders.
+
+**What the gate does not prove.** It does not execute the StructureMap: no FML engine runs
+here, the map is a contract rather than a runtime, and a full engine execution against these
+responses is explicitly out of scope. It does not grade *values* - the contract states shapes,
+so it cannot tell a correct data element UID from a wrong one; the round trip
+(`test_fhir_conversion_roundtrip.py`) is what grades those, cell for cell, against the DHIS2
+data the examples were built from. And it does not prove DHIS2 accepts the payload; only a
+real instance grades that, which is what the dry run of `d2w fhir forward` is for.
+
+One coverage boundary is asserted outright rather than left silent: the synthetic aggregate
+examples carry no `authored` instant, so no payload of the corpus carries `completeDate`, and
+that element's `date` claim is pinned by a unit check instead.
+
+### What phase B still owes
+
+- **The tracker logical models and maps.** `TrackerEvent` (both event kinds),
+  `TrackerTrackedEntity`, and `TrackerEnrollment` are four more wire shapes and three more
+  maps. The event path is the closer sibling of what shipped; the registration path adds the
+  entity-level split and the two enrollment dates.
+- **The reverse maps.** Logical model -> QR, documenting the DHIS2->QR direction the instance
+  source already performs, held to the same gate against the instance-source examples.
+- **The manifest decision point.** The aggregate map's residue turned out to be four rules,
+  each expressible as a rule carrying documentation rather than as a gap. That is evidence
+  for keeping StructureMaps, not proof: the tracker registration path is where the residue
+  gets its real test, because the entity-level split decides *which of two payloads* an
+  answer lands in, and a transform has no vocabulary for that. If that rule cannot be written
+  as a rule, the language-neutral mapping manifest carries the residue and the maps keep the
+  structural remainder - the gate is identical either way.
+
 ## Why this order
 
 The alternative - author the StructureMaps first and generate the forwarder from them -
@@ -219,8 +348,14 @@ paths, one gate that fails when they disagree.
 
 ## What decision 5.3 now needs from the owner
 
-Only ratification of the phase-B carrier now that phase A has shipped and the FML
-experiment can run against real shapes: StructureMaps-with-residue-manifest versus
+Only ratification of the phase-B carrier: StructureMaps-with-residue-manifest versus
 manifest-only. Both keep the CI gate and the buildpack story identical; the difference is
 how much of the contract is expressed in a standard language versus a project-defined
 document.
+
+The aggregate slice is the first evidence. Every element of that conversion is expressible
+as a StructureMap rule; four of them need documentation stating what the transform cannot,
+and none of them needed an invented extension function. That is a point for keeping the maps.
+The counter-evidence, if it comes, comes from the tracker registration path, where an answer's
+`D2EntityLevel` decides which of two payloads it lands in - and the decision is best made
+after that map is attempted rather than before.

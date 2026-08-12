@@ -1,0 +1,12 @@
+// The DHIS2 aggregate wire shape as a FHIR logical model. It is a description of what
+// `/api/dataValueSets` accepts, not a resource anybody stores: it exists so a StructureMap has a
+// target to name, and so the conversion contract is machine-readable rather than prose.
+Logical: {{ names.data_value_set_model }}
+Id: {{ names.data_value_set_model_id }}
+Title: {{ model.title_literal }}
+Description: {{ model.description_literal }}
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+{% for element in elements %}
+* {{ element.path }} {{ element.cardinality }} {{ element.element_type }} {{ element.short_literal }} {{ element.definition_literal }}
+{% endfor %}

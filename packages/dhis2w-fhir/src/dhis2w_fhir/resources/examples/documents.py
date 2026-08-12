@@ -20,7 +20,12 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.foundation.schemas import FoundationNaming
+from dhis2w_fhir.foundation.schemas import (
+    PERIOD_ISO_SUB_EXTENSION,
+    PERIOD_RANGE_SUB_EXTENSION,
+    PERIOD_TYPE_SUB_EXTENSION,
+    FoundationNaming,
+)
 from dhis2w_fhir.names import StemResolution, flatten_whitespace
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import (
@@ -90,11 +95,6 @@ TRACKER_ENROLLMENT_IDENTIFIER_SEGMENT = "tracker-enrollment"
 
 #: The `QuestionnaireResponse.status` codes R4 admits, which a DHIS2 event status maps onto.
 _ResponseStatusCode = Literal["in-progress", "completed", "amended", "entered-in-error", "stopped"]
-
-#: The sub-extension names D2Period carries, in the order the extension declares them.
-_PERIOD_ISO_SUB_EXTENSION = "iso"
-_PERIOD_TYPE_SUB_EXTENSION = "type"
-_PERIOD_RANGE_SUB_EXTENSION = "period"
 
 #: The character separating the whole part of a decimal from its fraction.
 _DECIMAL_POINT = "."
@@ -382,10 +382,10 @@ def _period_extension(period: PeriodValue, systems: _ExampleSystems) -> Extensio
     return Extension(
         url=systems.period_extension_url,
         extension=[
-            Extension(url=_PERIOD_ISO_SUB_EXTENSION, valueString=period.iso),
-            Extension(url=_PERIOD_TYPE_SUB_EXTENSION, valueCode=period.period_type),
+            Extension(url=PERIOD_ISO_SUB_EXTENSION, valueString=period.iso),
+            Extension(url=PERIOD_TYPE_SUB_EXTENSION, valueCode=period.period_type),
             Extension(
-                url=_PERIOD_RANGE_SUB_EXTENSION,
+                url=PERIOD_RANGE_SUB_EXTENSION,
                 valuePeriod=Period(start=period.start_date.isoformat(), end=period.end_date.isoformat()),
             ),
         ],

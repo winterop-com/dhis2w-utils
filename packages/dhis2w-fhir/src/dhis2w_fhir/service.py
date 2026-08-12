@@ -793,7 +793,9 @@ async def generate_foundation(project: FhirProject, *, reporter: ProgressReporte
 def _emit_foundation(project: FhirProject, *, progress: _StepAnnouncer) -> GenerateReport:
     """Build and sync the foundation artifacts; the one target that reads nothing off the instance."""
     progress.step("foundation", "writing ig/input/fsh/foundation")
-    artifacts = build_foundation_artifacts(project.config.generate, ig_status=project.config.ig.status)
+    artifacts = build_foundation_artifacts(
+        project.config.generate, project.config.ig.canonical, ig_status=project.config.ig.status
+    )
     sync = sync_artifacts(project.fsh_directory, "foundation", artifacts)
     report = GenerateReport(
         project_root=project.project_root,

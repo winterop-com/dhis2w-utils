@@ -497,7 +497,7 @@ def test_capture_page_link_targets_match_the_emitted_artifacts() -> None:
     capture = _pages()["capture.md"]
     foundation = {
         match: artifact.relative_path
-        for artifact in build_foundation_artifacts(GenerateConfig(), ig_status="draft")
+        for artifact in build_foundation_artifacts(GenerateConfig(), _CANONICAL, ig_status="draft")
         for match in re.findall(r"^(?:Id: |\* id = \")([a-z0-9-]+)", artifact.content, re.M)
     }
     for artifact_id in ("d2-aggregate-response", "d2-event-response", "d2-capture-server"):

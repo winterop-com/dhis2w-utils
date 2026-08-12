@@ -119,7 +119,7 @@ _EXPECTED_FSH = (
 
 def _foundation(config: GenerateConfig, *, ig_status: IgStatus = "draft") -> str:
     """The emitted `foundation/d2-attribute-value.fsh` for one config."""
-    artifacts = build_foundation_artifacts(config, ig_status=ig_status)
+    artifacts = build_foundation_artifacts(config, _CANONICAL, ig_status=ig_status)
     return next(
         artifact.content for artifact in artifacts if artifact.relative_path == "foundation/d2-attribute-value.fsh"
     )
