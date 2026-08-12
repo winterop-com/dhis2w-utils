@@ -2106,6 +2106,25 @@ commitment.
   would be its first customer, closing the loop the receipts deliberately do not:
   a receipt is the submission as received, the output leg is what DHIS2 made of it).
 
+- **Tracked entity history.** From a person - or any tracked entity type the
+  screens browse - to their record over time: the enrollments the listing
+  already serves, opened into the events under each with their data values,
+  rendered as the entity's timeline in the capture UI and served through the
+  facade as the output leg's data half's first concrete surface. The reads are
+  entity-scoped throughout (the owner-aware discipline BUGS.md 69 forces), and
+  the ratified enrollment resource (EpisodeOfCare for Patient subjects,
+  decision 5.2) is the FHIR shape the history hangs off. The owner's framing:
+  browse the register, open one entity, get its history.
+- **IPS - the International Patient Summary.** The capstone consumer of the
+  history: assemble the HL7 IPS document (R4, the `hl7.fhir.uv.ips` shapes)
+  for one person from what the instance holds - identity from the Patient
+  projection, enrollments as episodes, event data as the summary's sections
+  where a mapping to IPS section semantics exists, and honest absence
+  everywhere it does not (the projection's no-invented-demographics rule
+  scales to no-invented-clinical-content). Owner-requested; sequenced after
+  tracked entity history, since a summary is a projection of a record the
+  facade must first serve.
+
 - **`d2w fhir push`** - outbound delivery of the generated resources into a real
   FHIR system: transaction bundles against a target server, with the DHIS2
   identifier systems as the reconciliation key.
