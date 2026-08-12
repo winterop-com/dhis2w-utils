@@ -40,6 +40,10 @@ from dhis2w_fhir.r4 import (
     CodeSystemConceptProperty,
     CodeSystemProperty,
     Coding,
+    ConceptMap,
+    ConceptMapGroup,
+    ConceptMapGroupElement,
+    ConceptMapGroupElementTarget,
     Extension,
     Identifier,
     Questionnaire,
@@ -52,6 +56,7 @@ from dhis2w_fhir.r4 import (
 from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
 from dhis2w_fhir.resources.option_sets import (
     code_system_canonical,
+    concept_map_canonical,
     option_set_identity_index,
     value_set_canonical,
 )
@@ -79,14 +84,21 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     DATA_ELEMENT_TERMINOLOGY,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
+    RESOURCE_MAP_EQUIVALENCE,
+    RESOURCE_TYPE_CODE_SYSTEM_URL,
+    RESOURCE_TYPE_VALUE_SET_URL,
     SEARCHABLE_PROPERTY,
     SEARCHABLE_PROPERTY_DESCRIPTION,
     TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
+    TRACKED_ENTITY_TYPE_RESOURCE_MAP_DESCRIPTION,
+    TRACKED_ENTITY_TYPE_RESOURCE_MAP_TITLE,
+    TRACKED_ENTITY_TYPE_TERMINOLOGY,
     UNIQUE_PROPERTY_DESCRIPTION,
     AttributeSearchContext,
     CategoryOptionComboIn,
     FormKind,
     FormKindProfile,
+    PublishedTrackedEntityType,
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
@@ -95,6 +107,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     SupportTerminologyProfile,
     form_subject_type,
     plan_questionnaire_stems,
+    published_tracked_entity_types,
     source_display_name,
     source_title_translations,
 )
@@ -164,15 +177,20 @@ class QuestionnaireDocumentBuild(BaseModel):
 class DataDictionaryDocumentBuild(BaseModel):
     """The support terminology every generated Questionnaire shares, as the CodeSystem/ValueSet pairs it publishes.
 
-    Both lists are empty when the forms reference nothing of that kind: a run over forms that
+    Every list is empty when the forms reference nothing of that kind: a run over forms that
     disaggregate no question publishes the data-element pair alone, exactly as the FSH target
     writes only the file it has content for.
+
+    `concept_maps` holds the one map the dictionary publishes beside a pair: the resource type each
+    tracked entity type's registrations are published as, which rides with the type vocabulary the
+    way the FSH target writes both into one file.
     """
 
     model_config = ConfigDict(frozen=True)
 
     code_systems: list[CodeSystem] = Field(default_factory=list)
     value_sets: list[ValueSet] = Field(default_factory=list)
+    concept_maps: list[ConceptMap] = Field(default_factory=list)
 
 
 class _QuestionnaireSystems(BaseModel):
@@ -361,6 +379,21 @@ def build_data_dictionary_documents(
                 search_contexts=search_context_declarations(referenced),
             )
         )
+    published_types = published_tracked_entity_types(sources, config.tracked_entity_types)
+    if published_types:
+        pairs.append(
+            _support_pair(
+                _tracked_entity_type_concepts(published_types, config.locales),
+                TRACKED_ENTITY_TYPE_TERMINOLOGY,
+                config,
+                canonical,
+                code_system_name=names.tracked_entity_type_code_system,
+                code_system_id=names.tracked_entity_type_code_system_id,
+                value_set_name=names.tracked_entity_type_value_set,
+                value_set_id=names.tracked_entity_type_value_set_id,
+                ig_status=ig_status,
+            )
+        )
     if referenced.option_combos:
         pairs.append(
             _support_pair(
@@ -379,6 +412,69 @@ def build_data_dictionary_documents(
     return DataDictionaryDocumentBuild(
         code_systems=[pair.code_system for pair in pairs],
         value_sets=[pair.value_set for pair in pairs],
+        concept_maps=(
+            [_tracked_entity_type_resource_map(published_types, names, canonical, ig_status=ig_status)]
+            if published_types
+            else []
+        ),
+    )
+
+
+def _tracked_entity_type_concepts(
+    published: list[PublishedTrackedEntityType], locales: list[str]
+) -> list[CodeSystemConcept]:
+    """One concept per tracked entity type the run publishes, displayed under the name the instance holds."""
+    return [
+        CodeSystemConcept(
+            code=entry.uid,
+            display=flatten_whitespace(entry.name),
+            property=_code_property(entry.code) or None,
+            designation=_designations(entry.translations, locales),
+        )
+        for entry in published
+    ]
+
+
+def _tracked_entity_type_resource_map(
+    published: list[PublishedTrackedEntityType],
+    names: QuestionnaireNaming,
+    canonical: str,
+    *,
+    ig_status: IgStatus,
+) -> ConceptMap:
+    """Build the map taking every published tracked entity type onto the FHIR resource type it is published as.
+
+    One group, sourced from the type CodeSystem and targeting the R4 resource-type code system, one
+    row per published type. The row's target is what `tracked_entity_type_subject_type` resolved -
+    the same call the form's `subjectType` came out of - and its display is the instance's own name,
+    so a consumer holding a type UID reads both the resource and what the instance calls the thing.
+    """
+    return ConceptMap(
+        id=names.tracked_entity_type_resource_map_id,
+        url=concept_map_canonical(canonical, names.tracked_entity_type_resource_map_id),
+        name=names.tracked_entity_type_resource_map,
+        title=TRACKED_ENTITY_TYPE_RESOURCE_MAP_TITLE,
+        description=TRACKED_ENTITY_TYPE_RESOURCE_MAP_DESCRIPTION,
+        status=ig_status,
+        experimental=experimental_for_status(ig_status),
+        sourceCanonical=value_set_canonical(canonical, names.tracked_entity_type_value_set_id),
+        targetCanonical=RESOURCE_TYPE_VALUE_SET_URL,
+        group=[
+            ConceptMapGroup(
+                source=code_system_canonical(canonical, names.tracked_entity_type_code_system_id),
+                target=RESOURCE_TYPE_CODE_SYSTEM_URL,
+                element=[
+                    ConceptMapGroupElement(
+                        code=entry.uid,
+                        display=flatten_whitespace(entry.name),
+                        target=[
+                            ConceptMapGroupElementTarget(code=entry.resource_type, equivalence=RESOURCE_MAP_EQUIVALENCE)
+                        ],
+                    )
+                    for entry in published
+                ],
+            )
+        ],
     )
 
 
@@ -763,7 +859,9 @@ def _support_pair(
             content="complete",
             count=len(concepts),
             valueSet=value_set_url,
-            property=_property_declarations(concepts, terminology, config, decomposition, search_contexts),
+            # None rather than an empty list: a pair whose concepts all carry a bare code declares
+            # no property, and the FSH template writes no property block at all for that pair.
+            property=_property_declarations(concepts, terminology, config, decomposition, search_contexts) or None,
             concept=concepts,
         ),
         value_set=ValueSet(

@@ -1,0 +1,17 @@
+{
+  "resourceType": "ValueSet",
+  "status": "draft",
+  "name": "D2TET_VS",
+  "id": "d2-tet-vs",
+  "title": "DHIS2 tracked entity types",
+  "description": "DHIS2 tracked entity types the generated forms register an entity as. Concept codes are DHIS2 tracked entity type UIDs.",
+  "url": "http://example.org/fhir/ValueSet/d2-tet-vs",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/CodeSystem/d2-tet-cs"
+      }
+    ]
+  }
+}

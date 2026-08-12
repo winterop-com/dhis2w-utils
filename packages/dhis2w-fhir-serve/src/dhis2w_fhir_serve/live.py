@@ -20,10 +20,11 @@ comes out of a JSON builder here - the foundation terminology included. The form
 period-type pairs backing the D2FormType and D2Period bindings, and the organisation-unit level and
 whole-selection pairs, are declared inside FSH files a live run never compiles, so each has a JSON
 twin that renders the same Python vocabulary the template renders: a client resolving a served
-form's form-type code system gets the code system, not a 404. All three ConceptMap families -
-option sets, categories, and the attribute option combos an aggregate form is keyed by - ride along
-with the terminology they map, so a live store serves the same reads, searches, and `$translate`
-answers over the maps that a compiled one does. The IG's own CapabilityStatement is still named by
+form's form-type code system gets the code system, not a 404. All four ConceptMap families -
+option sets, categories, the attribute option combos an aggregate form is keyed by, and the
+resource type each tracked entity type is registered as - ride along with the terminology they map,
+so a live store serves the same reads, searches, and `$translate` answers over the maps that a
+compiled one does. The IG's own CapabilityStatement is still named by
 `/metadata`, which `instantiates` it by canonical - a URL derived from config, needing no artifact
 to state.
 """
@@ -65,7 +66,7 @@ if TYPE_CHECKING:
 
     from dhis2w_client import Dhis2Client
     from dhis2w_fhir.config import FhirProject, GenerateConfig
-    from dhis2w_fhir.r4 import CodeSystem, Questionnaire, ValueSet
+    from dhis2w_fhir.r4 import CodeSystem, ConceptMap, Questionnaire, ValueSet
     from dhis2w_fhir.resources.organisation_units import OrganisationUnitTerminologyBuild
     from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
     from dhis2w_fhir.status import IgStatus
@@ -163,10 +164,11 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
             )
         ),
     )
-    documents: list[CodeSystem | Questionnaire | ValueSet] = [
+    documents: list[CodeSystem | ConceptMap | Questionnaire | ValueSet] = [
         *questionnaires.questionnaires,
         *data_dictionary.code_systems,
         *data_dictionary.value_sets,
+        *data_dictionary.concept_maps,
         *foundation_terminology.code_systems,
         *foundation_terminology.value_sets,
         *[code_system for build in organisation_unit_terminology for code_system in build.code_systems],
@@ -208,7 +210,7 @@ def _organisation_unit_terminology(
     return tuple(builds)
 
 
-def _document(resource: CodeSystem | Questionnaire | ValueSet) -> dict[str, Any]:
+def _document(resource: CodeSystem | ConceptMap | Questionnaire | ValueSet) -> dict[str, Any]:
     """One built resource as the wire document the facade serves, aliases applied and absent elements dropped."""
     return resource.model_dump(mode="json", by_alias=True, exclude_none=True)
 

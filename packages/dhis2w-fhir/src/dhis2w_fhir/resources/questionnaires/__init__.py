@@ -52,7 +52,7 @@ from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_tran
 from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
-from dhis2w_fhir.resources.option_sets import option_set_identity_index
+from dhis2w_fhir.resources.option_sets import code_system_canonical, option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
@@ -60,14 +60,21 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     DATA_ELEMENT_TERMINOLOGY,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
+    RESOURCE_MAP_EQUIVALENCE,
+    RESOURCE_TYPE_CODE_SYSTEM_URL,
+    RESOURCE_TYPE_VALUE_SET_URL,
     SEARCHABLE_PROPERTY_DESCRIPTION,
     TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY,
+    TRACKED_ENTITY_TYPE_RESOURCE_MAP_DESCRIPTION,
+    TRACKED_ENTITY_TYPE_RESOURCE_MAP_TITLE,
+    TRACKED_ENTITY_TYPE_TERMINOLOGY,
     UNIQUE_PROPERTY_DESCRIPTION,
     AttributeSearchContext,
     CategoryOptionComboIn,
     FormKind,
     FormKindProfile,
     NumericBounds,
+    PublishedTrackedEntityType,
     QuestionnaireItemIn,
     QuestionnaireNaming,
     QuestionnaireSourceIn,
@@ -76,9 +83,11 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     SupportTerminologyProfile,
     form_subject_type,
     plan_questionnaire_stems,
+    published_tracked_entity_types,
     source_display_name,
     source_program,
     source_title_translations,
+    unmapped_tracked_entity_type_notes,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, FshBuild
@@ -457,6 +466,33 @@ class _SupportConcept(BaseModel):
     """The object's NAME translations, which render the concept display in each configured locale."""
 
 
+class _SupportResourceMapping(BaseModel):
+    """One published tracked entity type as a row of the resource map: the concept, and the resource it is."""
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    display_literal: str
+    resource_type: str
+
+
+class _SupportResourceMap(BaseModel):
+    """The ConceptMap taking one support vocabulary's concepts onto the FHIR resource types they stand for."""
+
+    model_config = ConfigDict(frozen=True)
+
+    fsh_name: str
+    concept_map_id: str
+    value_set: str
+    title_literal: str
+    description_literal: str
+    source_url: str
+    target_code_system_url: str
+    target_value_set_url: str
+    equivalence: str
+    mappings: list[_SupportResourceMapping] = Field(default_factory=list)
+
+
 class _SupportTerminologyView(BaseModel):
     """A support CodeSystem/ValueSet pair over the objects the generated questionnaires reference."""
 
@@ -478,6 +514,8 @@ class _SupportTerminologyView(BaseModel):
     searchable_declarations: list[_SupportBooleanDeclaration] = Field(default_factory=list)
     category_declarations: list[_SupportCategoryDeclaration] = Field(default_factory=list)
     concepts: list[_SupportConcept] = Field(default_factory=list)
+    resource_map: _SupportResourceMap | None = None
+    """The ConceptMap published beside the pair, on the one pair whose concepts stand for a resource type."""
 
     @property
     def experimental(self) -> bool:
@@ -590,6 +628,12 @@ def build_questionnaire_artifacts(
         build.artifacts.append(_data_element_terminology(referenced.data_elements, names, config, ig_status=ig_status))
     if referenced.tracked_entity_attributes:
         build.artifacts.append(_tracked_entity_attribute_terminology(referenced, names, config, ig_status=ig_status))
+    published_types = published_tracked_entity_types(sources, config.tracked_entity_types)
+    if published_types:
+        build.artifacts.append(
+            _tracked_entity_type_terminology(published_types, names, config, canonical, ig_status=ig_status)
+        )
+    build.notes.extend(unmapped_tracked_entity_type_notes(published_types))
     if referenced.option_combos:
         build.artifacts.append(
             _option_combo_terminology(
@@ -1155,6 +1199,62 @@ def _tracked_entity_attribute_terminology(
     )
 
 
+def _tracked_entity_type_terminology(
+    published: list[PublishedTrackedEntityType],
+    names: QuestionnaireNaming,
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    ig_status: IgStatus,
+) -> FshArtifact:
+    """Build `data-dictionary/tracked-entity-types.fsh`: the type vocabulary plus its resource map.
+
+    The pair is the twin of the attribute pair one file over - the same `dhis2-code` property, the
+    same designations under `[generate] locales` - over the objects the forms are *about* rather
+    than the ones they ask. The ConceptMap in the same file is what makes the resource each type
+    is published as readable off the guide: `[generate.tracked_entity_types]` states only the
+    exceptions, so a consumer holding a type UID would otherwise have to hold this project's
+    `fhir.toml` to know whether it is a `Patient`.
+    """
+    concepts = [
+        _SupportConcept(
+            uid=entry.uid,
+            display_literal=quote(entry.name),
+            code_literal=quote(entry.code) if entry.code else None,
+            designations=name_translations(entry.translations, config.locales),
+        )
+        for entry in published
+    ]
+    return _support_terminology_artifact(
+        concepts,
+        TRACKED_ENTITY_TYPE_TERMINOLOGY,
+        config,
+        file_stem="tracked-entity-types",
+        code_system=names.tracked_entity_type_code_system,
+        code_system_id=names.tracked_entity_type_code_system_id,
+        value_set=names.tracked_entity_type_value_set,
+        value_set_id=names.tracked_entity_type_value_set_id,
+        ig_status=ig_status,
+        resource_map=_SupportResourceMap(
+            fsh_name=names.tracked_entity_type_resource_map,
+            concept_map_id=names.tracked_entity_type_resource_map_id,
+            value_set=names.tracked_entity_type_value_set,
+            title_literal=quote(TRACKED_ENTITY_TYPE_RESOURCE_MAP_TITLE),
+            description_literal=quote(TRACKED_ENTITY_TYPE_RESOURCE_MAP_DESCRIPTION),
+            source_url=code_system_canonical(canonical, names.tracked_entity_type_code_system_id),
+            target_code_system_url=RESOURCE_TYPE_CODE_SYSTEM_URL,
+            target_value_set_url=RESOURCE_TYPE_VALUE_SET_URL,
+            equivalence=RESOURCE_MAP_EQUIVALENCE,
+            mappings=[
+                _SupportResourceMapping(
+                    uid=entry.uid, display_literal=quote(entry.name), resource_type=entry.resource_type
+                )
+                for entry in published
+            ],
+        ),
+    )
+
+
 def search_context_declarations(referenced: ReferencedObjects) -> list[AttributeSearchContext]:
     """Every context the run publishes a searchability answer for, once each, in context-UID order.
 
@@ -1239,6 +1339,7 @@ def _support_terminology_artifact(
     ig_status: IgStatus,
     decomposition: CategoryDecomposition | None = None,
     search_contexts: list[AttributeSearchContext] | None = None,
+    resource_map: _SupportResourceMap | None = None,
 ) -> FshArtifact:
     """Render one data-dictionary pair through the template every support pair shares."""
     carried = {
@@ -1277,6 +1378,7 @@ def _support_terminology_artifact(
             for declaration in declarations
         ],
         concepts=concepts,
+        resource_map=resource_map,
     )
     return FshArtifact(
         relative_path=f"{DATA_DICTIONARY_DIRECTORY}/{file_stem}.fsh",

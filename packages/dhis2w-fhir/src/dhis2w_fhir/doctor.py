@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from dhis2w_client import Dhis2Client
     from dhis2w_core.progress import ProgressReporter
 
+    from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import ForwardReport
 
 
@@ -297,6 +298,25 @@ def grade(phase: DoctorPhase, evidence: str, findings: Sequence[DoctorFinding]) 
     else:
         outcome = DoctorOutcome.PASSED
     return PhaseOutcome(outcome=outcome, evidence=evidence, findings=_capped_findings(phase, findings))
+
+
+def generate_findings(notes: Sequence[GenerateNote]) -> list[DoctorFinding]:
+    """Every note one generate run raised, as the findings the generate phase reports.
+
+    A note is a decision the emitters took against this instance's metadata - a form reshaped, a
+    code fallen back to a UID, several tracked entity types left to the default resource - so the
+    phase reports all of them and none of them breaks the run. The projection lives here rather
+    than inline so a note's wording is what a test of the finding reads.
+    """
+    return [
+        DoctorFinding(
+            phase=DoctorPhase.GENERATE,
+            severity="warning",
+            subject=note.category.value,
+            detail=note.message,
+        )
+        for note in notes
+    ]
 
 
 def grade_capture(captured: Sequence[_CaptureOutcome]) -> PhaseOutcome:
@@ -750,15 +770,7 @@ class _DoctorRun:
         ]
         written = sum(len(outcome.written_files) for outcome in outcomes)
         notes = [note for outcome in outcomes for note in outcome.notes]
-        findings = [
-            DoctorFinding(
-                phase=DoctorPhase.GENERATE,
-                severity="warning",
-                subject=note.category.value,
-                detail=note.message,
-            )
-            for note in notes
-        ]
+        findings = generate_findings(notes)
         evidence = f"{written:,} file(s) across {len(outcomes)} target(s), {len(notes):,} note(s)"
         self._record_graded(DoctorPhase.GENERATE, grade(DoctorPhase.GENERATE, evidence, findings), started)
         return True
