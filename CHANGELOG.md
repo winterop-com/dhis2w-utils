@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.6.0 — 2026-08-12
+
 - **Who the instance holds, a page at a time - and one table stating how much of that is offered** (2026-08-11). Identifier search answers for a person somebody can already name. `GET /Patient` carrying no parameter at all is the other question - who is in here - and it is answered as the register paged rather than as a search that matched nothing, because "no criteria" against a facade with people behind it has an honest answer and an empty Bundle is not it.
 
     **Paging is `_count` and `page`.** `_count` is R4's page size, defaulting to `[serve.patients] page_size` and clamped to `page_size_limit` rather than refused - a client that asked for five thousand people should be handed a hundred and a link, not an error. `page` is an opaque token: the listing spans every tracked entity type the project treats as people and DHIS2 pages each type's records on its own, so one page of this listing sits part-way through several of the instance's own cursors at once, and there is no offset for a client to do arithmetic on. `self`, `next`, and `previous` are what a client follows - no `previous` on the first page, no `next` on the last, so the end of the listing is a missing link rather than an empty page somebody has to ask for to discover. `total` rides only where the instance's own answer carried a count; where it did not, the element is absent rather than guessed at or computed by walking every page, because an invented denominator is a worse answer than none.
@@ -364,6 +366,8 @@
     **Two channels, one rule.** Tables, notes, hints, and progress are narration and go to stderr; stdout carries the `--json` payload and nothing else, so `d2w --json fhir generate > report.json` is a clean document while the terminal still shows what ran. `--json` implies `--no-progress`: a JSON run builds no reporter at all, and stderr stays silent.
 
     **The flags say what they do.** `d2w fhir init --event-program <uid>` seeds the event-program table (matching `--data-set` and `--tracker-program`), and `--refresh` refuses any scaffold-content flag by name instead of silently ignoring it - a refresh reads identity off the project's own `fhir.toml`, which it never writes. `d2w fhir generate load-set --output-dir DIR` writes the corpus. `d2w fhir validate --output-dir DIR` names a **directory**, created if absent, holding `fhir-validate-report.md` / `.csv` / `.pdf`; `--details` lists the info findings individually; `--fail`/`--no-fail` is a pair, `--fail` being the default, and `--no-fail` drops the red `N error(s) found` line with the exit code. `--status` and `--code-source` are enumerated, so `--help` lists the choices and a wrong value is a usage error naming the flag. `d2w fhir serve` carries no `--profile` of its own - the root `d2w -p` is the one place a profile is named - and `--live` resolves it before the `starting <root> on http://host:port (ctrl-c to stop)` banner, so an unknown profile fails as a failure rather than under a line that already claimed the server was up.
+
+## 1.5.0 — 2026-08-08
 
 - **`d2w fhir serve`: the generated IG runs as a FHIR read and capture facade** (2026-08-08). The guide states what a capture client sends; this is a server that accepts it. One verb over an existing project, shipped as a workspace member of its own - `dhis2w-fhir-serve`, installed by the `dhis2w-cli[serve]` extra, so an install that only generates FSH stays free of FastAPI and uvicorn and the command guards its import with an install instruction rather than an `ImportError`. Two modes over the same routes: the default loads the compiled `ig/fsh-generated/resources` merged with the predefined `ig/input/resources/{registry,terminology,categories}` tree SUSHI never re-emits, while `--live` builds the same read set straight off a DHIS2 instance through one client opened during startup and closed before the first request arrives - so no request path ever holds a DHIS2 connection. `GET /metadata` answers a `kind #instance` CapabilityStatement that `instantiates` the IG's own `D2CaptureServer` and narrows it to the types this store actually holds; `GET /{type}/{id}` answers the resource byte-faithfully, as the project published it; `GET /{type}?_id&url&identifier` answers a searchset Bundle whose `self` link echoes only the parameters applied, so `identifier={base}/id/program|<uid>` selects one program's stages against a running server exactly as the published guide documents it. A resource type outside the served set is refused as not supported rather than as not found, and every failure - raised, routed, or unexpected - answers as an OperationOutcome in `application/fhir+json`.
 
@@ -781,7 +785,6 @@ under "Session-cookie auth: follow-ups" and the release-blocking checks settle.
   sharing settings (#405).
 
 ## 1.0.0.dev1
-
 
 Development snapshot. Not a published release — no tag, no PyPI upload.
 
