@@ -753,6 +753,12 @@ under either setting - that is ambiguity, not leniency.
 **Question.** Alongside the subject resource, does a tracker enrollment map to
 `EpisodeOfCare` or to `CarePlan`?
 
+The working paper behind this decision is
+[The enrollment resource](fhir-enrollment-resource.md): the requirement set, both
+candidates measured element by element against R4 4.0.1, what OpenMRS, the DHIS2 FHIR
+adapter, and the WHO Antenatal Care guide each did with the same question, and a
+recommendation with its first slice. The owner's call still lands here.
+
 **Settled: which resource type the subject is, is the project's to say.** A DHIS2
 tracked entity type is not always a person - buildings, herds, water points, and
 equipment are real tracked entity types - so `[generate.tracked_entity_types]` maps a
