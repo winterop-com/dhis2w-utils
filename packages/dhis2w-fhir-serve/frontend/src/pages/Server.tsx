@@ -19,10 +19,11 @@ import { declaredOperations } from '@/lib/fhir'
  *
  * The CapabilityStatement is the facade's actual contract - it has no OpenAPI
  * document, on purpose - so this page is the honest answer to "what can I do
- * against this thing". It states the declared operations (`$translate` when the
- * store holds ConceptMaps, `$generate` when it holds Questionnaires) and the
- * interactions and search parameters per resource type, because both are
- * conditional on what the project actually published.
+ * against this thing". It states the declared operations - each on the resource
+ * type whose URL answers it, `$generate` on Questionnaire and `$translate` on
+ * ConceptMap, and each only when the store holds that type - and the interactions
+ * and search parameters per resource type, because both are conditional on what
+ * the project actually published.
  */
 export function Server() {
     const { reachability, capability, checking } = useServerStatus()

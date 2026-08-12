@@ -6,11 +6,12 @@ phases here check their **shape** and nothing about their existence - which is t
 facade holding no instance data can say. The tests below hold that line in both directions: a
 malformed identifier is refused, and a perfectly-shaped one nobody has ever seen is accepted.
 
-Two things are deliberately not checked, and each has a test saying so. Uniqueness: a `unique`
+Two things are deliberately not refused, and each has a test saying so. Uniqueness: a `unique`
 tracked entity attribute is a business identifier, and only the instance knows whether the value is
 taken - DHIS2 refuses the duplicate at import, and this server stores the receipt. And the incident
-date: `D2IncidentAt` is 0..1 and the compiled Questionnaire publishes no statement of whether the
-program displays one, so a response is accepted with it and without it.
+date: `D2IncidentAt` is 0..1, so a response is accepted with it and without it - though a
+registration leaving it out where the form declares its program collects one is warned about, in
+the words DHIS2 will answer that import with.
 """
 
 from __future__ import annotations
@@ -27,12 +28,14 @@ from dhis2w_fhir_serve.capture import (
     ValidatedCapture,
     validate_response,
 )
-from dhis2w_fhir_serve.store import ResourceStore
+from dhis2w_fhir_serve.store import ResourceStore, StoreEntry
 from fixture_project import (
     CAPTURE_CANONICAL,
+    COLLECTS_INCIDENT_DATE_EXTENSION,
     REGISTRATION_CODED_ATTRIBUTE,
     REGISTRATION_DATE_ATTRIBUTE,
     REGISTRATION_PROGRAM_UID,
+    REGISTRATION_QUESTIONNAIRE_BODY,
     REGISTRATION_UNIQUE_ATTRIBUTE,
     SEX_CODE_SYSTEM,
 )
@@ -234,7 +237,7 @@ def test_a_registration_carrying_an_incident_date_is_accepted(
     capture_naming: CaptureNaming,
     capture_store: ResourceStore,
 ) -> None:
-    """The compiled form does not say whether the program displays one, so both answers are valid."""
+    """The extension is 0..1 whatever the form declares, so a carried date is accepted either way."""
     body = _registration()
     body["extension"].insert(3, {"url": INCIDENT_AT_URL, "valueDateTime": "2026-07-01T00:00:00Z"})
 
@@ -248,10 +251,46 @@ def test_a_registration_carrying_no_incident_date_is_accepted(
     capture_naming: CaptureNaming,
     capture_store: ResourceStore,
 ) -> None:
-    """`D2IncidentAt` is 0..1, and a server that cannot read the program's rule does not invent one."""
+    """The fixture form declares its program collects none, so leaving the date out is simply right."""
     accepted = _accept(_registration(), capture_indexes, capture_naming, capture_store)
 
     assert accepted.warnings == ()
+
+
+def test_a_registration_missing_the_incident_date_its_form_declares_is_warned_about(
+    capture_naming: CaptureNaming,
+    capture_store: ResourceStore,
+) -> None:
+    """The gap is noted, not refused: the profile publishes 0..1, and DHIS2 is what answers E1023."""
+    collecting_canonical = f"{CAPTURE_CANONICAL}/Questionnaire/PrAncCare02"
+    body = {
+        **REGISTRATION_QUESTIONNAIRE_BODY,
+        "id": "PrAncCare02",
+        "url": collecting_canonical,
+        "extension": [
+            {**extension, "valueBoolean": True} if extension["url"] == COLLECTS_INCIDENT_DATE_EXTENSION else extension
+            for extension in REGISTRATION_QUESTIONNAIRE_BODY["extension"]
+        ],
+    }
+    store = ResourceStore(
+        entries=(
+            *capture_store.entries,
+            StoreEntry(
+                resource_type="Questionnaire",
+                resource_id="PrAncCare02",
+                canonical_url=collecting_canonical,
+                source="test",
+                body=body,
+            ),
+        )
+    )
+    registration = _registration()
+    registration["questionnaire"] = collecting_canonical
+
+    accepted = _accept(registration, CaptureIndexCache(), capture_naming, store)
+
+    assert [warning.severity for warning in accepted.warnings] == ["warning"]
+    assert "E1023" in _diagnostics(accepted.warnings)
 
 
 def test_a_malformed_incident_date_is_refused(

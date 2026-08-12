@@ -44,7 +44,14 @@ means a generated stage response is a function of `(questionnaire, store, spool,
 same seed against the same spool state produces the same bytes, and running `d2w fhir forward` between
 two calls can move which pair is adopted, because a forwarded registration is one DHIS2 already holds.
 
-Three facts a compiled Questionnaire does not carry, and how they are decided here:
+A generated registration dates the enrollment it mints, and dates the incident that enrollment follows
+exactly when the form says its program collects one. That is read off the form's own
+`D2CollectsIncidentDate` declaration through the capture index, so a compiled store and a `--live`
+store generate the same envelope for the same program: DHIS2 refuses a registration missing the
+incident date of a program that collects one with `E1023`, and the declaration is what keeps a
+generated response postable in both modes.
+
+Two facts a compiled Questionnaire does not carry, and how they are decided here:
 
 * **The data set's period type.** A generated aggregate response needs a DHIS2 reporting period, and
   the compiled form says nothing about which type its data set reports on. The rule is: the period
@@ -53,13 +60,6 @@ Three facts a compiled Questionnaire does not carry, and how they are decided he
   and `Monthly` when the store holds no such example (which is every `--live` store, since a live
   build serves the read set and no examples). The response always carries the newest *completed*
   period of whichever type was decided, so the value moves with the calendar and nothing else.
-* **Whether a tracker program displays an incident date.** `D2IncidentAt` is 0..1 on the
-  registration contract, and DHIS2's `displayIncidentDate` never reaches the compiled Questionnaire -
-  it is a fact about the program, and the form publishes no slot for it. The rule mirrors the period
-  type exactly: the incident date is generated when a served example response answering the same
-  questionnaire carries one, and left off when none does. Both directions are honest - an enrollment
-  date is always generated because the contract requires one, and an incident date is generated only
-  where the guide itself shows one, which is the only statement the store makes about the program.
 * **`TRUE_ONLY` versus `BOOLEAN`.** The emitter answers both DHIS2 value types as a `boolean` item,
   so a generated answer to either is a random `true` or `false`. A `TRUE_ONLY` data element only ever
   holds `true` in DHIS2, and a generated `false` for one is a value the form admits but the instance
@@ -237,7 +237,6 @@ def generate_response(
         seed=seed,
         window=window,
         location_id=_capture_location_id(index, store, seed),
-        incident_date_shown=resolves_incident_date(index, naming, store),
         adopted_pair=adopted_tracker_pair(index, naming, store, spool),
     )
     return generator.build(questionnaire, period)
@@ -282,9 +281,6 @@ class _Generator(BaseModel):
     seed: int
     window: DateWindow
     location_id: str
-    incident_date_shown: bool = False
-    """Whether a served example of this form carries an incident date, which is what decides generating one."""
-
     adopted_pair: TrackerPair | None = None
     """The spooled registration's pair a generated stage response answers against, or None to mint one."""
 
@@ -345,7 +341,7 @@ class _Generator(BaseModel):
             tracked_entity_uid=tracked_entity_uid,
             enrollment_uid=enrollment_uid,
             enrolled_at=self._date_time(),
-            incident_at=self._date_time() if self.incident_date_shown else None,
+            incident_at=self._date_time() if self.index.collects_incident_date else None,
         )
 
     def _extensions(self, period: PeriodValue | None, tracker: _TrackerContext | None) -> list[Extension]:
@@ -717,31 +713,6 @@ def resolve_period_type(canonical: str, naming: CaptureNaming, store: ResourceSt
         if declared in PERIOD_TYPE_NAMES:
             return declared
     return DEFAULT_PERIOD_TYPE
-
-
-def resolves_incident_date(index: CaptureIndex, naming: CaptureNaming, store: ResourceStore) -> bool:
-    """Decide whether a generated registration response dates the incident its enrollment follows.
-
-    The compiled Questionnaire does not carry the program's `displayIncidentDate`, so the rule is
-    the one the period type follows: a served example response answering the same form is the
-    guide's own statement about the program, and an incident date is generated exactly where one
-    of those carries it. A store holding no such example - which is every `--live` store - generates
-    none, because `D2IncidentAt` is 0..1 and a response leaving it off is a complete response.
-    """
-    if index.form_kind != _REGISTRATION_FORM_KIND:
-        return False
-    for entry in store.entries:
-        if entry.resource_type != RESPONSE_RESOURCE_TYPE:
-            continue
-        try:
-            example = QuestionnaireResponse.model_validate(entry.body)
-        except ValidationError:
-            continue
-        if example.questionnaire != index.canonical:
-            continue
-        if any(extension.url == naming.incident_at_url for extension in example.extension or []):
-            return True
-    return False
 
 
 def _declared_period_type(example: QuestionnaireResponse, naming: CaptureNaming) -> str | None:

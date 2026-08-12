@@ -40,7 +40,6 @@ from dhis2w_fhir.names import (
     is_valid_fhir_code,
     join_id_tokens,
     join_name_segments,
-    page_string,
     resolve_identity_stems,
 )
 from dhis2w_fhir.r4 import (
@@ -427,9 +426,9 @@ def _narrative(
             Identifier(system=systems.identifier_system, value=combo.uid),
             Identifier(system=systems.code_identifier_system, value=code_or_uid(combo.code, combo.uid)),
         ],
-        title=page_string(combo.name),
+        title=flatten_whitespace(combo.name),
         title_element=translated_element(name_translations(combo.translations, config.locales)),
-        description=page_string(
+        description=flatten_whitespace(
             f"DHIS2 attribute option combos of category combo {combo.name} ({combo.uid}). A data set on this "
             f"combo keys every value it holds by one of them. Concept codes are DHIS2 {code_kind}."
         ),
@@ -455,9 +454,9 @@ def _build_concept_map(
         url=systems.concept_map_url(identity.concept_map_id),
         identifier=Identifier(system=systems.identifier_system, value=combo.uid),
         name=identity.concept_map_name,
-        title=page_string(combo.name),
+        title=flatten_whitespace(combo.name),
         title_element=translated_element(name_translations(combo.translations, config.locales)),
-        description=page_string(
+        description=flatten_whitespace(
             f"DHIS2 category combo {combo.name} ({combo.uid}). Every concept of {identity.code_system_name} "
             "mapped to its DHIS2 category option combo UID and, where the combo carries one, its DHIS2 "
             "category option combo code."

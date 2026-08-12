@@ -73,8 +73,12 @@ TRACKED_ENTITY_FIELDS = (
 #: an identifier lookup wants the people, not how many the instance holds.
 TOTAL_PAGES_PARAMETER = "totalPages"
 
-#: The projection a page of the listing asks for when it only needs to know how many pages there are.
+#: The projection a page of the listing asks for when it only needs a number off the pager.
 _COUNT_ONLY_FIELDS = "trackedEntity"
+
+#: The page size a count-only call asks for: the pager states the count whatever the page holds,
+#: so one row is the smallest page DHIS2 will build to answer it.
+_COUNT_ONLY_PAGE_SIZE = 1
 
 
 class TrackedEntitiesPager(BaseModel):
@@ -191,6 +195,35 @@ async def count_tracked_entity_pages(client: Dhis2Client, *, tracked_entity_type
         raise
     pager = TrackedEntitiesPage.model_validate(raw).pager
     return 0 if pager is None or pager.pageCount is None else pager.pageCount
+
+
+async def count_tracked_entities(client: Dhis2Client, *, tracked_entity_type_uid: str) -> int | None:
+    """How many people one tracked entity type holds, asked without carrying any of them back.
+
+    The listing needs this when several types are in scope: DHIS2 counts one type at a time, so the
+    searchset's total is the sum of one count per type, and a count is what this asks for - the UID
+    projection at a page size of one, reading the pager and dropping the page. None means the
+    instance stated no total, which is a different answer from a total of zero and stays different
+    all the way to the Bundle. A type the instance does not hold holds nobody, so it counts zero.
+    """
+    try:
+        raw = await client.get_raw(
+            TRACKED_ENTITIES_PATH,
+            params={
+                "trackedEntityType": tracked_entity_type_uid,
+                "ouMode": SEARCH_ORG_UNIT_MODE,
+                "fields": _COUNT_ONLY_FIELDS,
+                "page": 1,
+                "pageSize": _COUNT_ONLY_PAGE_SIZE,
+                TOTAL_PAGES_PARAMETER: "true",
+            },
+        )
+    except Dhis2ApiError as error:
+        if _is_unknown_type_refusal(error):
+            return 0
+        raise
+    pager = TrackedEntitiesPage.model_validate(raw).pager
+    return None if pager is None else pager.total
 
 
 async def search_tracked_entities(

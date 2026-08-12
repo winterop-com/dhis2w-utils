@@ -234,6 +234,8 @@ Usage: #example
 * identifier[dhis2code].value = "SL"
 * status = #active
 * name = "Sierra Leone"
+* description = "A worked D2Location: DHIS2 organisation unit Sierra Leone (ImspTQPwCqd) as the physical place, \
+managed by the D2Organization of the same unit."
 * extension[level].valueCoding = D2OU_Level_CS#level-1 "Level 1"
 * managingOrganization = Reference(D2OrganizationExample)
 """
@@ -545,14 +547,14 @@ def test_empty_prefix_keeps_profile_token() -> None:
     assert organization["type"][0]["coding"][0]["system"] == "http://example.org/fhir/CodeSystem/ou-level-cs"
 
 
-def test_narrative_text_escapes_markup_while_the_element_name_stays_raw() -> None:
-    """The Location description escapes markup for the page furniture; `name` carries the DHIS2 text verbatim."""
+def test_every_registry_element_carries_the_dhis2_text_verbatim() -> None:
+    """A registry document is data end to end: description, name, and alias all spell what DHIS2 holds."""
     unit = _ROOT.model_copy(update={"name": "Region <A> & <B>", "short_name": "Short <A>"})
     documents = _documents(_instances([unit]))
     location = documents["registry/Location-ImspTQPwCqd.json"]
     organization = documents["registry/Organization-ImspTQPwCqd.json"]
     assert location["description"] == (
-        "DHIS2 organisation unit Region &lt;A&gt; &amp; &lt;B&gt; (ImspTQPwCqd), level 1 - physical location."
+        "DHIS2 organisation unit Region <A> & <B> (ImspTQPwCqd), level 1 - physical location."
     )
     assert location["name"] == "Region <A> & <B>"
     assert organization["name"] == "Region <A> & <B>"

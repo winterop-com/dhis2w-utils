@@ -53,6 +53,9 @@ class CaptureNaming(BaseModel):
     incident_at_url: str
     """Extension url a registration response dates the incident that enrollment follows."""
 
+    collects_incident_date_url: str
+    """Extension url a registration form declares whether its program collects an incident date on."""
+
     subject_exists_url: str
     """Extension url a registration response states that the person it is subject to is already held on."""
 
@@ -86,6 +89,7 @@ class CaptureNaming(BaseModel):
             tracker_enrollment_url=_definition_url(canonical, names.tracker_enrollment_extension_id),
             enrolled_at_url=_definition_url(canonical, names.enrolled_at_extension_id),
             incident_at_url=_definition_url(canonical, names.incident_at_extension_id),
+            collects_incident_date_url=_definition_url(canonical, names.collects_incident_date_extension_id),
             subject_exists_url=_definition_url(canonical, names.subject_exists_extension_id),
             tracked_entity_system=_identifier_system(base, "TrackedEntity"),
             tracker_enrollment_system=_identifier_system(base, "TrackerEnrollment"),

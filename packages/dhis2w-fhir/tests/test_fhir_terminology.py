@@ -668,8 +668,8 @@ def test_an_answer_selecting_an_option_with_no_concept_code_is_left_unanswered()
     assert _displays(code_system) == ["First", "Second"]
 
 
-def test_page_furniture_escapes_the_markup_characters_the_publisher_parses() -> None:
-    """A name holding `<` aborts the IG publisher: `fhir2.base.template` pastes the title into HTML raw."""
+def test_every_emitted_element_carries_the_markup_characters_dhis2_holds() -> None:
+    """A served document is data: an option set named with `<` reads back with `<`, title and display alike."""
     hostile = OptionSetIn(
         uid="Xa1b2c3d4e5",
         code="AGE",
@@ -684,11 +684,7 @@ def test_page_furniture_escapes_the_markup_characters_the_publisher_parses() -> 
         attribute_codes=AttributeCodeIndex(),
     )
     code_system = json.loads(next(a.content for a in build.artifacts if "CodeSystem" in a.relative_path))
-    assert code_system["title"] == "HIV: Age (&lt;5 - 49) &amp; over"
-    assert "&lt;5" in code_system["description"]
-    for character in "<>":
-        assert character not in code_system["title"]
-        assert character not in code_system["description"]
-    # The other half of the rule: a concept display is data a consumer reads back, not page
-    # furniture, so it carries the DHIS2 text verbatim.
+    assert code_system["title"] == "HIV: Age (<5 - 49) & over"
+    assert "HIV: Age (<5 - 49) & over" in code_system["description"]
+    assert "&lt;" not in code_system["description"]
     assert _displays(code_system) == ["<5"]

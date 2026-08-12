@@ -421,6 +421,11 @@ TRACKED_ENTITY_ATTRIBUTE_VALUE_SET = f"{CAPTURE_CANONICAL}/ValueSet/d2-tea-vs"
 #: The extensions and identifier systems a registration response carries beyond the tracker pair.
 ENROLLED_AT_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-enrolled-at"
 INCIDENT_AT_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-incident-at"
+
+#: The extension a registration form declares whether its program collects an incident date on. The
+#: fixture program collects none and says so, which is the false half of the fact a generated form
+#: always publishes - the true half is written by the test that needs it.
+COLLECTS_INCIDENT_DATE_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-collects-incident-date"
 TRACKED_ENTITY_TYPE_IDENTIFIER_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/tracked-entity-type"
 
 REGISTRATION_QUESTIONNAIRE_BODY: dict[str, Any] = {
@@ -434,6 +439,7 @@ REGISTRATION_QUESTIONNAIRE_BODY: dict[str, Any] = {
     ),
     "extension": [
         {"url": FORM_TYPE_URL, "valueCode": "tracker"},
+        {"url": COLLECTS_INCIDENT_DATE_EXTENSION, "valueBoolean": False},
         {
             "url": ORG_UNIT_ASSIGNMENT_EXTENSION,
             "valueReference": {"reference": f"List/{REGISTRATION_ASSIGNMENT_LIST_ID}"},

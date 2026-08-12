@@ -27,7 +27,6 @@ import {
     type CodeSystemConcept,
     type ConceptMap,
     type ValueSet,
-    unescapeMarkup,
 } from '@/lib/fhir'
 import {
     CONCEPT_FILTER_PARAMETER,
@@ -129,7 +128,7 @@ function TerminologyResource({
 /** What a terminology resource is called, whichever of the three it is. */
 function title(resource: CodeSystem | ValueSet | ConceptMap): string | null {
     const raw = resource.title ?? resource.name ?? resource.id ?? null
-    return raw === null ? null : unescapeMarkup(raw)
+    return raw === null ? null : raw
 }
 
 /**

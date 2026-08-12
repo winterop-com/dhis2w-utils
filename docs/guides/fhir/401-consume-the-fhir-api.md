@@ -39,10 +39,11 @@ $ curl -s localhost:8091/metadata | jq '.software, .implementation.description'
 "DHIS2 FHIR capture facade (compiled store); stored QuestionnaireResponses are submissions as received - receipts, not a live view of DHIS2 data"
 ```
 
-Operations are declared where R4 puts them - `$translate` at `rest.operation`
-(type-level), `$generate` on the `Questionnaire` resource entry
-(instance-level) - and only when the store can actually answer them:
-`/metadata` never advertises what the store cannot do.
+Each operation is declared on the resource entry whose URL answers it -
+`$generate` on `Questionnaire`, served at `/Questionnaire/{id}/$generate`, and
+`$translate` on `ConceptMap`, served at `/ConceptMap/$translate` - and only when
+the store holds that type. So a client that follows the statement reaches an
+endpoint that answers, and `/metadata` never advertises what the store cannot do.
 
 ## Reads and searches
 
@@ -222,7 +223,7 @@ release to the next. What a client does with it is copy the `next` link:
 ```console
 $ curl -s localhost:8391/Patient | jq -r '.link[] | "\(.relation) \(.url)"'
 self http://localhost:8391/Patient?_count=20
-next http://localhost:8391/Patient?_count=20&page=eyJuRWVuV21TeVVFcCI6Mn0
+next http://localhost:8391/Patient?_count=20&page=dDBwMg
 ```
 
 The first page carries no `previous` and the last carries no `next`, so the end
@@ -230,11 +231,13 @@ of the listing is a missing link rather than an empty page you have to ask for
 to discover. As everywhere else on this facade, `self` echoes only the
 parameters that were applied.
 
-**`total` is present when DHIS2 states one.** R4 makes `total` optional on a
-searchset, and this server carries it only where the instance's own answer
-carried a count. Where it did not, the element is absent rather than guessed at
-or computed by walking every page - so a client shows a denominator when it has
-one and otherwise follows `next` until there is none. An invented total is a
+**`total` is the whole searchset, counted.** DHIS2 counts one tracked entity
+type at a time, so a listing over several types asks each type for its count -
+one count-only request per type, spent on the first page of a walk and carried
+through the rest on the page token - and states the sum. Where the instance
+stated no count for one of those types the sum is unknowable, and R4 makes
+`total` optional precisely so a server can say so: the element is absent rather
+than guessed at or filled with a fraction of the truth. An invented total is a
 worse answer than no total.
 
 **Naming `identifier` is always the search**, whatever the listing is set to:

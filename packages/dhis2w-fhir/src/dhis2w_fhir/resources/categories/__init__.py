@@ -52,7 +52,6 @@ from dhis2w_fhir.names import (
     is_valid_fhir_code,
     join_id_tokens,
     join_name_segments,
-    page_string,
     resolve_identity_stems,
 )
 from dhis2w_fhir.notes import GenerateNote
@@ -337,9 +336,9 @@ def _build_concept_map(
         url=systems.concept_map_url(identity.concept_map_id),
         identifier=Identifier(system=systems.identifier_system, value=category.uid),
         name=identity.concept_map_name,
-        title=page_string(category.name),
+        title=flatten_whitespace(category.name),
         title_element=translated_element(name_translations(category.translations, config.locales)),
-        description=page_string(
+        description=flatten_whitespace(
             f"DHIS2 category {category.name} ({category.uid}). Every concept of "
             f"{identity.code_system_name} mapped to its DHIS2 category option UID and, where the "
             "category option carries one, its DHIS2 category option code."
@@ -465,9 +464,9 @@ def _narrative(
             *attribute_value_identifiers(category.attribute_values, attribute_codes, config.identifier_system_base),
         ],
         extensions=attribute_value_extensions(category.attribute_values, attribute_codes, extension_url),
-        title=page_string(category.name),
+        title=flatten_whitespace(category.name),
         title_element=translated_element(name_translations(category.translations, config.locales)),
-        description=page_string(
+        description=flatten_whitespace(
             f"DHIS2 category {category.name} ({category.uid}). Concept codes are DHIS2 {code_kind}."
         ),
         status=ig_status,

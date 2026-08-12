@@ -1294,9 +1294,10 @@ async def test_a_registration_form_states_the_dhis2_level_of_every_attribute_it_
     registration = (
         tmp_path / "ig" / "input" / "fsh" / "tracker-programs" / "IpHINAT79UW" / "registration.fsh"
     ).read_text(encoding="utf-8")
-    national_id, marital_status = registration.index('"Tea1aaaaaaa"'), registration.index('"Tea2aaaaaaa"')
-    assert registration.index("valueBoolean = true") in range(national_id, marital_status)
-    assert registration.index("valueBoolean = false") > marital_status
+    questions = registration[registration.index('"Tea1aaaaaaa"') :]
+    marital_status = questions.index('"Tea2aaaaaaa"')
+    assert questions.index("valueBoolean = true") < marital_status
+    assert questions.index("valueBoolean = false") > marital_status
 
 
 #: The tracked entity type the demo tracker program registers, with the attributes it collects itself
@@ -1659,13 +1660,19 @@ def fhir_questionnaire_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     return tmp_path
 
 
-def test_page_titles_escape_markup_while_the_element_title_stays_raw() -> None:
-    """A DHIS2 name holding `<` aborts the IG publisher's HTML parse, so only the page metadata escapes it."""
+def test_the_page_keywords_escape_markup_while_both_elements_stay_raw() -> None:
+    """A DHIS2 name holding `<` aborts the IG publisher's HTML parse, so only the page keywords escape it.
+
+    `Title:` and `Description:` name the artifact in the guide's own pages; `* title` and
+    `* description` assign the elements a client reads back, and SUSHI compiles the assignments over
+    the keywords - which is how a served Questionnaire spells the DHIS2 text byte for byte.
+    """
     source = _DATA_SET.model_copy(update={"name": "Mortality < 5 years by gender"})
     content = _artifacts([source])["data-sets/BfMAe6Itzgt.fsh"]
     assert 'Title: "Questionnaire - Mortality &lt; 5 years by gender"' in content
-    assert "Mortality &lt; 5 years by gender (BfMAe6Itzgt)" in content
+    assert 'Description: "DHIS2 data set Mortality &lt; 5 years by gender (BfMAe6Itzgt)' in content
     assert '* title = "Mortality < 5 years by gender"' in content
+    assert '* description = "DHIS2 data set Mortality < 5 years by gender (BfMAe6Itzgt)' in content
 
 
 @respx.mock

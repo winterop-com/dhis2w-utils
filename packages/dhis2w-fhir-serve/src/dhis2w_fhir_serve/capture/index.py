@@ -197,6 +197,15 @@ class CaptureIndex(BaseModel):
     Questionnaire says.
     """
 
+    collects_incident_date: bool = False
+    """Whether the program a registration form enrols into collects the date of the incident it follows.
+
+    The form's own `D2CollectsIncidentDate` declaration, which is the only place this facade reads
+    the fact from - a compiled store and a `--live` one publish the same declaration, so both
+    generate the same registration envelope. A form declaring nothing reads as false, which is what
+    the contract makes of a response carrying no `D2IncidentAt`: complete, the extension being 0..1.
+    """
+
     questions: dict[str, CaptureQuestion] = Field(default_factory=dict)
     group_link_ids: frozenset[str] = frozenset()
     assignment: CaptureAssignment | None = None
@@ -265,6 +274,7 @@ def build_capture_index(
         target_uid=canonical.rsplit("/", 1)[-1],
         program_uid=_program_uid(questionnaire, naming),
         subject_type=_subject_type(questionnaire),
+        collects_incident_date=_collects_incident_date(questionnaire, naming),
         questions=questions,
         group_link_ids=frozenset(group_link_ids),
         assignment=_assignment(questionnaire, naming, store),
@@ -308,6 +318,18 @@ def _form_kind(questionnaire: Questionnaire, naming: CaptureNaming, canonical: s
         f"the served Questionnaire `{canonical}` declares no DHIS2 form kind this server captures "
         f"({', '.join(FORM_KINDS)})"
     )
+
+
+def _collects_incident_date(questionnaire: Questionnaire, naming: CaptureNaming) -> bool:
+    """Whether the form declares its program collects an incident date, false being both answers a form can give.
+
+    A registration form states the fact either way and every other kind states nothing, so absence
+    and an explicit false mean the same thing here: no incident date on a response to this form.
+    """
+    for extension in questionnaire.extension or []:
+        if extension.url == naming.collects_incident_date_url and extension.valueBoolean is not None:
+            return extension.valueBoolean
+    return False
 
 
 def _assignment(questionnaire: Questionnaire, naming: CaptureNaming, store: ResourceStore) -> CaptureAssignment | None:

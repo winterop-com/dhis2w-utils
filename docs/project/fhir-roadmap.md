@@ -1638,9 +1638,9 @@ commitment.
   optional `seed` parameter for determinism. `foundation` emits its `OperationDefinition`
   as `d2-generate-operation.fsh` (`kind #operation`, `instance = true`,
   `affectsState = false`, one `integer` `seed` input and a `QuestionnaireResponse`
-  `return`), and `/metadata` declares it on the `Questionnaire` resource entry - which is
-  where R4 puts an instance-level operation, as against `$translate`'s type-level
-  `rest.operation`. The IG's own `D2CaptureServer` stays silent about it on purpose: that
+  `return`), and `/metadata` declares it on the `Questionnaire` resource entry - the entry
+  whose URL answers it, which is the same rule that puts `$translate` on the `ConceptMap`
+  entry. The IG's own `D2CaptureServer` stays silent about it on purpose: that
   statement is `kind #requirements`, and a server that only receives captures is still
   conformant.
 
@@ -1794,9 +1794,9 @@ commitment.
     enrollment's first stage events in one submission run, naming the enrollment its
     stage responses answer against before any of them is sent. Two new foundation
     extensions date the enrollment: `D2EnrolledAt` 1..1, and `D2IncidentAt` 0..1 -
-    `0..1` rather than 1..1 because a DHIS2 program says through `displayIncidentDate`
-    whether it collects an incident date at all, which the source projection carries so
-    the examples of a program that does not emit none.
+    `0..1` rather than 1..1 because a DHIS2 program states whether it collects an incident
+    date at all, which the registration form publishes on a third extension,
+    `D2CollectsIncidentDate` 1..1, so a response to a form declaring false carries none.
 
     **Identifier-keyed, deferring [5.2](#52-the-tracker-shape) by design.** No
     `Patient`, `EpisodeOfCare`, or `CarePlan` resource is published. That is not a gap

@@ -140,6 +140,14 @@ class _RegistryExampleView(BaseModel):
     location_title_literal: str
     organization_description_literal: str
     location_description_literal: str
+    location_description_element_literal: str
+    """The same prose as `location_description_literal`, unescaped, for the `description` element.
+
+    A Location carries `description` as data, and the keyword above names the artifact in the
+    guide's own pages - the split the Questionnaire emitter makes between its `Title:` keyword and
+    its `* title` assignment. An Organization needs no twin: R4 gives it no `description`.
+    """
+
     level_code_system: str
     level: int
     uid_literal: str
@@ -195,6 +203,10 @@ def _root_organisation_unit(organisation_units: list[OrganisationUnitIn]) -> Org
 def _registry_example_view(root: OrganisationUnitIn, names: OrganisationUnitNaming) -> _RegistryExampleView:
     """Project the root unit onto the two exemplar instances the registry profiles are illustrated with."""
     label = f"{root.name} ({root.uid})"
+    location_description = (
+        f"A worked {names.location_profile}: DHIS2 organisation unit {label} as the physical place, "
+        f"managed by the {names.organization_profile} of the same unit."
+    )
     return _RegistryExampleView(
         organization_profile=names.organization_profile,
         location_profile=names.location_profile,
@@ -208,10 +220,8 @@ def _registry_example_view(root: OrganisationUnitIn, names: OrganisationUnitNami
             f"A worked {names.organization_profile}: DHIS2 organisation unit {label} as the legal entity, "
             "carrying both DHIS2 identifiers and its hierarchy level."
         ),
-        location_description_literal=page_text(
-            f"A worked {names.location_profile}: DHIS2 organisation unit {label} as the physical place, "
-            f"managed by the {names.organization_profile} of the same unit."
-        ),
+        location_description_literal=page_text(location_description),
+        location_description_element_literal=quote(location_description),
         level_code_system=names.level_code_system,
         level=root.level,
         uid_literal=quote(root.uid),

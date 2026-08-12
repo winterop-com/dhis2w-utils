@@ -8,6 +8,10 @@
     {
       "url": "http://example.org/fhir/StructureDefinition/d2-form-type",
       "valueCode": "tracker"
+    },
+    {
+      "url": "http://example.org/fhir/StructureDefinition/d2-collects-incident-date",
+      "valueBoolean": true
     }
   ],
   "identifier": [

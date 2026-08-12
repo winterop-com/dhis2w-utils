@@ -681,7 +681,7 @@ export function attributeOptionComboExtensionUrl(questionnaire: Questionnaire): 
  * thing about the same fact.
  */
 export function attributeOptionComboLabel(title: string | null | undefined): string {
-    const stated = title === null || title === undefined ? '' : unescapeMarkup(title).trim()
+    const stated = (title ?? '').trim()
     return stated === '' ? 'Attribute option combo' : `Reporting for ${stated}`
 }
 
@@ -696,7 +696,7 @@ export function attributeOptionComboLabel(title: string | null | undefined): str
 export function conceptDisplay(codeSystem: CodeSystem | null, code: string | null | undefined): string | null {
     if (codeSystem === null || code === null || code === undefined) return null
     const concept = codeSystem.concept?.find((candidate) => candidate.code === code)
-    return concept?.display === undefined ? null : unescapeMarkup(concept.display)
+    return concept?.display ?? null
 }
 
 /**
@@ -980,12 +980,12 @@ export function formIdentifier(questionnaire: Questionnaire): string {
 /**
  * What a form is called, as page text.
  *
- * Title, then name, then the id it is served under - and unescaped, because the IG escapes `&`,
- * `<`, and `>` in every published title. One function so a form is spelled the same on the
- * overview, in the listing, and wherever else it is named.
+ * Title, then name, then the id it is served under - each spelled exactly as the server sends it,
+ * because every served element carries the DHIS2 text byte for byte. One function so a form is
+ * spelled the same on the overview, in the listing, and wherever else it is named.
  */
 export function formTitle(questionnaire: Questionnaire): string {
-    return unescapeMarkup(questionnaire.title ?? questionnaire.name ?? formIdentifier(questionnaire))
+    return questionnaire.title ?? questionnaire.name ?? formIdentifier(questionnaire)
 }
 
 /**
@@ -1048,7 +1048,7 @@ export function declaredOperations(
  * `declaredOperations` keeps the resource an operation hangs off, because the Server page states
  * it per row. A one-line summary wants the other reading: `$translate` and `$generate` are two
  * capabilities, and which resource type each is declared on is not what a strip of badges is
- * saying. Declaration order rather than alphabetical, so the rest-level operations lead.
+ * saying. Declaration order rather than alphabetical, so the order follows the statement's own.
  */
 export function operationNames(capability: CapabilityStatement | null): string[] {
     const seen = new Set<string>()
@@ -1098,20 +1098,4 @@ export function servedIgLabel(capability: CapabilityStatement | null): string | 
     if (!description) return null
     const marker = description.indexOf(' served as')
     return marker > 0 ? description.slice(0, marker) : description
-}
-
-/**
- * Undo the emit-time HTML escaping the IG applies to page-facing text.
- *
- * The generator escapes `&`, `<`, and `>` in every resource `title` and
- * `description` it publishes, because the IG publisher's page template pastes
- * those strings raw into HTML and aborts the build on a bare `<`
- * (`escape_markup` in dhis2w_fhir.names records the quirk). That makes the
- * escaping a convention of this IG's wire format, and this UI is a consumer
- * that knows the convention: display text unescapes exactly those three
- * entities, in the reverse order the emitter applied them so an ampersand the
- * source text really carried survives the round trip.
- */
-export function unescapeMarkup(value: string): string {
-    return value.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&')
 }

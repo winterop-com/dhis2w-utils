@@ -24,7 +24,6 @@ import {
     type CodeSystem,
     type Questionnaire,
     type QuestionnaireResponse,
-    unescapeMarkup,
 } from '@/lib/fhir'
 import type { OrgUnitChoice } from '@/lib/orgunits'
 import { flattenQuestionnaire } from '@/lib/questionnaire'
@@ -112,7 +111,7 @@ export function ResponseDetail() {
 
     const title =
         summary === null
-            ? (unescapeMarkup(form.resource?.title ?? form.resource?.name ?? questionnaireId) || responseId)
+            ? ((form.resource?.title ?? form.resource?.name ?? questionnaireId) || responseId)
             : formLabel(summary, form.resource ?? undefined)
     const seed = stored.resource === null ? null : generateSeedOf(stored.resource)
 

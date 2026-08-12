@@ -28,7 +28,13 @@ from dhis2w_fhir_serve.capture.naming import GENERATE_SEED_IDENTIFIER_SEGMENT
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseLifecycle, ResponseSpool, StoredResponseEnvelope
 from dhis2w_fhir_serve.synthesize import DEFAULT_PERIOD_TYPE, MAXIMUM_SEED, TrackerPair
-from fixture_project import ORG_UNITS, REGISTRATION_UNIQUE_ATTRIBUTE, SCOPED_ASSIGNMENT_UNITS
+from fixture_project import (
+    COLLECTS_INCIDENT_DATE_EXTENSION,
+    ORG_UNITS,
+    REGISTRATION_QUESTIONNAIRE_BODY,
+    REGISTRATION_UNIQUE_ATTRIBUTE,
+    SCOPED_ASSIGNMENT_UNITS,
+)
 
 #: The canonical the dhis2w-fhir goldens were compiled under, as `capture_project` serves them.
 CANONICAL = "http://localhost:8080/fhir"
@@ -61,6 +67,24 @@ REGISTRATION_QUESTIONNAIRE = f"{CANONICAL}/Questionnaire/{REGISTRATION_ID}"
 ENROLLED_AT_URL = f"{CANONICAL}/StructureDefinition/d2-enrolled-at"
 INCIDENT_AT_URL = f"{CANONICAL}/StructureDefinition/d2-incident-at"
 ORGANISATION_UNIT_URL = f"{CANONICAL}/StructureDefinition/d2-organisation-unit"
+
+#: A second registration form over the very same questions, differing only in the one fact under
+#: test: its program collects the date of the incident each enrollment follows, and it says so.
+_COLLECTING_ID = "PrAncCare02"
+
+
+def _collecting_registration_body() -> dict[str, Any]:
+    """The fixture registration form with its incident-date declaration flipped to true."""
+    return {
+        **REGISTRATION_QUESTIONNAIRE_BODY,
+        "id": _COLLECTING_ID,
+        "url": f"{CANONICAL}/Questionnaire/{_COLLECTING_ID}",
+        "extension": [
+            {**extension, "valueBoolean": True} if extension["url"] == COLLECTS_INCIDENT_DATE_EXTENSION else extension
+            for extension in REGISTRATION_QUESTIONNAIRE_BODY["extension"]
+        ],
+    }
+
 
 #: The stage form of the registration form's own program - the pair a registration mints is what a
 #: response to this form is captured against.
@@ -339,36 +363,34 @@ async def test_a_registration_response_dates_the_enrollment_it_creates(capture_c
     assert enrolled_at[0]["valueDateTime"].endswith("Z")
 
 
-async def test_a_registration_response_carries_no_incident_date_the_guide_never_shows(
+async def test_a_registration_response_carries_no_incident_date_a_form_declares_none(
     capture_client: httpx.AsyncClient,
 ) -> None:
-    """The compiled form does not say whether its program displays one, so an unshown date is not invented."""
+    """The fixture program collects no incident date and says so, so none is invented for its enrollments."""
     response = (await _generate(capture_client, REGISTRATION_ID, seed=5)).json()
 
     assert _extensions(response, INCIDENT_AT_URL) == []
 
 
-async def test_a_registration_response_follows_the_incident_date_a_served_example_shows(
+async def test_a_registration_response_dates_the_incident_a_form_declares_its_program_collects(
     capture_project: FhirProject,
     write_resource: Callable[[Path, dict[str, Any]], None],
 ) -> None:
-    """A compiled IG ships its example instances, and one carrying D2IncidentAt is the guide's own statement."""
+    """The declaration rides the published form, which is what a compiled store and a live one both serve.
+
+    DHIS2 refuses a registration missing the incident date of a program that collects one with
+    `E1023`, and no served example is needed to know which programs those are: the form says.
+    """
     write_resource(
-        capture_project.ig_directory / "fsh-generated" / "resources" / "QuestionnaireResponse-incident.json",
-        {
-            "resourceType": "QuestionnaireResponse",
-            "id": f"{REGISTRATION_ID}-example-9",
-            "questionnaire": REGISTRATION_QUESTIONNAIRE,
-            "status": "completed",
-            "extension": [{"url": INCIDENT_AT_URL, "valueDateTime": "2026-01-02T00:00:00Z"}],
-        },
+        capture_project.ig_directory / "fsh-generated" / "resources" / f"Questionnaire-{_COLLECTING_ID}.json",
+        _collecting_registration_body(),
     )
     app = create_app(ServeSettings(project_dir=capture_project.project_root))
 
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://serve.test") as client:
-            generated = await _generate(client, REGISTRATION_ID, seed=5)
+            generated = await _generate(client, _COLLECTING_ID, seed=5)
             posted = await _post_back(client, generated)
 
     incident_at = _extensions(generated.json(), INCIDENT_AT_URL)
@@ -564,11 +586,13 @@ async def test_a_questionnaire_declaring_no_form_kind_cannot_be_generated_agains
 async def test_metadata_declares_the_operation_on_the_questionnaire_entry(
     capture_client: httpx.AsyncClient,
 ) -> None:
-    """`/metadata` names `$generate` where R4 puts an instance-level operation: on the resource entry."""
+    """`/metadata` names `$generate` on the entry whose URL answers it: the Questionnaire resource."""
     metadata = (await capture_client.get("/metadata")).json()
 
     questionnaire = next(entry for entry in metadata["rest"][0]["resource"] if entry["type"] == "Questionnaire")
-    others = [entry for entry in metadata["rest"][0]["resource"] if entry["type"] != "Questionnaire"]
+    others = [
+        entry for entry in metadata["rest"][0]["resource"] if entry["type"] not in {"Questionnaire", "ConceptMap"}
+    ]
 
     assert questionnaire["operation"] == [
         {

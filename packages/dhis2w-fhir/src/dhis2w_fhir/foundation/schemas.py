@@ -654,6 +654,23 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "incident", "at")
 
     @property
+    def collects_incident_date_extension(self) -> str:
+        """FSH name of the incident-date declaration Extension (e.g. `D2CollectsIncidentDate`).
+
+        Named for the fact rather than for the DHIS2 field spelling it: `displayIncidentDate` is a
+        DHIS2 form-rendering flag, and what the published contract states is that the program
+        collects the date of the incident its enrollments follow. A reader of the guide resolves
+        the fact without knowing the DHIS2 field, and a registration response carrying `D2IncidentAt`
+        is answering exactly this declaration.
+        """
+        return f"{self.definition_prefix}CollectsIncidentDate"
+
+    @property
+    def collects_incident_date_extension_id(self) -> str:
+        """FHIR id of the incident-date declaration Extension (e.g. `d2-collects-incident-date`)."""
+        return join_id_tokens(self.definition_prefix, "collects", "incident", "date")
+
+    @property
     def entity_level_extension(self) -> str:
         """FSH name of the entity-level Extension (e.g. `D2EntityLevel`)."""
         return f"{self.definition_prefix}EntityLevel"

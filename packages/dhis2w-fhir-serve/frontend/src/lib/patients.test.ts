@@ -311,8 +311,8 @@ describe('naming what a person is described in terms of', () => {
         concept: [
             { code: 'TeaNationId', display: 'National identifier' },
             { code: 'TeaBirthDat', display: 'Date of birth' },
-            // Escaped at emit time, like every published display, and unescaped for the screen.
-            { code: 'TeaHousehld', display: 'Household size &lt; 10' },
+            // A display carries the DHIS2 text byte for byte, markup characters included.
+            { code: 'TeaHousehld', display: 'Household size < 10' },
         ],
     }
     const personForm: Questionnaire = {
@@ -333,7 +333,7 @@ describe('naming what a person is described in terms of', () => {
         }
     })
 
-    it('names an attribute by what the dictionary published, unescaped', () => {
+    it('names an attribute by what the dictionary published, verbatim', () => {
         const names = trackedEntityAttributeNames([
             {
                 resourceType: 'CodeSystem',
