@@ -47,6 +47,24 @@ reference.
 
     [Open the FHIR guide](fhir-roadmap.md)
 
+- **FHIR conversion layer**
+
+    ---
+
+    How data crosses between DHIS2 and FHIR in both directions, and where the
+    mapping definition lives.
+
+    [Read the conversion plan](fhir-conversion.md)
+
+- **FHIR harmonization**
+
+    ---
+
+    How N country guides relate: terminology alignment, a master guide, and
+    indicator comparability, with the prerequisites each tier waits on.
+
+    [Read the harmonization design](fhir-harmonization.md)
+
 - **Upstream DHIS2 quirks**
 
     ---
