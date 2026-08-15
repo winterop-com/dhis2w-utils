@@ -275,11 +275,25 @@ which refetches on focus.
 ## Patients
 
 A **live** server carries one more page: **Patients**, the people the DHIS2
-instance holds. It is in the navigation only when this server answers about
-people - a compiled guide has no instance behind it, and a project that states
-`[serve.patients] enabled = false` has said it does not want the surface at all
-([Configure serving](301-serving.md#patients)). In both cases there is no page,
-rather than a page that apologises.
+instance holds. It is in the navigation only when this server answers about the
+instance's tracked entities - a compiled guide has no instance behind it, and a
+project that states `[serve.tracked_entities] enabled = false` has said it does
+not want the surface at all
+([Configure serving](301-serving.md#tracked_entities)). In both cases there is no
+page, rather than a page that apologises.
+
+!!! note "The page is named for what the instance actually tracks"
+    **Patients** is what a deployment that tracks only people sees, and that is
+    most of them. DHIS2 tracks whatever a project tracks, though, and a project
+    that also registers households, herds, or specimen batches publishes each of
+    those as its own FHIR resource
+    ([what goes in](301-what-goes-in.md#tracked_entity_types)). The navigation
+    entry then reads **Tracked entities**, because calling a specimen batch a
+    patient would be wrong; the page behind it holds one section per kind, each
+    titled by the name the instance holds for the type - *Person*, *Specimen
+    batch* - rather than by the FHIR resource, which is this project's
+    projection and not DHIS2's word for the thing. Everything below is the same
+    on both, section for section.
 
 Everything on it is read from the instance while you wait, which is the one way
 it differs from every other page here. Responses shows receipts - what was
@@ -288,12 +302,16 @@ submitted. This shows what DHIS2 holds right now.
 **Two ways to arrive at a person, and the page offers both.** Type an
 identifier - a card number, a register number, whatever value the person is
 known by - and the search runs once the typing stops; it is the same search the
-registration form's **Person** control runs, and it searches identifier values,
-never names. Type nothing and the page lists the people the instance holds,
+registration form's **Person** control runs. It looks under every attribute DHIS2
+declares unique **or** searchable, which is what makes finding a woman by her
+first name work where the instance marks that attribute searchable - and it means
+a search can honestly come back with several people who share a value, which the
+list below is already the shape for. What it never does is guess: there is no
+attribute it treats as a name because DHIS2 declares none. Type nothing and the page lists the people the instance holds,
 twenty at a time, with **Next** and **Previous** underneath. Searching is for a
 clerk holding a card; browsing is for one who is not.
 
-How many a page holds is `[serve.patients] page_size`, and a project that
+How many a page holds is `[serve.tracked_entities] page_size`, and a project that
 states `listing = false` has kept the search and dropped the browsing: the page
 then opens on its search box alone, with nothing to page through. That is a
 posture rather than a fault - looking up somebody a clerk can already name is a

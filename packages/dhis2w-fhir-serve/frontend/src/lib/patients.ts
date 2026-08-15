@@ -13,7 +13,7 @@
  *
  * WHY NOTHING HERE INVENTS A NAME. The projection carries no `name`, no `gender`, and no
  * `birthDate`, because DHIS2 has no attribute that means any of them and
- * `dhis2w_fhir_serve.patients.projection` refuses to guess. A picker that showed "Unknown" in a
+ * `dhis2w_fhir_serve.register.projection` refuses to guess. A picker that showed "Unknown" in a
  * name column would be inventing the very fact the server declined to invent, so a result row here
  * shows exactly what the projection carries: the values of the attributes DHIS2 declares unique,
  * which are what name a person, and then the rest of the attribute values as what they are.

@@ -4,11 +4,11 @@ Five facts decide every request here, the first four established against a runni
 recorded in the repository's `BUGS.md`:
 
 1. **A search names a tracked entity type or a program, or it is refused** with `E1003`. The type
-   comes from the published forms (`dhis2w_fhir_serve.patients.index`); a program is never named,
+   comes from the published forms (`dhis2w_fhir_serve.register.index`); a program is never named,
    for the reason in point 3.
 2. **A unique attribute gets no org-unit-scope exemption** (BUGS.md 74). The legacy documentation
    describes a unique value as an instance-wide key; the tracker endpoint scopes it like any other
-   filter, so a lookup scoped to the capture unit misses exactly the people identifier search
+   filter, so a lookup scoped to the capture unit misses exactly the entities identifier search
    exists to find. Every search here therefore sends `ouMode=ACCESSIBLE`: as wide as the requesting
    user may see, and no wider.
 3. **An entity-scoped read with a program the entity is not enrolled in answers 404 `E1005`,
@@ -23,7 +23,7 @@ recorded in the repository's `BUGS.md`:
    back on every request; `total` and `pageCount` come back only under `totalPages=true`, on 2.42
    and 2.43 alike. The listing asks for it, because a searchset that states a total is worth one
    count of a table DHIS2 has indexed; a lookup does not, because nobody asks an identifier search
-   how many people the instance holds.
+   how many tracked entities the instance holds.
 
 The client is held open for the life of the process and passed in, because these are the only
 routes on this server that talk to DHIS2 per request.
@@ -52,7 +52,7 @@ _DHIS2_UID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9]{10}$")
 #: The org-unit scope every search runs under - as wide as the requesting user may see (BUGS.md 74).
 SEARCH_ORG_UNIT_MODE = "ACCESSIBLE"
 
-#: How many people one identifier lookup will carry back. An identifier is meant to name one person;
+#: How many rows one identifier lookup will carry back. An identifier is meant to name one entity;
 #: a page this size is enough to show a client that its instance disagrees.
 SEARCH_PAGE_SIZE = 50
 
@@ -70,7 +70,7 @@ TRACKED_ENTITY_FIELDS = (
 #: Verified against 2.42 and 2.43: `totalPages=true` puts `total` and `pageCount` in the `pager`
 #: object beside `page` and `pageSize`, and without it the pager carries neither. The endpoint counts
 #: the whole set to answer it, so it is asked for only by the listing, which states a Bundle total -
-#: an identifier lookup wants the people, not how many the instance holds.
+#: an identifier lookup wants the entities, not how many the instance holds.
 TOTAL_PAGES_PARAMETER = "totalPages"
 
 #: The projection a page of the listing asks for when it only needs a number off the pager.
@@ -98,7 +98,7 @@ class TrackedEntitiesPager(BaseModel):
 
 
 class TrackedEntitiesPage(BaseModel):
-    """One page of `/api/tracker/trackedEntities`: the people on it, and where it sits."""
+    """One page of `/api/tracker/trackedEntities`: the entities on it, and where it sits."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -124,9 +124,9 @@ def upstream_refusal_text(error: Exception) -> str:
 def _is_unknown_type_refusal(error: Dhis2ApiError) -> bool:
     """Whether DHIS2 refused because the named tracked entity type does not exist on the instance.
 
-    A configured `[serve.patients] tracked_entity_types` uid is a string in a file no instance has
+    A configured `[serve.tracked_entities] tracked_entity_types` uid is a string in a file no instance has
     checked, and DHIS2 answers a 400 naming the absent type rather than an empty page. The serving
-    guide promises a mistyped id shows up as a surface that finds nobody, so the callers here fold
+    guide promises a mistyped id shows up as a surface that finds nothing, so the callers here fold
     this one refusal into an empty answer instead of a dead surface.
     """
     if error.status_code != 400:
@@ -143,7 +143,7 @@ async def list_tracked_entities(
     page: int,
     page_size: int,
 ) -> TrackedEntitiesPage:
-    """Read one page of every person of one tracked entity type, counted so the page can say how many.
+    """Read one page of one tracked entity type, counted so the page can say how many.
 
     No `filter=`: this is the listing, and its whole query is the type. `ouMode=ACCESSIBLE` for the
     same reason every search here sends it (BUGS.md 74) - the register a user may see is the register
@@ -198,13 +198,13 @@ async def count_tracked_entity_pages(client: Dhis2Client, *, tracked_entity_type
 
 
 async def count_tracked_entities(client: Dhis2Client, *, tracked_entity_type_uid: str) -> int | None:
-    """How many people one tracked entity type holds, asked without carrying any of them back.
+    """How many entities one tracked entity type holds, asked without carrying any of them back.
 
     The listing needs this when several types are in scope: DHIS2 counts one type at a time, so the
     searchset's total is the sum of one count per type, and a count is what this asks for - the UID
     projection at a page size of one, reading the pager and dropping the page. None means the
     instance stated no total, which is a different answer from a total of zero and stays different
-    all the way to the Bundle. A type the instance does not hold holds nobody, so it counts zero.
+    all the way to the Bundle. A type the instance does not hold holds nothing, so it counts zero.
     """
     try:
         raw = await client.get_raw(
@@ -235,7 +235,7 @@ async def search_tracked_entities(
 ) -> list[TrackerTrackedEntity]:
     """Find every tracked entity of one type whose attribute holds one exact value.
 
-    A type the instance does not hold matches nobody, not a refusal.
+    A type the instance does not hold matches nothing, not a refusal.
     """
     try:
         raw = await client.get_raw(

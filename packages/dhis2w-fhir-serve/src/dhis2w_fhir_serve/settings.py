@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dhis2w_fhir.config import DEFAULT_BASEMAPS, BasemapSource, PatientsConfig
+from dhis2w_fhir.config import DEFAULT_BASEMAPS, BasemapSource, TrackedEntitiesConfig
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir_serve.capture.validate import DEFAULT_STRICT_CODES
@@ -38,10 +38,12 @@ class ServeSettings(BaseModel):
     hundred DHIS2 instances a guide was generated from. The profile's NAME and its credentials stay
     here and never reach a browser - see `dhis2w_fhir_serve.routes.uiconfig`.
 
-    `patients` is the Patient surface this run serves - whether people are answered for at all,
-    whether they can be listed, and how a listing is paged. It comes off `[serve.patients]` and no
-    flag overrides it, because every value in it says what this facade tells a client about the
-    people in the instance, which is a decision the project makes once rather than per invocation.
+    `tracked_entities` is the register this run serves - whether the instance's tracked entities are
+    answered for at all, whether they can be listed, and how a listing is paged. It comes off
+    `[serve.tracked_entities]` and no flag overrides it, because every value in it says what this
+    facade tells a client about the subjects the instance holds, which is a decision the project
+    makes once rather than per invocation. Which FHIR resources those subjects are served as is not
+    stated here at all: the published `D2TET_CM` says that, and the register reads the artifact.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -53,4 +55,4 @@ class ServeSettings(BaseModel):
     ui: bool = False
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
     dhis2_base_url: str | None = None
-    patients: PatientsConfig = Field(default_factory=PatientsConfig)
+    tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)

@@ -6,9 +6,9 @@ would have compiled. One connected client reads the whole instance side of the b
 builders turn that into resources: the store is a snapshot of the instance at startup, exactly as
 the compiled store is a snapshot of the last build, and no read of it ever touches DHIS2 again.
 
-That one client stays open for the life of the process, because `/Patient` is answered from the
-instance per request rather than from the store - see `dhis2w_fhir_serve.patients`. The caller owns
-it through `open_live_client`, so the store build and the patient routes share one connection and
+That one client stays open for the life of the process, because the register is answered from the
+instance per request rather than from the store - see `dhis2w_fhir_serve.register`. The caller owns
+it through `open_live_client`, so the store build and the register routes share one connection and
 one profile resolution.
 
 What the store holds is the served read-set and nothing else. The definitional artifacts -
@@ -84,7 +84,7 @@ async def open_live_client(project: FhirProject, settings: ServeSettings) -> Asy
     """Open the DHIS2 client a live run reads through, named by the profile the project resolves.
 
     The server holds this open for the whole process rather than closing it after the store is
-    built: `/Patient` answers from the instance per request, so a live facade has one connection to
+    built: the register answers from the instance per request, so a live facade has one connection to
     DHIS2 for its lifetime and closes it when the lifespan unwinds.
     """
     generation = resolve_generation_profile(project, settings.profile)

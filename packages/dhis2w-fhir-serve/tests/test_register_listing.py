@@ -1,9 +1,9 @@
-"""`GET /Patient` with no identifier: the paged register, and what `[serve.patients]` does to it.
+"""`GET /Patient` with no identifier: the paged register, and what `[serve.tracked_entities]` does to it.
 
-Mocked (respx); no live stack, on the same terms as `test_patients.py` - the compiled capture
+Mocked (respx); no live stack, on the same terms as `test_register.py` - the compiled capture
 fixture is the guide, and a DHIS2 client against a mocked host is put on `app.state.live_client`,
-which is what makes these routes answer rather than refuse. `[serve.patients]` is handed to the app
-through `ServeSettings.patients`, which is exactly what `d2w fhir serve` reads off `fhir.toml`.
+which is what makes these routes answer rather than refuse. `[serve.tracked_entities]` is handed to the app
+through `ServeSettings.tracked_entities`, which is exactly what `d2w fhir serve` reads off `fhir.toml`.
 
 What is held here is the paging contract a client actually depends on: that `next` reaches the
 second page and `previous` returns to the first, that `self` names the page it answers with, that
@@ -24,12 +24,12 @@ import pytest
 import respx
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile
-from dhis2w_fhir.config import FhirProject, PatientsConfig
+from dhis2w_fhir.config import FhirProject, TrackedEntitiesConfig
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.capability import build_server_capability
-from dhis2w_fhir_serve.patients.index import PatientIndex
-from dhis2w_fhir_serve.patients.listing import ListingCursor
-from dhis2w_fhir_serve.patients.surface import PatientSurface
+from dhis2w_fhir_serve.register.index import TrackedEntityIndex
+from dhis2w_fhir_serve.register.listing import ListingCursor
+from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import load_compiled_store
 from fastapi import FastAPI
@@ -48,7 +48,7 @@ _SYSTEM_INFO = {"version": "2.42.0"}
 
 _TRACKER_URL = f"{_HOST}/api/tracker/trackedEntities"
 
-#: A second tracked entity type, named only by `[serve.patients]` - the guide publishes one type.
+#: A second tracked entity type, named only by `[serve.tracked_entities]` - the guide publishes one type.
 _HOUSEHOLD_TYPE_UID = "TetHouseh01"
 
 _NATIONAL_ID_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/tracked-entity-attribute/{REGISTRATION_UNIQUE_ATTRIBUTE}"
@@ -86,9 +86,9 @@ def _tracker_page(*people: Any, page: int = 1, page_size: int = 20, total: int |
 
 
 @pytest.fixture
-def patients() -> PatientsConfig:
-    """The `[serve.patients]` table the app under test was started with; override to change it."""
-    return PatientsConfig()
+def tracked_entities() -> TrackedEntitiesConfig:
+    """The `[serve.tracked_entities]` table the app under test was started with; override to change it."""
+    return TrackedEntitiesConfig()
 
 
 @pytest.fixture
@@ -107,19 +107,21 @@ def listing_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Profile:
 async def listing_client(
     capture_project: FhirProject,
     listing_profile: Profile,
-    patients: PatientsConfig,
+    tracked_entities: TrackedEntitiesConfig,
 ) -> AsyncIterator[httpx.AsyncClient]:
     """The facade over the capture guide, holding a DHIS2 client against the mocked host.
 
     The compiled store plus a client on `app.state.live_client` is the same stand-in for a live run
-    that `test_patients.py` builds and argues for: the routes read the guide only through the
-    surface and the instance only through `patients.wire`, so a live store would cost an IG fetch
+    that `test_register.py` builds and argues for: the routes read the guide only through the
+    surface and the instance only through `register.wire`, so a live store would cost an IG fetch
     and change nothing under test. `/metadata` is the one thing that stand-in cannot answer for -
     the statement reads `settings.live` - so the declarations are asserted off the builder instead.
     """
     with respx.mock:
         respx.get(f"{_HOST}/api/system/info").mock(return_value=httpx.Response(200, json=_SYSTEM_INFO))
-        app: FastAPI = create_app(ServeSettings(project_dir=capture_project.project_root, patients=patients))
+        app: FastAPI = create_app(
+            ServeSettings(project_dir=capture_project.project_root, tracked_entities=tracked_entities)
+        )
         async with (
             app.router.lifespan_context(app),
             open_client(listing_profile) as dhis2,
@@ -130,16 +132,16 @@ async def listing_client(
                 yield http
 
 
-def _capability(project: FhirProject, patients: PatientsConfig) -> Any:
-    """The statement a live run over this guide publishes under one `[serve.patients]` table."""
+def _capability(project: FhirProject, tracked_entities: TrackedEntitiesConfig) -> Any:
+    """The statement a live run over this guide publishes under one `[serve.tracked_entities]` table."""
     store = load_compiled_store(project)
-    settings = ServeSettings(project_dir=project.project_root, live=True, patients=patients)
+    settings = ServeSettings(project_dir=project.project_root, live=True, tracked_entities=tracked_entities)
     return build_server_capability(
         project=project,
         store_summary=store.summary(),
         spool_count=0,
         settings=settings,
-        patient_surface=PatientSurface.resolve(PatientIndex.from_store(project, store), patients),
+        register_surface=RegisterSurface.resolve(TrackedEntityIndex.from_store(project, store), tracked_entities),
         server_version="9.9.9",
     )
 
@@ -259,8 +261,8 @@ async def test_the_total_is_the_one_the_instance_stated(listing_client: httpx.As
 
 
 @pytest.mark.parametrize(
-    "patients",
-    [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
+    "tracked_entities",
+    [TrackedEntitiesConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
 )
 async def test_the_cursor_crosses_from_one_tracked_entity_type_to_the_next(
     listing_client: httpx.AsyncClient,
@@ -290,8 +292,8 @@ async def test_the_cursor_crosses_from_one_tracked_entity_type_to_the_next(
 
 
 @pytest.mark.parametrize(
-    "patients",
-    [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
+    "tracked_entities",
+    [TrackedEntitiesConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
 )
 async def test_a_searchset_over_several_types_sums_the_total_of_each(listing_client: httpx.AsyncClient) -> None:
     """DHIS2 counts one type at a time, so the searchset's total is asked for once per type and summed."""
@@ -312,8 +314,8 @@ async def test_a_searchset_over_several_types_sums_the_total_of_each(listing_cli
 
 
 @pytest.mark.parametrize(
-    "patients",
-    [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
+    "tracked_entities",
+    [TrackedEntitiesConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
 )
 async def test_a_deeper_page_reuses_the_total_the_first_page_counted(listing_client: httpx.AsyncClient) -> None:
     """The count is spent once per walk: the page token carries the figure the links hand forward."""
@@ -340,8 +342,8 @@ async def test_a_deeper_page_reuses_the_total_the_first_page_counted(listing_cli
 
 
 @pytest.mark.parametrize(
-    "patients",
-    [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
+    "tracked_entities",
+    [TrackedEntitiesConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
 )
 async def test_a_type_the_instance_states_no_total_for_leaves_the_searchset_stating_none(
     listing_client: httpx.AsyncClient,
@@ -360,8 +362,8 @@ async def test_a_type_the_instance_states_no_total_for_leaves_the_searchset_stat
 
 
 @pytest.mark.parametrize(
-    "patients",
-    [PatientsConfig(tracked_entity_types=[_HOUSEHOLD_TYPE_UID, REGISTRATION_TRACKED_ENTITY_TYPE_UID])],
+    "tracked_entities",
+    [TrackedEntitiesConfig(tracked_entity_types=[_HOUSEHOLD_TYPE_UID, REGISTRATION_TRACKED_ENTITY_TYPE_UID])],
 )
 async def test_a_configured_type_holding_nobody_is_skipped_rather_than_served_empty(
     listing_client: httpx.AsyncClient,
@@ -393,7 +395,8 @@ async def test_a_register_holding_nobody_is_an_empty_searchset(listing_client: h
 
 
 @pytest.mark.parametrize(
-    "patients", [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])]
+    "tracked_entities",
+    [TrackedEntitiesConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, _HOUSEHOLD_TYPE_UID])],
 )
 async def test_an_explicit_type_list_scopes_the_identifier_search_too(listing_client: httpx.AsyncClient) -> None:
     """The table restricts what this server answers about, and a search answers about no more than it."""
@@ -402,13 +405,15 @@ async def test_an_explicit_type_list_scopes_the_identifier_search_too(listing_cl
 
     await listing_client.get("/Patient?identifier=NOBODY00001")
 
+    # Three search keys by default - the unique national identifier and laboratory reference, plus the
+    # searchable date of birth - each asked of each type in scope, since DHIS2 takes one type per query.
     assert [call.request.url.params["trackedEntityType"] for call in search.calls] == [
         REGISTRATION_TRACKED_ENTITY_TYPE_UID,
         _HOUSEHOLD_TYPE_UID,
-    ]
+    ] * 3
 
 
-@pytest.mark.parametrize("patients", [PatientsConfig(search_attributes=[REGISTRATION_DATE_ATTRIBUTE])])
+@pytest.mark.parametrize("tracked_entities", [TrackedEntitiesConfig(search_attributes=[REGISTRATION_DATE_ATTRIBUTE])])
 async def test_named_search_attributes_are_the_identifier_keys_unique_or_not(
     listing_client: httpx.AsyncClient,
 ) -> None:
@@ -427,7 +432,7 @@ async def test_named_search_attributes_are_the_identifier_keys_unique_or_not(
     assert no_longer_a_key.json()["total"] == 0
 
 
-@pytest.mark.parametrize("patients", [PatientsConfig(listing=False)])
+@pytest.mark.parametrize("tracked_entities", [TrackedEntitiesConfig(listing=False)])
 async def test_listing_off_refuses_the_bare_search_and_leaves_identifier_search_alone(
     listing_client: httpx.AsyncClient,
 ) -> None:
@@ -441,46 +446,46 @@ async def test_listing_off_refuses_the_bare_search_and_leaves_identifier_search_
     assert listing.status_code == 404
     assert listing.json()["issue"][0]["code"] == "not-supported"
     assert listing.json()["issue"][0]["diagnostics"] == (
-        "this facade serves no `Patient` listing; name an `identifier` to search for a person, or set "
-        "`[serve.patients] listing = true` in fhir.toml and serve again"
+        "this facade serves no `Patient` listing; name an `identifier` to search for one, or set "
+        "`[serve.tracked_entities] listing = true` in fhir.toml and serve again"
     )
     assert search.status_code == 200
 
 
-@pytest.mark.parametrize("patients", [PatientsConfig(enabled=False)])
+@pytest.mark.parametrize("tracked_entities", [TrackedEntitiesConfig(enabled=False)])
 async def test_the_surface_switched_off_refuses_every_route_it_covers(
     listing_client: httpx.AsyncClient,
 ) -> None:
-    """`enabled = false` is the whole Patient surface, the enrollment listing beside the FHIR routes."""
+    """`enabled = false` is the whole register, the enrollment listing beside the FHIR routes."""
     tracker = respx.get(_TRACKER_URL).mock(return_value=httpx.Response(200, json={"trackedEntities": []}))
 
     responses = [
         await listing_client.get("/Patient"),
         await listing_client.get("/Patient?identifier=PerAaa00001"),
         await listing_client.get("/Patient/PerAaa00001"),
-        await listing_client.get("/patients/PerAaa00001/enrollments"),
+        await listing_client.get("/tracked-entities/PerAaa00001/enrollments"),
     ]
 
     assert [response.status_code for response in responses] == [404, 404, 404, 404]
-    for response in responses:
+    for response, named in zip(responses, ["Patient", "Patient", "Patient", "enrollments"], strict=True):
         assert response.json()["issue"][0]["code"] == "not-supported"
         assert response.json()["issue"][0]["diagnostics"] == (
-            "`Patient` is not served here: this project sets `[serve.patients] enabled` to false; set it "
-            "true in fhir.toml and serve again to search or list people"
+            f"`{named}` is not served here: this project sets `[serve.tracked_entities] enabled` to false; "
+            "set it true in fhir.toml and serve again to search or list the register"
         )
     assert not tracker.called
 
 
 def test_a_statement_over_a_switched_off_surface_declares_no_patient(capture_project: FhirProject) -> None:
     """`/metadata` states the refusal ahead of the request, as it does for a compiled run."""
-    capability = _capability(capture_project, PatientsConfig(enabled=False))
+    capability = _capability(capture_project, TrackedEntitiesConfig(enabled=False))
 
     assert "Patient" not in [resource.type for resource in capability.rest[0].resource or []]
 
 
 def test_a_live_statement_says_the_listing_is_there_to_be_paged(capture_project: FhirProject) -> None:
     """A client reading the statement learns the listing exists and that `page` is the server's to compose."""
-    capability = _capability(capture_project, PatientsConfig())
+    capability = _capability(capture_project, TrackedEntitiesConfig())
 
     patient = next(resource for resource in capability.rest[0].resource or [] if resource.type == "Patient")
     assert "one page of the register" in (patient.documentation or "")
@@ -489,10 +494,10 @@ def test_a_live_statement_says_the_listing_is_there_to_be_paged(capture_project:
 
 def test_a_statement_over_a_search_only_surface_says_so(capture_project: FhirProject) -> None:
     """The declaration follows the config: a project serving no listing does not advertise one."""
-    capability = _capability(capture_project, PatientsConfig(listing=False))
+    capability = _capability(capture_project, TrackedEntitiesConfig(listing=False))
 
     patient = next(resource for resource in capability.rest[0].resource or [] if resource.type == "Patient")
-    assert "people by identifier only" in (patient.documentation or "")
+    assert "the register by identifier only" in (patient.documentation or "")
 
 
 def _unknown_type_refusal() -> httpx.Response:
@@ -509,7 +514,7 @@ def _unknown_type_refusal() -> httpx.Response:
     )
 
 
-@pytest.mark.parametrize("patients", [PatientsConfig(tracked_entity_types=["Zz9QqWwEe11"])])
+@pytest.mark.parametrize("tracked_entities", [TrackedEntitiesConfig(tracked_entity_types=["Zz9QqWwEe11"])])
 async def test_a_configured_type_the_instance_does_not_hold_lists_nobody(listing_client: httpx.AsyncClient) -> None:
     """A mistyped tracked_entity_types uid is a surface that finds nobody, never a dead one."""
     respx.get(_TRACKER_URL).mock(return_value=_unknown_type_refusal())
@@ -524,8 +529,8 @@ async def test_a_configured_type_the_instance_does_not_hold_lists_nobody(listing
 
 
 @pytest.mark.parametrize(
-    "patients",
-    [PatientsConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, "Zz9QqWwEe11"])],
+    "tracked_entities",
+    [TrackedEntitiesConfig(tracked_entity_types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID, "Zz9QqWwEe11"])],
 )
 async def test_a_bad_type_late_in_the_list_does_not_kill_the_walk(listing_client: httpx.AsyncClient) -> None:
     """The listing serves the types the instance holds and skips past the one it does not."""

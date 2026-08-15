@@ -3,13 +3,18 @@
 These two routes match any path of their shape, so they mount last - every fixed path the facade
 serves is registered ahead of them. A type outside the served set is refused here rather than
 falling through to a bare 404, so a client learns the difference between "this server does not
-serve Patient" and "there is no Questionnaire with that id".
+serve Specimen" and "there is no Questionnaire with that id".
 
-The two catch-alls answer from two sources. Every definitional resource comes from the store,
+The two catch-alls answer from three sources. Every definitional resource comes from the store,
 byte-faithful to what the IG published - ConceptMap included, which is read here as a document and
 translated through at `/ConceptMap/$translate`, the two being different ways to ask about the same
 published maps. QuestionnaireResponse comes from the spool, where each resource is a receipt of a
-submission - what a client sent, not what DHIS2 now holds.
+submission - what a client sent, not what DHIS2 now holds. And the register's resource types - the
+ones the published `D2TET_CM` takes a tracked entity type onto - come from the DHIS2 instance, per
+request, and are dispatched to `dhis2w_fhir_serve.routes.register` before anything here reads the
+store. Which types those are is known only once the store has been loaded, so the dispatch is a
+lookup at request time rather than a second pair of routes mounted ahead of these; the register
+module is imported inside the handlers because it imports the search grammar below.
 
 A receipt is answered whatever lifecycle state it is in. `d2w fhir forward` renames a drained
 receipt into `forwarded/` or `rejected/`, and a read that started 404-ing at that moment would
@@ -23,7 +28,7 @@ what the server actually applied.
 
 `alternatives`, `identifier_token`, `base_url`, and `bundle_response` are the parts of that
 grammar that are not about the store at all - how FHIR spells a token, and what a searchset Bundle
-looks like - so `dhis2w_fhir_serve.routes.patient` builds its answers with the same four, and a
+looks like - so `dhis2w_fhir_serve.routes.register` builds its answers with the same four, and a
 result set from DHIS2 is shaped exactly like one from the store.
 """
 
@@ -116,8 +121,12 @@ def parse_response_search(params: QueryParams) -> ParsedResponseSearch:
 
 @router.get("/{resource_type}")
 async def search_resource_type(request: Request, resource_type: str) -> Response:
-    """Search one served resource type, answering with a `searchset` Bundle."""
+    """Search one served resource type, from the DHIS2 instance for a register type and from the store otherwise."""
+    from dhis2w_fhir_serve.routes.register import register_resource_types, search_register
+
     context = serve_context(request)
+    if resource_type in register_resource_types(request):
+        return await search_register(request, resource_type)
     _require_served(resource_type)
     service_base = base_url(request)
     if resource_type == QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE:
@@ -141,8 +150,12 @@ async def search_resource_type(request: Request, resource_type: str) -> Response
 
 @router.get("/{resource_type}/{resource_id}")
 async def read_resource(request: Request, resource_type: str, resource_id: str) -> Response:
-    """Answer one resource verbatim, from the store or - for a receipt - from the spool."""
+    """Answer one resource: from the DHIS2 instance for a register type, from the store or the spool otherwise."""
+    from dhis2w_fhir_serve.routes.register import read_registered_entity, register_resource_types
+
     context = serve_context(request)
+    if resource_type in register_resource_types(request):
+        return await read_registered_entity(request, resource_type, resource_id)
     _require_served(resource_type)
     if resource_type == QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE:
         receipt = context.spool.get(resource_id)

@@ -2144,7 +2144,7 @@ commitment.
   answers `GET /Patient?identifier=` for a person somebody can name, `GET /Patient`
   as a paged listing for a client that cannot, and `GET /patients/{uid}/enrollments`
   for the programmes one person is in - each read from the instance per request, and
-  each offered or withheld by `[serve.patients]`, whose defaults offer everything and
+  each offered or withheld by `[serve.tracked_entities]`, whose defaults offer everything and
   whose reason to exist is the deployment that wants less. What remains is the data
   half: the same facade answering FHIR
   consumers **from DHIS2's data**, not just its metadata - stored

@@ -52,7 +52,6 @@
 
 import {
     PATIENT_IDENTIFIER_SEARCH_PARAMETER,
-    PATIENT_RESOURCE_TYPE,
     type Bundle,
     type CapabilityStatement,
     type OperationOutcome,
@@ -68,39 +67,38 @@ import type { UiConfig } from '@/lib/uiconfig'
 export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
 
 /**
- * Every path prefix `d2w fhir serve` claims ahead of the UI mount.
+ * Every lowercase path `d2w fhir serve` claims ahead of the UI mount.
  *
  * Kept as a list rather than only a regex so the set is greppable from the
- * Python side: this must stay equal to `/metadata` and `/spool` plus
- * `dhis2w_fhir_serve.routes.read.SERVED_RESOURCE_TYPES`. The vite dev-server
- * proxy in vite.config.ts proxies the same list.
+ * Python side: this must stay equal to `/metadata`, `/spool`, `/uiconfig`, and
+ * the `/tracked-entities/{uid}/enrollments` listing. The vite dev-server proxy
+ * in vite.config.ts proxies the same list.
+ *
+ * The FHIR resource types are not in it, and cannot be. The read catch-all
+ * answers `/{ResourceType}` for the types the store holds, and the register
+ * answers it for every resource the published `D2TET_CM` names - which is a
+ * property of the guide this server loaded rather than of this bundle. So the
+ * guard recognises the *shape* of a resource type instead of enumerating them,
+ * and a type this server does not serve comes back as its own OperationOutcome
+ * saying so, which is a better answer than a client-side refusal guessing.
  */
-export const GUARDED_PATH_SEGMENTS = [
-    'metadata',
-    'spool',
-    'uiconfig',
-    'patients',
-    'Patient',
-    'Questionnaire',
-    'QuestionnaireResponse',
-    'CodeSystem',
-    'ValueSet',
-    'ConceptMap',
-    'Location',
-    'Organization',
-    'List',
-] as const
+export const GUARDED_PATH_SEGMENTS = ['metadata', 'spool', 'uiconfig', 'tracked-entities'] as const
+
+/** How FHIR spells a resource type: an initial capital, then letters, and nothing else. */
+export const RESOURCE_TYPE_PATTERN_SOURCE = '[A-Z][A-Za-z]*'
 
 /**
  * The guard itself.
  *
- * A path passes when it is exactly one of the segments above, or continues with
- * `/` (a resource id, an operation) or `?` (a search). `QuestionnaireResponse`
- * therefore does not match on the `Questionnaire` alternative, because the regex
- * requires an end, a slash, or a query right after it - which is why the longer
- * name must also be its own alternative rather than relying on prefix order.
+ * A path passes when it is exactly one of the fixed segments or a FHIR resource
+ * type, or continues with `/` (a resource id, an operation) or `?` (a search).
+ * Everything the UI is served from - `/`, `/index.html`, `/assets/...` - is
+ * lowercase and unlisted, which is what the guard is for: a request that would
+ * otherwise be answered with the shell instead of with JSON.
  */
-export const GUARDED_PATH_PATTERN = new RegExp(`^/(${GUARDED_PATH_SEGMENTS.join('|')})([/?]|$)`)
+export const GUARDED_PATH_PATTERN = new RegExp(
+    `^/(${[...GUARDED_PATH_SEGMENTS, RESOURCE_TYPE_PATTERN_SOURCE].join('|')})([/?]|$)`,
+)
 
 /** Where the API lives and what it is reached with; both have same-origin defaults. */
 export interface ApiConfiguration {
@@ -285,8 +283,8 @@ export async function postQuestionnaireResponse(
  * `FhirRequestError` carrying the server's own words. Callers ask `/metadata` first and never offer
  * the control at all in that case; the refusal is what a race against a restart reads as.
  */
-export async function searchPatients(identifier: string): Promise<Bundle<Patient>> {
-    return searchResources<Patient>(PATIENT_RESOURCE_TYPE, { [PATIENT_IDENTIFIER_SEARCH_PARAMETER]: identifier })
+export async function searchRegister(resource: string, identifier: string): Promise<Bundle<Patient>> {
+    return searchResources<Patient>(resource, { [PATIENT_IDENTIFIER_SEARCH_PARAMETER]: identifier })
 }
 
 /**
@@ -300,26 +298,34 @@ export async function searchPatients(identifier: string): Promise<Bundle<Patient
  * A deployment can publish the search and decline the listing, so callers ask `/uiconfig` first and
  * never offer the table at all in that case.
  */
-export async function listPatients(pageToken: string | null, count: number): Promise<Bundle<Patient>> {
+export async function listRegister(
+    resource: string,
+    pageToken: string | null,
+    count: number,
+): Promise<Bundle<Patient>> {
     const parameters: Record<string, string> = { [PATIENT_COUNT_PARAMETER]: String(count) }
     if (pageToken !== null) parameters[PATIENT_PAGE_PARAMETER] = pageToken
-    return searchResources<Patient>(PATIENT_RESOURCE_TYPE, parameters)
+    return searchResources<Patient>(resource, parameters)
 }
 
-/** One person the DHIS2 instance holds, by their tracked entity uid. */
-export async function readPatient(trackedEntityUid: string): Promise<Patient> {
-    return readResource<Patient>(PATIENT_RESOURCE_TYPE, trackedEntityUid)
+/** One tracked entity the DHIS2 instance holds, under the FHIR resource its type is registered as. */
+export async function readRegisteredEntity(resource: string, trackedEntityUid: string): Promise<Patient> {
+    return readResource<Patient>(resource, trackedEntityUid)
 }
 
 /**
- * Which programs one person is enrolled in, as the picker's feed states it.
+ * Which programs one tracked entity is enrolled in, as the picker's feed states it.
+ *
+ * The path names a tracked entity rather than a patient because DHIS2 enrols tracked entities, and
+ * what a project tracks is its own business - a listing spelt `/patients/` would be a lie the moment
+ * a type is published as something other than a person.
  *
  * Sent with `cache: 'no-store'`, like `/spool` and for the same class of reason: this is an answer
- * about the DHIS2 instance at this moment, and a person enrolled in a program a minute ago must not
+ * about the DHIS2 instance at this moment, and somebody enrolled in a program a minute ago must not
  * be reported as not enrolled because a cached answer was still warm.
  */
-export async function readPatientEnrollments(trackedEntityUid: string): Promise<PatientEnrollments> {
-    return readJson<PatientEnrollments>(`/patients/${encodeURIComponent(trackedEntityUid)}/enrollments`, {
+export async function readTrackedEntityEnrollments(trackedEntityUid: string): Promise<PatientEnrollments> {
+    return readJson<PatientEnrollments>(`/tracked-entities/${encodeURIComponent(trackedEntityUid)}/enrollments`, {
         cache: 'no-store',
     })
 }

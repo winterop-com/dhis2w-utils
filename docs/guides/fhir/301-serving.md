@@ -39,7 +39,7 @@ Two things to know before the options:
   time. A default run serves only what the guide published and can answer no
   such question, so an exposed live server is a materially different decision
   from an exposed compiled one. How much of that a live run offers is
-  [`[serve.patients]`](#patients) below.
+  [`[serve.tracked_entities]`](#tracked_entities) below.
 
 ### `host`
 
@@ -235,44 +235,77 @@ named after its host. `--basemap none` offers no layer at all, which is what
 `basemaps = []` says in the file; naming it beside a real layer is refused
 rather than guessed at.
 
-### People: the `[serve.patients]` table { #patients }
+### The register: the `[serve.tracked_entities]` table { #tracked_entities }
 
 !!! note "The one surface whose cost grows with use"
     Everything else this server answers, it answers out of files it read once
-    when it started: a hundred readers cost it no more than one. The people
-    surface is the exception. Every search, and every page of the listing, is a
-    question put to the DHIS2 instance while somebody waits - so the more this
-    surface is used, the more work the instance does. The six settings below are
-    how a project decides how much of that it wants.
+    when it started: a hundred readers cost it no more than one. The register is
+    the exception. Every search, and every page of the listing, is a question put
+    to the DHIS2 instance while somebody waits - so the more this surface is
+    used, the more work the instance does. The six settings below are how a
+    project decides how much of that it wants.
 
 A live run - `make serve-live`, or `d2w fhir serve --live` - answers three
-questions about people that no other run can answer:
+questions about the instance's tracked entities that no other run can answer:
 
 - *"Who holds this identifier?"* - the search, from a card number, a register
-  number, or whatever value the person is known by.
-- *"Who is in here?"* - the listing: people a page at a time, for somebody who
+  number, a barcode, or whatever value the subject is known by.
+- *"Who is in here?"* - the listing: records a page at a time, for somebody who
   has no identifier to type.
-- *"Which programmes is this person in?"* - the enrollment list the capture
-  screens' pickers choose from.
+- *"Which programmes is this record in?"* - the enrollment list the capture
+  screens' pickers choose from, at
+  `/tracked-entities/{uid}/enrollments`.
 
 A server reading a compiled guide answers none of the three and says so. It
-holds no connection to a DHIS2 instance, so there is nobody to answer about -
+holds no connection to a DHIS2 instance, so there is nothing to answer about -
 that is a property of the mode, not something this table turns on.
 
-`[serve.patients]` is how a project offers *less* than all of it. Every setting
-has a default that makes the surface work without your writing the table at
-all; you write it when a deployment wants the surface narrowed, or a page size
-the default does not fit.
+#### Which FHIR resources the register serves { #tracked_entities-resources }
+
+Not this table's business, and deliberately so. DHIS2 tracks whatever a project
+tracks - people, households, herds, water points, specimen batches - and which
+FHIR resource each of those is published as is stated once, on the generation
+side, in
+[`[generate.tracked_entity_types]`](301-what-goes-in.md#tracked_entity_types).
+Generating the guide turns that into a published artifact: `D2TET_CM`, a
+ConceptMap with one row per tracked entity type, taking its id onto the resource
+type its records are served as.
+
+**The artifact is the contract.** A running server reads `D2TET_CM` out of the
+store it loaded and serves one read surface per resource the map names: a
+project tracking people alone serves `GET /Patient` and nothing else here, and a
+project that also registers specimen batches serves `GET /Specimen` beside it,
+over exactly the types the map put there. Config is what generated the map; it is
+never what the server consults. That is what keeps a served resource and a
+published form's `subjectType` from disagreeing - and it is why re-generating the
+guide is what changes which resources are served, rather than editing the file the
+server was started with.
+
+Each surface answers the same way: the same `identifier` search, the same paged
+listing, the same projection - the tracked entity id, the values of the
+attributes DHIS2 declares unique, the rest as extensions, and **nothing the
+target resource otherwise defines**. A served `Specimen` carries no
+`Specimen.type` and no `collection`, exactly as a served `Patient` carries no
+name, gender, or birth date: DHIS2 holds no such field, and this server invents
+none. `/metadata` declares one entry per resource, each naming in its
+documentation the tracked entity types it answers over.
+
+`[serve.tracked_entities]` is how a project offers *less* than all of it, and it
+says the same thing about every resource the map named - whether this process
+answers about the instance's subjects at all is one decision rather than one per
+resource type. Every setting has a default that makes the surface work without
+your writing the table at all; you write it when a deployment wants the surface
+narrowed, or a page size the default does not fit.
 
 ```toml
-[serve.patients]
+[serve.tracked_entities]
 enabled = true
 listing = true
 page_size = 20
 page_size_limit = 100
 ```
 
-#### `enabled` { #patients-enabled }
+#### `enabled` { #tracked_entities-enabled }
 
 **In plain words.** Whether this server answers questions about people at all.
 On - the default - a live run searches by identifier, lists people, and lists
@@ -289,7 +322,7 @@ which the safest posture is that no person can be looked up at all.
 **Example.**
 
 ```toml
-[serve.patients]
+[serve.tracked_entities]
 enabled = false
 ```
 
@@ -306,9 +339,9 @@ questions and a compiled run answers none of them. That difference is the mode
 doing the work, not this setting.
 
 **If you get it wrong:** TOML wants bare `true` or `false`; anything
-unrecognisable stops the run with a printout naming `serve.patients.enabled`.
+unrecognisable stops the run with a printout naming `serve.tracked_entities.enabled`.
 
-#### `listing` { #patients-listing }
+#### `listing` { #tracked_entities-listing }
 
 **In plain words.** Whether "show me the people" is a question this server
 answers. On - the default - asking for people without naming an identifier
@@ -324,7 +357,7 @@ share an address. This setting draws the line in one word.
 **Example.**
 
 ```toml
-[serve.patients]
+[serve.tracked_entities]
 listing = false
 ```
 
@@ -340,11 +373,11 @@ ones.
 on the first page of the people the instance holds.
 
 **If you get it wrong:** TOML wants bare `true` or `false`; a printout naming
-`serve.patients.listing` is what a different value gets you. Setting
+`serve.tracked_entities.listing` is what a different value gets you. Setting
 `listing = true` beside `enabled = false` changes nothing - `enabled` removes
 the surface the listing is part of.
 
-#### `page_size` { #patients-page_size }
+#### `page_size` { #tracked_entities-page_size }
 
 **In plain words.** How many people come back in one page when whoever asked
 did not say. The Patients page shows a page of this size, and a program reading
@@ -359,7 +392,7 @@ matters is that the first page arrives quickly.
 **Example.**
 
 ```toml
-[serve.patients]
+[serve.tracked_entities]
 page_size = 50
 ```
 
@@ -371,10 +404,10 @@ a default page larger than the ceiling is a contradiction the file should not
 state.
 
 **If you get it wrong:** a value that is not a whole number stops the run
-before it starts, with a printout naming `serve.patients.page_size` and saying
+before it starts, with a printout naming `serve.tracked_entities.page_size` and saying
 an integer was expected.
 
-#### `page_size_limit` { #patients-page_size_limit }
+#### `page_size_limit` { #tracked_entities-page_size_limit }
 
 **In plain words.** The largest page anybody is allowed to ask for. A request
 that asks for more is not refused - it is answered with this many, and a link
@@ -396,7 +429,7 @@ work, where the point is that no single request can cost much.
 **Example.**
 
 ```toml
-[serve.patients]
+[serve.tracked_entities]
 page_size_limit = 25
 ```
 
@@ -409,9 +442,9 @@ rather than refused. A refusal would leave a client that asked for too much
 holding nothing, when a smaller page is precisely what it should have had.
 
 **If you get it wrong:** a value that is not a whole number stops the run with
-a printout naming `serve.patients.page_size_limit`.
+a printout naming `serve.tracked_entities.page_size_limit`.
 
-#### `tracked_entity_types` { #patients-tracked_entity_types }
+#### `tracked_entity_types` { #tracked_entities-tracked_entity_types }
 
 **What a tracked entity type is.** DHIS2 does not only track people. Every
 record it tracks is of exactly one **tracked entity type**, and an instance
@@ -436,7 +469,7 @@ several person-like registers, where this deployment works with one of them.
 **Example.**
 
 ```toml
-[serve.patients]
+[serve.tracked_entities]
 tracked_entity_types = ["nEenWmSyUEp"]
 ```
 
@@ -450,9 +483,11 @@ publishes that type's registration form under.
 **Not the same table as `[generate.tracked_entity_types]`.** That one, on the
 generation side, says *what a type is* - which FHIR resource a herd or a water
 point is published as
-([what goes in](301-what-goes-in.md#tracked_entity_types)). This one says which
-types the people surface answers about. The same words doing two different
-jobs, in two different sections.
+([what goes in](301-what-goes-in.md#tracked_entity_types)), and what it produces
+is the `D2TET_CM` this server reads. This one says which types the register
+answers about at all. The same words doing two different jobs, in two different
+sections - and naming a type here does not change what it is served as, only
+whether it is served.
 
 **Default:** `[]` (empty) - **If you leave it out:** the types this project's
 registration forms register, which for an ordinary person-tracking project is
@@ -466,48 +501,54 @@ as a surface that finds nobody: an empty listing, and searches that match
 no one, on an instance you know holds thousands of people. Check the id against
 the type in DHIS2 before concluding the search is broken.
 
-#### `search_attributes` { #patients-search_attributes }
+#### `search_attributes` { #tracked_entities-search_attributes }
 
-**What "unique" means in DHIS2.** An instance can mark a tracked entity
+**The two flags DHIS2 publishes.** An instance can mark a tracked entity
 attribute **unique**, which means it refuses to store the same value on two
-records. That flag is what turns a value into a name for a person rather than a
-fact about one: two people can share a village and a year of birth, but only
-one person holds card number 10023. So the identifier search's keys are, by
-default, exactly the attributes the instance declares unique - the guide
-publishes that flag on every attribute it carries, and this server reads it
-back off the guide.
+records - that flag is what turns a value into a name for a subject rather than
+a fact about one, since two people can share a village and a year of birth but
+only one person holds card number 10023. It can also mark an attribute
+**searchable**, which is DHIS2's own statement that this is a value people are
+looked up by. The guide publishes both flags on every attribute it carries, and
+this server reads them back off the guide.
 
-**In plain words.** Which attributes count as identifiers: the keys somebody
-can search by, and the values a person's record is listed under. Empty - the
-default - means the unique ones. Naming attribute ids here means those,
-whether DHIS2 enforces uniqueness on them or not.
+**Both are keys by default.** A search that names no key looks under every
+attribute the instance declares unique **or** searchable. Uniqueness alone would
+be too narrow to be useful: a clinic finds a woman by typing her first name,
+which DHIS2 marks searchable and nothing enforces uniqueness on, and a facade
+that keyed on uniqueness alone would refuse the one lookup the instance itself
+permits. Several matches is a normal answer, not a failure - the register's
+listing is already the shape that renders them.
+
+**In plain words.** Which attributes count as search keys: what somebody can
+search by. Empty - the default - means the unique and the searchable ones.
+Naming attribute ids here means those, whether DHIS2 marks them anything at all.
 
 **When you would change it.** Two situations.
 
-An instance declares five unique attributes and the field only ever quotes one
-of them. A search that names no key tries every key at once, so five keys mean
-five questions to the instance for one typed value. Naming the key people
-actually carry makes it one question, and the results come back only under that
-key.
+An instance declares five unique attributes and marks a dozen searchable, and
+the field only ever quotes one of them. A search that names no key tries every
+key at once, so seventeen keys mean seventeen questions to the instance for one
+typed value. Naming the key people actually carry makes it one question, and the
+results come back only under that key.
 
 Or the number a clerk actually types - a national identity number, a facility
-register number - is one the instance never marked unique, which happens
-whenever somebody decided the enforcement would be more trouble than it is
-worth. Naming it here makes it a search key regardless.
+register number - is one the instance marked neither unique nor searchable,
+which happens whenever somebody decided the flags would be more trouble than
+they are worth. Naming it here makes it a search key regardless.
 
-!!! warning "A key that is not unique can name more than one person"
-    Uniqueness is the thing that makes one value mean one person. Name an
-    attribute the instance does not enforce it on and a search can honestly come
-    back with several people who share the value - a phone number shared by a
+!!! warning "A key that is not unique can name more than one record"
+    Uniqueness is the thing that makes one value mean one subject. A searchable
+    attribute - the default set includes them - can honestly come back with
+    several people who share the value: a first name, a phone number shared by a
     household, a register number reused after a book was filled. The answer is
     not wrong; it is what the instance holds. It does mean whoever reads it has
-    to choose between people, so name a non-unique attribute deliberately rather
-    than to make a search work.
+    to choose between records, which is what the listing on screen is for.
 
 **Example.**
 
 ```toml
-[serve.patients]
+[serve.tracked_entities]
 search_attributes = ["lZGmxYbs97q"]
 ```
 
@@ -520,8 +561,8 @@ also publishes them, with their names and their uniqueness flag, in the tracked
 entity attribute dictionary the capture screens' Terminology page browses.
 
 **Default:** `[]` (empty) - **If you leave it out:** every attribute the
-instance declares unique is a search key, which is the set DHIS2 itself already
-treats as identifying.
+instance declares unique or searchable is a search key, which is the set DHIS2
+itself already treats as worth looking somebody up by.
 
 **If you get it wrong:** as with the types above, no check is possible before
 the server connects, so a mistyped id is a key nothing is ever found under. The

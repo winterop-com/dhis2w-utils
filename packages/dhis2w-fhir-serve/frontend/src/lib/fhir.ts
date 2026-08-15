@@ -288,7 +288,7 @@ export interface Meta {
 /**
  * One person in the DHIS2 instance behind a live facade.
  *
- * Identity and nothing else, which is what `dhis2w_fhir_serve.patients.projection` publishes and
+ * Identity and nothing else, which is what `dhis2w_fhir_serve.register.projection` publishes and
  * why: DHIS2 has no attribute that means a name, a gender, or a birth date, so those elements are
  * absent rather than guessed at. `id` is the tracked entity uid, `identifier` opens with that uid
  * and then carries one entry per value of an attribute DHIS2 declares unique, `meta.tag` states

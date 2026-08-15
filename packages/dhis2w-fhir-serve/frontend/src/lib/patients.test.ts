@@ -26,7 +26,7 @@ import {
 /**
  * Reading a person the DHIS2 instance holds, and the two decisions a capture screen makes from it.
  *
- * The Patient below is the shape `dhis2w_fhir_serve.patients.projection` really emits, under the
+ * The Patient below is the shape `dhis2w_fhir_serve.register.projection` really emits, under the
  * fixture project's own canonical and identifier base: the tracked entity uid as `id` and as the
  * first identifier, one identifier per unique attribute value under
  * `{base}/tracked-entity-attribute/{uid}`, the tracked entity type as a `meta.tag`, and every

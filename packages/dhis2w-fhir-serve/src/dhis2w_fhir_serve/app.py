@@ -12,11 +12,11 @@ stale within seconds of a drain. See `dhis2w_fhir_serve.spool`.
 
 The default mode is fully offline: a compiled IG on disk is the whole world, and no DHIS2 client is
 constructed anywhere in this module. `--live` swaps the store for one built from a DHIS2 instance,
-and keeps the client that built it open for the life of the process, because the patient routes
+and keeps the client that built it open for the life of the process, because the register routes
 answer from the instance per request rather than from anything loaded here. That client is the only
 thing in a running facade that is neither the store nor the spool, and it lives on `app.state`
 rather than on the context for the reason `dhis2w_fhir_serve.routes.context` states. It is closed
-when the lifespan unwinds; the default mode never opens one, which is what makes the patient routes
+when the lifespan unwinds; the default mode never opens one, which is what makes the register routes
 live-only.
 """
 
@@ -36,8 +36,8 @@ from dhis2w_fhir_serve.errors import register_error_handlers
 from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.log import LOGGER_NAME, RequestLogMiddleware
 from dhis2w_fhir_serve.metadata import build_metadata_body
-from dhis2w_fhir_serve.patients.index import PatientIndex
-from dhis2w_fhir_serve.patients.surface import PatientSurface
+from dhis2w_fhir_serve.register.index import TrackedEntityIndex
+from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.routes import register_routes
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool
@@ -64,8 +64,8 @@ class ServeContext(BaseModel):
     store: ResourceStore
     spool: ResponseSpool
     settings: ServeSettings
-    patient_surface: PatientSurface
-    """Who this process answers for: what the guide says about people, narrowed by `[serve.patients]`."""
+    register_surface: RegisterSurface
+    """What this process answers for: the published register, narrowed by `[serve.tracked_entities]`."""
 
     capability_body: dict[str, Any]
     """The `/metadata` document, pre-rendered - the same HTTP-boundary escape hatch `StoreEntry.body` documents."""
@@ -129,19 +129,21 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
         store = await build_store(settings, project, client)
         spool = ResponseSpool.at(project.project_root)
         summary = store.summary()
-        patient_surface = PatientSurface.resolve(PatientIndex.from_store(project, store), settings.patients)
+        register_surface = RegisterSurface.resolve(
+            TrackedEntityIndex.from_store(project, store), settings.tracked_entities
+        )
         app.state.context = ServeContext(
             project=project,
             store=store,
             spool=spool,
             settings=settings,
-            patient_surface=patient_surface,
+            register_surface=register_surface,
             capability_body=build_metadata_body(
                 project=project,
                 store_summary=summary,
                 spool_count=spool.count(),
                 settings=settings,
-                patient_surface=patient_surface,
+                register_surface=register_surface,
                 server_version=server_version(),
             ),
         )

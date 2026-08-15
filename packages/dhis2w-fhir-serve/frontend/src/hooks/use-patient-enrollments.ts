@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { readPatientEnrollments } from '@/lib/api'
+import { readTrackedEntityEnrollments } from '@/lib/api'
 import type { PatientEnrollment } from '@/lib/patients'
 
 /** What one person's enrollments are answering, in the states a listing has to tell apart. */
@@ -39,7 +39,7 @@ export function usePatientEnrollments(trackedEntityUid: string | null): PatientE
         let cancelled = false
         setLoading(true)
         setError(null)
-        readPatientEnrollments(trackedEntityUid)
+        readTrackedEntityEnrollments(trackedEntityUid)
             .then((listing) => {
                 if (cancelled) return
                 setEnrollments(listing.enrollments)

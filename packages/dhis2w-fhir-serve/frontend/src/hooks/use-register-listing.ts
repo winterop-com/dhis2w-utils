@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { listPatients } from '@/lib/api'
+import { listRegister } from '@/lib/api'
 import { NO_PATIENT_PAGE, PATIENT_PAGE_SIZE, patientPage, type PatientPage } from '@/lib/patients'
 
 /** One page of the listing, and the two moves that are available from it. */
-export interface PatientListingState {
+export interface RegisterListingState {
     page: PatientPage
     loading: boolean
     /** The refusal the server stated, already reduced to its message. */
@@ -16,7 +16,12 @@ export interface PatientListingState {
 }
 
 /**
- * Page through everyone the DHIS2 instance holds.
+ * Page through the tracked entities one served FHIR resource covers.
+ *
+ * WHY THE RESOURCE IS AN ARGUMENT. The register is one page per resource the published map names,
+ * because DHIS2 tracks whatever a project tracks and a section that mixed people with samples would
+ * be paging two different things through one cursor. `/uiconfig` states the resources; each section
+ * on screen holds one of these.
  *
  * WHY THE TOKEN IS THE WHOLE STATE. There is no page number here and no offset arithmetic: the
  * server states where the neighbours are and this hook holds the one token it was handed. Moving is
@@ -30,7 +35,7 @@ export interface PatientListingState {
  * The answer is only accepted while it is still the answer to the token that is current, so a slow
  * first page landing after Next was clicked is dropped rather than replacing the page on screen.
  */
-export function usePatientListing(enabled: boolean): PatientListingState {
+export function useRegisterListing(resource: string, enabled: boolean): RegisterListingState {
     const [token, setToken] = useState<string | null>(null)
     const [page, setPage] = useState<PatientPage>(NO_PATIENT_PAGE)
     const [loading, setLoading] = useState(enabled)
@@ -46,7 +51,7 @@ export function usePatientListing(enabled: boolean): PatientListingState {
         let cancelled = false
         setLoading(true)
         setError(null)
-        listPatients(token, PATIENT_PAGE_SIZE)
+        listRegister(resource, token, PATIENT_PAGE_SIZE)
             .then((bundle) => {
                 if (cancelled) return
                 setPage(patientPage(bundle))
@@ -61,7 +66,7 @@ export function usePatientListing(enabled: boolean): PatientListingState {
         return () => {
             cancelled = true
         }
-    }, [enabled, token])
+    }, [enabled, resource, token])
 
     const showNext = useCallback(() => {
         setToken((current) => page.next ?? current)

@@ -18,7 +18,7 @@ instance, so it cannot know which tracked entity attributes exist, let alone whi
 
 Which attributes are unique is not a fact this module reads. `D2TEA_CS` publishes a `unique`
 boolean per concept, so the guide already states it, and a caller joins the two before building a
-value list. `dhis2w_fhir_serve.patients.index` is the worked example.
+value list. `dhis2w_fhir_serve.register.index` is the worked example.
 """
 
 from __future__ import annotations

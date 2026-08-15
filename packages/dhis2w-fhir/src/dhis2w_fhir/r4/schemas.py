@@ -241,16 +241,19 @@ class Organization(DomainResource):
     active: bool | None = None
 
 
-class Patient(DomainResource):
-    """A FHIR R4 Patient as projected from one DHIS2 tracked entity - identity only, no demographic claims.
+class RegisteredEntity(DomainResource):
+    """One DHIS2 tracked entity as the FHIR resource its type is published as - identity only, no domain claims.
 
-    The elements are the ones DHIS2 states without interpretation: `identifier` for the tracked
-    entity UID and the values of the attributes DHIS2 declares unique, `meta.tag` for the tracked
-    entity type, and `extension` for every other attribute value the entity holds. `name`, `gender`,
-    and `birthDate` are deliberately absent - see `dhis2w_fhir_serve.patients.projection`.
+    `resourceType` is a plain string rather than a literal because the resource a tracked entity is
+    served as is what the published `D2TET_CM` maps its type onto: a Patient for the people, a
+    Specimen for the samples, whatever a project states. The elements are the four every R4 resource
+    in that map carries and DHIS2 states without interpretation: `identifier` for the tracked entity
+    UID and the values of the attributes DHIS2 declares unique, `meta.tag` for the tracked entity
+    type, and `extension` for every other attribute value the entity holds. Nothing the target
+    resource otherwise defines is filled in - see `dhis2w_fhir_serve.register.projection`.
     """
 
-    resourceType: Literal["Patient"] = "Patient"
+    resourceType: str
     id: str | None = None
     meta: Meta | None = None
     identifier: list[Identifier] | None = None

@@ -84,13 +84,13 @@ class NotServedFromCompiledIgError(ServeError):
     def __init__(self, resource_type: str) -> None:
         super().__init__(
             f"`{resource_type}` is answered from the DHIS2 instance this facade runs against, and this "
-            "process serves a compiled implementation guide; start it with `--live` to search people."
+            "process serves a compiled implementation guide; start it with `--live` to search the register."
         )
         self.resource_type = resource_type
 
 
-class PatientSurfaceDisabledError(ServeError):
-    """The project serves no people at all: `[serve.patients] enabled` is false.
+class RegisterDisabledError(ServeError):
+    """The project serves no tracked entity at all: `[serve.tracked_entities] enabled` is false.
 
     Same status and issue code as `NotServedFromCompiledIgError`, and for the same reason - from
     the client's side this server does not support the interaction - with the config key named so
@@ -102,28 +102,28 @@ class PatientSurfaceDisabledError(ServeError):
 
     def __init__(self, resource_type: str) -> None:
         super().__init__(
-            f"`{resource_type}` is not served here: this project sets `[serve.patients] enabled` to false; "
-            "set it true in fhir.toml and serve again to search or list people"
+            f"`{resource_type}` is not served here: this project sets `[serve.tracked_entities] enabled` to "
+            "false; set it true in fhir.toml and serve again to search or list the register"
         )
         self.resource_type = resource_type
 
 
-class PatientListingDisabledError(ServeError):
-    """People may be searched for here but not listed: `[serve.patients] listing` is false."""
+class RegisterListingDisabledError(ServeError):
+    """The register may be searched here but not listed: `[serve.tracked_entities] listing` is false."""
 
     status_code = 404
     issue_code = "not-supported"
 
     def __init__(self, resource_type: str) -> None:
         super().__init__(
-            f"this facade serves no `{resource_type}` listing; name an `identifier` to search for a person, "
-            "or set `[serve.patients] listing = true` in fhir.toml and serve again"
+            f"this facade serves no `{resource_type}` listing; name an `identifier` to search for one, "
+            "or set `[serve.tracked_entities] listing = true` in fhir.toml and serve again"
         )
         self.resource_type = resource_type
 
 
 class NoPublishedSubjectTypeError(ServeError):
-    """The facade runs live, but the guide publishes no registration form, so it knows of no people to search."""
+    """The facade runs live, but the guide publishes no registration form, so it knows of no type to search."""
 
     status_code = 404
     issue_code = "not-supported"

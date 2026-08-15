@@ -119,9 +119,16 @@ test('the tracked-entity dictionary states its codes, uniqueness, and the honest
     await expect(household).toHaveCount(1)
     await expect(household.getByRole('cell', { name: '-', exact: true })).toHaveCount(1)
 
-    // The unique attribute says so; DHIS2 is what refuses the second person claiming its value.
+    // The unique attribute says so; DHIS2 is what refuses the second person claiming its value. It is
+    // searchable too, which is the second boolean the dictionary publishes and the one the register
+    // widens its search keys by - so this row carries two true cells rather than one.
     const nationalId = page.getByRole('row').filter({ hasText: 'TeaNationId' })
-    await expect(nationalId.getByRole('cell', { name: 'true', exact: true })).toHaveCount(1)
+    await expect(nationalId.getByRole('cell', { name: 'true', exact: true })).toHaveCount(2)
+
+    // The searchable-but-not-unique case, which is the whole reason both booleans are published.
+    const searchableOnly = page.getByRole('row').filter({ hasText: 'TeaBirthDat' })
+    await expect(searchableOnly.getByRole('cell', { name: 'true', exact: true })).toHaveCount(1)
+    await expect(searchableOnly.getByRole('cell', { name: 'false', exact: true })).toHaveCount(1)
 })
 
 test('a category option combo digs down into the category options it is composed of', async ({

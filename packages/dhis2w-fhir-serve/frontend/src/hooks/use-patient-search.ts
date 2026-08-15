@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { searchPatients } from '@/lib/api'
+import { searchRegister } from '@/lib/api'
 import { bundleResources, type Patient } from '@/lib/fhir'
 import {
     patientProjection,
@@ -8,6 +8,7 @@ import {
     PATIENT_SEARCH_DEBOUNCE_MS,
     type PatientProjection,
 } from '@/lib/patients'
+import { PEOPLE_RESOURCE_TYPE } from '@/lib/uiconfig'
 
 /** What a patient search is currently answering, in the states a result list has to tell apart. */
 export interface PatientSearchState {
@@ -43,7 +44,11 @@ const NOTHING_ASKED: PatientSearchState = { query: null, searching: false, error
  * `123` landing after `1234` was typed is dropped, so a result list can never disagree with the
  * box above it.
  */
-export function usePatientSearch(typed: string, enabled: boolean): PatientSearchState {
+export function usePatientSearch(
+    typed: string,
+    enabled: boolean,
+    resource: string = PEOPLE_RESOURCE_TYPE,
+): PatientSearchState {
     const [state, setState] = useState<PatientSearchState>(NOTHING_ASKED)
     const query = enabled ? patientSearchQuery(typed) : null
 
@@ -55,7 +60,7 @@ export function usePatientSearch(typed: string, enabled: boolean): PatientSearch
         let cancelled = false
         setState((current) => ({ ...current, searching: true }))
         const timer = setTimeout(() => {
-            searchPatients(query)
+            searchRegister(resource, query)
                 .then((bundle) => {
                     if (cancelled) return
                     setState({
@@ -79,7 +84,7 @@ export function usePatientSearch(typed: string, enabled: boolean): PatientSearch
             cancelled = true
             clearTimeout(timer)
         }
-    }, [query])
+    }, [query, resource])
 
     return state
 }

@@ -5,7 +5,7 @@ what a patient lookup reads out of a guide - a registration form naming tracked 
 `TetPerson01`, and a `D2TEA_CS` declaring `TeaNationId` unique and three other attributes not - and
 the DHIS2 client is opened against a mocked host and put on `app.state.live_client`, which is the
 one thing that makes these routes answer rather than refuse. That split is the design: the routes
-read the guide only through `PatientIndex` and the instance only through `patients.wire`, so a
+read the guide only through `TrackedEntityIndex` and the instance only through `register.wire`, so a
 compiled store plus a live client is a faithful stand-in for a live run and costs no IG fetch.
 
 What is asserted about the wire is the empirical contract, not the code's own habits: the
@@ -25,11 +25,11 @@ import pytest
 import respx
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile
-from dhis2w_fhir.config import FhirProject, PatientsConfig
+from dhis2w_fhir.config import FhirProject, TrackedEntitiesConfig
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.capability import build_server_capability
-from dhis2w_fhir_serve.patients.index import PatientIndex
-from dhis2w_fhir_serve.patients.surface import PatientSurface
+from dhis2w_fhir_serve.register.index import TrackedEntityIndex
+from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import load_compiled_store
 from fastapi import FastAPI
@@ -41,6 +41,10 @@ from fixture_project import (
     REGISTRATION_PROGRAM_UID,
     REGISTRATION_TRACKED_ENTITY_TYPE_UID,
     REGISTRATION_UNIQUE_ATTRIBUTE,
+    SPECIMEN_RESOURCE_TYPE,
+    SPECIMEN_TRACKED_ENTITY_TYPE_NAME,
+    SPECIMEN_TRACKED_ENTITY_TYPE_UID,
+    SPECIMEN_UNIQUE_ATTRIBUTE,
 )
 
 _HOST = "https://dhis2.example"
@@ -195,10 +199,16 @@ async def test_a_system_qualified_identifier_searches_the_attribute_it_names(
     assert request_url.params["ouMode"] == "ACCESSIBLE"
 
 
-async def test_a_bare_identifier_value_tries_the_uid_and_every_unique_attribute(
+async def test_a_bare_identifier_value_tries_the_uid_and_every_search_key(
     live_client: httpx.AsyncClient,
 ) -> None:
-    """A token naming no system is a lookup across every key at once, the tracked entity UID included."""
+    """A token naming no system is a lookup across every key at once, the tracked entity UID included.
+
+    Every key, by default, is every attribute DHIS2 declares unique **or** searchable - so the
+    searchable-but-not-unique date of birth is filtered on beside the unique national identifier and
+    the unique laboratory reference, which is the widening a clinic looking somebody up by a
+    searchable attribute depends on.
+    """
     _read_route(None, _NATIONAL_ID)
     search = _search_route(_entity())
 
@@ -207,7 +217,11 @@ async def test_a_bare_identifier_value_tries_the_uid_and_every_unique_attribute(
     assert response.status_code == 200
     assert response.json()["total"] == 1
     filters = [call.request.url.params["filter"] for call in search.calls]
-    assert filters == [f"{REGISTRATION_UNIQUE_ATTRIBUTE}:eq:{_NATIONAL_ID}"]
+    assert filters == [
+        f"{REGISTRATION_DATE_ATTRIBUTE}:eq:{_NATIONAL_ID}",
+        f"{REGISTRATION_UNIQUE_ATTRIBUTE}:eq:{_NATIONAL_ID}",
+        f"{SPECIMEN_UNIQUE_ATTRIBUTE}:eq:{_NATIONAL_ID}",
+    ]
     assert all(call.request.url.params["ouMode"] == "ACCESSIBLE" for call in search.calls)
 
 
@@ -341,7 +355,7 @@ async def test_the_enrollment_listing_names_the_program_and_the_organisation_uni
     """The picker's feed: the enrollment, joined to the names this guide publishes."""
     _read_route(_entity())
 
-    listing = (await live_client.get(f"/patients/{_PERSON_UID}/enrollments")).json()
+    listing = (await live_client.get(f"/tracked-entities/{_PERSON_UID}/enrollments")).json()
 
     assert listing["tracked_entity_uid"] == _PERSON_UID
     assert listing["enrollments"] == [
@@ -375,7 +389,7 @@ async def test_a_completed_enrollment_is_listed_and_marked(live_client: httpx.As
         )
     )
 
-    listing = (await live_client.get(f"/patients/{_PERSON_UID}/enrollments")).json()
+    listing = (await live_client.get(f"/tracked-entities/{_PERSON_UID}/enrollments")).json()
 
     assert listing["enrollments"][0]["status"] == "COMPLETED"
     assert listing["enrollments"][0]["active"] is False
@@ -385,7 +399,7 @@ async def test_the_enrollment_read_never_names_a_program(live_client: httpx.Asyn
     """BUGS.md 72: a program the person is not enrolled in answers 404 claiming the person is gone."""
     read = _read_route(_entity())
 
-    await live_client.get(f"/patients/{_PERSON_UID}/enrollments")
+    await live_client.get(f"/tracked-entities/{_PERSON_UID}/enrollments")
 
     assert "program" not in read.calls[0].request.url.params
 
@@ -393,7 +407,7 @@ async def test_the_enrollment_read_never_names_a_program(live_client: httpx.Asyn
 async def test_a_compiled_run_refuses_patient_as_not_supported(capture_client: httpx.AsyncClient) -> None:
     """No live client, so no instance to ask - stated as the FHIR refusal, not as an empty result."""
     search = await capture_client.get("/Patient?identifier=anything")
-    listing = await capture_client.get(f"/patients/{_PERSON_UID}/enrollments")
+    listing = await capture_client.get(f"/tracked-entities/{_PERSON_UID}/enrollments")
 
     assert search.status_code == 404
     assert search.json()["issue"][0]["code"] == "not-supported"
@@ -420,26 +434,50 @@ def test_a_live_statement_declares_patient_search_on_identifier(capture_project:
     assert _NATIONAL_ID_SYSTEM.rsplit("/", 1)[0] in (parameter.documentation or "")
 
 
-def test_the_index_reads_the_unique_attributes_and_the_published_type(capture_project: FhirProject) -> None:
-    """What the guide states, as the index reads it: one identifier attribute out of four published."""
-    index = PatientIndex.from_store(capture_project, load_compiled_store(capture_project))
+def test_the_index_reads_the_search_keys_and_the_published_types(capture_project: FhirProject) -> None:
+    """What the guide states, as the index reads it: the search keys, and the two types the forms register."""
+    index = TrackedEntityIndex.from_store(capture_project, load_compiled_store(capture_project))
 
-    assert index.serves_patients()
-    assert index.tracked_entity_type_uids == (REGISTRATION_TRACKED_ENTITY_TYPE_UID,)
-    assert [attribute.attribute_uid for attribute in index.identifier_attributes()] == [REGISTRATION_UNIQUE_ATTRIBUTE]
+    assert index.serves_tracked_entities()
+    assert index.tracked_entity_type_uids() == (
+        REGISTRATION_TRACKED_ENTITY_TYPE_UID,
+        SPECIMEN_TRACKED_ENTITY_TYPE_UID,
+    )
+    assert [attribute.attribute_uid for attribute in index.search_key_attributes()] == [
+        REGISTRATION_DATE_ATTRIBUTE,
+        REGISTRATION_UNIQUE_ATTRIBUTE,
+        SPECIMEN_UNIQUE_ATTRIBUTE,
+    ]
     assert index.attribute_for_system(_NATIONAL_ID_SYSTEM) is not None
     assert index.program_name(REGISTRATION_PROGRAM_UID) == "Antenatal care"
 
 
-def _capability(project: FhirProject, *, live: bool, patients: PatientsConfig | None = None) -> Any:
+def test_the_index_reads_each_type_resource_off_the_published_map(capture_project: FhirProject) -> None:
+    """`D2TET_CM` is the contract: the resource a type is served as, and the name the instance holds for it."""
+    index = TrackedEntityIndex.from_store(capture_project, load_compiled_store(capture_project))
+
+    person = index.tracked_entity_type(REGISTRATION_TRACKED_ENTITY_TYPE_UID)
+    specimen = index.tracked_entity_type(SPECIMEN_TRACKED_ENTITY_TYPE_UID)
+
+    assert person is not None
+    assert (person.resource_type, person.name) == ("Patient", "Person")
+    assert specimen is not None
+    assert (specimen.resource_type, specimen.name) == (SPECIMEN_RESOURCE_TYPE, SPECIMEN_TRACKED_ENTITY_TYPE_NAME)
+
+
+def _capability(project: FhirProject, *, live: bool, tracked_entities: TrackedEntitiesConfig | None = None) -> Any:
     """The statement one run publishes, over the capture guide's own index."""
     store = load_compiled_store(project)
-    settings = ServeSettings(project_dir=project.project_root, live=live, patients=patients or PatientsConfig())
+    settings = ServeSettings(
+        project_dir=project.project_root, live=live, tracked_entities=tracked_entities or TrackedEntitiesConfig()
+    )
     return build_server_capability(
         project=project,
         store_summary=store.summary(),
         spool_count=0,
         settings=settings,
-        patient_surface=PatientSurface.resolve(PatientIndex.from_store(project, store), settings.patients),
+        register_surface=RegisterSurface.resolve(
+            TrackedEntityIndex.from_store(project, store), settings.tracked_entities
+        ),
         server_version="9.9.9",
     )
