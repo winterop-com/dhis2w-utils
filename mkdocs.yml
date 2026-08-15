@@ -232,6 +232,7 @@ nav:
       - FHIR roadmap + review guide: project/fhir-roadmap.md
       - FHIR conversion layer: project/fhir-conversion.md
       - FHIR enrollment resource: project/fhir-enrollment-resource.md
+      - Corrections and withdrawals: project/fhir-data-lifecycle.md
       - DHIS2 fidelity audit: project/fhir-dhis2-fidelity.md
       - FHIR harmonization: project/fhir-harmonization.md
 

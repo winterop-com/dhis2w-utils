@@ -2284,6 +2284,8 @@ what order.
   decision 5.3.
 - [Harmonization across country guides](fhir-harmonization.md) - the three tiers,
   the staged prerequisites, and the decisions a multi-country fleet reserves.
+- [Corrections and withdrawals](fhir-data-lifecycle.md) - what happens after a
+  receipt is forwarded, and the ten decisions that shape it.
 - [`dhis2w_fhir` API reference](../api/fhir.md) - the importable surface.
 - [Upstream DHIS2 quirks](upstream-quirks.md) - `BUGS.md` rendered, including
   entries #62, #63, and #64.

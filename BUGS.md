@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-89 entries grouped by area. **Status tags** carry the result of the most
+98 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -80,11 +80,16 @@ filing.
 ### Analytics / Aggregate / Data Values
 
 - [#1](#1-apianalyticsrawdata-and-apianalyticsdatavalueset-require-the-json-url-suffix) — `/api/analytics/rawData` requires `.json` URL suffix
-- [#2](#2-importstrategydelete-on-apidatavaluesets-is-a-soft-delete-that-still-blocks-parent-metadata-deletion) — `importStrategy=DELETE` is a soft-delete blocking parent metadata
+- [#2](#2-importstrategydelete-on-apidatavaluesets-is-a-soft-delete-that-still-blocks-parent-metadata-deletion) — `importStrategy=DELETE` is a soft-delete blocking parent metadata **[STILL]**
 - [#6](#6-bulk-apidatavaluesets-push-returns-409-even-when-every-rows-ignored-hiding-the-per-row-conflict-detail) — Bulk dataValueSets 409 even when every row ignored
 - [#13](#13-outlierdetectionalgorithm-oas-enum-reports-mod_z_score-but-dhis2-rejects-that-value-at-runtime) — `OutlierDetectionAlgorithm` OAS enum disagrees with runtime
 - [#31](#31-predictor-expression-parser-rejects-uppercase-aggregators-avg--sum) — Predictor expression parser rejects uppercase `AVG()` / `SUM()`
 - [#50](#50-post-delete-apidatavalues-has-no-attributeoptioncombo-query-param-the-attribute-option-combo-is-addressed-by-cc-cp) — `POST` / `DELETE /api/dataValues` has no `attributeOptionCombo` param (`cc` + `cp` instead)
+- [#84](#84-importstrategycreate-on-apidatavaluesets-overwrites-a-live-value-instead-of-conflicting) — `importStrategy=CREATE` overwrites a live value instead of conflicting
+- [#85](#85-apidatavaluesets-importcount-never-reports-imported-so-a-create-is-indistinguishable-from-a-correction) — `importCount` never reports `imported`; a create looks like a correction
+- [#86](#86-blank-values-mean-opposite-things-on-the-two-data-surfaces-erasure-on-apitracker-e8120-on-apidatavaluesets) — `""` erases a tracker data value and is refused (`E8120`) on `/api/dataValueSets`
+- [#87](#87-importstrategydelete-of-a-data-value-that-was-never-written-materialises-a-tombstone-carrying-the-payloads-value) — `importStrategy=DELETE` of a never-written value materialises a tombstone
+- [#88](#88-inline-deleted-true-on-a-data-value-soft-deletes-it-but-is-counted-as-updated-never-deleted) — inline `"deleted": true` soft-deletes but is counted as `updated`
 
 ### Metadata / Sharing / UX
 
@@ -119,6 +124,10 @@ filing.
 - [#79](#79-completeness-registers-off-completedate-even-when-every-data-value-is-refused) — Completeness registers off `completeDate` even when every value is refused (2.42)
 - [#80](#80-apicompletedatasetregistrations-has-no-component-schema-in-the-openapi-document) — `/api/completeDataSetRegistrations` has no component schema
 - [#81](#81-first-completeness-registration-for-a-never-persisted-period-fails-with-an-opaque-failed-to-flush-batchhandler-the-identical-retry-succeeds) — First registration for a virgin period fails opaquely; the retry succeeds (2.43.1)
+- [#89](#89-includedeletedtrue-is-honoured-by-the-tracker-collection-endpoints-and-ignored-by-the-item-endpoints) — `includeDeleted=true` works on tracker collections, ignored on item endpoints
+- [#90](#90-attribute-filtered-tracked-entity-search-drops-soft-deleted-entities-even-with-includedeletedtrue-while-uid-addressed-listing-returns-them) — attribute-filtered entity search drops soft-deleted rows even with `includeDeleted=true`
+- [#91](#91-get-apitrackereventsenrollmentuid-also-demands-program-answering-with-a-tomcat-html-400) — `enrollment=` events read also demands `program`; HTML 400 (extends #67)
+- [#92](#92-apimetadata-import-rewrites-optionsortorder-to-a-0-based-sequence) — `/api/metadata` import rewrites `Option.sortOrder` to a 0-based sequence
 
 ### v43-specific
 
@@ -147,6 +156,24 @@ Each entry's "Retested on" line records the exact version + revision the
 re-run hit, what was checked, and the outcome. Entries that need write
 access, custom `dhis.conf`, or a server restart are marked **not retested
 against play** — verify locally when a v43 e2e dump exists.
+
+### 2026-08-15 — data-lifecycle review (local `2.43.1`, write/data)
+
+Two parallel reviews against the local stack (`dhis2/core`, `make dhis2-run`, `2.43.1` rev
+`9cbfbf3`, admin/district): one on what an update does on every data surface, one on what a
+delete does. Both wrote their own throwaway data. Findings filed as #84 through #92.
+
+| #   | finding |
+| --- | --- |
+| 2   | **[STILL] on `2.43.1`, reproduced verbatim.** `importStrategy=DELETE` on `/api/dataValueSets` soft-deletes; the row survives with its `value`; `DELETE /api/dataElements/{uid}` then answers `409 E4030 "associated with another object: DataValue"`. `DELETE /api/dataSets/{uid}` is unaffected — only the data element is blocked. The demonstration artifact is still on the local stack: data element `W4cDelTest2`, unremovable. |
+| 67  | Extended by **#91** — `enrollment=` demands `program` the same way `programStage=` does, with the same Tomcat HTML 400. |
+
+Also observed, and worth recording because they bound what a retest can check: every audit
+surface answered empty (`/api/audits/dataValue` `total:0` system-wide, event and
+tracked-entity `changeLogs` `[]`), because this stack disables auditing in `infra/home/dhis.conf`
+for the reason #3 and #53 describe; and `/api/tracker/enrollments/{uid}/changeLogs` is a
+`404` on `2.43.1` — not a resource at all. The design consequences are in
+`docs/project/fhir-data-lifecycle.md`.
 
 ### 2026-06-09 — full sweep (dev read-only + real-release write/data, v41/v42/v43)
 
@@ -4460,5 +4487,448 @@ it. Same shape as #64 (`CategoryCombo.categoryOptionCombos`).
 **Workaround in this repo:** `packages/dhis2w-fhir/src/dhis2w_fhir/i18n.py` sorts every
 selected translation list by the normalised locale tag and deduplicates on it, so a
 regenerate of unchanged metadata produces an unchanged file.
+
+**Verifier:** none yet.
+
+---
+
+### 84. `importStrategy=CREATE` on `/api/dataValueSets` overwrites a live value instead of conflicting
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`). Login as
+`admin/district`.
+
+**Repro:**
+
+```bash
+DS=BfMAe6Itzgt; DE=s46m5MS0hxu; COC=Prlt0C1RF0s; OU=y77LiPqLMoq; PE=202601
+
+# Write a value.
+curl -s -u admin:district -X POST http://localhost:8080/api/dataValueSets \
+  -H 'Content-Type: application/json' \
+  -d "{\"dataSet\":\"$DS\",\"period\":\"$PE\",\"orgUnit\":\"$OU\",\"dataValues\":[
+       {\"dataElement\":\"$DE\",\"categoryOptionCombo\":\"$COC\",\"value\":\"10\"}]}"
+# -> importCount {"imported":0,"updated":1,"ignored":0,"deleted":0}
+
+# Re-post the SAME tuple with importStrategy=CREATE.
+curl -s -u admin:district -X POST \
+  "http://localhost:8080/api/dataValueSets?importStrategy=CREATE" \
+  -H 'Content-Type: application/json' \
+  -d "{\"dataSet\":\"$DS\",\"period\":\"$PE\",\"orgUnit\":\"$OU\",\"dataValues\":[
+       {\"dataElement\":\"$DE\",\"categoryOptionCombo\":\"$COC\",\"value\":\"40\"}]}"
+# -> importCount {"imported":0,"updated":1,"ignored":0,"deleted":0}
+
+# Read it back.
+curl -s -u admin:district \
+  "http://localhost:8080/api/dataValueSets.json?dataSet=$DS&orgUnit=$OU&period=$PE"
+# -> the value is "40": CREATE replaced a value that already existed
+```
+
+**Expected:** `CREATE` means create. A tuple that already carries a value should be refused,
+or at minimum counted `ignored` with a conflict, the way
+`POST /api/tracker?importStrategy=CREATE` answers `409 E1030 "... already exists"` for an
+event UID that is taken.
+
+**Actual:** the value is overwritten and the summary is indistinguishable from an
+unparameterised `CREATE_AND_UPDATE` post. The parameter is accepted and has no effect on
+this endpoint.
+
+**Impact:** the aggregate endpoint offers no collision protection at all, so the two data
+surfaces disagree about what the same parameter means. A client that relies on `CREATE` to
+make an accidental re-send fail loudly, which is exactly what the FHIR forwarder relies on
+for tracker events, gets a silent last-write-wins on the aggregate side, with no way to
+learn from the response that anything was clobbered (compounded by #85).
+
+**Workaround in this repo:** none in code. `docs/project/fhir-data-lifecycle.md` records
+this as the reason the FHIR forwarder's aggregate leg cannot detect an overwrite, and
+designs the overwrite report off our own spool instead.
+
+**How to know it's fixed:** the second post above returns a conflict, or
+`importCount.ignored` is `1` with a conflict naming the existing value.
+
+**Verifier:** none yet.
+
+---
+
+### 85. `/api/dataValueSets` `importCount` never reports `imported`, so a create is indistinguishable from a correction
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`).
+
+**Repro:**
+
+```bash
+DS=BfMAe6Itzgt; DE=s46m5MS0hxu; COC=Prlt0C1RF0s; OU=y77LiPqLMoq
+
+# Pick a period nothing has ever been written for.
+curl -s -u admin:district \
+  "http://localhost:8080/api/dataValueSets.json?dataSet=$DS&orgUnit=$OU&period=202602&includeDeleted=true"
+# -> {"dataValues":[]}   (nothing there, not even a tombstone)
+
+curl -s -u admin:district -X POST http://localhost:8080/api/dataValueSets \
+  -H 'Content-Type: application/json' \
+  -d "{\"dataSet\":\"$DS\",\"period\":\"202602\",\"orgUnit\":\"$OU\",\"dataValues\":[
+       {\"dataElement\":\"$DE\",\"categoryOptionCombo\":\"$COC\",\"value\":\"11\"}]}"
+# -> "importCount":{"imported":0,"updated":1,"ignored":0,"deleted":0}
+```
+
+**Expected:** `imported: 1` for a value that did not exist, `updated: 1` for one that did.
+The two counters exist precisely to tell those apart, and `/api/tracker` does tell them
+apart (`stats.created` versus `stats.updated`).
+
+**Actual:** every accepted data value is counted `updated`, including a genuinely first
+write on a tuple with no row and no tombstone behind it. `imported` was `0` on every
+observed post, and the same was reached independently from the deletion side: a first-ever
+write of a data value also reported `{"updated": 1}`.
+
+**Impact:** an import summary cannot answer "did I create this or overwrite something?". Any
+caller reconciling counts - a forwarder, a migration, a nightly sync - has to read the target
+back before writing to learn what it is about to do. Combined with #84 there is no
+wire-level defence against a silent clobber at all.
+
+**Workaround in this repo:** none in code. `docs/project/fhir-data-lifecycle.md` records
+that the spool, not the import summary, is where an aggregate overwrite has to be detected.
+
+**How to know it's fixed:** the post above returns `"imported":1,"updated":0`.
+
+**Verifier:** none yet.
+
+---
+
+### 86. Blank values mean opposite things on the two data surfaces: erasure on `/api/tracker`, `E8120` on `/api/dataValueSets`
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`).
+
+**Repro:**
+
+```bash
+# Aggregate: a blank value is refused.
+curl -s -u admin:district -X POST http://localhost:8080/api/dataValueSets \
+  -H 'Content-Type: application/json' \
+  -d '{"dataSet":"BfMAe6Itzgt","period":"202601","orgUnit":"y77LiPqLMoq","dataValues":[
+       {"dataElement":"s46m5MS0hxu","categoryOptionCombo":"Prlt0C1RF0s","value":""}]}'
+# -> importCount {"ignored":1}, conflict E8120 "Value #0 value is required"
+# -> identical for  "value": null  and for omitting the key entirely
+
+# Tracker: the same blank value erases the stored one.
+curl -s -u admin:district -X POST \
+  "http://localhost:8080/api/tracker?importStrategy=UPDATE&async=false" \
+  -H 'Content-Type: application/json' \
+  -d '{"events":[{"event":"EvCorrTest1","program":"PrAncCare01","programStage":"PsAncVisit1",
+       "orgUnit":"y77LiPqLMoq","enrollment":"EnCorrTest1","occurredAt":"2026-08-15",
+       "status":"COMPLETED","dataValues":[{"dataElement":"DeAncDanger","value":""}]}]}'
+# -> 200, stats {"updated":1}; DeAncDanger is now absent from the event
+```
+
+**Expected:** one meaning for a blank value across the data surfaces - either "erase this" on
+both, or "invalid, say so" on both.
+
+**Actual:** the same JSON literal erases on `/api/tracker` and is a hard `E8120` refusal on
+`/api/dataValueSets`. `null` behaves as `""` does on each surface.
+
+**Impact:** a client that models "the submitter cleared this answer" has to branch on which
+DHIS2 endpoint it is about to talk to, and the aggregate branch has no erase verb at all
+short of `importStrategy=DELETE`, which is a soft delete with the metadata-lifecycle
+consequences in #2 and #87.
+
+**Version sensitivity, unresolved:** only `2.43.1` was tested. Historically an empty value on
+`/api/dataValueSets` was understood to mean delete. If `2.41` or `2.42` still deletes, this
+entry needs a per-version table, because the same correcting payload would erase on one
+major and be refused on another.
+
+**Workaround in this repo:** none in code. `docs/project/fhir-data-lifecycle.md` requires a
+correcting payload to carry complete state on both surfaces, so a cleared answer is always
+an explicit value rather than an omission.
+
+**How to know it's fixed:** the two posts above agree - both refuse, or both erase.
+
+**Verifier:** none yet.
+
+---
+
+### 87. `importStrategy=DELETE` of a data value that was never written materialises a tombstone carrying the payload's value
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`).
+
+**Repro:**
+
+```bash
+# A data element whose data set has never held a value for this period.
+DE=W4cDelTest2; OU=y77LiPqLMoq; PE=202512
+
+curl -s -u admin:district \
+  "http://localhost:8080/api/dataValueSets.json?dataElement=$DE&orgUnit=$OU&period=$PE&includeDeleted=true"
+# -> {"dataValues":[]}   nothing exists, not even a tombstone
+
+# Delete something that is not there.
+curl -s -u admin:district -X POST \
+  "http://localhost:8080/api/dataValueSets?importStrategy=DELETE" \
+  -H 'Content-Type: application/json' \
+  -d "{\"dataValues\":[{\"dataElement\":\"$DE\",\"period\":\"$PE\",\"orgUnit\":\"$OU\",\"value\":\"1\"}]}"
+# -> status OK, importCount {"deleted": 1}
+
+curl -s -u admin:district \
+  "http://localhost:8080/api/dataValueSets.json?dataElement=$DE&orgUnit=$OU&period=$PE&includeDeleted=true"
+# -> {"dataValues":[{"value":"1","created":"2026-08-15T15:29:26.128","deleted":true, ...}]}
+
+# The parent data element is now permanently undeletable, per #2.
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:district \
+  -X DELETE "http://localhost:8080/api/dataElements/$DE"
+# -> 409   E4030 "associated with another object: DataValue"
+```
+
+**Expected:** deleting a value that does not exist is a no-op. Either `deleted: 0`, or an
+`ignored` count with a conflict saying there was nothing there.
+
+**Actual:** a fresh row is written, `created` stamped at the moment of the delete, carrying
+the *request payload's* `value` - a value the instance never held - and flagged
+`deleted: true`. `importCount` reports `deleted: 1`, so the caller is told it deleted
+something.
+
+**Impact:** strictly worse than #2, which at least requires the data to have existed. A
+spurious or replayed delete permanently blocks deletion of the parent data element for data
+that was never there, and fabricates a value in the deleted-row history that no submitter
+ever asserted. Deletion becomes a one-way ratchet on metadata lifecycle: a client that
+issues deletes speculatively will slowly make its own metadata unremovable.
+
+**Workaround in this repo:** none in code yet. `docs/project/fhir-data-lifecycle.md` makes
+"read before you delete" a requirement of the aggregate withdrawal slice for exactly this
+reason, and orders that slice after the event one because of it.
+
+**How to know it's fixed:** the delete above returns `deleted: 0` (or an `ignored` conflict)
+and the subsequent `includeDeleted=true` read stays empty.
+
+**Verifier:** none yet.
+
+---
+
+### 88. Inline `"deleted": true` on a data value soft-deletes it but is counted as `updated`, never `deleted`
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`).
+
+**Repro:**
+
+```bash
+DE=W4cDelTest1; OU=y77LiPqLMoq; PE=202604
+
+# Write a value under the default strategy.
+curl -s -u admin:district -X POST http://localhost:8080/api/dataValueSets \
+  -H 'Content-Type: application/json' \
+  -d "{\"dataValues\":[{\"dataElement\":\"$DE\",\"period\":\"$PE\",\"orgUnit\":\"$OU\",\"value\":\"7\"}]}"
+
+# Now flag it deleted inline, still under the default strategy.
+curl -s -u admin:district -X POST http://localhost:8080/api/dataValueSets \
+  -H 'Content-Type: application/json' \
+  -d "{\"dataValues\":[{\"dataElement\":\"$DE\",\"period\":\"$PE\",\"orgUnit\":\"$OU\",
+       \"value\":\"7\",\"deleted\":true}]}"
+# -> importCount {"imported":0,"updated":1,"ignored":0,"deleted":0}
+
+curl -s -u admin:district \
+  "http://localhost:8080/api/dataValueSets.json?dataElement=$DE&orgUnit=$OU&period=$PE"
+# -> {"dataValues":[]}          it really is soft-deleted
+```
+
+**Expected:** `importCount.deleted` counts it, the way `importStrategy=DELETE` does for the
+same stored outcome.
+
+**Actual:** the row is soft-deleted and the summary reports `updated: 1`. `deleted` stays
+`0`. Two different requests produce the same stored state and two different summaries, and
+because `updated` is also what a plain create reports (#85), the counter carries almost no
+information at all.
+
+**Impact:** a caller reconciling counts cannot distinguish a withdrawal from an overwrite
+from a create. Anything auditing "how many values did this run remove?" from the import
+summary is reading a number structurally incapable of answering.
+
+**Workaround in this repo:** the FHIR forwarder never sends inline `deleted`; the withdrawal
+design in `docs/project/fhir-data-lifecycle.md` uses `importStrategy=DELETE` and records the
+outcome in the receipt's own sidecar rather than trusting the counters.
+
+**How to know it's fixed:** the second post above reports `"deleted":1`.
+
+**Verifier:** none yet.
+
+---
+
+### 89. `includeDeleted=true` is honoured by the tracker collection endpoints and ignored by the item endpoints
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`).
+
+**Repro:**
+
+```bash
+EV=W4cEvAnc001   # an event that has been soft-deleted via importStrategy=DELETE
+
+# Item endpoint: the flag has no effect.
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:district \
+  "http://localhost:8080/api/tracker/events/$EV"
+# -> 404   E1005 "Event with id ... could not be found."
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:district \
+  "http://localhost:8080/api/tracker/events/$EV?includeDeleted=true"
+# -> 404   same answer
+
+# Sibling collection endpoint: the flag works.
+curl -s -u admin:district \
+  "http://localhost:8080/api/tracker/events?program=PrAncCare01&enrollment=W4cEnAnc001&includeDeleted=true"
+# -> the event is present, "deleted": true
+```
+
+The same asymmetry holds for `/api/tracker/enrollments/{uid}` and
+`/api/tracker/trackedEntities/{uid}`.
+
+**Expected:** `includeDeleted=true` means the same thing on both shapes of the same
+resource. A UID-addressed read is the natural way to ask "what happened to this object?".
+
+**Actual:** the item endpoint answers `404 E1005` regardless of the flag; only the
+collection endpoint can surface a soft-deleted row.
+
+**Impact:** an auditor or a client reconciling a deletion cannot ask about one object
+directly. It has to reconstruct a collection query - which needs `program`, and for events
+also trips #67 and #91 - and filter client-side. A client that holds only the UID, which is
+the normal case after a delete, has no direct read at all.
+
+**Workaround in this repo:** none in code yet. Recorded in
+`docs/project/fhir-data-lifecycle.md` as a constraint on how a withdrawn receipt's DHIS2
+state can be verified.
+
+**How to know it's fixed:** `GET /api/tracker/events/{uid}?includeDeleted=true` returns the
+row with `"deleted": true`.
+
+**Verifier:** none yet.
+
+---
+
+### 90. Attribute-filtered tracked-entity search drops soft-deleted entities even with `includeDeleted=true`, while UID-addressed listing returns them
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`).
+
+**Repro:**
+
+```bash
+TE=W4cTeChd001   # a tracked entity that has been soft-deleted
+
+# Search by an attribute value the entity carried.
+curl -s -u admin:district -g \
+  "http://localhost:8080/api/tracker/trackedEntities?trackedEntityType=nEenWmSyUEp&ouMode=ACCESSIBLE&filter=w75KJ2mc4zz:eq:Wanjiru&includeDeleted=true"
+# -> {"instances":[]}   nothing, even though deleted rows were asked for
+
+# Ask for the very same entity by UID on the very same endpoint.
+curl -s -u admin:district \
+  "http://localhost:8080/api/tracker/trackedEntities?trackedEntity=$TE&ouMode=ACCESSIBLE&includeDeleted=true"
+# -> the entity is returned, "deleted": true
+```
+
+**Expected:** one endpoint, one meaning for the flag. If deleted rows are in scope, they are
+in scope for the filter too.
+
+**Actual:** the attribute filter is applied to live rows only. `includeDeleted=true` widens
+the UID-addressed listing and has no effect on the filtered search.
+
+**Impact:** a deleted person is unfindable by their identifier, including to an auditor who
+explicitly asks for deleted rows, yet remains enumerable to anyone who already knows the
+UID. Any workflow that answers "was this person ever registered here?" from an identifier
+search answers "no" for someone who was.
+
+**Workaround in this repo:** none in code. Recorded in
+`docs/project/fhir-data-lifecycle.md` alongside the cascade findings, as one reason
+tracked-entity withdrawal is designed but deliberately unscheduled.
+
+**How to know it's fixed:** the filtered search above returns the entity with
+`"deleted": true`.
+
+**Verifier:** none yet.
+
+---
+
+### 91. `GET /api/tracker/events?enrollment=<uid>` also demands `program`, answering with a Tomcat HTML 400
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`).
+
+Extends #67, which records the same demand for `programStage=`. The enrollment form is worth
+stating separately because an enrollment UID pins a program even more directly than a stage
+UID does: an enrollment is a row naming one program.
+
+**Repro:**
+
+```bash
+curl -s -u admin:district \
+  "http://localhost:8080/api/tracker/events?enrollment=W4cEnAnc001"
+# -> HTTP 400, Content-Type: text/html
+# -> a Tomcat error page, not a DHIS2 JSON error envelope
+
+# Adding the program the enrollment already names makes it work.
+curl -s -u admin:district \
+  "http://localhost:8080/api/tracker/events?enrollment=W4cEnAnc001&program=PrAncCare01"
+# -> 200, the enrollment's events
+```
+
+**Expected:** the enrollment UID resolves to exactly one program, so `program` is redundant.
+If it is genuinely required, the refusal should be a DHIS2 JSON error naming the missing
+parameter, not a Tomcat HTML page.
+
+**Actual:** `400` with an HTML body. A JSON client gets a parse failure where it expected an
+error code.
+
+**Impact:** same as #67 - a caller that has an enrollment and wants its events has to carry
+the program along, and a caller that forgets gets an unparseable body instead of a
+diagnosis. Compounds #89, because reconstructing a collection query is the only way to read
+a soft-deleted event.
+
+**Workaround in this repo:** the tracker reads always pass `program` alongside `enrollment`;
+see the #67 workaround, which covers the same call sites.
+
+**How to know it's fixed:** the first request above returns `200`, or a DHIS2 JSON error
+naming `program`.
+
+**Verifier:** none yet.
+
+---
+
+### 92. `/api/metadata` import rewrites `Option.sortOrder` to a 0-based sequence
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`), while
+reseeding this repository's local stack.
+
+**Repro:**
+
+```bash
+# Import three options with sortOrder 1, 2, 3 into an existing option set.
+curl -s -u admin:district -X POST http://localhost:8080/api/metadata \
+  -H 'Content-Type: application/json' \
+  -d '{"options":[
+    {"id":"OptSortOne1","name":"<5","code":"SORT_LT5","sortOrder":1,"optionSet":{"id":"OptSetSort1"}},
+    {"id":"OptSortTwo1","name":">5","code":"SORT_GT5","sortOrder":2,"optionSet":{"id":"OptSetSort1"}},
+    {"id":"OptSortThr1","name":"Not stated","code":"SORT_NS","sortOrder":3,"optionSet":{"id":"OptSetSort1"}}]}'
+# -> status OK
+
+curl -s -u admin:district -g \
+  "http://localhost:8080/api/optionSets/OptSetSort1?fields=options[id,name,sortOrder]"
+# -> sortOrder comes back 0, 1, 2: every option shifted down by one
+
+# A PATCH of the same field sticks.
+curl -s -u admin:district -X PATCH http://localhost:8080/api/options/OptSortOne1 \
+  -H 'Content-Type: application/json-patch+json' \
+  -d '[{"op":"replace","path":"/sortOrder","value":1}]'
+curl -s -u admin:district "http://localhost:8080/api/options/OptSortOne1?fields=sortOrder"
+# -> {"sortOrder":1}   the value written through PATCH is kept
+```
+
+**Expected:** `sortOrder` is stored as sent, or the normalisation is documented and applied
+consistently across every write path.
+
+**Actual:** the bundle importer normalises an option set's `sortOrder` values into a
+contiguous 0-based sequence in payload order, silently. `PATCH /api/options/{uid}` does not
+normalise, so the same field has two behaviours depending on which endpoint set it.
+
+**Impact:** a seed or a generator that states `sortOrder` and then asserts what it wrote
+fails on the read-back, for a difference the importer introduced. Round-tripping an option
+set through `/api/metadata` is not idempotent against a source of truth that counts from
+one, and mixing the two write paths leaves an option set whose ordering values came from two
+different conventions.
+
+**Workaround in this repo:** the seed scripts state `sortOrder` for readability and do not
+assert it on read-back; see the option definitions in
+`infra/scripts/seed/fhir_variations.py`. Nothing downstream depends on the absolute values,
+only on the relative order, which the rewrite preserves.
+
+**How to know it's fixed:** the read-back above returns `1, 2, 3`.
 
 **Verifier:** none yet.
