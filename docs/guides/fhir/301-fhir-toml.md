@@ -5,8 +5,8 @@ an M&E officer, a data manager - and edits it through one text file. You do not
 need to program. You need a text editor, the project folder someone set up for
 you, and the command written down for you (usually `make generate`).
 
-**Before you start:** know your DHIS2 - data sets, programs, org units, option
-sets. FHIR terms are explained where they appear, or glossed in
+**Before you start:** know your DHIS2 - data sets, programs, organisation
+units, option sets. FHIR terms are explained where they appear, or glossed in
 [FHIR for DHIS2 people](101-fhir-concepts.md).
 
 **You will be able to:**
@@ -19,11 +19,11 @@ sets. FHIR terms are explained where they appear, or glossed in
 
 `fhir.toml` is the one settings file of a FHIR guide project. Everything the
 project publishes - which data sets become forms, which option sets become code
-lists, how far down the org unit tree it reaches, what everything is named, how
-the local server runs - is decided by this file. It is plain text: you edit it
-with any text editor (Notepad, TextEdit, VS Code), save it, and run the
-generate command again. There is no database, no hidden state, and no app to
-click through - the file is the whole configuration.
+lists, how far down the organisation unit tree it reaches, what everything is
+named, how the local server runs - is decided by this file. It is plain text:
+you edit it with any text editor (Notepad, TextEdit, VS Code), save it, and run
+the generate command again. There is no database, no hidden state, and no app
+to click through - the file is the whole configuration.
 
 It sits at the top of the project folder, next to the `Makefile`. Commands find
 it on their own: run `d2w fhir generate` (or `make generate`) anywhere inside
@@ -128,11 +128,11 @@ project's version control, someone can always restore the last working copy.
 
 ## Two values that quietly mean "not set"
 
-Two org-unit options treat a particular value as "unset" rather than as a
-value:
+Two organisation unit options treat a particular value as "unset" rather than
+as a value:
 
 - `root = ""` (empty text) means the same as leaving `root` out entirely: the
-  whole org unit tree.
+  whole organisation unit tree.
 - `max_level = 0` means the same as leaving `max_level` out entirely: no depth
   limit.
 
@@ -160,6 +160,18 @@ others - each has a warning box on its own page, and each is worth reading
    people the DHIS2 instance holds - how much of that it offers is
    [`[serve.tracked_entities]`](301-serving.md#tracked_entities).
 
+## Where the run tells you what it did
+
+Most of what you write in this file is a UID or a name that only your DHIS2
+server can confirm, and nothing in the file can be checked against the server
+while you edit it. So the checking happens after a run instead:
+`d2w fhir generate` ends with a line saying how many notes it raised and where
+they are, and writes them to `reports/fhir-generate-notes.md` in the project
+folder. That file is where a selection that matched nothing, a code the run had
+to fall back from, or a tracked entity type nobody said anything about is named.
+Read it after any edit to this file:
+[reading the notes](301-what-goes-in.md#reading-the-notes).
+
 ## Where every option is explained
 
 Each option gets the same treatment on its page: what it controls in plain
@@ -167,12 +179,68 @@ words, a concrete situation where you would change it, an example, what
 happens when you leave it out, and the exact error you see when you get it
 wrong.
 
-| Page | Sections covered | Options |
-| --- | --- | --- |
-| [Who the guide is](301-identity.md) | `profile`, `[ig]` | which DHIS2 server it reads, the guide's name, address, publisher, and life-cycle status |
-| [How things are generated](301-generation.md) | `[generate]`, `[generate.naming]` | identifier addresses, code choices, time zone, languages, and everything about naming |
-| [What goes in](301-what-goes-in.md) | the selection tables, `[generate.tracked_entity_types]`, `[generate.examples]`, `[generate.organisation_units]` | which data sets, programs, option sets, categories, and org units the guide covers, and the example responses |
-| [Serving it](301-serving.md) | `[serve]`, `[serve.tracked_entities]`, `[forward]` | how the local capture server runs: address, port, strictness, data-entry screens, map backgrounds, and what it answers about people - plus what a drain reads when the project holds no compiled guide |
+Four pages cover the file between them:
+
+| Page | Sections covered |
+| --- | --- |
+| [Who the guide is](301-identity.md) | `profile`, `[ig]` - which DHIS2 server it reads, and the guide's own identity |
+| [What goes in](301-what-goes-in.md) | the six selection tables, `[generate.tracked_entity_types]`, `[generate.organisation_units]`, `[generate.examples]` - which of your DHIS2 metadata the guide covers |
+| [How things are generated](301-generation.md) | `[generate]`, `[generate.naming]` - identifier addresses, code choices, time zone, languages, and everything about naming |
+| [Serving it](301-serving.md) | `[serve]`, `[serve.tracked_entities]`, `[[serve.basemaps]]`, `[forward]` - how the local capture server runs and what it answers about people |
+
+### Every option, alphabetically within its section
+
+Every line `fhir.toml` accepts is here. Anything not in this table is a name
+the file refuses.
+
+| Section | Option | Default | What it decides |
+| --- | --- | --- | --- |
+| (top level) | [`profile`](301-identity.md#profile) | unset | which saved DHIS2 connection the guide is read from |
+| `[ig]` | [`canonical`](301-identity.md#canonical) | required | the guide's permanent web address |
+| `[ig]` | [`id`](301-identity.md#id) | required | the guide's package identifier |
+| `[ig]` | [`name`](301-identity.md#name) | required | the guide's computer-facing name |
+| `[ig]` | [`publisher`](301-identity.md#publisher) | required | the organisation standing behind the guide |
+| `[ig]` | [`status`](301-identity.md#status) | `"draft"` | draft-and-experimental, or official |
+| `[ig]` | [`title`](301-identity.md#title) | required | the title readers see on every page |
+| `[generate]` | [`concept_code_source`](301-generation.md#concept_code_source) | `"id"` | whether published codes are DHIS2 ids or DHIS2 codes |
+| `[generate]` | [`identifier_system_base`](301-generation.md#identifier_system_base) | `"http://dhis2.org/fhir"` | the web-address stem the DHIS2 identifier labels are built from |
+| `[generate]` | [`locales`](301-generation.md#locales) | every language found | which languages the guide publishes translations in |
+| `[generate]` | [`timezone`](301-generation.md#timezone) | unset (read as UTC) | the zone DHIS2's clock times are wall-clock readings in |
+| `[generate.naming]` | [`attribute_option_combo`](301-generation.md#attribute_option_combo) | `"AOC"` | name piece for a data set's extra reporting dimension |
+| `[generate.naming]` | [`category`](301-generation.md#category) | `"CAT"` | name piece for categories |
+| `[generate.naming]` | [`data_set`](301-generation.md#data_set) | `"DS"` | name piece for data set forms |
+| `[generate.naming]` | [`option_set`](301-generation.md#option_set) | `"OS"` | name piece for option sets |
+| `[generate.naming]` | [`organisation_unit`](301-generation.md#organisation_unit) | `"OU"` | name piece for organisation units (never empty) |
+| `[generate.naming]` | [`prefix`](301-generation.md#prefix) | `"D2"` | the piece in front of every generated name |
+| `[generate.naming]` | [`program`](301-generation.md#program) | `"PR"` | name piece for program forms |
+| `[generate.naming]` | [`program_stage`](301-generation.md#program_stage) | `"PS"` | name piece for tracker stage forms |
+| `[generate.naming]` | [`source`](301-generation.md#source) | `"id"` | whether names are built on DHIS2 ids or DHIS2 codes |
+| `[generate.naming]` | [`tracked_entity_type`](301-generation.md#tracked_entity_type) | `"TET"` | name piece for person-only registration forms |
+| `[generate.data_sets]` | [`include_ids`](301-what-goes-in.md#data-sets) | all data sets | which data sets become forms |
+| `[generate.event_programs]` | [`include_ids`](301-what-goes-in.md#event-programs) | all event programs | which event programs become forms |
+| `[generate.tracker_programs]` | [`include_ids`](301-what-goes-in.md#tracker-programs) | all tracker programs | which tracker programs the guide covers |
+| `[generate.tracked_entity_forms]` | [`include_ids`](301-what-goes-in.md#tracked-entity-forms) | the types the selected tracker programs register | which types publish a person-only registration form |
+| `[generate.option_sets]` | [`include_ids`](301-what-goes-in.md#option-sets) | all option sets | which option sets become code lists |
+| `[generate.categories]` | [`include_default`](301-what-goes-in.md#include_default) | `false` | whether DHIS2's built-in `default` category is published |
+| `[generate.categories]` | [`include_ids`](301-what-goes-in.md#categories) | all categories | which categories become code lists |
+| `[generate.tracked_entity_types]` | [UID = kind](301-what-goes-in.md#tracked_entity_types) | every type is a person | what each tracked entity type actually is |
+| `[generate.organisation_units]` | [`max_level`](301-what-goes-in.md#max_level) | every level | the deepest hierarchy level published - the size lever |
+| `[generate.organisation_units]` | [`root`](301-what-goes-in.md#root) | the whole tree | which branch of the hierarchy is published |
+| `[generate.organisation_units]` | [`terminology`](301-what-goes-in.md#terminology) | `false` | whether the organisation units are also published as a code list |
+| `[generate.examples]` | [`per_target`](301-what-goes-in.md#per_target) | `1` | how many example responses each form ships with |
+| `[generate.examples]` | [`source`](301-what-goes-in.md#examples-source) | `"synthetic"` | whether example values are invented or copied off the server |
+| `[serve]` | [`host`](301-serving.md#host) | `"127.0.0.1"` | who can reach the capture server - the exposure switch |
+| `[serve]` | [`port`](301-serving.md#port) | `8080` | which port it listens on |
+| `[serve]` | [`strict_codes`](301-serving.md#strict_codes) | `false` | whether an out-of-list code is refused or stored with a warning |
+| `[serve]` | [`ui`](301-serving.md#ui) | `false` | whether the data-entry screens are served too |
+| `[[serve.basemaps]]` | [`name`, `url`](301-serving.md#basemaps) | one OpenStreetMap layer | the map backgrounds the screens offer - the one outbound call |
+| `[serve.tracked_entities]` | [`enabled`](301-serving.md#tracked_entities-enabled) | `true` | whether a live run answers questions about people at all |
+| `[serve.tracked_entities]` | [`listing`](301-serving.md#tracked_entities-listing) | `true` | whether people can be paged through, not only searched for |
+| `[serve.tracked_entities]` | [`page_size`](301-serving.md#tracked_entities-page_size) | `20` | how many people one page holds by default |
+| `[serve.tracked_entities]` | [`page_size_limit`](301-serving.md#tracked_entities-page_size_limit) | `100` | the largest page anybody may ask for |
+| `[serve.tracked_entities]` | [`search_attributes`](301-serving.md#tracked_entities-search_attributes) | the unique and searchable ones | which attributes a search keys on |
+| `[serve.tracked_entities]` | [`tracked_entity_types`](301-serving.md#tracked_entities-tracked_entity_types) | the types the published forms register | which types the register covers |
+| `[forward]` | [`live`](301-serving.md#live) | `true` | what a drain reads when the project holds no compiled guide |
 
 What the generated output itself looks like from the inside - the identifier
 families, the code-list structures - is the integrate-tier's territory:

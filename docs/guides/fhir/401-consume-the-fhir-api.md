@@ -18,10 +18,10 @@ what a valid capture is ([The capture contract](401-capture-contract.md)).
 - read the two non-FHIR endpoints, `/spool` and `/uiconfig`
 
 Every response body on this page is real output from a running facade. The
-GET examples run against a project served on port 8091; the POST transcripts
-against a freshly scaffolded project on port 8378, because posting to
-somebody's project spool is not a demo. The Python surface behind all of it
-is documented in [the `dhis2w_fhir_serve` API reference](../../api/fhir-serve.md).
+compiled-store examples run against a project served on port 8389; the
+register and enrollment examples, which exist only under `--live`, against a
+`d2w fhir serve --live` on port 8391. The Python surface behind all of it is
+documented in [the `dhis2w_fhir_serve` API reference](../../api/fhir-serve.md).
 
 ## Discovery: `/metadata`
 
@@ -31,10 +31,10 @@ The facade's only contract - it publishes no OpenAPI document. A `kind
 actually holds:
 
 ```console
-$ curl -s localhost:8091/metadata | jq '.software, .implementation.description'
+$ curl -s localhost:8389/metadata | jq '.software, .implementation.description'
 {
   "name": "d2w fhir serve",
-  "version": "1.6.0.dev0"
+  "version": "1.7.0.dev0"
 }
 "DHIS2 FHIR capture facade (compiled store); stored QuestionnaireResponses are submissions as received - receipts, not a live view of DHIS2 data"
 ```
@@ -50,11 +50,13 @@ endpoint that answers, and `/metadata` never advertises what the store cannot do
 Seven definitional types are served - `Questionnaire`, `CodeSystem`,
 `ValueSet`, `Location`, `Organization`, `List`, and `ConceptMap` - plus
 `QuestionnaireResponse`, the one type the facade also receives, and, under
-`--live` only, `Patient`. Anything else is refused with an OperationOutcome
-saying so, rather than a bare 404 that would read as "no such resource":
+`--live` only, whichever resources
+[the register](#the-register-what-the-instance-holds-one-resource-per-tracked-entity-type)
+publishes. Anything else is refused with an OperationOutcome saying so, rather
+than a bare 404 that would read as "no such resource":
 
 ```console
-$ curl -s localhost:8091/Observation/abc
+$ curl -s localhost:8389/Observation/abc
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this server does not serve the resource type `Observation`"}]}
 ```
 
@@ -62,23 +64,44 @@ A read is byte-faithful to what the project published; a missing id names
 itself:
 
 ```console
-$ curl -s localhost:8091/Questionnaire/BfMAe6Itzgt | jq .title
+$ curl -s localhost:8389/Questionnaire/BfMAe6Itzgt | jq .title
 "Child Health"
-$ curl -s localhost:8091/Questionnaire/NoSuchForm1
+$ curl -s localhost:8389/Questionnaire/NoSuchForm1
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-found","diagnostics":"no Questionnaire with id `NoSuchForm1` is served here"}]}
 ```
 
 Searches answer a searchset Bundle. The definitional types take `_id`,
-`url`, and `identifier`; the spool takes `_id` and `questionnaire`. Within
-one parameter, comma-separated values are alternatives; across parameters
-they combine. An unrecognised parameter is ignored rather than refused, and
-the Bundle's `self` link echoes back only the parameters the server actually
-applied, so a client can see what it got.
+`url`, and `identifier`; `QuestionnaireResponse` takes `_id` and
+`questionnaire`. `/metadata` states the same table, per resource, and is the
+authority on it.
+
+**Within one parameter, values are alternatives; across parameters they
+combine.** `_id=a,b` and `_id=a&_id=b` are the same query, and both narrow when
+a second parameter joins them. An empty value is refused - ``` `_id` was given an
+empty value ``` - because a client that sent one meant something.
 
 ```console
-$ curl -s 'localhost:8091/Questionnaire?_id=BfMAe6Itzgt,TuL8IOPzpHh' | jq .total
+$ curl -s 'localhost:8389/Questionnaire?_id=BfMAe6Itzgt,TuL8IOPzpHh' | jq .total
 2
 ```
+
+**An unrecognised parameter is ignored rather than refused, and the Bundle's
+`self` link echoes back only the parameters the server actually applied**, so a
+client can see what it got rather than assume:
+
+```console
+$ curl -s 'localhost:8389/Questionnaire?_id=BfMAe6Itzgt,TuL8IOPzpHh&bogus=1' \
+    | jq -r '.link[].url'
+http://localhost:8389/Questionnaire?_id=BfMAe6Itzgt%2CTuL8IOPzpHh
+```
+
+`total` is always stated on these searches, `0` included, and `entry` is absent
+rather than empty when nothing matched. There are no paging links: the store is
+what one project published, and a definitional search answers it whole.
+
+An `identifier` token takes either form. `system|value` matches only under that
+system; a bare `value` matches under any. A token naming a system but no value
+is refused - ``` `identifier` token `sys|` names a system but no value ```.
 
 The identifier search is how a program's forms are grouped: every artifact
 generated from one DHIS2 object carries that object's identifier, so a
@@ -86,12 +109,15 @@ system-qualified token selects a tracker program's registration form and
 every stage form in one query -
 
 ```console
-$ curl -s 'localhost:8091/Questionnaire?identifier=http://dhis2.org/fhir/id/program|IpHINAT79UW' \
-    | jq '.entry[].resource.title'
-"Child Programme - Birth"
-"Child Programme"
-"Child Programme - Baby Postnatal"
+$ curl -s 'localhost:8389/Questionnaire?identifier=http://dhis2.org/fhir/id/program|PrAncCare01' \
+    | jq -r '.entry[].resource.title'
+Antenatal care
+ANC follow-up - ANC visit
 ```
+
+The registration form comes back beside every stage of its program, because a
+registration form's own identity *is* the program's
+([which identifiers a Questionnaire carries](401-identifiers-and-extensions.md#which-identifiers-a-questionnaire-carries)).
 
 ## The register: what the instance holds, one resource per tracked entity type
 
@@ -115,16 +141,36 @@ Patient
 Specimen
 ```
 
-### `Patient`: who a person is in the instance
+Three rules decide that set, and a consumer can predict it from the published
+artifacts alone.
+
+- **The forms decide which types are served.** A tracked entity type is in the
+  register because some published Questionnaire registers into it, carrying its
+  UID under `{base}/id/tracked-entity-type`. A type `D2TET_CM` names that no form
+  registers into is not served.
+- **The map decides which resource each becomes.** A type the map takes onto
+  `Specimen` is served as `Specimen`. A type the map does not name - or names
+  with no target - is served as `Patient`, which is also what a project with no
+  `D2TET_CM` at all gets for every type it registers.
+- **Each resource searches only its own types.** `GET /Specimen` never returns a
+  person, because the surface asks DHIS2 only for the tracked entity types the
+  map put on `Specimen`.
+
+`[serve.tracked_entities] tracked_entity_types` narrows the served set further,
+and it is taken verbatim rather than intersected with the published one - a UID
+it names that the guide never published is served as a `Patient`
+([Configure serving](301-serving.md#tracked_entities)).
+
+### The register search: `identifier`
 
 Every search above answers from what the project published. This one answers
 from the DHIS2 instance the server runs against, at request time, which is why
-it exists only under `--live` - and why `/metadata` declares `Patient` only
-there. A compiled run says so instead of guessing:
+it exists only under `--live` - and why `/metadata` declares the register's
+resources only there. A compiled run says so instead of guessing:
 
 ```console
-$ curl -s localhost:8091/Patient?identifier=SCEN-A-0001
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is answered from the DHIS2 instance this facade runs against, and this process serves a compiled implementation guide; start it with `--live` to search people."}]}
+$ curl -s localhost:8389/Patient?identifier=SCEN-A-0001
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is answered from the DHIS2 instance this facade runs against, and this process serves a compiled implementation guide; start it with `--live` to search the register."}]}
 ```
 
 **`identifier` is the whole search surface**, in both of FHIR's token forms.
@@ -138,13 +184,25 @@ $ curl -s -G localhost:8391/Patient \
 "PLoWmEuLJl2"
 ```
 
-Two systems answer. `{base}/id/tracked-entity` is the DHIS2 tracked entity UID
-itself, read directly rather than filtered for - a UID is not an attribute.
-`{base}/tracked-entity-attribute/{uid}` is one tracked entity attribute, and
-only the attributes DHIS2 declares **unique** get one: uniqueness is what makes
-a value name a person rather than describe one, and the guide already publishes
-the flag as a `unique` concept property on
-[`D2TEA_CS`](401-identifiers-and-extensions.md).
+Two families of system answer.
+
+- **`{base}/id/tracked-entity`** is the DHIS2 tracked entity UID itself, read
+  directly rather than filtered for - a UID is not an attribute. A value that is
+  not UID-shaped matches nothing without a request leaving the process.
+- **`{base}/tracked-entity-attribute/{uid}`** is one tracked entity attribute.
+
+**Which attributes get one is `unique` *or* `searchable`, not `unique` alone.**
+A unique attribute's value names a person; a searchable one is a value DHIS2
+lets a clerk look somebody up by even though nothing stops two people sharing
+it - a date of birth is the ordinary case. A facade keying on uniqueness alone
+would refuse the lookup the instance permits. Both flags are published as
+concept properties on
+[`D2TEA_CS`](401-identifiers-and-extensions.md#the-concept-property-namespace),
+so a client can read the whole key set out of the guide before it searches.
+
+`[serve.tracked_entities] search_attributes` replaces that default outright when
+it is set: the attributes it names become the keys whether or not DHIS2 declares
+them either thing ([Configure serving](301-serving.md#tracked_entities)).
 
 A token naming no system tries every key at once and folds the results,
 deduplicated by tracked entity UID, so a client that has scanned a card without
@@ -154,6 +212,12 @@ knowing which register issued it can still ask:
 $ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001' | jq .total
 1
 ```
+
+**Several identifier tokens are alternatives, not conditions.** This is the one
+place the facade's search semantics differ from the definitional types above:
+there, two parameters narrow each other; here, every token and every
+comma-separated value is another key to try, and their matches are unioned. A
+client holding two cards for one person asks once.
 
 An identifier nobody holds, and a system this guide publishes nothing for, are
 both an empty searchset - never a 404, which on a search path would say the
@@ -223,11 +287,13 @@ Entries are the same projection the search answers with, and each `fullUrl`
 points at `GET /Patient/{trackedEntityUid}`.
 
 **Two parameters page it: `_count` and `page`.** `_count` is R4's page size.
-A call naming none is answered with `[serve.tracked_entities] page_size` entries; a
-call naming more than `[serve.tracked_entities] page_size_limit` is answered with
-`page_size_limit` of them and a `next` link, rather than refused - a client
-that asked for too much should be handed a smaller page, not an error
-([Configure serving](301-serving.md#tracked_entities)).
+A call naming none is answered with `[serve.tracked_entities] page_size` entries,
+**20** by default; a call naming more than `[serve.tracked_entities]
+page_size_limit`, **100** by default, is answered with `page_size_limit` of them
+and a `next` link, rather than refused - a client that asked for too much should
+be handed a smaller page, not an error
+([Configure serving](301-serving.md#tracked_entities)). A `_count` that is not a
+number, or is below 1, is a 400 saying which.
 
 ```console
 $ curl -s 'localhost:8391/Patient?_count=5' | jq '.entry | length'
@@ -241,7 +307,15 @@ DHIS2 pages each type's records on its own, so one page of this listing can sit
 part-way through several of the instance's own cursors at once. The token is
 how the server carries that position across a request; it is bytes to a client,
 with no offset to do arithmetic on and no guarantee about its shape from one
-release to the next. What a client does with it is copy the `next` link:
+release to the next. A token the server cannot read says exactly that:
+
+```console
+$ curl -s 'localhost:8391/Patient?page=12'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`page` is not a page of this search: its value comes from the `next` or `previous` link of a result, and is not a number a client composes"}]}
+```
+
+It is stateless, so a link handed out an hour ago still resolves. What a client
+does with it is copy the `next` link:
 
 ```console
 $ curl -s localhost:8391/Patient | jq -r '.link[] | "\(.relation) \(.url)"'
@@ -274,20 +348,27 @@ served:
 
 ```console
 $ curl -s localhost:8391/Patient
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this facade serves no `Patient` listing; name an `identifier` to search for a person, or set `[serve.tracked_entities] listing = true` in fhir.toml and serve again"}]}
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this facade serves no `Patient` listing; name an `identifier` to search for one, or set `[serve.tracked_entities] listing = true` in fhir.toml and serve again"}]}
 $ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001' | jq .total
 1
 ```
 
-With `enabled = false`, nothing about people is served - the search, the
+With `enabled = false`, nothing about the register is served - the search, the
 listing, and the enrollment listing below all answer the same way, and
-`/metadata` declares no `Patient` at all, exactly as it does under a compiled
-guide:
+`/metadata` declares no register resource at all, exactly as it does under a
+compiled guide:
 
 ```console
 $ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001'
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is not served here: this project sets `[serve.tracked_entities] enabled` to false; set it true in fhir.toml and serve again to search or list people"}]}
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is not served here: this project sets `[serve.tracked_entities] enabled` to false; set it true in fhir.toml and serve again to search or list the register"}]}
 ```
+
+`enabled = false` is checked before the store's own mode, so a **compiled** run
+with the switch off answers this body rather than the `--live` one above. A live
+run over a project that publishes no registration form at all answers a third:
+`this project publishes no registration form, so no tracked entity type is
+served here and `Patient` cannot be searched; generate a tracker program's
+registration form first.`
 
 Which records the two surfaces cover is configuration too:
 `[serve.tracked_entities] tracked_entity_types` narrows both to named tracked entity
@@ -336,21 +417,35 @@ user capture into a closed episode without a word. The server states the status
 and leaves `active` false; refusing the capture is the instance's call to make,
 not this facade's.
 
-Like `/Patient`, this listing is live-only, and answers the same
-`not-supported` OperationOutcome under a compiled guide - and under
-`[serve.tracked_entities] enabled = false`, which takes the whole people surface away
-in one line.
+Like the register, this listing is live-only. Under a compiled guide it answers
+the same `not-supported` OperationOutcome, with `enrollments` in the slot the
+resource type occupies there:
+
+```console
+$ curl -s localhost:8389/tracked-entities/PLoWmEuLJl2/enrollments
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`enrollments` is answered from the DHIS2 instance this facade runs against, and this process serves a compiled implementation guide; start it with `--live` to search the register."}]}
+```
+
+`[serve.tracked_entities] enabled = false` takes this endpoint away in the same
+line it takes the register away. `listing = false` does **not** touch it: that
+switch is about browsing a register with no criteria, and this is a read about
+one person you already have.
+
+A UID the instance does not hold is a 404 here, as on any read.
 
 ## `$translate`: generated codes back to DHIS2 identifiers
 
 R4's type-level `ConceptMap/$translate`, answered over every ConceptMap the
-project publishes. `system` and `code` are required - omitting either is a
-400 OperationOutcome - and `targetsystem` optionally narrows to one target
-namespace (R4's lowercase spelling and the `targetSystem` real clients also
-send are both read):
+project publishes. It is **type-level only** - there is no
+`/ConceptMap/{id}/$translate`, because the question a client has is "what is
+this code" and not "what does this particular map say about it".
+
+`system` and `code` are required, and `targetsystem` optionally narrows to one
+target namespace (R4's lowercase spelling and the `targetSystem` real clients
+also send are both read, lowercase first):
 
 ```console
-$ curl -s 'localhost:8091/ConceptMap/$translate?system=http://localhost:8080/fhir/CodeSystem/d2-os-OsVaccType1-cs&code=OptVacBCG01&targetsystem=http://dhis2.org/fhir/id/option-code' \
+$ curl -s 'localhost:8389/ConceptMap/$translate?system=http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs&code=OpFever0001&targetsystem=http://dhis2.org/fhir/id/option-code' \
     | jq '.parameter'
 [
   {
@@ -368,13 +463,13 @@ $ curl -s 'localhost:8091/ConceptMap/$translate?system=http://localhost:8080/fhi
         "name": "concept",
         "valueCoding": {
           "system": "http://dhis2.org/fhir/id/option-code",
-          "code": "BCG",
-          "display": "BCG"
+          "code": "FEVER",
+          "display": "Fever"
         }
       },
       {
         "name": "source",
-        "valueUri": "http://localhost:8080/fhir/ConceptMap/d2-os-OsVaccType1-cm"
+        "valueUri": "http://localhost:8080/fhir/ConceptMap/d2-os-OsSymptom01-cm"
       }
     ]
   }
@@ -383,11 +478,12 @@ $ curl -s 'localhost:8091/ConceptMap/$translate?system=http://localhost:8080/fhi
 
 Without `targetsystem` the answer carries one `match` per namespace the maps
 target - for an option that is both the DHIS2 option UID and the option
-code. A code the maps say nothing about is not an error; it is `result:
-false` with a message:
+code. A code the maps say nothing about **is not an error**: it is a `200`
+carrying `result: false` and a message, because "no mapping" is a valid answer
+to a valid question:
 
 ```console
-$ curl -s 'localhost:8091/ConceptMap/$translate?system=http://localhost:8080/fhir/CodeSystem/d2-os-OsVaccType1-cs&code=NotACode' \
+$ curl -s 'localhost:8389/ConceptMap/$translate?system=http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs&code=NotACode' \
     | jq '.parameter'
 [
   {
@@ -396,16 +492,33 @@ $ curl -s 'localhost:8091/ConceptMap/$translate?system=http://localhost:8080/fhi
   },
   {
     "name": "message",
-    "valueString": "no ConceptMap served here maps `NotACode` from `http://localhost:8080/fhir/CodeSystem/d2-os-OsVaccType1-cs`; the code system, the code, or the target system is not one this server holds a mapping for"
+    "valueString": "no ConceptMap served here maps `NotACode` from `http://localhost:8080/fhir/CodeSystem/d2-os-OsSymptom01-cs`; the code system, the code, or the target system is not one this server holds a mapping for"
   }
 ]
 ```
+
+Naming a `targetsystem` that maps nothing folds into the same message, with
+`` into `<targetsystem>` `` spliced in after the source system. A **missing**
+parameter, by contrast, is a 400 - the request itself was not answerable:
+
+```console
+$ curl -s 'localhost:8389/ConceptMap/$translate?system=x'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`$translate` needs a `code` parameter"}]}
+```
+
+`system` is checked first, so a call naming neither reports `system`.
 
 The maps are served as documents too: `GET /ConceptMap/<id>` answers the
 published map verbatim, and `GET /ConceptMap` searches them like any other
 type. A read hands over the whole mapping table for a person to look at; the
 operation answers the one question a client has without walking groups and
 elements.
+
+**There is no `$lookup` and no `$expand`.** A concept's properties and a value
+set's members are elements of documents this facade already serves whole, so a
+client reads `GET /CodeSystem/{id}` and `GET /ValueSet/{id}` and walks them.
+`/metadata` is the authority on which operations exist: `$generate` on
+`Questionnaire` and `$translate` on `ConceptMap`, and nothing else.
 
 ## `$generate`: a valid submission on demand
 
@@ -414,7 +527,7 @@ Hand it a served form and it answers with a synthetic
 subject, extensions, and answers included:
 
 ```console
-$ curl -s 'localhost:8091/Questionnaire/BfMAe6Itzgt/$generate?seed=4242' \
+$ curl -s 'localhost:8389/Questionnaire/BfMAe6Itzgt/$generate?seed=4242' \
     | jq '{identifier, questionnaire, status, subject}'
 {
   "identifier": {
@@ -424,7 +537,7 @@ $ curl -s 'localhost:8091/Questionnaire/BfMAe6Itzgt/$generate?seed=4242' \
   "questionnaire": "http://localhost:8080/fhir/Questionnaire/BfMAe6Itzgt",
   "status": "completed",
   "subject": {
-    "reference": "Location/ABM75Q1UfoP"
+    "reference": "Location/YuQRtpLP10I"
   }
 }
 ```
@@ -444,19 +557,32 @@ The `seed` makes it reproducible: same form, same seed, same bytes. Name it
 on the query (GET) or in a `Parameters` body (POST) -
 
 ```bash
-curl -s 'localhost:8091/Questionnaire/BfMAe6Itzgt/$generate?seed=4242'
+curl -s 'localhost:8389/Questionnaire/BfMAe6Itzgt/$generate?seed=4242'
 
-curl -s -X POST 'localhost:8091/Questionnaire/BfMAe6Itzgt/$generate' \
+curl -s -X POST 'localhost:8389/Questionnaire/BfMAe6Itzgt/$generate' \
   -H 'Content-Type: application/fhir+json' \
   -d '{"resourceType":"Parameters","parameter":[{"name":"seed","valueInteger":4242}]}'
 ```
 
-- and a call naming no seed is answered from one the server drew, which
-comes back as the response's business identifier under
-`{canonical}/id/generate-seed` (visible above). It survives the post into
-the stored receipt, so a corpus generated last week can be regenerated
-exactly by reading the seeds off it. Seeds are R4 `integer`s, `0` to
-`2147483647`; anything else is a 400 OperationOutcome.
+A body seed wins over a query seed on a POST, and a bare POST with no body at
+all is legal - it means "any seed". A call naming no seed is answered from one
+the server drew, which comes back as the response's business identifier under
+`{canonical}/id/generate-seed` (visible above). It survives the post into the
+stored receipt, so a corpus generated last week can be regenerated exactly by
+reading the seeds off it.
+
+Seeds are R4 `integer`s, `0` to `2147483647`. Anything else is a 400 naming
+which rule it broke:
+
+```console
+$ curl -s 'localhost:8389/Questionnaire/BfMAe6Itzgt/$generate?seed=abc'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`seed` takes a whole number, not `abc`"}]}
+```
+
+A whole number outside the range answers ``` `seed` takes a value between 0 and
+2147483647 ```, and a `Parameters` body carrying a `seed` with neither a
+`valueInteger` nor a `valueString` answers ``` the `seed` parameter carries no
+`valueInteger` ```.
 
 The organisation unit a response reports for is drawn from the seed like
 every other value. The set it is drawn over is the one the form admits: the
@@ -484,15 +610,27 @@ mint a pair of its own. So a stage response is reproducible from its seed
 *and* the spool it was drawn against: running `d2w fhir forward` between two
 calls can move which registration is answered against.
 
-A Questionnaire the server does not hold is a 404 OperationOutcome; one it
-holds but cannot read as a capture form is a 422 saying so.
+A Questionnaire the server does not hold is a 404 OperationOutcome - the same
+``no Questionnaire with id `x` is served here`` a read answers with. One it holds
+but cannot read as a capture form is a 422: ``` `Questionnaire/{id}` cannot be
+generated against: ``` followed by what stopped it.
 
 ## Posting a capture
 
-`POST /QuestionnaireResponse` is the only write. One response per request:
+`POST /QuestionnaireResponse` is the only write. The body has to be JSON - a
+`Content-Type` that is not `application/fhir+json`, `application/json`, or
+something ending `+json` is a **415** before the body is read at all:
 
 ```console
-$ curl -s -X POST localhost:8378/QuestionnaireResponse \
+$ curl -s -X POST localhost:8389/QuestionnaireResponse \
+    -H 'Content-Type: text/plain' --data-binary @response.json
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`text/plain` is not a media type this server reads; send the body as `application/fhir+json`"}]}
+```
+
+One response per request:
+
+```console
+$ curl -s -X POST localhost:8389/QuestionnaireResponse \
     -H 'Content-Type: application/fhir+json' \
     -d '{"resourceType":"Bundle","type":"collection"}'
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this endpoint accepts one QuestionnaireResponse per request; post each response on its own request","expression":["Bundle"]}]}
@@ -503,13 +641,13 @@ the receipt is served from, and an OperationOutcome that says what storage
 means here:
 
 ```console
-$ curl -s 'localhost:8378/Questionnaire/BfMAe6Itzgt/$generate?seed=4242' -o response.json
-$ curl -s -X POST localhost:8378/QuestionnaireResponse \
+$ curl -s 'localhost:8389/Questionnaire/BfMAe6Itzgt/$generate?seed=4242' -o response.json
+$ curl -s -X POST localhost:8389/QuestionnaireResponse \
     -H 'Content-Type: application/fhir+json' --data-binary @response.json -D -
 HTTP/1.1 201 Created
 date: Mon, 10 Aug 2026 19:43:24 GMT
 server: uvicorn
-location: http://127.0.0.1:8378/QuestionnaireResponse/d78a53c1afe54f09aeb104d0fd1844c2
+location: http://localhost:8389/QuestionnaireResponse/d78a53c1afe54f09aeb104d0fd1844c2
 content-length: 252
 content-type: application/fhir+json
 
@@ -521,7 +659,7 @@ to run, so a rejection is readable rather than a wall of consequences:
 
 | Phase | What it checks | Status |
 | --- | --- | --- |
-| 0 | the body is JSON, is a `QuestionnaireResponse`, and parses as one | 400 |
+| 0 | the body is JSON, is a `QuestionnaireResponse`, and parses as one - **every model is closed, so an unknown key anywhere is refused here** | 400 |
 | 1 | the `D2FormType` kind, then the invariants that kind's profile pins | 422 |
 | 2 | the `questionnaire` canonical, the served Questionnaire it names, and its item index | 422 |
 | 3 | the organisation unit the response reports for, against the form's published assignment | 422 |
@@ -534,15 +672,20 @@ problem at that level, each locating itself with a FHIRPath `expression`.
 Here the posted response answers a question the form does not ask:
 
 ```console
-$ curl -s -X POST localhost:8378/QuestionnaireResponse \
+$ curl -s -X POST localhost:8389/QuestionnaireResponse \
     -H 'Content-Type: application/fhir+json' --data-binary @bad.json
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-found","diagnostics":"`notAQuestion` is not a question of `http://localhost:8080/fhir/Questionnaire/BfMAe6Itzgt`","expression":["QuestionnaireResponse.item.where(linkId='notAQuestion')"]}]}
 ```
 
 Warnings never reject: they ride back on the accepted capture's
-OperationOutcome and into the stored receipt. What is a warning by default
-and a refusal under `--strict-codes` is the operator's dial, enumerated in
-[Serve the guide](201-serve.md#coded-answers-lenient-by-default).
+OperationOutcome, after the informational issue naming the stored id, and into
+the stored receipt. Which findings are warnings, which are always refusals, and
+which five the `--strict-codes` dial moves between the two is enumerated in
+[the capture contract](401-capture-contract.md#what-the-server-refuses-and-what-it-only-warns-about).
+
+A rejection body carries everything the failing phase found - including any
+warning-severity issues that phase collected alongside the error, so a client
+fixing the refusal sees the advice that came with it in the same round trip.
 
 Reading receipts back is plain FHIR - `GET /QuestionnaireResponse/{id}`
 answers the submission verbatim in whatever lifecycle state it is in,
@@ -556,7 +699,7 @@ form kind it was validated as, its warnings, its lifecycle state, and
 DHIS2's import report behind a rejection. Plain `application/json`:
 
 ```console
-$ curl -s localhost:8091/spool | jq '{total, counts}'
+$ curl -s localhost:8389/spool | jq '{total, counts}'
 {
   "total": 987,
   "counts": {
@@ -565,7 +708,7 @@ $ curl -s localhost:8091/spool | jq '{total, counts}'
     "rejected": 284
   }
 }
-$ curl -s localhost:8091/spool | jq '.responses[0]'
+$ curl -s localhost:8389/spool | jq '.responses[0]'
 {
   "response_id": "f066e98e279b47689a145710d1f108a7",
   "received_at": "2026-08-10T18:58:04Z",
@@ -582,9 +725,30 @@ $ curl -s localhost:8091/spool | jq '.responses[0]'
   "organisation_unit": "ABM75Q1UfoP",
   "tracked_entity": "F5i3IZaKsND",
   "tracker_enrollment": "uamxA0u4wdf",
-  "rejection": null
+  "rejection": null,
+  "imported": {
+    "status": "OK",
+    "message": null,
+    "created": 14,
+    "updated": 0,
+    "ignored": 0,
+    "deleted": 0
+  }
 }
 ```
+
+**`rejection` and `imported` are the two halves of what DHIS2 answered**, and at
+most one is ever present: `rejection` only on a `rejected` receipt, `imported`
+only on a `forwarded` one, both `null` on a `received` one that has not been
+forwarded yet. `rejection` additionally carries an `issues` array, one entry per
+DHIS2 import error with its `error_code`, `subject`, and `message` - which is
+how a `E1023` or an `E8023` reaches the person who has to fix the capture.
+
+`lifecycle` is which spool directory the receipt is in rather than anything
+written into the file, so it is always the current truth. A receipt whose stored
+resource will not parse as a `QuestionnaireResponse` is still listed, with the
+envelope fields filled and every derived field - `status`, `authored`, `period`,
+`organisation_unit`, `tracked_entity` - left null rather than guessed at.
 
 It is what the capture UI's Overview and Responses pages read, and the
 lifecycle states are the spool directories the forwarder moves receipts
@@ -603,7 +767,7 @@ to whoever runs it, and a browser that could read them would be a browser that
 leaks them.
 
 ```console
-$ curl -s localhost:8091/uiconfig | jq .
+$ curl -s localhost:8389/uiconfig | jq .
 {
   "basemaps": [
     {

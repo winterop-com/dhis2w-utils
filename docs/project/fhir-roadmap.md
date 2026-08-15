@@ -519,10 +519,13 @@ line; the build completes and QA reports zero errors. `d2w fhir validate` raises
 `template-hostile-name` on the name instead, which puts the fix where it
 belongs - in DHIS2.
 
-### 3.13 Generation is CLI-only; MCP exposes only `fhir_validate`
+### 3.13 Generation is CLI-only; MCP exposes `fhir_validate` and `fhir_forward`
 
 See section 2.3. The rule is that a tool which writes a file tree onto the MCP
-server's host is the wrong shape for an agent protocol.
+server's host is the wrong shape for an agent protocol - which is what keeps
+`init`, every `generate` target, `serve`, and `doctor` off MCP. The two tools that
+qualify are the two that read an instance and write only to it: `fhir_validate`
+(`readOnlyHint`) and `fhir_forward`, whose dry run is the default.
 
 ### 3.14 The scaffolded project is a uv project with a committed `uv.lock`
 
@@ -1205,7 +1208,7 @@ copies. A below-floor fallback would be the first thing to test that claim.
   than one target.
 - **The instance-sourced example path walks up to six periods per data set,**
   each a separate `/api/dataValueSets` call with `children=true` under the root
-  org unit. On a data set with many periods and no data, that is six full-tree
+  organisation unit. On a data set with many periods and no data, that is six full-tree
   queries returning nothing.
 - **`_data_value_groups` returns `groups[:per_target]` after grouping the whole
   response.** The response is not bounded first, so a rich period pulls the entire
@@ -1718,7 +1721,7 @@ commitment.
 
 - **`generate load-set` draws instance-valid references** - shipped. The first live
   drain graded the stress corpus: DHIS2 accepted 84 of 286 and refused the rest for
-  reasons the generator can avoid - `E1029` (an org unit the program or data set is
+  reasons the generator can avoid - `E1029` (an organisation unit the program or data set is
   not assigned to; the generator picked from the published registry, which
   assignment does not filter) and `E8023` (an attribute option combo the data set
   cannot take). Two id-only reads now precede the write - `dataSets` for
@@ -1798,11 +1801,14 @@ commitment.
     date at all, which the registration form publishes on a third extension,
     `D2CollectsIncidentDate` 1..1, so a response to a form declaring false carries none.
 
-    **Identifier-keyed, deferring [5.2](#52-the-tracker-shape) by design.** No
-    `Patient`, `EpisodeOfCare`, or `CarePlan` resource is published. That is not a gap
+    **Identifier-keyed, deferring [5.2](#52-the-tracker-shape) by design.** The *guide*
+    publishes no `Patient`, `EpisodeOfCare`, or `CarePlan` instance. That is not a gap
     waiting on the decision - it is the same contract the tracker-event kind has kept
-    since it shipped, applied to the form that creates the enrollment. What 5.2 now
-    decides is purely the resource layer on top.
+    since it shipped, applied to the form that creates the enrollment. A served facade
+    is a separate matter: under `--live` the register *projects* each tracked entity
+    onto the resource type the published map names, per request and off the instance,
+    without any such instance being published. What 5.2 now decides is purely the
+    resource layer on top.
 
     **What kind of thing is enrolled is configurable.** `[generate.tracked_entity_types]`
     maps a tracked entity type UID onto the FHIR resource type its registrations are
@@ -2043,8 +2049,10 @@ commitment.
 
 - **Read current DHIS2 data through the facade.** A stored response answers "what
   was submitted"; "what does DHIS2 hold right now" needs the facade to query the
-  instance per request rather than serve a startup snapshot. That is a read proxy,
-  a different shape from either store this server has today, and the request log
+  instance per request rather than serve a startup snapshot. The shape exists: the
+  register and the enrollment listing already read the instance per request under
+  `--live`, beside the loaded store rather than from it. What is unstarted is the
+  *data* half - no `dataValueSets` or event read is proxied - and the request log
   is what says which reads are worth proxying first.
 
 - **Unique attribute values as identifiers** - shipped. DHIS2 marks an
@@ -2083,37 +2091,43 @@ commitment.
   the registration entry under [9.1](#91-near-term) for what
   shipped and what has not. Which resource type the subject is follows the program's
   tracked entity type through `[generate.tracked_entity_types]`, so a project tracking
-  herds or water points publishes forms that say so. What remains is the resource
-  layer - instances of that type so the subject becomes a resolvable reference, and the
-  enrollment resource itself - which is what
-  [decision 5.2](#52-the-tracker-shape) is now narrowed to.
+  herds or water points publishes forms that say so, and `D2TET_CM` publishes that map
+  as terminology so a consumer can read which resource type each type is served as.
+  What remains is the *published* resource layer - instances of that type in the guide
+  so the subject becomes a resolvable reference, and the enrollment resource itself -
+  which is what [decision 5.2](#52-the-tracker-shape) is now narrowed to. A live facade
+  already projects the subject half per request without publishing it.
 - **A tracked entity attribute as the subject identifier.** A tracker response
   identifies its subject by the DHIS2 tracked entity UID under
   `{base}/id/tracked-entity`. A later step lets an instance nominate a *unique*
   tracked entity attribute - a national ID, an MRN - as the subject identifier
   instead, under its own declared identifier system, so a response identifies the
   person by something the receiving system already knows. The support it needed is
-  now there: `D2TEA_CS` carries a `unique` boolean per attribute, so the guide
-  already states which attributes are business identifiers. What is left is the
-  nomination itself - which attribute an instance elects, and how a server resolves
-  a person by it.
-- **Org unit groups and group sets.** DHIS2 classifications beyond the level
+  now there, and more of it than this entry originally anticipated: `D2TEA_CS`
+  carries `unique` and `searchable` per attribute plus one `searchable-<contextUid>`
+  per context, `[serve.tracked_entities] search_attributes` lets an operator
+  nominate the keys outright, and the register already resolves a person by a
+  nominated attribute under `{base}/tracked-entity-attribute/{uid}`. What is left
+  is the *capture* side: a response keying its subject by that attribute instead of
+  by the tracked entity UID.
+- **Organisation unit groups and group sets.** DHIS2 classifications beyond the level
   hierarchy - facility type, ownership - mapped to additional
   `Organization.type` codings from group-set CodeSystems, tokens `OUG` / `OUGS`
   under the same scheme. The lao-v1 inspiration IG already classifies
   provinces, districts, and villages by group membership.
 - **The rest of the category model.** `generate categories` publishes each
-  category with its category options as concepts, under the `CAT` token. What is
-  left of the model is the combination layer - `categoryCombo`,
-  `categoryOptionCombo`, and the attribute option combo - whose `CC` / `COC` /
-  `AOC` tokens are already reserved. Category option combos reach the IG today
+  category with its category options as concepts, under the `CAT` token, and the
+  attribute option combo publishes its own terminology under `AOC` (see 9.1). What
+  is left of the combination layer is `categoryCombo` and `categoryOptionCombo`,
+  whose `CC` / `COC` tokens stay reserved. Category option combos reach the IG today
   only as `D2COC_CS`, the data-dictionary support pair a form's disaggregated
   children code against; publishing them as terminology in their own right is the
   step that lets the data layer carry `$DHIS2-COC` stratifier codes. The reserved
   `CO` token belongs here too, for an artifact that publishes category options
   standalone rather than as concepts inside their category.
-- **Deep validation per terminology source.** `validate` runs three passes today:
-  the instance-wide sweep, a deep option-set pass, and a deep attribute pass. The
+- **Deep validation per terminology source.** `validate` runs four passes today:
+  the instance-wide sweep, a deep option-set pass, a code-stem pass, and a deep
+  attribute pass. The
   sweep is the broad coverage and it is genuinely instance-wide - both the R4 code
   check and `template-hostile-name` apply to every object in every `/api/metadata`
   collection - so a deep pass is warranted only where the sweep structurally
@@ -2122,9 +2136,10 @@ commitment.
   terminology source added in future, decided on that test rather than added by
   reflex. `validation/__init__.py`'s module docstring records the two passes
   deliberately not written and why.
-- **`SHORT_NAME` and `DESCRIPTION` translations.** `NAME` is emitted today; the
-  other two need a target apiece (`Organization.alias`, `^description`) before
-  they can follow. Validation's instance-wide sweep stays translation-free until
+- **`SHORT_NAME` translations.** `NAME`, `FORM_NAME`, `DESCRIPTION`, and the three
+  date labels are all emitted today, each on the element it translates. `SHORT_NAME`
+  is the one left: its target is `Organization.alias`, which carries the untranslated
+  short name alone. Validation's instance-wide sweep stays translation-free until
   there is a cheaper way to ask `/api/metadata` for them than fetching every
   object's full translation list.
 - **Instance-scoped project identity.** `d2w fhir init --data-set <uid>` /
@@ -2141,9 +2156,12 @@ commitment.
 - **Full circle: DHIS2 in, DHIS2 out.** The input leg is closed - a form captured in
   the browser lands in DHIS2 through the spool and the forwarder, every kind, measured
   at 225/225/0. The output leg has started, on its identity half: `--live`
-  answers `GET /Patient?identifier=` for a person somebody can name, `GET /Patient`
-  as a paged listing for a client that cannot, and `GET /patients/{uid}/enrollments`
-  for the programmes one person is in - each read from the instance per request, and
+  answers `GET /{RegisterType}?identifier=` for a tracked entity somebody can name,
+  `GET /{RegisterType}` as a paged listing for a client that cannot, and
+  `GET /tracked-entities/{uid}/enrollments` for the programmes one entity is in -
+  where `{RegisterType}` is whatever the published `D2TET_CM` map says each tracked
+  entity type is served as, `Patient` being only the default. Each is read from the
+  instance per request, and
   each offered or withheld by `[serve.tracked_entities]`, whose defaults offer everything and
   whose reason to exist is the deployment that wants less. What remains is the data
   half: the same facade answering FHIR
@@ -2189,19 +2207,23 @@ commitment.
   generates its conversion layer from that shared source, never hand-written per
   language. Open decision 5.3 is what picks the shared source; open decision 5.8
   is the naming collision with the scaffolded `make build`.
-- **`d2w fhir ui` / `browser`** - phase 2 of the serve line: a browser UI over
-  the generated IG and the hierarchy, with the shipped facade as its backend -
-  the same loaded resources, one server, the read and search routes it already
-  answers. The intended stack is shadcn over the repo's existing component base,
-  and the owner keeps local reference UIs built that way to model it on; the
-  security plugin's offline d3 sharing explorer is the in-repo precedent for the
-  tree-widget half.
+- **The browser UI** - shipped, and not as a command. Phase 2 of the serve line
+  was drawn as a `d2w fhir ui` / `browser` verb; what shipped instead is the capture
+  UI on the serve port itself (`--ui`), in shadcn over the repo's existing component
+  base, with the facade as its backend - the same loaded resources, one server, the
+  read and search routes it already answers. Overview, Forms, Terminology,
+  Organisation units (with the map), Responses, Tracked entities, and Server are its
+  pages. No separate command is wanted.
 - **The semantic layer.** Terminology mappings as FHIR-native `ConceptMap` plus
-  `$translate`, generated once option-to-SNOMED/LOINC mappings exist. Structural
-  transforms as `StructureMap` / FML plus logical models living in the IG as the
-  contract - validator-testable, with buildpacks codegenning execution from them
-  rather than running an FML engine at runtime. `MeasureReport` as the lossy
-  summary projection over the same data belongs here, per decision 3.3.
+  `$translate` are shipped for option sets, categories, attribute option combos, and
+  tracked entity types; what waits is option-to-SNOMED/LOINC mappings, which need a
+  source that does not exist yet. Structural transforms are shipped for the aggregate
+  leg - the `D2DataValueSet` logical model and the
+  `D2AggregateResponseToDataValueSet` StructureMap live in the IG as the contract,
+  validator-testable and CI-gated - and what remains is the tracker logical model,
+  the reverse maps, and buildpacks codegenning execution from them rather than
+  running an FML engine at runtime. `MeasureReport` as the lossy summary projection
+  over the same data belongs here, per decision 3.3.
 
 - **Harmonization across country guides.** A project is one instance's FHIR home
   (decision 3.10), and the fleet this toolkit is pointed at is roughly ten

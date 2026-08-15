@@ -1,7 +1,7 @@
 # FHIR for DHIS2 people
 
-**Who this is for:** anyone who knows DHIS2 - data elements, org units, option
-sets, tracker - and has never touched FHIR.
+**Who this is for:** anyone who knows DHIS2 - data elements, organisation units,
+option sets, tracker - and has never touched FHIR.
 
 **Before you start:** nothing to install; this page is pure reading.
 
@@ -10,12 +10,14 @@ sets, tracker - and has never touched FHIR.
 - name the handful of FHIR resources the rest of this series keeps using, in
   DHIS2 terms
 - read generated FSH and FHIR JSON without treating it as noise
-- follow any 201/301/401 page in this series without a glossary detour
+- follow any 201/301/401 page in this series without stopping to look a term up
 
 Depth lives in the linked specification pages; this page says what each term
 means, what it is closest to in DHIS2, and what `d2w fhir` does with it. Read it
 once and the rest of the [series](index.md) reads as a guide rather than as a
-glossary.
+vocabulary test. When you only need one term settled, the
+[glossary](glossary.md) is the quick lookup; this page is the tour that makes the
+terms stick.
 
 ## The shape of FHIR
 
@@ -65,9 +67,15 @@ pointing at an object in a different instance.
 
 The toolkit uses both. An aggregate or event response's `subject` is a literal
 `Reference(Location/<uid>)` into the published registry. A tracker event's is a
-logical `Patient` reference - `subject.type = "Patient"`, `subject.identifier.system`
-fixed to `{base}/id/tracked-entity`, no `reference` element - because the guide
-publishes no `Patient` instances and the tracked entity lives in DHIS2.
+logical reference - `subject.type = "Patient"`, `subject.identifier.system` fixed to
+`{base}/id/tracked-entity`, no `reference` element - because the published guide is a
+document about forms and terminology, and it carries no people. The person lives in
+DHIS2, and a logical reference names them without pretending the guide holds them.
+
+A running `d2w fhir serve` is the other case: it does answer `GET /Patient`, serving
+the instance's tracked entities as a register beside the guide's artifacts. The
+reference stays logical either way, because what it names is a DHIS2 tracked entity,
+not a resource the guide published.
 
 Further reading: [References between resources](https://hl7.org/fhir/R4/references.html).
 
@@ -114,11 +122,18 @@ A `CodeSystem` **defines** codes: it is where concepts are declared, each with a
 `code`, a `display`, and optional extras. The DHIS2 analogy is exact - an **option
 set is the source of its option codes**, and nothing else may mint them.
 
-This toolkit emits one CodeSystem per DHIS2 option set and one per DHIS2 category,
-plus `D2DE_CS` over every data element the generated forms reference, `D2COC_CS`
-over every category option combo, `D2OU_Level_CS` over the org-unit levels,
-`D2PeriodType_CS`, and `D2FormType_CS`. By default the concept code is the DHIS2
-UID; `concept_code_source = "code"` swaps in the DHIS2 code.
+This toolkit emits one CodeSystem per DHIS2 option set, one per DHIS2 category, and
+one per attribute category combo, plus a fixed set of shared ones: `D2DE_CS` over
+every data element the generated forms reference, `D2TEA_CS` over every tracked
+entity attribute they ask for, `D2COC_CS` over every category option combo,
+`D2TET_CS` over the tracked entity types, `D2OU_Level_CS` over the organisation-unit
+levels, `D2PeriodType_CS`, and `D2FormType_CS`. By default the concept code is the
+DHIS2 UID; `concept_code_source = "code"` swaps in the DHIS2 code.
+
+`D2FormType_CS` names the five kinds of DHIS2 form the generator recognises:
+`#aggregate` for a data set, `#event` for an event program, `#tracker` for a tracker
+program's registration form, `#tracker-event` for one of its stages, and
+`#tracked-entity` for a tracked entity type's own registration form.
 
 Further reading: [CodeSystem](https://hl7.org/fhir/R4/codesystem.html).
 
@@ -160,7 +175,7 @@ DHIS2 has both shapes: the option's other identifier is property-shaped, and
 
 The toolkit uses properties for the complementary DHIS2 identifier on every concept
 (`dhis2-code` in id mode, `dhis2-id` in code mode), plus `level` and `parent` on the
-org-unit terminology and `domain` on `D2DE_CS`; each gets a
+organisation-unit terminology and `domain` on `D2DE_CS`; each gets a
 `<identifier_system_base>/property/<code>` URI so it means something outside this
 guide. DHIS2 `NAME` translations become designations where the target is a concept,
 and the standard
@@ -178,13 +193,18 @@ A `ConceptMap` states a relationship between concepts in two different code syst
 - "this code over here means that code over there". It is the FHIR-native place for
 a crosswalk, and a terminology server can answer `$translate` from one.
 
-This toolkit publishes one ConceptMap per option set and one per category, each
-mapping every generated concept code onto the DHIS2 UID and, where the member carries
-one, the DHIS2 code - one group per identifier system. An option-set map answers
-"which DHIS2 option is this answer?"; a category map answers "which DHIS2 category
-option is this disaggregation?". `d2w fhir serve` answers `$translate` over both, so a
-client holding a generated coding can ask the server which DHIS2 identifiers it stands
-for instead of reading concept properties itself.
+This toolkit publishes one ConceptMap per option set, one per category, and one per
+attribute category combo. Each maps every generated concept code back onto the DHIS2
+UID and, where the member carries one, the DHIS2 code - one group per identifier
+system. An option-set map answers "which DHIS2 option is this answer?"; a category
+map answers "which DHIS2 category option is this disaggregation?".
+
+One more map points the other way. `D2TET_CM` maps each DHIS2 tracked entity type
+onto the FHIR resource type its registrations are published as, so a client can ask
+what a "Person" is here rather than assuming; a type the project maps to nothing is a
+`Patient`. `d2w fhir serve` answers `$translate` over all of them, so a client holding
+a generated coding asks the server what it stands for instead of reading concept
+properties itself.
 
 Further reading: [ConceptMap](https://hl7.org/fhir/R4/conceptmap.html), and
 [Terminology and ConceptMaps](401-terminology-and-conceptmaps.md#conceptmaps-the-route-back-to-dhis2)
@@ -228,19 +248,28 @@ The DHIS2 analogy is excellent, because DHIS2 solved the same problem the same w
 custom fields for the reason DHIS2 prefers attributes over forking the schema - a
 consumer that does not recognise the URL skips it and still reads the rest.
 
-`d2w fhir` defines five of its own, all in `foundation/`:
+`d2w fhir` defines nineteen of its own, all in `foundation/`. Each one exists because
+a DHIS2 fact has no FHIR element to sit in:
 
-| Extension | Carries |
+| Extension | The DHIS2 fact it carries |
 | --- | --- |
-| `D2Period` | A DHIS2 reporting period: `iso`, `type`, and the resolved date range. |
-| `D2FormType` | Which kind of DHIS2 form this is: `#aggregate`, `#event`, `#tracker-event`. |
-| `D2AttributeValue` | One DHIS2 attribute value: `attributeId`, `attributeCode`, `value`. |
-| `D2OrganisationUnit` | A reference to the `Location` an event was captured at. |
-| `D2TrackerEnrollment` | The DHIS2 enrollment UID, as an `Identifier`. |
+| `D2Period`, `D2PeriodType` | The reporting period a response covers, and the reporting frequency the data set collects at. |
+| `D2FormType` | Which kind of DHIS2 form this is. |
+| `D2OrganisationUnit` | The organisation unit an event was captured at, as a reference to its `Location`. |
+| `D2OrganisationUnitAssignment` | Which organisation units may report this form, as a reference to a `List` of their Locations. |
+| `D2OrganisationUnitLevel` | The hierarchy level a place sits at. |
+| `D2AttributeOptionCombo`, `D2AttributeOptionCombos` | The attribute option combo an aggregate response's values are keyed under, and the set a form allows. |
+| `D2AttributeValue` | One DHIS2 attribute value on any object. |
+| `D2TrackedEntityAttributeValue` | One tracked entity attribute value on a registration response. |
+| `D2TrackerEnrollment`, `D2EnrolledAt`, `D2IncidentAt`, `D2CollectsIncidentDate` | The enrollment a response belongs to, its enrollment and incident dates, and whether the program collects an incident date at all. |
+| `D2EntityLevel` | Whether a registration answer belongs to the tracked entity or only to the enrollment. |
+| `D2SubjectExists` | Whether the person a registration names is already stored by the instance, so the response enrols rather than creates. |
+| `D2Repeatable` | Whether one enrollment may capture this program stage more than once. |
+| `D2Description`, `D2DateLabels` | The instance's own guidance text on a question or section, and the words it puts on enrollment, incident, and event dates. |
 
-`D2Period` exists because a FHIR `Period` is a pair of instants while a DHIS2 period
-is a *typed* interval - `202401` is the January instance of `Monthly`, and the type
-is what makes it comparable and round-trippable.
+`D2Period` is the clearest example of why the mechanism is needed. A FHIR `Period` is a
+pair of instants; a DHIS2 period is a *typed* interval - `202401` is the January
+instance of `Monthly`, and the type is what makes it comparable and round-trippable.
 
 Further reading: [Extensibility](https://hl7.org/fhir/R4/extensibility.html).
 
@@ -251,7 +280,7 @@ in that list so it can constrain them individually - slice `identifier` on `syst
 and you can say "the slice whose system is `{base}/id/org-unit` is mandatory".
 Extensions are pre-sliced by their URL, which is why a profile writes
 `extension[D2Period] 1..1` and an instance addresses it by name. The toolkit slices
-`identifier` into `dhis2id 1..1` and `dhis2code 1..1` on both org-unit profiles, and
+`identifier` into `dhis2id 1..1` and `dhis2code 1..1` on both organisation-unit profiles, and
 slices the extensions each response profile requires - which is what lets an example
 write `* extension[D2Period].extension[iso].valueString = "202607"`.
 
@@ -267,10 +296,13 @@ A `Questionnaire` is a form *definition*: a nested tree of `item`s, each with a
 data entry form**.
 
 `d2w fhir generate questionnaires` writes one per aggregate data set, one per event
-program, and one per stage of a tracker program. Sections become `#group` items,
-data elements become questions typed from their DHIS2 `valueType`, and a non-default
-category combo on a data set turns a question into a group with one child per
-category option combo.
+program, one per tracker program (the registration that enrols a person), one per
+stage of a tracker program, and one per tracked entity type (registering the entity
+with no programme attached). Sections become `#group` items, data elements become
+questions typed from their DHIS2 `valueType`, and a non-default category combo on a
+data set turns a question into a group with one child per category option combo.
+Which kind a form is shows up twice: as `Questionnaire.code` and on the `D2FormType`
+extension its responses carry.
 
 Further reading: [Questionnaire](https://hl7.org/fhir/R4/questionnaire.html).
 
@@ -297,8 +329,8 @@ not always a person, and a project tracking herds or water points maps its types
 
 A `QuestionnaireResponse` is one *submission*: it points at a Questionnaire through
 `questionnaire`, names its `subject`, carries a `status`, and answers item by item on
-the same `linkId`s. The DHIS2 analogy is one data value set for a given (org unit,
-period, attribute option combo), or one event.
+the same `linkId`s. The DHIS2 analogy is one data value set for a given
+(organisation unit, period, attribute option combo), or one event.
 
 `d2w fhir generate examples` writes one per form so an implementer can see what an
 answer looks like, and `d2w fhir serve` receives them - `POST /QuestionnaireResponse`
@@ -350,11 +382,12 @@ identifiers under it mean. It registers nothing with anybody - it is the guide
 stating its own convention, so a validator meeting `{base}/id/org-unit` has a
 definition to resolve instead of warning on every artifact carrying one.
 
-`foundation/d2-naming-systems.fsh` emits one per DHIS2 identifier system: a UID and a
-code system for the organisation unit, option set, category, data set, program, data
-element, category option combo, and program stage, plus a UID system alone for the
-tracked entity and the tracker enrollment - DHIS2 gives those two no `code`
-attribute, so there is no code system to declare.
+`foundation/d2-naming-systems.fsh` emits twenty-six, one per DHIS2 identifier system:
+a UID and a code system each for the organisation unit, option set, option, category,
+category option, category combo, category option combo, data set, program, program
+stage, data element, and tracked entity type, plus a UID system alone for the tracked
+entity and the tracker enrollment - DHIS2 gives those two no `code` attribute, so
+there is no code system to declare.
 
 Further reading: [NamingSystem](https://hl7.org/fhir/R4/namingsystem.html).
 
@@ -371,25 +404,37 @@ generated Questionnaire, one of the shapes `d2w fhir generate` writes:
 ```fsh
 Instance: Questionnaire-BfMAe6Itzgt      // the FSH-level name of this artifact
 InstanceOf: Questionnaire                // which resource type it is
-Title: "Child Health"
+Title: "Questionnaire - Child Health"
 Usage: #definition                       // a definitional artifact, not an example
 * id = "BfMAe6Itzgt"                     // the bare DHIS2 UID
-* url = "http://example.org/fhir/Questionnaire/BfMAe6Itzgt"
+* extension[D2FormType].valueCode = #aggregate      // it came from a data set
+* extension[D2PeriodType].valueCode = #Monthly      // reported monthly
+* url = "https://example.org/fhir/Questionnaire/BfMAe6Itzgt"
 * identifier[+].system = $DHIS2-DS       // $-prefixed names are FSH aliases
 * identifier[=].value = "BfMAe6Itzgt"    // [+] opens a new slot, [=] stays in it
 * identifier[+].system = $DHIS2-DS-CODE
 * identifier[=].value = "DS_359711"
 * name = "D2DS_BfMAe6Itzgt"
+* title = "Child Health"
 * status = #draft                        // # marks a code, not a string
 * subjectType = #Location                // answered for an organisation unit
-* item[+].linkId = "Sec1aaaaaaa"         // a DHIS2 section
+* code = D2FormType_CS#aggregate
+* item[+].linkId = "Y2rk0vzgvAx"         // a DHIS2 section
 * item[=].text = "Immunization"
 * item[=].type = #group
-* item[=].item[+].linkId = "De1aaaaaaaa" // a data element inside it
-* item[=].item[=].code = D2DE_CS#De1aaaaaaaa "BCG doses given"
-* item[=].item[=].text = "BCG"
-* item[=].item[=].type = #integer        // from the DHIS2 valueType
+* item[=].item[+].linkId = "s46m5MS0hxu" // a data element inside it
+* item[=].item[=].code = D2DE_CS#s46m5MS0hxu "BCG doses given"
+* item[=].item[=].text = "BCG doses given"
+* item[=].item[=].type = #group          // a group, because it disaggregates
+* item[=].item[=].item[+].linkId = "s46m5MS0hxu.Prlt0C1RF0s"   // one cell
+* item[=].item[=].item[=].code = D2COC_CS#Prlt0C1RF0s "Fixed, <1y"
 ```
+
+A data element that does not disaggregate is a question directly, typed from its
+DHIS2 `valueType` - `#integer`, `#string`, `#date`, `#choice`. This one carries a
+category combo, so it becomes a group with one child per category option combo, and
+each child's `linkId` is the `<dataElement>.<categoryOptionCombo>` pair a DHIS2 data
+value is keyed by.
 
 Four pieces of syntax carry most of the weight. `#code` is a code rather than a
 string. `$NAME` is an alias, declared once and expanded everywhere - here to a DHIS2
@@ -431,39 +476,66 @@ forms, profiles, and extensions stay FSH under `ig/input/fsh/`.
 
 ## How DHIS2 maps onto FHIR here
 
-Every row is something `d2w fhir generate` actually emits.
+This is the table to keep open while reading the rest of the series. Every row is
+something `d2w fhir generate` actually emits, and the last column says where to look
+at it - a path on a running `d2w fhir serve`, or the page the compiled guide renders
+it on. Paths use the ids from a real run; `<uid>` is the DHIS2 UID.
 
-| DHIS2 concept | FHIR artifact |
-| --- | --- |
-| Option set | A `CodeSystem` + `ValueSet` pair |
-| Option | A `concept` in that CodeSystem - not an artifact of its own |
-| Category, with its category options | The same `CodeSystem` + `ValueSet` pair shape |
-| Data element referenced by a generated form | A concept in `D2DE_CS` |
-| Tracked entity attribute asked by a generated form | A concept in `D2TEA_CS` |
-| Category option combo | A concept in `D2COC_CS` |
-| Organisation unit | An `Organization` **and** a `Location` instance |
-| Organisation unit level | A concept in `D2OU_Level_CS`, bound to `Organization.type` |
-| Organisation unit geometry | `Location.position` plus the `location-boundary-geojson` extension |
-| Aggregate data set | One `Questionnaire`, `subjectType = #Location` |
-| Event program | One `Questionnaire`, `subjectType = #Location` |
-| Tracker program stage | One `Questionnaire` per stage, `subjectType` the program's tracked entity type (`#Patient` by default) |
-| Tracked entity type | One `Questionnaire` - the person-only registration form, `subjectType` that type (`#Patient` by default) |
-| Section | An `item` of `type = #group` |
-| Data element on a form | A child `item`, `linkId` the data element UID |
-| Disaggregated data element | A group with one child per option combo, `linkId` `<deUid>.<cocUid>` |
-| Data values for one (org unit, period, attribute option combo) | One `QuestionnaireResponse` |
-| Event | One `QuestionnaireResponse` |
-| Tracked entity registered without an enrollment | One `QuestionnaireResponse` |
-| Reporting period | The `D2Period` extension - ISO identifier, type, resolved range |
-| Which kind of form this is | The `D2FormType` extension, and `Questionnaire.code` |
-| Attribute value | One `D2AttributeValue` extension |
-| UID and code | Two `identifier` slices: `{base}/id/<kind>` and `{base}/id/<kind>-code` |
-| Each identifier system's convention | One `NamingSystem` declaration |
-| Tracked entity | A logical subject of the form's own `subjectType` - `subject.identifier`, no `reference` |
-| Enrollment | The `D2TrackerEnrollment` extension, as a `valueIdentifier` |
-| Organisation unit of a tracker event | The `D2OrganisationUnit` extension |
-| `NAME` translation | A concept `designation`, or the standard translation extension on `_title` / `_name` |
-| `FORM_NAME` translation | The standard translation extension on a question's `_text` |
+### Metadata that becomes vocabulary
+
+| DHIS2 object | What it becomes | Where to see it |
+| --- | --- | --- |
+| Option set | A `CodeSystem` defining its options, plus a `ValueSet` selecting them | `GET /CodeSystem/d2-os-<uid>-cs`, and the guide's Terminology page |
+| Option | A `concept` inside that CodeSystem - never an artifact of its own | Inside its option set's CodeSystem |
+| Category, with its category options | The same `CodeSystem` + `ValueSet` pair | `GET /CodeSystem/d2-cat-<uid>-cs` |
+| Attribute category combo | A `CodeSystem` + `ValueSet` + `ConceptMap` over its attribute option combos | `GET /CodeSystem/d2-aoc-<uid>-cs` |
+| Data element a form asks for | A concept in `D2DE_CS` | `GET /CodeSystem/d2-de-cs` |
+| Tracked entity attribute a form asks for | A concept in `D2TEA_CS` | `GET /CodeSystem/d2-tea-cs` |
+| Category option combo | A concept in `D2COC_CS` | `GET /CodeSystem/d2-coc-cs` |
+| Tracked entity type | A concept in `D2TET_CS`, and a `D2TET_CM` entry naming the FHIR resource type it publishes as | `GET /CodeSystem/d2-tet-cs`, `GET /ConceptMap/d2-tet-cm` |
+| Organisation unit level | A concept in `D2OU_Level_CS`, bound to `Organization.type` | `GET /CodeSystem/d2-ou-level-cs` |
+| Period type | A concept in `D2PeriodType_CS` | `GET /CodeSystem/d2-period-type-cs` |
+| Every identifier convention above | One `NamingSystem` declaration each - twenty-six of them | The guide's artifact index |
+
+### The organisation unit hierarchy
+
+| DHIS2 object | What it becomes | Where to see it |
+| --- | --- | --- |
+| Organisation unit | An `Organization` **and** a `Location` - the same unit twice, because FHIR splits the responsible body from the place it sits at, and DHIS2 uses one object for both | `GET /Organization/<uid>` and `GET /Location/<uid>` |
+| Parent organisation unit | `Organization.partOf` and `Location.partOf` | On each resource |
+| Organisation unit geometry | `Location.position` for a point, plus the `location-boundary-geojson` extension for a boundary | On the `Location` |
+| The organisation units a form may be reported by | A `List` of their Locations, referenced from the form's `D2OrganisationUnitAssignment` | `GET /List/d2-ds-<uid>-org-units` |
+
+### Forms and what is captured against them
+
+| DHIS2 object | What it becomes | Where to see it |
+| --- | --- | --- |
+| Aggregate data set | One `Questionnaire`, `subjectType = #Location`, `code = #aggregate` | `GET /Questionnaire/<uid>` |
+| Event program | One `Questionnaire`, `subjectType = #Location`, `code = #event` | `GET /Questionnaire/<uid>` |
+| Tracker program | One `Questionnaire` for the registration that enrols a person, `code = #tracker` | `GET /Questionnaire/<uid>` |
+| Tracker program stage | One `Questionnaire` per stage, `code = #tracker-event`, `subjectType` the program's tracked entity type | `GET /Questionnaire/<stageUid>` |
+| Tracked entity type | One `Questionnaire` registering the entity with no programme attached, `code = #tracked-entity` | `GET /Questionnaire/<uid>` |
+| Section | An `item` of `type = #group` | Inside the Questionnaire |
+| Data element on a form | A child `item`, `linkId` the data element UID, typed from its DHIS2 `valueType` | Inside the Questionnaire |
+| Disaggregated data element | A group with one child per category option combo, `linkId` `<deUid>.<cocUid>` | Inside the Questionnaire |
+| Data values for one (organisation unit, period, attribute option combo) | One `QuestionnaireResponse` | `GET /QuestionnaireResponse` |
+| Event | One `QuestionnaireResponse` | `GET /QuestionnaireResponse` |
+| Tracked entity, registered | One `QuestionnaireResponse` against the registration form | `GET /QuestionnaireResponse` |
+| Tracked entity, as a subject | A logical subject - `subject.identifier`, no `reference`. A running serve also publishes the instance's tracked entities as a register | `GET /Patient` on a running serve |
+
+### DHIS2 facts that ride along as extensions
+
+| DHIS2 object | What it becomes | Where to see it |
+| --- | --- | --- |
+| Reporting period | The `D2Period` extension - ISO identifier, type, and resolved date range | On every aggregate response |
+| Which kind of form this is | `Questionnaire.code` and the `D2FormType` extension | On the form and its responses |
+| Attribute value | One `D2AttributeValue` extension | On the object carrying it |
+| Tracked entity attribute value | One `D2TrackedEntityAttributeValue` extension, unless DHIS2 declares the attribute unique - then it is an `identifier` | On a registration response |
+| Enrollment | The `D2TrackerEnrollment` extension, as a `valueIdentifier` | On a tracker response |
+| Organisation unit of a tracker event | The `D2OrganisationUnit` extension | On a tracker event response |
+| UID and code | Two `identifier` slices: `{base}/id/<kind>` and `{base}/id/<kind>-code` | On every generated instance |
+| `NAME` translation | A concept `designation`, or the standard translation extension on `_title` / `_name` | On the concept or the artifact |
+| `FORM_NAME` translation | The standard translation extension on a question's `_text` | On the Questionnaire item |
 
 ## Further reading
 

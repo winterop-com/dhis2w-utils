@@ -15,8 +15,8 @@ reference.
 
     ---
 
-    Every user-visible capability across all six packages and three version
-    trees, grouped by surface.
+    Every user-visible capability across the published packages and the three
+    version trees, grouped by surface.
 
     [Browse the catalog](features.md)
 

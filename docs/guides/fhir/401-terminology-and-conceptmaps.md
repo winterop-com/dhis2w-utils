@@ -55,7 +55,7 @@ about. The example responses code their answers from the same assignment, so a
 `valueCoding` always names a concept this pair really carries.
 
 **Both halves carry the set's DHIS2 attribute values**, as one
-[`D2AttributeValue` extension](401-identifiers-and-extensions.md#the-d2attributevalue-extension)
+[`D2AttributeValue` extension](401-identifiers-and-extensions.md#d2attributevalue)
 per value on the CodeSystem and the same list on the ValueSet. The values on the
 *options* inside the set are not emitted, because a `CodeSystem.concept` has no
 carrier chosen for them.
@@ -96,7 +96,7 @@ This is the terminology the disaggregated half of the data layer codes against.
 Each pair carries the `CAT` naming token (`D2CAT_Sex_CS` / `D2CAT_Sex_VS`), the
 category's own DHIS2 UID and code as `identifier` business identifiers, and the
 category's DHIS2 attribute values as
-[`D2AttributeValue` extensions](401-identifiers-and-extensions.md#the-d2attributevalue-extension)
+[`D2AttributeValue` extensions](401-identifiers-and-extensions.md#d2attributevalue)
 on both halves.
 
 **The concepts are the category options.** They keep the category's own
@@ -232,6 +232,30 @@ the last five are what a consumer resolving a person needs:
 | `pattern` | string | The reserved-value pattern a generated attribute is minted from, carried only where there is one. |
 | `display-in-list` | boolean | Whether DHIS2 shows the attribute in the working lists of **any** context this guide publishes. |
 
+Each is declared on the CodeSystem under
+`{identifier_system_base}/property/<code>`, so a served pair states its own
+vocabulary before a consumer reads a single concept:
+
+```console
+$ curl -s localhost:8389/CodeSystem/d2-tea-cs | jq -c '.property[]'
+{"code":"dhis2-code","uri":"http://dhis2.org/fhir/property/dhis2-code","type":"string"}
+{"code":"value-type","uri":"http://dhis2.org/fhir/property/value-type","type":"code"}
+{"code":"unique","uri":"http://dhis2.org/fhir/property/unique","type":"boolean"}
+{"code":"searchable","uri":"http://dhis2.org/fhir/property/searchable","type":"boolean"}
+{"code":"generated","uri":"http://dhis2.org/fhir/property/generated","type":"boolean"}
+{"code":"pattern","uri":"http://dhis2.org/fhir/property/pattern","type":"string"}
+{"code":"display-in-list","uri":"http://dhis2.org/fhir/property/display-in-list","type":"boolean"}
+```
+
+A concept carries only the properties that have an answer, so a generated
+attribute is the one that carries all of `generated` and `pattern`:
+
+```console
+$ curl -s localhost:8389/CodeSystem/d2-tea-cs \
+    | jq -c '.concept[] | select(.code=="TeaSystemId")'
+{"code":"TeaSystemId","display":"Programme identifier","property":[{"code":"dhis2-code","valueString":"TEA_SYSTEM_ID"},{"code":"value-type","valueCode":"TEXT"},{"code":"unique","valueBoolean":true},{"code":"searchable","valueBoolean":true},{"code":"generated","valueBoolean":true},{"code":"pattern","valueString":"ANC-#######"}]}
+```
+
 `unique`, `generated`, and `pattern` are facts about the attribute alone - DHIS2
 holds them on the attribute object, so they are the same answer wherever the
 attribute is asked. A generated attribute is one DHIS2 writes for you off its
@@ -275,9 +299,16 @@ context that asked it:
 Read it as: this attribute is a business identifier, DHIS2 will find a person by it
 somewhere in this guide, and the somewhere is the Child Programme rather than the
 Person type's own registration form. Each per-context property is declared with the
-context named in words, so the vocabulary is readable without a UID lookup, and
-every one of them is queryable through
-[`CodeSystem/$lookup`](401-consume-the-fhir-api.md) the way `unique` is.
+context named in words, so the vocabulary is readable without a UID lookup.
+
+**A consumer reads these off the document, not off an operation.** `d2w fhir serve`
+publishes no `$lookup`; it serves `GET /CodeSystem/d2-tea-cs` whole, and every
+property above is an element of the concept in it
+([Consume the FHIR API](401-consume-the-fhir-api.md#translate-generated-codes-back-to-dhis2-identifiers)).
+The pair `unique` and `searchable` is what a facade's own register search keys
+on, so reading them is how a client predicts which identifiers
+[`GET /Patient?identifier=...`](401-consume-the-fhir-api.md#the-register-search-identifier)
+will answer to.
 
 A context appears only where it published a form in this run, which is the honest
 reading: the roll-up answers for the guide, not for the whole instance.
@@ -363,13 +394,18 @@ published with a `Patient` target, so a consumer reads the answer rather than
 inferring it from an absence. The row's target is the very resolution the form's
 own `subjectType` came out of, so a `Questionnaire` and this map cannot disagree.
 
-The map answers over `$translate` like every other:
+The map answers over `$translate` like every other - against a served facade,
+not against the DHIS2 instance:
 
 ```bash
-curl "http://localhost:8080/ConceptMap/\$translate?system=http://example.org/fhir/CodeSystem/d2-tet-cs&code=nEenWmSyUEp"
+curl "http://localhost:8389/ConceptMap/\$translate?system=http://example.org/fhir/CodeSystem/d2-tet-cs&code=nEenWmSyUEp"
 ```
 
 comes back with `Patient` in the `http://hl7.org/fhir/resource-types` system.
+A running facade reads the same map at startup to decide which FHIR resources
+its register answers over, so the answer a client translates and the endpoint it
+then calls cannot disagree - see
+[the register](401-consume-the-fhir-api.md#the-register-what-the-instance-holds-one-resource-per-tracked-entity-type).
 
 ## Translations: designations on a concept, extensions on a title
 

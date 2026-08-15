@@ -609,3 +609,7 @@ Absence is simpler; parity of shape is the argument for the other.
   concepts this page declines would land.
 - [The FHIR plugin architecture](../architecture/fhir-plugin.md) - the carriers as they
   exist today, in the emitter's own terms.
+- [Identifiers and the D2 extensions](../guides/fhir/401-identifiers-and-extensions.md) -
+  the carriers as a consumer of the published guide meets them.
+- [Glossary](../guides/fhir/glossary.md) - every DHIS2 concept this page grades, with
+  what the toolkit does with it.
