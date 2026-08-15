@@ -184,6 +184,7 @@ nav:
   - FHIR:
       - Overview: guides/fhir/index.md
       - 101 - Understand:
+          - Glossary: guides/fhir/glossary.md
           - What and why: guides/fhir/101-what-and-why.md
           - FHIR for DHIS2 people: guides/fhir/101-fhir-concepts.md
           - Quickstart: guides/fhir/101-quickstart.md
