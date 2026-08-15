@@ -50,7 +50,7 @@ _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
     "service.py": {
         GenerateNoteCategory.BUILD_COST: 1,
         GenerateNoteCategory.EMPTY_SELECTION: 4,
-        GenerateNoteCategory.FORM_STRUCTURE: 1,
+        GenerateNoteCategory.FORM_STRUCTURE: 2,
         GenerateNoteCategory.INSTANCE_DATA_GAP: 3,
         GenerateNoteCategory.REFUSED_FORM: 1,
         GenerateNoteCategory.SELECTION_CLOSURE: 1,

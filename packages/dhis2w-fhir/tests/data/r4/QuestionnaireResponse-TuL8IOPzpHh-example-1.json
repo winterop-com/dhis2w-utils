@@ -28,16 +28,16 @@
       ]
     },
     {
-      "url": "http://localhost:8080/fhir/StructureDefinition/d2-attribute-option-combo",
-      "valueCoding": {
-        "system": "http://localhost:8080/fhir/CodeSystem/d2-aoc-idcDPkDtepR-cs",
-        "code": "BqblOcSwGey",
-        "display": "Provide access to primary health care"
-      }
-    },
-    {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
       "valueCode": "aggregate"
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-attribute-option-combo",
+      "valueCoding": {
+        "code": "oawMLLH7OjA",
+        "system": "http://localhost:8080/fhir/CodeSystem/d2-aoc-idcDPkDtepR-cs",
+        "display": "Provide access to basic education"
+      }
     }
   ],
   "questionnaire": "http://localhost:8080/fhir/Questionnaire/TuL8IOPzpHh",
@@ -50,7 +50,7 @@
       "linkId": "cZnQDuF3IDz",
       "item": [
         {
-          "linkId": "cZnQDuF3IDz.pn1upwnbxfn",
+          "linkId": "cZnQDuF3IDz.fsFN9T4ck3E",
           "answer": [
             {
               "valueDecimal": 76.8
@@ -58,7 +58,7 @@
           ]
         },
         {
-          "linkId": "cZnQDuF3IDz.fsFN9T4ck3E",
+          "linkId": "cZnQDuF3IDz.pn1upwnbxfn",
           "answer": [
             {
               "valueDecimal": 78.2
@@ -79,7 +79,7 @@
       "linkId": "FvKdfA2SuWI",
       "item": [
         {
-          "linkId": "FvKdfA2SuWI.pn1upwnbxfn",
+          "linkId": "FvKdfA2SuWI.fsFN9T4ck3E",
           "answer": [
             {
               "valueDecimal": 56.7
@@ -87,7 +87,7 @@
           ]
         },
         {
-          "linkId": "FvKdfA2SuWI.fsFN9T4ck3E",
+          "linkId": "FvKdfA2SuWI.pn1upwnbxfn",
           "answer": [
             {
               "valueDecimal": 38
@@ -108,7 +108,7 @@
       "linkId": "WVrH6j3Wfye",
       "item": [
         {
-          "linkId": "WVrH6j3Wfye.pn1upwnbxfn",
+          "linkId": "WVrH6j3Wfye.fsFN9T4ck3E",
           "answer": [
             {
               "valueDecimal": 6.1
@@ -116,7 +116,7 @@
           ]
         },
         {
-          "linkId": "WVrH6j3Wfye.fsFN9T4ck3E",
+          "linkId": "WVrH6j3Wfye.pn1upwnbxfn",
           "answer": [
             {
               "valueDecimal": 15.7

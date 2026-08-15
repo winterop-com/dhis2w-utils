@@ -1,0 +1,10 @@
+Extension: {{ names.repeatable_extension }}
+Id: {{ names.repeatable_extension_id }}
+Title: "DHIS2 stage is repeatable"
+Description: "Whether one enrollment may capture this DHIS2 tracker program stage more than once. True means a person can be given several events of the stage - a follow-up visit, a repeat measurement - and false means the enrollment holds at most one. Only a tracker program stage form declares it, and it declares it either way, so a reader never has to guess."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "Questionnaire"
+* value[x] only boolean
+* valueBoolean 1..1

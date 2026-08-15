@@ -8,6 +8,10 @@
     {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
       "valueCode": "tracker-event"
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-repeatable",
+      "valueBoolean": false
     }
   ],
   "identifier": [
@@ -47,7 +51,13 @@
         }
       ],
       "text": "Infant Weight (g)",
-      "type": "decimal"
+      "type": "decimal",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Infant weight in grams"
+        }
+      ]
     },
     {
       "linkId": "X8zyunlgUfM",
@@ -174,7 +184,13 @@
       ],
       "text": "Child ARVs",
       "type": "choice",
-      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-dgsftM0rXu2-vs"
+      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-dgsftM0rXu2-vs",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "ARVs for child postnatal visits."
+        }
+      ]
     },
     {
       "linkId": "aei1xRjSU2l",
@@ -212,7 +228,13 @@
         }
       ],
       "text": "Visit comment (optional)",
-      "type": "text"
+      "type": "text",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Free text comment used to put additional information for a visit."
+        }
+      ]
     }
   ]
 }

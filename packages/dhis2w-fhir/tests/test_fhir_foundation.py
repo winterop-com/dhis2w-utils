@@ -34,6 +34,9 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-aliases.fsh",
         "foundation/d2-naming-systems.fsh",
         "foundation/d2-period.fsh",
+        "foundation/d2-date-labels.fsh",
+        "foundation/d2-repeatable.fsh",
+        "foundation/d2-description.fsh",
         "foundation/d2-form-type.fsh",
         "foundation/d2-attribute-value.fsh",
         "foundation/d2-tracked-entity-attribute-value.fsh",
@@ -205,13 +208,13 @@ def test_form_type_terminology_covers_every_form_kind() -> None:
 
 
 def test_period_artifacts_derive_their_publication_state_from_the_ig_status() -> None:
-    """The extension and its period-type pair carry ^status and ^experimental straight off `[ig] status`."""
+    """The two extensions and the period-type pair carry ^status and ^experimental straight off `[ig] status`."""
     draft = _by_path(GenerateConfig())["foundation/d2-period.fsh"]
-    assert draft.count("* ^status = #draft") == 3
-    assert draft.count("* ^experimental = true") == 3
+    assert draft.count("* ^status = #draft") == 4
+    assert draft.count("* ^experimental = true") == 4
     active = _by_path(GenerateConfig(), ig_status="active")["foundation/d2-period.fsh"]
-    assert active.count("* ^status = #active") == 3
-    assert active.count("* ^experimental = false") == 3
+    assert active.count("* ^status = #active") == 4
+    assert active.count("* ^experimental = false") == 4
     assert "* ^status = #draft" not in active
     assert "* ^experimental = true" not in active
 
@@ -245,7 +248,7 @@ def test_period_extension_shape() -> None:
     assert "Extension: D2Period" in period
     assert "Id: d2-period" in period
     assert 'Title: "DHIS2 reporting period"' in period
-    assert period.count("* ^context[+].type = #element") == 2
+    assert period.count("* ^context[+].type = #element") == 3
     assert '* ^context[=].expression = "QuestionnaireResponse"' in period
     assert '* ^context[=].expression = "MeasureReport"' in period
     assert '* ^context[=].expression = "Element"' not in period

@@ -28,8 +28,19 @@ from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_extensions,
     attribute_value_identifiers,
 )
-from dhis2w_fhir.foundation.schemas import FoundationNaming
-from dhis2w_fhir.i18n import TranslationIn, name_translations, text_translations, translated_element
+from dhis2w_fhir.foundation.schemas import (
+    DATE_LABEL_ENROLLMENT_SUB_EXTENSION,
+    DATE_LABEL_EVENT_SUB_EXTENSION,
+    DATE_LABEL_INCIDENT_SUB_EXTENSION,
+    FoundationNaming,
+)
+from dhis2w_fhir.i18n import (
+    TranslationIn,
+    description_translations,
+    name_translations,
+    text_translations,
+    translated_element,
+)
 from dhis2w_fhir.names import code_or_uid, flatten_whitespace
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import (
@@ -76,6 +87,7 @@ from dhis2w_fhir.resources.questionnaires import (
     is_multi_valued,
     item_type,
     question_entity_level,
+    question_read_only,
     search_context_declarations,
     source_description,
 )
@@ -83,8 +95,14 @@ from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CATEGORY_OPTION_COMBO_TERMINOLOGY,
     DATA_ELEMENT_TERMINOLOGY,
+    DISPLAY_IN_LIST_PROPERTY,
+    DISPLAY_IN_LIST_PROPERTY_DESCRIPTION,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
+    GENERATED_PROPERTY,
+    GENERATED_PROPERTY_DESCRIPTION,
+    PATTERN_PROPERTY,
+    PATTERN_PROPERTY_DESCRIPTION,
     RESOURCE_MAP_EQUIVALENCE,
     RESOURCE_TYPE_CODE_SYSTEM_URL,
     RESOURCE_TYPE_VALUE_SET_URL,
@@ -106,6 +124,9 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireStemPlan,
     ReferencedObjects,
     SupportTerminologyProfile,
+    form_date_labels,
+    form_period_type,
+    form_repeatable,
     form_subject_type,
     plan_questionnaire_stems,
     published_tracked_entity_types,
@@ -210,6 +231,10 @@ class _QuestionnaireSystems(BaseModel):
     form_type_extension_url: str
     form_type_code_system_url: str
     collects_incident_date_extension_url: str
+    period_type_extension_url: str
+    repeatable_extension_url: str
+    date_labels_extension_url: str
+    description_extension_url: str
     assignment_extension_url: str
     attribute_option_combos_extension_url: str
     attribute_value_extension_url: str
@@ -232,6 +257,10 @@ class _QuestionnaireSystems(BaseModel):
             collects_incident_date_extension_url=(
                 f"{canonical}/StructureDefinition/{foundation.collects_incident_date_extension_id}"
             ),
+            period_type_extension_url=f"{canonical}/StructureDefinition/{foundation.period_type_extension_id}",
+            repeatable_extension_url=f"{canonical}/StructureDefinition/{foundation.repeatable_extension_id}",
+            date_labels_extension_url=f"{canonical}/StructureDefinition/{foundation.date_labels_extension_id}",
+            description_extension_url=f"{canonical}/StructureDefinition/{foundation.description_extension_id}",
             assignment_extension_url=(
                 f"{canonical}/StructureDefinition/{foundation.organisation_unit_assignment_extension_id}"
             ),
@@ -516,6 +545,9 @@ def _questionnaire_document(
         extension=[
             Extension(url=systems.form_type_extension_url, valueCode=source.kind),
             *_collects_incident_date_extension(source, systems),
+            *_period_type_extension(source, systems),
+            *_repeatable_extension(source, systems),
+            *_date_labels_extension(source, systems, locales),
             *_assignment_extension(source, systems, assignments),
             *_attribute_option_combos_extension(source, systems, attribute_combos),
             *attribute_value_extensions(
@@ -540,6 +572,61 @@ def _collects_incident_date_extension(
     if collects is None:
         return ()
     return (Extension(url=systems.collects_incident_date_extension_url, valueBoolean=collects),)
+
+
+def _period_type_extension(source: QuestionnaireSourceIn, systems: _QuestionnaireSystems) -> tuple[Extension, ...]:
+    """The D2PeriodType extension an aggregate form declares, or nothing on every other kind."""
+    period_type = form_period_type(source)
+    if period_type is None:
+        return ()
+    return (Extension(url=systems.period_type_extension_url, valueCode=period_type),)
+
+
+def _repeatable_extension(source: QuestionnaireSourceIn, systems: _QuestionnaireSystems) -> tuple[Extension, ...]:
+    """The D2Repeatable extension a tracker program stage form declares, or nothing on every other kind."""
+    repeatable = form_repeatable(source)
+    if repeatable is None:
+        return ()
+    return (Extension(url=systems.repeatable_extension_url, valueBoolean=repeatable),)
+
+
+def _date_labels_extension(
+    source: QuestionnaireSourceIn, systems: _QuestionnaireSystems, locales: list[str]
+) -> tuple[Extension, ...]:
+    """The D2DateLabels extension one form carries, or nothing when the instance labels none of its dates."""
+    labels = form_date_labels(source, locales)
+    slices = (
+        (DATE_LABEL_ENROLLMENT_SUB_EXTENSION, labels.enrollment_date),
+        (DATE_LABEL_INCIDENT_SUB_EXTENSION, labels.incident_date),
+        (DATE_LABEL_EVENT_SUB_EXTENSION, labels.event_date),
+    )
+    carried = [
+        Extension(
+            url=slice_name,
+            valueString=flatten_whitespace(label.value),
+            valueString_element=translated_element(label.translations),
+        )
+        for slice_name, label in slices
+        if label is not None
+    ]
+    if not carried:
+        return ()
+    return (Extension(url=systems.date_labels_extension_url, extension=carried),)
+
+
+def _description_extension(
+    description: str | None, translations: list[TranslationIn], locales: list[str], systems: _QuestionnaireSystems
+) -> tuple[Extension, ...]:
+    """The D2Description extension one item carries, or nothing when DHIS2 states no free text for it."""
+    if not description:
+        return ()
+    return (
+        Extension(
+            url=systems.description_extension_url,
+            valueString=flatten_whitespace(description),
+            valueString_element=translated_element(description_translations(translations, locales)),
+        ),
+    )
 
 
 def _assignment_extension(
@@ -609,9 +696,15 @@ def _items(
                 text=flatten_whitespace(section.name),
                 text_element=translated_element(name_translations(section.translations, locales)),
                 type="group",
-                extension=[_item_control_extension()]
-                if any(is_disaggregated(item, source.kind) for item in section.items)
-                else None,
+                extension=[
+                    *_description_extension(section.description, section.translations, locales, systems),
+                    *(
+                        [_item_control_extension()]
+                        if any(is_disaggregated(item, source.kind) for item in section.items)
+                        else []
+                    ),
+                ]
+                or None,
                 item=children or None,
             )
         )
@@ -648,8 +741,9 @@ def _data_element_items(
     answer_value_set = _answer_value_set(item, identities, systems.canonical)
     repeats = is_multi_valued(item.value_type, resolved_item_type) or None
     bounds = _bound_extensions(item.value_type, resolved_item_type)
+    description = _description_extension(item.description, item.translations, locales, systems)
     if not is_disaggregated(item, source.kind):
-        extensions = [*bounds, *_entity_level_extension(item, source.kind, systems)]
+        extensions = [*description, *bounds, *_entity_level_extension(item, source.kind, systems)]
         return [
             QuestionnaireItem(
                 linkId=item.uid,
@@ -660,6 +754,7 @@ def _data_element_items(
                 answerValueSet=answer_value_set,
                 required=item.compulsory or None,
                 repeats=repeats,
+                readOnly=question_read_only(item, source.kind),
                 extension=extensions or None,
             )
         ]
@@ -692,6 +787,7 @@ def _data_element_items(
             text_element=text_element,
             type="group",
             required=item.compulsory or None,
+            extension=list(description) or None,
             item=cells or None,
         )
     ]
@@ -797,6 +893,11 @@ def _tracked_entity_attribute_concepts(referenced: ReferencedObjects, locales: l
                 CodeSystemConceptProperty(code=_UNIQUE_PROPERTY, valueBoolean=item.unique),
                 CodeSystemConceptProperty(
                     code=SEARCHABLE_PROPERTY, valueBoolean=referenced.searchable_anywhere(item.uid)
+                ),
+                CodeSystemConceptProperty(code=GENERATED_PROPERTY, valueBoolean=item.generated),
+                *([CodeSystemConceptProperty(code=PATTERN_PROPERTY, valueString=item.pattern)] if item.pattern else []),
+                CodeSystemConceptProperty(
+                    code=DISPLAY_IN_LIST_PROPERTY, valueBoolean=referenced.displayed_in_list_anywhere(item.uid)
                 ),
                 *(
                     CodeSystemConceptProperty(code=context.property_code, valueBoolean=context.searchable)
@@ -964,6 +1065,46 @@ def _property_declarations(
                 code=SEARCHABLE_PROPERTY,
                 uri=f"{property_base}/{SEARCHABLE_PROPERTY}",
                 description=SEARCHABLE_PROPERTY_DESCRIPTION,
+                type="boolean",
+            )
+        )
+    carries_generated = any(
+        concept_property.code == GENERATED_PROPERTY
+        for concept in concepts
+        for concept_property in concept.property or []
+    )
+    if carries_generated:
+        declarations.append(
+            CodeSystemProperty(
+                code=GENERATED_PROPERTY,
+                uri=f"{property_base}/{GENERATED_PROPERTY}",
+                description=GENERATED_PROPERTY_DESCRIPTION,
+                type="boolean",
+            )
+        )
+    carries_pattern = any(
+        concept_property.code == PATTERN_PROPERTY for concept in concepts for concept_property in concept.property or []
+    )
+    if carries_pattern:
+        declarations.append(
+            CodeSystemProperty(
+                code=PATTERN_PROPERTY,
+                uri=f"{property_base}/{PATTERN_PROPERTY}",
+                description=PATTERN_PROPERTY_DESCRIPTION,
+                type="string",
+            )
+        )
+    carries_display_in_list = any(
+        concept_property.code == DISPLAY_IN_LIST_PROPERTY
+        for concept in concepts
+        for concept_property in concept.property or []
+    )
+    if carries_display_in_list:
+        declarations.append(
+            CodeSystemProperty(
+                code=DISPLAY_IN_LIST_PROPERTY,
+                uri=f"{property_base}/{DISPLAY_IN_LIST_PROPERTY}",
+                description=DISPLAY_IN_LIST_PROPERTY_DESCRIPTION,
                 type="boolean",
             )
         )

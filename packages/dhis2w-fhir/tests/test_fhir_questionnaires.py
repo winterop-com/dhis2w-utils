@@ -1288,7 +1288,7 @@ async def test_a_registration_form_states_the_dhis2_level_of_every_attribute_it_
 
     fields = [call.request.url.params.get("fields") for call in programs.calls]
     assert any(
-        "trackedEntityType[id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]]" in (field or "")
+        "trackedEntityType[id,trackedEntityTypeAttributes[mandatory,trackedEntityAttribute[id]]]" in (field or "")
         for field in fields
     )
     registration = (

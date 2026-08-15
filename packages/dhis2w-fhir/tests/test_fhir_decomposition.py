@@ -23,6 +23,7 @@ from dhis2w_fhir.r4 import CodeSystem
 from dhis2w_fhir.resources.categories.schemas import CategoryIn
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn
 from dhis2w_fhir.resources.questionnaires.schemas import (
+    CategoryAxisIn,
     CategoryComboIn,
     CategoryOptionComboIn,
     QuestionnaireItemIn,
@@ -65,7 +66,10 @@ _PROJECT = CategoryIn(
 _LOCATION_AND_AGE = CategoryComboIn(
     uid="dzjKKQq0cSO",
     name="Location and age group",
-    category_uids=["fMZEcRHuamy", "YNZyaJHiHYq"],
+    categories=[
+        CategoryAxisIn(uid="fMZEcRHuamy", option_uids=["qkPbeWaFsnU", "wbrDrL2aYEc"]),
+        CategoryAxisIn(uid="YNZyaJHiHYq", option_uids=["btOyqprQ9e8", "GEqzEKCHoGA"]),
+    ],
     option_combos=[
         CategoryOptionComboIn(
             uid="Prlt0C1RF0s",
@@ -87,7 +91,7 @@ _PROJECT_COMBO = CategoryComboIn(
     uid="idcDPkDtepR",
     code="COMBO_PROJECT",
     name="Project",
-    category_uids=["yY2bQYqNt0o"],
+    categories=[CategoryAxisIn(uid="yY2bQYqNt0o", option_uids=["i4Nbp8S2G6A", "OUUdG3sdOqb"])],
     option_combos=[
         CategoryOptionComboIn(
             uid="pO5CEqK6c1s",
@@ -288,7 +292,7 @@ def test_the_default_category_combo_is_not_walked_at_all() -> None:
         uid="bjDvmb4bfuf",
         name="default",
         is_default=True,
-        category_uids=["GLevLNI9wkl"],
+        categories=[CategoryAxisIn(uid="GLevLNI9wkl", option_uids=["xYerKDKCefk"])],
         option_combos=[CategoryOptionComboIn(uid="HllvX50cXC0", name="default", category_option_uids=["xYerKDKCefk"])],
     )
     source = _SOURCE.model_copy(

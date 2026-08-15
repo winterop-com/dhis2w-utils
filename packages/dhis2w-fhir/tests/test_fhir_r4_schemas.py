@@ -242,7 +242,7 @@ def test_a_questionnaire_carries_its_sections_disaggregated_cells_and_item_contr
     section = model.item[0]
     assert section.type == "group"
     assert section.extension is not None
-    control = section.extension[0]
+    control = section.extension[-1]
     assert control.valueCodeableConcept is not None
     assert control.valueCodeableConcept.coding is not None
     assert control.valueCodeableConcept.coding[0].code == "gtable"

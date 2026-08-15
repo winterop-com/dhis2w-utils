@@ -10,6 +10,10 @@
       "valueCode": "aggregate"
     },
     {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-period-type",
+      "valueCode": "Monthly"
+    },
+    {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-attribute-option-combos",
       "valueCanonical": "http://localhost:8080/fhir/ValueSet/d2-aoc-idcDPkDtepR-vs"
     }
@@ -50,18 +54,6 @@
       "type": "group",
       "item": [
         {
-          "linkId": "cZnQDuF3IDz.pn1upwnbxfn",
-          "code": [
-            {
-              "code": "pn1upwnbxfn",
-              "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-              "display": "Damages"
-            }
-          ],
-          "text": "Damages",
-          "type": "decimal"
-        },
-        {
           "linkId": "cZnQDuF3IDz.fsFN9T4ck3E",
           "code": [
             {
@@ -71,6 +63,18 @@
             }
           ],
           "text": "Expired",
+          "type": "decimal"
+        },
+        {
+          "linkId": "cZnQDuF3IDz.pn1upwnbxfn",
+          "code": [
+            {
+              "code": "pn1upwnbxfn",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+              "display": "Damages"
+            }
+          ],
+          "text": "Damages",
           "type": "decimal"
         },
         {
@@ -100,18 +104,6 @@
       "type": "group",
       "item": [
         {
-          "linkId": "FvKdfA2SuWI.pn1upwnbxfn",
-          "code": [
-            {
-              "code": "pn1upwnbxfn",
-              "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-              "display": "Damages"
-            }
-          ],
-          "text": "Damages",
-          "type": "decimal"
-        },
-        {
           "linkId": "FvKdfA2SuWI.fsFN9T4ck3E",
           "code": [
             {
@@ -121,6 +113,18 @@
             }
           ],
           "text": "Expired",
+          "type": "decimal"
+        },
+        {
+          "linkId": "FvKdfA2SuWI.pn1upwnbxfn",
+          "code": [
+            {
+              "code": "pn1upwnbxfn",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+              "display": "Damages"
+            }
+          ],
+          "text": "Damages",
           "type": "decimal"
         },
         {
@@ -150,18 +154,6 @@
       "type": "group",
       "item": [
         {
-          "linkId": "WVrH6j3Wfye.pn1upwnbxfn",
-          "code": [
-            {
-              "code": "pn1upwnbxfn",
-              "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-              "display": "Damages"
-            }
-          ],
-          "text": "Damages",
-          "type": "decimal"
-        },
-        {
           "linkId": "WVrH6j3Wfye.fsFN9T4ck3E",
           "code": [
             {
@@ -171,6 +163,18 @@
             }
           ],
           "text": "Expired",
+          "type": "decimal"
+        },
+        {
+          "linkId": "WVrH6j3Wfye.pn1upwnbxfn",
+          "code": [
+            {
+              "code": "pn1upwnbxfn",
+              "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
+              "display": "Damages"
+            }
+          ],
+          "text": "Damages",
           "type": "decimal"
         },
         {

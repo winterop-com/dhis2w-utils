@@ -3,5 +3,8 @@
     "AtrFhirOpS1": "FHIR_CODE_SYSTEM_URI",
     "AtrFhirOrU1": "FHIR_FACILITY_REGISTRY_ID",
     "AtrSNOMED01": "SNOMED_CODE"
-  }
+  },
+  "unique_uids": [
+    "AtrFhirOrU1"
+  ]
 }

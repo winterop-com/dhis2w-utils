@@ -79,7 +79,13 @@
           }
         ]
       },
-      "type": "integer"
+      "type": "integer",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "BCG doses administered."
+        }
+      ]
     },
     {
       "linkId": "YtbsuPPo010",

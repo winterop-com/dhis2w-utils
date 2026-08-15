@@ -130,6 +130,10 @@ class Extension(Element):
     Only the choices this package emits or reads are modelled. `valueDecimal` is typed as
     `int | float` rather than `float` so a whole number survives the round trip: `float`
     would coerce the wire value `2896` to `2896.0` and change the document.
+
+    `valueString_element` carries the `_valueString` sibling the way `name_element` carries
+    `_name`: a DHIS2 string an extension holds - a date label, a description - is translated in
+    the instance, and its translations ride the standard R4 translation extension on the primitive.
     """
 
     url: str
@@ -138,6 +142,11 @@ class Extension(Element):
     valueCode: str | None = None
     valueCanonical: str | None = None
     valueString: str | None = None
+    valueString_element: Element | None = Field(
+        default=None,
+        validation_alias=AliasChoices("_valueString", "valueString_element"),
+        serialization_alias="_valueString",
+    )
     valueDateTime: str | None = None
     valueInteger: int | None = None
     valueDecimal: int | float | None = None
@@ -443,6 +452,7 @@ class QuestionnaireItem(BackboneElement):
     answerValueSet: str | None = None
     required: bool | None = None
     repeats: bool | None = None
+    readOnly: bool | None = None
     extension: list[Extension] | None = None
     item: list[QuestionnaireItem] | None = None
 

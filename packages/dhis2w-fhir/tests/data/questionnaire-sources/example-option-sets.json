@@ -1,5 +1,81 @@
 [
   {
+    "uid": "OsFhirEscS1",
+    "code": "FHIR_ESCAPE_SET",
+    "name": "Age (<5 - 49) & over",
+    "options": [
+      {
+        "uid": "OptFhirLt51",
+        "code": "FHIR_LT5",
+        "name": "<5",
+        "sort_order": 0,
+        "translations": [
+          {
+            "locale": "lo",
+            "property": "NAME",
+            "value": "<5 ປີ"
+          }
+        ]
+      },
+      {
+        "uid": "OptFhirGt51",
+        "code": "FHIR_GT5",
+        "name": ">5 & under 50",
+        "sort_order": 1,
+        "translations": [
+          {
+            "locale": "lo",
+            "property": "NAME",
+            "value": ">5 ແລະ ຕ່ຳກວ່າ 50"
+          }
+        ]
+      },
+      {
+        "uid": "OptFhirSpc1",
+        "code": "FHIR AGE NOT STATED",
+        "name": "Age not stated",
+        "sort_order": 2,
+        "translations": [
+          {
+            "locale": "lo",
+            "property": "NAME",
+            "value": "ບໍ່ໄດ້ລະບຸອາຍຸ"
+          }
+        ]
+      }
+    ],
+    "translations": [
+      {
+        "locale": "lo",
+        "property": "NAME",
+        "value": "ອາຍຸ (<5 - 49) ແລະ ຫຼາຍກວ່າ"
+      }
+    ],
+    "attribute_values": []
+  },
+  {
+    "uid": "pC3N9N77UmT",
+    "name": "Gender",
+    "options": [
+      {
+        "uid": "rBvjJYbMCVx",
+        "code": "Male",
+        "name": "Male",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "Mnp3oXrpAbK",
+        "code": "Female",
+        "name": "Female",
+        "sort_order": 1,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
     "uid": "dgsftM0rXu2",
     "name": "MNCH ARVs",
     "options": [
@@ -336,5 +412,91 @@
     ],
     "translations": [],
     "attribute_values": []
+  },
+  {
+    "uid": "ScOptBldGrp",
+    "code": "SC_OPT_BLOOD_GROUP",
+    "name": "Scenario Blood Group",
+    "options": [
+      {
+        "uid": "ScOptBgA001",
+        "code": "A_POS",
+        "name": "A positive",
+        "sort_order": 1,
+        "translations": []
+      },
+      {
+        "uid": "ScOptBgB001",
+        "code": "B_POS",
+        "name": "B positive",
+        "sort_order": 2,
+        "translations": []
+      },
+      {
+        "uid": "ScOptBgO001",
+        "code": "O_POS",
+        "name": "O positive",
+        "sort_order": 3,
+        "translations": []
+      },
+      {
+        "uid": "ScOptBgAB01",
+        "code": "AB_POS",
+        "name": "AB positive",
+        "sort_order": 4,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "OsVaccType1",
+    "code": "VACCINE_TYPE",
+    "name": "Vaccine type",
+    "options": [
+      {
+        "uid": "OptVacBCG01",
+        "code": "BCG",
+        "name": "BCG",
+        "sort_order": 0,
+        "translations": []
+      },
+      {
+        "uid": "OptVacMes01",
+        "code": "MEASLES",
+        "name": "Measles",
+        "sort_order": 1,
+        "translations": []
+      },
+      {
+        "uid": "OptVacPlo01",
+        "code": "POLIO",
+        "name": "Polio",
+        "sort_order": 2,
+        "translations": []
+      },
+      {
+        "uid": "OptVacDPT01",
+        "code": "DPT",
+        "name": "DPT",
+        "sort_order": 3,
+        "translations": []
+      },
+      {
+        "uid": "OptVacHpB01",
+        "code": "HEPB",
+        "name": "Hepatitis B",
+        "sort_order": 4,
+        "translations": []
+      }
+    ],
+    "translations": [],
+    "attribute_values": [
+      {
+        "attribute_uid": "AtrFhirOpS1",
+        "value": "http://snomed.info/sct"
+      }
+    ]
   }
 ]

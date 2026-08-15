@@ -3,24 +3,76 @@
     "uid": "BfMAe6Itzgt",
     "name": "Child Health",
     "code": "DS_359711",
+    "translations": [],
     "kind": "aggregate",
     "period_type": "Monthly",
+    "attribute_combo": {
+      "uid": "bjDvmb4bfuf",
+      "name": "default",
+      "code": "default",
+      "is_default": true,
+      "categories": [
+        {
+          "uid": "GLevLNI9wkl",
+          "option_uids": [
+            "xYerKDKCefk"
+          ]
+        }
+      ],
+      "option_combos": [
+        {
+          "uid": "HllvX50cXC0",
+          "name": "default",
+          "code": "default",
+          "category_option_uids": [
+            "xYerKDKCefk"
+          ]
+        }
+      ]
+    },
+    "displays_incident_date": false,
+    "date_label_translations": [],
     "sections": [
       {
         "uid": "Y2rk0vzgvAx",
         "name": "Immunization",
+        "description": "Immunization dose administration",
+        "translations": [],
         "items": [
           {
             "uid": "s46m5MS0hxu",
             "name": "BCG doses given",
+            "code": "DE_359706",
+            "description": "BCG doses administered.",
+            "translations": [],
             "value_type": "INTEGER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -58,24 +110,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "UOlfIjgN8X6",
             "name": "Fully Immunized child",
+            "code": "DE_36",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -113,24 +183,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "z7duEFcpApd",
             "name": "LLITN given at Penta3",
+            "code": "DE_359709",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -168,24 +256,43 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "x3Do5e7g4Qo",
             "name": "OPV0 doses given",
+            "code": "DE_359707",
+            "description": "0-13 days after birth.",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -223,24 +330,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "pikOziyCXbM",
             "name": "OPV1 doses given",
+            "code": "DE_19",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -278,24 +403,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "O05mAByOgAv",
             "name": "OPV2 doses given",
+            "code": "DE_20",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -333,24 +476,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "vI2csg55S9C",
             "name": "OPV3 doses given",
+            "code": "DE_21",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -388,24 +549,43 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "xc8gmAKfO95",
             "name": "PCV1 doses given",
+            "code": "DE_359722",
+            "description": "Pneumococcal Vaccine",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -443,24 +623,43 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "mGN1az8Xub6",
             "name": "PCV2 doses given",
+            "code": "DE_359723",
+            "description": "Penumococcal Vaccine",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -498,24 +697,43 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "L2kxa2IA2cs",
             "name": "PCV3 doses given",
+            "code": "DE_359724",
+            "description": "Penumococcal Vaccine",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -553,24 +771,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "fClA2Erf6IO",
             "name": "Penta1 doses given",
+            "code": "DE_23",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -608,24 +844,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "I78gJm4KBo7",
             "name": "Penta2 doses given",
+            "code": "DE_24",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -663,24 +917,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "n6aMJNLdvep",
             "name": "Penta3 doses given",
+            "code": "DE_25",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -718,24 +990,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "l6byfWFUGaP",
             "name": "Yellow Fever doses given",
+            "code": "DE_35",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -773,24 +1063,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "YtbsuPPo010",
             "name": "Measles doses given",
+            "code": "DE_34",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -828,10 +1136,6 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           }
@@ -840,18 +1144,42 @@
       {
         "uid": "vtOr8PTJVxS",
         "name": "Nutrition",
+        "description": "Nutrition",
+        "translations": [],
         "items": [
           {
             "uid": "qw2sIef52Fu",
             "name": "Children getting therapeutic feeding",
+            "code": "DE_359738",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -889,24 +1217,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "Y53Jcc9LBYh",
             "name": "Children supplied with food supplemements",
+            "code": "DE_359737",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -944,34 +1290,43 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "d5xTg3WR3DP",
             "name": "Mebendazole/Albendazole (for children 12-59 months)",
+            "code": "DE_359732",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
-              "option_combos": [
+              "categories": [
                 {
-                  "uid": "Prlt0C1RF0s",
-                  "name": "Fixed, <1y",
-                  "code": "COC_292",
-                  "category_option_uids": [
-                    "btOyqprQ9e8",
-                    "qkPbeWaFsnU"
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
                   ]
                 },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
+              "option_combos": [
                 {
                   "uid": "psbwp3CQEhs",
                   "name": "Fixed, >1y",
@@ -979,15 +1334,6 @@
                   "category_option_uids": [
                     "GEqzEKCHoGA",
                     "qkPbeWaFsnU"
-                  ]
-                },
-                {
-                  "uid": "V6L425pT3A0",
-                  "name": "Outreach, <1y",
-                  "code": "COC_290",
-                  "category_option_uids": [
-                    "btOyqprQ9e8",
-                    "wbrDrL2aYEc"
                   ]
                 },
                 {
@@ -999,24 +1345,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "DUSpd8Jq3M7",
             "name": "Newborn protected at birth against tetanus (TT2+)",
+            "code": "DE_359710",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1028,15 +1392,6 @@
                   ]
                 },
                 {
-                  "uid": "psbwp3CQEhs",
-                  "name": "Fixed, >1y",
-                  "code": "COC_291",
-                  "category_option_uids": [
-                    "GEqzEKCHoGA",
-                    "qkPbeWaFsnU"
-                  ]
-                },
-                {
                   "uid": "V6L425pT3A0",
                   "name": "Outreach, <1y",
                   "code": "COC_290",
@@ -1044,34 +1399,43 @@
                     "btOyqprQ9e8",
                     "wbrDrL2aYEc"
                   ]
-                },
-                {
-                  "uid": "hEFKSsPV5et",
-                  "name": "Outreach, >1y",
-                  "code": "COC_289",
-                  "category_option_uids": [
-                    "GEqzEKCHoGA",
-                    "wbrDrL2aYEc"
-                  ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "dU0GquGkGQr",
             "name": "Q_Early breastfeeding (within 1 hr after delivery) at BCG",
+            "code": "DE_22",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1083,15 +1447,6 @@
                   ]
                 },
                 {
-                  "uid": "psbwp3CQEhs",
-                  "name": "Fixed, >1y",
-                  "code": "COC_291",
-                  "category_option_uids": [
-                    "GEqzEKCHoGA",
-                    "qkPbeWaFsnU"
-                  ]
-                },
-                {
                   "uid": "V6L425pT3A0",
                   "name": "Outreach, <1y",
                   "code": "COC_290",
@@ -1099,34 +1454,43 @@
                     "btOyqprQ9e8",
                     "wbrDrL2aYEc"
                   ]
-                },
-                {
-                  "uid": "hEFKSsPV5et",
-                  "name": "Outreach, >1y",
-                  "code": "COC_289",
-                  "category_option_uids": [
-                    "GEqzEKCHoGA",
-                    "wbrDrL2aYEc"
-                  ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "pEOVd4Z3TAS",
             "name": "Q_Exclusive breastfeeding at time of Penta 3",
+            "code": "DE_33",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1164,24 +1528,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "Rmixc9wJl0G",
             "name": "Q_LLITN given at time of 2nd Vit A dose",
+            "code": "DE_359735",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1219,24 +1601,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "GCGfEY82Wz6",
             "name": "Q_Slept under LLIN last night Measles",
+            "code": "DE_268",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1274,34 +1674,43 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "ca8lfO062zg",
             "name": "Q_Vitamin A received 4-6 months ago at 12-59 dose",
+            "code": "DE_359734",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
-              "option_combos": [
+              "categories": [
                 {
-                  "uid": "Prlt0C1RF0s",
-                  "name": "Fixed, <1y",
-                  "code": "COC_292",
-                  "category_option_uids": [
-                    "btOyqprQ9e8",
-                    "qkPbeWaFsnU"
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
                   ]
                 },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
+              "option_combos": [
                 {
                   "uid": "psbwp3CQEhs",
                   "name": "Fixed, >1y",
@@ -1309,15 +1718,6 @@
                   "category_option_uids": [
                     "GEqzEKCHoGA",
                     "qkPbeWaFsnU"
-                  ]
-                },
-                {
-                  "uid": "V6L425pT3A0",
-                  "name": "Outreach, <1y",
-                  "code": "COC_290",
-                  "category_option_uids": [
-                    "btOyqprQ9e8",
-                    "wbrDrL2aYEc"
                   ]
                 },
                 {
@@ -1329,24 +1729,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "tU7GixyHhsv",
             "name": "Vitamin A given to < 5y",
+            "code": "DE_359733",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1384,24 +1802,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "bTcRDVjC66S",
             "name": "Weight for age below lower line (red)",
+            "code": "DE_359731",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1439,24 +1875,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "ldGXl6SEdqf",
             "name": "Weight for age between middle and lower line (yellow)",
+            "code": "DE_359730",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1494,24 +1948,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "NLnXLV5YpZF",
             "name": "Weight for age on or above middle line (green)",
+            "code": "DE_359729",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1549,24 +2021,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "pnL2VG8Bn7N",
             "name": "Weight for height 70-79 percent",
+            "code": "DE_359726",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1604,24 +2094,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "qPVDd87kS9Z",
             "name": "Weight for height 80 percent and above",
+            "code": "DE_359725",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1659,24 +2167,42 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           },
           {
             "uid": "lVsbKXoF0zX",
             "name": "Weight for height below 70 percent",
+            "code": "DE_359727",
+            "translations": [],
             "value_type": "NUMBER",
             "domain_type": "AGGREGATE",
             "compulsory": false,
+            "unique": false,
+            "searchable": false,
+            "generated": false,
+            "display_in_list": false,
             "required_option_combo_uids": [],
             "category_combo": {
               "uid": "dzjKKQq0cSO",
               "name": "Location and age group",
               "is_default": false,
+              "categories": [
+                {
+                  "uid": "fMZEcRHuamy",
+                  "option_uids": [
+                    "qkPbeWaFsnU",
+                    "wbrDrL2aYEc"
+                  ]
+                },
+                {
+                  "uid": "YNZyaJHiHYq",
+                  "option_uids": [
+                    "btOyqprQ9e8",
+                    "GEqzEKCHoGA"
+                  ]
+                }
+              ],
               "option_combos": [
                 {
                   "uid": "Prlt0C1RF0s",
@@ -1714,10 +2240,6 @@
                     "wbrDrL2aYEc"
                   ]
                 }
-              ],
-              "category_uids": [
-                "fMZEcRHuamy",
-                "YNZyaJHiHYq"
               ]
             }
           }
@@ -1736,12 +2258,24 @@
     "uid": "TuL8IOPzpHh",
     "name": "EPI Stock",
     "code": "DS_1149441",
+    "translations": [],
     "kind": "aggregate",
     "period_type": "Monthly",
     "attribute_combo": {
       "uid": "idcDPkDtepR",
       "name": "Project",
       "is_default": false,
+      "categories": [
+        {
+          "uid": "yY2bQYqNt0o",
+          "option_uids": [
+            "i4Nbp8S2G6A",
+            "yMj2MnmNI8L",
+            "OUUdG3sdOqb",
+            "M58XdOfhiJ7"
+          ]
+        }
+      ],
       "option_combos": [
         {
           "uid": "pO5CEqK6c1s",
@@ -1760,54 +2294,69 @@
           ]
         },
         {
-          "uid": "oawMLLH7OjA",
-          "name": "Provide access to basic education",
-          "code": "COC_1452090",
-          "category_option_uids": [
-            "M58XdOfhiJ7"
-          ]
-        },
-        {
           "uid": "BqblOcSwGey",
           "name": "Provide access to primary health care",
           "code": "COC_1452093",
           "category_option_uids": [
             "OUUdG3sdOqb"
           ]
+        },
+        {
+          "uid": "oawMLLH7OjA",
+          "name": "Provide access to basic education",
+          "code": "COC_1452090",
+          "category_option_uids": [
+            "M58XdOfhiJ7"
+          ]
         }
-      ],
-      "category_uids": [
-        "yY2bQYqNt0o"
       ]
     },
+    "displays_incident_date": false,
+    "date_label_translations": [],
     "sections": [],
     "flat_items": [
       {
         "uid": "cZnQDuF3IDz",
         "name": "Stock PHU discarded BCG",
+        "code": "DE_360103",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "WA3HunbaGt0",
           "name": "Stock discarded",
           "is_default": false,
-          "option_combos": [
+          "categories": [
             {
-              "uid": "pn1upwnbxfn",
-              "name": "Damages",
-              "code": "COC_360271",
-              "category_option_uids": [
-                "mInFlpnx6TQ"
+              "uid": "Qzh0MSUx4RM",
+              "option_uids": [
+                "YHb43JqCAmI",
+                "mInFlpnx6TQ",
+                "qKc2WhjMPKC"
               ]
-            },
+            }
+          ],
+          "option_combos": [
             {
               "uid": "fsFN9T4ck3E",
               "name": "Expired",
               "code": "COC_360270",
               "category_option_uids": [
                 "YHb43JqCAmI"
+              ]
+            },
+            {
+              "uid": "pn1upwnbxfn",
+              "name": "Damages",
+              "code": "COC_360271",
+              "category_option_uids": [
+                "mInFlpnx6TQ"
               ]
             },
             {
@@ -1818,38 +2367,51 @@
                 "qKc2WhjMPKC"
               ]
             }
-          ],
-          "category_uids": [
-            "Qzh0MSUx4RM"
           ]
         }
       },
       {
         "uid": "FvKdfA2SuWI",
         "name": "Stock PHU discarded Measles",
+        "code": "DE_360126",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "WA3HunbaGt0",
           "name": "Stock discarded",
           "is_default": false,
-          "option_combos": [
+          "categories": [
             {
-              "uid": "pn1upwnbxfn",
-              "name": "Damages",
-              "code": "COC_360271",
-              "category_option_uids": [
-                "mInFlpnx6TQ"
+              "uid": "Qzh0MSUx4RM",
+              "option_uids": [
+                "YHb43JqCAmI",
+                "mInFlpnx6TQ",
+                "qKc2WhjMPKC"
               ]
-            },
+            }
+          ],
+          "option_combos": [
             {
               "uid": "fsFN9T4ck3E",
               "name": "Expired",
               "code": "COC_360270",
               "category_option_uids": [
                 "YHb43JqCAmI"
+              ]
+            },
+            {
+              "uid": "pn1upwnbxfn",
+              "name": "Damages",
+              "code": "COC_360271",
+              "category_option_uids": [
+                "mInFlpnx6TQ"
               ]
             },
             {
@@ -1860,38 +2422,51 @@
                 "qKc2WhjMPKC"
               ]
             }
-          ],
-          "category_uids": [
-            "Qzh0MSUx4RM"
           ]
         }
       },
       {
         "uid": "WVrH6j3Wfye",
         "name": "Stock PHU discarded OPV",
+        "code": "DE_360129",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "WA3HunbaGt0",
           "name": "Stock discarded",
           "is_default": false,
-          "option_combos": [
+          "categories": [
             {
-              "uid": "pn1upwnbxfn",
-              "name": "Damages",
-              "code": "COC_360271",
-              "category_option_uids": [
-                "mInFlpnx6TQ"
+              "uid": "Qzh0MSUx4RM",
+              "option_uids": [
+                "YHb43JqCAmI",
+                "mInFlpnx6TQ",
+                "qKc2WhjMPKC"
               ]
-            },
+            }
+          ],
+          "option_combos": [
             {
               "uid": "fsFN9T4ck3E",
               "name": "Expired",
               "code": "COC_360270",
               "category_option_uids": [
                 "YHb43JqCAmI"
+              ]
+            },
+            {
+              "uid": "pn1upwnbxfn",
+              "name": "Damages",
+              "code": "COC_360271",
+              "category_option_uids": [
+                "mInFlpnx6TQ"
               ]
             },
             {
@@ -1902,23 +2477,34 @@
                 "qKc2WhjMPKC"
               ]
             }
-          ],
-          "category_uids": [
-            "Qzh0MSUx4RM"
           ]
         }
       },
       {
         "uid": "p1MDHOT6ENy",
         "name": "Stock PHU dispensed  BCG",
+        "code": "DE_360049",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -1928,23 +2514,34 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "lVknokmR4Ip",
         "name": "Stock PHU dispensed Measles",
+        "code": "DE_360072",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -1954,23 +2551,34 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "FTINmL2lehN",
         "name": "Stock PHU dispensed OPV",
+        "code": "DE_360075",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -1980,23 +2588,34 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "axVhq1itoQD",
         "name": "Stock PHU received  BCG",
+        "code": "DE_359995",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2006,23 +2625,34 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "XNrjXqZrHD8",
         "name": "Stock PHU received Measles",
+        "code": "DE_360018",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2032,23 +2662,34 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "nGCLjZDn0Q4",
         "name": "Stock PHU received OPV",
+        "code": "DE_360021",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2058,23 +2699,34 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "t99PL3gUxIl",
         "name": "Stock PHU start balance BCG",
+        "code": "DE_359941",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2084,23 +2736,34 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "vEAo4KwsAzl",
         "name": "Stock PHU start balance Measles",
+        "code": "DE_359964",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2110,23 +2773,34 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "iuSIObmKutb",
         "name": "Stock PHU start balance OPV",
+        "code": "DE_359967",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2136,9 +2810,6 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       }
@@ -2148,24 +2819,43 @@
   {
     "uid": "PsAncVisit1",
     "name": "ANC visit",
+    "translations": [],
     "kind": "tracker-event",
     "program": {
       "uid": "PrAncCare01",
-      "name": "ANC follow-up"
+      "name": "ANC follow-up",
+      "translations": [],
+      "tracked_entity_type_uid": "nEenWmSyUEp"
     },
+    "displays_incident_date": false,
+    "date_label_translations": [],
+    "repeatable": true,
     "sections": [],
     "flat_items": [
       {
         "uid": "DeAncVisNo1",
         "name": "ANC visit number",
+        "translations": [],
         "value_type": "INTEGER_POSITIVE",
         "domain_type": "TRACKER",
         "compulsory": true,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2175,23 +2865,33 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "DeAncBpSys1",
         "name": "ANC systolic blood pressure",
+        "translations": [],
         "value_type": "INTEGER",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2201,23 +2901,33 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "DeAncDanger",
         "name": "ANC danger signs present",
+        "translations": [],
         "value_type": "BOOLEAN",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2227,9 +2937,6 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       }
@@ -2239,20 +2946,38 @@
   {
     "uid": "lxAQ7Zs9VYR",
     "name": "Antenatal care visit",
+    "translations": [],
     "kind": "event",
+    "displays_incident_date": false,
+    "event_date_label": "Visit date",
+    "date_label_translations": [],
     "sections": [],
     "flat_items": [
       {
         "uid": "sWoqcoByYmD",
         "name": "WHOMCH Smoking",
+        "code": "STA_SMO",
+        "translations": [],
         "value_type": "BOOLEAN",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2262,23 +2987,35 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "Ok9OQpitjQr",
         "name": "WHOMCH Smoking cessation counselling provided ",
+        "code": "EA5_TRE_SMO",
+        "description": "Counselling and behavioural interventions on smoking cessation.",
+        "translations": [],
         "value_type": "BOOLEAN",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2288,23 +3025,35 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "vANAXwtLwcT",
         "name": "WHOMCH Hemoglobin value",
+        "code": "LAB_HB",
+        "description": "Screening for anemia.",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2314,9 +3063,6 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       }
@@ -2327,25 +3073,47 @@
     "uid": "A03MvHHogjR",
     "name": "Birth",
     "description": "Birth of the baby",
+    "translations": [],
     "kind": "tracker-event",
     "program": {
       "uid": "IpHINAT79UW",
-      "name": "Child Programme"
+      "name": "Child Programme",
+      "translations": [],
+      "tracked_entity_type_uid": "nEenWmSyUEp"
     },
+    "displays_incident_date": false,
+    "event_date_label": "Report date",
+    "date_label_translations": [],
+    "repeatable": false,
     "sections": [],
     "flat_items": [
       {
         "uid": "a3kGcGDCuk6",
         "name": "MCH Apgar Score",
+        "code": "DE_2006098",
         "form_name": "Apgar Score",
+        "description": "Apgar is a quick test performed on a baby at 1 and 5 minutes after birth. The 1-minute score determines how well the baby tolerated the birthing process. The 5-minute score tells the doctor how well the baby is doing outside the mother's womb.",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2355,24 +3123,35 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "H6uSAMO5WLD",
         "name": "MCH Apgar comment",
+        "code": "DE_391382",
         "form_name": "Apgar comment",
+        "translations": [],
         "value_type": "LONG_TEXT",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2382,24 +3161,35 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "UXz7xuGCEhU",
         "name": "MCH Weight (g)",
+        "code": "DE_2005736",
         "form_name": "Weight (g)",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2409,25 +3199,37 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "wQLfBvPrXqq",
         "name": "MCH ARV at birth",
+        "code": "DE_2008294",
         "form_name": "ARV at birth",
+        "description": "Onlu used for birth details.",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "f38bstJioPs",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2437,24 +3239,35 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "bx6fsa0t90x",
         "name": "MCH BCG dose",
+        "code": "DE_2006101",
         "form_name": "BCG dose",
+        "translations": [],
         "value_type": "BOOLEAN",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2464,25 +3277,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "ebaJjqltK5N",
         "name": "MCH OPV dose",
+        "code": "DE_2006104",
         "form_name": "OPV dose",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "kzgQRhOCadd",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2492,25 +3316,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "X8zyunlgUfM",
         "name": "MCH Infant Feeding",
+        "code": "DE_2006103",
         "form_name": "Infant Feeding",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "x31y45jvIQL",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2520,23 +3355,34 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "uf3svrmp8Oj",
         "name": "Birth certificate",
+        "code": "DE_424405",
+        "translations": [],
         "value_type": "FILE_RESOURCE",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2546,9 +3392,6 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       }
@@ -2559,25 +3402,46 @@
     "uid": "ZzYYXq4fJie",
     "name": "Baby Postnatal",
     "description": "Baby Postnatal",
+    "translations": [],
     "kind": "tracker-event",
     "program": {
       "uid": "IpHINAT79UW",
-      "name": "Child Programme"
+      "name": "Child Programme",
+      "translations": [],
+      "tracked_entity_type_uid": "nEenWmSyUEp"
     },
+    "displays_incident_date": false,
+    "date_label_translations": [],
+    "repeatable": false,
     "sections": [],
     "flat_items": [
       {
         "uid": "GQY2lXrypjO",
         "name": "MCH Infant Weight  (g)",
+        "code": "DE_2006099",
         "form_name": "Infant Weight (g)",
+        "description": "Infant weight in grams",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2587,25 +3451,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "X8zyunlgUfM",
         "name": "MCH Infant Feeding",
+        "code": "DE_2006103",
         "form_name": "Infant Feeding",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "x31y45jvIQL",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2615,24 +3490,35 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "FqlgKAG8HOu",
         "name": "MCH Measles dose",
+        "code": "DE_2006125",
         "form_name": "Measles dose",
+        "translations": [],
         "value_type": "BOOLEAN",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2642,25 +3528,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "vTUhAUZFoys",
         "name": "MCH Penta dose",
+        "code": "DE_347311",
         "form_name": "Penta dose",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "kzgQRhOCadd",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2670,24 +3567,35 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "rxBfISxXS2U",
         "name": "MCH Yellow fever dose",
+        "code": "DE_2006126",
         "form_name": "Yellow fever dose",
+        "translations": [],
         "value_type": "BOOLEAN",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2697,25 +3605,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "lNNb3truQoi",
         "name": "MCH IPT dose",
+        "code": "DE_2005744",
         "form_name": "IPT dose",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "nH8Y04zS7UV",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2725,25 +3644,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "pOe0ogW4OWd",
         "name": "MCH DPT dose",
+        "code": "DE_2006105",
         "form_name": "DPT dose",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "udkr3ihaeD3",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2753,24 +3683,35 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "HLmTEmupdX0",
         "name": "MCH Vit A",
+        "code": "DE_2006106",
         "form_name": "Vit A",
+        "translations": [],
         "value_type": "BOOLEAN",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2780,25 +3721,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "cYGaxwK615G",
         "name": "MCH Infant HIV Test Result",
+        "code": "DE_2006107",
         "form_name": "Infant HIV Test Result",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "oXR37f2wOb1",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2808,25 +3760,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "hDZbpskhqDd",
         "name": "MCH HIV Test Type",
+        "code": "DE_2006108",
         "form_name": "HIV Test Type",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "OGmE3wUMEzu",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2836,25 +3799,37 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "sj3j9Hwc7so",
         "name": "MCH Child ARVs",
+        "code": "DE_2006100",
         "form_name": "Child ARVs",
+        "description": "ARVs for child postnatal visits.",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "dgsftM0rXu2",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2864,25 +3839,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "aei1xRjSU2l",
         "name": "MCH Septrin Given",
+        "code": "DE_2006109",
         "form_name": "Septrin Given",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "XdI8KRJiRoZ",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2892,25 +3878,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "BeynU4L6VCQ",
         "name": "MCH Results given to caretaker",
+        "code": "DE_2006110",
         "form_name": "Results given to caretaker",
+        "translations": [],
         "value_type": "TEXT",
         "domain_type": "TRACKER",
         "option_set_uid": "XdI8KRJiRoZ",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2920,24 +3917,36 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       },
       {
         "uid": "OuJ6sgPyAbC",
         "name": "MCH Visit Comment",
+        "code": "DE_2008126",
         "form_name": "Visit comment (optional)",
+        "description": "Free text comment used to put additional information for a visit.",
+        "translations": [],
         "value_type": "LONG_TEXT",
         "domain_type": "TRACKER",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "bjDvmb4bfuf",
           "name": "default",
           "is_default": true,
+          "categories": [
+            {
+              "uid": "GLevLNI9wkl",
+              "option_uids": [
+                "xYerKDKCefk"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "HllvX50cXC0",
@@ -2947,9 +3956,6 @@
                 "xYerKDKCefk"
               ]
             }
-          ],
-          "category_uids": [
-            "GLevLNI9wkl"
           ]
         }
       }
@@ -2959,20 +3965,46 @@
   {
     "uid": "EVTsupVis01",
     "name": "Supervision visit",
+    "translations": [],
     "kind": "event",
+    "displays_incident_date": false,
+    "date_label_translations": [],
     "sections": [],
     "flat_items": [
       {
         "uid": "s46m5MS0hxu",
         "name": "BCG doses given",
+        "code": "DE_359706",
+        "description": "BCG doses administered.",
+        "translations": [],
         "value_type": "INTEGER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "dzjKKQq0cSO",
           "name": "Location and age group",
           "is_default": false,
+          "categories": [
+            {
+              "uid": "fMZEcRHuamy",
+              "option_uids": [
+                "qkPbeWaFsnU",
+                "wbrDrL2aYEc"
+              ]
+            },
+            {
+              "uid": "YNZyaJHiHYq",
+              "option_uids": [
+                "btOyqprQ9e8",
+                "GEqzEKCHoGA"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "Prlt0C1RF0s",
@@ -3010,24 +4042,42 @@
                 "wbrDrL2aYEc"
               ]
             }
-          ],
-          "category_uids": [
-            "fMZEcRHuamy",
-            "YNZyaJHiHYq"
           ]
         }
       },
       {
         "uid": "YtbsuPPo010",
         "name": "Measles doses given",
+        "code": "DE_34",
+        "translations": [],
         "value_type": "NUMBER",
         "domain_type": "AGGREGATE",
         "compulsory": false,
+        "unique": false,
+        "searchable": false,
+        "generated": false,
+        "display_in_list": false,
         "required_option_combo_uids": [],
         "category_combo": {
           "uid": "dzjKKQq0cSO",
           "name": "Location and age group",
           "is_default": false,
+          "categories": [
+            {
+              "uid": "fMZEcRHuamy",
+              "option_uids": [
+                "qkPbeWaFsnU",
+                "wbrDrL2aYEc"
+              ]
+            },
+            {
+              "uid": "YNZyaJHiHYq",
+              "option_uids": [
+                "btOyqprQ9e8",
+                "GEqzEKCHoGA"
+              ]
+            }
+          ],
           "option_combos": [
             {
               "uid": "Prlt0C1RF0s",
@@ -3065,10 +4115,6 @@
                 "wbrDrL2aYEc"
               ]
             }
-          ],
-          "category_uids": [
-            "fMZEcRHuamy",
-            "YNZyaJHiHYq"
           ]
         }
       }

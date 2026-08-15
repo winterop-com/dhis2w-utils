@@ -29,6 +29,14 @@
           "valueBoolean": true
         },
         {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": true
+        },
+        {
           "code": "searchable-PrAncCare01",
           "valueBoolean": false
         },
@@ -69,6 +77,14 @@
           "valueBoolean": true
         },
         {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
+        },
+        {
           "code": "searchable-IpHINAT79UW",
           "valueBoolean": true
         }
@@ -91,6 +107,14 @@
           "valueBoolean": true
         },
         {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": true
+        },
+        {
           "code": "searchable-PrAncCare01",
           "valueBoolean": false
         },
@@ -105,30 +129,8 @@
       ]
     },
     {
-      "code": "ScTeaADate1",
-      "display": "Scenario A Arrival Date",
-      "property": [
-        {
-          "code": "value-type",
-          "valueCode": "DATE"
-        },
-        {
-          "code": "unique",
-          "valueBoolean": false
-        },
-        {
-          "code": "searchable",
-          "valueBoolean": false
-        },
-        {
-          "code": "searchable-ScProgAaa01",
-          "valueBoolean": false
-        }
-      ]
-    },
-    {
       "code": "ScTeaABool1",
-      "display": "Scenario A Consent Given",
+      "display": "Scenario A Insurance Active",
       "property": [
         {
           "code": "value-type",
@@ -143,25 +145,11 @@
           "valueBoolean": false
         },
         {
-          "code": "searchable-ScProgAaa01",
-          "valueBoolean": false
-        }
-      ]
-    },
-    {
-      "code": "ScTeaAInt01",
-      "display": "Scenario A Household Size",
-      "property": [
-        {
-          "code": "value-type",
-          "valueCode": "INTEGER"
-        },
-        {
-          "code": "unique",
+          "code": "generated",
           "valueBoolean": false
         },
         {
-          "code": "searchable",
+          "code": "display-in-list",
           "valueBoolean": false
         },
         {
@@ -187,6 +175,74 @@
           "valueBoolean": false
         },
         {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable-ScProgAaa01",
+          "valueBoolean": false
+        }
+      ]
+    },
+    {
+      "code": "ScTeaADate1",
+      "display": "Scenario A Screening Date",
+      "property": [
+        {
+          "code": "value-type",
+          "valueCode": "DATE"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable-ScProgAaa01",
+          "valueBoolean": false
+        }
+      ]
+    },
+    {
+      "code": "ScTeaAInt01",
+      "display": "Scenario A Visit Count",
+      "property": [
+        {
+          "code": "value-type",
+          "valueCode": "INTEGER"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
+        },
+        {
           "code": "searchable-ScProgAaa01",
           "valueBoolean": false
         }
@@ -206,6 +262,14 @@
         },
         {
           "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
           "valueBoolean": false
         },
         {
@@ -231,6 +295,14 @@
           "valueBoolean": false
         },
         {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
+        },
+        {
           "code": "searchable-ScProgBbb01",
           "valueBoolean": false
         }
@@ -250,6 +322,14 @@
         },
         {
           "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
           "valueBoolean": false
         },
         {
@@ -275,6 +355,14 @@
           "valueBoolean": false
         },
         {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
+        },
+        {
           "code": "searchable-ScProgBbb01",
           "valueBoolean": false
         }
@@ -294,6 +382,14 @@
         },
         {
           "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
           "valueBoolean": false
         },
         {
@@ -324,6 +420,14 @@
         },
         {
           "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
           "valueBoolean": false
         },
         {
@@ -358,6 +462,18 @@
         },
         {
           "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": true
+        },
+        {
+          "code": "pattern",
+          "valueString": "RANDOM(#######)"
+        },
+        {
+          "code": "display-in-list",
           "valueBoolean": false
         },
         {
@@ -397,6 +513,24 @@
       "code": "searchable",
       "uri": "http://dhis2.org/fhir/property/searchable",
       "description": "Whether DHIS2 declares the tracked entity attribute searchable in any context this guide publishes.",
+      "type": "boolean"
+    },
+    {
+      "code": "generated",
+      "uri": "http://dhis2.org/fhir/property/generated",
+      "description": "Whether DHIS2 mints the tracked entity attribute's value itself.",
+      "type": "boolean"
+    },
+    {
+      "code": "pattern",
+      "uri": "http://dhis2.org/fhir/property/pattern",
+      "description": "The DHIS2 reserved-value pattern a generated tracked entity attribute is minted from.",
+      "type": "string"
+    },
+    {
+      "code": "display-in-list",
+      "uri": "http://dhis2.org/fhir/property/display-in-list",
+      "description": "Whether DHIS2 shows the tracked entity attribute in the working lists of any context this guide publishes.",
       "type": "boolean"
     },
     {

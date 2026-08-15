@@ -125,6 +125,7 @@ from dhis2w_fhir.resources.questionnaires.assignments import (
 from dhis2w_fhir.resources.questionnaires.documents import build_questionnaire_documents
 from dhis2w_fhir.resources.questionnaires.schemas import (
     FORM_KIND_PROFILES,
+    CategoryAxisIn,
     CategoryComboIn,
     CategoryOptionComboIn,
     FormKind,
@@ -133,6 +134,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
     QuestionnaireStemPlan,
+    ordered_option_combos,
     plan_questionnaire_stems,
 )
 from dhis2w_fhir.scaffold import build_scaffold_files
@@ -201,7 +203,13 @@ _ORGANISATION_UNIT_FIELDS = (
 #: ordered categories the combo splits over, and the category options each option combo is met from.
 #: The UIDs alone - every name and every concept code the decomposition emits is joined from the
 #: category projection the same run reads, so a combo says which options it is and nothing more.
-_CATEGORY_COMBO_DECOMPOSITION_FIELDS = "categories[id],categoryOptionCombos[id,name,code,categoryOptions[id]]"
+#: Both arrays are ordered lists on the wire, unlike the `categoryOptionCombos` set beside them
+#: (BUGS.md #63, #64): 25 consecutive reads of the local stack and 12 of play answered the same
+#: order, and the order is not alphabetical. That is the order the DHIS2 data-entry app renders a
+#: disaggregated section in, so `ordered_option_combos` lays the generated cells out by it.
+_CATEGORY_COMBO_DECOMPOSITION_FIELDS = (
+    "categories[id,categoryOptions[id]],categoryOptionCombos[id,name,code,categoryOptions[id]]"
+)
 
 #: The projection a disaggregation is read under, wherever one is read: the combo's own identity plus
 #: what it decomposes into. Both places a question's cells can be disaggregated from ride it - the
@@ -214,9 +222,18 @@ _DISAGGREGATION_COMBO_FIELDS = f"categoryCombo[id,name,isDefault,{_CATEGORY_COMB
 #: the attribute dictionary publishes an attribute's - a data element DHIS2 left uncoded publishes
 #: no code rather than its UID under a `dhis2-code` label.
 _QUESTIONNAIRE_DATA_ELEMENT_FIELDS = (
-    "dataElement[id,code,name,formName,valueType,domainType,optionSet[id],"
+    "dataElement[id,code,name,formName,description,valueType,domainType,optionSet[id],"
     f"{_TRANSLATION_FIELDS},"
     f"{_DISAGGREGATION_COMBO_FIELDS}]"
+)
+
+#: The tracked-entity-attribute projection every registration form's questions are built from.
+#: `generated` and `pattern` are what say DHIS2 writes the value itself off a reserved-value
+#: pattern, which is what makes the published question read-only; `description` is the guidance
+#: the form shows beside it.
+_QUESTIONNAIRE_TRACKED_ENTITY_ATTRIBUTE_FIELDS = (
+    "trackedEntityAttribute[id,name,code,formName,description,valueType,unique,generated,pattern,"
+    f"optionSet[id],{_TRANSLATION_FIELDS}]"
 )
 
 #: The data-set element projection: the data element the question is asked from, and the join's own
@@ -233,9 +250,13 @@ _DATA_SET_ELEMENT_FIELDS = f"{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS},{_DISAGGREGATI
 #: than on a request of its own.
 _ATTRIBUTE_COMBO_FIELDS = f"categoryCombo[id,code,name,isDefault,{_CATEGORY_COMBO_DECOMPOSITION_FIELDS}]"
 
+#: `greyedFields` is what a data set says its form never captures: an operand naming a data element
+#: and a category option combo is a cell the DHIS2 data-entry app renders grey and refuses input on,
+#: so the generated form must not ask it. It rides the section projection the form already reads.
 _DATA_SET_FIELDS = (
     f"id,name,code,description,periodType,{_TRANSLATION_FIELDS},"
-    f"sections[id,name,{_TRANSLATION_FIELDS},dataElements[id]],"
+    f"sections[id,name,description,{_TRANSLATION_FIELDS},dataElements[id],"
+    "greyedFields[dataElement[id],categoryOptionCombo[id]]],"
     f"{_ATTRIBUTE_VALUE_FIELDS},{_ATTRIBUTE_COMBO_FIELDS},"
     "compulsoryDataElementOperands[dataElement[id],categoryOptionCombo[id]],"
     f"dataSetElements[{_DATA_SET_ELEMENT_FIELDS}]"
@@ -245,8 +266,9 @@ _DATA_SET_FIELDS = (
 #: a tracker program takes one Questionnaire per stage, so a stage carries its own identity, its own
 #: attribute values, and the sort orders DHIS2 holds the stages and their questions in.
 _PROGRAM_STAGE_FIELDS = (
-    f"id,name,code,description,sortOrder,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS},"
-    f"programStageSections[id,name,{_TRANSLATION_FIELDS},dataElements[id]],"
+    f"id,name,code,description,sortOrder,executionDateLabel,repeatable,"
+    f"{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS},"
+    f"programStageSections[id,name,description,{_TRANSLATION_FIELDS},dataElements[id]],"
     f"programStageDataElements[compulsory,sortOrder,{_QUESTIONNAIRE_DATA_ELEMENT_FIELDS}]"
 )
 #: The registration projection a tracker program's own form is built from: the type of person it
@@ -261,10 +283,15 @@ _PROGRAM_STAGE_FIELDS = (
 #: program read the form already costs, so knowing the level is worth no extra request.
 #: `searchable` rides the same join for the same reason `mandatory` does: DHIS2 holds it there, so
 #: whether a person can be found by an attribute is this program's answer and not the attribute's.
+#: The tracked entity type's join carries `mandatory` too, and that second answer is the other half
+#: of whether a registration question is required: DHIS2 asks the question for the entity whichever
+#: program enrols it, so a type that requires the attribute requires it on every program's form,
+#: whatever that program's own join says.
 _PROGRAM_ATTRIBUTE_FIELDS = (
-    "trackedEntityType[id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]],displayIncidentDate,"
-    "programTrackedEntityAttributes[mandatory,searchable,sortOrder,"
-    f"trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id],{_TRANSLATION_FIELDS}]]"
+    "trackedEntityType[id,trackedEntityTypeAttributes[mandatory,trackedEntityAttribute[id]]],"
+    "displayIncidentDate,enrollmentDateLabel,incidentDateLabel,"
+    "programTrackedEntityAttributes[mandatory,searchable,displayInList,sortOrder,"
+    f"{_QUESTIONNAIRE_TRACKED_ENTITY_ATTRIBUTE_FIELDS}]"
 )
 
 #: The tracked entity type projection a person-only registration form is built from: the type's own
@@ -272,8 +299,8 @@ _PROGRAM_ATTRIBUTE_FIELDS = (
 #: whether the type requires them, and whether DHIS2 will find a person by them.
 _TRACKED_ENTITY_TYPE_FIELDS = (
     f"id,name,code,description,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS},"
-    "trackedEntityTypeAttributes[mandatory,searchable,sortOrder,"
-    f"trackedEntityAttribute[id,name,code,formName,valueType,unique,optionSet[id],{_TRANSLATION_FIELDS}]]"
+    "trackedEntityTypeAttributes[mandatory,searchable,displayInList,sortOrder,"
+    f"{_QUESTIONNAIRE_TRACKED_ENTITY_ATTRIBUTE_FIELDS}]"
 )
 _PROGRAM_FIELDS = (
     f"id,name,code,description,programType,{_TRANSLATION_FIELDS},"
@@ -2865,15 +2892,34 @@ def _data_set_source(model: DataSet, notes: list[GenerateNote]) -> Questionnaire
     `compulsoryDataElementOperands` is what makes a data set's questions mandatory, at either of
     two grains: an operand naming a data element alone requires the whole element, an operand
     naming a category option combo too requires that single disaggregated cell.
+
+    `sections[].greyedFields` is the opposite operand list - the cells the data set never captures -
+    and those cells are dropped rather than published, because a form must not ask a question the
+    instance refuses an answer to.
     """
     uid = model.id or ""
     compulsory = _compulsory_operands(model)
+    greyed = _greyed_operand_keys(model)
     items: list[QuestionnaireItemIn] = []
+    dropped: list[str] = []
     for element in model.dataSetElements or []:
         item = _data_set_item(element, compulsory)
-        if item is not None:
-            items.append(item)
+        if item is None:
+            continue
+        published = _without_greyed_cells(item, greyed)
+        dropped.extend(_dropped_cell_keys(item, published))
+        if published is not None:
+            items.append(published)
     items.sort(key=lambda item: (item.name, item.uid))
+    if dropped:
+        notes.append(
+            aggregate_generate_note(
+                GenerateNoteCategory.FORM_STRUCTURE,
+                f"data set {model.name or uid!r} ({uid}) greys out {len(dropped)} disaggregated cells, which "
+                "are not published; a response answering one would not be of the form",
+                sorted(dropped),
+            )
+        )
     return _questionnaire_source(
         uid=uid,
         name=model.name or uid,
@@ -3012,10 +3058,16 @@ def _event_program_source(model: Program, notes: list[GenerateNote]) -> Question
     stages = _program_stages(model)
     items: list[QuestionnaireItemIn] = []
     raw_sections: object = None
+    event_date_label: str | None = None
+    date_label_translations: list[TranslationIn] = []
     if stages:
         stage = stages[0]
         items = _stage_items(stage)
         raw_sections = stage.get("programStageSections")
+        # The label rides the stage even here: an event program's own form captures its single
+        # stage's events, so the words the instance puts on the event date are the stage's.
+        event_date_label = _optional_text(stage.get("executionDateLabel"))
+        date_label_translations = _translation_inputs(stage.get("translations"))
     return _questionnaire_source(
         uid=uid,
         name=name,
@@ -3027,6 +3079,8 @@ def _event_program_source(model: Program, notes: list[GenerateNote]) -> Question
         raw_sections=raw_sections,
         attribute_values=_attribute_value_inputs(model.attributeValues),
         notes=notes,
+        event_date_label=event_date_label,
+        date_label_translations=date_label_translations,
     )
 
 
@@ -3069,6 +3123,9 @@ def _tracker_program_sources(model: Program, notes: list[GenerateNote]) -> list[
                 attribute_values=_attribute_value_inputs(stage.get("attributeValues")),
                 notes=notes,
                 program=program,
+                event_date_label=_optional_text(stage.get("executionDateLabel")),
+                date_label_translations=_translation_inputs(stage.get("translations")),
+                repeatable=bool(stage.get("repeatable")),
             )
         )
     return sources
@@ -3095,6 +3152,9 @@ def _registration_source(model: Program, notes: list[GenerateNote]) -> Questionn
         attribute_values=_attribute_value_inputs(model.attributeValues),
         notes=notes,
         displays_incident_date=bool(model.displayIncidentDate),
+        enrollment_date_label=_optional_text(model.enrollmentDateLabel),
+        incident_date_label=_optional_text(model.incidentDateLabel),
+        date_label_translations=_translation_inputs(model.translations),
         tracked_entity_type_uid=_tracked_entity_type_uid(model),
     )
 
@@ -3142,6 +3202,7 @@ def _tracked_entity_type_items(model: TrackedEntityType) -> list[QuestionnaireIt
             reference,
             mandatory=bool(entry.get("mandatory")),
             searchable=bool(entry.get("searchable")),
+            display_in_list=bool(entry.get("displayInList")),
             entity_level=True,
         )
         for entry in entries
@@ -3155,12 +3216,27 @@ def _tracked_entity_type_uid(model: Program) -> str | None:
     return _optional_text(reference.id) if reference is not None else None
 
 
-def _tracked_entity_type_attribute_uids(model: Program) -> frozenset[str] | None:
+class _TrackedEntityTypeAttributes(BaseModel):
+    """What a program's tracked entity type says about the attributes it collects itself.
+
+    Two facts ride the same join, and a registration form reads both: `uids` decides the DHIS2
+    level an answer is imported at, and `mandatory_uids` is the other half of whether the question
+    is required - the type asks the question for the entity whichever program enrols it, so a type
+    that requires the attribute requires it on every program's registration form.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    uids: frozenset[str] = frozenset()
+    mandatory_uids: frozenset[str] = frozenset()
+
+
+def _tracked_entity_type_attributes(model: Program) -> _TrackedEntityTypeAttributes | None:
     """The attributes a program's tracked entity type collects itself, or None when the instance sent none.
 
     DHIS2 asks its registration questions at two levels: a `trackedEntityTypeAttribute` is
     collected for the entity whichever program enrols it, while an attribute only
-    `programTrackedEntityAttributes` names is the program's own. An empty set is a type that
+    `programTrackedEntityAttributes` names is the program's own. An empty join is a type that
     collects nothing, so every question of the program is program-only; None is a program the
     read answered no type join for, and the form then states no level at all.
     """
@@ -3171,14 +3247,18 @@ def _tracked_entity_type_attribute_uids(model: Program) -> frozenset[str] | None
     if not isinstance(raw_attributes, list):
         return None
     uids: set[str] = set()
+    mandatory_uids: set[str] = set()
     for entry in raw_attributes:
         if not isinstance(entry, dict):
             continue
         attribute = _tracked_entity_attribute_reference(entry)
         uid = _optional_text(attribute.get("id")) if attribute is not None else None
-        if uid is not None:
-            uids.add(uid)
-    return frozenset(uids)
+        if uid is None:
+            continue
+        uids.add(uid)
+        if entry.get("mandatory"):
+            mandatory_uids.add(uid)
+    return _TrackedEntityTypeAttributes(uids=frozenset(uids), mandatory_uids=frozenset(mandatory_uids))
 
 
 def _registration_items(model: Program) -> list[QuestionnaireItemIn]:
@@ -3189,8 +3269,11 @@ def _registration_items(model: Program) -> list[QuestionnaireItemIn]:
     mandatory on this program, and where it sits in the form. So the two read the same way, and
     an attribute is projected onto the very question shape a data element is.
 
-    The tracked entity type's own join decides one thing the program's join cannot: whether the
-    answer is imported onto the tracked entity or onto the enrollment.
+    The tracked entity type's own join decides two things the program's join cannot: whether the
+    answer is imported onto the tracked entity or onto the enrollment, and whether the type itself
+    requires the attribute. A question is required when either join says so - the type asks it for
+    the entity whichever program enrols it, so a program that leaves its own `mandatory` off does
+    not make an attribute the type requires optional.
     """
     raw_attributes = model.programTrackedEntityAttributes
     entries = [
@@ -3199,19 +3282,24 @@ def _registration_items(model: Program) -> list[QuestionnaireItemIn]:
         if isinstance(entry, dict) and _tracked_entity_attribute_reference(entry) is not None
     ]
     entries.sort(key=_registration_item_sort_key)
-    entity_level_uids = _tracked_entity_type_attribute_uids(model)
-    return [
-        _tracked_entity_attribute_item(
-            reference,
-            mandatory=bool(entry.get("mandatory")),
-            searchable=bool(entry.get("searchable")),
-            entity_level=None
-            if entity_level_uids is None
-            else _optional_text(reference.get("id")) in entity_level_uids,
+    type_attributes = _tracked_entity_type_attributes(model)
+    items: list[QuestionnaireItemIn] = []
+    for entry in entries:
+        reference = _tracked_entity_attribute_reference(entry)
+        if reference is None:
+            continue
+        uid = _optional_text(reference.get("id"))
+        items.append(
+            _tracked_entity_attribute_item(
+                reference,
+                mandatory=bool(entry.get("mandatory"))
+                or (type_attributes is not None and uid in type_attributes.mandatory_uids),
+                searchable=bool(entry.get("searchable")),
+                display_in_list=bool(entry.get("displayInList")),
+                entity_level=None if type_attributes is None else uid in type_attributes.uids,
+            )
         )
-        for entry in entries
-        if (reference := _tracked_entity_attribute_reference(entry)) is not None
-    ]
+    return items
 
 
 def _tracked_entity_attribute_reference(entry: dict[str, object]) -> dict[str, object] | None:
@@ -3230,27 +3318,42 @@ def _registration_item_sort_key(entry: dict[str, object]) -> tuple[int, str, str
 
 
 def _tracked_entity_attribute_item(
-    raw: dict[str, object], *, mandatory: bool, searchable: bool, entity_level: bool | None
+    raw: dict[str, object],
+    *,
+    mandatory: bool,
+    searchable: bool,
+    display_in_list: bool,
+    entity_level: bool | None,
 ) -> QuestionnaireItemIn:
     """Map one wire tracked entity attribute into the question projection both emitters consume.
 
-    `mandatory`, `searchable`, and `entity_level` come off the join rather than off the attribute,
-    because all three are facts about this form asking this attribute rather than about the
-    attribute itself.
+    `mandatory`, `searchable`, `display_in_list`, and `entity_level` come off the join rather than
+    off the attribute, because all four are facts about this form asking this attribute rather than
+    about the attribute itself. `generated`, `pattern`, and `description` are the attribute's own:
+    DHIS2 mints a generated attribute's value from its reserved-value pattern, so the fact holds in
+    every form that asks it.
+
+    DHIS2 sends an empty `pattern` for an attribute nobody generates, so the projection carries a
+    pattern only where there is a value to state.
     """
     uid = _optional_text(raw.get("id")) or ""
     option_set = raw.get("optionSet")
     option_set_uid = _optional_text(option_set.get("id")) if isinstance(option_set, dict) else None
+    generated = bool(raw.get("generated"))
     return QuestionnaireItemIn(
         uid=uid,
         name=_optional_text(raw.get("name")) or uid,
         code=_optional_text(raw.get("code")),
         form_name=_optional_text(raw.get("formName")),
+        description=_optional_text(raw.get("description")),
         value_type=_optional_text(raw.get("valueType")) or "",
         option_set_uid=option_set_uid,
         compulsory=mandatory,
         unique=bool(raw.get("unique")),
         searchable=searchable,
+        generated=generated,
+        pattern=_optional_text(raw.get("pattern")) if generated else None,
+        display_in_list=display_in_list,
         entity_level=entity_level,
         translations=_translation_inputs(raw.get("translations")),
     )
@@ -3316,6 +3419,11 @@ def _questionnaire_source(
     program: ProgramContextIn | None = None,
     attribute_combo: CategoryComboIn | None = None,
     displays_incident_date: bool = False,
+    enrollment_date_label: str | None = None,
+    incident_date_label: str | None = None,
+    event_date_label: str | None = None,
+    date_label_translations: list[TranslationIn] | None = None,
+    repeatable: bool | None = None,
     tracked_entity_type_uid: str | None = None,
 ) -> QuestionnaireSourceIn:
     """Split one form's data elements into its sections plus whatever the sections leave out."""
@@ -3342,6 +3450,11 @@ def _questionnaire_source(
         program=program,
         attribute_combo=attribute_combo,
         displays_incident_date=displays_incident_date,
+        enrollment_date_label=enrollment_date_label,
+        incident_date_label=incident_date_label,
+        event_date_label=event_date_label,
+        date_label_translations=date_label_translations or [],
+        repeatable=repeatable,
         tracked_entity_type_uid=tracked_entity_type_uid,
         sections=sections,
         flat_items=flat_items,
@@ -3371,11 +3484,68 @@ def _questionnaire_sections(raw_sections: object, items: list[QuestionnaireItemI
             QuestionnaireSectionIn(
                 uid=uid,
                 name=_optional_text(raw.get("name")) or uid,
+                description=_optional_text(raw.get("description")),
                 translations=_translation_inputs(raw.get("translations")),
                 items=[items_by_uid[member_id] for member_id in member_ids if member_id in items_by_uid],
             )
         )
     return sections
+
+
+def _greyed_operand_keys(model: DataSet) -> frozenset[str]:
+    """Every `<dataElementUid>.<categoryOptionComboUid>` cell one data set's sections grey out.
+
+    DHIS2 renders a greyed cell in the data-entry app and refuses input on it, so it is a cell the
+    instance does not hold values for. The generated form must not ask it: a response answering a
+    never-published cell is not of the form, and the value behind it would be refused on import.
+    """
+    keys: set[str] = set()
+    for raw in model.sections or []:
+        if not isinstance(raw, dict):
+            continue
+        greyed = raw.get("greyedFields")
+        for operand in greyed if isinstance(greyed, list) else []:
+            if not isinstance(operand, dict):
+                continue
+            reference = operand.get("dataElement")
+            option_combo = operand.get("categoryOptionCombo")
+            if not isinstance(reference, dict) or not isinstance(option_combo, dict):
+                continue
+            data_element_uid = _optional_text(reference.get("id"))
+            option_combo_uid = _optional_text(option_combo.get("id"))
+            if data_element_uid is not None and option_combo_uid is not None:
+                keys.add(f"{data_element_uid}.{option_combo_uid}")
+    return frozenset(keys)
+
+
+def _without_greyed_cells(item: QuestionnaireItemIn, greyed: frozenset[str]) -> QuestionnaireItemIn | None:
+    """One question with its greyed cells dropped, or None when the data set greys every cell it has.
+
+    Dropping the cells here rather than at emit time is what keeps every consumer agreed: the
+    published items, the `D2COC_CS` concepts and their category axes, the example responses, the
+    load set, and the conversion that writes an answer back all read this one projection.
+    """
+    combo = item.category_combo
+    if combo is None or combo.is_default or not greyed:
+        return item
+    kept = [option_combo for option_combo in combo.option_combos if f"{item.uid}.{option_combo.uid}" not in greyed]
+    if len(kept) == len(combo.option_combos):
+        return item
+    if not kept:
+        return None
+    return item.model_copy(update={"category_combo": combo.model_copy(update={"option_combos": kept})})
+
+
+def _dropped_cell_keys(item: QuestionnaireItemIn, published: QuestionnaireItemIn | None) -> list[str]:
+    """The `<dataElement>.<categoryOptionCombo>` link ids one question lost to its data set's greyed fields."""
+    combo = item.category_combo
+    if combo is None:
+        return []
+    kept = published.category_combo.option_combos if published is not None and published.category_combo else []
+    kept_uids = {option_combo.uid for option_combo in kept}
+    return [
+        f"{item.uid}.{option_combo.uid}" for option_combo in combo.option_combos if option_combo.uid not in kept_uids
+    ]
 
 
 def _questionnaire_item(raw: dict[str, object], *, compulsory: bool) -> QuestionnaireItemIn:
@@ -3388,6 +3558,7 @@ def _questionnaire_item(raw: dict[str, object], *, compulsory: bool) -> Question
         name=_optional_text(raw.get("name")) or uid,
         code=_optional_text(raw.get("code")),
         form_name=_optional_text(raw.get("formName")),
+        description=_optional_text(raw.get("description")),
         value_type=_optional_text(raw.get("valueType")) or "",
         domain_type=_optional_text(raw.get("domainType")) or "",
         option_set_uid=option_set_uid,
@@ -3404,14 +3575,32 @@ def _category_combo_input(raw: object) -> CategoryComboIn | None:
     uid = _optional_text(raw.get("id"))
     if uid is None:
         return None
-    return CategoryComboIn(
+    combo = CategoryComboIn(
         uid=uid,
         name=_optional_text(raw.get("name")) or uid,
         code=_optional_text(raw.get("code")),
         is_default=bool(raw.get("isDefault")),
-        category_uids=_reference_uid_list(raw.get("categories")),
+        categories=_category_axis_inputs(raw.get("categories")),
         option_combos=_option_combo_inputs(raw.get("categoryOptionCombos")),
     )
+    return combo.model_copy(update={"option_combos": ordered_option_combos(combo)})
+
+
+def _category_axis_inputs(raw_categories: object) -> list[CategoryAxisIn]:
+    """One category combo's axes, each carrying the category options DHIS2 declares it in order.
+
+    Both arrays are ordered lists on the wire, so this is where the declared grid order enters the
+    projection: the axes in the combo's own order, the options in each category's own order.
+    """
+    axes: list[CategoryAxisIn] = []
+    for entry in raw_categories if isinstance(raw_categories, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        uid = _optional_text(entry.get("id"))
+        if uid is None:
+            continue
+        axes.append(CategoryAxisIn(uid=uid, option_uids=_reference_uid_list(entry.get("categoryOptions"))))
+    return axes
 
 
 def _reference_uid_list(raw_references: object) -> list[str]:
@@ -3434,12 +3623,14 @@ def _option_combo_inputs(raw_combos: object) -> list[CategoryOptionComboIn]:
     """Map one category combo's wire option combos into the projection, ordered by name and UID.
 
     `CategoryCombo.categoryOptionCombos` is a Java `Set` with no sort order, and DHIS2
-    serialises it in a different order on every request (BUGS.md #64). This is the single
-    point every consumer reads its order from - the questionnaire's option-combo child items,
-    the example responses answering them, and the `D2COC_CS` support concepts - so a
-    regenerate of an unchanged form produces an unchanged file, and the examples, fetched by
-    a separate request, answer the questionnaire's items in the questionnaire's own order,
-    which the FHIR validator requires.
+    serialises it in a different order on every request (BUGS.md #64), so the wire order is
+    thrown away here. `_category_combo_input` then lays the cells out in the declared axis
+    order its categories state, and this ordering is what remains as the tie-break between two
+    cells the declared arrays cannot separate. Every consumer reads the result - the
+    questionnaire's option-combo child items, the example responses answering them, and the
+    `D2COC_CS` support concepts - so a regenerate of an unchanged form produces an unchanged
+    file, and the examples, fetched by a separate request, answer the questionnaire's items in
+    the questionnaire's own order, which the FHIR validator requires.
     """
     option_combos: list[CategoryOptionComboIn] = []
     for entry in raw_combos if isinstance(raw_combos, list) else []:

@@ -47,8 +47,19 @@ from dhis2w_fhir.foundation.attribute_values import (
     ATTRIBUTE_VALUE_SUB_EXTENSION,
     attribute_value_identifier_system,
 )
-from dhis2w_fhir.foundation.schemas import FoundationNaming
-from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, text_translations
+from dhis2w_fhir.foundation.schemas import (
+    DATE_LABEL_ENROLLMENT_SUB_EXTENSION,
+    DATE_LABEL_EVENT_SUB_EXTENSION,
+    DATE_LABEL_INCIDENT_SUB_EXTENSION,
+    FoundationNaming,
+)
+from dhis2w_fhir.i18n import (
+    TRANSLATION_EXTENSION_URL,
+    TranslationIn,
+    description_translations,
+    name_translations,
+    text_translations,
+)
 from dhis2w_fhir.names import code_or_uid, page_text, quote
 from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
@@ -58,8 +69,11 @@ from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CATEGORY_OPTION_COMBO_TERMINOLOGY,
     DATA_ELEMENT_TERMINOLOGY,
+    DISPLAY_IN_LIST_PROPERTY_DESCRIPTION,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
+    GENERATED_PROPERTY_DESCRIPTION,
+    PATTERN_PROPERTY_DESCRIPTION,
     RESOURCE_MAP_EQUIVALENCE,
     RESOURCE_TYPE_CODE_SYSTEM_URL,
     RESOURCE_TYPE_VALUE_SET_URL,
@@ -81,9 +95,13 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireStemPlan,
     ReferencedObjects,
     SupportTerminologyProfile,
+    form_date_labels,
+    form_period_type,
+    form_repeatable,
     form_subject_type,
     plan_questionnaire_stems,
     published_tracked_entity_types,
+    question_read_only,
     source_display_name,
     source_program,
     source_title_translations,
@@ -131,6 +149,7 @@ __all__ = [
     "plan_questionnaire_stems",
     "question_code_system",
     "question_entity_level",
+    "question_read_only",
     "search_context_declarations",
     "source_description",
     "source_items",
@@ -299,11 +318,26 @@ class _ItemView(BaseModel):
     answer_value_set: str | None = None
     required: bool = False
     repeats: bool = False
+    read_only: bool = False
     item_control: bool = False
+    description_literal: str | None = None
+    """The DHIS2 free text about the object the item is asked from, or None when the instance states none."""
+
+    description_translations: list[TranslationIn] = Field(default_factory=list)
     entity_level: bool | None = None
     """Whether the question's answer belongs to the tracked entity, or None when the form states no level."""
 
     bounds: list[_BoundView] = Field(default_factory=list)
+
+
+class _DateLabelView(BaseModel):
+    """One date label as the sub-extension slice and the FSH literals the template writes."""
+
+    model_config = ConfigDict(frozen=True)
+
+    slice_name: str
+    value_literal: str
+    translations: list[TranslationIn] = Field(default_factory=list)
 
 
 class _AttributeValueView(BaseModel):
@@ -393,6 +427,27 @@ class _QuestionnaireView(BaseModel):
     collects_incident_date: bool | None = None
     """Whether the program this registration form enrols into collects an incident date, or None off that kind."""
 
+    period_type_extension: str
+    period_type: str | None = None
+    """The DHIS2 period type an aggregate form is reported under, or None off that kind."""
+
+    repeatable_extension: str
+    repeatable: bool | None = None
+    """Whether one enrollment may capture this stage more than once, or None off the stage kind."""
+
+    date_labels_extension: str
+    date_labels: list[_DateLabelView] = Field(default_factory=list)
+    """The date labels this instance states, one sub-extension slice each; empty writes no extension."""
+
+    description_extension_url: str
+    """Absolute URL of the D2Description extension an item's free text rides.
+
+    A URL rather than the FSH name every Questionnaire-level extension of this template takes, for
+    the reason `entity_level_extension_url` is one: SUSHI merges a named extension slice into
+    whatever soft-indexed `extension[+]` entry precedes it on the same element, and an item already
+    carries its bounds and its level there.
+    """
+
     assignment_extension: str
     assignment_reference: str | None = None
     """Literal `List/<id>` reference of the form's assignment artifact, or None when it publishes none."""
@@ -473,6 +528,11 @@ class _SupportConcept(BaseModel):
     value_type_code: str | None = None
     unique_literal: str | None = None
     searchable_literal: str | None = None
+    generated_literal: str | None = None
+    pattern_literal: str | None = None
+    """The reserved-value pattern, carried only by a generated attribute - the rest have none to state."""
+
+    display_in_list_literal: str | None = None
     searchable_contexts: list[_SupportBooleanProperty] = Field(default_factory=list)
     category_properties: list[_SupportCategoryProperty] = Field(default_factory=list)
     designations: list[TranslationIn] = Field(default_factory=list)
@@ -523,6 +583,9 @@ class _SupportTerminologyView(BaseModel):
     value_type_property_description_literal: str
     unique_property_description_literal: str
     searchable_property_description_literal: str
+    generated_property_description_literal: str
+    pattern_property_description_literal: str
+    display_in_list_property_description_literal: str
     ig_status: IgStatus
     searchable_declarations: list[_SupportBooleanDeclaration] = Field(default_factory=list)
     category_declarations: list[_SupportCategoryDeclaration] = Field(default_factory=list)
@@ -559,6 +622,21 @@ class _SupportTerminologyView(BaseModel):
     def declares_searchable(self) -> bool:
         """Whether any concept carries the searchable roll-up, so the CodeSystem must declare it."""
         return any(concept.searchable_literal is not None for concept in self.concepts)
+
+    @property
+    def declares_generated(self) -> bool:
+        """Whether any concept says who writes its value, so the CodeSystem must declare the property."""
+        return any(concept.generated_literal is not None for concept in self.concepts)
+
+    @property
+    def declares_pattern(self) -> bool:
+        """Whether any concept carries a reserved-value pattern, so the CodeSystem must declare it."""
+        return any(concept.pattern_literal is not None for concept in self.concepts)
+
+    @property
+    def declares_display_in_list(self) -> bool:
+        """Whether any concept carries the working-list roll-up, so the CodeSystem must declare it."""
+        return any(concept.display_in_list_literal is not None for concept in self.concepts)
 
 
 def build_questionnaire_artifacts(
@@ -803,6 +881,13 @@ def _questionnaire_view(
         form_type_code=source.kind,
         collects_incident_date_extension=foundation.collects_incident_date_extension,
         collects_incident_date=form_collects_incident_date(source),
+        period_type_extension=foundation.period_type_extension,
+        period_type=form_period_type(source),
+        repeatable_extension=foundation.repeatable_extension,
+        repeatable=form_repeatable(source),
+        date_labels_extension=foundation.date_labels_extension,
+        date_labels=_date_label_views(source, locales),
+        description_extension_url=f"{canonical}/StructureDefinition/{foundation.description_extension_id}",
         assignment_extension=foundation.organisation_unit_assignment_extension,
         assignment_reference=assignments.reference_for(source),
         attribute_option_combos_extension=foundation.attribute_option_combos_extension,
@@ -813,6 +898,21 @@ def _questionnaire_view(
         attribute_values=_attribute_value_views(source.attribute_values, attribute_codes),
         items=_item_views(source, names, identities, locales),
     )
+
+
+def _date_label_views(source: QuestionnaireSourceIn, locales: list[str]) -> list[_DateLabelView]:
+    """Project one form's date labels onto the sub-extension slices the template writes, in slice order."""
+    labels = form_date_labels(source, locales)
+    slices = (
+        (DATE_LABEL_ENROLLMENT_SUB_EXTENSION, labels.enrollment_date),
+        (DATE_LABEL_INCIDENT_SUB_EXTENSION, labels.incident_date),
+        (DATE_LABEL_EVENT_SUB_EXTENSION, labels.event_date),
+    )
+    return [
+        _DateLabelView(slice_name=slice_name, value_literal=quote(label.value), translations=label.translations)
+        for slice_name, label in slices
+        if label is not None
+    ]
 
 
 def _attribute_option_combo_value_set(
@@ -933,6 +1033,10 @@ def _item_views(
                 text_translations=name_translations(section.translations, locales),
                 type_code="group",
                 item_control=any(is_disaggregated(item, source.kind) for item in section.items),
+                description_literal=quote(section.description) if section.description else None,
+                description_translations=description_translations(section.translations, locales)
+                if section.description
+                else [],
             )
         )
         for item in section.items:
@@ -964,6 +1068,8 @@ def _question_views(
     answer_value_set = _answer_value_set(item, identities)
     repeats = is_multi_valued(item.value_type, resolved_item_type)
     bounds = _bound_views(item.value_type, resolved_item_type)
+    description_literal = quote(item.description) if item.description else None
+    description_translated = description_translations(item.translations, locales) if item.description else []
     if not is_disaggregated(item, kind):
         return [
             _ItemView(
@@ -977,6 +1083,9 @@ def _question_views(
                 answer_value_set=answer_value_set,
                 required=item.compulsory,
                 repeats=repeats,
+                read_only=bool(question_read_only(item, kind)),
+                description_literal=description_literal,
+                description_translations=description_translated,
                 entity_level=question_entity_level(item, kind),
                 bounds=bounds,
             )
@@ -991,6 +1100,8 @@ def _question_views(
             text_translations=text_translated,
             type_code="group",
             required=item.compulsory,
+            description_literal=description_literal,
+            description_translations=description_translated,
         )
     ]
     category_combo = item.category_combo
@@ -1130,6 +1241,9 @@ def collect_referenced_objects(source: QuestionnaireSourceIn, referenced: Refere
         questions.setdefault(item.uid, item)
         if asks_attributes:
             _record_search_context(source, item, referenced)
+            referenced.display_in_list[item.uid] = (
+                referenced.display_in_list.get(item.uid, False) or item.display_in_list
+            )
         if not is_disaggregated(item, source.kind) or item.category_combo is None:
             continue
         for option_combo in item.category_combo.option_combos:
@@ -1204,6 +1318,9 @@ def _tracked_entity_attribute_terminology(
             value_type_code=item.value_type,
             unique_literal="true" if item.unique else "false",
             searchable_literal="true" if referenced.searchable_anywhere(item.uid) else "false",
+            generated_literal="true" if item.generated else "false",
+            pattern_literal=quote(item.pattern) if item.pattern else None,
+            display_in_list_literal="true" if referenced.displayed_in_list_anywhere(item.uid) else "false",
             searchable_contexts=[
                 _SupportBooleanProperty(
                     property_code=context.property_code, literal="true" if context.searchable else "false"
@@ -1389,6 +1506,9 @@ def _support_terminology_artifact(
         value_type_property_description_literal=quote(terminology.value_type_property_description),
         unique_property_description_literal=quote(UNIQUE_PROPERTY_DESCRIPTION),
         searchable_property_description_literal=quote(SEARCHABLE_PROPERTY_DESCRIPTION),
+        generated_property_description_literal=quote(GENERATED_PROPERTY_DESCRIPTION),
+        pattern_property_description_literal=quote(PATTERN_PROPERTY_DESCRIPTION),
+        display_in_list_property_description_literal=quote(DISPLAY_IN_LIST_PROPERTY_DESCRIPTION),
         ig_status=ig_status,
         searchable_declarations=[
             _SupportBooleanDeclaration(

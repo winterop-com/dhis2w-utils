@@ -10,6 +10,10 @@
       "valueCode": "tracker-event"
     },
     {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-repeatable",
+      "valueBoolean": false
+    },
+    {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-assignment",
       "valueReference": {
         "reference": "List/d2-pr-ScProgAaa01-org-units"
@@ -95,7 +99,13 @@
           }
         ]
       },
-      "type": "decimal"
+      "type": "decimal",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Apgar is a quick test performed on a baby at 1 and 5 minutes after birth. The 1-minute score determines how well the baby tolerated the birthing process. The 5-minute score tells the doctor how well the baby is doing outside the mother's womb."
+        }
+      ]
     }
   ]
 }

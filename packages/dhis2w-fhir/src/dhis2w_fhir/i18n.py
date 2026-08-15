@@ -24,6 +24,14 @@ NAME_PROPERTY = "NAME"
 #: The DHIS2 translation property holding the label a data-entry form shows a question under.
 FORM_NAME_PROPERTY = "FORM_NAME"
 
+#: The DHIS2 translation property holding an object's free-text description.
+DESCRIPTION_PROPERTY = "DESCRIPTION"
+
+#: The DHIS2 translation properties holding the words an instance puts on the dates a form captures.
+ENROLLMENT_DATE_LABEL_PROPERTY = "ENROLLMENT_DATE_LABEL"
+INCIDENT_DATE_LABEL_PROPERTY = "INCIDENT_DATE_LABEL"
+EXECUTION_DATE_LABEL_PROPERTY = "EXECUTION_DATE_LABEL"
+
 #: `TranslationIn.property` mirrors the DHIS2 field name, shadowing the builtin inside that class body.
 _builtin_property = property
 
@@ -79,6 +87,11 @@ def property_translations(
 def name_translations(translations: list[TranslationIn], locales: list[str]) -> list[TranslationIn]:
     """The NAME translations - the display name of every DHIS2 object the guide publishes."""
     return property_translations(translations, locales, NAME_PROPERTY)
+
+
+def description_translations(translations: list[TranslationIn], locales: list[str]) -> list[TranslationIn]:
+    """The DESCRIPTION translations - the free text a question, a group, or a form carries as guidance."""
+    return property_translations(translations, locales, DESCRIPTION_PROPERTY)
 
 
 def text_translations(

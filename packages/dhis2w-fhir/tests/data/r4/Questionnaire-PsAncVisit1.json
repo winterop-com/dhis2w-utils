@@ -8,6 +8,10 @@
     {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
       "valueCode": "tracker-event"
+    },
+    {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-repeatable",
+      "valueBoolean": true
     }
   ],
   "identifier": [

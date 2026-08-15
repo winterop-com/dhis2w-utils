@@ -1,50 +1,93 @@
 [
   {
     "uid": "OsFhirEscS1",
-    "name": "Age (<5 - 49) & over"
+    "name": "Age (<5 - 49) & over",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "pC3N9N77UmT",
-    "name": "Gender"
+    "name": "Gender",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "dgsftM0rXu2",
-    "name": "MNCH ARVs"
+    "name": "MNCH ARVs",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "f38bstJioPs",
-    "name": "MNCH Baby ARVs"
+    "name": "MNCH Baby ARVs",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "udkr3ihaeD3",
-    "name": "MNCH DPT doses (1-3)"
+    "name": "MNCH DPT doses (1-3)",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "x31y45jvIQL",
-    "name": "MNCH Infant Feeding"
+    "name": "MNCH Infant Feeding",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "oXR37f2wOb1",
-    "name": "MNCH Infant HIV test"
+    "name": "MNCH Infant HIV test",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "OGmE3wUMEzu",
-    "name": "MNCH Infant HIV Test Type"
+    "name": "MNCH Infant HIV Test Type",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "nH8Y04zS7UV",
-    "name": "MNCH IPT"
+    "name": "MNCH IPT",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "kzgQRhOCadd",
-    "name": "MNCH Polio doses (0-3)"
+    "name": "MNCH Polio doses (0-3)",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "XdI8KRJiRoZ",
-    "name": "MNCH Yes No"
+    "name": "MNCH Yes No",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
+  },
+  {
+    "uid": "ScOptBldGrp",
+    "name": "Scenario Blood Group",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   },
   {
     "uid": "OsVaccType1",
-    "name": "Vaccine type"
+    "name": "Vaccine type",
+    "options": [],
+    "translations": [],
+    "attribute_values": []
   }
 ]

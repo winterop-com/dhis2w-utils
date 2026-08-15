@@ -8,6 +8,15 @@
     {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
       "valueCode": "event"
+    },
+    {
+      "extension": [
+        {
+          "url": "eventDate",
+          "valueString": "Visit date"
+        }
+      ],
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-date-labels"
     }
   ],
   "identifier": [
@@ -55,7 +64,13 @@
         }
       ],
       "text": "WHOMCH Smoking cessation counselling provided",
-      "type": "boolean"
+      "type": "boolean",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Counselling and behavioural interventions on smoking cessation."
+        }
+      ]
     },
     {
       "linkId": "vANAXwtLwcT",
@@ -67,7 +82,13 @@
         }
       ],
       "text": "WHOMCH Hemoglobin value",
-      "type": "decimal"
+      "type": "decimal",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Screening for anemia."
+        }
+      ]
     }
   ]
 }

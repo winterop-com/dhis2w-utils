@@ -219,8 +219,8 @@ vocabulary emitted it.
 The data dictionary publishes one CodeSystem/ValueSet pair per kind of question a
 form asks. `D2DE_CS` is over the data elements; `D2TEA_CS` is over the **tracked
 entity attributes** that a tracker programme's registration form and a tracked
-entity type's person-only form ask about. Its concepts carry four properties, and
-the last two are what a consumer resolving a person needs:
+entity type's person-only form ask about. Its concepts carry seven properties, and
+the last five are what a consumer resolving a person needs:
 
 | Property | Type | What it says |
 | --- | --- | --- |
@@ -228,9 +228,22 @@ the last two are what a consumer resolving a person needs:
 | `value-type` | code | The DHIS2 value type the answer is spelled in. |
 | `unique` | boolean | Whether DHIS2 declares the attribute a business identifier. |
 | `searchable` | boolean | Whether DHIS2 will find a person by it in **any** context this guide publishes. |
+| `generated` | boolean | Whether DHIS2 mints the value itself rather than asking anyone for it. |
+| `pattern` | string | The reserved-value pattern a generated attribute is minted from, carried only where there is one. |
+| `display-in-list` | boolean | Whether DHIS2 shows the attribute in the working lists of **any** context this guide publishes. |
 
-`unique` is a fact about the attribute alone - DHIS2 holds the flag on the
-attribute object, so it is the same answer wherever the attribute is asked.
+`unique`, `generated`, and `pattern` are facts about the attribute alone - DHIS2
+holds them on the attribute object, so they are the same answer wherever the
+attribute is asked. A generated attribute is one DHIS2 writes for you off its
+reserved-value pattern - a national identifier, a case number - so the question the
+forms publish for it carries the standard R4 `Questionnaire.item.readOnly = true`
+rather than an extension of this guide's own: a capture client must not invite a
+person to contradict the instance.
+
+`display-in-list` is a join fact the way `searchable` is - DHIS2 holds it on
+`programTrackedEntityAttribute` and `trackedEntityTypeAttribute`, not on the
+attribute - so the property is the roll-up over every context this run publishes,
+and its declaration says so in those words.
 
 **Searchability is not, so the guide publishes it per context.** DHIS2 holds
 `searchable` on the *join* between an attribute and the form that asks it, and two
@@ -251,6 +264,8 @@ context that asked it:
     { "code": "value-type", "valueCode": "TEXT" },
     { "code": "unique", "valueBoolean": true },
     { "code": "searchable", "valueBoolean": true },
+    { "code": "generated", "valueBoolean": false },
+    { "code": "display-in-list", "valueBoolean": true },
     { "code": "searchable-Tet1aaaaaaa", "valueBoolean": false },
     { "code": "searchable-Trk1aaaaaaa", "valueBoolean": true }
   ]
