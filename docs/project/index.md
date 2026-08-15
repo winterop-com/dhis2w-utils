@@ -56,6 +56,15 @@ reference.
 
     [Read the conversion plan](fhir-conversion.md)
 
+- **Corrections and withdrawals**
+
+    ---
+
+    How a submitter corrects a value that already reached DHIS2, how a
+    submission is retracted, and why withdrawal is terminal.
+
+    [Read the lifecycle design](fhir-data-lifecycle.md)
+
 - **DHIS2 fidelity audit**
 
     ---
