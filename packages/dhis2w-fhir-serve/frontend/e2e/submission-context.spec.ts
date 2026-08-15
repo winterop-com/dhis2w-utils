@@ -125,14 +125,28 @@ test('an edited reporting period is captured as the identifier, with no range cl
 
     const period = page.getByLabel('Reporting period')
     await expect(period).toBeVisible()
-    // The type is the data set's own and is stated rather than asked, which is what makes the
-    // identifier below editable without a calendar: what changes is which month, not which shape.
-    await expect(page.getByText('Monthly period, as the data set reports.')).toBeVisible()
+    // The type is the data set's own, declared by the form itself, and is stated rather than asked -
+    // which is what makes the identifier below editable without a calendar: what changes is which
+    // month, not which shape.
+    await expect(page.getByText('Monthly period, as the data set reports.', { exact: false })).toBeVisible()
+    await expect(page.getByText('A Monthly period is spelled like 202607.', { exact: false })).toBeVisible()
 
     const drafted = await period.inputValue()
     expect(drafted).toMatch(/^\d{6}$/)
+
+    // Required, and shaped: an aggregate submission is keyed by its period, so neither an empty box
+    // nor an identifier of another shape is one this form will send.
+    const submit = page.getByRole('button', { name: 'Submit' })
+    await period.fill('')
+    await expect(submit).toBeDisabled()
+    await expect(page.getByText('This submission reports for a period, and none is stated')).toBeVisible()
+    await period.fill('july')
+    await expect(submit).toBeDisabled()
+    await expect(page.getByText('july is not a Monthly period')).toBeVisible()
+
     const edited = drafted.endsWith('01') ? `${drafted.slice(0, 4)}02` : `${drafted.slice(0, 4)}01`
     await period.fill(edited)
+    await expect(submit).toBeEnabled()
 
     const receiptId = await submitCapture(page)
 
@@ -157,7 +171,10 @@ test('an edited enrollment date is the date the stored enrollment begins', async
 
     await openForm(page, formId)
 
-    const enrollmentDate = page.getByLabel('Enrollment date')
+    // The programme's own word for the date, off `d2-date-labels` - this fixture's instance calls
+    // it "Date first seen", and a control headed anything else would be this screen's word for a
+    // date the clerk was trained to call something.
+    const enrollmentDate = page.getByLabel('Date first seen')
     await expect(enrollmentDate).toBeVisible()
     await expect(enrollmentDate).not.toHaveValue('')
     // The fixture's program collects no incident date and says so on `D2CollectsIncidentDate`, so

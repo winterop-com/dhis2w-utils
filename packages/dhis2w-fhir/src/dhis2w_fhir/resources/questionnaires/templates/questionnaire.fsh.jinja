@@ -8,6 +8,22 @@ Usage: #definition
 {% if questionnaire.collects_incident_date is not none %}
 * extension[{{ questionnaire.collects_incident_date_extension }}].valueBoolean = {{ "true" if questionnaire.collects_incident_date else "false" }}
 {% endif %}
+{% if questionnaire.period_type is not none %}
+* extension[{{ questionnaire.period_type_extension }}].valueCode = #{{ questionnaire.period_type }}
+{% endif %}
+{% if questionnaire.repeatable is not none %}
+* extension[{{ questionnaire.repeatable_extension }}].valueBoolean = {{ "true" if questionnaire.repeatable else "false" }}
+{% endif %}
+{% for label in questionnaire.date_labels %}
+* extension[{{ questionnaire.date_labels_extension }}].extension[{{ label.slice_name }}].valueString = {{ label.value_literal }}
+{% for translation in label.translations %}
+* extension[{{ questionnaire.date_labels_extension }}].extension[{{ label.slice_name }}].valueString.extension[+].url = "{{ translation_extension_url }}"
+* extension[{{ questionnaire.date_labels_extension }}].extension[{{ label.slice_name }}].valueString.extension[=].extension[+].url = "lang"
+* extension[{{ questionnaire.date_labels_extension }}].extension[{{ label.slice_name }}].valueString.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* extension[{{ questionnaire.date_labels_extension }}].extension[{{ label.slice_name }}].valueString.extension[=].extension[+].url = "content"
+* extension[{{ questionnaire.date_labels_extension }}].extension[{{ label.slice_name }}].valueString.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
+{% endfor %}
 {% if questionnaire.assignment_reference is not none %}
 * extension[{{ questionnaire.assignment_extension }}].valueReference = Reference({{ questionnaire.assignment_reference }})
 {% endif %}
@@ -70,6 +86,20 @@ Usage: #definition
 {% endif %}
 {% if item.repeats %}
 * {{ item.path }}.repeats = true
+{% endif %}
+{% if item.read_only %}
+* {{ item.path }}.readOnly = true
+{% endif %}
+{% if item.description_literal is not none %}
+* {{ item.path }}.extension[+].url = "{{ questionnaire.description_extension_url }}"
+* {{ item.path }}.extension[=].valueString = {{ item.description_literal }}
+{% for translation in item.description_translations %}
+* {{ item.path }}.extension[=].valueString.extension[+].url = "{{ translation_extension_url }}"
+* {{ item.path }}.extension[=].valueString.extension[=].extension[+].url = "lang"
+* {{ item.path }}.extension[=].valueString.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* {{ item.path }}.extension[=].valueString.extension[=].extension[+].url = "content"
+* {{ item.path }}.extension[=].valueString.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
 {% endif %}
 {% for bound in item.bounds %}
 * {{ item.path }}.extension[+].url = "{{ bound.url }}"

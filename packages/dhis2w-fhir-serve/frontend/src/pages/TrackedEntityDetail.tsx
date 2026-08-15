@@ -88,6 +88,10 @@ function TrackedEntityRecord({
     const person = resource === null ? null : patientProjection(resource)
     const type = trackedEntityTypeLabel(naming.types, person?.trackedEntityTypeUid ?? null)
     const people = resourceType === PEOPLE_RESOURCE_TYPE
+    // What names this record: the value of an attribute DHIS2 declares unique, and the tracked entity
+    // uid when the instance holds no such value - which is also what the page is headed by before the
+    // read has landed.
+    const heading = person === null ? trackedEntityUid : patientLeadValue(person)
 
     return (
         <>
@@ -98,18 +102,22 @@ function TrackedEntityRecord({
                         {people ? 'All patients' : 'All tracked entities'}
                     </Link>
                 </Button>
-                <h2 className="font-mono text-xl font-semibold tracking-tight">
-                    {person === null ? trackedEntityUid : patientLeadValue(person)}
-                </h2>
+                <h2 className="font-mono text-xl font-semibold tracking-tight">{heading}</h2>
                 <div className="flex flex-wrap items-center gap-2">
                     {type !== null && (
                         <Badge variant="secondary" className={cn(type.isMachineSpelling && 'font-mono text-[10px]')}>
                             {type.text}
                         </Badge>
                     )}
-                    <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
-                        {trackedEntityUid}
-                    </Badge>
+                    {/* The uid badge is dropped when the heading is already the uid. A page headed by
+                        a tracked entity uid - because this instance holds no unique value for whoever
+                        this is - would otherwise state that one string twice, once large and once
+                        small, as though they were two facts about two different things. */}
+                    {heading !== trackedEntityUid && (
+                        <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
+                            {trackedEntityUid}
+                        </Badge>
+                    )}
                 </div>
             </div>
 

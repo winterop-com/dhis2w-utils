@@ -14,6 +14,19 @@
       "valueBoolean": true
     },
     {
+      "extension": [
+        {
+          "url": "enrollmentDate",
+          "valueString": "Date of enrollment"
+        },
+        {
+          "url": "incidentDate",
+          "valueString": "Date of birth"
+        }
+      ],
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-date-labels"
+    },
+    {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-assignment",
       "valueReference": {
         "reference": "List/d2-pr-IpHINAT79UW-org-units"
@@ -90,6 +103,10 @@
       "type": "string",
       "extension": [
         {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "First name"
+        },
+        {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": true
         }
@@ -107,6 +124,10 @@
       "text": "Last name (Play)",
       "type": "string",
       "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Last name"
+        },
         {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": true
@@ -127,6 +148,10 @@
       "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-pC3N9N77UmT-vs",
       "extension": [
         {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Gender"
+        },
+        {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": false
         }
@@ -143,7 +168,12 @@
       ],
       "text": "Unique ID (Play)",
       "type": "string",
+      "readOnly": true,
       "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Unique identiifer"
+        },
         {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": true

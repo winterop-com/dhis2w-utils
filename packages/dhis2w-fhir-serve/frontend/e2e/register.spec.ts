@@ -77,6 +77,24 @@ const PATIENT = {
                 { url: 'value', valueString: '1985-03-12' },
             ],
         },
+        // Two more values than a row shows, so which ones it shows is a choice rather than an
+        // accident of order: the guide's `D2TEA_CS` marks the date of birth and the sex as
+        // belonging in a listing, and the household size as not.
+        {
+            url: `${CANONICAL}/StructureDefinition/d2-tracked-entity-attribute-value`,
+            extension: [
+                { url: 'attributeId', valueString: 'TeaHousehld' },
+                { url: 'value', valueString: '4' },
+            ],
+        },
+        {
+            url: `${CANONICAL}/StructureDefinition/d2-tracked-entity-attribute-value`,
+            extension: [
+                { url: 'attributeId', valueString: 'TeaSex00001' },
+                { url: 'attributeCode', valueString: 'TEA_SEX' },
+                { url: 'value', valueString: 'OpFemale001' },
+            ],
+        },
     ],
 }
 
@@ -261,6 +279,19 @@ function listingPage(token: string | null): unknown {
 
 /** The register a project tracking only people serves: one resource, one type, named Person. */
 const PEOPLE_REGISTER = { resource: 'Patient', types: [{ uid: 'TetPerson01', name: 'Person' }] }
+
+/**
+ * What the register is called on a run serving that one type, and on one serving two.
+ *
+ * The instance's own name for the type, which is what the people running the server say - never
+ * "Patients", which is the FHIR resource this project projects a person onto rather than the
+ * subject. Two types have no single name, so that run is led to by the register itself.
+ */
+const ONE_TYPE_TITLE = 'Person'
+const REGISTER_TITLE = 'Tracked entities'
+
+/** The register's entry, found by where it leads - the one thing about it no naming rule changes. */
+const REGISTER_NAV_LINK = 'a[href="#/tracked-entities"]'
 
 /** The second register the fixture project publishes - a type this guide takes onto Specimen. */
 const SPECIMEN_REGISTER = { resource: 'Specimen', types: [{ uid: 'TetSample01', name: 'Specimen batch' }] }
@@ -574,7 +605,10 @@ test.describe('the people this DHIS2 instance holds', () => {
         await page.goto('/')
         await stated
         await expect(page.getByRole('link', { name: 'Forms' }).first()).toBeVisible()
-        await expect(page.getByRole('link', { name: 'Patients' })).toHaveCount(0)
+        // Found by where it leads rather than by what it is called: what this run would have named
+        // the entry is another test's subject, and a project publishing a form titled for its type
+        // has that word on the page for reasons that are nothing to do with the register.
+        await expect(page.locator(REGISTER_NAV_LINK)).toHaveCount(0)
 
         // And a link somebody kept from a run that did offer it goes back to the overview rather
         // than to a page whose every read would be refused.
@@ -592,7 +626,7 @@ test.describe('the people this DHIS2 instance holds', () => {
         await page.goto('/')
         await stated
         await expect(page.getByRole('link', { name: 'Forms' }).first()).toBeVisible()
-        await expect(page.getByRole('link', { name: 'Patients' })).toHaveCount(0)
+        await expect(page.locator(REGISTER_NAV_LINK)).toHaveCount(0)
     })
 
     test('pages through everyone, forwards and back, on the links the server stated', async ({ page }) => {
@@ -600,7 +634,7 @@ test.describe('the people this DHIS2 instance holds', () => {
         await serveALiveInstance(page)
 
         await page.goto('/')
-        await page.getByRole('link', { name: 'Patients' }).first().click()
+        await page.getByRole('link', { name: ONE_TYPE_TITLE }).first().click()
         await expect(page).toHaveURL(/#\/tracked-entities$/)
 
         const listing = page.getByTestId('patient-listing')
@@ -723,27 +757,30 @@ test.describe('the people this DHIS2 instance holds', () => {
         await expect(page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID })).toBeVisible()
         expect(listingReads, listingReads.join('\n')).toEqual([])
     })
-    test('reads exactly as it always did when every type this run serves is a person', async ({
+    test('is named for the one type it serves, in the rail and on the page alike', async ({
         page,
     }) => {
-        // The unchanged-experience guarantee, asserted rather than assumed: a project tracking only
-        // people gets the navigation entry, the page title, and the description it always had, and
-        // no section heading over the one table - naming a section "Person" on a page called
-        // Patients would be stating one fact twice.
+        // NAME THE ACTUAL SUBJECT. A run serving one tracked entity type is led to by the instance's
+        // own name for it, and headed by the same - one name from one rule, so the header bar and the
+        // page cannot disagree. There is no section heading over the single table, because it would
+        // repeat the page title; and the description still says these are people, which is a fact
+        // about the resource served rather than about its name.
         await serveRegisterSettings(page, { enabled: true, listing: true })
         await serveALiveInstance(page)
 
         await page.goto('/#/tracked-entities')
 
-        await expect(page.getByRole('link', { name: 'Patients' })).toBeVisible()
-        await expect(page.getByRole('heading', { name: 'Patients', level: 2 })).toBeVisible()
+        await expect(page.getByRole('link', { name: ONE_TYPE_TITLE }).first()).toBeVisible()
+        await expect(page.getByRole('heading', { name: ONE_TYPE_TITLE, level: 2 })).toBeVisible()
         await expect(
             page.getByText('The people this DHIS2 instance holds, read when this page opens', {
                 exact: false,
             }),
         ).toBeVisible()
-        await expect(page.getByRole('heading', { name: 'Person', level: 2 })).toHaveCount(0)
-        await expect(page.getByRole('heading', { name: 'Tracked entities' })).toHaveCount(0)
+        // Never the FHIR resource this project projects a person onto, and never DHIS2's word for
+        // the whole family while this run tracks one member of it.
+        await expect(page.getByRole('link', { name: 'Patients' })).toHaveCount(0)
+        await expect(page.getByRole('heading', { name: REGISTER_TITLE })).toHaveCount(0)
     })
 
     test('becomes the register the instance actually holds when a type is not a person', async ({
@@ -763,15 +800,42 @@ test.describe('the people this DHIS2 instance holds', () => {
 
         await page.goto('/#/tracked-entities')
 
-        await expect(page.getByRole('link', { name: 'Tracked entities' })).toBeVisible()
+        await expect(page.getByRole('link', { name: REGISTER_TITLE }).first()).toBeVisible()
         await expect(page.getByRole('link', { name: 'Patients' })).toHaveCount(0)
-        await expect(page.getByRole('heading', { name: 'Tracked entities', level: 2 })).toBeVisible()
+        // One type's name cannot stand for two, so the page is the register - and the sections
+        // inside it are where each type is named.
+        await expect(page.getByRole('heading', { name: REGISTER_TITLE, level: 2 })).toBeVisible()
         await expect(page.getByRole('heading', { name: 'Person', level: 2 })).toBeVisible()
         await expect(page.getByRole('heading', { name: 'Specimen batch', level: 2 })).toBeVisible()
         // The Specimen section holds the row the Specimen route answered, with its own identifier
         // value - so the two sections are two reads rather than one listing shown twice.
         await expect(page.getByText(LAB_REFERENCE)).toBeVisible()
         await expect(page.getByText(NATIONAL_ID).first()).toBeVisible()
+    })
+
+    test('shows the attribute values DHIS2 marks as belonging in a listing', async ({ page }) => {
+        // WHICH FEW A ROW SHOWS IS DHIS2'S CHOICE. An administrator marks the attributes that let a
+        // clerk recognise somebody, and the guide publishes that marking on `D2TEA_CS` - so those are
+        // the values on the row, whatever order the projection carried them in. The count of what is
+        // left over is over everything, because it is a fact about the record rather than about the
+        // preference; and the whole record is one click away, where nothing is left out.
+        await serveRegisterSettings(page, { enabled: true, listing: true })
+        await serveALiveInstance(page)
+
+        await page.goto('/#/tracked-entities')
+
+        const row = page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID })
+        await expect(row).toContainText('Date of birth')
+        await expect(row).toContainText('Sex')
+        await expect(row).not.toContainText('Household size')
+        await expect(row).toContainText('and 1 more')
+
+        // The detail keeps showing everything, marked or not: a preference about a listing is not a
+        // claim that the rest is not held.
+        await row.click()
+        await expect(page.getByRole('heading', { name: 'Attribute values' })).toBeVisible()
+        await expect(page.getByText('Household size')).toBeVisible()
+        await expect(page.getByText('Date of birth')).toBeVisible()
     })
 
     test('opens a specimen batch under its own resource, and says nothing about person-hood', async ({

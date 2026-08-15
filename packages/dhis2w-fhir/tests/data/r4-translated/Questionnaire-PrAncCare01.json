@@ -120,6 +120,10 @@
       "type": "string",
       "extension": [
         {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "First name"
+        },
+        {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": true
         }
@@ -137,6 +141,10 @@
       "text": "Last name (Play)",
       "type": "string",
       "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Last name"
+        },
         {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": true

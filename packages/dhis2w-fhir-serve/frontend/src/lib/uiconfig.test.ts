@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
     DEFAULT_UI_CONFIG,
+    REGISTER_TITLE,
     registerSectionTitle,
+    registerTitle,
     servesPeopleOnly,
     trackedEntitySettings,
     type UiConfig,
@@ -102,5 +104,70 @@ describe('what the register is called', () => {
         expect(registerSectionTitle({ resource: 'Patient', types: [{ uid: 'TetPerson01', name: null }] })).toBe(
             'TetPerson01',
         )
+    })
+})
+
+/**
+ * What the register is called, which is the one name the navigation and the page both read.
+ *
+ * The rule names the actual subject: DHIS2 holds a name for each type it tracks, and that name is
+ * what the people running the server say. It beats "Tracked entities", which is DHIS2's word for the
+ * whole family rather than for this one, and it beats "Patients", which is the FHIR resource this
+ * project projects a person onto - a projection stated as though it were the subject.
+ */
+describe('what the register is called on this run', () => {
+    it('takes the instance`s own name for the one type it serves', () => {
+        expect(registerTitle({ enabled: true, listing: true, registers: [PEOPLE_REGISTER] })).toBe('Person')
+        expect(registerTitle({ enabled: true, listing: true, registers: [SPECIMEN_REGISTER] })).toBe(
+            'Specimen batch',
+        )
+    })
+
+    it('uses the name as DHIS2 spells it, in whatever language the instance holds it', () => {
+        // Never pluralised and never rewritten: turning "Person (Play)" into anything else means
+        // guessing at a string this project did not write.
+        expect(
+            registerTitle({
+                enabled: true,
+                listing: true,
+                registers: [{ resource: 'Patient', types: [{ uid: 'TetPerson01', name: 'Person (Play)' }] }],
+            }),
+        ).toBe('Person (Play)')
+    })
+
+    it('is the register itself once more than one type rides, whichever resources they ride', () => {
+        expect(
+            registerTitle({
+                enabled: true,
+                listing: true,
+                registers: [PEOPLE_REGISTER, SPECIMEN_REGISTER],
+            }),
+        ).toBe(REGISTER_TITLE)
+        expect(
+            registerTitle({
+                enabled: true,
+                listing: true,
+                registers: [
+                    {
+                        resource: 'Patient',
+                        types: [
+                            { uid: 'TetPerson01', name: 'Person' },
+                            { uid: 'TetMidwif01', name: 'Midwife' },
+                        ],
+                    },
+                ],
+            }),
+        ).toBe(REGISTER_TITLE)
+    })
+
+    it('is the register for a type the guide published no name for, and for a run serving none', () => {
+        expect(
+            registerTitle({
+                enabled: true,
+                listing: true,
+                registers: [{ resource: 'Patient', types: [{ uid: 'TetPerson01', name: null }] }],
+            }),
+        ).toBe(REGISTER_TITLE)
+        expect(registerTitle({ enabled: false, listing: false, registers: [] })).toBe(REGISTER_TITLE)
     })
 })

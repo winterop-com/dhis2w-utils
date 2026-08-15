@@ -25,13 +25,18 @@ and `category_option_uids` on each of its option combos, which is what the quest
 now asks for.
 
 The goldens are SUSHI's own output and are never edited by hand: when this test fails, the
-builder is what changed.
+builder is what changed. The compile is a plain `npx fsh-sushi .` over a project whose
+`input/fsh` holds the foundation, the organisation-unit profiles and level terminology, the
+attribute-option-combo pair, and the questionnaires, and whose `input/resources` holds the
+option-set and category JSON those forms bind by canonical - SUSHI resolves nothing it cannot
+see, so a project missing any of them reports errors that are about the project rather than
+about the emitter.
 
-The committed source fixtures were fetched before the data-element projection carried `code`, so
-every data element in them is uncoded and `D2DE_CS` publishes no `dhis2-code` property at all -
-which is exactly what an uncoded dictionary looks like. A re-harvest against a live stack fills
-the codes in; the coded and uncoded shapes are pinned by name in
-`test_fhir_questionnaire_documents.py`.
+`sources.json` holds the run's own selection - two data sets, two event programs, three tracker
+stages - and a re-harvest is filtered back to those seven UIDs. The tracker registration and
+person-only forms are pinned by `test_fhir_registration.py` and `test_fhir_tracked_entity_forms.py`
+against goldens of their own, which is why adding them here would overwrite a support pair that
+belongs to another corpus.
 """
 
 from __future__ import annotations

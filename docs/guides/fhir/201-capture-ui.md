@@ -112,6 +112,33 @@ rows. Every question is labelled with its DHIS2 uid as well as its text,
 because that uid is what the server's refusals, the spool, and DHIS2 itself
 all name it by.
 
+DHIS2 holds more about a form than R4 has elements for, and a generated form
+carries the rest as extensions the screen reads:
+
+- **A data element's description** is help text somebody wrote for whoever
+  fills the form in - "Count a dose once, on the day it was given" - and it
+  reads under the question's label. A section's reads under its heading.
+- **A group of disaggregated cells names the categories it is cut by**:
+  *Disaggregated by Location Fixed/Outreach and EPI/nutrition age*. A cell is
+  labelled with its category option combo's own name - `Fixed, <1y` - which
+  names one corner of a grid and never says which grid, so the axes are stated
+  once above the cells. They are joined from the served combo vocabulary's own
+  property declarations, in the order DHIS2 declares the category combo:
+  nothing here sorts a decomposition, or a combo expansion.
+- **A stage form says whether it repeats** - *Repeats: each visit is its own
+  record* - where the form describes itself, and on its row in the forms
+  listing. A form declaring nothing states nothing.
+- **A question DHIS2 answers is not one you are asked.** A generated tracked
+  entity attribute arrives `readOnly`, and the published dictionary says it is
+  generated and to what shape - so the control is disabled and says *DHIS2
+  fills this in when the submission is imported, shaped `ANC-#######`*. It is
+  not counted among the required questions the form is waiting on, and
+  `$generate` draws no value for it: the instance mints one on import, and a
+  drawn value shaped like a real identifier would be a claim about a person
+  this server has no grounds to make. The capture validator holds the same rule
+  from the other side and admits the absence even where the form marks the
+  question required.
+
 ![An aggregate form filled with test data, with the reporting-unit picker and the attribute option combo picker above the questions](../../img/fhir/capture-ui-form-fill.png)
 
 **Fill with test data** answers the whole form from `$generate` and puts the
@@ -147,17 +174,42 @@ sit above the questions - both visible in the screenshot:
   hierarchy, where units the assignment does not name are shown disabled as
   the parent chain that tells two facilities of the same name apart.
 - Beside it, for a data set on a non-default category combo, is the
-  **attribute option combo** the whole submission is filed under - the one
-  control that does block Submit until it has a value, because nothing
-  derives it.
+  **attribute option combo** the whole submission is filed under. It opens
+  *Not chosen* and blocks Submit until it has a value, because nothing derives
+  it - `$generate` files its skeleton under one so the skeleton is postable,
+  and adopting that pick would make every submission nobody read claim to be
+  filed under whichever project a random draw landed on. DHIS2's own capture
+  app refuses to render the form at all until the combo is chosen; this is the
+  same refusal in this app's idiom. **Fill with test data** still adopts the
+  fresh draw, because that is the server proposing a whole submission rather
+  than a form waiting to be filled in.
+- On an aggregate form, the **Reporting period** the submission reports for is
+  required too, and knows what to ask for: the form declares its data set's
+  DHIS2 period type, so the box opens with that shape as its placeholder and
+  the worked example beneath it. `Daily`, `Weekly`, `BiWeekly`, `Monthly`,
+  `BiMonthly`, `Quarterly`, `SixMonthly` and `Yearly` are checked in the
+  browser, so `july` is refused under the cursor rather than after a round
+  trip; the offset weeks (`2026WedW30`) and the financial years (`2026April`)
+  spell their offset into the identifier and are accepted as typed rather than
+  half-checked, and the server's refusal names both types.
 
-A tracker registration form shows a third, read-only row: the enrollment it
-is about to file - when it begins, the incident date when the program
-collects one, and the DHIS2 uid the enrollment will be created under. None
-of the three is a question on the form, so they come off the `$generate`
-envelope and ride the submission unchanged; they are on screen because a
-submission carrying a date nobody saw is worse than one carrying a date
-nobody can change.
+A tracker registration form shows a third block: the enrollment it is about to
+file - when it begins, the incident date when the program collects one, and
+the DHIS2 uid the enrollment will be created under. None of the three is a
+question on the form, so all three come off the `$generate` envelope; the two
+dates are editable and ride the envelope in the slot the draft put them in,
+because a registration typed up on Thursday is not a registration filed on
+Thursday, while the minted uid is stated and not asked.
+
+**The dates wear the words the instance uses for them.** DHIS2 lets a
+programme rename all three - an antenatal programme's enrollment date is
+"Date first seen" and its incident date "Date of last menstrual period" - and
+a generated form carries whatever the instance states on `D2DateLabels`. The
+controls take their labels from there, falling back to this project's own
+fact-stating words (*Enrollment date*, *Incident date*, *Visit date*) for a
+date the instance renamed not at all. The receipt page labels the same facts
+through the same function, so a programme's own word for a date reads the same
+on the form and on the receipt rather than in one place out of two.
 
 ### Who a registration is about
 
@@ -272,28 +324,29 @@ the file is in, and the server re-reads that directory to answer. So running
 nothing restarted - hit **Reload**, or just switch back to the browser,
 which refetches on focus.
 
-## Patients
+## The register
 
-A **live** server carries one more page: **Patients**, the people the DHIS2
-instance holds. It is in the navigation only when this server answers about the
-instance's tracked entities - a compiled guide has no instance behind it, and a
-project that states `[serve.tracked_entities] enabled = false` has said it does
-not want the surface at all
+A **live** server carries one more page: the people - or the specimen batches,
+or the herds - the DHIS2 instance holds. It is in the navigation only when this
+server answers about the instance's tracked entities - a compiled guide has no
+instance behind it, and a project that states `[serve.tracked_entities] enabled
+= false` has said it does not want the surface at all
 ([Configure serving](301-serving.md#tracked_entities)). In both cases there is no
 page, rather than a page that apologises.
 
 !!! note "The page is named for what the instance actually tracks"
-    **Patients** is what a deployment that tracks only people sees, and that is
-    most of them. DHIS2 tracks whatever a project tracks, though, and a project
-    that also registers households, herds, or specimen batches publishes each of
-    those as its own FHIR resource
-    ([what goes in](301-what-goes-in.md#tracked_entity_types)). The navigation
-    entry then reads **Tracked entities**, because calling a specimen batch a
-    patient would be wrong; the page behind it holds one section per kind, each
-    titled by the name the instance holds for the type - *Person*, *Specimen
-    batch* - rather than by the FHIR resource, which is this project's
-    projection and not DHIS2's word for the thing. Everything below is the same
-    on both, section for section.
+    A run serving one tracked entity type is led to, and headed, by the
+    instance's own name for that type - **Person**, **Person (Play)**,
+    **Specimen batch** - singular and unpluralised, because the string is
+    DHIS2's rather than this project's to inflect. That is the name the people
+    running the server say. It is not **Patients**: `Patient` is the FHIR
+    resource this project projects a person onto
+    ([what goes in](301-what-goes-in.md#tracked_entity_types)), and naming a
+    page for a projection states this project's word where the instance has one
+    of its own. A run serving several types has no single name to use, so it is
+    led to by **Tracked entities** and the page behind it holds one section per
+    kind, each titled by the names the instance holds for the types riding it.
+    Everything below is the same either way, section for section.
 
 Everything on it is read from the instance while you wait, which is the one way
 it differs from every other page here. Responses shows receipts - what was
@@ -332,9 +385,23 @@ means a name - which of an instance's attributes carry one is that instance's
 own decision - so a name column would be this page guessing, and a wrong name
 on a person's row is worse than no name at all.
 
-**A row opens that person.** The detail view is the same three facts laid out
-to be read: the identifiers they are findable by, each named for the attribute
-whose value it is; every attribute value the instance holds for them, including
+**Which attribute values a row shows is DHIS2's choice where DHIS2 made one.**
+An administrator marks the attributes that belong in a list of a type's
+entities - the two or three that let a clerk recognise somebody - and the
+published `D2TEA_CS` carries that marking, so those are the values on the row
+whatever order the projection arrived in. An instance that marks none states no
+preference, and the row shows the first few as it otherwise would. The count of
+what is left over is over everything either way, and the detail below keeps
+showing every value: a preference about a listing is not a claim that the rest
+is not held.
+
+**A row opens that person.** The page is headed by the value that names them -
+the value of an attribute DHIS2 declares unique - with the tracked entity uid
+badged beneath it. Where this instance holds no unique value at all, the uid is
+the heading and the badge is dropped: one string stated twice, once large and
+once small, reads as two facts about two things. The detail below is the same
+three facts laid out to be read: the identifiers they are findable by, each
+named for the attribute whose value it is; every attribute value the instance holds for them, including
 the ones collected at a programme rather than at registration; and the
 programmes they are enrolled in - the name this project publishes for the
 programme where it publishes one, the state of the enrollment in words, when it

@@ -12,6 +12,19 @@
     {
       "url": "http://example.org/fhir/StructureDefinition/d2-collects-incident-date",
       "valueBoolean": true
+    },
+    {
+      "extension": [
+        {
+          "url": "enrollmentDate",
+          "valueString": "Date of enrollment"
+        },
+        {
+          "url": "incidentDate",
+          "valueString": "Date of birth"
+        }
+      ],
+      "url": "http://example.org/fhir/StructureDefinition/d2-date-labels"
     }
   ],
   "identifier": [
@@ -92,12 +105,35 @@
       "type": "integer",
       "extension": [
         {
+          "url": "http://example.org/fhir/StructureDefinition/d2-description",
+          "valueString": "Number of people sleeping in the household on the night of registration."
+        },
+        {
           "url": "http://hl7.org/fhir/StructureDefinition/minValue",
           "valueInteger": 1
         },
         {
           "url": "http://example.org/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": false
+        }
+      ]
+    },
+    {
+      "linkId": "Tea4aaaaaaa",
+      "code": [
+        {
+          "code": "Tea4aaaaaaa",
+          "system": "http://example.org/fhir/CodeSystem/d2-tea-cs",
+          "display": "Case number"
+        }
+      ],
+      "text": "Case number",
+      "type": "string",
+      "readOnly": true,
+      "extension": [
+        {
+          "url": "http://example.org/fhir/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
         }
       ]
     }

@@ -114,6 +114,14 @@ class CaptureQuestion(BaseModel):
     answer_element: str
     repeats: bool = False
     required: bool = False
+    read_only: bool = False
+    """Whether the form states that DHIS2 owns this question's value, as `item.readOnly`.
+
+    True on a tracked entity attribute DHIS2 generates: the instance mints the value on import, so
+    nothing a client sends for it is used. A generated attribute is answered by DHIS2 and therefore
+    left unanswered by `$generate`, and its absence is admitted even when the form marks it required.
+    """
+
     bounds: NumericBounds | None = None
     option_system: str | None = None
     """Canonical of the CodeSystem a coded answer is resolved against, or None when the binding is open."""
@@ -426,6 +434,7 @@ def _question(
         answer_element=answer_element,
         repeats=bool(item.repeats),
         required=bool(item.required),
+        read_only=bool(item.readOnly),
         bounds=_bounds(item),
         option_system=_option_system(item, store),
         value_type=facts.value_type,

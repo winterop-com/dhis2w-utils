@@ -25,7 +25,9 @@ import {
 } from '@/lib/patients'
 import {
     PEOPLE_RESOURCE_TYPE,
+    REGISTER_TITLE,
     registerSectionTitle,
+    registerTitle,
     servesPeopleOnly,
     trackedEntitySettings,
     type Register,
@@ -36,21 +38,29 @@ import { cn } from '@/lib/utils'
 /** How many of an entity's attribute values a row states before it says how many are left. */
 const ATTRIBUTE_VALUES_PER_ROW = 3
 
-/** What this page is called when every tracked entity type it serves is published as a person. */
-export const PEOPLE_PAGE_TITLE = 'Patients'
+/** What this page says it holds when every tracked entity type it serves is published as a person. */
 export const PEOPLE_PAGE_DESCRIPTION =
     'The people this DHIS2 instance holds, read when this page opens - one person is one DHIS2 tracked entity.'
 
-/** What it is called when the instance tracks something this project does not publish as a person. */
-export const REGISTER_PAGE_TITLE = 'Tracked entities'
+/** What it says when the instance tracks something this project does not publish as a person. */
 export const REGISTER_PAGE_DESCRIPTION =
     'What this DHIS2 instance tracks, read when this page opens - one row is one DHIS2 tracked entity.'
 
-/** What this page is, said the same way whether the settings have landed or not. */
-function RegisterHeader({ people }: { people: boolean }) {
+/**
+ * What this page is.
+ *
+ * THE TITLE IS THE NAVIGATION'S, from one rule in `registerTitle`: the instance's own name for the
+ * one type it serves, else the register. The header bar above this page reads its title off the
+ * navigation table, so a page heading itself any other way would put two names on one screen.
+ *
+ * The description is the page's own, because it says something the title cannot: whether the rows are
+ * people. That is a fact about the resources served rather than about their names, so it is decided
+ * separately and both a Person register and a Patients-only one get the sentence about people.
+ */
+function RegisterHeader({ title, people }: { title: string; people: boolean }) {
     return (
         <PageHeader
-            title={people ? PEOPLE_PAGE_TITLE : REGISTER_PAGE_TITLE}
+            title={title}
             description={people ? PEOPLE_PAGE_DESCRIPTION : REGISTER_PAGE_DESCRIPTION}
         />
     )
@@ -68,12 +78,13 @@ function RegisterHeader({ people }: { people: boolean }) {
  * value on a card - and the resources the register serves decide what this page is called and how
  * many sections it has.
  *
- * IT IS NAMED FOR WHAT IT HOLDS. A project that tracks only people gets the page it always had,
- * headed Patients, with no section headings above a single table: naming a section "Person" over the
- * only table on a page called Patients would be stating one fact twice. A project that also tracks
- * something else gets the honest register - one page, one section per FHIR resource the published
- * map names, each headed by the names the instance holds for the types riding it, because a reader
- * here works in DHIS2 where the thing is a Specimen batch rather than a `Specimen`.
+ * IT IS NAMED FOR WHAT IT HOLDS, in the instance's own words. A project tracking one type gets a page
+ * headed by DHIS2's name for that type - Person, Specimen batch - with no section heading above the
+ * single table, because the heading would repeat the page title. A project tracking several gets the
+ * register: one page, one section per FHIR resource the published map names, each headed by the names
+ * the instance holds for the types riding it, because a reader here works in DHIS2 where the thing is
+ * a Specimen batch rather than a `Specimen`. The rule is `registerTitle`, and the navigation entry
+ * leading here reads the same one.
  *
  * THE SEARCH NARROWS THE TABLES RATHER THAN SITTING BESIDE THEM. One surface, in one shape: typing
  * an identifier value replaces each section's page with what that section holds under the value, and
@@ -90,7 +101,10 @@ export function TrackedEntities() {
     if (loading) {
         return (
             <>
-                <RegisterHeader people />
+                {/* The register, plainly, while the settings are still in flight: nothing is known
+                    yet about which types ride here, and a name guessed now would change under the
+                    reader the moment the answer landed. */}
+                <RegisterHeader title={REGISTER_TITLE} people />
                 <PageState loading error={null} empty={false}>
                     {null}
                 </PageState>
@@ -118,7 +132,7 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
 
     return (
         <>
-            <RegisterHeader people={people} />
+            <RegisterHeader title={registerTitle(settings)} people={people} />
 
             <div className="mb-8 max-w-2xl">
                 <PatientSearchControl controlId="patients-search" typed={typed} onTyped={setTyped} state={search} />
@@ -294,6 +308,13 @@ function RegisterTable({
  * rather than its uid repeated out of the column beside it. The attribute values are cut off at
  * a few, with the number left stated: a row is for recognising something, and its whole record is
  * one click away.
+ *
+ * WHICH FEW IS DHIS2'S CHOICE WHERE DHIS2 MADE ONE. An administrator marks the attributes that belong
+ * in a listing of a type's entities, and those are the ones a clerk recognises somebody by - so they
+ * are the ones shown, whatever order the projection carries them in. An instance that marks none
+ * states no preference, and the row shows the first few as it always did rather than showing nothing.
+ * The count of what is left over is over everything either way, because it is a fact about the record
+ * rather than about the preference.
  */
 function RegisterRow({
     entity,
@@ -307,7 +328,9 @@ function RegisterRow({
     onOpen: (trackedEntityUid: string) => void
 }) {
     const type = trackedEntityTypeLabel(naming.types, entity.trackedEntityTypeUid)
-    const shown = entity.attributeValues.slice(0, ATTRIBUTE_VALUES_PER_ROW)
+    const preferred = entity.attributeValues.filter((value) => naming.displayInList.has(value.attributeUid))
+    const listed = preferred.length > 0 ? preferred : entity.attributeValues
+    const shown = listed.slice(0, ATTRIBUTE_VALUES_PER_ROW)
     const hidden = entity.attributeValues.length - shown.length
     const open = () => {
         onOpen(entity.trackedEntityUid)

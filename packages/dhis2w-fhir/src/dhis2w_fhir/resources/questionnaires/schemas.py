@@ -8,7 +8,15 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.attributes import AttributeValueIn
-from dhis2w_fhir.i18n import TranslationIn, composed_translations, name_translations
+from dhis2w_fhir.i18n import (
+    ENROLLMENT_DATE_LABEL_PROPERTY,
+    EXECUTION_DATE_LABEL_PROPERTY,
+    INCIDENT_DATE_LABEL_PROPERTY,
+    TranslationIn,
+    composed_translations,
+    name_translations,
+    property_translations,
+)
 from dhis2w_fhir.names import (
     FHIR_ID_MAX_LENGTH,
     NamingSource,
@@ -260,6 +268,33 @@ SEARCHABLE_PROPERTY_DESCRIPTION = (
     "Whether DHIS2 declares the tracked entity attribute searchable in any context this guide publishes."
 )
 
+#: The concept property carrying whether DHIS2 mints the attribute's value itself.
+GENERATED_PROPERTY = "generated"
+
+#: The description of the `generated` concept property, which only the attribute pair declares. A
+#: generated attribute is one DHIS2 writes for you off a reserved-value pattern - a national
+#: identifier, a case number - so a capture client asks nobody for it, and the question the forms
+#: publish for it is read-only.
+GENERATED_PROPERTY_DESCRIPTION = "Whether DHIS2 mints the tracked entity attribute's value itself."
+
+#: The concept property carrying the reserved-value pattern a generated attribute is minted from.
+PATTERN_PROPERTY = "pattern"
+
+#: The description of the `pattern` concept property, carried only by a generated attribute: an
+#: attribute nobody generates has no pattern to state, and DHIS2 sends an empty string for it.
+PATTERN_PROPERTY_DESCRIPTION = "The DHIS2 reserved-value pattern a generated tracked entity attribute is minted from."
+
+#: The concept property carrying whether an attribute is shown in the person lists DHIS2 renders.
+DISPLAY_IN_LIST_PROPERTY = "display-in-list"
+
+#: The description of the `display-in-list` concept property. DHIS2 holds the flag on the join
+#: between a form's own object and the attribute, exactly as it holds `searchable` there, so the
+#: dictionary states the roll-up over every context this run publishes rather than pretending the
+#: answer is a fact about the attribute alone.
+DISPLAY_IN_LIST_PROPERTY_DESCRIPTION = (
+    "Whether DHIS2 shows the tracked entity attribute in the working lists of any context this guide publishes."
+)
+
 #: How a per-context searchability property spells the context it answers for: the property code
 #: is this token joined to the DHIS2 UID of the form's own object - a program for a registration
 #: form, a tracked entity type for a person-only form.
@@ -322,6 +357,23 @@ class CategoryOptionComboIn(BaseModel):
     category_option_uids: list[str] = Field(default_factory=list)
 
 
+class CategoryAxisIn(BaseModel):
+    """One category a combo splits over, with the category options DHIS2 declares it in order.
+
+    Both lists DHIS2 answers here are ordered lists rather than the unordered sets BUGS.md #63 and
+    #64 record: `categoryCombo.categories` and `category.categoryOptions` came back identical over
+    25 consecutive reads of the local stack and 12 of play, in an order that is not alphabetical -
+    "Location Fixed/Outreach" before "EPI/nutrition age", "Provide access to primary health care"
+    before "Provide access to basic education". That is the order the DHIS2 data-entry app lays a
+    disaggregated section out in, so it is the order the generated cells take.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    option_uids: list[str] = Field(default_factory=list)
+
+
 class CategoryComboIn(BaseModel):
     """One DHIS2 category combo, its option combos included - a disaggregation or a data set's own key.
 
@@ -329,8 +381,10 @@ class CategoryComboIn(BaseModel):
     to say which attribute option combos its values are keyed under. `code` is the combo's DHIS2
     code, which the attribute-combo terminology resolves its identity stem from.
 
-    `category_uids` is the ordered list of categories the combo splits over, which is the order
-    DHIS2 reads an option combo's name in, so the decomposition properties follow it.
+    `categories` is the ordered list of axes the combo splits over, each carrying its own declared
+    category options. The category order is what DHIS2 reads an option combo's name in, so the
+    decomposition properties follow it; the option order within each axis is what
+    `ordered_option_combos` lays the cells out by.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -339,8 +393,38 @@ class CategoryComboIn(BaseModel):
     name: str
     code: str | None = None
     is_default: bool = False
-    category_uids: list[str] = Field(default_factory=list)
+    categories: list[CategoryAxisIn] = Field(default_factory=list)
     option_combos: list[CategoryOptionComboIn] = Field(default_factory=list)
+
+    @property
+    def category_uids(self) -> list[str]:
+        """The UIDs of the categories the combo splits over, in the order DHIS2 declares them."""
+        return [axis.uid for axis in self.categories]
+
+
+def ordered_option_combos(combo: CategoryComboIn) -> list[CategoryOptionComboIn]:
+    """One combo's option combos in DHIS2's declared axis order - the grid the data-entry app renders.
+
+    The sort key of a cell is where each of its category options sits in its own category's
+    declared option list, read axis by axis in the combo's declared category order: "Fixed, <1y"
+    sorts before "Fixed, >1y" before "Outreach, <1y", because location is the first axis and Fixed
+    is its first option. A combo the projection could not resolve an axis for keeps its name and
+    UID as the tie-break, which is also what orders two cells the declared arrays cannot separate -
+    so the order is total, and regeneration stays byte-stable either way.
+    """
+    positions = [{option_uid: index for index, option_uid in enumerate(axis.option_uids)} for axis in combo.categories]
+
+    def axis_position(axis: dict[str, int], option_uids: list[str]) -> int:
+        """Where one cell sits along one axis, or after every declared option when the axis names none of them."""
+        found = [axis[option_uid] for option_uid in option_uids if option_uid in axis]
+        return min(found) if found else len(axis)
+
+    def sort_key(option_combo: CategoryOptionComboIn) -> tuple[tuple[int, ...], str, str]:
+        """The declared grid position of one cell, then its name and UID as the total-order tie-break."""
+        along = tuple(axis_position(axis, option_combo.category_option_uids) for axis in positions)
+        return (along, option_combo.name, option_combo.uid)
+
+    return sorted(combo.option_combos, key=sort_key)
 
 
 class QuestionnaireItemIn(BaseModel):
@@ -370,9 +454,20 @@ class QuestionnaireItemIn(BaseModel):
     here too), and `required_option_combo_uids` marks the single disaggregated cells a data set
     names through a compulsory operand.
 
-    `translations` is the object's own DHIS2 translation list, both properties a question is
-    labelled from: `NAME` names the dictionary concept, `FORM_NAME` labels the question where the
-    object carries a form name.
+    `generated` and `pattern` are the tracked entity attribute's own facts about who writes the
+    value: DHIS2 mints a generated attribute's value itself, following the reserved-value pattern,
+    so the person filling the form must not be asked for it. A data element is never generated.
+
+    `display_in_list` is a fact about the *pair* the way `searchable` is - DHIS2 holds it on the
+    join between the form's object and the attribute - so it is this form's answer, and the
+    dictionary rolls the answers of every published context into one property.
+
+    `description` is the DHIS2 free text about the object, which is guidance for the person
+    filling the form rather than the label on the question.
+
+    `translations` is the object's own DHIS2 translation list, every property a question is
+    labelled or described from: `NAME` names the dictionary concept, `FORM_NAME` labels the
+    question where the object carries a form name, and `DESCRIPTION` translates the free text.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -381,6 +476,7 @@ class QuestionnaireItemIn(BaseModel):
     name: str
     code: str | None = None
     form_name: str | None = None
+    description: str | None = None
     translations: list[TranslationIn] = Field(default_factory=list)
     value_type: str
     domain_type: str = ""
@@ -388,18 +484,26 @@ class QuestionnaireItemIn(BaseModel):
     compulsory: bool = False
     unique: bool = False
     searchable: bool = False
+    generated: bool = False
+    pattern: str | None = None
+    display_in_list: bool = False
     entity_level: bool | None = None
     required_option_combo_uids: list[str] = Field(default_factory=list)
     category_combo: CategoryComboIn | None = None
 
 
 class QuestionnaireSectionIn(BaseModel):
-    """One section of a data-entry form, holding the data elements it groups."""
+    """One section of a data-entry form, holding the data elements it groups.
+
+    `description` is the DHIS2 free text about the section, which the group item carries as
+    guidance the way a question carries its own object's.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
     name: str
+    description: str | None = None
     translations: list[TranslationIn] = Field(default_factory=list)
     items: list[QuestionnaireItemIn] = Field(default_factory=list)
 
@@ -447,6 +551,14 @@ class QuestionnaireSourceIn(BaseModel):
     `displays_incident_date` is the tracker program's `displayIncidentDate`, which says whether an
     enrollment states the date of the incident it tracks beside the date it began. Only a `tracker`
     source carries it, and it is what makes a registration response carry the incident-date extension.
+
+    The three date labels are the words the instance puts on the dates the form captures, each
+    carried only where DHIS2 states one. A tracker registration form reads its program's
+    `enrollmentDateLabel` and `incidentDateLabel`; a program stage form and an event program form
+    read the stage's `executionDateLabel`, which is the date the event happened.
+
+    `repeatable` is the program stage's own flag - whether one enrollment may capture the stage
+    more than once. Only a `tracker-event` source carries it, and it carries it either way.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -461,6 +573,13 @@ class QuestionnaireSourceIn(BaseModel):
     program: ProgramContextIn | None = None
     attribute_combo: CategoryComboIn | None = None
     displays_incident_date: bool = False
+    enrollment_date_label: str | None = None
+    incident_date_label: str | None = None
+    event_date_label: str | None = None
+    date_label_translations: list[TranslationIn] = Field(default_factory=list)
+    """The translations of whichever object states the labels - the program's, or the stage's."""
+
+    repeatable: bool | None = None
     tracked_entity_type_uid: str | None = None
     """The DHIS2 tracked entity type a registration or person-only form registers an entity as.
 
@@ -493,10 +612,16 @@ class ReferencedObjects(BaseModel):
     tracked_entity_attributes: dict[str, QuestionnaireItemIn] = Field(default_factory=dict)
     option_combos: dict[str, CategoryOptionComboIn] = Field(default_factory=dict)
     search_contexts: dict[str, list[AttributeSearchContext]] = Field(default_factory=dict)
+    display_in_list: dict[str, bool] = Field(default_factory=dict)
+    """Whether any context that asked an attribute shows it in its working lists, rolled up per attribute."""
 
     def searchable_anywhere(self, attribute_uid: str) -> bool:
         """Whether any context this run publishes declares the attribute searchable."""
         return any(context.searchable for context in self.search_contexts.get(attribute_uid, []))
+
+    def displayed_in_list_anywhere(self, attribute_uid: str) -> bool:
+        """Whether any context this run publishes shows the attribute in its working lists."""
+        return self.display_in_list.get(attribute_uid, False)
 
     def contexts_for(self, attribute_uid: str) -> list[AttributeSearchContext]:
         """Every context that asked one attribute, in the order the run reached them."""
@@ -543,6 +668,109 @@ def source_title_translations(source: QuestionnaireSourceIn, locales: list[str])
         return own
     program = name_translations(source.program.translations, locales)
     return composed_translations([program, own], DISPLAY_NAME_SEPARATOR)
+
+
+class DateLabelIn(BaseModel):
+    """One date label a form states: the words the instance holds, and their translations."""
+
+    model_config = ConfigDict(frozen=True)
+
+    value: str
+    translations: list[TranslationIn] = Field(default_factory=list)
+
+
+class FormDateLabels(BaseModel):
+    """The words one form's instance puts on the dates it captures, each absent where DHIS2 states none."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enrollment_date: DateLabelIn | None = None
+    incident_date: DateLabelIn | None = None
+    event_date: DateLabelIn | None = None
+
+    @property
+    def stated(self) -> bool:
+        """Whether the instance labelled any of the three, and the form therefore carries the extension."""
+        return any((self.enrollment_date, self.incident_date, self.event_date))
+
+
+def form_date_labels(source: QuestionnaireSourceIn, locales: list[str]) -> FormDateLabels:
+    """The date labels one form publishes, read off whichever DHIS2 object states each of them.
+
+    A tracker registration form enrols a person, so it states the enrollment and incident labels
+    its program holds. A tracker program stage form and an event program form capture an event, so
+    each states the event label the stage holds - `executionDateLabel`, which is the date DHIS2
+    files the event under. A data set and a person-only registration form label no date: neither
+    captures an event, and neither creates an enrollment.
+    """
+    if source.kind == "tracker":
+        return FormDateLabels(
+            enrollment_date=_date_label(
+                source.enrollment_date_label,
+                source.date_label_translations,
+                locales,
+                ENROLLMENT_DATE_LABEL_PROPERTY,
+            ),
+            incident_date=_date_label(
+                source.incident_date_label, source.date_label_translations, locales, INCIDENT_DATE_LABEL_PROPERTY
+            ),
+        )
+    if source.kind in {"event", "tracker-event"}:
+        return FormDateLabels(
+            event_date=_date_label(
+                source.event_date_label, source.date_label_translations, locales, EXECUTION_DATE_LABEL_PROPERTY
+            )
+        )
+    return FormDateLabels()
+
+
+def _date_label(
+    value: str | None, translations: list[TranslationIn], locales: list[str], property_name: str
+) -> DateLabelIn | None:
+    """One label as the projection both emitters write, or None when the instance states none."""
+    if not value:
+        return None
+    return DateLabelIn(value=value, translations=property_translations(translations, locales, property_name))
+
+
+def form_period_type(source: QuestionnaireSourceIn) -> str | None:
+    """The DHIS2 period type one form declares, or None when its kind has no reporting frequency.
+
+    Only a data set states one, and it states it whenever the instance holds one: the period type
+    is what decides the ISO period format every response of the form has to report under, so a
+    client resolving the form knows what to build before it builds one. A data set the instance
+    left without a period type declares nothing rather than guessing a frequency for it.
+    """
+    if source.kind != "aggregate":
+        return None
+    return source.period_type or None
+
+
+def form_repeatable(source: QuestionnaireSourceIn) -> bool | None:
+    """Whether one enrollment may capture this form more than once, or None off the stage kind.
+
+    Only a tracker program stage repeats: DHIS2 holds the flag on the stage, and a stage of a
+    tracker program is the one form whose subject can answer it twice. Every other kind states
+    nothing - an aggregate form is keyed by its period, an event program's events stand alone, and
+    a registration form is answered once per person it enrols.
+    """
+    if source.kind != "tracker-event":
+        return None
+    return bool(source.repeatable)
+
+
+def question_read_only(item: QuestionnaireItemIn, kind: FormKind) -> bool | None:
+    """Whether DHIS2 writes one question's answer itself, or None when the person filling the form does.
+
+    A generated tracked entity attribute is minted by DHIS2 off its reserved-value pattern - a
+    national identifier, a case number - so asking a person to type one would invite them to
+    contradict the instance. R4 says exactly this with `Questionnaire.item.readOnly`, so the fact
+    rides the standard element rather than an extension of this guide's own. Every other question
+    leaves the element off, because `readOnly = false` is what an absent element already means.
+    """
+    if FORM_KIND_PROFILES[kind].question_subject != "tracked-entity-attribute":
+        return None
+    return True if item.generated else None
 
 
 def form_tracked_entity_type_uid(source: QuestionnaireSourceIn) -> str | None:

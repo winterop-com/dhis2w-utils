@@ -9,6 +9,44 @@
   "url": "http://example.org/fhir/CodeSystem/d2-tea-cs",
   "concept": [
     {
+      "code": "Tea4aaaaaaa",
+      "display": "Case number",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "TEA_CASE_NUMBER"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": true
+        },
+        {
+          "code": "pattern",
+          "valueString": "RANDOM(#######)"
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable-Trk1aaaaaaa",
+          "valueBoolean": false
+        }
+      ]
+    },
+    {
       "code": "Tea3aaaaaaa",
       "display": "Household size",
       "property": [
@@ -26,6 +64,14 @@
         },
         {
           "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
           "valueBoolean": false
         },
         {
@@ -48,6 +94,14 @@
         },
         {
           "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
           "valueBoolean": false
         },
         {
@@ -75,6 +129,14 @@
         {
           "code": "searchable",
           "valueBoolean": true
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
         },
         {
           "code": "searchable-Trk1aaaaaaa",
@@ -112,11 +174,29 @@
       "type": "boolean"
     },
     {
+      "code": "generated",
+      "uri": "http://dhis2.org/fhir/property/generated",
+      "description": "Whether DHIS2 mints the tracked entity attribute's value itself.",
+      "type": "boolean"
+    },
+    {
+      "code": "pattern",
+      "uri": "http://dhis2.org/fhir/property/pattern",
+      "description": "The DHIS2 reserved-value pattern a generated tracked entity attribute is minted from.",
+      "type": "string"
+    },
+    {
+      "code": "display-in-list",
+      "uri": "http://dhis2.org/fhir/property/display-in-list",
+      "description": "Whether DHIS2 shows the tracked entity attribute in the working lists of any context this guide publishes.",
+      "type": "boolean"
+    },
+    {
       "code": "searchable-Trk1aaaaaaa",
       "uri": "http://dhis2.org/fhir/property/searchable-Trk1aaaaaaa",
       "description": "Whether DHIS2 declares the tracked entity attribute searchable in tracker program Child Programme (Trk1aaaaaaa).",
       "type": "boolean"
     }
   ],
-  "count": 3
+  "count": 4
 }

@@ -26,7 +26,7 @@ import {
     type QuestionnaireResponse,
 } from '@/lib/fhir'
 import type { OrgUnitChoice } from '@/lib/orgunits'
-import { flattenQuestionnaire } from '@/lib/questionnaire'
+import { dateLabelsOf, flattenQuestionnaire, type DateLabels } from '@/lib/questionnaire'
 import {
     attributeOptionComboFact,
     formLabel,
@@ -164,6 +164,7 @@ export function ResponseDetail() {
                                 stored.resource,
                                 attributeCodeSystem.resource,
                                 registry.byId,
+                                dateLabelsOf(form.resource),
                             )}
                         />
 
@@ -249,12 +250,18 @@ function CaptureContextSection({ facts }: { facts: ReceiptContextFact[] }) {
  * nowhere but on the resource. The attribute option combo is last for the same reason it is read
  * separately: it comes off the stored document, so it is here for a receipt the spool never
  * indexed.
+ *
+ * THE DATES ARE LABELLED BY THE FORM the receipt answered, which is the same source the capture
+ * screen labels its controls from. A programme that calls its enrollment date "Date first seen"
+ * calls it that in both places; a receipt whose form is no longer served falls back to this
+ * project's own words, which is what `dateLabelsOf` answers for a form that is not there.
  */
 function contextFacts(
     summary: SpoolResponseSummary | null,
     stored: QuestionnaireResponse | null,
     attributeCodeSystem: CodeSystem | null,
     units: ReadonlyMap<string, OrgUnitChoice>,
+    labels: DateLabels,
 ): ReceiptContextFact[] {
     // Everything else the spool derives is an identifier - a period, a uid - so all of it reads mono.
     const derived =
@@ -267,7 +274,7 @@ function contextFacts(
               })
     if (stored === null) return derived
     const combo = attributeOptionComboFact(stored, attributeCodeSystem)
-    return mergeContextFacts(derived, trackerContextFacts(stored), combo === null ? [] : [combo])
+    return mergeContextFacts(derived, trackerContextFacts(stored, labels), combo === null ? [] : [combo])
 }
 
 /** The header block: when it arrived, what it is, and the handles it is found by again. */

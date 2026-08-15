@@ -29,6 +29,14 @@
           "valueBoolean": false
         },
         {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
+        },
+        {
           "code": "searchable-Trk1aaaaaaa",
           "valueBoolean": false
         }
@@ -49,6 +57,14 @@
         {
           "code": "searchable",
           "valueBoolean": true
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
         },
         {
           "code": "searchable-Trk1aaaaaaa",
@@ -79,6 +95,14 @@
         {
           "code": "searchable",
           "valueBoolean": true
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
         },
         {
           "code": "searchable-Trk1aaaaaaa",
@@ -117,6 +141,18 @@
       "code": "searchable",
       "uri": "http://dhis2.org/fhir/property/searchable",
       "description": "Whether DHIS2 declares the tracked entity attribute searchable in any context this guide publishes.",
+      "type": "boolean"
+    },
+    {
+      "code": "generated",
+      "uri": "http://dhis2.org/fhir/property/generated",
+      "description": "Whether DHIS2 mints the tracked entity attribute's value itself.",
+      "type": "boolean"
+    },
+    {
+      "code": "display-in-list",
+      "uri": "http://dhis2.org/fhir/property/display-in-list",
+      "description": "Whether DHIS2 shows the tracked entity attribute in the working lists of any context this guide publishes.",
       "type": "boolean"
     },
     {

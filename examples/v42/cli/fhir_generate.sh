@@ -73,7 +73,11 @@ cd demo-ig
 
 # Foundation: the $DHIS2-* aliases built from [generate] identifier_system_base and
 # the NamingSystem declaring each of those URLs, the D2Period extension with its
-# period-type CodeSystem/ValueSet, the D2FormType extension with its own pair, the
+# period-type CodeSystem/ValueSet and the D2PeriodType extension an aggregate form
+# states its own reporting frequency on, the D2DateLabels extension carrying the words
+# the instance puts on a form's enrollment, incident and event dates, the D2Repeatable
+# extension a tracker stage form declares either way, the D2Description extension an
+# item carries its DHIS2 free text on, the D2FormType extension with its own pair, the
 # D2AttributeValue extension that carries DHIS2 attributeValues onto the Organization,
 # Location, CodeSystem, ValueSet and Questionnaire resources the other targets write,
 # and the capture contract a third party builds against - d2-responses.fsh carries the

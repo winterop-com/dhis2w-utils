@@ -268,8 +268,33 @@ produces fails the build instead of shipping.
 
 ## What the Questionnaire itself tells you
 
-Two more things a capture client reads off the form, not the profiles:
+Several things a capture client reads off the form, not the profiles:
 
+- **The reporting frequency.** An aggregate form carries `D2PeriodType`, a
+  code out of `D2PeriodType_VS`. It is the period type of the data set the
+  form came from, so a client builds the ISO period its `D2Period` will
+  carry from the form itself rather than from an example response.
+- **What the instance calls the dates.** `D2DateLabels` carries the words
+  the instance puts on the dates the form captures - `enrollmentDate` and
+  `incidentDate` on a registration form, `eventDate` on a stage or event
+  form - each slice present only where DHIS2 states a label, each with its
+  own translations. A form carrying no slice is one the instance labelled
+  nothing on, and the client uses its own wording.
+- **Whether the stage repeats.** A tracker program stage form carries
+  `D2Repeatable`, true or false, so a client knows whether an enrollment
+  may hold several events of the stage before it offers to add one.
+- **Guidance text.** An item carrying `D2Description` states the DHIS2 free
+  text about the data element, tracked entity attribute, or section it is
+  asked from. It is guidance for the person filling the form, not the
+  question's label, which is why it rides an extension rather than `text`.
+- **Read-only questions.** A registration or person-only form marks a
+  question `readOnly = true` where DHIS2 generates the attribute's value
+  itself off a reserved-value pattern. A client renders it, and never asks
+  for it; the pattern is published beside the concept in `D2TEA_CS`.
+- **Cells the data set never captures.** A greyed operand - DHIS2's
+  `sections[].greyedFields` - is not published at all. The cell has no
+  `linkId`, so a response answering it is not of the form, which is exactly
+  what it is: a cell the instance refuses input on.
 - **Required questions.** A data set's compulsory operands become
   `required = true` at the grain DHIS2 states them - an operand naming a
   data element alone marks the whole question and every disaggregated cell

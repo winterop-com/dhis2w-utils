@@ -73,24 +73,6 @@
       ]
     },
     {
-      "code": "oawMLLH7OjA",
-      "display": "Provide access to basic education",
-      "property": [
-        {
-          "code": "dhis2-code",
-          "valueString": "COC_1452090"
-        },
-        {
-          "code": "category-yY2bQYqNt0o",
-          "valueCoding": {
-            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
-            "code": "M58XdOfhiJ7",
-            "display": "Provide access to basic education"
-          }
-        }
-      ]
-    },
-    {
       "code": "BqblOcSwGey",
       "display": "Provide access to primary health care",
       "property": [
@@ -104,6 +86,24 @@
             "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
             "code": "OUUdG3sdOqb",
             "display": "Provide access to primary health care"
+          }
+        }
+      ]
+    },
+    {
+      "code": "oawMLLH7OjA",
+      "display": "Provide access to basic education",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_1452090"
+        },
+        {
+          "code": "category-yY2bQYqNt0o",
+          "valueCoding": {
+            "system": "http://localhost:8080/fhir/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
+            "code": "M58XdOfhiJ7",
+            "display": "Provide access to basic education"
           }
         }
       ]

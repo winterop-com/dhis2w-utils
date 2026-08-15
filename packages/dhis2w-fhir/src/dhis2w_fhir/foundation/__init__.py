@@ -5,7 +5,12 @@ turns `[generate] identifier_system_base` into the `$DHIS2-*` aliases every inst
 references; `d2-naming-systems.fsh` declares each of those URLs as a NamingSystem, so a
 consumer meeting a DHIS2 identifier can resolve what it means; `d2-period.fsh` defines the
 reporting-period Extension plus the period-type CodeSystem/ValueSet backing its required
-binding; `d2-form-type.fsh` defines the form-type Extension every generated Questionnaire
+binding and the Extension an aggregate form states its own period type on;
+`d2-date-labels.fsh` defines the Extension carrying the words this instance puts on a form's
+enrollment, incident, and event dates; `d2-repeatable.fsh` the Extension stating whether one
+enrollment may capture a tracker program stage more than once; `d2-description.fsh` the
+item-level Extension carrying the DHIS2 free text about the object a question is asked from;
+`d2-form-type.fsh` defines the form-type Extension every generated Questionnaire
 carries, plus its own CodeSystem/ValueSet pair; `d2-attribute-value.fsh` defines the complex
 Extension that carries a DHIS2 attribute value onto every resource that can hold one;
 `d2-tracked-entity-attribute-value.fsh` defines its counterpart for the tracked entity attribute
@@ -71,6 +76,9 @@ from dhis2w_fhir.foundation.schemas import (
     AGGREGATE_CONVERSION_MAP,
     DATA_VALUE_SET_ELEMENTS,
     DATA_VALUE_SET_MODEL,
+    DATE_LABEL_ENROLLMENT_SUB_EXTENSION,
+    DATE_LABEL_EVENT_SUB_EXTENSION,
+    DATE_LABEL_INCIDENT_SUB_EXTENSION,
     FORM_TYPE_DEFINITIONS,
     FORM_TYPE_TERMINOLOGY,
     GENERATE_OPERATION_CODE,
@@ -122,6 +130,9 @@ __all__ = [
     "CAPTURE_SERVER_READ_RESOURCE_TYPES",
     "DATA_VALUE_SET_ELEMENTS",
     "DATA_VALUE_SET_MODEL",
+    "DATE_LABEL_ENROLLMENT_SUB_EXTENSION",
+    "DATE_LABEL_EVENT_SUB_EXTENSION",
+    "DATE_LABEL_INCIDENT_SUB_EXTENSION",
     "FORM_TYPE_DEFINITIONS",
     "FORM_TYPE_TERMINOLOGY",
     "GENERATE_OPERATION_CODE",
@@ -259,6 +270,24 @@ def build_foundation_artifacts(config: GenerateConfig, canonical: str, *, ig_sta
         names=names,
         period_types=PERIOD_TYPE_DEFINITIONS,
         terminology=PERIOD_TYPE_TERMINOLOGY,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    date_labels = _ENVIRONMENT.get_template("d2-date-labels.fsh.jinja").render(
+        names=names,
+        enrollment_date_sub_extension=DATE_LABEL_ENROLLMENT_SUB_EXTENSION,
+        incident_date_sub_extension=DATE_LABEL_INCIDENT_SUB_EXTENSION,
+        event_date_sub_extension=DATE_LABEL_EVENT_SUB_EXTENSION,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    repeatable = _ENVIRONMENT.get_template("d2-repeatable.fsh.jinja").render(
+        names=names,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    description = _ENVIRONMENT.get_template("d2-description.fsh.jinja").render(
+        names=names,
         ig_status=ig_status,
         experimental=experimental,
     )
@@ -406,6 +435,24 @@ def build_foundation_artifacts(config: GenerateConfig, canonical: str, *, ig_sta
             kind="extension",
             fsh_name=names.period_extension,
             content=period,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-date-labels.fsh",
+            kind="extension",
+            fsh_name=names.date_labels_extension,
+            content=date_labels,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-repeatable.fsh",
+            kind="extension",
+            fsh_name=names.repeatable_extension,
+            content=repeatable,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-description.fsh",
+            kind="extension",
+            fsh_name=names.description_extension,
+            content=description,
         ),
         FshArtifact(
             relative_path="foundation/d2-form-type.fsh",

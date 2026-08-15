@@ -50,26 +50,30 @@ import {
     buildQuestionnaireResponse,
     clearedEntityLevelAnswers,
     collectsIncidentDate,
+    dateLabelsOf,
     dateTimeInputValue,
+    dictionaryOfCodeSystems,
     entityLevelLinkIds,
     flattenQuestionnaire,
     initialAnswers,
+    isWellShapedPeriod,
     normaliseDateTime,
-    NO_VALUE_TYPES,
-    openedAttributeOptionCombo,
+    NO_DICTIONARY,
     openedReportingUnit,
+    periodShape,
     questionCodeSystemIds,
     refilledAttributeOptionCombo,
     refilledEnrollment,
     refilledReportingUnit,
+    repeatsPerEnrollment,
     reportingPeriodOf,
+    reportingPeriodTypeOf,
     unansweredRequiredLinkIds,
-    valueTypesByConcept,
     type AnswerState,
+    type DateLabels,
     type ExistingSubject,
-    type ReportingPeriod,
+    type QuestionDictionary,
 } from '@/lib/questionnaire'
-import { INCIDENT_AT_FACT_LABEL } from '@/lib/receipt'
 import { TRACKER_ENROLLMENT_FACT_LABEL } from '@/lib/spool'
 import { cn } from '@/lib/utils'
 
@@ -96,13 +100,24 @@ import { cn } from '@/lib/utils'
  * OperationOutcome is shown issue by issue above the action bar rather than flattened into a
  * toast that loses everything after the first line.
  *
- * TWO PIECES OF CONTEXT ARE THE USER'S, AND ONE OF THEM IS THE ONLY DISABLED BUTTON HERE. A data
- * set on a non-default category combo declares its attribute option combos as a vocabulary, and a
- * response to it has to name one - it is the third key of every value it carries, beside the
- * organisation unit and the period. Nothing derives it, not even the server, so it is picked above
- * the form and Submit refuses until it is. That is the one place a stated-reason disabled control
- * beats posting and rendering the refusal: the answer is a fact about the submission the person
- * came here with, not something they could read off the form and correct.
+ * TWO PIECES OF CONTEXT ARE THE USER'S, AND THEY ARE WHY SUBMIT IS EVER DISABLED. A data set on a
+ * non-default category combo declares its attribute option combos as a vocabulary, and a response to
+ * it has to name one - it is the third key of every value it carries, beside the organisation unit
+ * and the period. Nothing derives it, not even the server, so it is picked above the form, the
+ * control opens unanswered however the draft was drawn, and Submit refuses until somebody chooses.
+ * The period is the same fact one key over: an aggregate submission is filed for a period of the type
+ * its data set declares, so an empty box and a mis-shaped identifier are both refused here. That is
+ * the one place a stated-reason disabled control beats posting and rendering the refusal: the answer
+ * is a fact about the submission the person came here with, not something they could read off the
+ * form and correct.
+ *
+ * WHY THE COMBO IS NOT PRE-SELECTED FROM THE DRAW. `$generate` picks one so its skeleton is postable,
+ * and adopting that pick would make the common case one click - but it would also make every
+ * submission nobody looked at claim to be filed under whichever combo the draw landed on. DHIS2's own
+ * capture app refuses to render the form at all until the combo is chosen; the same refusal in this
+ * app's idiom is a control that is empty, required, and says which submissions it keys. The draw is
+ * still adopted by "fill with test data", because that is the server proposing a whole submission
+ * rather than a form waiting to be filled in.
  *
  * The organisation unit sits beside it and behaves differently on exactly one point. `$generate`
  * draws a unit the form's assignment admits, so the picker arrives answered and Submit is never
@@ -142,13 +157,15 @@ import { cn } from '@/lib/utils'
  * Tuesday's visit is a capture of last Tuesday - so each is a control above the questions, opening
  * on the drafted value and riding the envelope in the slot the draft put it in.
  *
- * THE PERIOD IS THE ONE THIS SCREEN CANNOT CHECK. The server grades an aggregate submission's ISO
- * period against the type its data set reports for, and against the date range the period resolves
- * to. Resolving `202607` into July 2026 is DHIS2 period arithmetic, which this UI does not have and
- * will not grow - so an edited period is written as the identifier alone, with the drafted type kept
- * and the drafted range dropped rather than recomputed. The range is optional and the ISO period is
- * what is captured, so what leaves here is a claim about exactly what a person typed; a period of
- * the wrong type is refused by the server, naming both types, which is better than a client guess.
+ * THE PERIOD IS THE ONE THIS SCREEN CHECKS THE SHAPE OF AND NOTHING MORE. The form declares the DHIS2
+ * period type its data set reports for, so the control asks for a period of that type from the moment
+ * the form is on screen - placeholder, example, and a refusal to submit something that is not shaped
+ * like one. Resolving `202607` into July 2026 is DHIS2 period arithmetic, which this UI does not have
+ * and will not grow: the server grades the identifier against the type and against the range it
+ * resolves to, so an edited period is written as the identifier alone, with the drafted type kept and
+ * the drafted range dropped rather than recomputed. The range is optional and the ISO period is what
+ * is captured, so what leaves here is a claim about exactly what a person typed; a period of the
+ * wrong type is refused by the server, naming both types, which is better than a client guess.
  */
 export function FormFill() {
     const { questionnaireId = '' } = useParams()
@@ -175,7 +192,7 @@ export function FormFill() {
     const [enrollmentDate, setEnrollmentDate] = useState<string | null>(null)
     const [incidentDate, setIncidentDate] = useState<string | null>(null)
     const [reportingPeriodIso, setReportingPeriodIso] = useState<string | null>(null)
-    const [valueTypes, setValueTypes] = useState<ReadonlyMap<string, string>>(NO_VALUE_TYPES)
+    const [dictionary, setDictionary] = useState<QuestionDictionary>(NO_DICTIONARY)
     const orgUnitScope = useFormOrgUnitScope(questionnaire)
     const enrollmentOffer = useEnrollmentOptions(questionnaire)
     const patientSearchSupport = usePatientSearchSupport()
@@ -192,20 +209,22 @@ export function FormFill() {
     }, [offerLoading, offerOptions, enrollmentSource])
 
     const spec = useMemo(
-        () => flattenQuestionnaire(questionnaire ?? { resourceType: 'Questionnaire', status: 'unknown' }, valueTypes),
-        [questionnaire, valueTypes],
+        () => flattenQuestionnaire(questionnaire ?? { resourceType: 'Questionnaire', status: 'unknown' }, dictionary),
+        [questionnaire, dictionary],
     )
 
-    // The data dictionaries this form's own questions are coded in, and nothing else. R4 spells
-    // `BOOLEAN` and `TRUE_ONLY` as one item type, so the value type behind a tick is a fact only the
-    // served CodeSystem holds - and reading the two or three systems the form names is what keeps
-    // that from becoming a read of the whole terminology. The list is joined into one string so the
-    // read runs when the form changes rather than every time the spec is rebuilt around its answer.
+    // The data dictionaries this form's own questions are coded in, and nothing else. Four facts
+    // live there and nowhere else: R4 spells `BOOLEAN` and `TRUE_ONLY` as one item type, so the value
+    // type behind a tick is the dictionary's to state; a generated attribute's minting and the shape
+    // it is minted to are the dictionary's; and a disaggregated cell's categories are published by
+    // the combo vocabulary the cells are coded in. Reading the two or three systems the form names is
+    // what keeps that from becoming a read of the whole terminology. The list is joined into one
+    // string so the read runs when the form changes rather than every time the spec is rebuilt.
     const codeSystemKey = useMemo(() => questionCodeSystemIds(spec).join(' '), [spec])
     useEffect(() => {
         const ids = codeSystemKey === '' ? [] : codeSystemKey.split(' ')
         if (ids.length === 0) {
-            setValueTypes(NO_VALUE_TYPES)
+            setDictionary(NO_DICTIONARY)
             return
         }
         let cancelled = false
@@ -216,7 +235,7 @@ export function FormFill() {
             ids.map((id) => readResource<CodeSystem>('CodeSystem', id).catch(() => null)),
         ).then((read) => {
             if (cancelled) return
-            setValueTypes(valueTypesByConcept(read.filter((codeSystem) => codeSystem !== null)))
+            setDictionary(dictionaryOfCodeSystems(read.filter((codeSystem) => codeSystem !== null)))
         })
         return () => {
             cancelled = true
@@ -276,7 +295,6 @@ export function FormFill() {
                 return generateResponse(questionnaireId).then((skeleton) => {
                     if (cancelled) return
                     setEnvelope(skeleton)
-                    setAttributeOptionCombo((current) => openedAttributeOptionCombo(current, skeleton))
                 })
             })
             .catch((failure: unknown) => {
@@ -376,14 +394,31 @@ export function FormFill() {
     // one element the forwarder derives `TrackerEvent.occurredAt` from.
     const recordsAnEvent = formKind === 'event' || formKind === 'tracker-event'
     const draftedVisitDate = (recordsAnEvent ? envelope?.authored : undefined) ?? null
+    // What the form says about its dates, which is what its controls are labelled with: a DHIS2
+    // programme renames the dates it collects, and a screen using its own words for them would be
+    // asking a different question from the one the clerk was trained on.
+    const dateLabels = dateLabelsOf(questionnaire)
+    // Whether one enrollment may answer this stage more than once, as the form declares it. Null is
+    // a form that says nothing, and nothing is stated for one.
+    const repeatsPerEnrollmentHere = repeatsPerEnrollment(questionnaire)
+    // The period an aggregate submission reports for. The form declares the type its data set
+    // reports for, so the control knows what to ask for before any draft lands - and the draft
+    // proposes an identifier of that type. Either one is enough for the control to exist.
     const draftedPeriod = reportingPeriodOf(envelope)
+    const declaredPeriodType = reportingPeriodTypeOf(questionnaire)
+    const reportsForAPeriod = formKind === 'aggregate' && (declaredPeriodType !== null || draftedPeriod !== null)
+    const periodType = declaredPeriodType ?? draftedPeriod?.periodType ?? null
+    const reportingPeriod = reportingPeriodIso ?? draftedPeriod?.iso ?? ''
     // Declared and unchosen is the one state Submit refuses in. A form that declares no vocabulary
     // reports for the default combo, which is what absence means, and nothing is asked.
     const missingAttributeOptionCombo = attributeOptionCombos !== null && attributeOptionCombo === null
+    // The other. An aggregate submission is keyed by its period, and neither an empty box nor an
+    // identifier of the wrong shape is one - so both are refused here rather than at the server.
+    const unfitReportingPeriod = reportsForAPeriod && !isWellShapedPeriod(reportingPeriod, periodType)
 
     const submit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
-        if (busy || missingAttributeOptionCombo) return
+        if (busy || missingAttributeOptionCombo || unfitReportingPeriod) return
         setBusy(true)
         setIssues([])
         try {
@@ -426,7 +461,11 @@ export function FormFill() {
 
     return (
         <form onSubmit={submit}>
-            <FormFillHeader questionnaire={questionnaire} questionnaireId={questionnaireId} />
+            <FormFillHeader
+                questionnaire={questionnaire}
+                questionnaireId={questionnaireId}
+                stageRepeats={repeatsPerEnrollmentHere}
+            />
 
             {envelope === null && (
                 <Alert className="mb-4">
@@ -451,7 +490,7 @@ export function FormFill() {
                             enrollmentOffer.active ||
                             registersAPersonHere ||
                             draftedVisitDate !== null ||
-                            draftedPeriod !== null) &&
+                            reportsForAPeriod) &&
                             'lg:grid-cols-2',
                     )}
                 >
@@ -468,10 +507,11 @@ export function FormFill() {
                             setKeptUnitNotAdmitted(false)
                         }}
                     />
-                    {draftedPeriod !== null && (
+                    {reportsForAPeriod && (
                         <ReportingPeriodControl
-                            drafted={draftedPeriod}
-                            iso={reportingPeriodIso ?? draftedPeriod.iso}
+                            periodType={periodType}
+                            iso={reportingPeriod}
+                            unfit={unfitReportingPeriod}
                             onChange={setReportingPeriodIso}
                         />
                     )}
@@ -479,7 +519,7 @@ export function FormFill() {
                         <div className="grid gap-2 rounded-lg border p-4">
                             <InstantField
                                 controlId={VISIT_DATE_CONTROL_ID}
-                                label="Visit date"
+                                label={dateLabels.eventDate}
                                 hint="The date this event happened. It is context, not an answer - DHIS2 records the event under it."
                                 value={visitDate ?? dateTimeInputValue(draftedVisitDate)}
                                 onChange={setVisitDate}
@@ -519,6 +559,7 @@ export function FormFill() {
                     )}
                     {enrolledAt !== null && envelope !== null && (
                         <EnrollmentContext
+                            labels={dateLabels}
                             enrollmentDate={enrollmentDate ?? dateTimeInputValue(enrolledAt)}
                             incidentDate={
                                 asksIncidentDate && incidentAt !== null
@@ -553,7 +594,7 @@ export function FormFill() {
             {/* Sticky rather than fixed: it belongs to the form, so it scrolls with it on a
                 short one and pins itself over a long one. */}
             <div className="bg-sidebar sticky bottom-0 z-10 mt-6 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 md:-mx-8 md:px-8">
-                <Button type="submit" disabled={busy || missingAttributeOptionCombo}>
+                <Button type="submit" disabled={busy || missingAttributeOptionCombo || unfitReportingPeriod}>
                     <Send className="size-4" />
                     {busy ? 'Submitting' : 'Submit'}
                 </Button>
@@ -587,6 +628,13 @@ export function FormFill() {
                 {missingAttributeOptionCombo && (
                     <p className="text-muted-foreground text-xs">
                         Choose what this submission reports for before submitting
+                    </p>
+                )}
+                {unfitReportingPeriod && (
+                    <p className="text-muted-foreground text-xs">
+                        {reportingPeriod.trim() === ''
+                            ? 'This submission reports for a period, and none is stated'
+                            : `${reportingPeriod} is not a ${periodType ?? 'DHIS2'} period`}
                     </p>
                 )}
                 {missingRequired.length > 0 && (
@@ -682,40 +730,62 @@ function InstantField({
  * A TEXT BOX AND NOT A CALENDAR, because a DHIS2 period is an identifier rather than a date:
  * `202607` is July 2026, `2026W30` is a week, `2026April` is a financial year opening in April. The
  * type is the data set's own and is stated rather than asked - a monthly data set reports monthly -
- * so what a person edits is which period of that type, and the drafted identifier in the box is the
- * worked example of how to spell one.
+ * so what a person edits is which period of that type, and the placeholder is the worked example of
+ * how to spell one.
  *
- * WHAT HAPPENS TO A PERIOD OF THE WRONG TYPE. It is posted and refused, and the refusal names the
- * type the identifier parses as and the type the data set reports for. This screen has no DHIS2
- * period arithmetic to catch it earlier, and inventing one here would be a second implementation of
- * the rule the server already holds.
+ * REQUIRED, BECAUSE AN AGGREGATE SUBMISSION IS KEYED BY IT. The organisation unit, the period and the
+ * attribute option combo are the three keys of every value a data set carries, and no period is not
+ * one of them. Submit refuses an empty box for the same reason it refuses an unchosen combo: nothing
+ * derives the answer, and posting a submission that cannot be keyed would be spending a round trip to
+ * be told what the form already knows.
+ *
+ * THE SHAPE IS CHECKED HERE, THE PERIOD IS NOT. `isWellShapedPeriod` knows what a monthly identifier
+ * looks like and refuses `july` under the cursor; it knows nothing about which months exist or what
+ * range one resolves to, and the types whose identifiers carry an offset (`2026WedW30`, `2026April`)
+ * are accepted as typed rather than half-checked. A period of the wrong type still reaches the
+ * server, whose refusal names the type the identifier parses as and the type the data set reports
+ * for - which is a better answer than a client guess at what the operator meant.
  */
 function ReportingPeriodControl({
-    drafted,
+    periodType,
     iso,
+    unfit,
     onChange,
 }: {
-    drafted: ReportingPeriod
+    /** The DHIS2 period type the data set reports for, or null when nothing states one. */
+    periodType: string | null
     iso: string
+    /** True when what the box holds is not a period this submission could be keyed by. */
+    unfit: boolean
     onChange: (iso: string) => void
 }) {
+    const shape = periodShape(periodType)
     return (
         <div className="grid gap-2 rounded-lg border p-4">
-            <Label htmlFor={REPORTING_PERIOD_CONTROL_ID}>Reporting period</Label>
+            <Label htmlFor={REPORTING_PERIOD_CONTROL_ID}>
+                Reporting period
+                <span className="text-destructive" aria-hidden>
+                    *
+                </span>
+            </Label>
             <p className="text-muted-foreground text-sm">
-                {drafted.periodType === null
+                {periodType === null
                     ? 'The period this submission reports for. DHIS2 keys the whole submission by it, beside the organisation unit.'
-                    : `${drafted.periodType} period, as the data set reports. DHIS2 keys the whole submission by it, beside the organisation unit.`}
+                    : `${periodType} period, as the data set reports. DHIS2 keys the whole submission by it, beside the organisation unit.`}
             </p>
             <Input
                 id={REPORTING_PERIOD_CONTROL_ID}
                 className="max-w-xs font-mono"
                 value={iso}
+                required
+                aria-invalid={unfit}
+                placeholder={shape?.placeholder}
                 onChange={(event) => onChange(event.target.value)}
             />
             <p className="text-muted-foreground text-xs">
-                A period of another type is refused when this submission is sent, and the refusal
-                names both types.
+                {shape === null
+                    ? 'A period of another type is refused when this submission is sent, and the refusal names both types.'
+                    : `A ${periodType ?? ''} period is spelled like ${shape.example}. One of another type is refused when this submission is sent, and the refusal names both types.`}
             </p>
         </div>
     )
@@ -736,12 +806,15 @@ function ReportingPeriodControl({
  * the receipt uses, and reads identically before and after the capture.
  */
 function EnrollmentContext({
+    labels,
     enrollmentDate,
     incidentDate,
     enrollment,
     onEnrollmentDateChange,
     onIncidentDateChange,
 }: {
+    /** What this form's own programme calls each of its dates, falling back to this project's words. */
+    labels: DateLabels
     /** What the enrollment date control shows: the stated literal, or the drafted instant. */
     enrollmentDate: string
     /** The same for the incident date, or null on a program that collects none. */
@@ -756,7 +829,7 @@ function EnrollmentContext({
             <h3 className="text-sm font-medium">Enrollment</h3>
             <InstantField
                 controlId={ENROLLMENT_DATE_CONTROL_ID}
-                label="Enrollment date"
+                label={labels.enrollmentDate}
                 hint="The date this enrollment begins. DHIS2 files it under this date."
                 value={enrollmentDate}
                 onChange={onEnrollmentDateChange}
@@ -764,7 +837,7 @@ function EnrollmentContext({
             {incidentDate !== null && (
                 <InstantField
                     controlId={INCIDENT_DATE_CONTROL_ID}
-                    label={INCIDENT_AT_FACT_LABEL}
+                    label={labels.incidentDate}
                     hint="The date of the incident this enrollment follows, as this program collects one."
                     value={incidentDate}
                     onChange={onIncidentDateChange}
@@ -804,13 +877,24 @@ function CaptureIssueAlert({ issue }: { issue: OperationOutcomeIssue }) {
     )
 }
 
-/** The form's identity: what it is, which DHIS2 object it came from, and how much it asks. */
+/**
+ * The form's identity: what it is, which DHIS2 object it came from, how much it asks, and how often.
+ *
+ * REPETITION IS PART OF WHAT THE FORM IS. A DHIS2 programme stage is either answered once per
+ * enrollment or once per visit, and that changes what filling this form in means - so a repeatable
+ * stage says so where the form describes itself, beside its kind and its question count. A stage that
+ * declares nothing states nothing: silence is a form compiled before the declaration was published,
+ * not a claim that the programme allows one answer.
+ */
 function FormFillHeader({
     questionnaire,
     questionnaireId,
+    stageRepeats = null,
 }: {
     questionnaire: Questionnaire | null
     questionnaireId: string
+    /** True when one enrollment may answer this stage more than once, null when the form is silent. */
+    stageRepeats?: boolean | null
 }) {
     const kind = questionnaire === null ? null : formTypeOf(questionnaire)
     const questions = questionnaire === null ? 0 : questionCount(questionnaire.item)
@@ -843,6 +927,9 @@ function FormFillHeader({
             </div>
             {questionnaire?.description !== undefined && (
                 <p className="text-muted-foreground text-sm">{questionnaire.description}</p>
+            )}
+            {stageRepeats === true && (
+                <p className="text-muted-foreground text-sm">Repeats: each visit is its own record</p>
             )}
         </div>
     )

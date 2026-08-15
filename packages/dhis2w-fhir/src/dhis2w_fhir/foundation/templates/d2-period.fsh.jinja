@@ -22,6 +22,18 @@ Description: "A DHIS2 reporting period: its ISO identifier, its period type, and
 * extension[period] ^short = "The date range the ISO period resolves to."
 * extension[period].value[x] only Period
 
+Extension: {{ names.period_type_extension }}
+Id: {{ names.period_type_extension_id }}
+Title: "DHIS2 period type"
+Description: "The DHIS2 period type an aggregate form is reported under - the reporting frequency of the data set the Questionnaire was generated from. A response to the form states one period of this type on {{ names.period_extension }}, so a client knows which ISO period format the instance accepts before it builds one. Only an aggregate form declares it, because only a data set has a reporting frequency."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "Questionnaire"
+* value[x] only code
+* valueCode 1..1
+* valueCode from {{ names.period_type_value_set }} (required)
+
 CodeSystem: {{ names.period_type_code_system }}
 Id: {{ names.period_type_code_system_id }}
 Title: {{ terminology.title_literal }}

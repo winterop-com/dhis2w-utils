@@ -322,8 +322,8 @@ def _extensions(
 
     A tracker response leads with the organisation unit it was captured at and the enrollment it
     belongs to - a registration response then dates that enrollment - an aggregate response leads
-    with its reporting period and then the attribute option combo its values are keyed under, and
-    every kind closes with the form type, which is the order the compiled instances carry.
+    with its reporting period, then states the form type, and closes with the attribute option
+    combo its values are keyed under. That is the order the compiled instances carry.
     """
     extensions: list[Extension] = []
     if tracker is not None:
@@ -351,11 +351,11 @@ def _extensions(
             extensions.append(Extension(url=systems.incident_at_extension_url, valueDateTime=tracker.incident_at))
     if period is not None:
         extensions.append(_period_extension(period, systems))
+    extensions.append(Extension(url=systems.form_type_extension_url, valueCode=kind))
     if attribute_option_combo is not None:
         extensions.append(
             _attribute_option_combo_extension(attribute_option_combo, systems, canonical, attribute_combos)
         )
-    extensions.append(Extension(url=systems.form_type_extension_url, valueCode=kind))
     return extensions
 
 

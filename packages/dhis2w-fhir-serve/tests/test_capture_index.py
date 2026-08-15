@@ -13,7 +13,12 @@ from dhis2w_fhir_serve.capture import (
     build_capture_index,
 )
 from dhis2w_fhir_serve.store import ResourceStore
-from fixture_project import COLLECTS_INCIDENT_DATE_EXTENSION
+from fixture_project import (
+    COLLECTS_INCIDENT_DATE_EXTENSION,
+    REGISTRATION_GENERATED_ATTRIBUTE,
+    REGISTRATION_QUESTIONNAIRE_BODY,
+    REGISTRATION_UNIQUE_ATTRIBUTE,
+)
 
 #: The canonical the dhis2w-fhir goldens were compiled under, as `capture_project` serves them.
 CANONICAL = "http://localhost:8080/fhir"
@@ -136,6 +141,21 @@ def test_required_questions_and_their_bounds_are_indexed(
     assert visit_number.bounds.maximum_value is None
     assert index.questions["DeAncBpSys1"].required is False
     assert index.questions["DeAncBpSys1"].bounds is None
+
+
+def test_a_read_only_question_is_indexed_as_one(capture_naming: CaptureNaming, capture_store: ResourceStore) -> None:
+    """`item.readOnly` is how a generated tracked entity attribute reaches a client, so the index carries it.
+
+    DHIS2 mints the value on import, which is what makes it the one kind of question this server
+    neither draws an answer for nor waits on - both rules read this flag.
+    """
+    index = build_capture_index(REGISTRATION_QUESTIONNAIRE_BODY, capture_naming, capture_store)
+
+    generated = index.questions[REGISTRATION_GENERATED_ATTRIBUTE]
+
+    assert generated.read_only is True
+    assert generated.required is True
+    assert index.questions[REGISTRATION_UNIQUE_ATTRIBUTE].read_only is False
 
 
 def test_the_index_reads_the_incident_date_off_the_forms_own_declaration(

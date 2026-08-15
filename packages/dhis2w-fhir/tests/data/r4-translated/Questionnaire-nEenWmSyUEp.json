@@ -76,6 +76,10 @@
       "type": "string",
       "extension": [
         {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "First name"
+        },
+        {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": true
         }
@@ -93,6 +97,10 @@
       "text": "Last name (Play)",
       "type": "string",
       "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Last name"
+        },
         {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": true
@@ -146,7 +154,12 @@
       ],
       "text": "Unique ID (Play)",
       "type": "string",
+      "readOnly": true,
       "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Unique identiifer"
+        },
         {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-entity-level",
           "valueBoolean": true

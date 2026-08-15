@@ -22,7 +22,7 @@
 
 import { attributeOptionComboLabel, attributeOptionComboOf, canonicalId, conceptDisplay, enrolledAtOf, incidentAtOf, trackedEntityOf, trackerEnrollmentOf, type CodeSystem, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseAnswer, type QuestionnaireResponseItem } from '@/lib/fhir'
 import { referencedUnitId } from '@/lib/orgunits'
-import type { QuestionnaireSpec } from '@/lib/questionnaire'
+import { DEFAULT_DATE_LABELS, type DateLabels, type QuestionnaireSpec } from '@/lib/questionnaire'
 import { formatInstant, TRACKED_ENTITY_FACT_LABEL, TRACKER_ENROLLMENT_FACT_LABEL, type SpoolResponseSummary } from '@/lib/spool'
 
 /**
@@ -178,12 +178,6 @@ export function attributeOptionComboFact(
     return { label, value: coding.code === undefined ? resolved : `${resolved} (${coding.code})`, mono: false }
 }
 
-/** What the enrollment's start is labelled on a receipt. */
-export const ENROLLED_AT_FACT_LABEL = 'Enrolled at'
-
-/** What the incident the enrollment follows is labelled, on the programs that collect one. */
-export const INCIDENT_AT_FACT_LABEL = 'Incident date'
-
 /**
  * The tracker context a response carries in its own envelope, as facts for the capture-context grid.
  *
@@ -199,8 +193,17 @@ export const INCIDENT_AT_FACT_LABEL = 'Incident date'
  * something a person checks against a calendar; the two uids stay mono, because they are handles
  * to type into DHIS2. Absence is ordinary throughout - an aggregate response has none of these,
  * and a program that displays no incident date generates responses that carry three of the four.
+ *
+ * THE DATES ARE LABELLED BY THE FORM, not by this module. A DHIS2 programme renames the dates it
+ * collects - an antenatal programme's enrollment date is "Date first seen" - and the capture screen
+ * labels its controls from `dateLabelsOf`, so a receipt labelling the same facts any other way would
+ * be a second vocabulary for one submission. `labels` defaults to this project's own words for the
+ * case a receipt outlives the form it answered, which is the same fallback the fill side takes.
  */
-export function trackerContextFacts(response: QuestionnaireResponse): ReceiptContextFact[] {
+export function trackerContextFacts(
+    response: QuestionnaireResponse,
+    labels: DateLabels = DEFAULT_DATE_LABELS,
+): ReceiptContextFact[] {
     const enrolledAt = enrolledAtOf(response)
     const incidentAt = incidentAtOf(response)
     const trackedEntity = trackedEntityOf(response)
@@ -208,8 +211,12 @@ export function trackerContextFacts(response: QuestionnaireResponse): ReceiptCon
     const facts: ReceiptContextFact[] = []
     if (trackedEntity !== null) facts.push({ label: TRACKED_ENTITY_FACT_LABEL, value: trackedEntity, mono: true })
     if (enrollment !== null) facts.push({ label: TRACKER_ENROLLMENT_FACT_LABEL, value: enrollment, mono: true })
-    if (enrolledAt !== null) facts.push({ label: ENROLLED_AT_FACT_LABEL, value: formatInstant(enrolledAt), mono: false })
-    if (incidentAt !== null) facts.push({ label: INCIDENT_AT_FACT_LABEL, value: formatInstant(incidentAt), mono: false })
+    if (enrolledAt !== null) {
+        facts.push({ label: labels.enrollmentDate, value: formatInstant(enrolledAt), mono: false })
+    }
+    if (incidentAt !== null) {
+        facts.push({ label: labels.incidentDate, value: formatInstant(incidentAt), mono: false })
+    }
     return facts
 }
 

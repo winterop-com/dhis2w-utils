@@ -256,7 +256,35 @@ depends on `fhir.toml` alone and never opens a client:
   every artifact that carries one. R4 makes `NamingSystem.date` mandatory, so the
   declarations carry a pinned date rather than a run timestamp - a generated one
   would rewrite the file on every run.
-- `d2-period.fsh` - the `D2Period` extension plus `D2PeriodType_CS`/`_VS`.
+- `d2-period.fsh` - the `D2Period` extension plus `D2PeriodType_CS`/`_VS`, and the
+  `D2PeriodType` extension beside them: `value[x] only code` bound to `D2PeriodType_VS`
+  (required), contexted on `Questionnaire`. It states the reporting frequency of the
+  data set the form came from, which is what a client needs before it can build a period
+  to answer with - the form says `Monthly`, and every `D2Period` on a response to it is
+  read in that format. Only an aggregate form declares it, because only a data set has a
+  reporting frequency; a data set the instance left without a period type declares
+  nothing rather than having one guessed for it.
+- `d2-date-labels.fsh` - the `D2DateLabels` extension, a complex extension contexted on
+  `Questionnaire` with three `valueString` slices: `enrollmentDate` and `incidentDate`
+  off the tracker program a registration form enrols into, `eventDate` off the program
+  stage a stage form or an event program captures through. A slice is written only where
+  the instance states a label, so a form nobody labelled carries no extension at all and
+  a capture client falls back to its own wording. Named for the dates rather than for
+  `enrollmentDateLabel` / `incidentDateLabel` / `executionDateLabel`, which are three
+  DHIS2 fields on two objects; each label carries its own translations on the standard
+  R4 translation extension, riding the `_valueString` sibling.
+- `d2-repeatable.fsh` - the `D2Repeatable` extension, `value[x] only boolean` with
+  `valueBoolean` 1..1, contexted on `Questionnaire`. It says whether one enrollment may
+  capture a tracker program stage more than once, and every stage form declares it either
+  way, so a reader never has to guess. No other kind states it: an aggregate form is keyed
+  by its period, an event program's events stand alone, and a registration is answered
+  once per person it enrols.
+- `d2-description.fsh` - the `D2Description` extension, `value[x] only string` with
+  `valueString` 1..1, contexted on `Questionnaire.item`. It carries the DHIS2 free text
+  about the object the item is asked from - a data element, a tracked entity attribute,
+  or a form section - which is guidance for the person filling the form and therefore
+  rides the item rather than the item's `text`. Present only where the instance states
+  one, translations included.
 - `d2-form-type.fsh` - the `D2FormType` extension plus `D2FormType_CS`/`_VS`
   (`aggregate`, `event`, `tracker`, `tracker-event`). Its context covers
   `Questionnaire` *and* `QuestionnaireResponse`: the form states what kind of DHIS2

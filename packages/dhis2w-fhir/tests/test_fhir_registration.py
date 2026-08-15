@@ -56,10 +56,13 @@ _CANONICAL = "http://example.org/fhir"
 _MARITAL_STATUS = OptionSetIn(uid="Os3aaaaaaaa", name="Marital status")
 
 #: The registration form the goldens were compiled from: one unique attribute the tracked entity
-#: type collects, one bound to an option set, and one the program alone asks - which is what makes
-#: both DHIS2 levels visible in one form. `form_name` differs from `name` on the first, so the
-#: question text and the concept display are visibly drawn from different fields; the program-only
-#: one is numeric, so its `D2EntityLevel` extension is emitted beside a bound rather than alone.
+#: type collects, one bound to an option set, one the program alone asks - which is what makes
+#: both DHIS2 levels visible in one form - and one DHIS2 generates itself. `form_name` differs from
+#: `name` on the first, so the question text and the concept display are visibly drawn from
+#: different fields; the program-only one is numeric, so its `D2EntityLevel` extension is emitted
+#: beside a bound rather than alone; the generated one is what makes `readOnly` and the
+#: reserved-value pattern visible. The program labels both its enrollment dates, so `D2DateLabels`
+#: carries the two slices only a registration form can.
 _REGISTRATION = QuestionnaireSourceIn(
     uid="Trk1aaaaaaa",
     name="Child Programme",
@@ -67,6 +70,8 @@ _REGISTRATION = QuestionnaireSourceIn(
     kind="tracker",
     tracked_entity_type_uid="Tet1aaaaaaa",
     displays_incident_date=True,
+    enrollment_date_label="Date of enrollment",
+    incident_date_label="Date of birth",
     flat_items=[
         QuestionnaireItemIn(
             uid="Tea1aaaaaaa",
@@ -91,7 +96,19 @@ _REGISTRATION = QuestionnaireSourceIn(
             name="Household size",
             code="TEA_HOUSEHOLD_SIZE",
             value_type="INTEGER_POSITIVE",
+            description="Number of people sleeping in the household on the night of registration.",
             entity_level=False,
+        ),
+        QuestionnaireItemIn(
+            uid="Tea4aaaaaaa",
+            name="Case number",
+            code="TEA_CASE_NUMBER",
+            value_type="TEXT",
+            unique=True,
+            generated=True,
+            pattern="RANDOM(#######)",
+            display_in_list=True,
+            entity_level=True,
         ),
     ],
 )
@@ -198,7 +215,7 @@ def test_attributes_become_questions_the_way_data_elements_do() -> None:
     assert "* item[=].required = true" in content
     assert "* item[=].answerValueSet = Canonical(D2OS_Os3aaaaaaaa_VS)" in content
     items = _document()["item"]
-    assert [item["linkId"] for item in items] == ["Tea1aaaaaaa", "Tea2aaaaaaa", "Tea3aaaaaaa"]
+    assert [item["linkId"] for item in items] == ["Tea1aaaaaaa", "Tea2aaaaaaa", "Tea3aaaaaaa", "Tea4aaaaaaa"]
     assert items[0]["required"] is True
     assert items[1]["type"] == "choice"
     assert items[1]["answerValueSet"] == "http://example.org/fhir/ValueSet/d2-os-Os3aaaaaaaa-vs"
@@ -214,7 +231,7 @@ def test_a_registration_question_is_coded_from_the_attribute_vocabulary() -> Non
     assert '* item[=].code = D2TEA_CS#Tea1aaaaaaa "National identifier"' in content
     assert "D2DE_CS" not in content
     codings = [item["code"][0]["system"] for item in _document()["item"]]
-    assert codings == ["http://example.org/fhir/CodeSystem/d2-tea-cs"] * 3
+    assert codings == ["http://example.org/fhir/CodeSystem/d2-tea-cs"] * 4
 
 
 def test_the_attribute_vocabulary_is_its_own_data_dictionary_pair() -> None:
@@ -251,7 +268,14 @@ def test_an_attribute_dhis2_left_uncoded_publishes_no_dhis2_code() -> None:
         if concept["code"] == "Tea2aaaaaaa"
         for entry in concept["property"]
     }
-    assert properties == {"value-type", "unique", "searchable", "searchable-Trk1aaaaaaa"}
+    assert properties == {
+        "value-type",
+        "unique",
+        "searchable",
+        "generated",
+        "display-in-list",
+        "searchable-Trk1aaaaaaa",
+    }
 
 
 #: The URL the registration items state their DHIS2 level under, as both emitters resolve it.
@@ -271,13 +295,14 @@ def test_a_registration_question_states_which_dhis2_level_its_answer_is_imported
         for extension in item.get("extension", [])
         if extension["url"] == _ENTITY_LEVEL_EXTENSION
     }
-    assert levels == {"Tea1aaaaaaa": True, "Tea2aaaaaaa": True, "Tea3aaaaaaa": False}
+    assert levels == {"Tea1aaaaaaa": True, "Tea2aaaaaaa": True, "Tea3aaaaaaa": False, "Tea4aaaaaaa": True}
 
 
 def test_the_entity_level_extension_rides_beside_a_numeric_questions_bounds() -> None:
     """An attribute carrying both writes two extensions, the bound first - the order SUSHI compiles."""
     household = next(item for item in _document()["item"] if item["linkId"] == "Tea3aaaaaaa")
     assert [extension["url"] for extension in household["extension"]] == [
+        f"{_CANONICAL}/StructureDefinition/d2-description",
         "http://hl7.org/fhir/StructureDefinition/minValue",
         _ENTITY_LEVEL_EXTENSION,
     ]
@@ -378,6 +403,7 @@ def test_a_registration_form_publishes_no_attribute_option_combo_vocabulary() ->
     assert [extension["url"].rsplit("/", 1)[-1] for extension in _document()["extension"]] == [
         "d2-form-type",
         "d2-collects-incident-date",
+        "d2-date-labels",
     ]
 
 

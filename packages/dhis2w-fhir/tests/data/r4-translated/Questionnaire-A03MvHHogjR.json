@@ -10,6 +10,19 @@
       "valueCode": "tracker-event"
     },
     {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-repeatable",
+      "valueBoolean": false
+    },
+    {
+      "extension": [
+        {
+          "url": "eventDate",
+          "valueString": "Report date"
+        }
+      ],
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-date-labels"
+    },
+    {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-assignment",
       "valueReference": {
         "reference": "List/d2-pr-IpHINAT79UW-org-units"
@@ -83,7 +96,13 @@
           }
         ]
       },
-      "type": "decimal"
+      "type": "decimal",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Apgar is a quick test performed on a baby at 1 and 5 minutes after birth. The 1-minute score determines how well the baby tolerated the birthing process. The 5-minute score tells the doctor how well the baby is doing outside the mother's womb."
+        }
+      ]
     },
     {
       "linkId": "H6uSAMO5WLD",
@@ -120,7 +139,13 @@
       ],
       "text": "ARV at birth",
       "type": "choice",
-      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-f38bstJioPs-vs"
+      "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-f38bstJioPs-vs",
+      "extension": [
+        {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Onlu used for birth details."
+        }
+      ]
     },
     {
       "linkId": "bx6fsa0t90x",

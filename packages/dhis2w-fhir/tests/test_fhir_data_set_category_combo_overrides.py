@@ -206,9 +206,12 @@ async def test_the_data_set_fetch_asks_for_the_join_category_combo(
 
     await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
 
-    combo = "categoryCombo[id,name,isDefault,categories[id],categoryOptionCombos[id,name,code,categoryOptions[id]]]"
+    combo = (
+        "categoryCombo[id,name,isDefault,categories[id,categoryOptions[id]],"
+        "categoryOptionCombos[id,name,code,categoryOptions[id]]]"
+    )
     element = (
-        "dataElement[id,code,name,formName,valueType,domainType,optionSet[id],"
+        "dataElement[id,code,name,formName,description,valueType,domainType,optionSet[id],"
         f"translations[locale,property,value],{combo}]"
     )
     projections = [str(call.request.url.params["fields"]) for call in data_sets.calls]

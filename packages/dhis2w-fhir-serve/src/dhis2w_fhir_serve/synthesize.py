@@ -429,8 +429,17 @@ class _Generator(BaseModel):
         guide's example corpus follows: an invented one names a target nothing resolves, and DHIS2
         refuses it with `E1302`. The form still admits the response, because a question the form does
         not mark required is answerable and not obligatory.
+
+        A read-only question is left unanswered for a stronger reason: the form states that DHIS2
+        owns the value. A generated tracked entity attribute is minted by the instance on import, so
+        a drawn value is a value the instance discards - and one drawn from the same shape as a real
+        one is worse, because it reads as a claim about a person's identifier. The rule holds even
+        when the form marks the question required, and the capture grading admits the absence on the
+        same grounds: what DHIS2 answers is not something a client is waiting to be asked for.
         """
         if question is None or question.answer_element in _UNGENERATED_ANSWER_ELEMENTS:
+            return []
+        if question.read_only:
             return []
         if question.value_type in UNSYNTHESIZABLE_VALUE_TYPES:
             return []

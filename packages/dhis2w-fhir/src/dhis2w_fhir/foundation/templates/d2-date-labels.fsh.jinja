@@ -1,0 +1,21 @@
+Extension: {{ names.date_labels_extension }}
+Id: {{ names.date_labels_extension_id }}
+Title: "DHIS2 date labels"
+Description: "The words a DHIS2 instance puts on the dates a form captures: the date the enrollment began, the date of the incident it follows, and the date the event happened. A slice is present only where the instance states a label, so a form the instance labels nothing on carries no extension at all, and a capture client then falls back to its own wording."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "Questionnaire"
+* extension contains
+    {{ enrollment_date_sub_extension }} 0..1 and
+    {{ incident_date_sub_extension }} 0..1 and
+    {{ event_date_sub_extension }} 0..1
+* extension[{{ enrollment_date_sub_extension }}] ^short = "What this instance calls the date a tracker enrollment began."
+* extension[{{ enrollment_date_sub_extension }}].value[x] only string
+* extension[{{ enrollment_date_sub_extension }}].valueString 1..1
+* extension[{{ incident_date_sub_extension }}] ^short = "What this instance calls the date of the incident a tracker enrollment follows."
+* extension[{{ incident_date_sub_extension }}].value[x] only string
+* extension[{{ incident_date_sub_extension }}].valueString 1..1
+* extension[{{ event_date_sub_extension }}] ^short = "What this instance calls the date an event was captured on."
+* extension[{{ event_date_sub_extension }}].value[x] only string
+* extension[{{ event_date_sub_extension }}].valueString 1..1

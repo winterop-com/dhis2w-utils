@@ -16,7 +16,7 @@ import {
     type Questionnaire,
     type QuestionnaireResponse,
 } from '@/lib/fhir'
-import { flattenQuestionnaire } from '@/lib/questionnaire'
+import { dateLabelsOf, DEFAULT_DATE_LABELS, flattenQuestionnaire } from '@/lib/questionnaire'
 import {
     attributeOptionComboFact,
     formLabel,
@@ -398,13 +398,48 @@ describe('the tracker context on a receipt', () => {
             { label: 'Enrollment', value: 'Qm4bTnPzKdE', mono: true },
             // Read against the same formatter rather than a literal, so the assertion does not
             // depend on the timezone the suite happens to run in.
-            { label: 'Enrolled at', value: formatInstant('2026-07-21T04:00:00Z'), mono: false },
-            { label: 'Incident date', value: formatInstant('2026-07-14T04:00:00Z'), mono: false },
+            {
+                label: DEFAULT_DATE_LABELS.enrollmentDate,
+                value: formatInstant('2026-07-21T04:00:00Z'),
+                mono: false,
+            },
+            {
+                label: DEFAULT_DATE_LABELS.incidentDate,
+                value: formatInstant('2026-07-14T04:00:00Z'),
+                mono: false,
+            },
+        ])
+    })
+
+    it('labels the dates with the words the form the receipt answered uses for them', () => {
+        // The one rule the fill side follows, read from the same function: a programme that renames
+        // its dates has them renamed on the receipt too, rather than in one place out of two.
+        const labelled = dateLabelsOf({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            extension: [
+                {
+                    url: 'http://localhost:8080/fhir/StructureDefinition/d2-date-labels',
+                    extension: [
+                        { url: 'enrollmentDate', valueString: 'Date first seen' },
+                        { url: 'incidentDate', valueString: 'Date of last menstrual period' },
+                    ],
+                },
+            ],
+        })
+
+        expect(trackerContextFacts(registration, labelled).map((fact) => fact.label)).toEqual([
+            'Tracked entity',
+            'Enrollment',
+            'Date first seen',
+            'Date of last menstrual period',
         ])
     })
 
     it('renders the dates rather than repeating the stored instant', () => {
-        const enrolled = trackerContextFacts(registration).find((fact) => fact.label === 'Enrolled at')
+        const enrolled = trackerContextFacts(registration).find(
+            (fact) => fact.label === DEFAULT_DATE_LABELS.enrollmentDate,
+        )
         expect(enrolled?.value).not.toBe('2026-07-21T04:00:00Z')
     })
 
@@ -418,7 +453,7 @@ describe('the tracker context on a receipt', () => {
         expect(trackerContextFacts(withoutIncident).map((fact) => fact.label)).toEqual([
             'Tracked entity',
             'Enrollment',
-            'Enrolled at',
+            DEFAULT_DATE_LABELS.enrollmentDate,
         ])
     })
 

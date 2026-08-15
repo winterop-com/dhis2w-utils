@@ -183,7 +183,8 @@ def test_a_default_combo_data_set_publishes_nothing() -> None:
     assert build.artifacts == []
     assert build.plan.combo_uids == {}
     assert _questionnaire_extensions([_DEFAULT_DATA_SET], build, "Lpw6GcnTrmS") == [
-        {"url": f"{_CANONICAL}/StructureDefinition/d2-form-type", "valueCode": "aggregate"}
+        {"url": f"{_CANONICAL}/StructureDefinition/d2-form-type", "valueCode": "aggregate"},
+        {"url": f"{_CANONICAL}/StructureDefinition/d2-period-type", "valueCode": "Monthly"},
     ]
 
 

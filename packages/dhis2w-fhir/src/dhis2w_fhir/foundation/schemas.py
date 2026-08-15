@@ -153,6 +153,14 @@ PERIOD_ISO_SUB_EXTENSION = "iso"
 PERIOD_TYPE_SUB_EXTENSION = "type"
 PERIOD_RANGE_SUB_EXTENSION = "period"
 
+#: The sub-extension urls D2DateLabels slices its three labels under, as `d2-date-labels.fsh.jinja`
+#: names them. They live with the extension's own declaration because both emitters and every
+#: reader of a served form - a capture client labelling its date field, a test asserting the label
+#: rode - has to spell the three slices the same way.
+DATE_LABEL_ENROLLMENT_SUB_EXTENSION = "enrollmentDate"
+DATE_LABEL_INCIDENT_SUB_EXTENSION = "incidentDate"
+DATE_LABEL_EVENT_SUB_EXTENSION = "eventDate"
+
 #: The prose the period-type CodeSystem/ValueSet pair publishes under.
 PERIOD_TYPE_TERMINOLOGY = TerminologyPairProfile(
     title="DHIS2 period types",
@@ -511,6 +519,60 @@ class FoundationNaming(BaseModel):
     def period_type_value_set_id(self) -> str:
         """FHIR id of the period-type ValueSet (e.g. `d2-period-type-vs`)."""
         return join_id_tokens(self.definition_prefix, "period", "type", "vs")
+
+    @property
+    def period_type_extension(self) -> str:
+        """FSH name of the period-type Extension (e.g. `D2PeriodType`).
+
+        The sibling of `D2Period`, one grain up: `D2Period` carries the period a response reports
+        for, and this states the period type every response of an aggregate form has to report
+        under. Both draw their code from the same `D2PeriodType_VS`, so a client reading the form
+        knows which ISO period format the instance will accept before it builds one.
+        """
+        return f"{self.definition_prefix}PeriodType"
+
+    @property
+    def period_type_extension_id(self) -> str:
+        """FHIR id of the period-type Extension (e.g. `d2-period-type`)."""
+        return join_id_tokens(self.definition_prefix, "period", "type")
+
+    @property
+    def date_labels_extension(self) -> str:
+        """FSH name of the date-labels Extension (e.g. `D2DateLabels`).
+
+        Plural and named for the dates rather than for the DHIS2 fields spelling them:
+        `enrollmentDateLabel`, `incidentDateLabel`, and `executionDateLabel` are three DHIS2
+        form-rendering fields on two different objects, and what the published contract states is
+        the words this instance puts on the enrollment date, the incident date, and the event date
+        of the form. A sub-extension is present only where DHIS2 states the label, so a form
+        carrying none of the three carries no extension at all.
+        """
+        return f"{self.definition_prefix}DateLabels"
+
+    @property
+    def date_labels_extension_id(self) -> str:
+        """FHIR id of the date-labels Extension (e.g. `d2-date-labels`)."""
+        return join_id_tokens(self.definition_prefix, "date", "labels")
+
+    @property
+    def repeatable_extension(self) -> str:
+        """FSH name of the repeatable Extension (e.g. `D2Repeatable`)."""
+        return f"{self.definition_prefix}Repeatable"
+
+    @property
+    def repeatable_extension_id(self) -> str:
+        """FHIR id of the repeatable Extension (e.g. `d2-repeatable`)."""
+        return join_id_tokens(self.definition_prefix, "repeatable")
+
+    @property
+    def description_extension(self) -> str:
+        """FSH name of the item-description Extension (e.g. `D2Description`)."""
+        return f"{self.definition_prefix}Description"
+
+    @property
+    def description_extension_id(self) -> str:
+        """FHIR id of the item-description Extension (e.g. `d2-description`)."""
+        return join_id_tokens(self.definition_prefix, "description")
 
     @property
     def form_type_extension(self) -> str:

@@ -31,6 +31,7 @@ from dhis2w_fhir_serve.synthesize import DEFAULT_PERIOD_TYPE, MAXIMUM_SEED, Trac
 from fixture_project import (
     COLLECTS_INCIDENT_DATE_EXTENSION,
     ORG_UNITS,
+    REGISTRATION_GENERATED_ATTRIBUTE,
     REGISTRATION_QUESTIONNAIRE_BODY,
     REGISTRATION_UNIQUE_ATTRIBUTE,
     SCOPED_ASSIGNMENT_UNITS,
@@ -417,6 +418,25 @@ def _unique_attribute_value(response: dict[str, Any]) -> str:
     item = next(entry for entry in response["item"] if entry["linkId"] == REGISTRATION_UNIQUE_ATTRIBUTE)
     value: str = item["answer"][0]["valueString"]
     return value
+
+
+async def test_a_generated_registration_leaves_a_generated_attribute_unanswered(
+    capture_client: httpx.AsyncClient,
+) -> None:
+    """A question DHIS2 answers is one the draw declines.
+
+    The fixture's programme identifier is marked `readOnly`, which is how a generated tracked entity
+    attribute reaches a client: DHIS2 mints the value on import from the pattern it holds, so a drawn
+    one is discarded - and one drawn in the shape of a real identifier would read as a claim about a
+    person that nothing in this server is entitled to make. The unique attribute beside it is drawn as
+    usual, which is what makes this a rule about read-only rather than a draw that failed.
+    """
+    response = (await _generate(capture_client, REGISTRATION_ID, seed=7)).json()
+
+    answered = {entry["linkId"] for entry in response["item"] if entry.get("answer")}
+
+    assert REGISTRATION_GENERATED_ATTRIBUTE not in answered
+    assert REGISTRATION_UNIQUE_ATTRIBUTE in answered
 
 
 async def test_two_generated_registrations_never_repeat_a_unique_attribute_value(

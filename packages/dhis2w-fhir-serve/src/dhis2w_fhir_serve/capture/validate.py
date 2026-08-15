@@ -929,9 +929,19 @@ class _ItemValidator(BaseModel):
     _answered: set[str] = PrivateAttr(default_factory=set)
 
     def run(self, response: QuestionnaireResponse) -> tuple[CaptureIssue, ...]:
-        """Walk the submission's item tree, then note every required question it left unanswered."""
+        """Walk the submission's item tree, then note every required question it left unanswered.
+
+        A read-only question is not one of those, however the form marks it. `item.readOnly` states
+        that DHIS2 owns the value - a generated tracked entity attribute is minted by the instance on
+        import - so nothing a client sends for it is used, and a submission carrying no answer for
+        one is complete rather than short of an answer. Required and read-only together read as
+        "DHIS2 will have a value here", which is a claim about the instance and not a question the
+        submission was asked.
+        """
         self._walk(response.item or [])
         for question in self.index.questions.values():
+            if question.read_only:
+                continue
             if question.required and question.link_id not in self._answered:
                 self._issues.append(
                     _warning(

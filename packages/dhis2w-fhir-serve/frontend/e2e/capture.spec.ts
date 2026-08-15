@@ -26,6 +26,9 @@ const ATTRIBUTE_COMBO_CHOICE = 'Improve access to clean water'
 /** The kind's code in the D2FormType terminology - `tracker-event` is the program stage. */
 const REGISTRATION_FORM_TYPE = 'tracker'
 
+/** What this project's instance calls the date an enrollment begins, off `d2-date-labels`. */
+const ENROLLMENT_DATE_LABEL = 'Date first seen'
+
 /** What one served form states about itself, as far as finding the registration one needs. */
 interface ServedForm {
     id: string
@@ -251,16 +254,15 @@ test.describe('filling a form in the browser', () => {
  * combo. The first two come off `$generate`; the third cannot - which project a month of stock
  * figures is reported under is a fact the person filling the form brought with them - so the form
  * asks for it above the questions and Submit refuses until it has one. This walks that: the picker
- * renders the combos the served vocabulary publishes, the button is disabled with a reason, and
- * the chosen combo is on the receipt afterwards, named the same way it was picked.
+ * renders the combos the served vocabulary publishes unanswered, the button is disabled with a
+ * reason, and the chosen combo is on the receipt afterwards, named the same way it was picked.
  */
 test.describe('a form whose data set reports per attribute option combo', () => {
     test('asks for the combo, refuses to submit without one, and puts it on the receipt', async ({
         page,
     }) => {
-        // The skeleton read is awaited rather than raced: `$generate` draws a combo of its own and
-        // it lands in the picker as the pre-selection, so "nothing is chosen" is a state this spec
-        // has to arrive at deliberately - which is what Clear below is for.
+        // The skeleton read is awaited rather than raced: it is what fills the period control, and
+        // it is also what would have pre-selected a combo if this screen adopted the draw.
         const opened = page.waitForResponse((response) => response.url().includes('$generate'))
         await page.goto(`/#/forms/${ATTRIBUTE_COMBO_FORM}`)
         await opened
@@ -269,12 +271,13 @@ test.describe('a form whose data set reports per attribute option combo', () => 
         // rather than the artifact's, which is what a data clerk is actually choosing between.
         const picker = page.getByLabel('Reporting for Project')
         await expect(picker).toBeVisible()
-        // The draw is a proposal: whatever combo `$generate` filed its skeleton under is already
-        // in the picker, so the common case is one click rather than a hunt through the list.
-        await expect(picker).not.toHaveText('Not chosen')
 
+        // UNANSWERED, THOUGH THE DRAFT DREW ONE. `$generate` files its skeleton under a combo so the
+        // skeleton is postable, and this screen does not adopt that pick: a pre-selected combo is a
+        // claim about which project a month of figures belongs to, made by a random draw on behalf of
+        // whoever did not look at it. So the control is empty and Submit refuses, with the reason.
         const submit = page.getByRole('button', { name: 'Submit' })
-        await page.getByRole('button', { name: 'Clear' }).click()
+        await expect(picker).toHaveText('Not chosen')
         await expect(submit).toBeDisabled()
         await expect(page.getByText('Choose what this submission reports for before submitting')).toBeVisible()
 
@@ -650,7 +653,9 @@ test.describe('a tracker registration form', () => {
         // reporter's to correct - a visit recorded on the day it is typed up is a visit misdated.
         const enrollment = page.getByRole('heading', { name: 'Enrollment', exact: true })
         await expect(enrollment).toBeVisible()
-        await expect(page.getByLabel('Enrollment date')).toBeVisible()
+        // Under the programme's own word for the date, which is the whole of the date-label
+        // contract: this fixture's instance calls the enrollment date "Date first seen".
+        await expect(page.getByLabel(ENROLLMENT_DATE_LABEL)).toBeVisible()
 
         await page.getByRole('button', { name: 'Fill with test data' }).click()
         await expect(page.getByText('Filled with test data')).toBeVisible()
@@ -668,7 +673,8 @@ test.describe('a tracker registration form', () => {
         await expect(page.getByRole('heading', { name: 'Capture context' })).toBeVisible()
         await expect(page.getByText('Tracked entity', { exact: true })).toBeVisible()
         await expect(page.getByText('Enrollment', { exact: true })).toBeVisible()
-        await expect(page.getByText('Enrolled at', { exact: true })).toBeVisible()
+        // The same word on the receipt as on the form, which is what "one lib rule" buys.
+        await expect(page.getByText(ENROLLMENT_DATE_LABEL, { exact: true })).toBeVisible()
         await expect(page.getByText('Organisation unit', { exact: true })).toBeVisible()
     })
 })

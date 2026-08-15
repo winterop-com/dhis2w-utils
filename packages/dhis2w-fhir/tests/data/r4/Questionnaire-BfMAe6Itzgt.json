@@ -10,6 +10,10 @@
       "valueCode": "aggregate"
     },
     {
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-period-type",
+      "valueCode": "Monthly"
+    },
+    {
       "extension": [
         {
           "url": "attributeId",
@@ -52,6 +56,10 @@
       "type": "group",
       "extension": [
         {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Immunization dose administration"
+        },
+        {
           "url": "http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl",
           "valueCodeableConcept": {
             "coding": [
@@ -75,6 +83,12 @@
           ],
           "text": "BCG doses given",
           "type": "group",
+          "extension": [
+            {
+              "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+              "valueString": "BCG doses administered."
+            }
+          ],
           "item": [
             {
               "linkId": "s46m5MS0hxu.Prlt0C1RF0s",
@@ -261,6 +275,12 @@
           ],
           "text": "OPV0 doses given",
           "type": "group",
+          "extension": [
+            {
+              "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+              "valueString": "0-13 days after birth."
+            }
+          ],
           "item": [
             {
               "linkId": "x3Do5e7g4Qo.Prlt0C1RF0s",
@@ -509,6 +529,12 @@
           ],
           "text": "PCV1 doses given",
           "type": "group",
+          "extension": [
+            {
+              "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+              "valueString": "Pneumococcal Vaccine"
+            }
+          ],
           "item": [
             {
               "linkId": "xc8gmAKfO95.Prlt0C1RF0s",
@@ -571,6 +597,12 @@
           ],
           "text": "PCV2 doses given",
           "type": "group",
+          "extension": [
+            {
+              "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+              "valueString": "Penumococcal Vaccine"
+            }
+          ],
           "item": [
             {
               "linkId": "mGN1az8Xub6.Prlt0C1RF0s",
@@ -633,6 +665,12 @@
           ],
           "text": "PCV3 doses given",
           "type": "group",
+          "extension": [
+            {
+              "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+              "valueString": "Penumococcal Vaccine"
+            }
+          ],
           "item": [
             {
               "linkId": "L2kxa2IA2cs.Prlt0C1RF0s",
@@ -1002,6 +1040,10 @@
       "type": "group",
       "extension": [
         {
+          "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
+          "valueString": "Nutrition"
+        },
+        {
           "url": "http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl",
           "valueCodeableConcept": {
             "coding": [
@@ -1151,18 +1193,6 @@
           "type": "group",
           "item": [
             {
-              "linkId": "d5xTg3WR3DP.Prlt0C1RF0s",
-              "code": [
-                {
-                  "code": "Prlt0C1RF0s",
-                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-                  "display": "Fixed, <1y"
-                }
-              ],
-              "text": "Fixed, <1y",
-              "type": "decimal"
-            },
-            {
               "linkId": "d5xTg3WR3DP.psbwp3CQEhs",
               "code": [
                 {
@@ -1172,18 +1202,6 @@
                 }
               ],
               "text": "Fixed, >1y",
-              "type": "decimal"
-            },
-            {
-              "linkId": "d5xTg3WR3DP.V6L425pT3A0",
-              "code": [
-                {
-                  "code": "V6L425pT3A0",
-                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-                  "display": "Outreach, <1y"
-                }
-              ],
-              "text": "Outreach, <1y",
               "type": "decimal"
             },
             {
@@ -1225,18 +1243,6 @@
               "type": "decimal"
             },
             {
-              "linkId": "DUSpd8Jq3M7.psbwp3CQEhs",
-              "code": [
-                {
-                  "code": "psbwp3CQEhs",
-                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-                  "display": "Fixed, >1y"
-                }
-              ],
-              "text": "Fixed, >1y",
-              "type": "decimal"
-            },
-            {
               "linkId": "DUSpd8Jq3M7.V6L425pT3A0",
               "code": [
                 {
@@ -1246,18 +1252,6 @@
                 }
               ],
               "text": "Outreach, <1y",
-              "type": "decimal"
-            },
-            {
-              "linkId": "DUSpd8Jq3M7.hEFKSsPV5et",
-              "code": [
-                {
-                  "code": "hEFKSsPV5et",
-                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-                  "display": "Outreach, >1y"
-                }
-              ],
-              "text": "Outreach, >1y",
               "type": "decimal"
             }
           ]
@@ -1287,18 +1281,6 @@
               "type": "decimal"
             },
             {
-              "linkId": "dU0GquGkGQr.psbwp3CQEhs",
-              "code": [
-                {
-                  "code": "psbwp3CQEhs",
-                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-                  "display": "Fixed, >1y"
-                }
-              ],
-              "text": "Fixed, >1y",
-              "type": "decimal"
-            },
-            {
               "linkId": "dU0GquGkGQr.V6L425pT3A0",
               "code": [
                 {
@@ -1308,18 +1290,6 @@
                 }
               ],
               "text": "Outreach, <1y",
-              "type": "decimal"
-            },
-            {
-              "linkId": "dU0GquGkGQr.hEFKSsPV5et",
-              "code": [
-                {
-                  "code": "hEFKSsPV5et",
-                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-                  "display": "Outreach, >1y"
-                }
-              ],
-              "text": "Outreach, >1y",
               "type": "decimal"
             }
           ]
@@ -1523,18 +1493,6 @@
           "type": "group",
           "item": [
             {
-              "linkId": "ca8lfO062zg.Prlt0C1RF0s",
-              "code": [
-                {
-                  "code": "Prlt0C1RF0s",
-                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-                  "display": "Fixed, <1y"
-                }
-              ],
-              "text": "Fixed, <1y",
-              "type": "decimal"
-            },
-            {
               "linkId": "ca8lfO062zg.psbwp3CQEhs",
               "code": [
                 {
@@ -1544,18 +1502,6 @@
                 }
               ],
               "text": "Fixed, >1y",
-              "type": "decimal"
-            },
-            {
-              "linkId": "ca8lfO062zg.V6L425pT3A0",
-              "code": [
-                {
-                  "code": "V6L425pT3A0",
-                  "system": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
-                  "display": "Outreach, <1y"
-                }
-              ],
-              "text": "Outreach, <1y",
               "type": "decimal"
             },
             {

@@ -70,7 +70,7 @@ import {
     type OrgUnitChoice,
 } from '@/lib/orgunits'
 import { isEntityLevelExtension, subjectExistsExtensionUrl, SUBJECT_EXISTS_EXTENSION_SUFFIX } from '@/lib/patients'
-import { conceptPropertyValue } from '@/lib/terminology'
+import { conceptPropertyValue, declaredCategoryName } from '@/lib/terminology'
 
 /** The standard R4 extensions a numeric question carries its inclusive bounds on. */
 export const MINIMUM_VALUE_EXTENSION_URL = 'http://hl7.org/fhir/StructureDefinition/minValue'
@@ -78,6 +78,106 @@ export const MAXIMUM_VALUE_EXTENSION_URL = 'http://hl7.org/fhir/StructureDefinit
 
 /** The extension a registration form declares whether its program collects an incident date on. */
 export const COLLECTS_INCIDENT_DATE_EXTENSION_SUFFIX = '/StructureDefinition/d2-collects-incident-date'
+
+/**
+ * The extension a form carries its instance's own words for the dates it collects on.
+ *
+ * DHIS2 lets a programme rename all three - an antenatal programme calls the enrollment date "Date
+ * first seen" and the incident date "Date of last menstrual period" - and a capture screen that
+ * ignored those words would be asking a different question from the one the clerk was trained on.
+ * Complex rather than valued, sliced one sub-extension per date, and each present only when the
+ * instance really states a word for that date.
+ */
+export const DATE_LABELS_EXTENSION_SUFFIX = '/StructureDefinition/d2-date-labels'
+
+/** The three sub-extensions `d2-date-labels` slices, one per date a DHIS2 programme can rename. */
+export const ENROLLMENT_DATE_LABEL_SUB_EXTENSION = 'enrollmentDate'
+export const INCIDENT_DATE_LABEL_SUB_EXTENSION = 'incidentDate'
+export const EVENT_DATE_LABEL_SUB_EXTENSION = 'eventDate'
+
+/** The extension an aggregate form states the DHIS2 period type its data set reports for on. */
+export const PERIOD_TYPE_EXTENSION_SUFFIX = '/StructureDefinition/d2-period-type'
+
+/** The extension a stage form states whether one enrollment may answer it more than once on. */
+export const REPEATABLE_EXTENSION_SUFFIX = '/StructureDefinition/d2-repeatable'
+
+/** The extension an item carries the description DHIS2 holds for its data element or section on. */
+export const DESCRIPTION_EXTENSION_SUFFIX = '/StructureDefinition/d2-description'
+
+/**
+ * What a form calls each of the three dates it may collect.
+ *
+ * ONE SOURCE, TWO SURFACES. The capture screen labels its date controls from this and the receipt
+ * page labels its stored facts from the same, so a programme that calls its enrollment date "Date
+ * first seen" says that in both places rather than in one. Neither surface reads the extension
+ * itself; both read this.
+ */
+export interface DateLabels {
+    /** What the date an enrollment begins is called. */
+    enrollmentDate: string
+    /** What the date of the incident an enrollment follows is called. */
+    incidentDate: string
+    /** What the date an event was recorded on is called. */
+    eventDate: string
+}
+
+/**
+ * What each date is called on a form whose instance renamed none of them.
+ *
+ * These are facts rather than DHIS2 field names: an enrollment begins on a date, an incident
+ * occurred on one, and a visit happened on one. A form that states its own word replaces the whole
+ * of the label rather than decorating it, because a clerk reading "Date first seen (enrollment
+ * date)" is being told the same fact twice in two vocabularies.
+ */
+export const DEFAULT_DATE_LABELS: DateLabels = {
+    enrollmentDate: 'Enrollment date',
+    incidentDate: 'Incident date',
+    eventDate: 'Visit date',
+}
+
+/** What one form calls its dates: the words it states, and this project's own for the rest. */
+export function dateLabelsOf(questionnaire: Questionnaire | null): DateLabels {
+    const stated = questionnaire?.extension?.find((candidate) =>
+        candidate.url.endsWith(DATE_LABELS_EXTENSION_SUFFIX),
+    )
+    const label = (url: string, fallback: string): string => {
+        const declared = subExtension(stated, url)?.valueString?.trim()
+        return declared === undefined || declared === '' ? fallback : declared
+    }
+    return {
+        enrollmentDate: label(ENROLLMENT_DATE_LABEL_SUB_EXTENSION, DEFAULT_DATE_LABELS.enrollmentDate),
+        incidentDate: label(INCIDENT_DATE_LABEL_SUB_EXTENSION, DEFAULT_DATE_LABELS.incidentDate),
+        eventDate: label(EVENT_DATE_LABEL_SUB_EXTENSION, DEFAULT_DATE_LABELS.eventDate),
+    }
+}
+
+/**
+ * The DHIS2 period type an aggregate form reports for, as the form itself declares it.
+ *
+ * The form is the authority rather than the draft: `$generate` states a type beside the period it
+ * drew, but a form opened before its skeleton lands - or after a refused `$generate` - still knows
+ * what shape of period it takes, and that is what the control needs in order to ask for one.
+ */
+export function reportingPeriodTypeOf(questionnaire: Questionnaire | null): string | null {
+    const declared = questionnaire?.extension?.find((candidate) =>
+        candidate.url.endsWith(PERIOD_TYPE_EXTENSION_SUFFIX),
+    )
+    return declared?.valueCode ?? null
+}
+
+/**
+ * Whether one enrollment may answer this stage form more than once, or null when it states nothing.
+ *
+ * Null is not false. A form compiled before the declaration was published says nothing about its
+ * stage's repetition, and a screen that read silence as "once only" would state a rule about the
+ * DHIS2 programme that nobody published.
+ */
+export function repeatsPerEnrollment(questionnaire: Questionnaire | null): boolean | null {
+    const declared = questionnaire?.extension?.find((candidate) =>
+        candidate.url.endsWith(REPEATABLE_EXTENSION_SUFFIX),
+    )
+    return declared?.valueBoolean ?? null
+}
 
 /**
  * The extension an aggregate response states the period it reports for on.
@@ -100,11 +200,17 @@ export const PERIOD_RANGE_SUB_EXTENSION = 'period'
 /** The concept property a served data dictionary states a question's DHIS2 value type on. */
 export const VALUE_TYPE_CONCEPT_PROPERTY = 'value-type'
 
+/** The concept property stating that DHIS2 mints this attribute's value rather than taking one. */
+export const GENERATED_CONCEPT_PROPERTY = 'generated'
+
+/** The concept property carrying the shape DHIS2 mints a generated attribute's value to. */
+export const PATTERN_CONCEPT_PROPERTY = 'pattern'
+
+/** The prefix a combo vocabulary declares one property per category under, the uid following it. */
+export const CATEGORY_PROPERTY_PREFIX = 'category-'
+
 /** The DHIS2 value type that stores `true` or no value at all - never `false`. */
 export const TRUE_ONLY_VALUE_TYPE = 'TRUE_ONLY'
-
-/** No value type known for any concept, which is what a form opens on before its dictionary lands. */
-export const NO_VALUE_TYPES: ReadonlyMap<string, string> = new Map()
 
 /**
  * The `value[x]` element each answerable item type answers on.
@@ -173,6 +279,15 @@ export interface QuestionnaireNode {
     type: QuestionnaireItemType
     /** The question as the form asks it, or null when the item states no text. */
     text: string | null
+    /**
+     * The description DHIS2 holds for this item's object, or null when it holds none.
+     *
+     * A data element's description and a section's description are the help text a form designer
+     * wrote for the person filling the form in - "Count a dose once, on the day it was given" - and
+     * they answer the questions a label has no room for. Absent far more often than present, because
+     * DHIS2 requires none.
+     */
+    description: string | null
     required: boolean
     repeats: boolean
     readOnly: boolean
@@ -211,6 +326,24 @@ export interface QuestionnaireNode {
      * particular type, so a boolean question keeps the three states a `BOOLEAN` has.
      */
     valueType: string | null
+    /**
+     * Whether DHIS2 mints this question's value rather than taking one, as the dictionary states.
+     *
+     * True on a generated tracked entity attribute, which the form also marks `readOnly`: the
+     * instance writes the value on import, so what a client sends for it is discarded. The two facts
+     * come from different places on purpose - `readOnly` is the form's statement that the control
+     * takes no input, and this is the dictionary's statement of why.
+     */
+    generated: boolean
+    /** The shape DHIS2 mints a generated value to, as `ANC-#######`, or null when none is published. */
+    pattern: string | null
+    /**
+     * The DHIS2 categories this question's category option combo decomposes over, named, in order.
+     *
+     * Empty on every question that is not a disaggregated cell. It is what lets the group above a
+     * run of cells say what its columns are cut by, which is the one thing "Fixed, <1y" does not say.
+     */
+    categoryAxes: string[]
     /**
      * Which DHIS2 level this question's answer is written at, or null when the form states none.
      *
@@ -274,17 +407,18 @@ export type AnswerAction =
 /**
  * Flatten one Questionnaire's item tree into the ordered spec every other function here reads.
  *
- * `valueTypes` is the served data dictionary, keyed by the concept each question's `code` names -
- * see `valueTypesByConcept`. It is optional because the form is on screen before its CodeSystem
- * has been read, and because every reader but the boolean control works without it: a spec
- * flattened with no dictionary states no value type, which is what an unread dictionary is.
+ * `dictionary` is what the served data dictionaries state about the concepts the questions are coded
+ * in - see `dictionaryOfCodeSystems`. It is optional because the form is on screen before its
+ * CodeSystems have been read, and because every reader works without it: a spec flattened with no
+ * dictionary states no value type, no generated identifier, and no category axes, which is exactly
+ * what an unread dictionary knows.
  */
 export function flattenQuestionnaire(
     questionnaire: Questionnaire,
-    valueTypes: ReadonlyMap<string, string> = NO_VALUE_TYPES,
+    dictionary: QuestionDictionary = NO_DICTIONARY,
 ): QuestionnaireSpec {
     const nodes: QuestionnaireNode[] = []
-    const rootLinkIds = collectItems(questionnaire.item ?? [], [], nodes, valueTypes)
+    const rootLinkIds = collectItems(questionnaire.item ?? [], [], nodes, dictionary)
     const byLinkId = new Map(nodes.map((node) => [node.linkId, node]))
     const questionLinkIds = nodes
         .filter((node) => node.type !== 'group' && node.type !== 'display')
@@ -293,26 +427,88 @@ export function flattenQuestionnaire(
 }
 
 /**
- * The DHIS2 value types a set of served CodeSystems states, keyed by the concept each belongs to.
+ * What the served data dictionaries state about one concept, beyond the display it carries.
+ *
+ * Everything here is optional on the wire and absent by default, which is the honest reading of a
+ * guide compiled before a property was published: a dictionary that says nothing about a concept
+ * leaves every question that codes into it rendering on what the form alone states.
+ */
+export interface ConceptFacts {
+    /** The DHIS2 value type, as `TRUE_ONLY` or `INTEGER_POSITIVE`, or null when none is stated. */
+    valueType: string | null
+    /** True when DHIS2 mints this attribute's value on import rather than taking one from a client. */
+    generated: boolean
+    /** The shape DHIS2 mints a generated value to, as `ANC-#######`, or null when none is published. */
+    pattern: string | null
+    /**
+     * The DHIS2 categories this concept decomposes over, named, in the order the concept states them.
+     *
+     * Empty for every concept that is not a category option combo. A combo vocabulary declares one
+     * property per category and carries the chosen option under it, and the category's own name is in
+     * the declaration rather than in the property code - so this is the join of the two.
+     */
+    categoryAxes: string[]
+}
+
+/** A concept the dictionaries say nothing about, which is also every concept before they are read. */
+export const NO_CONCEPT_FACTS: ConceptFacts = { valueType: null, generated: false, pattern: null, categoryAxes: [] }
+
+/** What the served dictionaries state about the concepts one form's questions are coded in. */
+export interface QuestionDictionary {
+    /** Keyed by the concept's system and code together - see `dictionaryOfCodeSystems`. */
+    byConcept: ReadonlyMap<string, ConceptFacts>
+}
+
+/** Nothing read yet, which is what a form opens on before its dictionaries land. */
+export const NO_DICTIONARY: QuestionDictionary = { byConcept: new Map() }
+
+/**
+ * Everything a set of served CodeSystems states about the concepts they hold.
  *
  * WHY THE KEY IS SYSTEM AND CODE. A question's `code` names both, and two dictionaries can hold the
  * same code for different objects - a data element and a tracked entity attribute are separate DHIS2
  * uid spaces. Keying by the pair is what makes this one map safe to build over every dictionary a
  * form draws from, rather than one map per system with a lookup order to get wrong.
  *
- * A concept carrying no `value-type` property contributes nothing, which is the honest reading: the
- * property is optional, and a guide compiled before it was published states none at all.
+ * WHY ONE PASS AND NOT FOUR. A form reads its two or three dictionaries once and then asks four
+ * different questions of them - what value type a tick has, whether DHIS2 mints an identifier, what
+ * shape it mints it to, and which categories a disaggregated cell is cut by. Four maps built by four
+ * walks would be four things to keep in step; one walk answering all four is one.
+ *
+ * A concept carrying none of the properties contributes an entry all the same, because a concept the
+ * dictionary holds and says nothing about is a different fact from a concept it does not hold.
  */
-export function valueTypesByConcept(codeSystems: CodeSystem[]): ReadonlyMap<string, string> {
-    const valueTypes = new Map<string, string>()
+export function dictionaryOfCodeSystems(codeSystems: CodeSystem[]): QuestionDictionary {
+    const byConcept = new Map<string, ConceptFacts>()
     for (const codeSystem of codeSystems) {
+        const categoryNames = declaredCategoryNames(codeSystem)
         for (const concept of codeSystem.concept ?? []) {
-            const valueType = conceptPropertyValue(concept, VALUE_TYPE_CONCEPT_PROPERTY)
-            if (valueType === null) continue
-            valueTypes.set(conceptKey(codeSystem.url, concept.code), valueType)
+            byConcept.set(conceptKey(codeSystem.url, concept.code), {
+                valueType: conceptPropertyValue(concept, VALUE_TYPE_CONCEPT_PROPERTY),
+                generated: conceptPropertyValue(concept, GENERATED_CONCEPT_PROPERTY) === 'true',
+                pattern: conceptPropertyValue(concept, PATTERN_CONCEPT_PROPERTY),
+                // The concept's own order, never sorted: a combo decomposes in the order DHIS2
+                // declares its category combo, and that is the order its cells read in.
+                categoryAxes: (concept.property ?? []).flatMap((property) => {
+                    const named = categoryNames.get(property.code)
+                    return named === undefined ? [] : [named]
+                }),
+            })
         }
     }
-    return valueTypes
+    return { byConcept }
+}
+
+/** The categories one CodeSystem declares a property for, keyed by that property's code. */
+function declaredCategoryNames(codeSystem: CodeSystem): ReadonlyMap<string, string> {
+    const names = new Map<string, string>()
+    for (const property of codeSystem.property ?? []) {
+        if (!property.code.startsWith(CATEGORY_PROPERTY_PREFIX)) continue
+        // The declaration's description is where the category's name is; the code carries its uid.
+        // A declaration wearing no name falls back to the uid, which is at least a thing to look up.
+        names.set(property.code, declaredCategoryName(property.description) ?? property.code)
+    }
+    return names
 }
 
 /**
@@ -591,22 +787,6 @@ export const NO_CAPTURE_CONTEXT: CaptureContext = {
     incidentAt: null,
     reportingPeriodIso: null,
     existingSubject: null,
-}
-
-/**
- * The picker's selection when a form is first opened: whatever is chosen, else what the server drew.
- *
- * `$generate` answers with a whole capture-valid context, combo included, and adopting it is what
- * makes the common case one click - the form opens already reporting for something plausible, and
- * changing it is a choice rather than a chore. The current selection wins because the skeleton is
- * read *after* the form is on screen: a person who picked while it was still in flight must not
- * have their choice replaced by a draw that started before they made it.
- */
-export function openedAttributeOptionCombo(
-    current: Coding | null,
-    envelope: QuestionnaireResponse | null,
-): Coding | null {
-    return current ?? (envelope === null ? null : attributeOptionComboOf(envelope))
 }
 
 /**
@@ -1065,6 +1245,12 @@ export function isAnswered(node: QuestionnaireNode, answers: AnswerState): boole
  * entity-level questions of a registration answering for a person the instance already holds. A
  * question in it is not "still waiting": nothing anyone types would reach the wire, so counting it
  * would tell a person their form is incomplete and give them no way to complete it.
+ *
+ * A read-only question is never waiting either, and for the same reason under a different fact: the
+ * form states that DHIS2 owns the value - a generated tracked entity attribute is minted by the
+ * instance on import - so there is nothing for anyone to answer. This is the same rule the capture
+ * grading holds on the server (`_ItemValidator.run` in `dhis2w_fhir_serve.capture.validate`), which
+ * is what keeps "unanswered" meaning one thing on both sides of the wire.
  */
 export function unansweredRequiredLinkIds(
     spec: QuestionnaireSpec,
@@ -1077,11 +1263,95 @@ export function unansweredRequiredLinkIds(
             (node) =>
                 node.required &&
                 node.fillable &&
+                !node.readOnly &&
                 enabled.has(node.linkId) &&
                 !exempt.has(node.linkId) &&
                 !isAnswered(node, answers),
         )
         .map((node) => node.linkId)
+}
+
+/**
+ * The DHIS2 categories a group's disaggregated cells are cut by, named, in first-seen order.
+ *
+ * WHY THE GROUP AND NOT THE CELL. A data element group holds one cell per category option combo, and
+ * each cell's label is the combo's own name - "Fixed, <1y". That names the corner of the grid and
+ * says nothing about the axes it is a corner of, which is the one fact a reader needs and none of the
+ * sixteen labels carries. The axes are the same for every cell of one group, so they are stated once,
+ * above them.
+ *
+ * Read off the cells rather than off the group, because the group codes a data element and the
+ * decomposition belongs to the combos underneath it. First-seen order and no sorting: DHIS2 declares
+ * a category combo's categories in an order, and that is the order its cells read in.
+ */
+export function groupCategoryAxes(spec: QuestionnaireSpec, groupLinkId: string): string[] {
+    const axes: string[] = []
+    for (const childLinkId of spec.byLinkId.get(groupLinkId)?.childLinkIds ?? []) {
+        for (const axis of spec.byLinkId.get(childLinkId)?.categoryAxes ?? []) {
+            if (!axes.includes(axis)) axes.push(axis)
+        }
+    }
+    return axes
+}
+
+/**
+ * The shape a DHIS2 period identifier of one type takes, as far as a browser can check it.
+ *
+ * WHY A SHAPE AND NOT A PERIOD. `202607` is July 2026 and `2026W30` is a week, and turning either
+ * into a date range is DHIS2 period arithmetic this UI does not have and will not grow - the server
+ * owns that, and grades an edited period against the type the data set reports for. What a browser
+ * can do is refuse to send `july` where a month identifier goes, which is the difference between a
+ * mistake caught under the cursor and a round trip that comes back refused.
+ */
+export interface PeriodShape {
+    /** What an unanswered control invites: the shape, spelled as an example of it. */
+    placeholder: string
+    /** The identifier a person can copy the shape from, as `202607` is a monthly one. */
+    example: string
+    /** What an identifier of this type looks like, checked in the browser and nowhere else. */
+    pattern: RegExp
+}
+
+/**
+ * The shapes this UI checks, one per DHIS2 period type, and what it does about the rest.
+ *
+ * SEVEN OF THE SIXTEEN. DHIS2 defines `Daily`, `Weekly`, `WeeklyWednesday`, `WeeklyThursday`,
+ * `WeeklySaturday`, `WeeklySunday`, `BiWeekly`, `Monthly`, `BiMonthly`, `Quarterly`, `QuarterlyNov`,
+ * `SixMonthly`, `SixMonthlyApril`, `SixMonthlyNov`, `Yearly`, `FinancialApril`, `FinancialJuly`,
+ * `FinancialOct` and `FinancialNov`. The seven here are the ones whose identifiers have a shape worth
+ * stating in a browser; the offset weeks and the financial years spell their offset into the
+ * identifier (`2026WedW30`, `2026April`), and a half-checked pattern for one of those would refuse
+ * identifiers DHIS2 accepts. So a type not named here is accepted as typed and graded by the server,
+ * which names both types in its refusal - and the control says so rather than pretending to check.
+ */
+export const PERIOD_SHAPES: ReadonlyMap<string, PeriodShape> = new Map<string, PeriodShape>([
+    ['Daily', { placeholder: '20260715', example: '20260715', pattern: /^\d{4}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/ }],
+    ['Weekly', { placeholder: '2026W30', example: '2026W30', pattern: /^\d{4}W([1-9]|[1-4]\d|5[0-3])$/ }],
+    ['BiWeekly', { placeholder: '2026BiW15', example: '2026BiW15', pattern: /^\d{4}BiW([1-9]|1\d|2[0-7])$/ }],
+    ['Monthly', { placeholder: '202607', example: '202607', pattern: /^\d{4}(0[1-9]|1[0-2])$/ }],
+    ['BiMonthly', { placeholder: '202604B', example: '202604B', pattern: /^\d{4}(0[13579]|11)B$/ }],
+    ['Quarterly', { placeholder: '2026Q3', example: '2026Q3', pattern: /^\d{4}Q[1-4]$/ }],
+    ['SixMonthly', { placeholder: '2026S2', example: '2026S2', pattern: /^\d{4}S[12]$/ }],
+    ['Yearly', { placeholder: '2026', example: '2026', pattern: /^\d{4}$/ }],
+])
+
+/** The shape one period type takes, or null for a type whose identifiers this UI does not check. */
+export function periodShape(periodType: string | null): PeriodShape | null {
+    return periodType === null ? null : (PERIOD_SHAPES.get(periodType) ?? null)
+}
+
+/**
+ * Whether one identifier is shaped like a period of the stated type.
+ *
+ * True for every non-empty identifier of a type with no shape here, because "this UI cannot check it"
+ * is not "this is wrong" - the server checks it either way. False for an empty one whatever the type:
+ * an aggregate submission reports for a period, and no period is not one.
+ */
+export function isWellShapedPeriod(iso: string, periodType: string | null): boolean {
+    const trimmed = iso.trim()
+    if (trimmed === '') return false
+    const shape = periodShape(periodType)
+    return shape === null || shape.pattern.test(trimmed)
 }
 
 /**
@@ -1124,14 +1394,14 @@ function collectItems(
     items: QuestionnaireItem[],
     ancestorLinkIds: string[],
     nodes: QuestionnaireNode[],
-    valueTypes: ReadonlyMap<string, string>,
+    dictionary: QuestionDictionary,
 ): string[] {
     const linkIds: string[] = []
     for (const item of items) {
-        const node = readItem(item, ancestorLinkIds, valueTypes)
+        const node = readItem(item, ancestorLinkIds, dictionary)
         nodes.push(node)
         linkIds.push(node.linkId)
-        node.childLinkIds = collectItems(item.item ?? [], [...ancestorLinkIds, item.linkId], nodes, valueTypes)
+        node.childLinkIds = collectItems(item.item ?? [], [...ancestorLinkIds, item.linkId], nodes, dictionary)
     }
     return linkIds
 }
@@ -1140,10 +1410,13 @@ function collectItems(
 function readItem(
     item: QuestionnaireItem,
     ancestorLinkIds: string[],
-    valueTypes: ReadonlyMap<string, string>,
+    dictionary: QuestionDictionary,
 ): QuestionnaireNode {
     const answerElement = ANSWER_ELEMENTS_BY_ITEM_TYPE[item.type] ?? null
     const code = item.code?.[0] ?? null
+    const facts =
+        (code === null ? undefined : dictionary.byConcept.get(conceptKey(code.system, code.code))) ??
+        NO_CONCEPT_FACTS
     return {
         linkId: item.linkId,
         ancestorLinkIds,
@@ -1151,6 +1424,9 @@ function readItem(
         depth: ancestorLinkIds.length,
         type: item.type,
         text: item.text ?? null,
+        description:
+            item.extension?.find((candidate) => candidate.url.endsWith(DESCRIPTION_EXTENSION_SUFFIX))
+                ?.valueString ?? null,
         required: item.required === true,
         repeats: item.repeats === true,
         readOnly: item.readOnly === true,
@@ -1167,7 +1443,10 @@ function readItem(
         enableBehavior: item.enableBehavior ?? 'all',
         initial: item.initial ?? [],
         code,
-        valueType: code === null ? null : (valueTypes.get(conceptKey(code.system, code.code)) ?? null),
+        valueType: facts.valueType,
+        generated: facts.generated,
+        pattern: facts.pattern,
+        categoryAxes: facts.categoryAxes,
         entityLevel: item.extension?.find(isEntityLevelExtension)?.valueBoolean ?? null,
         childLinkIds: [],
     }
