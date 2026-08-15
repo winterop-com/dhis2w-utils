@@ -21,6 +21,56 @@
         }
       ],
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-date-labels"
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "NAgjOfWMXg6"
+        },
+        {
+          "url": "name",
+          "valueString": "Ask for comment for low apgar"
+        },
+        {
+          "url": "condition",
+          "valueString": "#{apgarscore} >= 0 && #{apgarscore} < 4 && #{apgarcomment} == ''"
+        },
+        {
+          "url": "action",
+          "valueCode": "SHOWWARNING"
+        },
+        {
+          "url": "description",
+          "valueString": "Show warrning if Apgar is between 0 and 4 and there is no comment provided."
+        }
+      ],
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-program-rule"
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "tTPMkizzUZg"
+        },
+        {
+          "url": "name",
+          "valueString": "Demand comment if apgar is under zero"
+        },
+        {
+          "url": "condition",
+          "valueString": "#{apgarscore} <0 && #{apgarcomment} == ''"
+        },
+        {
+          "url": "action",
+          "valueCode": "SHOWERROR"
+        },
+        {
+          "url": "description",
+          "valueString": "If Apgar is provided as being under zero and there is no comment for the anomaly, show an error message."
+        }
+      ],
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-program-rule"
     }
   ],
   "identifier": [
@@ -78,7 +128,20 @@
         }
       ],
       "text": "Apgar comment",
-      "type": "text"
+      "type": "text",
+      "enableWhen": [
+        {
+          "question": "a3kGcGDCuk6",
+          "operator": "<=",
+          "answerDecimal": 7
+        },
+        {
+          "question": "a3kGcGDCuk6",
+          "operator": "exists",
+          "answerBoolean": false
+        }
+      ],
+      "enableBehavior": "any"
     },
     {
       "linkId": "UXz7xuGCEhU",

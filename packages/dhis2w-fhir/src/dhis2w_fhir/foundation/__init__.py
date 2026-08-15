@@ -89,6 +89,13 @@ from dhis2w_fhir.foundation.schemas import (
     PERIOD_RANGE_SUB_EXTENSION,
     PERIOD_TYPE_SUB_EXTENSION,
     PERIOD_TYPE_TERMINOLOGY,
+    PROGRAM_RULE_ACTION_DEFINITIONS,
+    PROGRAM_RULE_ACTION_SUB_EXTENSION,
+    PROGRAM_RULE_ACTION_TERMINOLOGY,
+    PROGRAM_RULE_CONDITION_SUB_EXTENSION,
+    PROGRAM_RULE_DESCRIPTION_SUB_EXTENSION,
+    PROGRAM_RULE_NAME_SUB_EXTENSION,
+    PROGRAM_RULE_UID_SUB_EXTENSION,
     ArtifactProfile,
     FormTypeDefinition,
     FoundationNaming,
@@ -298,6 +305,18 @@ def build_foundation_artifacts(config: GenerateConfig, canonical: str, *, ig_sta
         ig_status=ig_status,
         experimental=experimental,
     )
+    program_rule = _ENVIRONMENT.get_template("d2-program-rule.fsh.jinja").render(
+        names=names,
+        actions=PROGRAM_RULE_ACTION_DEFINITIONS,
+        terminology=PROGRAM_RULE_ACTION_TERMINOLOGY,
+        rule_sub_extension=PROGRAM_RULE_UID_SUB_EXTENSION,
+        name_sub_extension=PROGRAM_RULE_NAME_SUB_EXTENSION,
+        description_sub_extension=PROGRAM_RULE_DESCRIPTION_SUB_EXTENSION,
+        condition_sub_extension=PROGRAM_RULE_CONDITION_SUB_EXTENSION,
+        action_sub_extension=PROGRAM_RULE_ACTION_SUB_EXTENSION,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
     attribute_value = _ENVIRONMENT.get_template("d2-attribute-value.fsh.jinja").render(
         names=names,
         context_resource_types=ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES,
@@ -459,6 +478,12 @@ def build_foundation_artifacts(config: GenerateConfig, canonical: str, *, ig_sta
             kind="extension",
             fsh_name=names.form_type_extension,
             content=form_type,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-program-rule.fsh",
+            kind="extension",
+            fsh_name=names.program_rule_extension,
+            content=program_rule,
         ),
         FshArtifact(
             relative_path="foundation/d2-attribute-value.fsh",

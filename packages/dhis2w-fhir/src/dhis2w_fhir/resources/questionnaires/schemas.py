@@ -50,6 +50,67 @@ QuestionSubject = Literal["data-element", "tracked-entity-attribute"]
 #: The trailing token every organisation-unit assignment List id ends in, after the token and stem.
 ASSIGNMENT_ID_SUFFIX = "org-units"
 
+#: The standard R4 extensions constraining the range a numeric question's answer may take.
+MINIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/minValue"
+MAXIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/maxValue"
+
+#: The FHIR `Questionnaire.item.type` each DHIS2 value type answers as. Every member of the
+#: generated `ValueType` enum on v41, v42, and v43 has an entry here, and a guard test asserts
+#: that - so a codegen refresh introducing a new DHIS2 value type is a deliberate mapping
+#: decision rather than a silent fall-through to string. The keys stay plain strings, and
+#: `_DEFAULT_ITEM_TYPE` still catches an unknown value at runtime: an instance ahead of the
+#: generated tree must not crash generation.
+ITEM_TYPES_BY_VALUE_TYPE = {
+    # Text and text-shaped values. R4 offers no finer item type than `string` for a letter, a
+    # phone number, an email, or a username, so they are mapped explicitly rather than by default.
+    "TEXT": "string",
+    "LONG_TEXT": "text",
+    "LETTER": "string",
+    "PHONE_NUMBER": "string",
+    "EMAIL": "string",
+    "USERNAME": "string",
+    "MULTI_TEXT": "string",
+    # Numbers.
+    "NUMBER": "decimal",
+    "INTEGER": "integer",
+    "INTEGER_POSITIVE": "integer",
+    "INTEGER_NEGATIVE": "integer",
+    "INTEGER_ZERO_OR_POSITIVE": "integer",
+    "PERCENTAGE": "decimal",
+    "UNIT_INTERVAL": "decimal",
+    # Booleans.
+    "BOOLEAN": "boolean",
+    "TRUE_ONLY": "boolean",
+    # Temporals. `AGE` is a date on the wire - DHIS2 stores the date of birth and renders the
+    # age from it, so the age is a display concern and the date is the captured value.
+    "DATE": "date",
+    "DATETIME": "dateTime",
+    "TIME": "time",
+    "AGE": "date",
+    # Web and binary values.
+    "URL": "url",
+    "FILE_RESOURCE": "attachment",
+    "IMAGE": "attachment",
+    # Geography. GeoJSON is a document, not a coordinate pair; `COORDINATE` is DHIS2's
+    # `[lon,lat]` string, which no R4 item type expresses.
+    "GEOJSON": "text",
+    "COORDINATE": "string",
+    # References. Only the organisation unit resolves to a FHIR resource; the other two
+    # carry a bare UID - this guide publishes no FHIR resource for the referenced object.
+    "ORGANISATION_UNIT": "reference",
+    "REFERENCE": "string",
+    "TRACKER_ASSOCIATE": "string",
+}
+
+#: The `value[x]` element a bound lands on, keyed by the item type the question answers as. A
+#: question answering as anything else - a `#choice` bound to an option set, say - takes no
+#: bound at all, because there is no numeric element on it to constrain.
+BOUND_ELEMENTS_BY_ITEM_TYPE = {"integer": "valueInteger", "decimal": "valueDecimal"}
+
+#: What an unmapped value type answers as - reached only by a DHIS2 value type newer than the
+#: generated enums, since the table above covers every member of all three.
+_DEFAULT_ITEM_TYPE = "string"
+
 
 class FormKindProfile(BaseModel):
     """What one form kind contributes to its Questionnaire: identifier systems, subject type, and prose label.
@@ -492,6 +553,18 @@ class QuestionnaireItemIn(BaseModel):
     category_combo: CategoryComboIn | None = None
 
 
+def item_type(item: QuestionnaireItemIn) -> str:
+    """The item type one question answers as: `choice` when option-set bound, else its value type's."""
+    if item.option_set_uid is not None:
+        return "choice"
+    return value_type_item_type(item.value_type)
+
+
+def value_type_item_type(value_type: str) -> str:
+    """The item type one DHIS2 value type answers as, falling back to `string` for an unmapped one."""
+    return ITEM_TYPES_BY_VALUE_TYPE.get(value_type, _DEFAULT_ITEM_TYPE)
+
+
 class QuestionnaireSectionIn(BaseModel):
     """One section of a data-entry form, holding the data elements it groups.
 
@@ -525,6 +598,61 @@ class ProgramContextIn(BaseModel):
     code: str | None = None
     translations: list[TranslationIn] = Field(default_factory=list)
     tracked_entity_type_uid: str | None = None
+
+
+class ProgramRuleVariableIn(BaseModel):
+    """One program rule variable: the name a condition writes as `#{name}` and the question it reads.
+
+    `source_type` is the DHIS2 `programRuleVariableSourceType`, which says which event's value the
+    variable holds. Only the three that read one question of the form being filled are translatable
+    - the current event's data element, the newest event of the program's, and a tracked entity
+    attribute - and even those are only faithful where the question is asked on the same form.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    source_type: str
+    data_element_uid: str | None = None
+    tracked_entity_attribute_uid: str | None = None
+
+    @property
+    def question_uid(self) -> str | None:
+        """The UID of the question the variable reads, or None when it reads no single question."""
+        return self.data_element_uid or self.tracked_entity_attribute_uid
+
+
+class ProgramRuleActionIn(BaseModel):
+    """One action a program rule takes when its condition holds: what kind, and which question it lands on."""
+
+    model_config = ConfigDict(frozen=True)
+
+    action_type: str
+    data_element_uid: str | None = None
+    tracked_entity_attribute_uid: str | None = None
+
+    @property
+    def question_uid(self) -> str | None:
+        """The UID of the question the action lands on, or None when it names no question."""
+        return self.data_element_uid or self.tracked_entity_attribute_uid
+
+
+class ProgramRuleIn(BaseModel):
+    """One DHIS2 program rule: the expression the server evaluates and the actions it takes.
+
+    `condition` is the DHIS2 expression exactly as the instance holds it. It is never reformatted:
+    a consumer reading the rule this form could not express needs the text the server evaluates,
+    and a prettified expression is a different string from the one an administrator can search for.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    name: str
+    description: str | None = None
+    condition: str
+    translations: list[TranslationIn] = Field(default_factory=list)
+    actions: list[ProgramRuleActionIn] = Field(default_factory=list)
 
 
 class QuestionnaireSourceIn(BaseModel):
@@ -592,6 +720,17 @@ class QuestionnaireSourceIn(BaseModel):
     sections: list[QuestionnaireSectionIn] = Field(default_factory=list)
     flat_items: list[QuestionnaireItemIn] = Field(default_factory=list)
     attribute_values: list[AttributeValueIn] = Field(default_factory=list)
+    program_rules: list[ProgramRuleIn] = Field(default_factory=list)
+    """The rules DHIS2 enforces over the program this form belongs to, in the instance's own order.
+
+    A program's rules are the program's, not one stage's, so every form a program publishes carries
+    the whole list: a consumer holding one form learns from that form alone which rules the server
+    will refuse its answers under. An aggregate form carries none - DHIS2 states program rules over
+    programs only.
+    """
+
+    program_rule_variables: list[ProgramRuleVariableIn] = Field(default_factory=list)
+    """The variables the program's rule conditions read, which name the questions a condition tests."""
 
 
 class ReferencedObjects(BaseModel):

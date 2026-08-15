@@ -631,6 +631,45 @@ def test_a_numeric_answer_outside_the_questions_bounds_is_refused(
     assert "minimum 0" in _diagnostics(rejection.issues) or "maximum 100" in _diagnostics(rejection.issues)
 
 
+@pytest.mark.parametrize(
+    ("value", "side"),
+    [("2025-12-31", "below the minimum"), ("2027-01-05", "above the maximum")],
+)
+def test_a_dated_answer_outside_the_questions_range_is_noted_rather_than_refused(
+    value: str,
+    side: str,
+    capture_indexes: CaptureIndexCache,
+    capture_naming: CaptureNaming,
+    capture_store: ResourceStore,
+) -> None:
+    """No DHIS2 value type states a range of days, so a date range is a program rule and DHIS2 enforces it."""
+    body = _temporal_response(DeVisitDate1={"valueDate": value})
+
+    accepted = _accept(body, capture_indexes, capture_naming, capture_store)
+
+    assert side in _diagnostics(accepted.warnings)
+    assert "E1300" in _diagnostics(accepted.warnings)
+
+
+def test_a_dated_answer_inside_the_questions_range_is_noted_about_nothing(
+    capture_indexes: CaptureIndexCache, capture_naming: CaptureNaming, capture_store: ResourceStore
+) -> None:
+    body = _temporal_response(DeVisitDate1={"valueDate": "2026-07-25"})
+
+    assert _accept(body, capture_indexes, capture_naming, capture_store).warnings == ()
+
+
+def test_a_numeric_refusal_names_the_answer_in_the_spelling_it_was_sent_in(
+    capture_indexes: CaptureIndexCache, capture_naming: CaptureNaming, capture_store: ResourceStore
+) -> None:
+    """A whole number read back as `0.0` would be the server restating an answer in a spelling nobody used."""
+    body = _anc_response([{"linkId": "DeAncVisNo1", "answer": [{"valueInteger": 0}]}])
+
+    rejection = _refuse(body, capture_indexes, capture_naming, capture_store)
+
+    assert "0 is below the minimum 1" in _diagnostics(rejection.issues)
+
+
 def test_selecting_the_same_option_twice_is_refused(
     capture_indexes: CaptureIndexCache, capture_naming: CaptureNaming, capture_store: ResourceStore
 ) -> None:

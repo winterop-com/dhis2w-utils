@@ -145,6 +145,57 @@ FORM_TYPE_TERMINOLOGY = TerminologyPairProfile(
     description="The DHIS2 form kinds a Questionnaire is generated from.",
 )
 
+
+class ProgramRuleActionDefinition(BaseModel):
+    """One DHIS2 `programRuleActionType` as a concept of the D2ProgramRuleAction terminology."""
+
+    model_config = ConfigDict(frozen=True)
+
+    code: str
+    display: str
+
+
+#: Every DHIS2 program rule action type, as the concepts a published rule names what it does by.
+#: The display says what the action does to the person filling the form, because that is what a
+#: consumer showing an untranslatable rule has to render.
+PROGRAM_RULE_ACTION_DEFINITIONS: tuple[ProgramRuleActionDefinition, ...] = (
+    ProgramRuleActionDefinition(code="DISPLAYTEXT", display="Show text"),
+    ProgramRuleActionDefinition(code="DISPLAYKEYVALUEPAIR", display="Show a labelled value"),
+    ProgramRuleActionDefinition(code="HIDEFIELD", display="Hide a question"),
+    ProgramRuleActionDefinition(code="HIDESECTION", display="Hide a section"),
+    ProgramRuleActionDefinition(code="HIDEPROGRAMSTAGE", display="Hide a program stage"),
+    ProgramRuleActionDefinition(code="HIDEOPTION", display="Hide an answer option"),
+    ProgramRuleActionDefinition(code="HIDEOPTIONGROUP", display="Hide a group of answer options"),
+    ProgramRuleActionDefinition(code="SHOWOPTIONGROUP", display="Show a group of answer options"),
+    ProgramRuleActionDefinition(code="ASSIGN", display="Compute an answer"),
+    ProgramRuleActionDefinition(code="SHOWWARNING", display="Warn about an answer"),
+    ProgramRuleActionDefinition(code="WARNINGONCOMPLETE", display="Warn when the form is completed"),
+    ProgramRuleActionDefinition(code="SHOWERROR", display="Refuse an answer"),
+    ProgramRuleActionDefinition(code="ERRORONCOMPLETE", display="Refuse the form on completion"),
+    ProgramRuleActionDefinition(code="CREATEEVENT", display="Create an event"),
+    ProgramRuleActionDefinition(code="SCHEDULEEVENT", display="Schedule an event"),
+    ProgramRuleActionDefinition(code="SETMANDATORYFIELD", display="Require an answer"),
+    ProgramRuleActionDefinition(code="SENDMESSAGE", display="Send a message"),
+    ProgramRuleActionDefinition(code="SCHEDULEMESSAGE", display="Schedule a message"),
+    ProgramRuleActionDefinition(code="UNKNOWN", display="An action type this guide does not name"),
+)
+
+#: The prose the program-rule-action CodeSystem/ValueSet pair publishes under.
+PROGRAM_RULE_ACTION_TERMINOLOGY = TerminologyPairProfile(
+    title="DHIS2 program rule actions",
+    description="What a DHIS2 program rule does when its condition holds.",
+)
+
+#: The sub-extension urls D2ProgramRule slices one published rule under, as `d2-program-rule.fsh.jinja`
+#: names them. They live with the extension's own declaration because both emitters write them and
+#: `d2w fhir forward` reads them back: a rejection naming a rule UID is joined to the rule's name
+#: through exactly these slices.
+PROGRAM_RULE_UID_SUB_EXTENSION = "rule"
+PROGRAM_RULE_NAME_SUB_EXTENSION = "name"
+PROGRAM_RULE_DESCRIPTION_SUB_EXTENSION = "description"
+PROGRAM_RULE_CONDITION_SUB_EXTENSION = "condition"
+PROGRAM_RULE_ACTION_SUB_EXTENSION = "action"
+
 #: The sub-extension urls D2Period slices its three facts under, as `d2-period.fsh.jinja` names them.
 #: They live with the extension's own declaration, because everything that reads a reporting period -
 #: the example builder writing one, the translator reading one back, the published map naming where a
@@ -603,6 +654,36 @@ class FoundationNaming(BaseModel):
     def form_type_value_set_id(self) -> str:
         """FHIR id of the form-type ValueSet (e.g. `d2-form-type-vs`)."""
         return join_id_tokens(self.definition_prefix, "form", "type", "vs")
+
+    @property
+    def program_rule_extension(self) -> str:
+        """FSH name of the program-rule Extension (e.g. `D2ProgramRule`)."""
+        return f"{self.definition_prefix}ProgramRule"
+
+    @property
+    def program_rule_extension_id(self) -> str:
+        """FHIR id of the program-rule Extension (e.g. `d2-program-rule`)."""
+        return join_id_tokens(self.definition_prefix, "program", "rule")
+
+    @property
+    def program_rule_action_code_system(self) -> str:
+        """FSH name of the program-rule-action CodeSystem (e.g. `D2ProgramRuleAction_CS`)."""
+        return f"{self.definition_prefix}ProgramRuleAction_CS"
+
+    @property
+    def program_rule_action_code_system_id(self) -> str:
+        """FHIR id of the program-rule-action CodeSystem (e.g. `d2-program-rule-action-cs`)."""
+        return join_id_tokens(self.definition_prefix, "program", "rule", "action", "cs")
+
+    @property
+    def program_rule_action_value_set(self) -> str:
+        """FSH name of the program-rule-action ValueSet (e.g. `D2ProgramRuleAction_VS`)."""
+        return f"{self.definition_prefix}ProgramRuleAction_VS"
+
+    @property
+    def program_rule_action_value_set_id(self) -> str:
+        """FHIR id of the program-rule-action ValueSet (e.g. `d2-program-rule-action-vs`)."""
+        return join_id_tokens(self.definition_prefix, "program", "rule", "action", "vs")
 
     @property
     def attribute_value_extension(self) -> str:

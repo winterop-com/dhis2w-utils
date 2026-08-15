@@ -399,6 +399,7 @@ def _mock_whole_instance() -> None:
     respx.get(f"{_BASE_URL}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
     respx.get(f"{_BASE_URL}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_BASE_URL}/api/programs").mock(side_effect=_programs)
+    respx.get(f"{_BASE_URL}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_BASE_URL}/api/trackedEntityTypes").mock(
         return_value=httpx.Response(200, json={"trackedEntityTypes": []})
     )

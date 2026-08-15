@@ -90,6 +90,8 @@ export interface Extension {
     valueDateTime?: string
     valueTime?: string
     valueUri?: string
+    /** A bare FHIR id - how a form names the DHIS2 program rule one `d2-program-rule` repeat is about. */
+    valueId?: string
     /** A url naming a definitional resource - how a form binds its attribute-combo vocabulary. */
     valueCanonical?: string
     valueCoding?: Coding

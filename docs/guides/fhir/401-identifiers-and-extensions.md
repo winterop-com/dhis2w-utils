@@ -500,6 +500,100 @@ field, so most of a real registry's attachments are `Point` rather than
 facility as broken. `translation` is covered in full under
 [Terminology and ConceptMaps](401-terminology-and-conceptmaps.md#translations-designations-on-a-concept-extensions-on-a-title).
 
+## Program rules
+
+DHIS2 enforces program rules on import, not only in the Capture app: a tracker
+payload whose values a `SHOWERROR` rule refuses comes back `E1300` and nothing
+lands. A form that stated none of that would ask for answers the server rejects,
+so every rule a published program holds reaches its forms - in one of three
+tiers, and each rule is in exactly one.
+
+**Tier 1 - a numeric refusal becomes a bound.** A rule whose single action is
+`SHOWERROR` and whose condition compares one question against one number becomes
+the core `minValue` / `maxValue` extensions on that question, on the `value[x]`
+its item type takes. The bound is the complement of what the rule refuses:
+`#{hemoglobin} > 99` with `SHOWERROR` admits up to and including 99, so the
+question carries `maxValue` 99. A refusal that is strict at the boundary
+(`>= 99`) has no inclusive complement in a decimal, so it bounds a whole-number
+question one step in (98) and goes to tier 3 on a decimal one. Where the question
+already carries a bound from its DHIS2 value type - a percentage admits 0..100 -
+the tighter of the two is published, once.
+
+`SHOWWARNING` never becomes a bound. DHIS2 lets a warned value through, and a
+`maxValue` a server accepts answers past is a constraint nobody enforces.
+
+**Tier 2 - a single-question hide becomes `enableWhen`.** A rule whose actions
+are all `HIDEFIELD` and whose condition compares one *other* question against one
+literal becomes core `item.enableWhen` entries on each question it hides. DHIS2
+hides when its condition holds and R4 shows when its own does, so the operator is
+negated: a hide when the apgar score is over 7 shows when the score is 7 or less.
+
+Two things keep that inversion faithful. A comparison against the empty string is
+DHIS2's spelling of "no answer", so it becomes the `exists` operator rather than
+an empty `answerString` - which R4 has no valid form for. And DHIS2 evaluates a
+rule over a blank question by substituting the value type's empty value, where R4
+leaves a question whose `enableWhen` no answer can satisfy hidden. Where the DHIS2
+condition is false of a blank answer - so the question starts out shown - the
+translation adds the arm that says so, joined by `enableBehavior = #any`:
+
+```
+* item[=].enableWhen[+].question = "a3kGcGDCuk6"
+* item[=].enableWhen[=].operator = #"<="
+* item[=].enableWhen[=].answerDecimal = 7
+* item[=].enableWhen[+].question = "a3kGcGDCuk6"
+* item[=].enableWhen[=].operator = #exists
+* item[=].enableWhen[=].answerBoolean = false
+* item[=].enableBehavior = #any
+```
+
+**Tier 3 - everything else is published, non-normatively.** Every other rule
+becomes a repeating `D2ProgramRule` extension on the Questionnaire:
+
+| Sub-extension | Type | Cardinality | Meaning |
+| --- | --- | --- | --- |
+| `rule` | `id` | 1..1 | The UID of the DHIS2 program rule |
+| `name` | `string` | 1..1 | The name the instance holds it under, with its translations |
+| `description` | `string` | 0..1 | The rule's free text, absent when the instance states none |
+| `condition` | `string` | 1..1 | The DHIS2 expression the server evaluates, character for character |
+| `action` | `code` | 1..1 | What the rule does, from `D2ProgramRuleAction_VS` |
+
+Nothing about tier 3 is normative. It states that the server holds a rule this
+form cannot express, so a consumer knows an answer the form admits may still be
+refused - and can show the rule to a person even where it cannot evaluate it. A
+rule tiers 1 or 2 expressed is never repeated here.
+
+The `condition` is verbatim, spacing included, because it is the string an
+administrator searches the instance for. Nothing is prettified.
+
+**The grammar is conservative by construction.** The parser reads one shape and
+no other: a single comparison between one `#{variable}` and one literal, in
+either order, optionally joined by `&&` to a `d2:hasValue` guard naming that same
+variable, with the variable resolved through `programRuleVariables` to a question
+the same form asks. Anything else - two variables, an `||` chain, a `d2:` function
+beyond `hasValue`, a negation, an `A{...}` attribute reference, a variable reading
+another program stage - goes to tier 3 whole. So does a rule whose actions this
+form cannot all state: a hide targeting a question on another stage's form is
+published rather than half-translated, because a rule half-read publishes a
+constraint that is neither what DHIS2 enforces nor nothing.
+
+**Every form of a program carries its program's rules.** A rule belongs to the
+program rather than to one stage, so a stage form, its siblings, and the
+registration form beside them all state the same list - a consumer holding one
+form learns from that form alone which rules the server may refuse its answers
+under. An aggregate form carries none: DHIS2 states program rules over programs.
+
+**`d2w fhir forward` reads them back.** DHIS2 names the rule that refused an
+import by UID alone, and the guide published that UID beside the rule's name, so
+the run's rejection roll-up reads `Generated by ProgramRule (\`Show error for
+high hemoglobin value\`)` rather than twelve characters. The UID itself stays
+untouched on the response's own `.report.json`, which is where a reader goes for
+the machine record.
+
+Only the published rules are nameable that way, which is the set that matters: a
+client answering a form cannot trip a rule the form already states, so the
+refusals that reach a reader are the ones tier 3 published. A UID the guide holds
+no rule for still generalises to `` `...` ``, so one cause stays one row.
+
 ## Identifiers
 
 Every FHIR artifact representing a DHIS2 object exposes **both** DHIS2

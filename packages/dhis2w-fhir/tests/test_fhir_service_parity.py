@@ -415,6 +415,7 @@ async def test_generate_questionnaires_across_majors(
     programs = respx.get(f"{_HOST}/api/programs").mock(
         return_value=httpx.Response(200, json=_QUESTIONNAIRE_PROGRAMS_PAYLOAD)
     )
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json={"organisationUnits": []}))
@@ -585,6 +586,7 @@ def _mock_page_endpoints() -> None:
     respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_QUESTIONNAIRE_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_QUESTIONNAIRE_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORGANISATION_UNITS_PAYLOAD))
 
 

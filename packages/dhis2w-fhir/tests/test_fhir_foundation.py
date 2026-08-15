@@ -38,6 +38,7 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-repeatable.fsh",
         "foundation/d2-description.fsh",
         "foundation/d2-form-type.fsh",
+        "foundation/d2-program-rule.fsh",
         "foundation/d2-attribute-value.fsh",
         "foundation/d2-tracked-entity-attribute-value.fsh",
         "foundation/d2-organisation-unit.fsh",

@@ -1,0 +1,50 @@
+Extension: {{ names.program_rule_extension }}
+Id: {{ names.program_rule_extension_id }}
+Title: "DHIS2 program rule"
+Description: "One DHIS2 program rule this form does not express: the expression the instance evaluates, what it does, and the rule's own identity. Non-normative - it states that the server may refuse an answer this form admits."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^context[+].type = #element
+* ^context[=].expression = "Questionnaire"
+* extension contains
+    {{ rule_sub_extension }} 1..1 and
+    {{ name_sub_extension }} 1..1 and
+    {{ description_sub_extension }} 0..1 and
+    {{ condition_sub_extension }} 1..1 and
+    {{ action_sub_extension }} 1..1
+* extension[{{ rule_sub_extension }}] ^short = "The UID of the DHIS2 program rule."
+* extension[{{ rule_sub_extension }}].value[x] only id
+* extension[{{ rule_sub_extension }}].valueId 1..1
+* extension[{{ name_sub_extension }}] ^short = "The name the instance holds the rule under."
+* extension[{{ name_sub_extension }}].value[x] only string
+* extension[{{ name_sub_extension }}].valueString 1..1
+* extension[{{ description_sub_extension }}] ^short = "The rule's free text, absent when the instance states none."
+* extension[{{ description_sub_extension }}].value[x] only string
+* extension[{{ condition_sub_extension }}] ^short = "The DHIS2 expression the server evaluates, exactly as the instance holds it."
+* extension[{{ condition_sub_extension }}].value[x] only string
+* extension[{{ condition_sub_extension }}].valueString 1..1
+* extension[{{ action_sub_extension }}] ^short = "What the rule does when its condition holds."
+* extension[{{ action_sub_extension }}].value[x] only code
+* extension[{{ action_sub_extension }}].valueCode 1..1
+* extension[{{ action_sub_extension }}].valueCode from {{ names.program_rule_action_value_set }} (required)
+
+CodeSystem: {{ names.program_rule_action_code_system }}
+Id: {{ names.program_rule_action_code_system_id }}
+Title: {{ terminology.title_literal }}
+Description: {{ terminology.description_literal }}
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* ^content = #complete
+* ^caseSensitive = true
+* ^valueSet = Canonical({{ names.program_rule_action_value_set }})
+{% for action in actions %}
+* #{{ action.code }} "{{ action.display }}"
+{% endfor %}
+
+ValueSet: {{ names.program_rule_action_value_set }}
+Id: {{ names.program_rule_action_value_set_id }}
+Title: {{ terminology.title_literal }}
+Description: {{ terminology.value_set_description_literal }}
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+* include codes from system {{ names.program_rule_action_code_system }}

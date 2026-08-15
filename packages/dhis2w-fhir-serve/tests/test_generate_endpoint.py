@@ -30,7 +30,10 @@ from dhis2w_fhir_serve.spool import ResponseLifecycle, ResponseSpool, StoredResp
 from dhis2w_fhir_serve.synthesize import DEFAULT_PERIOD_TYPE, MAXIMUM_SEED, TrackerPair
 from fixture_project import (
     COLLECTS_INCIDENT_DATE_EXTENSION,
+    COVERAGE_LINK_THRESHOLD,
     ORG_UNITS,
+    OUTBREAK_FIRST_DAY,
+    OUTBREAK_LAST_DAY,
     REGISTRATION_GENERATED_ATTRIBUTE,
     REGISTRATION_QUESTIONNAIRE_BODY,
     REGISTRATION_UNIQUE_ATTRIBUTE,
@@ -543,6 +546,35 @@ async def test_a_numeric_answer_stays_inside_the_bounds_the_form_pins(capture_cl
     coverage = next(item for item in response["item"] if item["linkId"] == "DeCoverage01")
 
     assert 0 <= coverage["answer"][0]["valueDecimal"] <= 100
+
+
+@pytest.mark.parametrize("seed", [1, 6, 11, 4242])
+async def test_a_dated_answer_stays_inside_the_calendar_days_the_form_pins(
+    seed: int, capture_client: httpx.AsyncClient
+) -> None:
+    """The draw is clamped into the range whatever the window is, so a form's own days hold in any year."""
+    response = (await _generate(capture_client, "PrTemporal1", seed=seed)).json()
+
+    visit_date = next(item for item in response["item"] if item["linkId"] == "DeVisitDate1")
+
+    assert OUTBREAK_FIRST_DAY <= visit_date["answer"][0]["valueDate"] <= OUTBREAK_LAST_DAY
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 6, 11, 4242])
+async def test_a_question_the_draw_did_not_enable_is_left_unanswered(
+    seed: int, capture_client: httpx.AsyncClient
+) -> None:
+    """`$generate` answers what the form is asking under the answers it drew, not every question it holds.
+
+    A submission answering a question its own answers hid is exactly the stale value DHIS2's program
+    rules exist to prevent, and it would be forwarded as a real data value - so the draw is filtered
+    against the very `enableWhen` a capture screen evaluates.
+    """
+    response = (await _generate(capture_client, "PrTemporal1", seed=seed)).json()
+    answered = {item["linkId"]: item.get("answer") for item in response["item"] if item.get("answer")}
+    coverage = answered["DeCoverage01"][0]["valueDecimal"]
+
+    assert ("DeVisitLink1" in answered) is (coverage >= COVERAGE_LINK_THRESHOLD)
 
 
 async def test_the_post_spelling_takes_its_seed_from_a_parameters_body(capture_client: httpx.AsyncClient) -> None:

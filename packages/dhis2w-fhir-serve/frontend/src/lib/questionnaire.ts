@@ -105,6 +105,68 @@ export const REPEATABLE_EXTENSION_SUFFIX = '/StructureDefinition/d2-repeatable'
 export const DESCRIPTION_EXTENSION_SUFFIX = '/StructureDefinition/d2-description'
 
 /**
+ * The extension a form lists the DHIS2 program rules its instance enforces on import under.
+ *
+ * Repeating, one per rule, and complex: a rule is a uid, a name, a condition, and what DHIS2 does
+ * about it, and none of the four is the value of the other three.
+ */
+export const PROGRAM_RULE_EXTENSION_SUFFIX = '/StructureDefinition/d2-program-rule'
+
+/** The five sub-extensions one `d2-program-rule` repeat slices one rule under. */
+export const RULE_SUB_EXTENSION = 'rule'
+export const RULE_NAME_SUB_EXTENSION = 'name'
+export const RULE_DESCRIPTION_SUB_EXTENSION = 'description'
+export const RULE_CONDITION_SUB_EXTENSION = 'condition'
+export const RULE_ACTION_SUB_EXTENSION = 'action'
+
+/**
+ * One DHIS2 program rule a form declares its instance evaluates when the submission is imported.
+ *
+ * NOT A RULE THIS APP RUNS. A program rule is a DHIS2 expression over variables an instance holds,
+ * and this facade holds no instance - so what a client can do with one is name it: state before the
+ * capture that the rule is waiting, and read a rejection that cites its uid back as its name.
+ */
+export interface ProgramRule {
+    /** The DHIS2 uid, which is what a rejection names the rule by. */
+    ruleUid: string
+    /** What the rule is called in DHIS2 - the sentence a person reads. */
+    name: string
+    /** What DHIS2 holds as the rule's description, or null when it holds none, which is most rules. */
+    description: string | null
+    /** The rule's DHIS2 expression, in the machine spelling the instance holds it in. */
+    condition: string
+    /** The DHIS2 program rule action type, as `SHOWWARNING`, or null when the form states none. */
+    action: string | null
+}
+
+/**
+ * Every program rule one form declares, in the order it lists them.
+ *
+ * A repeat missing its uid, its name, or its condition is left out rather than shown half read: the
+ * three together are what makes a rule nameable in a rejection, and the other two are decoration.
+ */
+export function programRulesOf(questionnaire: Questionnaire | null): ProgramRule[] {
+    const declared = (questionnaire?.extension ?? []).filter((candidate) =>
+        candidate.url.endsWith(PROGRAM_RULE_EXTENSION_SUFFIX),
+    )
+    return declared.flatMap((extension) => {
+        const ruleUid = subExtension(extension, RULE_SUB_EXTENSION)?.valueId
+        const name = subExtension(extension, RULE_NAME_SUB_EXTENSION)?.valueString
+        const condition = subExtension(extension, RULE_CONDITION_SUB_EXTENSION)?.valueString
+        if (ruleUid === undefined || name === undefined || condition === undefined) return []
+        return [
+            {
+                ruleUid,
+                name,
+                description: subExtension(extension, RULE_DESCRIPTION_SUB_EXTENSION)?.valueString ?? null,
+                condition,
+                action: subExtension(extension, RULE_ACTION_SUB_EXTENSION)?.valueCode ?? null,
+            },
+        ]
+    })
+}
+
+/**
  * What a form calls each of the three dates it may collect.
  *
  * ONE SOURCE, TWO SURFACES. The capture screen labels its date controls from this and the receipt
@@ -292,9 +354,18 @@ export interface QuestionnaireNode {
     repeats: boolean
     readOnly: boolean
     maxLength: number | null
-    /** The inclusive bounds the `minValue` / `maxValue` extensions state, or null for none. */
+    /** The inclusive bounds the `minValue` / `maxValue` extensions state as numbers, or null for none. */
     minimum: number | null
     maximum: number | null
+    /**
+     * The inclusive bounds those same extensions state as calendar days, or null for none.
+     *
+     * Separate from the numeric pair rather than folded into it, because `2026-01-01` is not a
+     * quantity: a date question is bounded by days and a numeric question by numbers, and no question
+     * carries both. Which pair a control reads is decided by the question's own item type.
+     */
+    minimumDate: string | null
+    maximumDate: string | null
     /** The `value[x]` the answer lands on, or null for a group, a display, or a `quantity`. */
     answerElement: AnswerElement | null
     /** Whether this UI has a control that can produce that element. */
@@ -589,9 +660,16 @@ export function answersReducer(state: AnswerState, action: AnswerAction): Answer
  * Computed over the whole spec in one pre-order pass rather than per item on demand, because a
  * group's `enableWhen` disables everything under it: a child's answer is decided by its own
  * conditions *and* by every ancestor's, and pre-order means each ancestor's verdict is already
- * in the set by the time its children are reached. A disabled item keeps its answers in state -
- * re-enabling it must not lose what was typed - but `buildQuestionnaireResponse` writes none of
- * them, which is what R4 means by an item the form did not ask.
+ * in the set by the time its children are reached.
+ *
+ * R4 SEMANTICS FOR AN UNANSWERED QUESTION. A comparison needs two values, so a condition naming a
+ * question nobody answered never holds - `=`, `!=`, and the four orderings are all false against
+ * nothing. `exists` is the one operator that reads absence as a fact, and `exists=false` against an
+ * unanswered question is true. A condition naming a question the form does not have never holds
+ * either, which hides the dependent item rather than showing it unconditionally.
+ *
+ * What falls outside this set carries no answer: `clearedHiddenAnswers` is what enforces that, and
+ * `buildQuestionnaireResponse` writes nothing outside it either.
  */
 export function enabledLinkIds(spec: QuestionnaireSpec, answers: AnswerState): ReadonlySet<string> {
     const enabled = new Set<string>()
@@ -605,6 +683,112 @@ export function enabledLinkIds(spec: QuestionnaireSpec, answers: AnswerState): R
 /** Whether one item is asked, ancestors included. */
 export function isEnabled(spec: QuestionnaireSpec, linkId: string, answers: AnswerState): boolean {
     return enabledLinkIds(spec, answers).has(linkId)
+}
+
+/**
+ * The answers with every hidden question's cleared.
+ *
+ * A HIDDEN STALE ANSWER IS THE BUG DHIS2'S OWN RULES EXIST TO PREVENT. A question the form stopped
+ * asking is a question whose answer is no longer about anything: a haemoglobin reading typed before
+ * "was blood taken?" was set back to No describes a test nobody ran, and forwarded it becomes a real
+ * DHIS2 data value against a real person. Program rules exist precisely so that instance never holds
+ * such a value, so a capture screen that kept one in state until Submit would be the one place the
+ * rule could not reach.
+ *
+ * SO THE ANSWER GOES WHEN THE QUESTION GOES. The alternative - keep it, and let
+ * `buildQuestionnaireResponse` decline to write it - keeps the wire correct and the screen lying: the
+ * form would say nothing was answered while the reducer held a value, and any second reader of the
+ * state (a required-question sweep, a draft saved anywhere) would have to remember the same rule
+ * independently. One rule in one place, and what is not asked is not answered.
+ *
+ * Re-enabling a question therefore brings it back empty. That is the honest reading: the conditions
+ * changed, so the earlier answer was given under a form that was asking something else.
+ *
+ * The state object's identity is preserved when nothing is hidden, so the ordinary keystroke on an
+ * ordinary form does not rerender every control for no reason.
+ */
+export function clearedHiddenAnswers(spec: QuestionnaireSpec, answers: AnswerState): AnswerState {
+    const enabled = enabledLinkIds(spec, answers)
+    const hidden = Object.keys(answers).filter((linkId) => spec.byLinkId.has(linkId) && !enabled.has(linkId))
+    if (hidden.length === 0) return answers
+    const next = { ...answers }
+    for (const linkId of hidden) delete next[linkId]
+    return next
+}
+
+/** One answered question whose value falls outside the range its own form publishes. */
+export interface BoundBreach {
+    linkId: string
+    /**
+     * Which answer of a repeating question this is, counting from zero.
+     *
+     * The only thing that tells two breaches of one question apart: a repeating question can be
+     * answered `137` twice, and both are outside the range in exactly the same words.
+     */
+    index: number
+    /** The question as the form asks it, so the sentence names a question rather than a uid. */
+    text: string
+    /**
+     * The whole fact in one sentence: the value, which end of the range it passed, and that value.
+     *
+     * Assembled here rather than in the component because it is the same sentence wherever it is
+     * shown, and because the numbers in it are the form's own literals rather than anything reformatted.
+     */
+    fact: string
+}
+
+/**
+ * Every enabled question answered outside the range its `minValue` / `maxValue` extensions publish.
+ *
+ * WHY THE BROWSER CHECKS AT ALL. The server checks too, and DHIS2 checks after that - but a value
+ * the form itself says it does not accept is a mistake the person who typed it can fix under the
+ * cursor, and spending a round trip to be told what the form already published is the worst of the
+ * three places to learn it. What comes back is the fact rather than an instruction: a reader is told
+ * what they typed and what the form accepts, and decides for themselves what to do about it.
+ *
+ * A DISABLED QUESTION IS NOT CHECKED, because it carries no answer once `clearedHiddenAnswers` has
+ * run and would not be submitted if it did. Numbers are graded against the numeric bounds and
+ * calendar days against the dated ones; a question carrying neither, and a half-typed literal that is
+ * not yet a value, are both passed over - the value is graded once it is one.
+ */
+export function boundBreaches(spec: QuestionnaireSpec, answers: AnswerState): BoundBreach[] {
+    const enabled = enabledLinkIds(spec, answers)
+    const breaches: BoundBreach[] = []
+    for (const node of spec.nodes) {
+        if (!enabled.has(node.linkId)) continue
+        ;(answers[node.linkId] ?? []).forEach((slot, index) => {
+            const fact = slotBoundFact(node, slot)
+            if (fact !== null) breaches.push({ linkId: node.linkId, index, text: node.text ?? node.linkId, fact })
+        })
+    }
+    return breaches
+}
+
+/** The sentence one answer's breach reads as, or null when it is inside the range or outside none. */
+function slotBoundFact(node: QuestionnaireNode, slot: AnswerSlot): string | null {
+    const answer = slotAnswer(node, slot)
+    if (answer === null) return null
+    const number = answer.valueInteger ?? answer.valueDecimal
+    if (number !== undefined) {
+        if (node.minimum !== null && number < node.minimum) return belowFact(number, node.minimum)
+        if (node.maximum !== null && number > node.maximum) return aboveFact(number, node.maximum)
+        return null
+    }
+    const date = answer.valueDate
+    if (date === undefined) return null
+    if (node.minimumDate !== null && date < node.minimumDate) return belowFact(date, node.minimumDate)
+    if (node.maximumDate !== null && date > node.maximumDate) return aboveFact(date, node.maximumDate)
+    return null
+}
+
+/** What a value under the range says about itself. */
+function belowFact(value: number | string, bound: number | string): string {
+    return `${value} is below the lowest value this form accepts, ${bound}`
+}
+
+/** What a value over the range says about itself. */
+function aboveFact(value: number | string, bound: number | string): string {
+    return `${value} is above the highest value this form accepts, ${bound}`
 }
 
 /**
@@ -1433,6 +1617,8 @@ function readItem(
         maxLength: item.maxLength ?? null,
         minimum: numericExtension(item, MINIMUM_VALUE_EXTENSION_URL),
         maximum: numericExtension(item, MAXIMUM_VALUE_EXTENSION_URL),
+        minimumDate: datedExtension(item, MINIMUM_VALUE_EXTENSION_URL),
+        maximumDate: datedExtension(item, MAXIMUM_VALUE_EXTENSION_URL),
         answerElement,
         fillable: answerElement !== null && FILLABLE_ANSWER_ELEMENTS.has(answerElement),
         answerOptions: item.answerOption ?? [],
@@ -1462,6 +1648,11 @@ function numericExtension(item: QuestionnaireItem, url: string): number | null {
     const extension = item.extension?.find((candidate) => candidate.url === url)
     if (extension === undefined) return null
     return extension.valueInteger ?? extension.valueDecimal ?? null
+}
+
+/** The calendar day one bounds extension states, or null when it bounds a number rather than a day. */
+function datedExtension(item: QuestionnaireItem, url: string): string | null {
+    return item.extension?.find((candidate) => candidate.url === url)?.valueDate ?? null
 }
 
 /** Whether one item's own conditions hold - ancestors are the caller's business. */

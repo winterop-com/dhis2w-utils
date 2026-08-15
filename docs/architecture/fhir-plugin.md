@@ -205,6 +205,24 @@ pair naming the combos its responses may be keyed under; the form declares the
 set and the response names one member. A default-combo data set publishes
 nothing, because absence is the default.
 
+### Program rules
+
+A program's rules are resolved once per run by `plan_program_rules`
+(`resources/questionnaires/program_rules.py`) into the three tiers R4 can
+carry: a single-comparison `SHOWERROR` on a numeric question becomes
+`minValue`/`maxValue` on the item, a single-comparison `HIDEFIELD` becomes
+`item.enableWhen` with the condition inverted (plus an `exists` arm exactly
+where DHIS2's blank-answer semantics require one), and everything else is
+published whole on the repeating `d2-program-rule` extension - non-normative,
+so a consumer can state the rule without evaluating it. The grammar is
+deliberately conservative - one `#{variable}` comparison against a literal,
+optionally guarded by `d2:hasValue` on the same variable, resolved through
+`programRuleVariables` to a question the same form asks - and the single
+resolution point is what keeps the FSH emitter and the JSON twin from
+disagreeing about which tier a rule reached. `SHOWWARNING` never becomes a
+bound: DHIS2 lets a warned value through on import, and a bound nobody
+enforces is a false claim.
+
 ### Naming and identity
 
 Artifact names merge a configurable prefix and a kind token and underscore what

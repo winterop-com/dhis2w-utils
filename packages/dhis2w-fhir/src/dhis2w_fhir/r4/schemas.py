@@ -140,6 +140,9 @@ class Extension(Element):
     extension: list[Extension] | None = None
     valueBoolean: bool | None = None
     valueCode: str | None = None
+    valueId: str | None = None
+    """A FHIR `id` - a DHIS2 UID is one, which is what a published program rule names itself by."""
+
     valueCanonical: str | None = None
     valueString: str | None = None
     valueString_element: Element | None = Field(
@@ -147,6 +150,7 @@ class Extension(Element):
         validation_alias=AliasChoices("_valueString", "valueString_element"),
         serialization_alias="_valueString",
     )
+    valueDate: str | None = None
     valueDateTime: str | None = None
     valueInteger: int | None = None
     valueDecimal: int | float | None = None
@@ -419,6 +423,26 @@ class ConceptMap(DomainResource):
     group: list[ConceptMapGroup] | None = None
 
 
+class QuestionnaireItemEnableWhen(BackboneElement):
+    """`Questionnaire.item.enableWhen` - one condition under which the form asks the item carrying it.
+
+    The `answer[x]` choices are the ones a DHIS2 program rule condition compiles into: a coded
+    answer, a tick, a number, and the three temporal primitives. `operator` is the R4 code, and
+    `exists` states its sense on `answerBoolean` rather than on any of the others.
+    """
+
+    question: str | None = None
+    operator: Literal["exists", "=", "!=", ">", "<", ">=", "<="] | None = None
+    answerBoolean: bool | None = None
+    answerDecimal: int | float | None = None
+    answerInteger: int | None = None
+    answerDate: str | None = None
+    answerDateTime: str | None = None
+    answerTime: str | None = None
+    answerString: str | None = None
+    answerCoding: Coding | None = None
+
+
 class QuestionnaireItem(BackboneElement):
     """`Questionnaire.item` - one question, or a group nesting the questions of a section or a disaggregation."""
 
@@ -454,6 +478,12 @@ class QuestionnaireItem(BackboneElement):
     repeats: bool | None = None
     readOnly: bool | None = None
     """True when DHIS2 owns the value - a generated tracked entity attribute, minted by the instance on import."""
+
+    enableWhen: list[QuestionnaireItemEnableWhen] | None = None
+    """The conditions under which the form asks this item; absent on an item the form always asks."""
+
+    enableBehavior: Literal["all", "any"] | None = None
+    """How several conditions combine. R4 requires it past one condition and admits it at one."""
 
     extension: list[Extension] | None = None
     item: list[QuestionnaireItem] | None = None

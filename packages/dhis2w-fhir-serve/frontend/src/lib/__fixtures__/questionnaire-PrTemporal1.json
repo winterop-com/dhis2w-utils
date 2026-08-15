@@ -26,7 +26,17 @@
     {
       "linkId": "DeVisitDate1",
       "text": "Visit date",
-      "type": "date"
+      "type": "date",
+      "extension": [
+        {
+          "url": "http://hl7.org/fhir/StructureDefinition/minValue",
+          "valueDate": "2026-01-01"
+        },
+        {
+          "url": "http://hl7.org/fhir/StructureDefinition/maxValue",
+          "valueDate": "2026-12-31"
+        }
+      ]
     },
     {
       "linkId": "DeVisitTime1",
@@ -41,7 +51,14 @@
     {
       "linkId": "DeVisitLink1",
       "text": "Visit link",
-      "type": "url"
+      "type": "url",
+      "enableWhen": [
+        {
+          "question": "DeCoverage01",
+          "operator": ">=",
+          "answerDecimal": 50
+        }
+      ]
     },
     {
       "linkId": "DeVisitUnit1",

@@ -29,8 +29,10 @@ import {
 import {
     answersFromResponse,
     answersReducer,
+    boundBreaches,
     buildQuestionnaireResponse,
     clearedEntityLevelAnswers,
+    clearedHiddenAnswers,
     collectsIncidentDate,
     dateTimeInputValue,
     enabledLinkIds,
@@ -46,6 +48,7 @@ import {
     normaliseTime,
     NO_CAPTURE_CONTEXT,
     openedReportingUnit,
+    programRulesOf,
     questionCodeSystemIds,
     refilledAttributeOptionCombo,
     refilledEnrollment,
@@ -78,9 +81,10 @@ import { marksAnExistingSubject } from '@/lib/patients'
  * test below is the real contract: refill a generated response through the reducer, rebuild it,
  * and the item tree that comes out has to be the one that went in.
  *
- * The enableWhen questionnaires are hand-written, and deliberately so: the DHIS2 emitter writes
- * no `enableWhen` at all, so there is no golden to harvest. They state the R4 semantics the
- * evaluator implements rather than a shape the server produces.
+ * The truth-table questionnaire is hand-written, and deliberately so: it carries a condition on
+ * every R4 operator and both behaviours, which no one real form does. The served temporal form
+ * carries one real condition and one real date range beside it, so the same evaluator is checked
+ * against both the whole R4 surface and the shape a project actually publishes.
  */
 
 const questionnaires = new Map(
@@ -437,13 +441,216 @@ describe('enableWhen', () => {
         expect(conditionalSpec.byLinkId.get('d-in-group')?.enableWhen).toEqual([])
     })
 
-    it('keeps a disabled item’s answers in state but writes none of them', () => {
+    it('writes no answer for a disabled item', () => {
         const answers = { ...answersOf({ 'q-boolean': 'false' }), ...answersOf({ 'd-in-group': 'typed earlier' }) }
 
         const built = buildQuestionnaireResponse(conditionalSpec, answers, CONDITIONAL_FORM, null, NO_CAPTURE_CONTEXT)
 
-        expect(answers['d-in-group']).toHaveLength(1)
         expect(JSON.stringify(built.item ?? [])).not.toContain('typed earlier')
+    })
+})
+
+describe('an answer to a question the form stopped asking', () => {
+    it('is cleared, so what is not asked is not answered', () => {
+        const answers = { ...answersOf({ 'q-boolean': 'false' }), ...answersOf({ 'd-in-group': 'typed earlier' }) }
+
+        const cleared = clearedHiddenAnswers(conditionalSpec, answers)
+
+        expect(cleared['d-in-group']).toBeUndefined()
+        expect(cleared['q-boolean']).toHaveLength(1)
+    })
+
+    it('leaves the answers alone when every answered question is still asked', () => {
+        const answers = answersOf({ 'q-boolean': 'true' })
+
+        expect(clearedHiddenAnswers(conditionalSpec, answers)).toBe(answers)
+    })
+
+    it('cascades: clearing one answer closes the question the next condition read', () => {
+        const chained = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                { linkId: 'first', type: 'boolean' },
+                {
+                    linkId: 'second',
+                    type: 'integer',
+                    enableWhen: [{ question: 'first', operator: '=', answerBoolean: true }],
+                },
+                {
+                    linkId: 'third',
+                    type: 'string',
+                    enableWhen: [{ question: 'second', operator: '>', answerInteger: 1 }],
+                },
+            ],
+        })
+        const answers = {
+            ...answersOf({ first: 'false' }),
+            ...answersOf({ second: '7' }),
+            ...answersOf({ third: 'typed earlier' }),
+        }
+
+        // One sweep drops `second`, which closes `third`; a caller running to a fixed point drops both.
+        let cleared = clearedHiddenAnswers(chained, answers)
+        while (clearedHiddenAnswers(chained, cleared) !== cleared) cleared = clearedHiddenAnswers(chained, cleared)
+
+        expect(cleared['second']).toBeUndefined()
+        expect(cleared['third']).toBeUndefined()
+    })
+
+    it('is not counted as a required question still waiting', () => {
+        const gated = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                { linkId: 'asked', type: 'boolean' },
+                {
+                    linkId: 'hidden',
+                    type: 'string',
+                    required: true,
+                    enableWhen: [{ question: 'asked', operator: '=', answerBoolean: true }],
+                },
+            ],
+        })
+
+        expect(unansweredRequiredLinkIds(gated, answersOf({ asked: 'false' }))).toEqual([])
+        expect(unansweredRequiredLinkIds(gated, answersOf({ asked: 'true' }))).toEqual(['hidden'])
+    })
+})
+
+describe('an answer outside what the form accepts', () => {
+    const temporalSpec = flattenQuestionnaire(temporalQuestionnaire)
+
+    it('states the fact for a number over the maximum', () => {
+        const breaches = boundBreaches(temporalSpec, answersOf({ DeCoverage01: '137' }))
+
+        expect(breaches).toHaveLength(1)
+        expect(breaches[0].linkId).toBe('DeCoverage01')
+        expect(breaches[0].text).toBe('Coverage')
+        expect(breaches[0].fact).toBe('137 is above the highest value this form accepts, 100')
+    })
+
+    it('states the fact for a number under the minimum', () => {
+        const breaches = boundBreaches(temporalSpec, answersOf({ DeCoverage01: '-4' }))
+
+        expect(breaches[0].fact).toBe('-4 is below the lowest value this form accepts, 0')
+    })
+
+    it('states the fact for a calendar day outside the range', () => {
+        const breaches = boundBreaches(temporalSpec, answersOf({ DeVisitDate1: '2027-03-04' }))
+
+        expect(breaches[0].linkId).toBe('DeVisitDate1')
+        expect(breaches[0].fact).toBe('2027-03-04 is above the highest value this form accepts, 2026-12-31')
+    })
+
+    it('says nothing about a value inside the range, or about a half-typed one', () => {
+        expect(boundBreaches(temporalSpec, answersOf({ DeCoverage01: '58.3' }))).toEqual([])
+        expect(boundBreaches(temporalSpec, answersOf({ DeVisitDate1: '2026-07-23' }))).toEqual([])
+        expect(boundBreaches(temporalSpec, answersOf({ DeCoverage01: '-' }))).toEqual([])
+        expect(boundBreaches(temporalSpec, answersOf({ DeCoverage01: '' }))).toEqual([])
+    })
+
+    it('counts a repeating question once per answer that is outside', () => {
+        const repeating = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                {
+                    linkId: 'readings',
+                    type: 'integer',
+                    text: 'Readings',
+                    repeats: true,
+                    extension: [{ url: 'http://hl7.org/fhir/StructureDefinition/maxValue', valueInteger: 99 }],
+                },
+            ],
+        })
+        const answers: AnswerState = {
+            readings: [
+                { text: '137', coding: null, reference: null },
+                { text: '4', coding: null, reference: null },
+                { text: '137', coding: null, reference: null },
+            ],
+        }
+
+        const breaches = boundBreaches(repeating, answers)
+
+        // Two rows holding the same value are two answers, and the position is all that tells them
+        // apart - which is what the row key on the page is built from.
+        expect(breaches.map((breach) => breach.index)).toEqual([0, 2])
+        expect(breaches[0].fact).toBe('137 is above the highest value this form accepts, 99')
+    })
+
+    it('says nothing about a question the form is not asking', () => {
+        const gated = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                { linkId: 'asked', type: 'boolean' },
+                {
+                    linkId: 'bounded',
+                    type: 'integer',
+                    extension: [{ url: 'http://hl7.org/fhir/StructureDefinition/maxValue', valueInteger: 10 }],
+                    enableWhen: [{ question: 'asked', operator: '=', answerBoolean: true }],
+                },
+            ],
+        })
+        const answers = { ...answersOf({ asked: 'false' }), ...answersOf({ bounded: '99' }) }
+
+        expect(boundBreaches(gated, answers)).toEqual([])
+    })
+})
+
+describe('the program rules a form declares', () => {
+    const CANONICAL = 'http://localhost:8080/fhir'
+    const ruleExtension = (sliced: Extension[]): Extension => ({
+        url: `${CANONICAL}/StructureDefinition/d2-program-rule`,
+        extension: sliced,
+    })
+
+    it('reads every repeat in the order the form lists them', () => {
+        const form: Questionnaire = {
+            resourceType: 'Questionnaire',
+            status: 'active',
+            extension: [
+                ruleExtension([
+                    { url: 'rule', valueId: 'PrRuleHb001' },
+                    { url: 'name', valueString: 'The haemoglobin value cannot be above 99' },
+                    { url: 'description', valueString: 'A reading above 99 g/L is a transcription error.' },
+                    { url: 'condition', valueString: '#{DeAncVisNo1} > 99' },
+                    { url: 'action', valueCode: 'SHOWERROR' },
+                ]),
+                ruleExtension([
+                    { url: 'rule', valueId: 'PrRuleOrd01' },
+                    { url: 'name', valueString: 'A visit is filed in the order it happened' },
+                    { url: 'condition', valueString: 'd2:hasValue(#{DeAncVisNo1})' },
+                    { url: 'action', valueCode: 'SHOWWARNING' },
+                ]),
+            ],
+        }
+
+        const rules = programRulesOf(form)
+
+        expect(rules.map((rule) => rule.ruleUid)).toEqual(['PrRuleHb001', 'PrRuleOrd01'])
+        expect(rules[0].name).toBe('The haemoglobin value cannot be above 99')
+        expect(rules[0].description).toBe('A reading above 99 g/L is a transcription error.')
+        expect(rules[0].condition).toBe('#{DeAncVisNo1} > 99')
+        expect(rules[0].action).toBe('SHOWERROR')
+        expect(rules[1].description).toBeNull()
+    })
+
+    it('leaves out a repeat missing its uid, its name, or its condition', () => {
+        const form: Questionnaire = {
+            resourceType: 'Questionnaire',
+            status: 'active',
+            extension: [ruleExtension([{ url: 'name', valueString: 'A rule with no uid' }])],
+        }
+
+        expect(programRulesOf(form)).toEqual([])
+    })
+
+    it('reads no rule off a form that declares none, and none off no form', () => {
+        expect(programRulesOf(temporalQuestionnaire)).toEqual([])
+        expect(programRulesOf(null)).toEqual([])
     })
 })
 

@@ -41,7 +41,7 @@ async def _scaffold_project(directory: Path) -> None:
 
 def _mock_empty_metadata() -> None:
     """Answer every metadata endpoint with nothing, so a test only populates the one it is about."""
-    for resource in ("optionSets", "categories", "organisationUnits", "dataSets", "programs"):
+    for resource in ("optionSets", "categories", "organisationUnits", "dataSets", "programs", "programRules"):
         respx.get(f"{_HOST}/api/{resource}").mock(return_value=httpx.Response(200, json={resource: []}))
     respx.get(f"{_HOST}/api/attributes").mock(return_value=httpx.Response(200, json={"attributes": []}))
 

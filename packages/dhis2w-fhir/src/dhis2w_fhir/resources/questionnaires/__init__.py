@@ -51,6 +51,11 @@ from dhis2w_fhir.foundation.schemas import (
     DATE_LABEL_ENROLLMENT_SUB_EXTENSION,
     DATE_LABEL_EVENT_SUB_EXTENSION,
     DATE_LABEL_INCIDENT_SUB_EXTENSION,
+    PROGRAM_RULE_ACTION_SUB_EXTENSION,
+    PROGRAM_RULE_CONDITION_SUB_EXTENSION,
+    PROGRAM_RULE_DESCRIPTION_SUB_EXTENSION,
+    PROGRAM_RULE_NAME_SUB_EXTENSION,
+    PROGRAM_RULE_UID_SUB_EXTENSION,
     FoundationNaming,
 )
 from dhis2w_fhir.i18n import (
@@ -60,19 +65,33 @@ from dhis2w_fhir.i18n import (
     name_translations,
     text_translations,
 )
-from dhis2w_fhir.names import code_or_uid, page_text, quote
+from dhis2w_fhir.names import code_or_uid, page_text, quote, quote_verbatim
 from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
 from dhis2w_fhir.resources.option_sets import code_system_canonical, option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
 from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
+from dhis2w_fhir.resources.questionnaires.program_rules import (
+    EnableWhenCondition,
+    FormProgramRules,
+    ItemEnableWhen,
+    ProgramRuleBound,
+    PublishedProgramRule,
+    merged_bounds,
+    plan_program_rules,
+    value_type_bound,
+)
 from dhis2w_fhir.resources.questionnaires.schemas import (
+    BOUND_ELEMENTS_BY_ITEM_TYPE,
     CATEGORY_OPTION_COMBO_TERMINOLOGY,
     DATA_ELEMENT_TERMINOLOGY,
     DISPLAY_IN_LIST_PROPERTY_DESCRIPTION,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
     GENERATED_PROPERTY_DESCRIPTION,
+    ITEM_TYPES_BY_VALUE_TYPE,
+    MAXIMUM_VALUE_EXTENSION_URL,
+    MINIMUM_VALUE_EXTENSION_URL,
     PATTERN_PROPERTY_DESCRIPTION,
     RESOURCE_MAP_EQUIVALENCE,
     RESOURCE_TYPE_CODE_SYSTEM_URL,
@@ -99,6 +118,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     form_period_type,
     form_repeatable,
     form_subject_type,
+    item_type,
     plan_questionnaire_stems,
     published_tracked_entity_types,
     question_read_only,
@@ -150,10 +170,12 @@ __all__ = [
     "question_code_system",
     "question_entity_level",
     "question_read_only",
+    "enable_behavior_of",
     "search_context_declarations",
     "source_description",
     "source_items",
     "source_program",
+    "value_type_bounds",
 ]
 
 #: Sync directory holding one Questionnaire per DHIS2 data set.
@@ -186,10 +208,6 @@ ITEM_CONTROL_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/questionna
 #: The CodeSystem the item-control extension's CodeableConcept is coded from (`#gtable` here).
 ITEM_CONTROL_CODE_SYSTEM_URL = "http://hl7.org/fhir/questionnaire-item-control"
 
-#: The standard R4 extensions constraining the range a numeric question's answer may take.
-MINIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/minValue"
-MAXIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/maxValue"
-
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.resources.questionnaires", "templates"),
     autoescape=select_autoescape(default=False),
@@ -198,54 +216,6 @@ _ENVIRONMENT = Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
-
-#: The FHIR `Questionnaire.item.type` each DHIS2 value type answers as. Every member of the
-#: generated `ValueType` enum on v41, v42, and v43 has an entry here, and a guard test asserts
-#: that - so a codegen refresh introducing a new DHIS2 value type is a deliberate mapping
-#: decision rather than a silent fall-through to string. The keys stay plain strings, and
-#: `_DEFAULT_ITEM_TYPE` still catches an unknown value at runtime: an instance ahead of the
-#: generated tree must not crash generation.
-ITEM_TYPES_BY_VALUE_TYPE = {
-    # Text and text-shaped values. R4 offers no finer item type than `string` for a letter, a
-    # phone number, an email, or a username, so they are mapped explicitly rather than by default.
-    "TEXT": "string",
-    "LONG_TEXT": "text",
-    "LETTER": "string",
-    "PHONE_NUMBER": "string",
-    "EMAIL": "string",
-    "USERNAME": "string",
-    "MULTI_TEXT": "string",
-    # Numbers.
-    "NUMBER": "decimal",
-    "INTEGER": "integer",
-    "INTEGER_POSITIVE": "integer",
-    "INTEGER_NEGATIVE": "integer",
-    "INTEGER_ZERO_OR_POSITIVE": "integer",
-    "PERCENTAGE": "decimal",
-    "UNIT_INTERVAL": "decimal",
-    # Booleans.
-    "BOOLEAN": "boolean",
-    "TRUE_ONLY": "boolean",
-    # Temporals. `AGE` is a date on the wire - DHIS2 stores the date of birth and renders the
-    # age from it, so the age is a display concern and the date is the captured value.
-    "DATE": "date",
-    "DATETIME": "dateTime",
-    "TIME": "time",
-    "AGE": "date",
-    # Web and binary values.
-    "URL": "url",
-    "FILE_RESOURCE": "attachment",
-    "IMAGE": "attachment",
-    # Geography. GeoJSON is a document, not a coordinate pair; `COORDINATE` is DHIS2's
-    # `[lon,lat]` string, which no R4 item type expresses.
-    "GEOJSON": "text",
-    "COORDINATE": "string",
-    # References. Only the organisation unit resolves to a FHIR resource; the other two
-    # carry a bare UID - this guide publishes no FHIR resource for the referenced object.
-    "ORGANISATION_UNIT": "reference",
-    "REFERENCE": "string",
-    "TRACKER_ASSOCIATE": "string",
-}
 
 #: The range each bounded DHIS2 numeric value type admits, as the `minValue` / `maxValue`
 #: extensions a question carries. Only the value types whose name *is* a constraint appear:
@@ -259,15 +229,6 @@ BOUNDS_BY_VALUE_TYPE = {
     "PERCENTAGE": NumericBounds(minimum_value=0, maximum_value=100),
     "UNIT_INTERVAL": NumericBounds(minimum_value=0, maximum_value=1),
 }
-
-#: The `value[x]` element a bound lands on, keyed by the item type the question answers as. A
-#: question answering as anything else - a `#choice` bound to an option set, say - takes no
-#: bound at all, because there is no numeric element on it to constrain.
-BOUND_ELEMENTS_BY_ITEM_TYPE = {"integer": "valueInteger", "decimal": "valueDecimal"}
-
-#: What an unmapped value type answers as - reached only by a DHIS2 value type newer than the
-#: generated enums, since the table above covers every member of all three.
-_DEFAULT_ITEM_TYPE = "string"
 
 #: The one DHIS2 value type that captures several answers to a single question.
 _MULTI_VALUE_TYPE = "MULTI_TEXT"
@@ -301,6 +262,33 @@ class _BoundView(BaseModel):
     literal: str
 
 
+class _EnableWhenView(BaseModel):
+    """One `enableWhen` entry as the FSH literals its three lines take."""
+
+    model_config = ConfigDict(frozen=True)
+
+    question_literal: str
+    operator_token: str
+    """The R4 operator as FSH writes a code: `#exists`, and the comparisons quoted because `=` is a symbol."""
+
+    answer_element: str
+    answer_literal: str
+
+
+class _ProgramRuleView(BaseModel):
+    """One published program rule as the FSH literals its D2ProgramRule entry is assigned from."""
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    name_literal: str
+    description_literal: str | None = None
+    condition_literal: str
+    action_code: str
+    name_translations: list[TranslationIn] = Field(default_factory=list)
+    description_translations: list[TranslationIn] = Field(default_factory=list)
+
+
 class _ItemView(BaseModel):
     """One emitted Questionnaire item, its FSH soft-index paths already resolved."""
 
@@ -328,6 +316,11 @@ class _ItemView(BaseModel):
     """Whether the question's answer belongs to the tracked entity, or None when the form states no level."""
 
     bounds: list[_BoundView] = Field(default_factory=list)
+    enable_when: list[_EnableWhenView] = Field(default_factory=list)
+    """What shows the question - empty unless a program rule hides it on another question's answer."""
+
+    enable_behavior: str | None = None
+    """How several showing conditions join, written only where the question carries more than one."""
 
 
 class _DateLabelView(BaseModel):
@@ -465,8 +458,12 @@ class _QuestionnaireView(BaseModel):
     it on the same element, and a numeric question already carries its bounds there.
     """
 
+    program_rule_extension: str
     ig_status: IgStatus
     attribute_values: list[_AttributeValueView] = Field(default_factory=list)
+    program_rules: list[_ProgramRuleView] = Field(default_factory=list)
+    """The rules of this form's program neither tier expressed, published non-normatively."""
+
     items: list[_ItemView] = Field(default_factory=list)
 
     @property
@@ -675,6 +672,7 @@ def build_questionnaire_artifacts(
     names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
+    rule_plan = plan_program_rules(sources)
     referenced = ReferencedObjects()
     colliding: list[str] = []
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")
@@ -698,6 +696,7 @@ def build_questionnaire_artifacts(
             attribute_combos=attribute_combo_plan,
             tracked_entity_types=config.tracked_entity_types,
             locales=config.locales,
+            program_rules=rule_plan.for_form(source.uid),
         )
         build.artifacts.append(
             FshArtifact(
@@ -712,6 +711,11 @@ def build_questionnaire_artifacts(
                     attribute_id_sub_extension=ATTRIBUTE_ID_SUB_EXTENSION,
                     attribute_code_sub_extension=ATTRIBUTE_CODE_SUB_EXTENSION,
                     attribute_value_sub_extension=ATTRIBUTE_VALUE_SUB_EXTENSION,
+                    program_rule_uid_sub_extension=PROGRAM_RULE_UID_SUB_EXTENSION,
+                    program_rule_name_sub_extension=PROGRAM_RULE_NAME_SUB_EXTENSION,
+                    program_rule_description_sub_extension=PROGRAM_RULE_DESCRIPTION_SUB_EXTENSION,
+                    program_rule_condition_sub_extension=PROGRAM_RULE_CONDITION_SUB_EXTENSION,
+                    program_rule_action_sub_extension=PROGRAM_RULE_ACTION_SUB_EXTENSION,
                 ),
             )
         )
@@ -845,6 +849,7 @@ def _questionnaire_view(
     attribute_combos: AttributeComboPlan,
     tracked_entity_types: Mapping[str, str],
     locales: list[str],
+    program_rules: FormProgramRules,
 ) -> _QuestionnaireView:
     """Project one source onto the view the Questionnaire template renders.
 
@@ -894,10 +899,68 @@ def _questionnaire_view(
         attribute_option_combo_value_set=_attribute_option_combo_value_set(source, attribute_combos),
         attribute_value_extension=foundation.attribute_value_extension,
         entity_level_extension_url=f"{canonical}/StructureDefinition/{foundation.entity_level_extension_id}",
+        program_rule_extension=foundation.program_rule_extension,
         ig_status=ig_status,
         attribute_values=_attribute_value_views(source.attribute_values, attribute_codes),
-        items=_item_views(source, names, identities, locales),
+        program_rules=_program_rule_views(program_rules.published, locales),
+        items=_item_views(source, names, identities, locales, program_rules),
     )
+
+
+def _program_rule_views(published: list[PublishedProgramRule], locales: list[str]) -> list[_ProgramRuleView]:
+    """Project the rules this form does not express onto the literals their D2ProgramRule entries take."""
+    return [
+        _ProgramRuleView(
+            uid=rule.uid,
+            name_literal=quote(rule.name),
+            description_literal=quote(rule.description) if rule.description else None,
+            condition_literal=quote_verbatim(rule.condition),
+            action_code=rule.action,
+            name_translations=name_translations(rule.translations, locales),
+            description_translations=description_translations(rule.translations, locales) if rule.description else [],
+        )
+        for rule in published
+    ]
+
+
+def _enable_when_views(shown: ItemEnableWhen | None, identities: dict[str, OptionSetIdentity]) -> list[_EnableWhenView]:
+    """Project one question's showing conditions onto the FSH literals each of its lines takes."""
+    if shown is None:
+        return []
+    return [
+        _EnableWhenView(
+            question_literal=quote(condition.question_link_id),
+            operator_token=_operator_token(condition.operator),
+            answer_element=condition.answer_element,
+            answer_literal=_answer_literal(condition, identities),
+        )
+        for condition in shown.conditions
+    ]
+
+
+def _operator_token(operator: str) -> str:
+    """One R4 operator as an FSH code: quoted for the comparisons, whose codes are punctuation."""
+    return f"#{operator}" if operator.isalpha() else f'#"{operator}"'
+
+
+def _answer_literal(condition: EnableWhenCondition, identities: dict[str, OptionSetIdentity]) -> str:
+    """The typed answer one condition compares against, as the FSH literal its `answer[x]` takes."""
+    if condition.answer_element == "answerCoding":
+        identity = identities[condition.option_set_uid] if condition.option_set_uid else None
+        system = identity.code_system_name if identity is not None else condition.option_set_uid
+        return f"{system}#{condition.text}"
+    if condition.answer_element == "answerBoolean":
+        return "true" if condition.boolean else "false"
+    if condition.answer_element == "answerInteger":
+        return str(condition.integer)
+    if condition.answer_element == "answerDecimal":
+        return _decimal_answer_literal(condition.number)
+    return quote(condition.text)
+
+
+def _decimal_answer_literal(value: float) -> str:
+    """A decimal answer as FSH writes it, a whole number keeping the value a decimal rather than an integer."""
+    return str(int(value)) if value.is_integer() else str(value)
 
 
 def _date_label_views(source: QuestionnaireSourceIn, locales: list[str]) -> list[_DateLabelView]:
@@ -1020,6 +1083,7 @@ def _item_views(
     names: QuestionnaireNaming,
     identities: dict[str, OptionSetIdentity],
     locales: list[str],
+    program_rules: FormProgramRules,
 ) -> list[_ItemView]:
     """Flatten the source's sections and unsectioned items into depth-first FSH item lines."""
     views: list[_ItemView] = []
@@ -1040,9 +1104,11 @@ def _item_views(
             )
         )
         for item in section.items:
-            views.extend(_question_views(item, names, identities, locales, depth=1, kind=source.kind))
+            views.extend(
+                _question_views(item, names, identities, locales, depth=1, kind=source.kind, rules=program_rules)
+            )
     for item in source.flat_items:
-        views.extend(_question_views(item, names, identities, locales, depth=0, kind=source.kind))
+        views.extend(_question_views(item, names, identities, locales, depth=0, kind=source.kind, rules=program_rules))
     return views
 
 
@@ -1053,6 +1119,7 @@ def _question_views(
     locales: list[str],
     depth: int,
     kind: FormKind,
+    rules: FormProgramRules,
 ) -> list[_ItemView]:
     """Build one question's item lines: a question, or a group with one child per option combo.
 
@@ -1067,7 +1134,9 @@ def _question_views(
     resolved_item_type = item_type(item)
     answer_value_set = _answer_value_set(item, identities)
     repeats = is_multi_valued(item.value_type, resolved_item_type)
-    bounds = _bound_views(item.value_type, resolved_item_type)
+    bounds = _bound_views(item.value_type, resolved_item_type, rules.bounds_for(item.uid))
+    shown = _enable_when_views(rules.enable_when_for(item.uid), identities)
+    behavior = enable_behavior_of(rules.enable_when_for(item.uid))
     description_literal = quote(item.description) if item.description else None
     description_translated = description_translations(item.translations, locales) if item.description else []
     if not is_disaggregated(item, kind):
@@ -1088,6 +1157,8 @@ def _question_views(
                 description_translations=description_translated,
                 entity_level=question_entity_level(item, kind),
                 bounds=bounds,
+                enable_when=shown,
+                enable_behavior=behavior,
             )
         ]
     views = [
@@ -1102,6 +1173,8 @@ def _question_views(
             required=item.compulsory,
             description_literal=description_literal,
             description_translations=description_translated,
+            enable_when=shown,
+            enable_behavior=behavior,
         )
     ]
     category_combo = item.category_combo
@@ -1124,18 +1197,31 @@ def _question_views(
     return views
 
 
-def _bound_views(value_type: str, item_type: str) -> list[_BoundView]:
-    """The `minValue` / `maxValue` extensions one question carries, typed by the item type it answers as."""
+def _bound_views(value_type: str, item_type: str, rule_bounds: list[ProgramRuleBound]) -> list[_BoundView]:
+    """The `minValue` / `maxValue` extensions one question carries, from its value type and from any rule."""
+    return [
+        _BoundView(url=bound.url, element=bound.element, literal=bound.literal)
+        for bound in merged_bounds(value_type_bounds(value_type, item_type), rule_bounds)
+    ]
+
+
+def value_type_bounds(value_type: str, item_type: str) -> list[ProgramRuleBound]:
+    """The bounds one DHIS2 value type states on a question, in the element its item type takes."""
     bounds = BOUNDS_BY_VALUE_TYPE.get(value_type)
     element = BOUND_ELEMENTS_BY_ITEM_TYPE.get(item_type)
     if bounds is None or element is None:
         return []
-    views: list[_BoundView] = []
+    stated: list[ProgramRuleBound] = []
     if bounds.minimum_value is not None:
-        views.append(_BoundView(url=MINIMUM_VALUE_EXTENSION_URL, element=element, literal=str(bounds.minimum_value)))
+        stated.append(value_type_bound(MINIMUM_VALUE_EXTENSION_URL, element, bounds.minimum_value))
     if bounds.maximum_value is not None:
-        views.append(_BoundView(url=MAXIMUM_VALUE_EXTENSION_URL, element=element, literal=str(bounds.maximum_value)))
-    return views
+        stated.append(value_type_bound(MAXIMUM_VALUE_EXTENSION_URL, element, bounds.maximum_value))
+    return stated
+
+
+def enable_behavior_of(shown: ItemEnableWhen | None) -> str | None:
+    """How a question's showing conditions join, or None when it carries none or only one."""
+    return None if shown is None else shown.behavior
 
 
 def form_collects_incident_date(source: QuestionnaireSourceIn) -> bool | None:
@@ -1180,13 +1266,6 @@ def is_disaggregated(item: QuestionnaireItemIn, kind: FormKind) -> bool:
     return item.category_combo is not None and not item.category_combo.is_default
 
 
-def item_type(item: QuestionnaireItemIn) -> str:
-    """The item type one question answers as: `choice` when option-set bound, else its value type's."""
-    if item.option_set_uid is not None:
-        return "choice"
-    return _value_type_item_type(item.value_type)
-
-
 def domain_code(domain_type: str) -> str | None:
     """The `domain` concept code one DHIS2 `domainType` carries (`aggregate`, `tracker`), or None when absent."""
     return domain_type.strip().lower() or None
@@ -1200,11 +1279,6 @@ def is_multi_valued(value_type: str, item_type: str) -> bool:
     somehow answers as anything but `#choice` is a malformed data element and takes no `repeats`.
     """
     return value_type == _MULTI_VALUE_TYPE and item_type == "choice"
-
-
-def _value_type_item_type(value_type: str) -> str:
-    """Map a DHIS2 value type onto the FHIR item type it answers as, defaulting to a string."""
-    return ITEM_TYPES_BY_VALUE_TYPE.get(value_type, _DEFAULT_ITEM_TYPE)
 
 
 def _answer_value_set(item: QuestionnaireItemIn, identities: dict[str, OptionSetIdentity]) -> str | None:

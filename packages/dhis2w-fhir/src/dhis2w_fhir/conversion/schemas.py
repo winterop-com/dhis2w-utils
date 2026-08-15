@@ -338,6 +338,9 @@ class ConversionNaming(BaseModel):
     subject_exists_url: str
     """Canonical of the extension a registration response states that its subject is already held on."""
 
+    program_rule_url: str
+    """Canonical of the extension a form publishes the DHIS2 program rules it does not itself express on."""
+
     attribute_option_combos_url: str
     """Canonical of the Questionnaire extension a form declares its attribute-option-combo ValueSet on."""
 
@@ -379,6 +382,7 @@ class ConversionNaming(BaseModel):
             incident_at_url=_definition_url(canonical, names.incident_at_extension_id),
             entity_level_url=_definition_url(canonical, names.entity_level_extension_id),
             subject_exists_url=_definition_url(canonical, names.subject_exists_extension_id),
+            program_rule_url=_definition_url(canonical, names.program_rule_extension_id),
             attribute_option_combos_url=_definition_url(canonical, names.attribute_option_combos_extension_id),
             attribute_option_combo_url=_definition_url(canonical, names.attribute_option_combo_extension_id),
             organisation_unit_system=_identifier_system(base, _SEGMENTS_BY_TOKEN["OrgUnit"]),

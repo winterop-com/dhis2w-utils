@@ -96,7 +96,12 @@ from dhis2w_fhir.resources.examples import (
 from dhis2w_fhir.resources.questionnaires.schemas import FormKind
 from pydantic import BaseModel, ConfigDict, PrivateAttr, ValidationError
 
-from dhis2w_fhir_serve.capture.index import QUESTIONNAIRE_RESOURCE_TYPE, CaptureIndex, CaptureQuestion
+from dhis2w_fhir_serve.capture.index import (
+    QUESTIONNAIRE_RESOURCE_TYPE,
+    CaptureIndex,
+    CaptureQuestion,
+    asked_link_ids,
+)
 from dhis2w_fhir_serve.capture.naming import (
     PERIOD_ISO_SUB_EXTENSION,
     PERIOD_RANGE_SUB_EXTENSION,
@@ -405,18 +410,65 @@ class _Generator(BaseModel):
         return Reference(reference=f"{LOCATION_RESOURCE_TYPE}/{self.location_id}")
 
     def _items(self, items: list[QuestionnaireItem], unique_token: str | None) -> list[QuestionnaireResponseItem]:
-        """Mirror the form's item tree in document order, keeping only the branches an answer reaches."""
+        """Mirror the form's item tree in document order, keeping only the branches an asked answer reaches.
+
+        DRAW EVERYTHING, THEN DROP WHAT THE FORM TURNED OUT NOT TO ASK. A question's `enableWhen`
+        names another question, and the answer that settles it is one this same pass draws - so
+        which questions the form is asking is not known until the draw is over. Drawing first and
+        filtering after is what keeps the draw itself seeded and order-free: every question consumes
+        the generator in document order whatever the conditions do, so one seed reproduces one
+        response.
+
+        The filter runs to a fixed point rather than once, because dropping an answer can close the
+        question that depended on it: a chain of three conditions settles in three sweeps. It always
+        terminates - the answered set only ever shrinks - and what it lands on is the set the capture
+        form would have asked, which is what makes a generated response postable to a UI's own rules.
+        """
+        drawn: dict[str, list[QuestionnaireResponseAnswer]] = {}
+        self._draw(items, unique_token, drawn)
+        asked = asked_link_ids(self.index, drawn)
+        while True:
+            kept = {link_id: answers for link_id, answers in drawn.items() if link_id in asked}
+            if len(kept) == len(drawn):
+                break
+            drawn = kept
+            asked = asked_link_ids(self.index, drawn)
+        return self._answered_items(items, drawn)
+
+    def _draw(
+        self,
+        items: list[QuestionnaireItem],
+        unique_token: str | None,
+        drawn: dict[str, list[QuestionnaireResponseAnswer]],
+    ) -> None:
+        """Draw one answer set per answerable question of the subtree, in document order."""
+        for item in items:
+            link_id = item.linkId
+            if not link_id:
+                continue
+            if item.type not in _STRUCTURAL_ITEM_TYPES:
+                answers = self._answers(self.index.questions.get(link_id), unique_token)
+                if answers:
+                    drawn[link_id] = answers
+            self._draw(item.item or [], unique_token, drawn)
+
+    def _answered_items(
+        self,
+        items: list[QuestionnaireItem],
+        drawn: dict[str, list[QuestionnaireResponseAnswer]],
+    ) -> list[QuestionnaireResponseItem]:
+        """The form's tree with the surviving answers in it, and every branch that reaches none left out."""
         generated: list[QuestionnaireResponseItem] = []
         for item in items:
             link_id = item.linkId
             if not link_id:
                 continue
-            nested = self._items(item.item or [], unique_token)
+            nested = self._answered_items(item.item or [], drawn)
             if item.type in _STRUCTURAL_ITEM_TYPES:
                 if nested:
                     generated.append(QuestionnaireResponseItem(linkId=link_id, item=nested))
                 continue
-            answers = self._answers(self.index.questions.get(link_id), unique_token)
+            answers = drawn.get(link_id, [])
             if answers or nested:
                 generated.append(QuestionnaireResponseItem(linkId=link_id, answer=answers or None, item=nested or None))
         return generated
@@ -483,7 +535,7 @@ class _Generator(BaseModel):
         if element == "valueBoolean":
             return QuestionnaireResponseAnswer(valueBoolean=bool(self._random.randrange(2)))
         if element == "valueDate":
-            return QuestionnaireResponseAnswer(valueDate=self.window.pick_date(self._random).isoformat())
+            return QuestionnaireResponseAnswer(valueDate=self._date(question))
         if element == "valueDateTime":
             return QuestionnaireResponseAnswer(valueDateTime=self._date_time())
         if element == "valueTime":
@@ -503,10 +555,31 @@ class _Generator(BaseModel):
             return QuestionnaireResponseAnswer(valueString=constrained)
         return QuestionnaireResponseAnswer(valueString=f"Example {question.link_id}")
 
+    def _date(self, question: CaptureQuestion) -> str:
+        """A calendar day inside the window, moved into whatever range the question's bounds admit.
+
+        The window is where a generated capture lives - the last few weeks, or the reporting period -
+        and a date bound is a form saying which days it takes at all. The window is drawn from first
+        so a bounded question and an unbounded one on the same form still land near each other, and
+        the draw is then clamped rather than redrawn: a clamp cannot fall outside, and a redraw over
+        a range the window does not overlap would never terminate.
+        """
+        drawn = self.window.pick_date(self._random).isoformat()
+        bounds = question.bounds
+        if bounds is None:
+            return drawn
+        minimum = bounds.minimum.date if bounds.minimum is not None else None
+        maximum = bounds.maximum.date if bounds.maximum is not None else None
+        if minimum is not None and drawn < minimum:
+            drawn = minimum
+        if maximum is not None and drawn > maximum:
+            drawn = maximum
+        return max(drawn, minimum) if minimum is not None else drawn
+
     def _integer(self, question: CaptureQuestion) -> int:
         """A whole number inside whatever the question's `minValue` / `maxValue` extensions admit."""
         minimum, maximum = _numeric_range(question)
-        return self._random.randint(minimum, maximum)
+        return self._random.randint(int(minimum), int(maximum))
 
     def _decimal(self, question: CaptureQuestion) -> float:
         """A one-place decimal inside the question's bounds, clamped so rounding cannot leave them."""
@@ -653,11 +726,16 @@ def _shaped_uid(generator: random.Random) -> str:
     return f"{leading}{trailing}"
 
 
-def _numeric_range(question: CaptureQuestion) -> tuple[int, int]:
-    """The inclusive range a numeric answer is drawn from, opening whichever end the question leaves free."""
+def _numeric_range(question: CaptureQuestion) -> tuple[float, float]:
+    """The inclusive range a numeric answer is drawn from, opening whichever end the question leaves free.
+
+    A date bound states nothing about a quantity, so a question carrying one is drawn from the open
+    range exactly as an unbounded question is - `CaptureBound.number` is None for it, and None here
+    means the end is free.
+    """
     bounds = question.bounds
-    minimum = bounds.minimum_value if bounds is not None else None
-    maximum = bounds.maximum_value if bounds is not None else None
+    minimum = bounds.minimum.number if bounds is not None and bounds.minimum is not None else None
+    maximum = bounds.maximum.number if bounds is not None and bounds.maximum is not None else None
     if minimum is None and maximum is None:
         return 0, _NUMERIC_SPAN
     if minimum is None:

@@ -20,18 +20,22 @@ never published would blame the client for the project's own incomplete IG.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
 from dhis2w_fhir.r4 import (
     DEFAULT_SUBJECT_RESOURCE_TYPE,
     CodeSystem,
     CodeSystemConcept,
+    Coding,
     Questionnaire,
     QuestionnaireItem,
+    QuestionnaireItemEnableWhen,
+    QuestionnaireResponseAnswer,
     ResourceList,
     ValueSet,
 )
-from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS, FormKind, NumericBounds
+from dhis2w_fhir.resources.questionnaires.schemas import CAPTURED_FORM_KINDS, FormKind
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
 from dhis2w_fhir_serve.capture.naming import CaptureNaming
@@ -78,9 +82,16 @@ _STRUCTURAL_ITEM_TYPES = ("group", "display")
 #: than at the end of a capture that had nowhere to go.
 FORM_KINDS: tuple[FormKind, ...] = CAPTURED_FORM_KINDS
 
-#: The extensions a numeric question carries its inclusive bounds on.
+#: The extensions a bounded question carries its inclusive range on - a number's or a calendar day's.
 _MINIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/minValue"
 _MAXIMUM_VALUE_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/maxValue"
+
+#: The sub-extension urls a `d2-program-rule` repeat slices one DHIS2 program rule under.
+_RULE_SUB_EXTENSION = "rule"
+_RULE_NAME_SUB_EXTENSION = "name"
+_RULE_DESCRIPTION_SUB_EXTENSION = "description"
+_RULE_CONDITION_SUB_EXTENSION = "condition"
+_RULE_ACTION_SUB_EXTENSION = "action"
 
 #: The resource type a question's support terminology resolves to.
 _CODE_SYSTEM_RESOURCE_TYPE = "CodeSystem"
@@ -97,6 +108,83 @@ class UnreadableQuestionnaireError(LookupError):
     def __init__(self, diagnostics: str) -> None:
         super().__init__(diagnostics)
         self.diagnostics = diagnostics
+
+
+class CaptureBound(BaseModel):
+    """One end of the range a question admits, as its `minValue` / `maxValue` extension states it.
+
+    The element the bound was written on is kept rather than flattened onto one number, because the
+    three carry different facts: an integer bound belongs to a whole-number question, a decimal one
+    to a measured quantity, and a date one to a calendar day - and `2026-01-01` is not a quantity at
+    all. Every reader takes the end it can compare against and leaves the rest alone.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    integer: int | None = None
+    decimal: float | None = None
+    date: str | None = None
+
+    @property
+    def number(self) -> float | None:
+        """The bound as a quantity, or None when it bounds a calendar day rather than a number."""
+        return float(self.integer) if self.integer is not None else self.decimal
+
+    @property
+    def stated(self) -> str:
+        """The bound spelled the way the form states it - the literal a refusal names back to a client."""
+        if self.integer is not None:
+            return str(self.integer)
+        if self.decimal is not None:
+            return str(self.decimal)
+        return self.date or ""
+
+
+class CaptureBounds(BaseModel):
+    """The inclusive range one question admits, either end of it open."""
+
+    model_config = ConfigDict(frozen=True)
+
+    minimum: CaptureBound | None = None
+    maximum: CaptureBound | None = None
+
+
+class CaptureProgramRule(BaseModel):
+    """One DHIS2 program rule the form declares its instance enforces when a submission is imported.
+
+    The whole of it is a claim about the instance rather than about this server: nothing here is
+    evaluated at capture, because DHIS2 evaluates its own rules on import and answers a violation
+    with `E1300`. What the declaration buys is that a client can say which rules are waiting, and
+    that a rejection naming a rule UID can be read back as the rule's own name.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    rule_uid: str
+    name: str
+    description: str | None = None
+    condition: str
+    """The rule's DHIS2 expression, in the machine spelling the instance holds it in."""
+
+    action: str | None = None
+    """The DHIS2 program rule action type, as `SHOWWARNING` or `ERRORONCOMPLETE`, when the form states one."""
+
+
+class CaptureGate(BaseModel):
+    """What one item of a served form is asked under: where it sits, and the conditions that show it.
+
+    Every item gets one of these, groups included, because a group's `enableWhen` decides every
+    question beneath it and a lookup keyed only by question would lose that. An item the form always
+    asks carries no conditions, which is what almost every DHIS2-generated item is.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    link_id: str
+    parent_link_id: str | None = None
+    conditions: tuple[QuestionnaireItemEnableWhen, ...] = ()
+    behavior: Literal["all", "any"] = "all"
+    """How several conditions combine. `all` is the reading that asks fewer questions, which is the safe one."""
 
 
 class CaptureQuestion(BaseModel):
@@ -122,7 +210,7 @@ class CaptureQuestion(BaseModel):
     left unanswered by `$generate`, and its absence is admitted even when the form marks it required.
     """
 
-    bounds: NumericBounds | None = None
+    bounds: CaptureBounds | None = None
     option_system: str | None = None
     """Canonical of the CodeSystem a coded answer is resolved against, or None when the binding is open."""
 
@@ -214,8 +302,16 @@ class CaptureIndex(BaseModel):
     the contract makes of a response carrying no `D2IncidentAt`: complete, the extension being 0..1.
     """
 
+    program_rules: tuple[CaptureProgramRule, ...] = ()
+    """The DHIS2 program rules the form declares, in the order it lists them - none on a form that lists none."""
+
     questions: dict[str, CaptureQuestion] = Field(default_factory=dict)
     group_link_ids: frozenset[str] = frozenset()
+    gates: dict[str, CaptureGate] = Field(default_factory=dict)
+    """Every item of the form, group and question alike, keyed by link id - what each one is asked under."""
+
+    item_link_ids: tuple[str, ...] = ()
+    """Every item's link id in document order, which is the order the gates resolve in - a parent before its child."""
     assignment: CaptureAssignment | None = None
     """The form's organisation-unit assignment, or None - which means every published unit may report it."""
 
@@ -274,7 +370,8 @@ def build_capture_index(
     questions: dict[str, CaptureQuestion] = {}
     group_link_ids: set[str] = set()
     facts_cache: dict[str, dict[str, QuestionFacts]] = {}
-    _walk(questionnaire.item or [], store, questions, group_link_ids, facts_cache)
+    gates: dict[str, CaptureGate] = {}
+    _walk(questionnaire.item or [], None, store, questions, group_link_ids, gates, facts_cache)
 
     return CaptureIndex(
         canonical=canonical,
@@ -283,11 +380,146 @@ def build_capture_index(
         program_uid=_program_uid(questionnaire, naming),
         subject_type=_subject_type(questionnaire),
         collects_incident_date=_collects_incident_date(questionnaire, naming),
+        program_rules=_program_rules(questionnaire, naming),
         questions=questions,
         group_link_ids=frozenset(group_link_ids),
+        gates=gates,
+        item_link_ids=tuple(gates),
         assignment=_assignment(questionnaire, naming, store),
         attribute_option_combos=_attribute_option_combos(questionnaire, naming, store),
     )
+
+
+def asked_link_ids(
+    index: CaptureIndex,
+    answers: Mapping[str, Sequence[QuestionnaireResponseAnswer]],
+) -> frozenset[str]:
+    """Every item the form is asking, given the answers on hand - R4 `enableWhen`, ancestors included.
+
+    THE UNANSWERED RULE. A condition names a question, and a question with no answer satisfies no
+    comparison: `=`, `!=`, and the four orderings are all false against nothing, because there is no
+    value to compare. `exists` is the one operator that reads absence as a fact, and it holds when
+    what it found matches the sense it states - `exists=false` against an unanswered question is
+    true. A condition naming a question this form does not have never holds, which hides the item
+    rather than showing it unconditionally: the conservative direction for a capture form.
+
+    A HIDDEN ITEM CARRIES NO ANSWER. What the set leaves out is what a submission must not answer -
+    a stale answer under a question the form stopped asking is exactly the state DHIS2's own program
+    rules exist to prevent, and it would be forwarded as a real data value. Callers drop what falls
+    outside the set rather than keeping it for later.
+
+    The pass runs in document order, so an ancestor's verdict is settled before its children are
+    reached and a group's conditions decide everything beneath it in one sweep.
+    """
+    asked: set[str] = set()
+    for link_id in index.item_link_ids:
+        gate = index.gates.get(link_id)
+        if gate is None:
+            continue
+        if gate.parent_link_id is not None and gate.parent_link_id not in asked:
+            continue
+        if _conditions_hold(index, gate, answers):
+            asked.add(link_id)
+    return frozenset(asked)
+
+
+def _conditions_hold(
+    index: CaptureIndex,
+    gate: CaptureGate,
+    answers: Mapping[str, Sequence[QuestionnaireResponseAnswer]],
+) -> bool:
+    """Whether one item's own conditions hold - its ancestors are the sweep's business, not this."""
+    if not gate.conditions:
+        return True
+    held = (_condition_holds(index, condition, answers) for condition in gate.conditions)
+    return any(held) if gate.behavior == "any" else all(held)
+
+
+def _condition_holds(
+    index: CaptureIndex,
+    condition: QuestionnaireItemEnableWhen,
+    answers: Mapping[str, Sequence[QuestionnaireResponseAnswer]],
+) -> bool:
+    """Whether one condition holds against the answers to the question it names.
+
+    R4: a comparison holds when *any* answer to the named question satisfies it, which is what makes
+    a condition on a repeating question mean "one of these".
+    """
+    question = condition.question
+    if not question or question not in index.questions:
+        return False
+    values = [value for answer in answers.get(question, ()) if (value := _comparable_answer(answer)) is not None]
+    if condition.operator == "exists":
+        return bool(values) == (condition.answerBoolean is not False)
+    expected = _comparable_condition(condition)
+    if expected is None or condition.operator is None:
+        return False
+    return any(_compares_as(value, expected, condition.operator) for value in values)
+
+
+def _comparable_answer(answer: QuestionnaireResponseAnswer) -> bool | float | str | Coding | None:
+    """What one answer compares as, or None when it carries nothing two operands can be compared on."""
+    if answer.valueBoolean is not None:
+        return answer.valueBoolean
+    if answer.valueDecimal is not None:
+        return float(answer.valueDecimal)
+    if answer.valueInteger is not None:
+        return float(answer.valueInteger)
+    if answer.valueCoding is not None:
+        return answer.valueCoding
+    return answer.valueDate or answer.valueDateTime or answer.valueTime or answer.valueString or answer.valueUri
+
+
+def _comparable_condition(condition: QuestionnaireItemEnableWhen) -> bool | float | str | Coding | None:
+    """What one condition compares against, read off whichever `answer[x]` it states."""
+    if condition.answerBoolean is not None:
+        return condition.answerBoolean
+    if condition.answerDecimal is not None:
+        return float(condition.answerDecimal)
+    if condition.answerInteger is not None:
+        return float(condition.answerInteger)
+    if condition.answerCoding is not None:
+        return condition.answerCoding
+    return condition.answerDate or condition.answerDateTime or condition.answerTime or condition.answerString
+
+
+def _compares_as(left: bool | float | str | Coding, right: bool | float | str | Coding, operator: str) -> bool:
+    """One comparison, over the kinds of operand R4 admits one on.
+
+    A coding and a boolean answer equality and nothing else - "greater than a concept" means nothing -
+    and two operands of different kinds compare false rather than being coerced: a form comparing a
+    string against an integer has a bug in it, and answering true would show a question nobody wrote.
+    Dates, dateTimes and times compare as text, which is exactly right for the ISO-8601 forms R4 pins.
+    """
+    if isinstance(left, Coding) or isinstance(right, Coding):
+        if not isinstance(left, Coding) or not isinstance(right, Coding):
+            return False
+        same = left.code == right.code and (left.system is None or right.system is None or left.system == right.system)
+        return same if operator == "=" else (not same if operator == "!=" else False)
+    if isinstance(left, bool) or isinstance(right, bool):
+        if not isinstance(left, bool) or not isinstance(right, bool):
+            return False
+        return (left == right) if operator == "=" else ((left != right) if operator == "!=" else False)
+    if isinstance(left, str) != isinstance(right, str):
+        return False
+    return _orders_as(left, right, operator)
+
+
+def _orders_as(left: float | str, right: float | str, operator: str) -> bool:
+    """The six comparisons, over the two kinds of operand that admit an ordering."""
+    if operator == "=":
+        return left == right
+    if operator == "!=":
+        return left != right
+    if operator == ">":
+        return left > right  # type: ignore[operator]
+    if operator == "<":
+        return left < right  # type: ignore[operator]
+    if operator == ">=":
+        return left >= right  # type: ignore[operator]
+    if operator == "<=":
+        return left <= right  # type: ignore[operator]
+    return False
 
 
 def _attribute_option_combos(
@@ -393,22 +625,29 @@ def _subject_type(questionnaire: Questionnaire) -> str:
 
 def _walk(
     items: list[QuestionnaireItem],
+    parent_link_id: str | None,
     store: ResourceStore,
     questions: dict[str, CaptureQuestion],
     group_link_ids: set[str],
+    gates: dict[str, CaptureGate],
     facts_cache: dict[str, dict[str, QuestionFacts]],
 ) -> None:
-    """Collect every question and every group of one item subtree, in document order."""
+    """Collect every question, every group, and every item's gate of one subtree, in document order."""
     for item in items:
         link_id = item.linkId
         if not link_id:
             raise UnreadableQuestionnaireError("the served Questionnaire carries an item with no `linkId`")
+        gates[link_id] = CaptureGate(
+            link_id=link_id,
+            parent_link_id=parent_link_id,
+            conditions=tuple(item.enableWhen or ()),
+            behavior=item.enableBehavior or "all",
+        )
         if item.type in _STRUCTURAL_ITEM_TYPES:
             group_link_ids.add(link_id)
-            _walk(item.item or [], store, questions, group_link_ids, facts_cache)
-            continue
-        questions[link_id] = _question(item, link_id, store, facts_cache)
-        _walk(item.item or [], store, questions, group_link_ids, facts_cache)
+        else:
+            questions[link_id] = _question(item, link_id, store, facts_cache)
+        _walk(item.item or [], link_id, store, questions, group_link_ids, gates, facts_cache)
 
 
 def _question(
@@ -501,25 +740,65 @@ def _coding_display(item: QuestionnaireItem) -> str | None:
     return None
 
 
-def _bounds(item: QuestionnaireItem) -> NumericBounds | None:
+def _bounds(item: QuestionnaireItem) -> CaptureBounds | None:
     """The inclusive range the question's `minValue` / `maxValue` extensions pin, when it carries either."""
     minimum = _bound_value(item, _MINIMUM_VALUE_EXTENSION_URL)
     maximum = _bound_value(item, _MAXIMUM_VALUE_EXTENSION_URL)
     if minimum is None and maximum is None:
         return None
-    return NumericBounds(minimum_value=minimum, maximum_value=maximum)
+    return CaptureBounds(minimum=minimum, maximum=maximum)
 
 
-def _bound_value(item: QuestionnaireItem, url: str) -> int | None:
-    """One bound, read from whichever numeric element the emitter wrote it on."""
+def _bound_value(item: QuestionnaireItem, url: str) -> CaptureBound | None:
+    """One bound, on whichever of the three elements R4 admits the extension was written with.
+
+    The element is carried through rather than collapsed onto a number: a date bound is a calendar
+    day and rounding one into an integer would state a bound the form never wrote.
+    """
     for extension in item.extension or []:
         if extension.url != url:
             continue
         if extension.valueInteger is not None:
-            return extension.valueInteger
+            return CaptureBound(integer=extension.valueInteger)
         if extension.valueDecimal is not None:
-            return int(extension.valueDecimal)
+            return CaptureBound(decimal=float(extension.valueDecimal))
+        if extension.valueDate is not None:
+            return CaptureBound(date=extension.valueDate)
     return None
+
+
+def _program_rules(questionnaire: Questionnaire, naming: CaptureNaming) -> tuple[CaptureProgramRule, ...]:
+    """Every DHIS2 program rule the form declares, in the order it lists them.
+
+    A rule missing its UID, its name, or its condition is passed over rather than published half
+    read: the three together are what makes a rule nameable in a rejection, and a rule stated
+    without them says less than nothing.
+    """
+    rules: list[CaptureProgramRule] = []
+    for extension in questionnaire.extension or []:
+        if extension.url != naming.program_rule_url:
+            continue
+        parts = {sub.url: sub for sub in extension.extension or [] if sub.url}
+        stated = parts.get(_RULE_SUB_EXTENSION)
+        named = parts.get(_RULE_NAME_SUB_EXTENSION)
+        tested = parts.get(_RULE_CONDITION_SUB_EXTENSION)
+        described = parts.get(_RULE_DESCRIPTION_SUB_EXTENSION)
+        acted = parts.get(_RULE_ACTION_SUB_EXTENSION)
+        rule_uid = stated.valueId if stated is not None else None
+        name = named.valueString if named is not None else None
+        condition = tested.valueString if tested is not None else None
+        if not rule_uid or not name or not condition:
+            continue
+        rules.append(
+            CaptureProgramRule(
+                rule_uid=rule_uid,
+                name=name,
+                description=described.valueString if described is not None else None,
+                condition=condition,
+                action=acted.valueCode if acted is not None else None,
+            )
+        )
+    return tuple(rules)
 
 
 def _option_system(item: QuestionnaireItem, store: ResourceStore) -> str | None:

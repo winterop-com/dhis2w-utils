@@ -4932,3 +4932,77 @@ only on the relative order, which the rewrite preserves.
 **How to know it's fixed:** the read-back above returns `1, 2, 3`.
 
 **Verifier:** none yet.
+
+### 93. `programRules` is not a field on the Program schema, and `fields=` drops it without a word
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`), reading a program's
+business logic for the FHIR questionnaire target.
+
+**Repro:**
+
+```bash
+# programRuleVariables IS a collection on Program and answers as one.
+curl -s -u admin:district -g \
+  "http://localhost:8080/api/programs?fields=id,programRuleVariables[id,name]&paging=false"
+# -> {"programs":[{"programRuleVariables":[{"name":"hemoglobin","id":"omrL0gtPpDL"}, ...],"id":"lxAQ7Zs9VYR"}, ...]}
+
+# programRules is asked for the same way and is simply absent from the answer - no 400,
+# no warning, no empty collection. The key is not there at all.
+curl -s -u admin:district -g \
+  "http://localhost:8080/api/programs?fields=id,programRules[id,name,condition]&paging=false"
+# -> {"programs":[{"id":"PrAncCare01"},{"id":"lxAQ7Zs9VYR"}, ...]}
+
+# The schema confirms it: programRuleVariables is declared, programRules is not.
+curl -s -u admin:district -g \
+  "http://localhost:8080/api/schemas/program.json?fields=properties[fieldName,propertyType]" \
+  | grep -o '"fieldName":"programRule[A-Za-z]*"'
+# -> "fieldName":"programRuleVariables"
+```
+
+**Expected:** either both halves of a program's rule engine hang off the program (a
+`ProgramRule` names exactly one program, and `ProgramRuleVariable` does too), or asking for
+an undeclared field is refused rather than silently dropped.
+
+**Actual:** the two halves are asymmetric - the variables ride the program, the rules do
+not - and a `fields=` selector naming an undeclared collection answers 200 with the key
+missing. A caller who did not check the schema believes the program holds no rules.
+
+**Impact:** the rules cost a request of their own, so reading a program's business logic is
+two reads where it looks like one. Worse, the silent drop makes the mistake invisible: the
+first version of this repository's fetch asked for `programRules[...]` on the program
+projection, got a clean 200 for every program, and concluded the instance held no program
+rules at all.
+
+**Workaround in this repo:** `_PROGRAM_RULE_VARIABLE_FIELDS` rides the program projection
+and `_fetch_program_rules` reads `/api/programRules` unfiltered in one further request; see
+`packages/dhis2w-fhir/src/dhis2w_fhir/service.py`. The rules are then indexed by
+`program[id]` and carried onto every form that program publishes.
+
+### 94. A `ProgramRule.program` reference is typed while its actions' references are not
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`).
+
+**Repro:**
+
+```bash
+curl -s -u admin:district -g \
+  "http://localhost:8080/api/programRules?fields=id,program[id],programRuleActions[programRuleActionType,dataElement[id]]&paging=false" \
+  | head -c 300
+# -> {"programRules":[{"program":{"id":"IpHINAT79UW"},
+#     "programRuleActions":[{"programRuleActionType":"SHOWWARNING","dataElement":{"id":"H6uSAMO5WLD"}}], ...
+```
+
+**Expected:** one wire shape for a reference, so one reader handles every one of them.
+
+**Actual:** both are `{"id": ...}` on the wire, but the generated models diverge - the
+schema declares `ProgramRule.program`, so it parses into a typed `Reference`, while
+`programRuleActions` is a loose collection whose members stay raw objects. Reading `.id` off
+one and `["id"]` off the other is the same DHIS2 fact reached two ways.
+
+**Impact:** a reader written against one shape silently yields None against the other, and
+the failure is invisible: every rule is skipped and the run reports no rules rather than an
+error.
+
+**Workaround in this repo:** `_referenced_uid` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/service.py` reads both shapes, so each call site names
+the DHIS2 fact rather than the wire encoding it happened to arrive in.

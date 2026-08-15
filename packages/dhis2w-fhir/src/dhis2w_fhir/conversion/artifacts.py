@@ -26,10 +26,11 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from dhis2w_fhir.conversion.context import build_conversion_context, build_form_spec
 from dhis2w_fhir.conversion.schemas import CodedAnswerMode, ConversionNaming
+from dhis2w_fhir.foundation.schemas import PROGRAM_RULE_NAME_SUB_EXTENSION, PROGRAM_RULE_UID_SUB_EXTENSION
 from dhis2w_fhir.r4 import CodeSystem, ConceptMap, Location, Questionnaire, ValueSet
 
 if TYPE_CHECKING:
@@ -45,10 +46,12 @@ __all__ = [
     "BoundQuestionUids",
     "CompiledArtifacts",
     "CompiledIgMissingError",
+    "ProgramRuleNames",
     "bound_question_uids",
     "build_project_context",
     "collect_artifacts",
     "load_compiled_artifacts",
+    "program_rule_names",
 ]
 
 #: Directory under the IG that SUSHI compiles the emitted FSH into.
@@ -222,6 +225,46 @@ def bound_question_uids(artifacts: CompiledArtifacts, naming: ConversionNaming) 
         data_element_uids=tuple(sorted(data_elements)),
         tracked_entity_attribute_uids=tuple(sorted(attributes)),
     )
+
+
+class ProgramRuleNames(BaseModel):
+    """The DHIS2 program rules a published guide names, keyed by UID, for reading a refusal back.
+
+    DHIS2 refuses a tracker import a rule rejected with `E1300` and names the rule by UID alone. The
+    guide published that UID beside the rule's name, so the drain reads the refusal as the name an
+    administrator knows the rule by, while the UID stays on the response's own report.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    names_by_uid: dict[str, str] = Field(default_factory=dict)
+
+    def name_for(self, uid: str) -> str | None:
+        """The name one rule is published under, or None for a UID this guide publishes no rule for."""
+        return self.names_by_uid.get(uid)
+
+
+def program_rule_names(artifacts: CompiledArtifacts, naming: ConversionNaming) -> ProgramRuleNames:
+    """Every program rule the published forms carry, read off their `D2ProgramRule` extensions.
+
+    Only the rules a form could not express are published this way, which is exactly the set a
+    refusal can name: a rule the form did express refuses nothing the form admits.
+    """
+    names: dict[str, str] = {}
+    for questionnaire in artifacts.questionnaires:
+        for extension in questionnaire.extension or []:
+            if extension.url != naming.program_rule_url:
+                continue
+            carried = {sub.url: sub for sub in extension.extension or []}
+            uid = carried[PROGRAM_RULE_UID_SUB_EXTENSION].valueId if PROGRAM_RULE_UID_SUB_EXTENSION in carried else None
+            name = (
+                carried[PROGRAM_RULE_NAME_SUB_EXTENSION].valueString
+                if PROGRAM_RULE_NAME_SUB_EXTENSION in carried
+                else None
+            )
+            if uid and name:
+                names.setdefault(uid, name)
+    return ProgramRuleNames(names_by_uid=names)
 
 
 def build_project_context(
