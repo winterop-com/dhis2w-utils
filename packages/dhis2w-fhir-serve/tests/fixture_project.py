@@ -167,8 +167,6 @@ EVENT_DATE_LABEL = "Date of visit"
 AGGREGATE_PERIOD_TYPE = "Monthly"
 
 #: The descriptions DHIS2 holds for one section, one data element group, and one stage question.
-IMMUNIZATION_SECTION_DESCRIPTION = "Doses given at this facility and on outreach, counted at the end of each month."
-BCG_GROUP_DESCRIPTION = "Count a dose once, on the day it was given."
 VISIT_NUMBER_DESCRIPTION = "The number of this visit in the pregnancy, counting from one."
 
 TEMPORAL_QUESTIONNAIRE_UID = "PrTemporal1"
@@ -1105,29 +1103,19 @@ def description(text: str) -> dict[str, Any]:
 
 
 def capture_questionnaire(filename: str) -> dict[str, Any]:
-    """One golden Questionnaire with the form-fidelity facts its instance would have published.
+    """One golden Questionnaire with the form-fidelity facts its instance did not publish.
 
-    The goldens were generated from an instance that renames no date, describes no data element, and
-    reports no stage more than once, so the fidelity contract has nothing to show on them as they
-    stand. Writing the facts on here - rather than editing the goldens, which are the emitter's own
-    output - keeps one copy of the goldens in the workspace and still gives the serve suite and the
-    browser suite a project carrying every element of the contract.
+    The reharvested goldens already carry the period type, repeatability, and descriptions the
+    local instance states, so those ride as the emitter wrote them. What the instance does NOT
+    state - no program on it renames a date, and the ANC visit stage describes no element - is
+    written on here, so the suites still hold a project carrying every element of the contract
+    without editing the goldens, which are the emitter's own output.
     """
     resource = golden(filename)
     identity = resource.get("id")
     if identity == "PsAncVisit1":
-        stated = with_extensions(
-            resource,
-            {"url": REPEATABLE_EXTENSION, "valueBoolean": True},
-            date_labels(**{EVENT_DATE_LABEL_SUB_EXTENSION: EVENT_DATE_LABEL}),
-        )
+        stated = with_extensions(resource, date_labels(**{EVENT_DATE_LABEL_SUB_EXTENSION: EVENT_DATE_LABEL}))
         return with_item_extension(stated, "DeAncVisNo1", description(VISIT_NUMBER_DESCRIPTION))
-    if identity == "BfMAe6Itzgt":
-        stated = with_extensions(resource, {"url": PERIOD_TYPE_EXTENSION, "valueCode": AGGREGATE_PERIOD_TYPE})
-        stated = with_item_extension(stated, "Y2rk0vzgvAx", description(IMMUNIZATION_SECTION_DESCRIPTION))
-        return with_item_extension(stated, "s46m5MS0hxu", description(BCG_GROUP_DESCRIPTION))
-    if identity == "TuL8IOPzpHh":
-        return with_extensions(resource, {"url": PERIOD_TYPE_EXTENSION, "valueCode": AGGREGATE_PERIOD_TYPE})
     return resource
 
 

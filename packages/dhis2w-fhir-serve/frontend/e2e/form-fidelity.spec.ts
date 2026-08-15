@@ -64,9 +64,9 @@ test('a data element and a section carry the descriptions DHIS2 holds for them',
     // are what a form designer wrote for whoever fills the form in, so both are on screen rather
     // than behind a hover.
     await expect(
-        page.getByText('Doses given at this facility and on outreach, counted at the end of each month.'),
+        page.getByText('Immunization dose administration'),
     ).toBeVisible()
-    await expect(page.getByText('Count a dose once, on the day it was given.')).toBeVisible()
+    await expect(page.getByText('BCG doses administered.', { exact: true })).toBeVisible()
 })
 
 test('a group of disaggregated cells names the categories it is cut by', async ({ page }) => {

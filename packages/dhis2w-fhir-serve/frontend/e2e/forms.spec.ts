@@ -79,7 +79,7 @@ test('a program whose registration is not served says so instead of guessing one
     await expect(childProgramme.getByText('registration - enrols a person')).toHaveCount(0)
     await expect(
         childProgramme.getByRole('row').filter({ hasText: 'Child Programme - Baby Postnatal' }),
-    ).toContainText('stage - a visit for an enrolled person')
+    ).toContainText('stage - one record per enrollment')
 })
 
 test('rows keep their question counts and ids', async ({ page }) => {
