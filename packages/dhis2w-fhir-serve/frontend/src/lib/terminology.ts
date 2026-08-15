@@ -106,11 +106,24 @@ const DECLARED_SEARCH_CONTEXT = /searchable in (?:tracker program|tracked entity
  * machine spelling stays where machine spellings belong.
  */
 export function declaredColumnLabel(code: string, description: string | undefined): string {
-    const category = description?.match(DECLARED_CATEGORY)
-    if (category !== null && category !== undefined) return category[1]
+    const category = declaredCategoryName(description)
+    if (category !== null) return category
     const context = description?.match(DECLARED_SEARCH_CONTEXT)
     if (context !== null && context !== undefined) return `Searchable in ${context[1]}`
     return propertyColumnLabel(code)
+}
+
+/**
+ * The DHIS2 category a property declaration names, or null when it declares something else.
+ *
+ * A combo vocabulary declares one property per category its combos decompose over, and the category's
+ * own name lives in that declaration's description - the property code carries only the uid. This is
+ * the one place that sentence is read, so the terminology table's column header and a capture form's
+ * statement of what a disaggregation is cut by are the same string from the same source.
+ */
+export function declaredCategoryName(description: string | undefined): string | null {
+    const category = description?.match(DECLARED_CATEGORY)
+    return category === null || category === undefined ? null : category[1]
 }
 
 /** A property code said as words: hyphens spaced, first letter up - and `dhis2-code` names its subject. */

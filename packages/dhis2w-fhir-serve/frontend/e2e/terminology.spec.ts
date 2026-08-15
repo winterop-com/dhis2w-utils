@@ -113,11 +113,12 @@ test('the tracked-entity dictionary states its codes, uniqueness, and the honest
     const birthDate = page.getByRole('row').filter({ hasText: 'TeaBirthDat' })
     await expect(birthDate).toContainText('TEA_BIRTH_DATE')
 
-    // The household attribute ships without a `dhis2-code`, and the cell is a dash rather than an
-    // invented value - the honest-codes rule.
+    // The household attribute ships without a `dhis2-code`, without a generated flag and without a
+    // pattern, and every one of those cells is a dash rather than an invented value - the
+    // honest-codes rule, over three properties this attribute simply does not carry.
     const household = page.getByRole('row').filter({ hasText: 'TeaHousehld' })
     await expect(household).toHaveCount(1)
-    await expect(household.getByRole('cell', { name: '-', exact: true })).toHaveCount(1)
+    await expect(household.getByRole('cell', { name: '-', exact: true })).toHaveCount(3)
 
     // The unique attribute says so; DHIS2 is what refuses the second person claiming its value. It is
     // searchable too, which is the second boolean the dictionary publishes and the one the register
@@ -125,9 +126,11 @@ test('the tracked-entity dictionary states its codes, uniqueness, and the honest
     const nationalId = page.getByRole('row').filter({ hasText: 'TeaNationId' })
     await expect(nationalId.getByRole('cell', { name: 'true', exact: true })).toHaveCount(2)
 
-    // The searchable-but-not-unique case, which is the whole reason both booleans are published.
+    // The searchable-but-not-unique case, which is the whole reason both booleans are published -
+    // and the date of birth is one DHIS2 puts in a listing besides, so two of its three booleans
+    // read true and the one that says nobody's date of birth is their identifier reads false.
     const searchableOnly = page.getByRole('row').filter({ hasText: 'TeaBirthDat' })
-    await expect(searchableOnly.getByRole('cell', { name: 'true', exact: true })).toHaveCount(1)
+    await expect(searchableOnly.getByRole('cell', { name: 'true', exact: true })).toHaveCount(2)
     await expect(searchableOnly.getByRole('cell', { name: 'false', exact: true })).toHaveCount(1)
 })
 

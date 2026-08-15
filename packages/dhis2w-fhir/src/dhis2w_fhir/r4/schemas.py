@@ -453,6 +453,8 @@ class QuestionnaireItem(BackboneElement):
     required: bool | None = None
     repeats: bool | None = None
     readOnly: bool | None = None
+    """True when DHIS2 owns the value - a generated tracked entity attribute, minted by the instance on import."""
+
     extension: list[Extension] | None = None
     item: list[QuestionnaireItem] | None = None
 

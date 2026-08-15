@@ -45,7 +45,6 @@ import {
     normaliseDateTime,
     normaliseTime,
     NO_CAPTURE_CONTEXT,
-    openedAttributeOptionCombo,
     openedReportingUnit,
     questionCodeSystemIds,
     refilledAttributeOptionCombo,
@@ -55,7 +54,14 @@ import {
     slotAnswer,
     TRUE_ONLY_VALUE_TYPE,
     unansweredRequiredLinkIds,
-    valueTypesByConcept,
+    dateLabelsOf,
+    DEFAULT_DATE_LABELS,
+    dictionaryOfCodeSystems,
+    groupCategoryAxes,
+    isWellShapedPeriod,
+    periodShape,
+    repeatsPerEnrollment,
+    reportingPeriodTypeOf,
     type AnswerState,
 } from '@/lib/questionnaire'
 import { carriesUnitOnExtension, reportingUnitOf, type OrgUnitChoice } from '@/lib/orgunits'
@@ -764,14 +770,6 @@ describe('the attribute option combo a submission reports for', () => {
         expect(built.extension).toBeUndefined()
     })
 
-    it('pre-selects the drawn combo when a form opens, and never over a choice already made', () => {
-        expect(openedAttributeOptionCombo(null, attributeComboResponse)).toEqual(
-            attributeOptionComboOf(attributeComboResponse),
-        )
-        expect(openedAttributeOptionCombo(chosen, attributeComboResponse)).toEqual(chosen)
-        expect(openedAttributeOptionCombo(null, null)).toBeNull()
-    })
-
     it('takes the fresh draw on a refill, and keeps the choice when the draw states none', () => {
         expect(refilledAttributeOptionCombo(chosen, attributeComboResponse)).toEqual(
             attributeOptionComboOf(attributeComboResponse),
@@ -1356,8 +1354,8 @@ describe('a TRUE_ONLY question', () => {
         ],
     }
 
-    const valueTypes = valueTypesByConcept([dataElements, attributes])
-    const spec = flattenQuestionnaire(form, valueTypes)
+    const dictionary = dictionaryOfCodeSystems([dataElements, attributes])
+    const spec = flattenQuestionnaire(form, dictionary)
 
     it('reads the value type off the dictionary the question’s own code names', () => {
         expect(spec.byLinkId.get('DeConfirmed')?.valueType).toBe(TRUE_ONLY_VALUE_TYPE)
@@ -1373,8 +1371,8 @@ describe('a TRUE_ONLY question', () => {
     })
 
     it('keys the dictionary by system and code, so two vocabularies sharing a code do not collide', () => {
-        expect(valueTypes.get(`${dataElements.url ?? ''}|DeConfirmed`)).toBe(TRUE_ONLY_VALUE_TYPE)
-        expect(valueTypes.get(`${attributes.url ?? ''}|DeConfirmed`)).toBe('BOOLEAN')
+        expect(dictionary.byConcept.get(`${dataElements.url ?? ''}|DeConfirmed`)?.valueType).toBe(TRUE_ONLY_VALUE_TYPE)
+        expect(dictionary.byConcept.get(`${attributes.url ?? ''}|DeConfirmed`)?.valueType).toBe('BOOLEAN')
     })
 
     it('names the dictionaries one form is coded in, once each, and no other resource', () => {
@@ -1593,5 +1591,355 @@ describe('the dates and the period a submission carries', () => {
         expect(dateTimeInputValue('2026-07-21T04:00:00Z')).toBe('2026-07-21T04:00:00')
         // An untouched or emptied control states nothing, and the draft's own value rides.
         expect(normaliseDateTime('')).toBeNull()
+    })
+})
+
+/**
+ * The form-fidelity facts a generated form carries, and what a screen is allowed to do with them.
+ *
+ * WHAT THESE ARE ABOUT. DHIS2 holds more about a form than R4 has elements for: the words a
+ * programme uses for the dates it collects, whether a stage may be answered more than once, the
+ * period type a data set reports for, the description on a data element, and the categories a
+ * disaggregated cell is cut by. All of it rides as extensions and concept properties, and all of it
+ * is optional - so every rule here has two halves, what a form that states the fact gets and what a
+ * form that states nothing gets.
+ *
+ * The forms are hand-written for the same reason the enableWhen ones are: the committed golden bundle
+ * was harvested before these facts were published, and a test written against it would be a test that
+ * the facts are absent.
+ */
+const CANONICAL = 'http://localhost:8080/fhir'
+
+/** One form carrying whichever of the fidelity extensions a case needs, and nothing else. */
+function statedForm(...extension: Extension[]): Questionnaire {
+    return { resourceType: 'Questionnaire', status: 'active', extension }
+}
+
+describe('what a form states about itself', () => {
+    it('labels its dates with the instance`s own words, and keeps this project`s for the rest', () => {
+        const labelled = dateLabelsOf(
+            statedForm({
+                url: `${CANONICAL}/StructureDefinition/d2-date-labels`,
+                extension: [
+                    { url: 'enrollmentDate', valueString: 'Date first seen' },
+                    { url: 'incidentDate', valueString: 'Date of last menstrual period' },
+                ],
+            }),
+        )
+
+        expect(labelled.enrollmentDate).toBe('Date first seen')
+        expect(labelled.incidentDate).toBe('Date of last menstrual period')
+        // The one it says nothing about keeps the fact-stating default, rather than going blank.
+        expect(labelled.eventDate).toBe(DEFAULT_DATE_LABELS.eventDate)
+    })
+
+    it('falls back whole for a form that renames nothing, and for no form at all', () => {
+        expect(dateLabelsOf(statedForm())).toEqual(DEFAULT_DATE_LABELS)
+        expect(dateLabelsOf(null)).toEqual(DEFAULT_DATE_LABELS)
+        // An empty string is a rename nobody made: it would put a blank label on a required control.
+        expect(
+            dateLabelsOf(
+                statedForm({
+                    url: `${CANONICAL}/StructureDefinition/d2-date-labels`,
+                    extension: [{ url: 'eventDate', valueString: '   ' }],
+                }),
+            ).eventDate,
+        ).toBe(DEFAULT_DATE_LABELS.eventDate)
+    })
+
+    it('states the DHIS2 period type its data set reports for, and null when it declares none', () => {
+        expect(
+            reportingPeriodTypeOf(
+                statedForm({ url: `${CANONICAL}/StructureDefinition/d2-period-type`, valueCode: 'Quarterly' }),
+            ),
+        ).toBe('Quarterly')
+        expect(reportingPeriodTypeOf(statedForm())).toBeNull()
+        expect(reportingPeriodTypeOf(null)).toBeNull()
+    })
+
+    it('states whether one enrollment may answer a stage more than once, silence being neither', () => {
+        const repeatable = `${CANONICAL}/StructureDefinition/d2-repeatable`
+        expect(repeatsPerEnrollment(statedForm({ url: repeatable, valueBoolean: true }))).toBe(true)
+        expect(repeatsPerEnrollment(statedForm({ url: repeatable, valueBoolean: false }))).toBe(false)
+        // Null and not false: a form compiled before the declaration was published says nothing about
+        // its stage, and reading that as "once only" would state a rule nobody published.
+        expect(repeatsPerEnrollment(statedForm())).toBeNull()
+    })
+})
+
+/**
+ * A DHIS2 description, read onto the item that carries it.
+ *
+ * The one thing a form can say about a question beyond what it asks, and the one place a form
+ * designer's own words reach a capture screen. It rides items of both kinds - a data element's
+ * question and a section's group - so both are read, and absence is the common case.
+ */
+describe('an item description', () => {
+    const described: Questionnaire = {
+        resourceType: 'Questionnaire',
+        status: 'active',
+        item: [
+            {
+                linkId: 'Y2rk0vzgvAx',
+                text: 'Immunization',
+                type: 'group',
+                extension: [
+                    {
+                        url: 'http://localhost:8080/fhir/StructureDefinition/d2-description',
+                        valueString: 'Doses given at this facility and on outreach.',
+                    },
+                ],
+                item: [
+                    {
+                        linkId: 's46m5MS0hxu',
+                        text: 'BCG doses given',
+                        type: 'integer',
+                        extension: [
+                            {
+                                url: 'http://localhost:8080/fhir/StructureDefinition/d2-description',
+                                valueString: 'Count a dose once, on the day it was given.',
+                            },
+                        ],
+                    },
+                    { linkId: 'UOlfIjgN8X6', text: 'Fully immunized child', type: 'integer' },
+                ],
+            },
+        ],
+    }
+    const spec = flattenQuestionnaire(described)
+
+    it('is read onto a question and onto the group above it alike', () => {
+        expect(spec.byLinkId.get('s46m5MS0hxu')?.description).toBe('Count a dose once, on the day it was given.')
+        expect(spec.byLinkId.get('Y2rk0vzgvAx')?.description).toBe(
+            'Doses given at this facility and on outreach.',
+        )
+    })
+
+    it('is null for an item DHIS2 describes not at all', () => {
+        expect(spec.byLinkId.get('UOlfIjgN8X6')?.description).toBeNull()
+    })
+})
+
+/**
+ * What a combo vocabulary publishes about a disaggregated cell, and what a form does with it.
+ *
+ * A cell is labelled with its category option combo's own name - "Fixed, <1y" - which names one
+ * corner of a grid and never says which grid. The axes are in the vocabulary: one property declared
+ * per category, the category's name in the declaration's description, and the chosen option carried
+ * under it per concept. This is the join, and the order is DHIS2's throughout.
+ */
+describe('the category axes a disaggregated group is cut by', () => {
+    const combos: CodeSystem = {
+        resourceType: 'CodeSystem',
+        status: 'active',
+        url: 'http://localhost:8080/fhir/CodeSystem/d2-coc-cs',
+        property: [
+            { code: 'dhis2-code', description: 'DHIS2 category option combo code.', type: 'string' },
+            { code: 'category-fMZEcRHuamy', description: 'DHIS2 category Location Fixed/Outreach.', type: 'Coding' },
+            { code: 'category-YNZyaJHiHYq', description: 'DHIS2 category EPI/nutrition age.', type: 'Coding' },
+            { code: 'category-Unnamed01', type: 'Coding' },
+        ],
+        concept: [
+            {
+                code: 'Prlt0C1RF0s',
+                display: 'Fixed, <1y',
+                property: [
+                    { code: 'dhis2-code', valueString: 'COC_292' },
+                    { code: 'category-fMZEcRHuamy', valueCoding: { code: 'qkPbeWaFsnU', display: 'Fixed' } },
+                    { code: 'category-YNZyaJHiHYq', valueCoding: { code: 'btOyqprQ9e8', display: '<1y' } },
+                ],
+            },
+            {
+                code: 'V6L425pT3A0',
+                display: 'Outreach, <1y',
+                property: [
+                    { code: 'category-fMZEcRHuamy', valueCoding: { code: 'uX9yDetTdOp', display: 'Outreach' } },
+                    { code: 'category-YNZyaJHiHYq', valueCoding: { code: 'btOyqprQ9e8', display: '<1y' } },
+                ],
+            },
+            { code: 'pn1upwnbxfn', display: 'Damages', property: [{ code: 'category-Unnamed01', valueCoding: {} }] },
+        ],
+    }
+
+    const form: Questionnaire = {
+        resourceType: 'Questionnaire',
+        status: 'active',
+        item: [
+            {
+                linkId: 's46m5MS0hxu',
+                text: 'BCG doses given',
+                type: 'group',
+                item: [
+                    {
+                        linkId: 's46m5MS0hxu.Prlt0C1RF0s',
+                        text: 'Fixed, <1y',
+                        type: 'integer',
+                        code: [{ system: combos.url, code: 'Prlt0C1RF0s' }],
+                    },
+                    {
+                        linkId: 's46m5MS0hxu.V6L425pT3A0',
+                        text: 'Outreach, <1y',
+                        type: 'integer',
+                        code: [{ system: combos.url, code: 'V6L425pT3A0' }],
+                    },
+                ],
+            },
+            { linkId: 'p1MDHOT6ENy', text: 'A total, disaggregated by nothing', type: 'integer' },
+        ],
+    }
+    const spec = flattenQuestionnaire(form, dictionaryOfCodeSystems([combos]))
+
+    it('names each cell`s axes in the order the concept states them', () => {
+        expect(spec.byLinkId.get('s46m5MS0hxu.Prlt0C1RF0s')?.categoryAxes).toEqual([
+            'Location Fixed/Outreach',
+            'EPI/nutrition age',
+        ])
+    })
+
+    it('states the group`s axes once, first-seen, and never re-sorted', () => {
+        // Two cells, the same two axes: the group states them once rather than per cell, and in
+        // DHIS2's declared order rather than alphabetically - `EPI/nutrition age` sorts first and is
+        // second here, which is what proves nothing in this UI sorts a decomposition.
+        expect(groupCategoryAxes(spec, 's46m5MS0hxu')).toEqual([
+            'Location Fixed/Outreach',
+            'EPI/nutrition age',
+        ])
+    })
+
+    it('keeps the cells themselves in the order the form asks them', () => {
+        expect(spec.byLinkId.get('s46m5MS0hxu')?.childLinkIds).toEqual([
+            's46m5MS0hxu.Prlt0C1RF0s',
+            's46m5MS0hxu.V6L425pT3A0',
+        ])
+    })
+
+    it('states nothing for a question that is not a cell, or for a dictionary not yet read', () => {
+        expect(spec.byLinkId.get('p1MDHOT6ENy')?.categoryAxes).toEqual([])
+        expect(groupCategoryAxes(flattenQuestionnaire(form), 's46m5MS0hxu')).toEqual([])
+    })
+
+    it('falls back to the property code when a declaration names no category', () => {
+        const unnamed = dictionaryOfCodeSystems([combos]).byConcept.get(`${combos.url ?? ''}|pn1upwnbxfn`)
+        expect(unnamed?.categoryAxes).toEqual(['category-Unnamed01'])
+    })
+})
+
+/**
+ * A tracked entity attribute DHIS2 mints, which is a question nobody here answers.
+ *
+ * TWO FACTS FROM TWO PLACES. The form marks the item `readOnly`, which is what takes the control out
+ * of use; the dictionary states `generated` and the `pattern` DHIS2 mints to, which is what lets the
+ * screen say why and what will arrive. The rule they add up to is the one the server holds too: a
+ * generated attribute is answered by DHIS2, so it is left unanswered, and its absence is admitted
+ * even when the form marks it required.
+ */
+describe('a generated attribute', () => {
+    const attributes: CodeSystem = {
+        resourceType: 'CodeSystem',
+        status: 'active',
+        url: 'http://localhost:8080/fhir/CodeSystem/d2-tea-cs',
+        concept: [
+            {
+                code: 'TeaSystemId',
+                display: 'Programme identifier',
+                property: [
+                    { code: 'value-type', valueCode: 'TEXT' },
+                    { code: 'generated', valueBoolean: true },
+                    { code: 'pattern', valueString: 'ANC-#######' },
+                ],
+            },
+            { code: 'TeaNationId', display: 'National identifier', property: [{ code: 'value-type', valueCode: 'TEXT' }] },
+        ],
+    }
+
+    const form: Questionnaire = {
+        resourceType: 'Questionnaire',
+        status: 'active',
+        item: [
+            {
+                linkId: 'TeaSystemId',
+                text: 'Programme identifier',
+                type: 'string',
+                required: true,
+                readOnly: true,
+                code: [{ system: attributes.url, code: 'TeaSystemId' }],
+            },
+            {
+                linkId: 'TeaNationId',
+                text: 'National id',
+                type: 'string',
+                required: true,
+                code: [{ system: attributes.url, code: 'TeaNationId' }],
+            },
+        ],
+    }
+    const spec = flattenQuestionnaire(form, dictionaryOfCodeSystems([attributes]))
+
+    it('carries the form`s read-only and the dictionary`s minting side by side', () => {
+        const generated = spec.byLinkId.get('TeaSystemId')
+        expect(generated?.readOnly).toBe(true)
+        expect(generated?.generated).toBe(true)
+        expect(generated?.pattern).toBe('ANC-#######')
+    })
+
+    it('states neither for an attribute a client really does answer', () => {
+        const typed = spec.byLinkId.get('TeaNationId')
+        expect(typed?.readOnly).toBe(false)
+        expect(typed?.generated).toBe(false)
+        expect(typed?.pattern).toBeNull()
+    })
+
+    it('is never counted as a required question the form is waiting on', () => {
+        // Both are required and neither is answered; only the one a person can answer is waiting.
+        // This is the same rule `_ItemValidator.run` holds on the server, which is what makes
+        // "unanswered" mean one thing on both sides of the wire.
+        expect(unansweredRequiredLinkIds(spec, {})).toEqual(['TeaNationId'])
+    })
+})
+
+/**
+ * The shape of a DHIS2 period, as far as a browser is entitled to have an opinion.
+ *
+ * The server owns period arithmetic and grades an identifier against the type its data set reports
+ * for. What this checks is the shape, which is what turns a round trip into a refusal under the
+ * cursor - and what it refuses to check is every type whose identifier carries an offset, because a
+ * half-written pattern for one of those would refuse identifiers DHIS2 accepts.
+ */
+describe('a reporting period', () => {
+    it('spells each type it knows, and offers the shape as the worked example', () => {
+        expect(periodShape('Monthly')?.example).toBe('202607')
+        expect(periodShape('Yearly')?.example).toBe('2026')
+        expect(periodShape('Quarterly')?.example).toBe('2026Q3')
+        expect(periodShape('FinancialApril')).toBeNull()
+        expect(periodShape(null)).toBeNull()
+    })
+
+    it('admits the identifiers DHIS2 spells that way', () => {
+        expect(isWellShapedPeriod('202607', 'Monthly')).toBe(true)
+        expect(isWellShapedPeriod('2026', 'Yearly')).toBe(true)
+        expect(isWellShapedPeriod('2026Q3', 'Quarterly')).toBe(true)
+        expect(isWellShapedPeriod('20260715', 'Daily')).toBe(true)
+        expect(isWellShapedPeriod('2026W30', 'Weekly')).toBe(true)
+        expect(isWellShapedPeriod('2026S2', 'SixMonthly')).toBe(true)
+    })
+
+    it('refuses what is not one of them', () => {
+        expect(isWellShapedPeriod('july', 'Monthly')).toBe(false)
+        expect(isWellShapedPeriod('202613', 'Monthly')).toBe(false)
+        expect(isWellShapedPeriod('2026', 'Monthly')).toBe(false)
+        expect(isWellShapedPeriod('2026Q5', 'Quarterly')).toBe(false)
+    })
+
+    it('refuses an empty box whatever the type, because a submission reports for a period', () => {
+        expect(isWellShapedPeriod('', 'Monthly')).toBe(false)
+        expect(isWellShapedPeriod('   ', null)).toBe(false)
+    })
+
+    it('accepts as typed what it has no shape for, leaving the grading to the server', () => {
+        // A financial year and an offset week spell their offset into the identifier, and this UI
+        // states no pattern for either - so neither is refused here, and both are graded there.
+        expect(isWellShapedPeriod('2026April', 'FinancialApril')).toBe(true)
+        expect(isWellShapedPeriod('2026WedW30', 'WeeklyWednesday')).toBe(true)
+        expect(isWellShapedPeriod('202607', null)).toBe(true)
     })
 })

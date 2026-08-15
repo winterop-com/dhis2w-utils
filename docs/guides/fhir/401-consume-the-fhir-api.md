@@ -643,11 +643,12 @@ screens, so the browser is never told them.
 `registers` is the third fact, and it is the published `D2TET_CM` read for a
 screen: one entry per FHIR resource this run serves from the instance, each
 carrying the tracked entity types riding it under the names the instance holds
-for them. It is what lets the navigation entry read **Patients** on a deployment
-that tracks only people and **Tracked entities** on one that tracks something
-else besides, and what lets a section on that page be titled *Specimen batch*
-rather than `Specimen` - the resource type is this project's projection, and the
-type's own name is what a reader working in DHIS2 recognises. It is `[]` whenever
+for them. It is what lets the navigation entry and the page heading read the
+instance's own name for the one type a deployment tracks - **Person**, **Person
+(Play)** - and **Tracked entities** on one tracking something else besides, and
+what lets a section on that page be titled *Specimen batch* rather than
+`Specimen` - the resource type is this project's projection, and the type's own
+name is what a reader working in DHIS2 recognises. It is `[]` whenever
 `enabled` is false, because a page the navigation does not offer has no sections
 to name.
 

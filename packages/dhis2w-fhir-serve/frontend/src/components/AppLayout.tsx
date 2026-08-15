@@ -20,7 +20,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSidebar } from '@/hooks/use-sidebar'
 import { useUiConfig } from '@/hooks/use-ui-config'
-import { servesPeopleOnly, trackedEntitySettings, type UiConfig } from '@/lib/uiconfig'
+import { REGISTER_TITLE, registerTitle, trackedEntitySettings, type UiConfig } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
 /** One entry in the sidebar rail: where it goes, what it is called, and what it is for. */
@@ -40,17 +40,14 @@ export interface NavItem {
     /**
      * The label and hint this run gives the page, for one whose subject depends on the server.
      *
-     * Absent for every page whose subject is fixed. The register has one because a project tracking
-     * only people would be badly served by a rail entry reading "Tracked entities", and a project
-     * tracking samples besides would be lied to by one reading "Patients".
+     * Absent for every page whose subject is fixed. The register has one because DHIS2 tracks
+     * whatever a project tracks, and the instance's own name for the type is what its people say -
+     * so a run serving one type is led to by that name, and a run serving several by the register.
      */
     naming?: (settings: UiConfig) => { label: string; hint: string }
 }
 
-/** What the register entry is called on a run serving nobody but people, and on any other. */
-export const PEOPLE_NAV_LABEL = 'Patients'
-export const PEOPLE_NAV_HINT = 'People this DHIS2 instance holds'
-export const REGISTER_NAV_LABEL = 'Tracked entities'
+/** What the register entry says it leads to, whichever of the instance's own names it wears. */
 export const REGISTER_NAV_HINT = 'What this DHIS2 instance tracks'
 
 /**
@@ -72,25 +69,26 @@ export const REGISTER_NAV_HINT = 'What this DHIS2 instance tracks'
  *
  * A PAGE THAT IS NOT ALWAYS THE SAME PAGE STATES ITS OWN NAME, in `naming`. The
  * register is the only one of those too: DHIS2 tracks whatever a project tracks,
- * so a deployment that registers only people gets an entry reading Patients and
- * a deployment that also registers samples gets the entry that covers both. The
- * entry is one either way - splitting the rail per FHIR resource would put the
- * navigation at the mercy of a config file - and the sections inside the page are
- * where the types are named.
+ * so a deployment registering one type is led to by the instance's own name for
+ * it - Person, Person (Play), Specimen batch - and one registering several by the
+ * register. The entry is one either way; splitting the rail per FHIR resource
+ * would put the navigation at the mercy of a config file, and the sections inside
+ * the page are where each type is named. See `registerTitle` for why the
+ * instance's word beats both "Tracked entities" and "Patients".
  */
 export const NAV_ITEMS: NavItem[] = [
     { path: '', label: 'Overview', hint: 'State of capture', icon: LayoutDashboard },
     { path: 'forms', label: 'Forms', hint: 'Questionnaires served', icon: ClipboardList },
     {
         path: 'tracked-entities',
-        label: PEOPLE_NAV_LABEL,
-        hint: PEOPLE_NAV_HINT,
+        label: REGISTER_TITLE,
+        hint: REGISTER_NAV_HINT,
         icon: Users,
         offered: (settings) => trackedEntitySettings(settings).enabled,
-        naming: (settings) =>
-            servesPeopleOnly(trackedEntitySettings(settings))
-                ? { label: PEOPLE_NAV_LABEL, hint: PEOPLE_NAV_HINT }
-                : { label: REGISTER_NAV_LABEL, hint: REGISTER_NAV_HINT },
+        naming: (settings) => ({
+            label: registerTitle(trackedEntitySettings(settings)),
+            hint: REGISTER_NAV_HINT,
+        }),
     },
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
     { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },

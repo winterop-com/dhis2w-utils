@@ -139,7 +139,19 @@ export function patientProjection(patient: Patient): PatientProjection {
  * search key - and the uid leads rather than an empty cell.
  */
 export function patientLeadValue(projection: PatientProjection): string {
-    return projection.identifiers[0]?.value ?? projection.trackedEntityUid
+    return patientIdentifierValue(projection) ?? projection.trackedEntityUid
+}
+
+/**
+ * The value that names one tracked entity, or null when this instance holds none for them.
+ *
+ * The half of `patientLeadValue` that has not already fallen back, and it exists because the fallback
+ * is a fact a screen sometimes has to act on rather than only render: a page headed by a uid must not
+ * also badge that uid underneath, which is one string wearing two hats. Everywhere that only wants
+ * something to show keeps calling `patientLeadValue`.
+ */
+export function patientIdentifierValue(projection: PatientProjection): string | null {
+    return projection.identifiers[0]?.value ?? null
 }
 
 /**
@@ -267,6 +279,32 @@ export function trackedEntityAttributeNames(codeSystems: readonly CodeSystem[]):
         }
     }
     return names
+}
+
+/** The concept property DHIS2's own tracked entity attribute carries its list preference on. */
+export const DISPLAY_IN_LIST_CONCEPT_PROPERTY = 'display-in-list'
+
+/**
+ * The attributes DHIS2 puts in a register listing, as the published dictionary declares them.
+ *
+ * DHIS2 lets an administrator mark which of a type's attributes belong in a list of its entities -
+ * the two or three that let a clerk recognise somebody - and that preference is a fact about the
+ * instance's own workflow rather than a guess a browser can make. A register with none marked has an
+ * empty set here, which is read as "the instance states no preference" and leaves the listing showing
+ * what it always showed.
+ */
+export function trackedEntityAttributesInList(codeSystems: readonly CodeSystem[]): ReadonlySet<string> {
+    const flagged = new Set<string>()
+    for (const codeSystem of codeSystems) {
+        if (!holdsTrackedEntityAttributeConcepts(codeSystem)) continue
+        for (const concept of codeSystem.concept ?? []) {
+            const stated = concept.property?.find(
+                (property) => property.code === DISPLAY_IN_LIST_CONCEPT_PROPERTY,
+            )
+            if (stated?.valueBoolean === true) flagged.add(concept.code)
+        }
+    }
+    return flagged
 }
 
 /**

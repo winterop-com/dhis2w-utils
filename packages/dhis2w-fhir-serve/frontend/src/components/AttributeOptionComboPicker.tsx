@@ -27,8 +27,14 @@ const CONTROL_ID = 'attribute-option-combo'
  * WHY THE USER PICKS IT AND THE SERVER DOES NOT. The rest of the envelope comes from `$generate`
  * because deriving it would mean reimplementing DHIS2 period arithmetic in a browser. This one is
  * different in kind: which project a month of stock figures is reported under is not derivable from
- * anything at all - it is the thing the person filling the form knows and the server does not. So
- * the draw is a proposal (it lands here as the pre-selection) and the choice is the user's.
+ * anything at all - it is the thing the person filling the form knows and the server does not.
+ *
+ * WHY IT OPENS UNANSWERED. `$generate` draws a combo so its skeleton is postable, and this control
+ * does not adopt that draw: a pre-selected combo is a claim about which project a month of figures
+ * belongs to, made by a random draw on behalf of whoever did not look at it. DHIS2's own capture app
+ * refuses to render the form until the combo is chosen; the same refusal in this app's idiom is a
+ * control that is empty, marked required, and says what choosing it decides - and a Submit that
+ * refuses with the reason stated.
  *
  * WHY THE CODE IS ON EVERY OPTION. Two attribute option combos of one category combo can read
  * almost the same ("Improve access to clean water", "Improve access to medicines"), and the uid is

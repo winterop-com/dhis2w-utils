@@ -65,7 +65,8 @@ test('a tracker program leads with its registration, stages beneath, dependency 
     await expect(rows.nth(1)).toContainText('Antenatal care')
     await expect(rows.nth(1)).toContainText('registration - enrols a person')
     await expect(rows.nth(2)).toContainText('ANC follow-up - ANC visit')
-    await expect(rows.nth(2)).toContainText('stage - a visit for an enrolled person')
+    // The stage says how often it is answered, which is what the form declares on `d2-repeatable`.
+    await expect(rows.nth(2)).toContainText('stage - each visit is its own record')
 
     await expect(ancCare.getByText('Stages record visits for a person the registration enrols.')).toBeVisible()
 })

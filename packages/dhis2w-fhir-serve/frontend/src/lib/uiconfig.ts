@@ -113,13 +113,41 @@ export function trackedEntitySettings(config: UiConfig): TrackedEntitiesSettings
 /**
  * Whether every tracked entity type this run serves is published as a person.
  *
- * The overwhelmingly common deployment, and the one whose screens must not change a word: a project
- * that tracks only people gets the pages it always had, named for the people they hold. A run
- * serving nothing counts as one of those, because the pages it would name are pages it does not
- * offer.
+ * The overwhelmingly common deployment, and the one whose prose speaks of people rather than of
+ * tracked entities: a section over people says "person" and "people", because that is what a clerk
+ * reading it is looking at. A run serving nothing counts as one of those, because the pages it would
+ * word are pages it does not offer.
  */
 export function servesPeopleOnly(settings: TrackedEntitiesSettings): boolean {
     return settings.registers.every((register) => register.resource === PEOPLE_RESOURCE_TYPE)
+}
+
+/** What the register is called when this run serves several types, or one this guide did not name. */
+export const REGISTER_TITLE = 'Tracked entities'
+
+/**
+ * What the register is called on this run: the instance's own name for the one type it serves.
+ *
+ * NAME THE ACTUAL SUBJECT. DHIS2 tracks whatever a project tracks, and the instance holds a name for
+ * each type - "Person", "Person (Play)", "Specimen batch". That name is what the people who run these
+ * servers say, and it beats both alternatives this app could reach for: "Tracked entities" is DHIS2's
+ * word for the whole family rather than for this one, and "Patients" is the FHIR resource this
+ * project happens to project a person onto - a projection, stated as though it were the subject. A
+ * register serving people is not thereby a register of patients: nobody in it is under anyone's care
+ * by virtue of being in it, and the guide's own map is what decided the resource in the first place.
+ *
+ * SINGULAR, AND NOT PLURALISED. The name is DHIS2's string, used as DHIS2 spells it. Turning "Specimen
+ * batch" into "Specimen batches" means guessing at English morphology on a string that may be in any
+ * language, to gain nothing a reader needed.
+ *
+ * ONE TYPE ONLY. Two types riding one page have no single name, and joining them ("Person, Specimen
+ * batch") would put a growing list in a navigation rail. That page is the register, said plainly, and
+ * the sections inside it are where each type is named.
+ */
+export function registerTitle(settings: TrackedEntitiesSettings): string {
+    const types = settings.registers.flatMap((register) => register.types)
+    const name = types.length === 1 ? types[0].name : null
+    return name === null || name === '' ? REGISTER_TITLE : name
 }
 
 /**

@@ -34,6 +34,7 @@ from fixture_project import (
     COLLECTS_INCIDENT_DATE_EXTENSION,
     REGISTRATION_CODED_ATTRIBUTE,
     REGISTRATION_DATE_ATTRIBUTE,
+    REGISTRATION_GENERATED_ATTRIBUTE,
     REGISTRATION_PROGRAM_UID,
     REGISTRATION_QUESTIONNAIRE_BODY,
     REGISTRATION_UNIQUE_ATTRIBUTE,
@@ -379,6 +380,24 @@ def test_an_unanswered_mandatory_attribute_warns(
 
     assert REGISTRATION_UNIQUE_ATTRIBUTE in _diagnostics(accepted.warnings)
     assert "required by the form" in _diagnostics(accepted.warnings)
+
+
+def test_an_unanswered_generated_attribute_is_not_warned_about(
+    capture_indexes: CaptureIndexCache,
+    capture_naming: CaptureNaming,
+    capture_store: ResourceStore,
+) -> None:
+    """A required question DHIS2 answers is not one a submission is short of.
+
+    The fixture's programme identifier is `required` and `readOnly` together: DHIS2 mints its value
+    on import, so nothing a client sends for it is used and a submission carrying no answer for it is
+    complete. The unique attribute beside it is the control - drop that one and the warning appears,
+    which is what makes this a rule about read-only rather than about warnings being off.
+    """
+    accepted = _accept(_registration(), capture_indexes, capture_naming, capture_store)
+
+    assert REGISTRATION_GENERATED_ATTRIBUTE not in _diagnostics(accepted.warnings)
+    assert accepted.warnings == ()
 
 
 def test_a_coded_attribute_answered_outside_its_value_set_grades_on_the_dial(

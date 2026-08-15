@@ -11,6 +11,7 @@ import {
     marksAnExistingSubject,
     MINIMUM_PATIENT_SEARCH_LENGTH,
     pageTokenOf,
+    patientIdentifierValue,
     patientLeadValue,
     patientPage,
     patientProjection,
@@ -18,6 +19,7 @@ import {
     PATIENT_SEARCH_DEBOUNCE_MS,
     trackedEntityAttributeLabel,
     trackedEntityAttributeNames,
+    trackedEntityAttributesInList,
     trackedEntityTypeLabel,
     trackedEntityTypeNames,
     type PatientEnrollment,
@@ -383,5 +385,68 @@ describe('naming what a person is described in terms of', () => {
         })
         expect(trackedEntityTypeLabel(names, null)).toBeNull()
         expect(trackedEntityTypeLabel(names, '')).toBeNull()
+    })
+})
+
+/**
+ * The two facts a register listing reads out of the published attribute dictionary.
+ *
+ * WHICH VALUE NAMES SOMEBODY, and whether there is one at all. `patientLeadValue` has always
+ * answered the first by falling back to the tracked entity uid; `patientIdentifierValue` is the half
+ * before the fallback, and it exists because a screen sometimes has to act on the fallback rather
+ * than only render it - a page headed by a uid must not badge that same uid underneath.
+ *
+ * WHICH VALUES BELONG IN A LIST. DHIS2 lets an administrator mark the attributes that let a clerk
+ * recognise somebody, and that marking is a fact about the instance's workflow rather than a guess a
+ * browser can make. An instance marking none states no preference, which is a different thing from
+ * marking none as wanted.
+ */
+describe('what a register listing reads out of the dictionary', () => {
+    const dictionary: CodeSystem = {
+        resourceType: 'CodeSystem',
+        status: 'active',
+        id: 'd2-tea-cs',
+        url: 'http://localhost:8080/fhir/CodeSystem/d2-tea-cs',
+        concept: [
+            {
+                code: 'TeaBirthDat',
+                display: 'Date of birth',
+                property: [{ code: 'display-in-list', valueBoolean: true }],
+            },
+            {
+                code: 'TeaHousehld',
+                display: 'Household size',
+                property: [{ code: 'display-in-list', valueBoolean: false }],
+            },
+            { code: 'TeaConsent1', display: 'Consent given' },
+        ],
+    }
+
+    it('collects the attributes DHIS2 puts in a listing, and nothing it declined or left unsaid', () => {
+        const flagged = trackedEntityAttributesInList([dictionary])
+        expect(flagged.has('TeaBirthDat')).toBe(true)
+        expect(flagged.has('TeaHousehld')).toBe(false)
+        expect(flagged.has('TeaConsent1')).toBe(false)
+    })
+
+    it('reads no preference out of a vocabulary that is not the attribute dictionary', () => {
+        const options: CodeSystem = {
+            resourceType: 'CodeSystem',
+            status: 'active',
+            id: 'd2-os-OsSex000001-cs',
+            concept: [{ code: 'OpFemale001', property: [{ code: 'display-in-list', valueBoolean: true }] }],
+        }
+        expect(trackedEntityAttributesInList([options]).size).toBe(0)
+    })
+
+    it('separates the value that names somebody from the uid that stands in when there is none', () => {
+        const named = patientProjection(person)
+        expect(patientIdentifierValue(named)).toBe(patientLeadValue(named))
+
+        const unnamed = { ...named, identifiers: [] }
+        expect(patientIdentifierValue(unnamed)).toBeNull()
+        // The renderer's answer is still the uid; what changed is that a caller can now tell that
+        // the uid is a fallback rather than a value this instance holds.
+        expect(patientLeadValue(unnamed)).toBe(unnamed.trackedEntityUid)
     })
 })

@@ -37,6 +37,7 @@ from fixture_project import (
     CAPTURE_IDENTIFIER_BASE,
     REGISTRATION_CODED_ATTRIBUTE,
     REGISTRATION_DATE_ATTRIBUTE,
+    REGISTRATION_GENERATED_ATTRIBUTE,
     REGISTRATION_PROGRAM_ONLY_ATTRIBUTE,
     REGISTRATION_PROGRAM_UID,
     REGISTRATION_TRACKED_ENTITY_TYPE_UID,
@@ -207,7 +208,8 @@ async def test_a_bare_identifier_value_tries_the_uid_and_every_search_key(
     Every key, by default, is every attribute DHIS2 declares unique **or** searchable - so the
     searchable-but-not-unique date of birth is filtered on beside the unique national identifier and
     the unique laboratory reference, which is the widening a clinic looking somebody up by a
-    searchable attribute depends on.
+    searchable attribute depends on. A generated attribute is a key like any other: DHIS2 mints its
+    value, and the value on somebody's card is exactly the thing a clerk types in here.
     """
     _read_route(None, _NATIONAL_ID)
     search = _search_route(_entity())
@@ -221,6 +223,7 @@ async def test_a_bare_identifier_value_tries_the_uid_and_every_search_key(
         f"{REGISTRATION_DATE_ATTRIBUTE}:eq:{_NATIONAL_ID}",
         f"{REGISTRATION_UNIQUE_ATTRIBUTE}:eq:{_NATIONAL_ID}",
         f"{SPECIMEN_UNIQUE_ATTRIBUTE}:eq:{_NATIONAL_ID}",
+        f"{REGISTRATION_GENERATED_ATTRIBUTE}:eq:{_NATIONAL_ID}",
     ]
     assert all(call.request.url.params["ouMode"] == "ACCESSIBLE" for call in search.calls)
 
@@ -447,6 +450,7 @@ def test_the_index_reads_the_search_keys_and_the_published_types(capture_project
         REGISTRATION_DATE_ATTRIBUTE,
         REGISTRATION_UNIQUE_ATTRIBUTE,
         SPECIMEN_UNIQUE_ATTRIBUTE,
+        REGISTRATION_GENERATED_ATTRIBUTE,
     ]
     assert index.attribute_for_system(_NATIONAL_ID_SYSTEM) is not None
     assert index.program_name(REGISTRATION_PROGRAM_UID) == "Antenatal care"

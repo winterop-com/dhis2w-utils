@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import {
     enabledLinkIds,
+    groupCategoryAxes,
     TRUE_ONLY_VALUE_TYPE,
     type AnswerAction,
     type AnswerState,
@@ -60,6 +61,12 @@ export function LockedQuestionsProvider({ locked, children }: { locked: LockedQu
  * ENABLEWHEN HIDES, IT DOES NOT DISCARD. A disabled item is not rendered, and its answers stay
  * in the reducer: re-enabling it brings back what was typed. `buildQuestionnaireResponse`
  * writes none of them, which is what makes the hidden state safe.
+ *
+ * WHAT DHIS2 SAYS ABOUT A QUESTION IS SAID BESIDE IT. A data element's description is help text a
+ * form designer wrote, so it reads under the label and above the control - the same place the
+ * capture context's own controls put theirs. A section's description reads under its heading. And a
+ * group of disaggregated cells names the categories its cells are cut by, because "Fixed, <1y" is
+ * the name of one corner of a grid and says nothing about which grid it is a corner of.
  */
 export function QuestionnaireForm({
     spec,
@@ -84,6 +91,9 @@ export function QuestionnaireForm({
                                 <span>{heading?.text ?? heading?.linkId ?? 'Questions'}</span>
                                 {heading?.code?.code !== undefined && <CodeBadge code={heading.code.code} />}
                             </CardTitle>
+                            {section.groupLinkId !== null && (
+                                <GroupNotes spec={spec} groupLinkId={section.groupLinkId} />
+                            )}
                         </CardHeader>
                         <CardContent className="grid gap-4">
                             {section.linkIds.map((linkId) => (
@@ -133,6 +143,7 @@ export function QuestionnaireItemView({
                     <span>{node.text ?? node.linkId}</span>
                     {node.code?.code !== undefined && <CodeBadge code={node.code.code} />}
                 </legend>
+                <GroupNotes spec={spec} groupLinkId={node.linkId} />
                 {node.childLinkIds.map((childLinkId) => (
                     <QuestionnaireItemView
                         key={childLinkId}
@@ -159,6 +170,12 @@ export function QuestionnaireItemView({
                 {node.required && <span className="sr-only">(required)</span>}
                 {node.code?.code !== undefined && <CodeBadge code={node.code.code} />}
             </Label>
+            {/* Between the label and the control, which is where help text belongs and where the
+                capture context's own controls already put theirs: it is what the question means,
+                read before it is answered, rather than a note about what the answer may hold. */}
+            {node.description !== null && (
+                <p className="text-muted-foreground text-sm">{node.description}</p>
+            )}
             <AnswerControl
                 node={node}
                 slots={answers[node.linkId] ?? []}
@@ -193,6 +210,37 @@ function CodeBadge({ code, className }: { code: string; className?: string }) {
     )
 }
 
+/**
+ * What one group states about the questions under it: its description, then what its cells are cut by.
+ *
+ * THE AXES ARE THE FACT THE CELL LABELS DO NOT CARRY. A data element group holds one question per
+ * category option combo and each is labelled with the combo's own name - "Fixed, <1y" - which names a
+ * corner of a grid and never says which grid. The categories are the same for every cell of one
+ * group, so they are named once, here, from the decomposition the served combo vocabulary publishes.
+ */
+function GroupNotes({ spec, groupLinkId }: { spec: QuestionnaireSpec; groupLinkId: string }) {
+    const node = spec.byLinkId.get(groupLinkId)
+    const axes = groupCategoryAxes(spec, groupLinkId)
+    if (node === undefined) return null
+    if (node.description === null && axes.length === 0) return null
+    return (
+        <div className="grid gap-1">
+            {node.description !== null && (
+                <p className="text-muted-foreground text-sm">{node.description}</p>
+            )}
+            {axes.length > 0 && (
+                <p className="text-muted-foreground text-xs">Disaggregated by {joinNames(axes)}</p>
+            )}
+        </div>
+    )
+}
+
+/** Several names as one phrase, so a reader gets prose rather than a comma-separated list. */
+function joinNames(names: string[]): string {
+    if (names.length <= 1) return names.join('')
+    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
 /** What this question takes beyond its label: bounds, the two answers a tick has, repetition, read-only. */
 function QuestionHint({ node }: { node: QuestionnaireNode }) {
     const notes: string[] = []
@@ -205,7 +253,18 @@ function QuestionHint({ node }: { node: QuestionnaireNode }) {
         notes.push('yes or not answered - DHIS2 stores no No for this question')
     }
     if (node.repeats) notes.push('takes more than one answer')
-    if (node.readOnly) notes.push('read only')
+    // A read-only question is one nothing here can answer, and the dictionary is what says why:
+    // DHIS2 mints a generated attribute's value on import. Saying "read only" alone would leave a
+    // person looking for the way to type in it; naming the shape is what tells them what will arrive.
+    if (node.readOnly && node.generated) {
+        notes.push(
+            node.pattern === null
+                ? 'DHIS2 fills this in when the submission is imported'
+                : `DHIS2 fills this in when the submission is imported, shaped ${node.pattern}`,
+        )
+    } else if (node.readOnly) {
+        notes.push('read only')
+    }
     if (notes.length === 0) return null
     return <p className="text-muted-foreground text-xs">{notes.join(', ')}</p>
 }

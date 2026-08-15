@@ -329,7 +329,7 @@ enabled = false
 A live server that serves forms, code lists, and the organisation-unit
 registry, and answers nothing about people.
 
-**What a person using the screens sees.** No Patients page in the navigation,
+**What a person using the screens sees.** No register in the navigation,
 and a registration form's **Person** control offers **New person** alone -
 exactly what a compiled guide offers. Nothing is greyed out or half-offered:
 the screens are told what this server answers and draw only that.
@@ -364,12 +364,12 @@ listing = false
 An identifier search answers as it always did; a request that names no
 identifier is refused with a message saying the listing is off in this project.
 
-**What a person using the screens sees.** The Patients page keeps its search
+**What a person using the screens sees.** The register keeps its search
 box and offers no browsing: it opens on an invitation to search rather than on
 the first page of people, and there are no paging controls rather than empty
 ones.
 
-**Default:** `true` - **If you leave it out:** a live run's Patients page opens
+**Default:** `true` - **If you leave it out:** a live run's register opens
 on the first page of the people the instance holds.
 
 **If you get it wrong:** TOML wants bare `true` or `false`; a printout naming
@@ -380,7 +380,7 @@ the surface the listing is part of.
 #### `page_size` { #tracked_entities-page_size }
 
 **In plain words.** How many people come back in one page when whoever asked
-did not say. The Patients page shows a page of this size, and a program reading
+did not say. The register shows a page of this size, and a program reading
 the server directly gets this many per page unless it asks for a different
 number.
 

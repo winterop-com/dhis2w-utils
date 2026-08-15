@@ -141,6 +141,36 @@ MAXIMUM_VALUE_URL = "http://hl7.org/fhir/StructureDefinition/maxValue"
 
 FORM_TYPE_URL = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-form-type"
 
+#: The extensions that carry a form's own words for the dates it collects, the DHIS2 period type an
+#: aggregate form reports for, whether a stage may be answered more than once per enrollment, and the
+#: description DHIS2 holds for a data element or a section.
+#:
+#: They are written onto the goldens as they are copied into the fixture tree rather than harvested,
+#: because a generated form carries whatever the instance stated and the goldens were generated from
+#: an instance that stated little. What a consumer has to do with each is the same either way.
+DATE_LABELS_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-date-labels"
+PERIOD_TYPE_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-period-type"
+REPEATABLE_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-repeatable"
+DESCRIPTION_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-description"
+
+#: The sub-extensions `d2-date-labels` slices, one per date a DHIS2 program lets an instance rename.
+ENROLLMENT_DATE_LABEL_SUB_EXTENSION = "enrollmentDate"
+INCIDENT_DATE_LABEL_SUB_EXTENSION = "incidentDate"
+EVENT_DATE_LABEL_SUB_EXTENSION = "eventDate"
+
+#: The words the fixture's instance uses for two of those dates. Neither is the default this UI falls
+#: back to, which is what makes "the form's own word won" a claim a test can make.
+ENROLLMENT_DATE_LABEL = "Date first seen"
+EVENT_DATE_LABEL = "Date of visit"
+
+#: The DHIS2 period type both aggregate forms of the fixture report for.
+AGGREGATE_PERIOD_TYPE = "Monthly"
+
+#: The descriptions DHIS2 holds for one section, one data element group, and one stage question.
+IMMUNIZATION_SECTION_DESCRIPTION = "Doses given at this facility and on outreach, counted at the end of each month."
+BCG_GROUP_DESCRIPTION = "Count a dose once, on the day it was given."
+VISIT_NUMBER_DESCRIPTION = "The number of this visit in the pregnancy, counting from one."
+
 TEMPORAL_QUESTIONNAIRE_UID = "PrTemporal1"
 TEMPORAL_QUESTIONNAIRE = f"{CAPTURE_CANONICAL}/Questionnaire/{TEMPORAL_QUESTIONNAIRE_UID}"
 SYMPTOM_CODE_SYSTEM = f"{CAPTURE_CANONICAL}/CodeSystem/d2-os-OsSymptom01-cs"
@@ -410,6 +440,15 @@ REGISTRATION_DATE_ATTRIBUTE = "TeaBirthDat"
 REGISTRATION_CODED_ATTRIBUTE = "TeaSex00001"
 REGISTRATION_PROGRAM_ONLY_ATTRIBUTE = "TeaHousehld"
 
+#: The attribute DHIS2 generates: the instance mints its value on import from the pattern it holds,
+#: so the form marks it read-only and nothing a client sends for it is used. It is required as well,
+#: which is the pair that matters - a question DHIS2 answers is not one a submission is short of.
+REGISTRATION_GENERATED_ATTRIBUTE = "TeaSystemId"
+REGISTRATION_GENERATED_PATTERN = "ANC-#######"
+
+#: The description DHIS2 holds for the attribute the program asks and its type does not collect.
+HOUSEHOLD_ATTRIBUTE_DESCRIPTION = "How many people sleep in the household, including the person enrolled."
+
 #: The attribute the second tracked entity type collects: a unique laboratory reference.
 SPECIMEN_UNIQUE_ATTRIBUTE = "TeaLabRef01"
 
@@ -451,6 +490,15 @@ REGISTRATION_QUESTIONNAIRE_BODY: dict[str, Any] = {
     "extension": [
         {"url": FORM_TYPE_URL, "valueCode": "tracker"},
         {"url": COLLECTS_INCIDENT_DATE_EXTENSION, "valueBoolean": False},
+        # One sub-extension and not three: this program collects no incident date, so the instance
+        # holds no word for one, and a label for a date nobody is asked would be invented rather than
+        # published. The event date belongs to a stage form, which is where the fixture states one.
+        {
+            "url": DATE_LABELS_EXTENSION,
+            "extension": [
+                {"url": ENROLLMENT_DATE_LABEL_SUB_EXTENSION, "valueString": ENROLLMENT_DATE_LABEL},
+            ],
+        },
         {
             "url": ORG_UNIT_ASSIGNMENT_EXTENSION,
             "valueReference": {"reference": f"List/{REGISTRATION_ASSIGNMENT_LIST_ID}"},
@@ -518,7 +566,23 @@ REGISTRATION_QUESTIONNAIRE_BODY: dict[str, Any] = {
             "extension": [
                 {"url": "http://hl7.org/fhir/StructureDefinition/minValue", "valueInteger": 1},
                 {"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": False},
+                {"url": DESCRIPTION_EXTENSION, "valueString": HOUSEHOLD_ATTRIBUTE_DESCRIPTION},
             ],
+        },
+        {
+            "linkId": REGISTRATION_GENERATED_ATTRIBUTE,
+            "code": [
+                {
+                    "system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
+                    "code": REGISTRATION_GENERATED_ATTRIBUTE,
+                    "display": "Programme identifier",
+                }
+            ],
+            "text": "Programme identifier",
+            "type": "string",
+            "required": True,
+            "readOnly": True,
+            "extension": [{"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": True}],
         },
         {
             "linkId": REGISTRATION_TRUE_ONLY_ATTRIBUTE,
@@ -585,6 +649,13 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
         {"code": "value-type", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/value-type", "type": "code"},
         {"code": "unique", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/unique", "type": "boolean"},
         {"code": "searchable", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/searchable", "type": "boolean"},
+        {"code": "generated", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/generated", "type": "boolean"},
+        {"code": "pattern", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/pattern", "type": "string"},
+        {
+            "code": "display-in-list",
+            "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/display-in-list",
+            "type": "boolean",
+        },
     ],
     "concept": [
         {
@@ -595,6 +666,7 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
                 {"code": "value-type", "valueCode": "DATE"},
                 {"code": "unique", "valueBoolean": False},
                 {"code": "searchable", "valueBoolean": True},
+                {"code": "display-in-list", "valueBoolean": True},
             ],
         },
         {
@@ -604,6 +676,7 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
                 {"code": "value-type", "valueCode": "INTEGER_POSITIVE"},
                 {"code": "unique", "valueBoolean": False},
                 {"code": "searchable", "valueBoolean": False},
+                {"code": "display-in-list", "valueBoolean": False},
             ],
         },
         {
@@ -624,6 +697,7 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
                 {"code": "value-type", "valueCode": "TEXT"},
                 {"code": "unique", "valueBoolean": False},
                 {"code": "searchable", "valueBoolean": False},
+                {"code": "display-in-list", "valueBoolean": True},
             ],
         },
         {
@@ -645,8 +719,20 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
                 {"code": "unique", "valueBoolean": False},
             ],
         },
+        {
+            "code": REGISTRATION_GENERATED_ATTRIBUTE,
+            "display": "Programme identifier",
+            "property": [
+                {"code": "dhis2-code", "valueString": "TEA_SYSTEM_ID"},
+                {"code": "value-type", "valueCode": "TEXT"},
+                {"code": "unique", "valueBoolean": True},
+                {"code": "searchable", "valueBoolean": True},
+                {"code": "generated", "valueBoolean": True},
+                {"code": "pattern", "valueString": REGISTRATION_GENERATED_PATTERN},
+            ],
+        },
     ],
-    "count": 5,
+    "count": 7,
 }
 
 TRACKED_ENTITY_ATTRIBUTE_VALUE_SET_BODY: dict[str, Any] = {
@@ -984,6 +1070,67 @@ def golden(filename: str) -> dict[str, Any]:
     return parsed
 
 
+def with_extensions(resource: dict[str, Any], *extensions: dict[str, Any]) -> dict[str, Any]:
+    """One resource with extensions appended after whatever it already carries."""
+    return {**resource, "extension": [*resource.get("extension", []), *extensions]}
+
+
+def with_item_extension(resource: dict[str, Any], link_id: str, extension: dict[str, Any]) -> dict[str, Any]:
+    """One resource with an extension appended to the single item its link id names, at any depth."""
+
+    def walk(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        rewritten: list[dict[str, Any]] = []
+        for item in items:
+            nested = {"item": walk(item["item"])} if "item" in item else {}
+            if item.get("linkId") == link_id:
+                rewritten.append({**item, "extension": [*item.get("extension", []), extension], **nested})
+                continue
+            rewritten.append({**item, **nested})
+        return rewritten
+
+    return {**resource, "item": walk(resource.get("item", []))}
+
+
+def date_labels(**labels: str) -> dict[str, Any]:
+    """The `d2-date-labels` extension over the sub-extensions this form's instance really states."""
+    return {
+        "url": DATE_LABELS_EXTENSION,
+        "extension": [{"url": url, "valueString": label} for url, label in labels.items()],
+    }
+
+
+def description(text: str) -> dict[str, Any]:
+    """The `d2-description` extension one item carries the DHIS2 description of its object on."""
+    return {"url": DESCRIPTION_EXTENSION, "valueString": text}
+
+
+def capture_questionnaire(filename: str) -> dict[str, Any]:
+    """One golden Questionnaire with the form-fidelity facts its instance would have published.
+
+    The goldens were generated from an instance that renames no date, describes no data element, and
+    reports no stage more than once, so the fidelity contract has nothing to show on them as they
+    stand. Writing the facts on here - rather than editing the goldens, which are the emitter's own
+    output - keeps one copy of the goldens in the workspace and still gives the serve suite and the
+    browser suite a project carrying every element of the contract.
+    """
+    resource = golden(filename)
+    identity = resource.get("id")
+    if identity == "PsAncVisit1":
+        stated = with_extensions(
+            resource,
+            {"url": REPEATABLE_EXTENSION, "valueBoolean": True},
+            date_labels(**{EVENT_DATE_LABEL_SUB_EXTENSION: EVENT_DATE_LABEL}),
+        )
+        return with_item_extension(stated, "DeAncVisNo1", description(VISIT_NUMBER_DESCRIPTION))
+    if identity == "BfMAe6Itzgt":
+        stated = with_extensions(resource, {"url": PERIOD_TYPE_EXTENSION, "valueCode": AGGREGATE_PERIOD_TYPE})
+        stated = with_item_extension(stated, "Y2rk0vzgvAx", description(IMMUNIZATION_SECTION_DESCRIPTION))
+        return with_item_extension(stated, "s46m5MS0hxu", description(BCG_GROUP_DESCRIPTION))
+    if identity == "TuL8IOPzpHh":
+        return with_extensions(resource, {"url": PERIOD_TYPE_EXTENSION, "valueCode": AGGREGATE_PERIOD_TYPE})
+    return resource
+
+
 def write_resource(path: Path, resource: dict[str, Any]) -> None:
     """Write one resource file, creating its directory."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1001,7 +1148,9 @@ def build_capture_project(destination: Path) -> FhirProject:
     config_path.write_text(CAPTURE_FHIR_TOML, encoding="utf-8")
 
     compiled = destination / "ig" / "fsh-generated" / "resources"
-    for filename in (*CAPTURE_QUESTIONNAIRE_FILES, *CAPTURE_SUPPORT_FILES):
+    for filename in CAPTURE_QUESTIONNAIRE_FILES:
+        write_resource(compiled / filename, capture_questionnaire(filename))
+    for filename in CAPTURE_SUPPORT_FILES:
         write_resource(compiled / filename, golden(filename))
     write_resource(compiled / f"Questionnaire-{TEMPORAL_QUESTIONNAIRE_UID}.json", TEMPORAL_QUESTIONNAIRE_BODY)
     write_resource(compiled / f"Questionnaire-{SCOPED_QUESTIONNAIRE_UID}.json", SCOPED_QUESTIONNAIRE_BODY)

@@ -13,6 +13,7 @@ import {
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { catalogueForms, isEventProgram, type ProgramGroup } from '@/lib/catalogue'
 import { formIdentifier, formTitle, questionCount, type Questionnaire } from '@/lib/fhir'
+import { repeatsPerEnrollment } from '@/lib/questionnaire'
 import { cn } from '@/lib/utils'
 
 /**
@@ -196,7 +197,7 @@ function TrackerProgramGroup({ group }: { group: ProgramGroup }) {
                     <FormRow
                         key={formIdentifier(stage)}
                         questionnaire={stage}
-                        note="stage - a visit for an enrolled person"
+                        note={stageNote(stage)}
                         indented
                     />
                 ))}
@@ -206,6 +207,21 @@ function TrackerProgramGroup({ group }: { group: ProgramGroup }) {
             </p>
         </div>
     )
+}
+
+/**
+ * What one stage row says it is, given what its form declares about repetition.
+ *
+ * A DHIS2 programme stage is answered once per enrollment or once per visit, and the difference is
+ * what a person planning a day's capture needs from a listing - so the row states it where it already
+ * states what a stage is. A form declaring nothing keeps the plain description: silence is a form
+ * compiled before the declaration was published, not a claim that the stage is answered once.
+ */
+function stageNote(stage: Questionnaire): string {
+    const repeats = repeatsPerEnrollment(stage)
+    if (repeats === true) return 'stage - each visit is its own record'
+    if (repeats === false) return 'stage - one record per enrollment'
+    return 'stage - a visit for an enrolled person'
 }
 
 /** The shared three-column table every section renders its rows in. */
