@@ -1,6 +1,14 @@
 # Forward captures into DHIS2
 
-**Who this is for:** the operator draining a served project's spool into the
+Everything so far has read your instance. This is the step that writes to it:
+it takes the submissions the server collected and imports them as data
+values, tracked entities, enrollments, and events - through `/api/dataValueSets`
+and `/api/tracker`, the same endpoints any DHIS2 import uses, under the same
+rules, with the same error codes coming back. Run it once and it validates
+the whole queue without writing a byte; run it again with `--import` and it
+commits.
+
+**Who this is for:** the operator draining a served project's queue into the
 DHIS2 instance - the one step in the whole loop that writes.
 
 **Before you start:** a project with receipts in
@@ -108,10 +116,15 @@ Which path a run takes is decided by what the project holds, not by a flag:
 | `ig/fsh-generated/resources` | the compiled guide, off disk | a directory listing |
 | no compiled guide | a guide built off the instance | one full metadata read per drain |
 
-The progress step says which happened, and the second one names its own cost:
+While the read is happening, the spinner names it - *building the guide off
+the instance, this project holding no compiled one*. The line that lands in
+the log is the completion, and it counts the same way whichever path ran, so
+a redirected log tells the two apart by the resource count and the seconds
+rather than by the words:
 
 ```
-[2/7] guide: building the guide off the instance, this project holding no compiled one
+[2/7] guide: 1,419 resource(s), 14 form(s)     # read off the compiled guide
+[2/7] guide: 1,403 resource(s), 14 form(s)     # built off the instance
 ```
 
 A deployment that wants its forwards reading a reviewed, published guide and
@@ -122,8 +135,13 @@ nothing else turns the stand-in off:
 live = false
 ```
 
-Forwarding an uncompiled project is then the one-line refusal naming
-`d2w fhir generate` and `make sushi`.
+Forwarding an uncompiled project is then the one-line refusal, and it names
+the two commands that produce a guide:
+
+```
+error: no compiled IG at /home/you/demo-ig/ig/fsh-generated/resources - run
+`d2w fhir generate`, then `make sushi` in the project, and forward again.
+```
 
 ## What a dry run cannot check
 
@@ -166,9 +184,12 @@ so a rejected import registers nothing at all. `--no-register-completeness`
 turns the second write off for a whole run, and the report says
 `not-registered` for every response that would have made one.
 
-The `Data set completeness` row of the summary counts the run, and `--details`
-(or the written report) lists the tuple each response claimed - the four keys
-are written out because a registration has no UID to look it up by.
+The `Data set completeness` row of the summary counts the run, and step six
+of the narration says which of three things happened - `5 report(s) would be
+registered complete (validate only)` in a dry run, `5 report(s) registered
+complete, 0 refused` in an import, and `no aggregate response to register`
+when the spool held none. `--details`, or the written report, lists the tuple
+each response claimed.
 
 | Outcome | What it means |
 | --- | --- |
@@ -183,9 +204,32 @@ they stay imported; only the claim failed, and the response still counts
 `accepted`. Forwarding the same tuple again is the retry - DHIS2 answers a
 registration it already holds with `updated`, not a conflict.
 
-A dry run posts nothing here. It wrote no values, so there is nothing for a
-completeness claim to be about; what it states is the tuple that *would* be
-registered, and whether DHIS2 accepts that write is answered by the import.
+A dry run posts nothing here, and says so in its own closing note:
+
+```
+note: A dry run writes no values, so there is nothing for a completeness registration to be
+about and none is posted. What the run states is the tuple each `completed` response would
+register - the data set, period, organisation unit, and attribute option combo its values
+ride under. Whether DHIS2 accepts that write is checked by the import, which registers only
+after it has taken the values.
+```
+
+The written report gives the tuples a section of their own, one row per
+claim, because a registration has no UID to look it up by afterwards:
+
+```markdown
+## Data set completeness
+
+| Completeness | Data set | Period | Organisation unit | Attribute option combo | Completed on | Why |
+| --- | --- | --- | --- | --- | --- | --- |
+| registered | TuL8IOPzpHh | 202607 | qO2JLjYrg91 | oawMLLH7OjA |  |  |
+| registered | BfMAe6Itzgt | 202607 | lpAPY3QOY2D |  |  |  |
+```
+
+An empty attribute option combo column is a data set on the default category
+combo - there is one combo and DHIS2 needs no help finding it. `Completed on`
+and `Why` fill in only where there is something to say: a date the response
+stated, and the reason a registration was refused or never attempted.
 
 The forwarder never writes `/api/dataValueSets`' own `completeDate`, even
 though that field registers completeness too. On 2.42 it registers even when
@@ -206,12 +250,43 @@ Both drained states carry the report. A rejection needs one to say why it
 was refused; an acceptance needs one because "DHIS2 took it" is not the
 whole answer either - the import counts are what say how much of it landed,
 and an accepted receipt that ignored every value changed nothing in the
-instance. The Responses page reads both off the same sidecar.
+instance. The Responses page reads both off the same sidecar. So after the
+import above, `forwarded/` holds two files per receipt:
+
+```console
+$ ls .serve/responses/forwarded | head -4
+0c81a28f79ba4226b8d4d348f2b96de1.json
+0c81a28f79ba4226b8d4d348f2b96de1.report.json
+130e32d49e734c6badc6dd10161cec31.json
+130e32d49e734c6badc6dd10161cec31.report.json
+```
 
 Moves are renames within one filesystem, so a receipt is in exactly one
 state at every instant. The report is written before the receipt moves, so a
 process killed mid-move leaves a report with no receipt - which the next run
 overwrites - rather than a drained receipt nothing explains.
+
+## Correcting or withdrawing what you forwarded
+
+The question a DHIS2 person asks next is: somebody typed a number wrong, and
+it is in the instance now - what do I do? Read the answer in full at
+[Corrections and withdrawals](../../project/fhir-data-lifecycle.md). The short
+version, and it is a posture rather than a feature:
+
+| What you want | Where it stands today |
+| --- | --- |
+| Fix an aggregate value | Capture and forward the same data set, period, and organisation unit again. DHIS2 overwrites the values in place, and it works - but nothing in the run says a correction happened rather than a first entry. |
+| Fix a tracker event or a registration | Not available. A second capture is a second receipt, so it derives a new event UID and DHIS2 creates a **duplicate** rather than replacing anything. |
+| Withdraw a submission | Not available. There is no fourth spool state, and nothing deletes from DHIS2. |
+
+The capture contract already carries the two lifecycle words this will
+eventually be built on, and both currently do something other than what the
+word promises: a response whose status is `amended` is collapsed to
+`COMPLETED` and forwarded as a brand-new record, and one whose status is
+`entered-in-error` is refused by the translator, so the receipt stays in
+`received/`. Neither is a way to correct or retract anything today. The
+design that turns them into one is in the lifecycle document, along with why
+withdrawal is the hard half - DHIS2 permanently burns a deleted tracker UID.
 
 ## When the instance stops answering
 
@@ -235,7 +310,7 @@ them:
 | --- | --- | --- |
 | Who said no | the translator, before DHIS2 saw it | DHIS2, on the import |
 | Where to look | the response, the guide, or `fhir.toml` | the import summary on the outcome |
-| Typical cause | a canonical the guide does not publish, a missing `D2Period`, an attribute option combo the form declares and the response does not name | a data element outside the data set, an org unit the user cannot write to, a locked period |
+| Typical cause | a canonical the guide does not publish, a missing `D2Period`, an attribute option combo the form declares and the response does not name | a data element outside the data set, an organisation unit the user cannot write to, a locked period |
 | What happens to the file | **stays in `received/`** | moves to `rejected/` with its report |
 | How to retry | fix locally, run again - the receipt never left the queue | fix the instance or the data, move the file back, run again |
 
@@ -355,60 +430,103 @@ attribute option combo too, on the same tiers.
 
 ## A worked run
 
-The dry run over a load-set-sized spool, as the repository's own guide
-records it:
+A spool of 29 receipts - one filled in through the capture screens, the rest
+a load set posted at the facade - drained against a 2.43.1 instance. The dry
+run first:
 
 ```console
 $ d2w fhir forward
-[1/7] spool: 286 pending response(s)
-[2/7] guide: 1,412 resource(s), 7 form(s)
-[3/7] value types: 214 of 214 question object(s) typed
-[4/7] translate: 284 translated, 2 refused
-[5/7] post: 284 payload(s) posted (validate only)
-[6/7] completeness: 12 tuple(s) registered
-[7/7] spool: 286 spooled, 284 translated, 2 refused, 284 posted, 281 accepted, 2 rejected,
-      1 unverifiable in a dry run
+running 7 step(s)
+[1/7] spool: 29 pending response(s)
+[2/7] guide: 1,419 resource(s), 14 form(s)
+[3/7] value types: 84 of 89 question object(s) typed
+[4/7] translate: 29 translated, 0 refused
+[5/7] post: 29 payload(s) posted (validate only)
+[6/7] completeness: 5 report(s) would be registered complete (validate only)
+[7/7] spool: 29 spooled, 29 translated, 0 refused, 29 posted, 18 accepted, 1 rejected,
+10 unverifiable in a dry run
 
 dry run: DRY RUN - every payload was posted to DHIS2 under its own validate-only mode
 (dataValueSets dryRun=true, tracker importMode=VALIDATE). Nothing was written to the
 instance and no receipt moved. Re-run with --import to commit.
-
-              fhir forward
-  profile                     local (fhir.toml)
-  project                     /home/me/demo-ig
-  mode                        DRY RUN (validate only)
-  coded answers               lenient
-  spooled                     286
-  translated                  284
-  refused                     2
-  posted                      284
-  accepted                    281
-  rejected                    2
-  unverifiable in a dry run   1
-
-                    rejection reasons
-  Code    What DHIS2 said                                          Responses
-  E1029   Event OrganisationUnit: `...` and Program: `...`, do             2
-          not match.
-
-                       unverifiable in a dry run
-  What a dry run cannot check                                    Responses
-  The enrollment this event answers into is created by a                 1
-  registration validated in the same run. A dry run writes
-  nothing to the instance, so there is no enrollment for DHIS2
-  to check the event against. An import posts registrations
-  first, and the event is checked against the enrollment one
-  created.
-
-note: 286 response(s), 41 note(s); full outcomes in
-      /home/me/demo-ig/reports/fhir-forward-report.md (--details to print)
-error: 2 response(s) rejected by DHIS2; exiting 1 - read the import summary, fix the
+                                      fhir forward
+┌──────────────────────────┬───────────────────────────────────────────────────────────┐
+│profile                   │ local_basic (fhir.toml)                                   │
+│project                   │ /home/you/demo-ig                                         │
+│mode                      │ DRY RUN (validate only)                                   │
+│coded answers             │ lenient                                                   │
+│spooled                   │ 29                                                        │
+│translated                │ 29                                                        │
+│refused                   │ 0                                                         │
+│posted                    │ 29                                                        │
+│accepted                  │ 18                                                        │
+│rejected                  │ 1                                                         │
+│unverifiable in a dry run │ 10                                                        │
+│data set completeness     │ 5 would-register                                          │
+└──────────────────────────┴───────────────────────────────────────────────────────────┘
+                     rejection reasons (1)
+┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃Code  ┃ What DHIS2 said                           ┃ Responses┃
+┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│E1300 │ Generated by ProgramRule (`...`) - `...`. │ 1        │
+└──────┴───────────────────────────────────────────┴──────────┘
+                             unverifiable in a dry run (1)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃What a dry run cannot check                                                ┃ Responses┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│The enrollment this event answers into is created by a registration        │ 10       │
+│validated in the same run. A dry run writes nothing to the instance, so    │          │
+│there is no enrollment for DHIS2 to check the event against. An import     │          │
+│posts registrations first, and the event is checked against the enrollment │          │
+│one created.                                                               │          │
+└───────────────────────────────────────────────────────────────────────────┴──────────┘
+note: 29 response(s), 47 note(s); full outcomes in
+      /home/you/demo-ig/reports/fhir-forward-report.md (--details to print)
+error: 1 response(s) rejected by DHIS2; exiting 1 - read the import summary, fix the
        instance or the data, and forward again
-note: 2 response(s) refused by the translator - they stay in the spool, so fixing the
-      guide or the data and forwarding again is the retry
-note: 1 response(s) this dry run could not check - each is a stage event whose enrollment
+note: 10 response(s) this dry run could not check - each is a stage event whose enrollment
       a registration of the same run creates, and only an import creates it
 ```
+
+Ten of twenty-nine unverifiable is the ordinary shape of a spool holding
+tracker stages, not a sign of trouble: the load set registers people and then
+records visits for them, and only a committing run has the enrollments to
+check the visits against. The same spool, committed:
+
+```console
+$ d2w fhir forward --import
+running 7 step(s)
+[1/7] spool: 29 pending response(s)
+[2/7] guide: 1,419 resource(s), 14 form(s)
+[3/7] value types: 84 of 89 question object(s) typed
+[4/7] translate: 29 translated, 0 refused
+[5/7] post: 29 payload(s) posted
+[6/7] completeness: 5 report(s) registered complete, 0 refused
+[7/7] spool: 29 spooled, 29 translated, 0 refused, 29 posted, 28 accepted, 1 rejected,
+0 unverifiable in a dry run
+                                      fhir forward
+┌──────────────────────────┬───────────────────────────────────────────────────────────┐
+│profile                   │ local_basic (fhir.toml)                                   │
+│project                   │ /home/you/demo-ig                                         │
+│mode                      │ import                                                    │
+│coded answers             │ lenient                                                   │
+│spooled                   │ 29                                                        │
+│translated                │ 29                                                        │
+│refused                   │ 0                                                         │
+│posted                    │ 29                                                        │
+│accepted                  │ 28                                                        │
+│rejected                  │ 1                                                         │
+│unverifiable in a dry run │ 0                                                         │
+│data set completeness     │ 5 registered                                              │
+└──────────────────────────┴───────────────────────────────────────────────────────────┘
+error: 1 response(s) rejected by DHIS2; exiting 1 - read the import summary, fix the
+       instance or the data, and forward again
+```
+
+Ten unverifiable became ten accepted, and the one rejection stayed a
+rejection - a DHIS2 **program rule** on that instance refusing a value the
+synthetic draw produced. That is the whole point of the split: the dry run
+proved everything a dry run can prove, and the import answered the rest.
 
 The rollup is what makes a large rejection readable. DHIS2 states a rule
 once and then names every object that broke it, so two hundred rejections
@@ -420,8 +538,8 @@ else, import summaries included, so a caller pipes it into `jq` without
 filtering the narration out.
 
 The written report opens with the same table and then lists each response
-with its own notes. Here is the head of a real one, from an `--import` run
-that drained three receipts:
+with its own notes. Here is the head of the `--import` run above, and one
+entry from each of its two outcome sections:
 
 ```markdown
 # fhir forward report
@@ -429,16 +547,27 @@ that drained three receipts:
 - Profile: local_basic (http://localhost:8080)
 - Mode: import
 - Coded answers: lenient
-- Forwarded: 2026-08-10T18:58:14+00:00
-- Counts: 3 spooled, 3 translated, 0 refused, 3 posted, 3 accepted, 0 rejected, 0 unverifiable in a dry run
+- Data set completeness: 5 registered
+- Forwarded: 2026-08-15T18:08:23+00:00
+- Counts: 29 spooled, 29 translated, 0 refused, 29 posted, 28 accepted, 1 rejected, 0 unverifiable in a dry run
+
+## Rejected by DHIS2
+
+- `7944981c0ce84fe19b785f0829fded4e` (http://example.org/fhir/demo/Questionnaire/lxAQ7Zs9VYR) - event - .serve/responses/rejected/7944981c0ce84fe19b785f0829fded4e.json
+    - E1300 v2swOcefR0A Generated by ProgramRule (`dahuKlP7jR2`) - `The hemoglobin value cannot be above 99  (vANAXwtLwcT)`.
+    - note: wall-clock-derived: the zoned timestamp was read in `UTC` and written as the zone-less wall clock `2026-07-19T07:00:00` DHIS2 stores
 
 ## Accepted
 
-- `060c00b1c11841c78a9bcfc28b1bec26` (http://localhost:8080/fhir/Questionnaire/A03MvHHogjR) - .serve/responses/forwarded/060c00b1c11841c78a9bcfc28b1bec26.json
-    - 1 created, 0 updated, 0 ignored
-    - note: wall-clock-derived: the zoned timestamp was read in `UTC` and written as the zone-less wall clock `2026-07-26T08:00:00` DHIS2 stores
-    - note: status-collapsed: `completed` is written as `COMPLETED`; DHIS2 reads COMPLETED, OVERDUE, SCHEDULE, VISITED all as `completed`, so which of them the event stood at is not recoverable
+- `232da096832942e9b6ab55ab9368a906` (http://example.org/fhir/demo/Questionnaire/TuL8IOPzpHh) - data-value-set - .serve/responses/forwarded/232da096832942e9b6ab55ab9368a906.json
+    - Import was successful.
+    - note: completeness-claimed: the response reports itself `completed`, so the data set is registered complete for the period
 ```
+
+The word after the questionnaire canonical is the payload kind - one of
+`data-value-set`, `tracked-entity`, `tracker`, `tracker-enrollment`, and
+`event` - which is how an operator tells an enrollment of somebody the
+instance already holds from a registration that created them.
 
 The notes are the run recording what it had to interpret - the same honesty
 the capture path's warnings carry - so a payload's translation is auditable

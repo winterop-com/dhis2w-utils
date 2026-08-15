@@ -257,7 +257,7 @@ collapses two facts into one and loses the ability to state either precisely.
 
 Publish no enrollment resource. The enrollment stays what it is today: an identifier under
 `{base}/id/tracker-enrollment`, carried on `D2TrackerEnrollment` in the capture contract,
-and served as typed JSON from `GET /patients/{uid}/enrollments`.
+and served as typed JSON from `GET /tracked-entities/{uid}/enrollments`.
 
 Two sub-variants exist and both are worse than the plain version.
 
@@ -480,3 +480,14 @@ DHIS2 events, no `EpisodeOfCare` on the capture leg, no `PlanDefinition`, no `$a
 - **`PlanDefinition` for the program.** Recommended above to be kept open, not opened.
 - **The extraction mechanism** - decision [5.3](fhir-roadmap.md#53-the-extraction-mechanism),
   which this page does not touch.
+
+## See also
+
+- [FHIR roadmap and review guide](fhir-roadmap.md) - decision 5.2, which this page
+  narrows.
+- [DHIS2 fidelity audit](fhir-dhis2-fidelity.md) - the enrollment among every other DHIS2
+  concept, with a verdict.
+- [Consume the FHIR API](../guides/fhir/401-consume-the-fhir-api.md) - what a client can
+  read about an enrollment today.
+- [Glossary](../guides/fhir/glossary.md) - enrollment, the register, and the extensions
+  that carry them.

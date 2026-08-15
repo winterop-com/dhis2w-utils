@@ -11,10 +11,14 @@ point.
 **You will be able to:**
 
 - know which profile a `QuestionnaireResponse` must declare, per form kind
+- build the right envelope for each of the five kinds - which elements are
+  required, which are optional, and which are not read at all
 - carry the DHIS2 context each profile pins - period, unit, entity,
   enrollment - in the right element
 - mint the identifiers a registration creates, and know what a server can
   and cannot check about them
+- tell a refusal from a warning before you send, and know which of the two a
+  server's strictness dial moves
 - read the required-question and numeric-bound rules off the Questionnaire
   itself
 
@@ -57,6 +61,52 @@ CapabilityStatement of `kind = #requirements`, declaring `create` on
 from - `List` because a form's organisation-unit assignment is published as
 one, and a capture client constrains its Location picker by reading it.
 
+## The envelope, per form kind
+
+The profiles above are what the published guide validates against. This is what
+a running facade actually reads off the envelope, kind by kind. Each cell says
+what the *server* does, which is the stricter of the two readings wherever they
+differ.
+
+| Element | `aggregate` | `event` | `tracker` | `tracker-event` | `tracked-entity` |
+| --- | --- | --- | --- | --- | --- |
+| `questionnaire` | required | required | required | required | required |
+| `status` | required, `completed` | required | required | required | required |
+| `authored` | not read | required | required | required | required |
+| `subject.reference` | required, `Location/<uid>` | required, `Location/<uid>` | ignored, warned | ignored, warned | ignored, warned |
+| `subject.identifier` | not read | not read | required | required | required |
+| `subject.type` | not read | not read | graded on the dial | graded on the dial | graded on the dial |
+| `D2FormType` | required, exactly 1 | required, exactly 1 | required, exactly 1 | required, exactly 1 | required, exactly 1 |
+| `D2Period` | required, exactly 1 | not read | not read | not read | not read |
+| `D2OrganisationUnit` | not read | not read | required, exactly 1 | required, exactly 1 | required, exactly 1 |
+| `D2TrackerEnrollment` | not read | not read | required, exactly 1 | required, exactly 1 | not read |
+| `D2EnrolledAt` | not read | not read | required, exactly 1 | not read | not read |
+| `D2IncidentAt` | not read | not read | optional, 0..1 | not read | not read |
+| `D2SubjectExists` | not read | not read | optional, 0..1 | not read | not read |
+| `D2AttributeOptionCombo` | form-driven | form-driven | form-driven | form-driven | form-driven |
+
+Three readings of that table are worth stating out loud.
+
+**"Not read" means exactly that.** An extension outside its kind's column is
+neither refused nor warned about - it rides into the receipt untouched. There
+is one exception, `D2AttributeOptionCombo`, which is graded against the *form*
+rather than the kind and is the only present-but-not-admitted case the server
+has an opinion about.
+
+**Where the two tracker kinds meet the person-only one.** A `tracked-entity`
+response is the registration envelope with the enrollment half removed: same
+subject shape, same organisation unit, and none of the three enrollment
+elements. A `tracker-event` response is the registration envelope with the
+*dates* removed: it names an enrollment that already exists rather than dating
+one it creates.
+
+**`subject` is either a place or an entity, never both.** An aggregate or event
+response reports *for a place*, so the Location is the subject and there is no
+organisation-unit extension. The three tracker kinds are *about an entity*, so
+the subject is the entity and the place moves to `D2OrganisationUnit`. A tracker
+response that also carries a `subject.reference` gets an informational warning
+saying the reference is ignored, and is stored.
+
 ## The aggregate response's third key is per-form
 
 `D2AttributeOptionCombo` is sliced `0..1` rather than `1..1` because whether
@@ -70,28 +120,36 @@ coded from the ValueSet that extension names.
 
 ## `status` is the completeness claim
 
-`QuestionnaireResponse.status` is not bookkeeping. On an aggregate response it
-is the statement DHIS2 files as a `completeDataSetRegistration`, so a client
-picks it deliberately:
+`QuestionnaireResponse.status` is `1..1` on every one of the five profiles, and
+it is not bookkeeping.
 
-| `status` | What a forward run does |
-| --- | --- |
-| `completed` | imports the values, then registers the data set complete for the `(data set, period, organisation unit, attribute option combo)` tuple those values landed under |
-| `in-progress` | imports the values and registers nothing |
+**An aggregate response is stored as reported, so its status has to be
+`completed`.** A submission is what DHIS2 files as a
+`completeDataSetRegistration` for the `(data set, period, organisation unit,
+attribute option combo)` tuple its values land under, and a facade that stored
+a half-finished one would be holding a receipt for a report nobody made.
+Anything else is refused:
 
-There is no extension for this and there does not need to be one: R4 already
-has the field, and the two codes already mean what DHIS2 means. A client that
-lets a reporter save a half-filled form sends `in-progress`, and switches to
-`completed` on the submit that finishes it - re-sending the same response as
-`completed` later is what registers it, because a registration DHIS2 already
-holds is updated rather than refused.
+```console
+$ curl -s -X POST localhost:8389/QuestionnaireResponse \
+    -H 'Content-Type: application/fhir+json' --data-binary @in-progress.json
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"business-rule","diagnostics":"an aggregate response is stored as reported, so its status has to be `completed`, not `in-progress`","expression":["QuestionnaireResponse.status"]}]}
+```
 
-`authored` rides along as the day claimed: it is the only statement of *when*
-the report was finished a response carries. Nothing states *who* finished it -
-the contract carries no reporter identity, so DHIS2 stores the API user.
+A client that lets a reporter save a half-filled form keeps that draft on its
+own side and posts once, on the submit that finishes it. Re-posting the same
+response later is how a correction is made; the spool keeps both receipts, and
+[the data lifecycle](201-forward.md) is where that story continues.
 
-On an event response the same field means something else - it maps onto the
-DHIS2 event status - and [Forward](../fhir/201-forward.md) has that table.
+**The other four kinds take any R4 status**, and it is carried through to the
+receipt as sent. On an event or tracker-event response it maps onto the DHIS2
+event status - [Forward](../fhir/201-forward.md) has that table.
+
+`authored` is the moment the capture was made. It is `1..1` on the event,
+registration, tracker-event, and person-only contracts and graded as an R4
+`dateTime`; on the aggregate contract it is not checked at all, because an
+aggregate response's *when* is its `D2Period`. Nothing states *who* captured
+it - the contract carries no reporter identity, so DHIS2 stores the API user.
 
 ## The tracked-entity subject is logical, not resolvable
 
@@ -154,14 +212,16 @@ consequences the capture path states out loud:
   instance state. The facade stores the receipt; DHIS2 refuses the duplicate
   at import, and the rejection comes back through the forwarder like any
   other.
+- **The minted UIDs are checked for shape, not for freedom.** Both
+  `subject.identifier.value` and `D2TrackerEnrollment`'s value have to be DHIS2
+  UIDs - one ASCII letter followed by ten alphanumeric places - and a value that
+  is not one is refused naming which of the two it was. Whether the instance
+  already holds that UID is not a question a facade can ask.
 - **The incident date is graded on its primitive, and its absence is a
-  warning.** `D2IncidentAt` is 0..1 on the profile, so a response is accepted
-  with it and without it, and what capture checks about a carried one is that
-  it reads as an R4 `dateTime`. Where the form's `D2CollectsIncidentDate` says
-  true and the response carries no date, the receipt comes back with a warning
-  naming the `E1023` DHIS2 will answer that enrollment with - refusing a shape
-  the published profile admits would be the server arguing with its own
-  contract.
+  warning** - see [the three markers](#the-three-markers-and-who-acts-on-each).
+  `D2IncidentAt` is 0..1 on the profile, so a response is accepted with it and
+  without it, and what capture checks about a carried one is that it reads as an
+  R4 `dateTime`.
 
 **Identifier-keyed, and only identifier-keyed.** A registration response
 publishes no `Patient`, no `EpisodeOfCare`, and no `CarePlan` - it mints the
@@ -247,6 +307,115 @@ own.
 A capture server grades the marker on shape alone - at most one, and it
 carries a `valueBoolean`. Whether the UID names a person the instance holds is
 the instance's answer, and the forwarder is where that is settled.
+
+## The three markers, and who acts on each
+
+Three booleans in this contract change what a submission *means* rather than
+what shape it has, and they are acted on at three different points. A client
+that knows which is which never waits for the wrong answer.
+
+| Marker | Rides on | Read by | What it changes |
+| --- | --- | --- | --- |
+| `D2CollectsIncidentDate` | the `Questionnaire` | capture, as a warning | whether a registration is expected to carry `D2IncidentAt` |
+| `D2SubjectExists` | the `QuestionnaireResponse` | the forwarder | whether the import creates the person or only enrols them |
+| `D2EntityLevel` | the `Questionnaire.item` | the forwarder | whether an answer is written onto the person or onto the enrollment |
+
+**Only the first is graded at capture, and only as a warning.** A registration
+answering a form whose `D2CollectsIncidentDate` is `true`, carrying no
+`D2IncidentAt`, is accepted with a warning naming the `E1023` DHIS2 will answer
+that enrollment with. Refusing a shape the published profile admits `0..1`
+would be the server arguing with its own contract.
+
+**`D2SubjectExists` is graded on shape alone at capture** - at most one, and it
+carries a `valueBoolean`. `true`, `false`, and absent are otherwise identical to
+a capture server: whether the UID names a person the instance holds is a
+question only the instance can answer, and it is the forwarder that asks it.
+
+**`D2EntityLevel` is never read at capture at all.** It is a fact the *form*
+publishes about its own questions, and the forwarder is what splits a
+registration's answers across the person and the enrollment by it.
+
+## What the server refuses, and what it only warns about
+
+A refusal is one HTTP response with every issue that phase found, each locating
+itself with a FHIRPath `expression`. A warning never rejects: it rides back on
+the accepted capture's OperationOutcome and into the stored receipt.
+
+### The refusals a client meets before any validation runs
+
+| Condition | Status | Diagnostics |
+| --- | --- | --- |
+| a `Content-Type` that is not JSON | 415 | ``​`text/plain` is not a media type this server reads; send the body as `application/fhir+json` `` |
+| a body that is not JSON, or not a JSON object | 400 | `the request body is not valid JSON (...)` |
+| a `Bundle` | 400 | `this endpoint accepts one QuestionnaireResponse per request; post each response on its own request` |
+| any other `resourceType` | 400 | ``this endpoint receives a QuestionnaireResponse, not a `Observation` `` |
+
+**Every FHIR model on the capture path is closed.** An unknown key anywhere in
+the resource - top level, inside `subject`, `item`, `answer`, or an `extension`
+- is a 400 naming where it sat, not a silently dropped field:
+
+```console
+$ curl -s -X POST localhost:8389/QuestionnaireResponse \
+    -H 'Content-Type: application/fhir+json' --data-binary @extra-key.json
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"structure","diagnostics":"Extra inputs are not permitted","expression":["bogusKey"]}]}
+```
+
+That is deliberate: a capture client that misspells `authored` should hear
+about it on the first request rather than discover months later that the field
+never travelled. Everything past this point is a **422**.
+
+### What is always a warning
+
+Six findings are stated and stored, whatever the server's strictness dial:
+
+- **an ignored subject reference** - a tracker response carrying
+  `subject.reference` beside its identifier;
+- **a missing incident date** where the form declares one is collected
+  (`E1023`);
+- **a claimed date range that is not what the ISO period resolves to** - the
+  ISO period is what is captured, and the range is decoration;
+- **an unanswered required question** - DHIS2 is where compulsoriness is
+  enforced, and a partial capture that reaches the instance is better than one
+  refused at the door;
+- **terminology this project never published** - a coded answer whose ValueSet
+  or CodeSystem is not served is stored unchecked rather than refused, because
+  "I cannot check this" is not "this is wrong";
+- **a code matched by a fall-back** - an answer sent as a DHIS2 option UID or
+  DHIS2 code where the contract asks for the concept code.
+
+### What `--strict-codes` turns into a refusal
+
+The operator's dial, off by default, promotes exactly five findings from
+warning to 422 ([Serve the guide](201-serve.md#coded-answers-lenient-by-default)):
+
+- a subject typed as something other than what the form is answered about;
+- an organisation unit outside the form's published assignment (`E1029`) -
+  both on the envelope and on any answer carrying a reference;
+- a response naming an attribute option combo against a form declaring no
+  vocabulary;
+- a response carrying no attribute option combo against a form declaring one
+  (`E8023`);
+- a coded answer whose code is in none of the served terminology.
+
+Under strict, the fall-back tiers are switched off too: only the concept code
+resolves, so an answer sent as a DHIS2 option UID is refused rather than warned
+about.
+
+### What is always a refusal
+
+Everything else, and three that stay refusals even when the dial is off, because
+leniency has nothing to be lenient about: a `valueCoding` carrying **no code**,
+a coding drawn from **a different system than the form declares**, and a code
+that **matches more than one option** in the served terminology - a server
+cannot pick between two.
+
+**What is never checked at all**: whether the subject exists, whether a `unique`
+attribute's value is already taken, whether the Location a response names is one
+the project published, and which profile the response's `meta.profile` claims.
+The first two are global instance state, and a facade holds none; the third is
+graded on the reference's *shape* so that a project publishing no registry still
+captures; the fourth is a claim the server has no reason to trust over the
+`D2FormType` it reads instead.
 
 ## The prose half, and the examples that check it
 

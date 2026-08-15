@@ -1,5 +1,14 @@
 # Validate the instance
 
+DHIS2 lets you put almost anything in a code and almost anything in a name.
+Most of it never bites - until the metadata leaves DHIS2 for a system that
+reads codes as identifiers and names as page headings, at which point a `<`
+in an option-set code stops a publish dead and a code with a space in it
+changes shape. This page runs the check that reads every code and name your
+instance holds, grades each finding by what it costs the publish, and writes
+the list your metadata owner can act on. It needs no project directory and it
+writes nothing to DHIS2.
+
 **Who this is for:** the operator gating a build, and the implementer sizing
 up an instance's codes before generating anything.
 
@@ -19,10 +28,10 @@ optional - see [scope](#read-the-scope-column) for what having one changes.
 $ d2w fhir validate
 running 5 step(s)
 [1/5] connecting: http://localhost:8080
-[2/5] selection: 2 data sets, 4 programs, 3 stages, 70 data elements, 12 option
+[2/5] selection: 2 data sets, 6 programs, 5 stages, 70 data elements, 13 option
 sets, 5 categories, 1,332 organisation units
-[3/5] instance sweep: 40 collections, 1,614 objects
-[4/5] option sets: 12 read
+[3/5] instance sweep: 40 collections, 1,634 objects
+[4/5] option sets: 13 read
 [5/5] findings: 41 finding(s)
 wrote /home/you/demo-ig/reports/fhir-validate-report.md
 wrote /home/you/demo-ig/reports/fhir-validate-report.csv
@@ -31,15 +40,15 @@ wrote /home/you/demo-ig/reports/fhir-validate-report.pdf
 ┌───────────────────┬──────────────────────────────────────────────────────────┐
 │profile            │ local_basic (fhir.toml)                                  │
 │resource types     │ 40                                                       │
-│objects swept      │ 1614                                                     │
-│option sets        │ 12                                                       │
-│options            │ 48                                                       │
+│objects swept      │ 1634                                                     │
+│option sets        │ 13                                                       │
+│options            │ 52                                                       │
 │attributes         │ 4                                                        │
 │errors             │ 0                                                        │
 │warnings           │ 8                                                        │
 │infos              │ 33                                                       │
 │selection findings │ 0 errors, 8 warnings, 20 infos                           │
-│code coverage      │ 1/1428 (selection objects whose code can serve as an     │
+│code coverage      │ 1/1433 (selection objects whose code can serve as an     │
 │                   │ identity stem)                                           │
 │code source        │ id                                                       │
 └───────────────────┴──────────────────────────────────────────────────────────┘
@@ -56,6 +65,14 @@ wrote /home/you/demo-ig/reports/fhir-validate-report.pdf
 ok: passed: 8 selection warning(s), 20 selection info(s), 13 instance finding(s);
 full findings in /home/you/demo-ig/reports/fhir-validate-report.md
 ```
+
+That run is a 2.43.1 instance carrying the Sierra Leone demo database plus a
+few added programs, and it is the instance every transcript in this series
+was taken against. The three `wrote` lines are echoed before the tables so a
+redirected log still names the files. The PDF writer can add a line of its
+own naming a glyph the bundled font has no drawing for - `Font
+MPDFAA+NotoSans is missing the following glyphs` - which is a note about the
+font, not a finding about your instance.
 
 The default output is a status view, not the finding firehose: the summary
 table, a rollup with one row per (severity, scope, category), **every error
@@ -99,7 +116,7 @@ Inside a project, findings grade against that project's own selection.
 | --- | --- |
 | Instance-wide sweep | Every object's code in every collection `/api/metadata` returns, checked against the R4 `code` datatype; per-type duplicates; organisation units with no code at all. |
 | Deep option-set pass | Exactly what code-mode generation would do with each option set's options, over the same projections the emitter consumes. |
-| Code-stem pass | Exactly what a code-sourced `[generate.naming]` `source` does with each in-scope object of the naming surfaces (option sets, categories, org units, data sets, programs, program stages). |
+| Code-stem pass | Exactly what a code-sourced `[generate.naming]` `source` does with each in-scope object of the naming surfaces (option sets, categories, organisation units, data sets, programs, program stages). |
 | Deep attribute pass | Every DHIS2 attribute the instance left uncoded - `info`, a coverage signal about how legible the `D2AttributeValue` extension is to a consumer without the instance. |
 
 Every pass also checks the object's **name** for one thing that has nothing

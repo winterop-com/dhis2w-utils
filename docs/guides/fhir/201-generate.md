@@ -1,7 +1,15 @@
 # Generate the IG source
 
-**Who this is for:** the operator regenerating an IG after a metadata change,
-and the implementer running generation for the first time.
+This is the step that reads your instance. One command pulls the data sets,
+the event and tracker programs, the tracked entity types, the option sets,
+the category combinations, and the organisation-unit hierarchy, and writes
+them out as the source of a publishable package - one form per data set, one
+per event program, one per tracker stage, a code list per option set, and two
+files per organisation unit. Nothing is written to DHIS2 and nothing is
+published yet; this writes files into your project directory.
+
+**Who this is for:** the operator regenerating after a metadata change, and
+the implementer running generation for the first time.
 
 **Before you start:** a scaffolded project pointing at your instance
 ([Set up an IG project](201-set-up-a-project.md)), ideally after a clean
@@ -20,60 +28,65 @@ build-aborting.
 ```console
 $ d2w fhir generate
 running 8 step(s)
-[1/8] instance metadata: 9 questionnaire target(s), 12 option set(s), 5
-categories, 1,332 organisation unit(s)
-[2/8] foundation: 16 written, 0 unchanged
-[3/8] option sets: 36 written, 0 unchanged
+[1/8] instance metadata: 14 questionnaire target(s), 13 option set(s), 5 categories,
+1,332 organisation unit(s)
+[2/8] foundation: 23 written, 0 unchanged
+[3/8] option sets: 39 written, 0 unchanged
 [4/8] categories: 15 written, 0 unchanged
-[5/8] questionnaires: 21 written, 0 unchanged
-[6/8] examples: 9 written, 0 unchanged, 1 note
+[5/8] questionnaires: 28 written, 0 unchanged, 1 note
+[6/8] examples: 14 written, 0 unchanged, 2 notes
 [7/8] organisation units: 2667 written, 0 unchanged
-[8/8] pages: 15 written, 0 unchanged
-full pipeline: 2,779 file(s) written across 7 target(s)
-                               fhir generate (7)
-┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━┓
-┃Target         ┃ Directory                       ┃ Written ┃ Unchanged ┃ Deleted ┃ Notes┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━┩
-│foundation     │ ig/input/fsh/foundation         │ 16      │ 0         │ 0       │ 0    │
-│option-sets    │ ig/input/resources/terminology, │ 36      │ 0         │ 0       │ 0    │
-│               │ resources/concept-maps          │         │           │         │      │
-│categories     │ ig/input/resources/categories,  │ 15      │ 0         │ 0       │ 0    │
-│               │ resources/concept-maps          │         │           │         │      │
-│questionnaires │ ig/input/fsh/data-sets,         │ 21      │ 0         │ 0       │ 0    │
-│               │ fsh/event-programs,             │         │           │         │      │
-│               │ fsh/tracker-programs,           │         │           │         │      │
-│               │ fsh/tracked-entity-types,       │         │           │         │      │
-│               │ fsh/data-dictionary,            │         │           │         │      │
-│               │ resources/assignments,          │         │           │         │      │
-│               │ resources/attribute-option-comb │         │           │         │      │
-│               │ os, resources/concept-maps      │         │           │         │      │
-│examples       │ ig/input/fsh/examples           │ 9       │ 0         │ 0       │ 1    │
-│org-units      │ ig/input/fsh/organization,      │ 2667    │ 0         │ 0       │ 0    │
-│               │ resources/registry              │         │           │         │      │
-│pages          │ ig/input/pagecontent            │ 15      │ 0         │ 0       │ 0    │
-└───────────────┴─────────────────────────────────┴─────────┴───────────┴─────────┴──────┘
-note: 1 note(s) across 1 target(s); full list in
+[8/8] pages: 20 written, 0 unchanged, 1 note
+full pipeline: 2,806 file(s) written across 7 target(s)
+info: local_basic (fhir.toml) -> /home/you/demo-ig
+                                   fhir generate (7)
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━┓
+┃Target         ┃ Directory                     ┃ Written ┃ Unchanged ┃ Deleted ┃ Notes┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━┩
+│foundation     │ ig/input/fsh/foundation       │ 23      │ 0         │ 0       │ 0    │
+│option-sets    │ ig/input/resources/terminolog │ 39      │ 0         │ 0       │ 0    │
+│               │ y, resources/concept-maps     │         │           │         │      │
+│categories     │ ig/input/resources/categories │ 15      │ 0         │ 0       │ 0    │
+│               │ , resources/concept-maps      │         │           │         │      │
+│questionnaires │ ig/input/fsh/data-sets,       │ 28      │ 0         │ 0       │ 1    │
+│               │ fsh/event-programs,           │         │           │         │      │
+│               │ fsh/tracker-programs,         │         │           │         │      │
+│               │ fsh/tracked-entity-types,     │         │           │         │      │
+│               │ fsh/data-dictionary,          │         │           │         │      │
+│               │ resources/assignments,        │         │           │         │      │
+│               │ resources/attribute-option-co │         │           │         │      │
+│               │ mbos, resources/concept-maps  │         │           │         │      │
+│examples       │ ig/input/fsh/examples         │ 14      │ 0         │ 0       │ 2    │
+│org-units      │ ig/input/fsh/organization,    │ 2667    │ 0         │ 0       │ 0    │
+│               │ resources/registry            │         │           │         │      │
+│pages          │ ig/input/pagecontent          │ 20      │ 0         │ 0       │ 1    │
+└───────────────┴───────────────────────────────┴─────────┴───────────┴─────────┴──────┘
+note: 4 note(s) across 3 target(s); full list in
 /home/you/demo-ig/reports/fhir-generate-notes.md (--details to print)
 ```
 
 The bare run is the one to reach for: it reads the instance once and every
 target builds off that single result, where seven separate commands each
-open a client of their own. `make generate` is the same command through the
-project's pinned toolchain. Re-running against an unchanged instance
-converges to zero:
+open a client of their own. It is fast - the run above is under four seconds
+against a local instance, and the minutes in this chain are all in the
+[compile and publish](201-build-and-publish.md) that follows. `make generate`
+is the same command through the project's pinned toolchain, and the closing
+`info:` line names the profile it read and the project it wrote.
+
+Re-running against an unchanged instance converges to zero:
 
 ```console
 $ d2w fhir generate
 running 8 step(s)
-[1/8] instance metadata: 9 questionnaire target(s), 12 option set(s), 5
-categories, 1,332 organisation unit(s)
-[2/8] foundation: 0 written, 16 unchanged
-[3/8] option sets: 0 written, 36 unchanged
+[1/8] instance metadata: 14 questionnaire target(s), 13 option set(s), 5 categories,
+1,332 organisation unit(s)
+[2/8] foundation: 0 written, 23 unchanged
+[3/8] option sets: 0 written, 39 unchanged
 [4/8] categories: 0 written, 15 unchanged
-[5/8] questionnaires: 0 written, 21 unchanged
-[6/8] examples: 0 written, 9 unchanged, 1 note
+[5/8] questionnaires: 0 written, 28 unchanged, 1 note
+[6/8] examples: 0 written, 14 unchanged, 2 notes
 [7/8] organisation units: 0 written, 2667 unchanged
-[8/8] pages: 0 written, 15 unchanged
+[8/8] pages: 0 written, 20 unchanged, 1 note
 full pipeline: 0 file(s) written across 7 target(s)
 ```
 
@@ -97,19 +110,23 @@ directory. A solo run prints its own detail table and all of its notes:
 ```console
 $ d2w fhir generate pages
 running 2 step(s)
-[1/2] instance metadata: 9 questionnaire target(s), 1,332 organisation unit(s)
-[2/2] pages: 0 written, 15 unchanged
+[1/2] instance metadata: 14 questionnaire target(s), 1,332 organisation unit(s)
+[2/2] pages: 0 written, 20 unchanged, 1 note
                               fhir generate pages
 ┌──────────────┬──────────────────────────┐
 │profile       │ local_basic (fhir.toml)  │
 │project       │ /home/you/demo-ig        │
 │target        │ ig/input/pagecontent     │
 │files written │ 0                        │
-│unchanged     │ 15                       │
+│unchanged     │ 20                       │
 │files deleted │ 0                        │
 │pages         │ 6                        │
-│intros        │ 9                        │
+│intros        │ 14                       │
 └──────────────┴──────────────────────────┘
+note: data set 'Child Health' (BfMAe6Itzgt) greys out 8 disaggregated cells, which
+are not published; a response answering one would not be of the form:
+DUSpd8Jq3M7.hEFKSsPV5et, DUSpd8Jq3M7.psbwp3CQEhs, ca8lfO062zg.Prlt0C1RF0s,
+ca8lfO062zg.V6L425pT3A0, d5xTg3WR3DP.Prlt0C1RF0s and 3 more
 ```
 
 What each target writes, and where:
@@ -163,6 +180,9 @@ include_ids = ["VBqh0ynB2wv"]       # Malaria case registration
 [generate.tracker_programs]
 include_ids = ["IpHINAT79UW"]       # Child Programme - registration + one per stage
 
+[generate.tracked_entity_forms]
+include_ids = ["nEenWmSyUEp"]       # Person (Play) - register a person, no program
+
 [generate.organisation_units]
 max_level = 4                       # or root = "<uid>" for one sub-hierarchy
 ```
@@ -174,6 +194,10 @@ as given). Points worth knowing:
 - **The two program tables select opposite `programType`s**, and a UID
   listed under the wrong one fails the run by name rather than being quietly
   reshaped. With empty lists the sweep routes each program by its live type.
+- **`[generate.tracked_entity_forms]` is the person-only shelf.** Left empty
+  it publishes a registration form for each tracked entity type the selected
+  tracker programs register - a form that registers somebody in DHIS2 without
+  enrolling them in any program. Name UIDs to publish a different set.
 - **The option-set closure**: a selected form binding an option set outside
   `[generate.option_sets] include_ids` pulls the set in anyway, with a note.
   Validate resolves scope the same way, so the two never disagree.
@@ -219,14 +243,30 @@ $ cat reports/fhir-generate-notes.md
 # fhir generate notes
 
 - Profile: local_basic (http://localhost:8080)
-- Generated: 2026-08-10T19:38:19+00:00
+- Generated: 2026-08-15T18:02:36+00:00
+
+## questionnaires
+
+- data set 'Child Health' (BfMAe6Itzgt) greys out 8 disaggregated cells, which are not published; a response answering one would not be of the form: DUSpd8Jq3M7.hEFKSsPV5et, DUSpd8Jq3M7.psbwp3CQEhs, ca8lfO062zg.Prlt0C1RF0s, ca8lfO062zg.V6L425pT3A0, d5xTg3WR3DP.Prlt0C1RF0s and 3 more
 
 ## examples
 
-- 1 questions take an attachment, a geometry document, or a reference to a
-DHIS2 object the IG does not publish; left unanswered in the synthetic
-examples: Birth certificate (uf3svrmp8Oj)
+- data set 'Child Health' (BfMAe6Itzgt) greys out 8 disaggregated cells, which are not published; a response answering one would not be of the form: DUSpd8Jq3M7.hEFKSsPV5et, DUSpd8Jq3M7.psbwp3CQEhs, ca8lfO062zg.Prlt0C1RF0s, ca8lfO062zg.V6L425pT3A0, d5xTg3WR3DP.Prlt0C1RF0s and 3 more
+- 1 questions take an attachment, a geometry document, or a reference to a DHIS2 object the IG does not publish; left unanswered in the synthetic examples: Birth certificate (uf3svrmp8Oj)
+
+## pages
+
+- data set 'Child Health' (BfMAe6Itzgt) greys out 8 disaggregated cells, which are not published; a response answering one would not be of the form: DUSpd8Jq3M7.hEFKSsPV5et, DUSpd8Jq3M7.psbwp3CQEhs, ca8lfO062zg.Prlt0C1RF0s, ca8lfO062zg.V6L425pT3A0, d5xTg3WR3DP.Prlt0C1RF0s and 3 more
 ```
+
+That first note is the one worth reading twice, because it is a DHIS2 fact
+about your form rather than a defect in the run. **A data set section can
+grey out individual cells of a disaggregated group** - DHIS2's own entry
+screen renders the cell and refuses to let anyone type in it. Those cells are
+not published, so no consumer of this package can answer one either; a
+response that did would not be a response to this form. The note names each
+one as `<data element>.<category option combo>` and counts the rest, and the
+same note is raised by every target that reads the form.
 
 Every command with an instance behind it narrates its steps on stderr - a
 spinner on a terminal, one plain `[k/N] label: summary` line per step when

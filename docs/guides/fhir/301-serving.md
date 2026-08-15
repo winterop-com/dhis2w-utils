@@ -21,15 +21,21 @@
 web server on your computer that serves the guide's content and accepts
 filled-in forms - the capture server. The `[serve]` section is how *this
 project* wants that server run, stated once in the file instead of retyped on
-every start. A command-line flag still wins over the file for a single run.
+every start. For most of these options a command-line flag wins over the file
+for a single run; the one table with no flag behind it is
+[`[serve.tracked_entities]`](#tracked_entities).
 
 Two things to know before the options:
 
 - The server serves what was last generated and compiled. Starting it in a
-  project that has never been built stops with
-  `error: no compiled IG at ig/fsh-generated/resources - run 'd2w fhir generate', then 'make sushi' in the project, and serve again.`
-  (`make serve-live` skips the compile by reading straight from the DHIS2
-  server instead.)
+  project that has never been built stops with the line below, which names the
+  two commands that produce one. (`make serve-live` skips the compile by
+  reading straight from the DHIS2 server instead.)
+
+    ```text
+    error: no compiled IG at ig/fsh-generated/resources - run `d2w fhir generate`, then `make sushi` in the project, and serve again.
+    ```
+
 - The server has **no login**. Anyone who can reach it can read everything it
   serves and submit forms to it. That is why `host` below is the option to
   read most carefully. `make serve-live` widens what "everything" means: that
@@ -105,9 +111,11 @@ starts:
 error: port 8080 on 127.0.0.1 is already in use (usually the local DHIS2 instance; set [serve] port in fhir.toml or pass --port)
 ```
 
-The check binds an IPv4 socket, so a listener holding the port only on IPv6
-(Docker on macOS publishing `*:8080` is the common case) is not caught, and
-the server starts beside it.
+The check tries to take the port on the same kind of network address `host`
+names, and an ordinary `127.0.0.1` is the older IPv4 kind. A program holding
+the port only on the newer IPv6 kind of address (Docker on macOS publishing
+`*:8080` is the common case) is therefore not caught, and the server starts
+beside it - two programs on one port number, answering different callers.
 
 A non-number stops the run earlier:
 
@@ -149,7 +157,7 @@ unrecognisable stops the run with a printout naming `serve.strict_codes`.
 
 **In plain words.** Whether the server also offers data-entry screens in the
 browser - open the server's address and you get clickable forms and an
-org-unit map, not just machine-facing routes.
+organisation unit map, not just machine-facing routes.
 
 **When you would change it.** Set it `true` in a project whose whole workflow
 is people filling in forms, so every `make serve` brings the screens up. For
@@ -260,42 +268,41 @@ A server reading a compiled guide answers none of the three and says so. It
 holds no connection to a DHIS2 instance, so there is nothing to answer about -
 that is a property of the mode, not something this table turns on.
 
-#### Which FHIR resources the register serves { #tracked_entities-resources }
+#### What the register calls the things it holds { #tracked_entities-resources }
 
 Not this table's business, and deliberately so. DHIS2 tracks whatever a project
-tracks - people, households, herds, water points, specimen batches - and which
-FHIR resource each of those is published as is stated once, on the generation
+tracks - people, households, herds, water points, specimen batches - and the
+word the guide publishes each of those under is decided once, on the generation
 side, in
 [`[generate.tracked_entity_types]`](301-what-goes-in.md#tracked_entity_types).
-Generating the guide turns that into a published artifact: `D2TET_CM`, a
-ConceptMap with one row per tracked entity type, taking its id onto the resource
-type its records are served as.
+Generating the guide turns that decision into part of the published guide: a
+small lookup table with one row per tracked entity type, saying which word its
+records are served under.
 
-**The artifact is the contract.** A running server reads `D2TET_CM` out of the
-store it loaded and serves one read surface per resource the map names: a
-project tracking people alone serves `GET /Patient` and nothing else here, and a
-project that also registers specimen batches serves `GET /Specimen` beside it,
-over exactly the types the map put there. Config is what generated the map; it is
-never what the server consults. That is what keeps a served resource and a
-published form's `subjectType` from disagreeing - and it is why re-generating the
-guide is what changes which resources are served, rather than editing the file the
-server was started with.
+**The published guide decides, not this file.** When the server starts it reads
+that lookup table and offers one search address per word it finds: a project
+tracking people alone offers the address for people and nothing else, and a
+project that also registers specimen batches offers a second address for
+specimens beside it. So the way to change which kinds of record the register
+answers about is to change `[generate.tracked_entity_types]` and generate again -
+not to edit the file the server was started with. That is also what keeps the
+register and the published forms from ever describing the same type differently.
 
-Each surface answers the same way: the same `identifier` search, the same paged
-listing, the same projection - the tracked entity id, the values of the
-attributes DHIS2 declares unique, the rest as extensions, and **nothing the
-target resource otherwise defines**. A served `Specimen` carries no
-`Specimen.type` and no `collection`, exactly as a served `Patient` carries no
-name, gender, or birth date: DHIS2 holds no such field, and this server invents
-none. `/metadata` declares one entry per resource, each naming in its
-documentation the tracked entity types it answers over.
+Each address answers the same way, and answers narrowly: it gives back the DHIS2
+id of the record, the values of the attributes DHIS2 declares unique, and the
+remaining attribute values as labelled extras - **and nothing else**. There is no
+name, sex, or date of birth on a person served here unless a tracked entity
+attribute of your instance holds it, because DHIS2 is the only thing this server
+reads and it never invents a value it was not given.
 
-`[serve.tracked_entities]` is how a project offers *less* than all of it, and it
-says the same thing about every resource the map named - whether this process
-answers about the instance's subjects at all is one decision rather than one per
-resource type. Every setting has a default that makes the surface work without
-your writing the table at all; you write it when a deployment wants the surface
-narrowed, or a page size the default does not fit.
+`[serve.tracked_entities]` is how a project offers *less* than all of that, and
+it says the same thing about every kind of record: whether this server answers
+about the instance's records at all is one decision, not one per kind. Every
+setting has a default that makes the register work without your writing the
+table at all; you write it when a deployment wants the register narrowed, or a
+page size the default does not fit. Unlike the rest of `[serve]`, there is no
+command-line flag for any of these six - a run that should answer less is a
+project that says so in the file.
 
 ```toml
 [serve.tracked_entities]
@@ -481,13 +488,12 @@ under Tracked entity types in its Maintenance app - the same id the guide
 publishes that type's registration form under.
 
 **Not the same table as `[generate.tracked_entity_types]`.** That one, on the
-generation side, says *what a type is* - which FHIR resource a herd or a water
-point is published as
-([what goes in](301-what-goes-in.md#tracked_entity_types)), and what it produces
-is the `D2TET_CM` this server reads. This one says which types the register
-answers about at all. The same words doing two different jobs, in two different
-sections - and naming a type here does not change what it is served as, only
-whether it is served.
+generation side, says *what a type is* - the word a herd or a water point is
+published under ([what goes in](301-what-goes-in.md#tracked_entity_types)) - and
+what it produces is the lookup table this server reads at startup. This one says
+which types the register answers about at all. The same words doing two
+different jobs, in two different sections - and naming a type here does not
+change what it is served as, only whether it is served.
 
 **Default:** `[]` (empty) - **If you leave it out:** the types this project's
 registration forms register, which for an ordinary person-tracking project is

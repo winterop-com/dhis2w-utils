@@ -648,3 +648,7 @@ Ordered by how much of the design leans on the answer.
   payloads this page corrects are built.
 - [Upstream DHIS2 quirks](upstream-quirks.md) - `BUGS.md` rendered, including entries #2,
   #84, #85, #86, #87, #88, #89, #90, and #91, all of which this page cites.
+- [Forward captures into DHIS2](../guides/fhir/201-forward.md) - the operator-facing
+  version of the drain this page decides the semantics of.
+- [Glossary](../guides/fhir/glossary.md) - the spool, the receipt, and the sidecar in one
+  sentence each.

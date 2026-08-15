@@ -1,6 +1,14 @@
 # Build and publish the guide
 
-**Who this is for:** the operator turning generated IG source into the
+Generation wrote source files. This step turns them into the thing you hand
+over: a static website that documents every data set, program, option set,
+and organisation unit the last step read out of your instance, one browsable
+page each, with every code and identifier resolvable. It runs in Docker, it
+takes minutes rather than seconds, and it is the only step in this series
+with a real machine cost - so most of this page is about paying that cost
+once rather than every time you change something.
+
+**Who this is for:** the operator turning generated source into the
 browsable, publishable site - and keeping the build fast.
 
 **Before you start:** a generated project ([Generate the IG
@@ -21,6 +29,33 @@ make setup      # once: build the SUSHI + IG publisher docker image
 make sushi      # fast gate: compile FSH to FHIR resources, no site
 make build      # the full IG publisher; the site lands in ig/output/
 ```
+
+`make sushi` is the one you run in a loop. It compiles and says whether the
+source is valid, and on the demo project of this series it takes about half a
+minute:
+
+```console
+$ make sushi
+info  Loaded virtual package sushi-local#LOCAL with 2728 resources
+info  Converting FSH to FHIR resources...
+info  Converted 27 FHIR StructureDefinitions.
+info  Converted 7 FHIR CodeSystems.
+info  Converted 7 FHIR ValueSets.
+info  Converted 60 FHIR instances.
+info  Exporting FHIR resources as JSON...
+info  Exported 101 FHIR resources as JSON.
+info  Assembling Implementation Guide sources...
+info  Assembled Implementation Guide sources; ready for IG Publisher.
+
+========================= SUSHI RESULTS ===========================
+| Swish! Nothing but fishnet.            0 Errors      0 Warnings |
+===================================================================
+```
+
+The 2,728 loaded resources against 101 exported ones is the shape of the
+whole project: the registry and the terminology ship as pre-built JSON that
+SUSHI loads and passes through, and only the forms and the definitional
+layer are compiled from source.
 
 The scaffolded Makefile is the whole workflow - every target reads the same
 `fhir.toml`:
@@ -90,7 +125,7 @@ against; it defaults to `http://tx.fhir.org`. `TX_SERVER=n/a` disables
 terminology validation for an offline build, but current publisher versions
 throw a `NullPointerException` on required bindings that need a server - the
 `Attachment.contentType` binding on the GeoJSON boundary extension is one,
-so an org-unit IG will not build offline. Use `n/a` only when your content
+so a guide carrying the organisation-unit registry will not build offline. Use `n/a` only when your content
 has no such bindings.
 
 **`JAVA_HEAP`** is the publisher's JVM heap, `4g` by default - the knob for

@@ -45,7 +45,7 @@ change.
 identifier_system_base = "https://moh.gov.sl/dhis2"
 ```
 
-An org unit's DHIS2 id is now labelled
+An organisation unit's DHIS2 id is now labelled
 `https://moh.gov.sl/dhis2/id/organisation-unit`.
 
 **Default:** `"http://dhis2.org/fhir"` - **If you leave it out:** every
@@ -61,18 +61,29 @@ What these labelled identifiers look like in the output is covered in
 
 ### `concept_code_source`
 
-**In plain words.** Every DHIS2 option and category option has two possible
+**In plain words.** Every entry the guide's code lists carry has two possible
 identities: its DHIS2 id (`Qdm5fPK5Ra9` - stable, unique, meaningless to
 people) and its DHIS2 code (`FEMALE` - readable, but only as good as your
 instance's code hygiene). This option picks which of the two becomes the
 *code* in the code lists the guide publishes; the other one always rides along
 as a property, so no information is lost either way.
 
+**What it reaches.** Three kinds of published entry, all of them things your
+data is coded by: the options of an option set, the category options of a
+category, and the category option combos a disaggregated question's cells are
+labelled with. It does not touch how anything is *named* - that is
+[`naming.source`](#source) below, a separate decision.
+
 **When you would change it.** The people receiving your data already know your
 DHIS2 codes - their systems are configured against `FEMALE` / `MALE`, not
 against ids - so you set `"code"` to publish the familiar values. Stay on
-`"id"` when codes on your instance are missing or inconsistent; run
-`d2w fhir validate` first to see whether your codes are good enough.
+`"id"` when codes on your instance are missing or inconsistent.
+
+**Try it before you commit to it.** `d2w fhir validate --code-source code`
+reads your instance and reports exactly what switching would cost - every
+option with no code, every code two objects share, every code containing a
+character a FHIR code may not hold - without changing a single line of the
+guide. Run it, read the report, then decide.
 
 **Example.**
 
@@ -176,11 +187,19 @@ instance is published.
 metadata does not carry simply contributes nothing, and you find out when the
 expected translations are missing from the guide.
 
-**What DHIS2 has to hold for this to show anything.** Only the `NAME`
-translations reach the guide, plus the `FORM_NAME` ones on a question DHIS2
-gives a form name to. A `SHORT_NAME` or `DESCRIPTION` translation is not
-published, and an object nobody translated publishes nothing rather than
-repeating its English name under a language tag.
+**What DHIS2 has to hold for this to show anything.** The guide publishes the
+translations you enter against these DHIS2 properties, and no others:
+
+| DHIS2 translation property | Where it comes out in the guide |
+| --- | --- |
+| Name | the title of a form and of a code list; the wording of a section heading; the name of a facility in the registry; the name of every entry in the code lists and the data dictionary |
+| Form name | the label on a question, wherever the data element or attribute has a form name |
+| Description | the guidance text under a question or a section |
+| Enrollment date label, Incident date label, Execution date label | the words a registration or a visit form puts on the dates it asks for |
+
+A `Short name` translation is not published. An object nobody translated
+publishes nothing rather than repeating its English name under a language tag,
+so a missing translation is a gap in DHIS2, not a setting here.
 
 Two consequences worth knowing before you look for missing words:
 
@@ -378,12 +397,12 @@ Produces `D2Reporting_..._VS` instead of `D2AOC_..._VS`.
 ### `organisation_unit`
 
 **In plain words.** The kind piece on everything generated from organisation
-units - the facility registry entries and, if switched on, the org-unit code
-list: `D2OU_..._CS`.
+units - the facility registry entries and, if switched on, the organisation
+unit code list: `D2OU_..._CS`.
 
 **When you would change it.** Preference (`"OrgUnit"` reads better to some).
-This is the one piece that cannot be `""`: org-unit names would collapse into
-nothing distinguishable.
+This is the one piece that cannot be `""`: organisation unit names would
+collapse into nothing distinguishable.
 
 **Example.**
 
@@ -394,7 +413,8 @@ organisation_unit = "OrgUnit"
 
 Produces `D2OrgUnit_..._CS`, and `d2-org-unit-...` in addresses.
 
-**Default:** `"OU"` - **If you leave it out:** org-unit names carry `OU`.
+**Default:** `"OU"` - **If you leave it out:** organisation unit names carry
+`OU`.
 
 **If you get it wrong:** emptying it stops the run with
 `token must not be empty` (shown under the shared rule above).

@@ -47,8 +47,18 @@ Every `d2w fhir generate` in this project now reads from the DHIS2 server the
 **Default:** unset - **If you leave it out:** the command falls back to
 whatever default connection is configured on your computer, and refuses with a
 "no profile" message when there is none. A project should name its profile
-here so every person who runs it reads the same server. (Running with
-`d2w -p othername ...` overrides this line for one run.)
+here so every person who runs it reads the same server.
+
+**What wins over this line.** Three things can name the connection, and the
+first one present is the one used:
+
+1. `-p othername` on the command (`d2w -p othername fhir generate`) - one run,
+   nothing on disk changes;
+2. the `DHIS2_PROFILE` setting in the environment the command runs in - how a
+   scheduled job or a build server points the same project at its own server;
+3. this line.
+
+With none of the three, the connection marked default on the computer is used.
 
 **If you get it wrong:** a name that matches no saved connection stops
 immediately with a one-liner listing what does exist:

@@ -1,8 +1,16 @@
 # Set up an IG project
 
-**Who this is for:** the DHIS2 implementer standing up a FHIR IG project for
-the first time, and the operator bringing an existing project up to the
-current toolchain.
+You have a DHIS2 instance. It holds data sets, programs, option sets,
+category combinations, and an organisation-unit hierarchy, and someone
+outside DHIS2 now needs to read forms out of it and send data back. This page
+makes the directory that does that: one command writes a project that reads
+your instance's metadata and turns it into a published package other systems
+can consume. The package is a FHIR Implementation Guide; nothing on this page
+asks you to know what that means.
+
+**Who this is for:** the DHIS2 implementer standing that project up for the
+first time, and the operator bringing an existing one up to the current
+toolchain.
 
 **Before you start:** `uv` installed, a `d2w` you can run (`uv tool install
 dhis2w-cli` gives you one anywhere), and a DHIS2 instance you can reach.
@@ -150,9 +158,18 @@ the key by hand later - both land in the same place. If you have no profile
 yet, create one:
 
 ```console
-$ DHIS2_PASSWORD=district uv run d2w profile add demo --auth basic --username admin \
-    --url https://play.im.dhis2.org/stable-2-42-1 --local --default
-profile 'demo' saved to /home/you/demo-ig/.dhis2/profiles.toml
+$ DHIS2_PASSWORD=district uv run d2w profile add local_basic --auth basic --username admin \
+    --url http://localhost:8080 --local --default
+profile 'local_basic' saved to /home/you/demo-ig/.dhis2/profiles.toml
+```
+
+`--local` writes it into the project's own `.dhis2/profiles.toml`, so the
+project carries its instance with it. A name that also exists in your global
+store is not an error - the run says which one wins:
+
+```text
+warning: a profile named 'local_basic' also exists in the global scope; the project-scoped
+one will override it when you're in this directory.
 ```
 
 Secrets are never command-line flags - the password comes from the

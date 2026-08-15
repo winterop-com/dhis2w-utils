@@ -184,6 +184,7 @@ nav:
   - FHIR:
       - Overview: guides/fhir/index.md
       - 101 - Understand:
+          - Glossary: guides/fhir/glossary.md
           - What and why: guides/fhir/101-what-and-why.md
           - FHIR for DHIS2 people: guides/fhir/101-fhir-concepts.md
           - Quickstart: guides/fhir/101-quickstart.md
@@ -192,10 +193,10 @@ nav:
           - Set up a project: guides/fhir/201-set-up-a-project.md
           - Validate an instance: guides/fhir/201-validate.md
           - Generate the IG source: guides/fhir/201-generate.md
-          - Compile and publish: guides/fhir/201-build-and-publish.md
-          - Serve the IG: guides/fhir/201-serve.md
-          - The capture UI: guides/fhir/201-capture-ui.md
-          - Forward captured responses: guides/fhir/201-forward.md
+          - Build and publish the guide: guides/fhir/201-build-and-publish.md
+          - Serve the guide: guides/fhir/201-serve.md
+          - Capture in the browser: guides/fhir/201-capture-ui.md
+          - Forward captures into DHIS2: guides/fhir/201-forward.md
           - Troubleshooting: guides/fhir/201-troubleshooting.md
       - 301 - Configure fhir.toml:
           - The settings file: guides/fhir/301-fhir-toml.md

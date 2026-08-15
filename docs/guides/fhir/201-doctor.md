@@ -1,6 +1,14 @@
 # Check an instance with doctor
 
-**Who this is for:** anyone about to point the FHIR toolchain at a DHIS2
+Somebody hands you a DHIS2 URL and a login. Before you spend a day on it, you
+want to know whether this instance's metadata actually survives the trip -
+whether its codes are usable, whether its forms can be turned into something
+another system reads, whether a filled-in form comes back and imports. This
+command answers that in about a minute, against that instance, in a
+throwaway directory it deletes afterwards. It never writes data to your
+instance.
+
+**Who this is for:** anyone about to point this toolchain at a DHIS2
 instance they have not used before - a new country profile, a fresh
 deployment, an upgrade they want to re-clear.
 
@@ -45,7 +53,8 @@ workspace is deleted when the run ends unless you name one.
 A run ends on one line:
 
 ```
-verdict: BROKEN: 6 pass, 2 warn, 1 fail, 0 skipped, 0 blocked; forward failed
+verdict: BROKEN: 6 pass, 2 warn, 1 fail, 0 skipped, 0 blocked; forward failed - this
+instance breaks the toolchain as configured
 ```
 
 Exit code 1 follows a **fail** and nothing else. Warnings and skips exit 0,
@@ -155,25 +164,85 @@ agrees with the country's own data, today, and it names the field path -
 
 ## Reading a real run
 
+A whole `--live` run against a 2.43.1 instance carrying the Sierra Leone demo
+database. It opens with what it connected to:
+
 ```
-┃Phase    ┃ Outcome ┃ Seconds ┃ What it found                                  ┃
-│connect  │ pass    │ 1.2     │ https://play.im.dhis2.org/dev-2-42 is DHIS2    │
-│         │         │         │ 2.42.6-SNAPSHOT, bound to the v42 tree         │
-│generate │ warn    │ 2.8     │ 839 file(s) across 7 target(s), 2 note(s)      │
-│compile  │ pass    │ 18.0    │ docker fhir-ig sushi compiled 71 resource(s)   │
-│serve    │ pass    │ 0.3     │ 867 resource(s) from the compiled guide        │
-│capture  │ pass    │ 0.1     │ 5 form(s), 5 generated, 5 accepted as 201      │
-│forward  │ fail    │ 2.1     │ 5 spooled, 5 translated, 0 refused, 5 posted,  │
-│         │         │         │ 2 accepted, 1 rejected, 2 unverifiable         │
-│oracle   │ pass    │ 0.9     │ organisation units: 108 resource(s) over 107   │
-│         │         │         │ DHIS2 object(s), 107 resolved, 5 deep-compared │
+                                      fhir doctor
+┌──────────────┬───────────────────────────────────────────────────────────────────────┐
+│profile       │ local_basic (--profile/DHIS2_PROFILE)                                 │
+│instance      │ http://localhost:8080                                                 │
+│DHIS2 version │ 2.43.1 (plugin tree v43)                                              │
+│workspace     │ /home/you/doctor-ws                                                   │
+└──────────────┴───────────────────────────────────────────────────────────────────────┘
+                                       phases (9)
+┏━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃Phase    ┃ Outcome ┃ Seconds ┃ What it found                                          ┃
+┡━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│connect  │ pass    │ 0.9     │ http://localhost:8080 is DHIS2 2.43.1, bound to the v43│
+│         │         │         │ tree                                                   │
+│scaffold │ pass    │ 0.1     │ 13 file(s) into /home/you/doctor-ws; Child Health      │
+│         │         │         │ (BfMAe6Itzgt) as the first data set by name, Antenatal │
+│         │         │         │ care visit (lxAQ7Zs9VYR) as the first event program by │
+│         │         │         │ name, ANC follow-up (PrAncCare01) as the first tracker │
+│         │         │         │ program by name; organisation units under at6UHUQatSo  │
+│generate │ warn    │ 0.5     │ 322 file(s) across 7 target(s), 4 note(s)              │
+│compile  │ pass    │ 152.7   │ docker fhir-ig sushi compiled 84 resource(s)           │
+│validate │ warn    │ 0.6     │ 1,634 object(s) swept; 0 selection error(s), 5         │
+│         │         │         │ selection warning(s), 0 error(s) and 5 warning(s)      │
+│         │         │         │ instance-wide                                          │
+│serve    │ pass    │ 0.1     │ 355 resource(s) from the compiled guide:               │
+│         │         │         │ CapabilityStatement 1, CodeSystem 25, ConceptMap 19,   │
+│         │         │         │ ImplementationGuide 1, List 3, Location 108,           │
+│         │         │         │ NamingSystem 26, OperationDefinition 1, Organization   │
+│         │         │         │ 108, Questionnaire 5, QuestionnaireResponse 5,         │
+│         │         │         │ StructureDefinition 27, StructureMap 1, ValueSet 25    │
+│capture  │ pass    │ 0.0     │ 5 form(s), 5 generated, 5 accepted as 201              │
+│forward  │ fail    │ 0.2     │ 5 spooled, 5 translated, 0 refused, 5 posted, 3        │
+│         │         │         │ accepted, 1 rejected, 1 unverifiable in a dry run      │
+│oracle   │ pass    │ 0.0     │ organisation units: 108 resource(s) over 107 DHIS2     │
+│         │         │         │ object(s), 107 resolved, 5 deep-compared; option sets: │
+│         │         │         │ 13 resource(s) over 13 DHIS2 object(s), 13 resolved, 5 │
+│         │         │         │ deep-compared; data sets: 1 resource(s) over 1 DHIS2   │
+│         │         │         │ object(s), 1 resolved, 1 deep-compared; programs: 2    │
+│         │         │         │ resource(s) over 2 DHIS2 object(s), 2 resolved, 2      │
+│         │         │         │ deep-compared                                          │
+└─────────┴─────────┴─────────┴────────────────────────────────────────────────────────┘
 ```
 
-Read the phase table first and the findings second. The table says which
-leg of the chain broke; the findings say what to do about it. Here the
-chain is sound end to end and one response was rejected by a DHIS2 program
-rule on the instance - a fact about that instance's configuration, which is
-exactly what a handover needs to surface before anyone builds on it.
+Read the phase table first and the findings second. The table says which leg
+of the chain broke; the findings table under it says what to do about it:
+
+```
+                                      findings (5)
+┏━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃Phase    ┃ Severity ┃ Subject        ┃ Where ┃ What                                   ┃
+┡━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│generate │ warning  │ form-structure │ -     │ data set 'Child Health' (BfMAe6Itzgt)  │
+│         │          │                │       │ greys out 8 disaggregated cells, which │
+│         │          │                │       │ are not published; a response answering│
+│         │          │                │       │ one would not be of the form: ...      │
+│generate │ warning  │ selection-gap  │ -     │ 1 organisation units have a parent     │
+│         │          │                │       │ outside the selection; partOf omitted: │
+│         │          │                │       │ Western Area (at6UHUQatSo)             │
+│forward  │ error    │ E1300          │ -     │ 1 response(s): Generated by ProgramRule│
+│         │          │                │       │ (`...`) - `...`.                       │
+└─────────┴──────────┴────────────────┴───────┴────────────────────────────────────────┘
+```
+
+Here the chain is sound end to end and the one failure is a DHIS2 **program
+rule** on the instance refusing a synthetic value - a fact about that
+instance's configuration, which is exactly what a handover needs to surface
+before anyone builds on it. The `selection-gap` warning is the probe's own
+doing: it scoped the run to one subtree, so that subtree's own root has a
+parent nobody selected. A finding is reported once per target that raised
+it, so the same form-structure note appears on more than one row of a full
+table.
+
+Two things to expect on the timings. `compile` is the whole run: 152 seconds
+against 0.9 for everything else put together, because it is a real FSH
+compile in Docker. And a `--live` oracle costs almost nothing on top, because
+it re-reads a seeded sample rather than the instance.
 
 ## Options
 
@@ -184,19 +253,38 @@ exactly what a handover needs to surface before anyone builds on it.
 | `--all-targets` | Scaffold empty selection tables: every data set, every program, every level. |
 | `--live` | Run the oracle phase. |
 | `--samples N` | How many resources per family the oracle deep-compares (default 5). |
-| `--json` | Emit the typed report on stdout; the narration stays on stderr. |
 | `--no-progress` | Do not narrate each phase as it completes. |
 
-The instance comes from the root flag, exactly as it does for
-`d2w fhir serve`:
+The instance and the JSON output both come from root flags, exactly as they
+do for every other `d2w` command - there is no doctor-local `--profile` and
+no doctor-local `--json`:
 
 ```bash
 d2w -p laos fhir doctor
 DHIS2_PROFILE=laos d2w fhir doctor
+d2w --json -p laos fhir doctor      # the typed report on stdout, narration on stderr
 ```
 
-There is no local `--profile`. One instance per run, named the same way
-everywhere.
+One instance per run, named the same way everywhere.
+
+The narration is one `[k/9]` line per phase as it completes, which is the
+form a redirected log wants:
+
+```
+running 9 step(s)
+[1/9] connect: pass - http://localhost:8080 is DHIS2 2.43.1, bound to the v43 tree
+[2/9] scaffold: pass - 13 file(s) into /home/you/doctor-ws; ...
+[3/9] generate: warn - 322 file(s) across 7 target(s), 4 note(s)
+[4/9] compile: pass - docker fhir-ig sushi compiled 84 resource(s)
+[5/9] validate: warn - 1,634 object(s) swept; 0 selection error(s), 5 selection warning(s),
+0 error(s) and 5 warning(s) instance-wide
+[6/9] serve: pass - 355 resource(s) from the compiled guide: ...
+[7/9] capture: pass - 5 form(s), 5 generated, 5 accepted as 201
+[8/9] forward: fail - 5 spooled, 5 translated, 0 refused, 5 posted, 3 accepted, 1 rejected,
+1 unverifiable in a dry run
+[9/9] oracle: pass - organisation units: 108 resource(s) over 107 DHIS2 object(s), ...
+BROKEN: 6 pass, 2 warn, 1 fail, 0 skipped, 0 blocked
+```
 
 ## The written report
 

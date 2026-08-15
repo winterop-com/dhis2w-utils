@@ -18,9 +18,10 @@ app shows them).
 
 This page covers the options that decide which of your DHIS2 metadata the
 guide covers: the six selection tables (option sets, categories, data sets,
-event programs, tracker programs, tracked entity forms), the org-unit scope,
-what tracked entity types are, and the example responses. These are the options an M&E officer
-changes most often - adding a data set to the guide is one line here.
+event programs, tracker programs, tracked entity forms), the organisation unit
+scope, what tracked entity types are, and the example responses. These are the
+options an M&E officer changes most often - adding a data set to the guide is
+one line here.
 
 Three rules apply to every selection table:
 
@@ -30,10 +31,36 @@ Three rules apply to every selection table:
    pane (it is also the last part of the address bar when the object is open).
 2. **An absent table, or an empty list, means "all of them".** You write a
    list to narrow the guide, not to switch it on.
-3. **A UID that matches nothing is not an error.** The run succeeds and that
-   object simply never appears - so after editing a list, check the run's
-   summary counts (or the guide itself) to confirm what you expected showed
-   up. A misspelled UID looks exactly like a missing object.
+3. **A UID that matches nothing does not stop the run - it is written down.**
+   The guide is generated without that object, and the run records a note
+   naming the UID and the table it was written in. So a misspelled UID and an
+   object somebody deleted from DHIS2 look identical in the guide, and are told
+   apart by reading the note and checking the id against the Maintenance app.
+
+### Where the run tells you what it left out { #reading-the-notes }
+
+The notes are the whole feedback channel for the options on this page: nothing
+here can be checked against your instance while you edit the file, so
+everything is reported after the run instead.
+
+`d2w fhir generate` ends with a line saying how many notes it raised and where
+they are:
+
+```text
+note: 3 note(s) across 2 target(s); full list in /home/you/hmis-ig/reports/fhir-generate-notes.md (--details to print)
+```
+
+`reports/fhir-generate-notes.md` is an ordinary text file grouped by what was
+being generated, one line per note. An unmatched selection reads:
+
+```text
+- 1 [generate.data_sets] include_ids entries matched no data set: BfMAe6Itzgu
+```
+
+`d2w fhir generate --details` prints every note in the terminal instead of
+writing the file, which is easier when you are fixing one line at a time. The
+`reports/` folder is regenerated on every run and is not part of the published
+guide.
 
 ### `[generate.data_sets]` include_ids { #data-sets }
 
@@ -61,8 +88,9 @@ The guide publishes exactly two data-set forms.
 **Default:** absent - **If you leave it out:** every data set on the instance
 becomes a form.
 
-**If you get it wrong:** a UID matching nothing silently selects nothing (rule
-3 above). Writing a single UID without list brackets stops the run:
+**If you get it wrong:** a UID matching nothing selects nothing and is named in
+the run's notes ([reading the notes](#reading-the-notes)). Writing a single UID
+without list brackets stops the run:
 
 ```text
 pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
@@ -157,7 +185,8 @@ programme and names no type here publishes no person-only form at all, and costs
 no request for one.
 
 **If you get it wrong:** a UID that matches no tracked entity type is reported
-by name in the run's notes and skipped, the way an unmatched data set UID is.
+by name in [the run's notes](#reading-the-notes) and skipped, the way an
+unmatched data set UID is.
 
 ### `[generate.option_sets]` include_ids { #option-sets }
 
@@ -183,9 +212,10 @@ That option set's code list is published even if no selected form uses it.
 instance is published (and with forms selected, everything they use is always
 included regardless).
 
-**If you get it wrong:** same behaviour as every selection table: unknown
-UIDs silently select nothing; a non-list value refuses the run as under
-[data sets](#data-sets).
+**If you get it wrong:** same behaviour as every selection table: an unknown
+UID selects nothing and is named in the run's notes as
+`include_ids entry '...' matched no option set`; a non-list value refuses the
+run as under [data sets](#data-sets).
 
 ### `[generate.categories]` include_ids { #categories }
 
@@ -209,7 +239,9 @@ Only that category's code list is published.
 is published - except DHIS2's built-in `default` category, which the next
 option controls.
 
-**If you get it wrong:** same behaviour as every selection table.
+**If you get it wrong:** same behaviour as every selection table: an unknown
+UID selects nothing and is named in the run's notes as
+`include_ids entry '...' matched no category`.
 
 ### `[generate.categories]` include_default { #include_default }
 
@@ -248,9 +280,24 @@ subject correctly. Any type you do not mention is treated as a person.
 
 **When you would change it.** Only when a tracker program in your guide tracks
 something other than people: a livestock vaccination programme, a water-point
-maintenance programme. Then you map that tracked entity type's UID to the
-matching FHIR kind - one of `Patient`, `Person`, `Practitioner`,
-`RelatedPerson`, `Group`, `Device`, `Location`, `Organization`, `Specimen`.
+maintenance programme. Then you map that tracked entity type's UID to the word
+for what it is. There are nine to choose from, and the choice is a
+plain-language one:
+
+| Write this | When the type is | Example on a DHIS2 instance |
+| --- | --- | --- |
+| `Patient` | a person receiving care - the default | Person, Malaria case |
+| `Person` | a person the guide holds no care record for | Contact, Household head |
+| `Practitioner` | a person doing the work rather than receiving it | Community health worker |
+| `RelatedPerson` | a person tracked because of their relation to another | Guardian, Treatment supporter |
+| `Group` | several individuals tracked as one record | Household, Herd, Class |
+| `Device` | a piece of equipment | Cold-chain fridge, Bed net batch |
+| `Location` | a place | Water point, Latrine, Well |
+| `Organization` | an organisation | Clinic under inspection, School |
+| `Specimen` | a sample taken from somebody or something | Blood sample, Sputum sample |
+
+If two look plausible, pick the one a reader of the published guide would
+recognise; nothing else in the guide changes with the choice.
 
 **Example.**
 
@@ -291,13 +338,13 @@ generate.tracked_entity_types
 
 The guide publishes a facility registry: every organisation unit in scope
 becomes two entries (the organisation, and the place with its map shape).
-These three options set the scope - and because org units are usually the
-biggest thing in a national instance, they are also the guide's size dial.
+These three options set the scope - and because organisation units are usually
+the biggest thing in a national instance, they are also the guide's size dial.
 
 ### `root`
 
-**In plain words.** The org unit to start from. The guide covers this unit and
-everything below it, instead of the whole tree.
+**In plain words.** The organisation unit to start from. The guide covers this
+unit and everything below it, instead of the whole tree.
 
 **When you would change it.** A district-level project on a national instance:
 set `root` to the district and the guide covers only that branch.
@@ -311,19 +358,20 @@ root = "ImspTQPwCqd"
 
 Only that unit and its descendants are published.
 
-**Default:** unset - **If you leave it out:** the entire org unit tree is in
-scope. Note the quiet twin: `root = ""` also means the entire tree - it is
-treated as unset, with no message (see
+**Default:** unset - **If you leave it out:** the entire organisation unit tree
+is in scope. Note the quiet twin: `root = ""` also means the entire tree - it
+is treated as unset, with no message (see
 [the settings file](301-fhir-toml.md#two-values-that-quietly-mean-not-set)).
 
-**If you get it wrong:** a UID matching no org unit selects nothing - the run
-succeeds and the registry comes out empty. Check the run's counts after
-setting it.
+**If you get it wrong:** a UID matching no organisation unit selects nothing,
+and unlike the selection tables above it raises no note: the run succeeds and
+the registry comes out empty. The registry run prints how many organisation
+units it wrote - check that number after setting this.
 
 ### `max_level`
 
 !!! warning "Read before you decide - this is the cost lever"
-    Org unit hierarchies fan out at the bottom: the deepest level (the
+    Organisation unit hierarchies fan out at the bottom: the deepest level (the
     facilities) is usually *most* of the tree, and every unit in scope becomes
     two published entries plus its map shape. On a national instance,
     `max_level` is the difference between a guide that generates and builds in
@@ -360,10 +408,10 @@ time.
 
 ### `terminology`
 
-**In plain words.** Besides the registry entries, also publish the org units
-as a code list - one entry per unit, with its level, parent, and DHIS2 code -
-so systems that work with code lists can validate "is this a real facility
-code?" against it.
+**In plain words.** Besides the registry entries, also publish the organisation
+units as a code list - one entry per unit, with its level, parent, and DHIS2
+code - so systems that work with code lists can validate "is this a real
+facility code?" against it.
 
 **When you would change it.** When a consuming system asks for the facility
 list *as a code list* rather than as registry entries. Otherwise leave it off;
@@ -376,11 +424,11 @@ it roughly repeats the registry in a second form.
 terminology = true
 ```
 
-The guide additionally publishes the org-unit code list (`D2OU_CS` and its
-companion).
+The guide additionally publishes the organisation unit code list (`D2OU_CS` and
+its companion).
 
-**Default:** `false` - **If you leave it out:** no org-unit code list; the
-registry entries are unaffected.
+**Default:** `false` - **If you leave it out:** no organisation unit code list;
+the registry entries are unaffected.
 
 **If you get it wrong:** TOML wants bare `true` or `false`; anything
 unrecognisable stops the run with a printout naming
