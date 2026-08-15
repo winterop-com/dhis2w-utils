@@ -515,6 +515,15 @@ class QuestionSpec(BaseModel):
     translator then writes the answer on the tracked entity.
     """
 
+    required: bool = False
+    """Whether the form makes the question mandatory - `Questionnaire.item.required`.
+
+    On a registration form this is the program's own join saying so: the emitter writes
+    `required` from `programTrackedEntityAttributes.mandatory`, which is the grain DHIS2 answers
+    `E1018` on. That makes it the one fact that decides whether an entity-level answer may ride
+    the enrollment of a person the instance already holds.
+    """
+
 
 class FormSpec(BaseModel):
     """One served Questionnaire flattened into what a response answering it translates through.

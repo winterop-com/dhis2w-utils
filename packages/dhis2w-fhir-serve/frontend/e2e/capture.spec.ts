@@ -645,12 +645,12 @@ test.describe('a tracker registration form', () => {
         await expect(page).toHaveURL(new RegExp(`#/forms/${form.id}$`))
         await opened
 
-        // The three facts the envelope carries and no question holds. Read-only on purpose: the
-        // server draws them as part of the skeleton that makes the submission postable, and a
-        // person seeing what they are about to file is what this block is for.
+        // The facts the envelope carries and no question holds. The server draws them as part of
+        // the skeleton that makes the submission postable, and the dates among them are the
+        // reporter's to correct - a visit recorded on the day it is typed up is a visit misdated.
         const enrollment = page.getByRole('heading', { name: 'Enrollment', exact: true })
         await expect(enrollment).toBeVisible()
-        await expect(page.getByText('Enrolled at', { exact: true })).toBeVisible()
+        await expect(page.getByLabel('Enrollment date')).toBeVisible()
 
         await page.getByRole('button', { name: 'Fill with test data' }).click()
         await expect(page.getByText('Filled with test data')).toBeVisible()

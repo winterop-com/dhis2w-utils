@@ -21,6 +21,7 @@ import {
     descendantIdsOf,
     expandedForSelection,
     hasGeometry,
+    levelLabel,
     levelOf,
     matchesUnit,
     matchingUnitIds,
@@ -336,6 +337,22 @@ describe('reading the level off the published coding', () => {
         expect(level?.code).toBe('district')
         expect(level?.depth).toBeNull()
         expect(level?.display).toBeNull()
+    })
+})
+
+describe('how a level is spelled on screen', () => {
+    it('says what the level CodeSystem published', () => {
+        expect(levelLabel({ code: 'level-4', display: 'Facility', system: null, depth: 4 })).toBe('Facility')
+    })
+
+    it('numbers the level itself when the CodeSystem published no display', () => {
+        // Never the `level-2` casing: a tree row and the panel beside it would then state one fact
+        // in two spellings.
+        expect(levelLabel({ code: 'level-2', display: null, system: null, depth: 2 })).toBe('Level 2')
+    })
+
+    it('shows a level that is not numbered as the code it was published under', () => {
+        expect(levelLabel({ code: 'district', display: null, system: null, depth: null })).toBe('district')
     })
 })
 

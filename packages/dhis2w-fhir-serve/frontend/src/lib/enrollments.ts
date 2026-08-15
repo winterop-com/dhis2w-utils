@@ -20,6 +20,7 @@
  */
 
 import { enrolledAtOf, formIdentifier, formTypeOf, programOf, trackedEntityOf, trackerEnrollmentOf, type Questionnaire, type QuestionnaireResponse } from '@/lib/fhir'
+import { trackedEntityAttributeLabel, type PatientProjection } from '@/lib/patients'
 import type { ResponseLifecycle, SpoolResponseSummary } from '@/lib/spool'
 
 /**
@@ -120,6 +121,56 @@ export function enrollmentOptionOf(
  */
 export function defaultEnrollmentOption(options: EnrollmentOption[]): EnrollmentOption | null {
     return options.find((option) => option.lifecycle === 'forwarded') ?? null
+}
+
+/**
+ * One value on the card of a chosen person: what the attribute is called, and what DHIS2 holds.
+ *
+ * `isMachineSpelling` is what keeps a uid or a DHIS2 code in the mono face and a published name out
+ * of it - the same flag `PublishedName` carries and the person's own page renders by.
+ */
+export interface PersonCardValue {
+    /** Stable across renders: one person can hold two values of two attributes that read alike. */
+    key: string
+    /** What the attribute is called - the published name, else its DHIS2 code, else its uid. */
+    attribute: string
+    isMachineSpelling: boolean
+    /** The value DHIS2 holds, as the string DHIS2 sent. */
+    value: string
+}
+
+/**
+ * What a picker card says about the person it holds: their naming values, each under its own name.
+ *
+ * WHY THE VALUES ARE NAMED HERE AND NOT LEFT BARE. A chosen person is a decision the reader has to
+ * be able to check, and a card showing `19740512` alone cannot be checked - the same digits are a
+ * national identity number on one project and a date of birth on the next. The names exist in what
+ * this project published, in the one CodeSystem whose concept codes are attribute uids, so the card
+ * reads them through the join the person's own page reads them through rather than through a second
+ * one of its own.
+ *
+ * THE UNIQUE VALUES, AND ONLY THOSE. An attribute DHIS2 declares unique is what names a person -
+ * it is what was typed to find them - and the rest describe one. A card is a confirmation of who
+ * was chosen, not a record, so it carries the naming half and the person's own page carries all of
+ * it.
+ *
+ * A PERSON HOLDING NONE HAS NO NAMING VALUE, and this answers empty for them rather than falling
+ * back to their tracked entity uid: the uid is the line underneath every card, and a card stating
+ * one uid twice confirms nothing twice over.
+ */
+export function personCardValues(
+    person: PatientProjection,
+    attributeNames: ReadonlyMap<string, string>,
+): PersonCardValue[] {
+    return person.identifiers.map((identifier) => {
+        const attribute = trackedEntityAttributeLabel(attributeNames, identifier.attributeUid)
+        return {
+            key: `${identifier.attributeUid}-${identifier.value}`,
+            attribute: attribute.text,
+            isMachineSpelling: attribute.isMachineSpelling,
+            value: identifier.value,
+        }
+    })
 }
 
 /**

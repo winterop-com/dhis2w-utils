@@ -18,6 +18,8 @@ import { ReportingUnitPicker } from '@/components/ReportingUnitPicker'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useEnrollmentOptions } from '@/hooks/use-enrollment-options'
 import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
 import { usePatientSearchSupport } from '@/hooks/use-patient-search-support'
@@ -34,6 +36,7 @@ import {
     questionCount,
     registersAPerson,
     trackerEnrollmentOf,
+    type CodeSystem,
     type Coding,
     type OperationOutcomeIssue,
     type Questionnaire,
@@ -46,20 +49,28 @@ import {
     answersReducer,
     buildQuestionnaireResponse,
     clearedEntityLevelAnswers,
+    collectsIncidentDate,
+    dateTimeInputValue,
     entityLevelLinkIds,
     flattenQuestionnaire,
     initialAnswers,
+    normaliseDateTime,
+    NO_VALUE_TYPES,
     openedAttributeOptionCombo,
     openedReportingUnit,
+    questionCodeSystemIds,
     refilledAttributeOptionCombo,
     refilledEnrollment,
     refilledReportingUnit,
+    reportingPeriodOf,
     unansweredRequiredLinkIds,
+    valueTypesByConcept,
     type AnswerState,
     type ExistingSubject,
+    type ReportingPeriod,
 } from '@/lib/questionnaire'
-import { ENROLLED_AT_FACT_LABEL, INCIDENT_AT_FACT_LABEL } from '@/lib/receipt'
-import { formatInstant, TRACKER_ENROLLMENT_FACT_LABEL } from '@/lib/spool'
+import { INCIDENT_AT_FACT_LABEL } from '@/lib/receipt'
+import { TRACKER_ENROLLMENT_FACT_LABEL } from '@/lib/spool'
 import { cn } from '@/lib/utils'
 
 /**
@@ -98,7 +109,9 @@ import { cn } from '@/lib/utils'
  * blocked on it - but which unit is a choice rather than a fact about the form, so the draw is a
  * proposal and changing it rewrites the built response. Both pickers are fed by one read of the
  * registry, published to the form through `OrgUnitScopeProvider` so the `ORGANISATION_UNIT`
- * questions inside it pick from the same set.
+ * questions inside it pick from the same set. That choice is kept for the browser tab, because a
+ * person filing six forms reports them all from the same place: the next form opens on the kept
+ * unit whenever its own assignment admits it, and says so either way.
  *
  * A THIRD PIECE OF CONTEXT IS THE USER'S ON A STAGE FORM, AND IT IS THE ONE THE SKELETON GETS
  * WRONG. `$generate` mints synthetic tracked-entity and enrollment uids, which is what makes the
@@ -121,13 +134,21 @@ import { cn } from '@/lib/utils'
  * read-only and cleared with the reason stated, which is the only place in this app where the
  * capture context takes questions off the form.
  *
- * EVERYTHING ELSE THE ENVELOPE CARRIES IS SHOWN AND NOT ASKED. A tracker registration files an
- * enrollment, and when it begins - `D2EnrolledAt`, plus `D2IncidentAt` on a program that collects
- * one - is context no question on the form holds. It is displayed above the questions rather than
- * turned into a control: unlike the unit and the combo, an enrollment date is not a choice the
- * person came here with, and the server draws it as part of the same skeleton that makes the
- * submission postable. Shown rather than hidden, because a person should be able to read every
- * fact their submission will carry.
+ * A FIFTH IS THE DATE THE SUBMISSION IS ABOUT, AND IT WEARS A DIFFERENT ELEMENT ON EVERY KIND.
+ * An event happened on a day and the forwarder reads `TrackerEvent.occurredAt` off `authored`; a
+ * registration files an enrollment that begins on a day, on `D2EnrolledAt`, with `D2IncidentAt`
+ * beside it on a program that collects one; an aggregate submission reports for one DHIS2 period,
+ * on `D2Period`. The server draws all of them so the draft is postable, and a capture of last
+ * Tuesday's visit is a capture of last Tuesday - so each is a control above the questions, opening
+ * on the drafted value and riding the envelope in the slot the draft put it in.
+ *
+ * THE PERIOD IS THE ONE THIS SCREEN CANNOT CHECK. The server grades an aggregate submission's ISO
+ * period against the type its data set reports for, and against the date range the period resolves
+ * to. Resolving `202607` into July 2026 is DHIS2 period arithmetic, which this UI does not have and
+ * will not grow - so an edited period is written as the identifier alone, with the drafted type kept
+ * and the drafted range dropped rather than recomputed. The range is optional and the ISO period is
+ * what is captured, so what leaves here is a claim about exactly what a person typed; a period of
+ * the wrong type is refused by the server, naming both types, which is better than a client guess.
  */
 export function FormFill() {
     const { questionnaireId = '' } = useParams()
@@ -143,10 +164,18 @@ export function FormFill() {
     const [filling, setFilling] = useState(false)
     const [attributeOptionCombo, setAttributeOptionCombo] = useState<Coding | null>(null)
     const [reportingUnit, setReportingUnit] = useState<Reference | null>(null)
+    const [keptUnitNotAdmitted, setKeptUnitNotAdmitted] = useState(false)
     const [enrollment, setEnrollment] = useState<EnrollmentOption | null>(null)
     const [enrollmentSource, setEnrollmentSource] = useState<EnrollmentSource>('spool')
     const [personSource, setPersonSource] = useState<PersonSource>('new')
     const [existingPerson, setExistingPerson] = useState<PatientProjection | null>(null)
+    // The four dates and periods a person may state for themselves. Null is "the draft's value
+    // stands", which is what every form opens on; a string is the literal its control holds.
+    const [visitDate, setVisitDate] = useState<string | null>(null)
+    const [enrollmentDate, setEnrollmentDate] = useState<string | null>(null)
+    const [incidentDate, setIncidentDate] = useState<string | null>(null)
+    const [reportingPeriodIso, setReportingPeriodIso] = useState<string | null>(null)
+    const [valueTypes, setValueTypes] = useState<ReadonlyMap<string, string>>(NO_VALUE_TYPES)
     const orgUnitScope = useFormOrgUnitScope(questionnaire)
     const enrollmentOffer = useEnrollmentOptions(questionnaire)
     const patientSearchSupport = usePatientSearchSupport()
@@ -163,9 +192,36 @@ export function FormFill() {
     }, [offerLoading, offerOptions, enrollmentSource])
 
     const spec = useMemo(
-        () => flattenQuestionnaire(questionnaire ?? { resourceType: 'Questionnaire', status: 'unknown' }),
-        [questionnaire],
+        () => flattenQuestionnaire(questionnaire ?? { resourceType: 'Questionnaire', status: 'unknown' }, valueTypes),
+        [questionnaire, valueTypes],
     )
+
+    // The data dictionaries this form's own questions are coded in, and nothing else. R4 spells
+    // `BOOLEAN` and `TRUE_ONLY` as one item type, so the value type behind a tick is a fact only the
+    // served CodeSystem holds - and reading the two or three systems the form names is what keeps
+    // that from becoming a read of the whole terminology. The list is joined into one string so the
+    // read runs when the form changes rather than every time the spec is rebuilt around its answer.
+    const codeSystemKey = useMemo(() => questionCodeSystemIds(spec).join(' '), [spec])
+    useEffect(() => {
+        const ids = codeSystemKey === '' ? [] : codeSystemKey.split(' ')
+        if (ids.length === 0) {
+            setValueTypes(NO_VALUE_TYPES)
+            return
+        }
+        let cancelled = false
+        // A dictionary this server does not publish is a form whose value types are unknown, which
+        // is the state every boolean question renders as a plain BOOLEAN in - so a refused read is
+        // caught per system rather than losing the systems that did answer.
+        Promise.all(
+            ids.map((id) => readResource<CodeSystem>('CodeSystem', id).catch(() => null)),
+        ).then((read) => {
+            if (cancelled) return
+            setValueTypes(valueTypesByConcept(read.filter((codeSystem) => codeSystem !== null)))
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [codeSystemKey])
 
     const existingSubject: ExistingSubject | null =
         existingPerson === null ? null : { trackedEntity: existingPerson.trackedEntityUid }
@@ -184,6 +240,15 @@ export function FormFill() {
         if (cleared !== answers) dispatch({ kind: 'replace', answers: cleared })
     }, [existingPerson, spec, answers])
 
+    // Every stated date and period back to "the draft's value stands". Run wherever a fresh draft
+    // lands, because a redrawn envelope is a fresh set of defaults for these controls to open on.
+    const clearStatedDates = useCallback(() => {
+        setVisitDate(null)
+        setEnrollmentDate(null)
+        setIncidentDate(null)
+        setReportingPeriodIso(null)
+    }, [])
+
     useEffect(() => {
         let cancelled = false
         setLoading(true)
@@ -193,10 +258,12 @@ export function FormFill() {
         setIssues([])
         setAttributeOptionCombo(null)
         setReportingUnit(null)
+        setKeptUnitNotAdmitted(false)
         setEnrollment(null)
         setEnrollmentSource('spool')
         setPersonSource('new')
         setExistingPerson(null)
+        clearStatedDates()
         readResource<Questionnaire>('Questionnaire', questionnaireId)
             .then((resource) => {
                 if (cancelled) return
@@ -210,7 +277,6 @@ export function FormFill() {
                     if (cancelled) return
                     setEnvelope(skeleton)
                     setAttributeOptionCombo((current) => openedAttributeOptionCombo(current, skeleton))
-                    setReportingUnit((current) => openedReportingUnit(current, skeleton, resource))
                 })
             })
             .catch((failure: unknown) => {
@@ -225,7 +291,19 @@ export function FormFill() {
         return () => {
             cancelled = true
         }
-    }, [questionnaireId])
+    }, [questionnaireId, clearStatedDates])
+
+    // Which organisation unit the form opens reporting from, decided once the draft and the offer
+    // are both in hand. Both halves are needed: the draft carries the drawn unit, and the offer is
+    // what says whether the unit this browser tab keeps is one this form may be reported from at
+    // all. A unit already in the picker ends this - a person's choice is never overwritten.
+    useEffect(() => {
+        if (reportingUnit !== null || envelope === null || questionnaire === null) return
+        if (orgUnitScope.loading || orgUnitScope.byId.size === 0) return
+        const opened = openedReportingUnit(null, envelope, questionnaire, keptReportingUnitId(), orgUnitScope.byId)
+        setReportingUnit(opened.unit)
+        setKeptUnitNotAdmitted(opened.keptUnitNotAdmitted)
+    }, [reportingUnit, envelope, questionnaire, orgUnitScope])
 
     const fillWithTestData = useCallback(() => {
         // The button only exists once the form is on screen, so a null questionnaire here
@@ -240,6 +318,9 @@ export function FormFill() {
                 // The one refill rule that runs the other way: the fresh draw's pair is synthetic,
                 // so the answers refill and the chosen identity stands.
                 setEnrollment((current) => refilledEnrollment(current))
+                // A refill is the server proposing a whole submission, dates included, so the
+                // controls over them open on the fresh draft rather than holding the last draft's.
+                clearStatedDates()
                 dispatch({
                     kind: 'replace',
                     answers: answersFromResponse(flattenQuestionnaire(questionnaire), generated),
@@ -257,7 +338,7 @@ export function FormFill() {
                 })
             })
             .finally(() => setFilling(false))
-    }, [filling, questionnaire, questionnaireId])
+    }, [filling, questionnaire, questionnaireId, clearStatedDates])
 
     if (questionnaire === null) {
         return (
@@ -286,6 +367,16 @@ export function FormFill() {
     // that carries an enrollment date, so the presence of the fact is what decides the block is
     // shown, and a `$generate` that never answered simply has nothing to state.
     const enrolledAt = envelope === null ? null : enrolledAtOf(envelope)
+    const incidentAt = envelope === null ? null : incidentAtOf(envelope)
+    // Both halves are required, and each says something the other does not: the form declares
+    // whether its program collects an incident date, and the draft is where an edited one is
+    // written. A control over a date the draft never drew would have no slot to ride in.
+    const asksIncidentDate = collectsIncidentDate(questionnaire) && incidentAt !== null
+    // The visit date of an event: the same read off the envelope the enrollment dates get, on the
+    // one element the forwarder derives `TrackerEvent.occurredAt` from.
+    const recordsAnEvent = formKind === 'event' || formKind === 'tracker-event'
+    const draftedVisitDate = (recordsAnEvent ? envelope?.authored : undefined) ?? null
+    const draftedPeriod = reportingPeriodOf(envelope)
     // Declared and unchosen is the one state Submit refuses in. A form that declares no vocabulary
     // reports for the default combo, which is what absence means, and nothing is asked.
     const missingAttributeOptionCombo = attributeOptionCombos !== null && attributeOptionCombo === null
@@ -301,6 +392,13 @@ export function FormFill() {
                     attributeOptionCombo,
                     reportingUnit,
                     enrollment,
+                    // An untouched control states nothing and the draft's own value rides, which is
+                    // also what an emptied one means: a submission of any of these kinds carries a
+                    // date whether or not a person restated it.
+                    authored: normaliseDateTime(visitDate ?? ''),
+                    enrolledAt: normaliseDateTime(enrollmentDate ?? ''),
+                    incidentAt: normaliseDateTime(incidentDate ?? ''),
+                    reportingPeriodIso,
                     existingSubject,
                 }),
             )
@@ -351,7 +449,9 @@ export function FormFill() {
                         (attributeOptionCombos !== null ||
                             enrolledAt !== null ||
                             enrollmentOffer.active ||
-                            registersAPersonHere) &&
+                            registersAPersonHere ||
+                            draftedVisitDate !== null ||
+                            draftedPeriod !== null) &&
                             'lg:grid-cols-2',
                     )}
                 >
@@ -359,8 +459,33 @@ export function FormFill() {
                         formKind={formKind}
                         declaresAttributeOptionCombo={attributeOptionCombos !== null}
                         selectedUnitId={referencedUnitId(reportingUnit)}
-                        onChange={(choice) => setReportingUnit(orgUnitReference(choice))}
+                        keptUnitNotAdmitted={keptUnitNotAdmitted}
+                        onChange={(choice) => {
+                            setReportingUnit(orgUnitReference(choice))
+                            // Kept from here on, so the next form this tab opens reports from it -
+                            // and the mismatch this form may have stated is answered by the choice.
+                            keepReportingUnitId(choice.id)
+                            setKeptUnitNotAdmitted(false)
+                        }}
                     />
+                    {draftedPeriod !== null && (
+                        <ReportingPeriodControl
+                            drafted={draftedPeriod}
+                            iso={reportingPeriodIso ?? draftedPeriod.iso}
+                            onChange={setReportingPeriodIso}
+                        />
+                    )}
+                    {draftedVisitDate !== null && (
+                        <div className="grid gap-2 rounded-lg border p-4">
+                            <InstantField
+                                controlId={VISIT_DATE_CONTROL_ID}
+                                label="Visit date"
+                                hint="The date this event happened. It is context, not an answer - DHIS2 records the event under it."
+                                value={visitDate ?? dateTimeInputValue(draftedVisitDate)}
+                                onChange={setVisitDate}
+                            />
+                        </div>
+                    )}
                     {attributeOptionCombos !== null && (
                         <AttributeOptionComboPicker
                             canonical={attributeOptionCombos}
@@ -393,7 +518,17 @@ export function FormFill() {
                         />
                     )}
                     {enrolledAt !== null && envelope !== null && (
-                        <EnrollmentContext enrolledAt={enrolledAt} envelope={envelope} />
+                        <EnrollmentContext
+                            enrollmentDate={enrollmentDate ?? dateTimeInputValue(enrolledAt)}
+                            incidentDate={
+                                asksIncidentDate && incidentAt !== null
+                                    ? (incidentDate ?? dateTimeInputValue(incidentAt))
+                                    : null
+                            }
+                            enrollment={trackerEnrollmentOf(envelope)}
+                            onEnrollmentDateChange={setEnrollmentDate}
+                            onIncidentDateChange={setIncidentDate}
+                        />
                     )}
                 </div>
 
@@ -465,58 +600,182 @@ export function FormFill() {
     )
 }
 
+/** The capture-context controls with a fixed id, so each label and its input find each other. */
+const VISIT_DATE_CONTROL_ID = 'capture-visit-date'
+const ENROLLMENT_DATE_CONTROL_ID = 'capture-enrollment-date'
+const INCIDENT_DATE_CONTROL_ID = 'capture-incident-date'
+const REPORTING_PERIOD_CONTROL_ID = 'capture-reporting-period'
+
+/** Where a chosen reporting organisation unit is kept: one browser tab, and no longer. */
+const KEPT_REPORTING_UNIT_KEY = 'dhis2w-capture-reporting-organisation-unit'
+
 /**
- * When the enrollment a registration creates begins - stated, not asked.
+ * The organisation unit this browser tab last reported from, or null when it has reported from none.
  *
- * WHY THIS IS READ-ONLY. A registration response carries three facts no question on the form
- * holds: when the enrollment begins, when the incident it follows occurred, and the DHIS2 uid the
- * enrollment will be created under. All three come off the `$generate` envelope, on exactly the
- * argument the whole page is built on - the envelope is the server's and the answers are the
- * user's. The organisation unit and the attribute option combo are the two documented exceptions,
- * and each earns it: the unit is a choice a supervisor makes every morning, and the combo is
- * derivable from nothing at all. An enrollment date is neither: the server draws it as part of the
- * same skeleton that makes the submission postable, and a control over it would be a fourth thing
- * that can disagree with the envelope for no case anyone has yet.
- *
- * So it is shown rather than hidden, because a submission carrying a date the person never saw is
- * worse than one carrying a date they cannot change - and it is shown in the same words the
- * receipt uses, so the fact reads identically before and after the capture.
+ * SESSION-SCOPED ON PURPOSE. A kept unit is a fact about what someone is doing right now - a morning
+ * spent filing for one facility - not a preference they set once. A fresh tab starts fresh, which is
+ * also what makes two tabs open on two facilities a thing a person can do. A storage a browser
+ * refuses to hand over (a private mode, a blocked origin) reads as nothing kept, which is exactly
+ * the state the app was in before anything was chosen.
  */
-function EnrollmentContext({
-    enrolledAt,
-    envelope,
+function keptReportingUnitId(): string | null {
+    try {
+        return window.sessionStorage.getItem(KEPT_REPORTING_UNIT_KEY)
+    } catch {
+        return null
+    }
+}
+
+/** Keep the organisation unit this tab reports from, so the next form opens on it. */
+function keepReportingUnitId(unitId: string): void {
+    try {
+        window.sessionStorage.setItem(KEPT_REPORTING_UNIT_KEY, unitId)
+    } catch {
+        // A browser that refuses storage keeps nothing, and the next form opens on the server's
+        // draw - the behaviour of this screen with nothing kept, rather than a failure to report.
+    }
+}
+
+/**
+ * One instant of the capture context, as a control over what the draft drew.
+ *
+ * WHAT AN EMPTY CONTROL MEANS. The value is the literal the browser's own `datetime-local` holds,
+ * kept verbatim the way every answer control keeps its literal, and turned into an R4 `dateTime` at
+ * submit by the same normaliser the form's own date questions use - which stamps the wall time as
+ * stated rather than shifting it by whichever zone the operator's laptop is in. An emptied control
+ * states nothing, and the submission carries the date the draft drew: every profile that has one of
+ * these requires it, so "no date" is not a submission this server would take.
+ */
+function InstantField({
+    controlId,
+    label,
+    hint,
+    value,
+    onChange,
 }: {
-    enrolledAt: string
-    envelope: QuestionnaireResponse
+    controlId: string
+    label: string
+    hint: string
+    /** What the control shows: the stated literal, or the drafted instant it opens on. */
+    value: string
+    onChange: (value: string) => void
 }) {
-    const incidentAt = incidentAtOf(envelope)
-    const enrollment = trackerEnrollmentOf(envelope)
+    return (
+        <div className="grid gap-2">
+            <Label htmlFor={controlId}>{label}</Label>
+            <p className="text-muted-foreground text-sm">{hint}</p>
+            <Input
+                id={controlId}
+                type="datetime-local"
+                step={1}
+                className="max-w-xs"
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+            />
+        </div>
+    )
+}
+
+/**
+ * The DHIS2 period an aggregate submission reports for.
+ *
+ * A TEXT BOX AND NOT A CALENDAR, because a DHIS2 period is an identifier rather than a date:
+ * `202607` is July 2026, `2026W30` is a week, `2026April` is a financial year opening in April. The
+ * type is the data set's own and is stated rather than asked - a monthly data set reports monthly -
+ * so what a person edits is which period of that type, and the drafted identifier in the box is the
+ * worked example of how to spell one.
+ *
+ * WHAT HAPPENS TO A PERIOD OF THE WRONG TYPE. It is posted and refused, and the refusal names the
+ * type the identifier parses as and the type the data set reports for. This screen has no DHIS2
+ * period arithmetic to catch it earlier, and inventing one here would be a second implementation of
+ * the rule the server already holds.
+ */
+function ReportingPeriodControl({
+    drafted,
+    iso,
+    onChange,
+}: {
+    drafted: ReportingPeriod
+    iso: string
+    onChange: (iso: string) => void
+}) {
     return (
         <div className="grid gap-2 rounded-lg border p-4">
-            <h3 className="text-sm font-medium">Enrollment</h3>
+            <Label htmlFor={REPORTING_PERIOD_CONTROL_ID}>Reporting period</Label>
             <p className="text-muted-foreground text-sm">
-                What this registration files the enrollment under. It comes from the server's{' '}
-                <code className="font-mono">$generate</code> skeleton rather than from an answer,
-                and it rides the submission unchanged.
+                {drafted.periodType === null
+                    ? 'The period this submission reports for. DHIS2 keys the whole submission by it, beside the organisation unit.'
+                    : `${drafted.periodType} period, as the data set reports. DHIS2 keys the whole submission by it, beside the organisation unit.`}
             </p>
-            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                <div className="min-w-0">
-                    <dt className="text-muted-foreground text-xs">{ENROLLED_AT_FACT_LABEL}</dt>
-                    <dd className="break-words">{formatInstant(enrolledAt)}</dd>
-                </div>
-                {incidentAt !== null && (
-                    <div className="min-w-0">
-                        <dt className="text-muted-foreground text-xs">{INCIDENT_AT_FACT_LABEL}</dt>
-                        <dd className="break-words">{formatInstant(incidentAt)}</dd>
-                    </div>
-                )}
-                {enrollment !== null && (
-                    <div className="min-w-0">
-                        <dt className="text-muted-foreground text-xs">{TRACKER_ENROLLMENT_FACT_LABEL}</dt>
-                        <dd className="font-mono text-xs break-words">{enrollment}</dd>
-                    </div>
-                )}
-            </dl>
+            <Input
+                id={REPORTING_PERIOD_CONTROL_ID}
+                className="max-w-xs font-mono"
+                value={iso}
+                onChange={(event) => onChange(event.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">
+                A period of another type is refused when this submission is sent, and the refusal
+                names both types.
+            </p>
+        </div>
+    )
+}
+
+/**
+ * When the enrollment a registration files begins, and when the incident it follows occurred.
+ *
+ * TWO DATES A PERSON CAME HERE WITH. A registration is filed days after the visit it records as
+ * often as not, and DHIS2 files the enrollment under the date this states - so these are choices in
+ * exactly the way the organisation unit is a choice, and the server's draw is the default rather
+ * than the answer. The incident date is asked only on a program that collects one, which the form
+ * declares on `D2CollectsIncidentDate`: a program that collects none generates responses that carry
+ * none, and a control over an absent fact would have no slot to write into.
+ *
+ * THE ENROLLMENT UID IS THE ONE FACT HERE THAT IS STILL ONLY SHOWN. `$generate` mints it, DHIS2
+ * creates the enrollment under it, and nothing about it is a choice - so it is stated in the words
+ * the receipt uses, and reads identically before and after the capture.
+ */
+function EnrollmentContext({
+    enrollmentDate,
+    incidentDate,
+    enrollment,
+    onEnrollmentDateChange,
+    onIncidentDateChange,
+}: {
+    /** What the enrollment date control shows: the stated literal, or the drafted instant. */
+    enrollmentDate: string
+    /** The same for the incident date, or null on a program that collects none. */
+    incidentDate: string | null
+    /** The DHIS2 enrollment uid the draft minted, or null when it minted none. */
+    enrollment: string | null
+    onEnrollmentDateChange: (value: string) => void
+    onIncidentDateChange: (value: string) => void
+}) {
+    return (
+        <div className="grid gap-4 rounded-lg border p-4">
+            <h3 className="text-sm font-medium">Enrollment</h3>
+            <InstantField
+                controlId={ENROLLMENT_DATE_CONTROL_ID}
+                label="Enrollment date"
+                hint="The date this enrollment begins. DHIS2 files it under this date."
+                value={enrollmentDate}
+                onChange={onEnrollmentDateChange}
+            />
+            {incidentDate !== null && (
+                <InstantField
+                    controlId={INCIDENT_DATE_CONTROL_ID}
+                    label={INCIDENT_AT_FACT_LABEL}
+                    hint="The date of the incident this enrollment follows, as this program collects one."
+                    value={incidentDate}
+                    onChange={onIncidentDateChange}
+                />
+            )}
+            {enrollment !== null && (
+                <dl className="text-sm">
+                    <dt className="text-muted-foreground text-xs">{TRACKER_ENROLLMENT_FACT_LABEL}</dt>
+                    <dd className="font-mono text-xs break-words">{enrollment}</dd>
+                </dl>
+            )}
         </div>
     )
 }

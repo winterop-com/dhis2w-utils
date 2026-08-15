@@ -5,7 +5,11 @@ import { PatientSearch } from '@/components/PatientSearch'
 import { Button } from '@/components/ui/button'
 import { usePatientEnrollments } from '@/hooks/use-patient-enrollments'
 import type { PatientSearchSupport } from '@/hooks/use-patient-search-support'
-import { patientLeadValue, type PatientProjection } from '@/lib/patients'
+import { useTrackedEntityNaming } from '@/hooks/use-tracked-entity-naming'
+import { personCardValues } from '@/lib/enrollments'
+import type { PatientProjection } from '@/lib/patients'
+import { TRACKED_ENTITY_FACT_LABEL } from '@/lib/spool'
+import { cn } from '@/lib/utils'
 
 /** The two things a registration submission can be about, as the control names them. */
 export type PersonSource = 'new' | 'instance'
@@ -130,12 +134,7 @@ export function PersonPicker({
 
             {source === 'instance' && chosen !== null && !searching && (
                 <div className="grid gap-2">
-                    <p className="text-sm">
-                        <span className="font-mono text-xs">{patientLeadValue(chosen)}</span>
-                        <span className="text-muted-foreground ml-2 font-mono text-xs">
-                            {chosen.trackedEntityUid}
-                        </span>
-                    </p>
+                    <ChosenPerson person={chosen} />
                     <div>
                         <Button type="button" variant="outline" size="sm" onClick={() => setSearching(true)}>
                             Choose a different person
@@ -146,5 +145,48 @@ export function PersonPicker({
                 </div>
             )}
         </fieldset>
+    )
+}
+
+/**
+ * The person a picker is holding, named by what DHIS2 holds them under.
+ *
+ * ONE CARD FOR BOTH PICKERS. Choosing a person is the same act on a registration form and on a
+ * stage form - one confirms who the submission is about and the other who it is being filed for -
+ * so the confirmation is one component and reads identically in both places.
+ *
+ * WHAT IT SHOWS AND IN WHICH FACE. Each unique attribute value under the name this project
+ * published for its attribute, in prose; a value whose attribute the project published no name for
+ * keeps the mono face of the uid or DHIS2 code it is named by, which is the rule this app renders
+ * every published name by. The tracked entity uid is the last line and appears exactly once,
+ * because it is the handle DHIS2 knows the person by and the one fact a card cannot omit.
+ *
+ * The naming join costs the DHIS2 instance nothing: it answers from the store this server loaded
+ * at startup.
+ */
+export function ChosenPerson({ person }: { person: PatientProjection }) {
+    const naming = useTrackedEntityNaming()
+    const values = personCardValues(person, naming.attributes)
+
+    return (
+        <dl className="grid gap-1 text-sm">
+            {values.map((value) => (
+                <div key={value.key} className="flex flex-wrap items-baseline gap-x-2">
+                    <dt
+                        className={cn(
+                            'text-muted-foreground text-xs',
+                            value.isMachineSpelling && 'font-mono',
+                        )}
+                    >
+                        {value.attribute}
+                    </dt>
+                    <dd className="font-mono text-xs">{value.value}</dd>
+                </div>
+            ))}
+            <div className="flex flex-wrap items-baseline gap-x-2">
+                <dt className="text-muted-foreground text-xs">{TRACKED_ENTITY_FACT_LABEL}</dt>
+                <dd className="text-muted-foreground font-mono text-xs">{person.trackedEntityUid}</dd>
+            </div>
+        </dl>
     )
 }

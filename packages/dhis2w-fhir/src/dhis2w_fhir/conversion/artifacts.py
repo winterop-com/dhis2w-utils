@@ -1,19 +1,24 @@
-"""Reading one project's published IG off disk into the translation context a forward run drains through.
+"""Reading one project's published IG into the translation context a forward run drains through.
 
-`build_conversion_context` takes plain R4 models; this module is where a project's own files become
-them. It reads the two trees `d2w fhir serve` serves as one - `ig/fsh-generated/resources`, which SUSHI
-compiled from the emitted FSH, and `ig/input/resources`, the predefined registry, terminology, and
-ConceptMap tree the generate targets wrote as JSON - and keeps the five resource types the translator
-reads: Questionnaire, CodeSystem, ValueSet, ConceptMap, and Location. Everything else the guide
+`build_conversion_context` takes plain R4 models; this module is where a project's guide becomes them.
+`collect_artifacts` is the one place documents are sorted into the five resource types the translator
+reads - Questionnaire, CodeSystem, ValueSet, ConceptMap, and Location - and everything else the guide
 publishes is passed over, because nothing in the QR -> DHIS2 direction consults it.
 
-How an unreadable file is handled depends on what it is. A **Questionnaire** the R4 models cannot read
-fails the load naming the file: a form quietly skipped turns every response answering it into an
-`unknown-form` refusal, which reads as a problem with the data rather than with the guide. The other
-four cost only what they carry - a coded answer resolved unchecked, an organisation-unit reference read
-as a UID - so an unreadable one is left out and named on `unreadable_resources`, which the caller
-reports. A guide is free to hand-write terminology this package has no model for, and one such document
-is not worth refusing a whole spool over.
+Two ways a guide reaches it. `load_compiled_artifacts` reads the two trees `d2w fhir serve` serves as
+one: `ig/fsh-generated/resources`, which SUSHI compiled from the emitted FSH, and `ig/input/resources`,
+the predefined registry, terminology, and ConceptMap tree the generate targets wrote as JSON. A project
+that has never run SUSHI has neither, and `dhis2w_fhir.service.fetch_live_artifacts` builds the same
+documents off the instance instead - the same builders `d2w fhir serve --live` answers reads from - so
+a capture UI that needed no build step drains through a forward that needs none either.
+
+How an unreadable document is handled depends on what it is. A **Questionnaire** the R4 models cannot
+read fails the collection naming its source: a form quietly skipped turns every response answering it
+into an `unknown-form` refusal, which reads as a problem with the data rather than with the guide. The
+other four cost only what they carry - a coded answer resolved unchecked, an organisation-unit
+reference read as a UID - so an unreadable one is left out and named on `unreadable_resources`, which
+the caller reports. A guide is free to hand-write terminology this package has no model for, and one
+such document is not worth refusing a whole spool over.
 """
 
 from __future__ import annotations
@@ -28,6 +33,7 @@ from dhis2w_fhir.conversion.schemas import CodedAnswerMode, ConversionNaming
 from dhis2w_fhir.r4 import CodeSystem, ConceptMap, Location, Questionnaire, ValueSet
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
     from dhis2w_fhir.config import FhirProject
@@ -35,11 +41,13 @@ if TYPE_CHECKING:
 
 __all__ = [
     "COMPILED_RESOURCES_RELATIVE_PATH",
+    "TRANSLATED_RESOURCE_TYPES",
     "BoundQuestionUids",
     "CompiledArtifacts",
     "CompiledIgMissingError",
     "bound_question_uids",
     "build_project_context",
+    "collect_artifacts",
     "load_compiled_artifacts",
 ]
 
@@ -52,6 +60,10 @@ _REGISTRATION_FORM_KIND = "tracker"
 #: The one resource type an unreadable document fails the load over, because a skipped form refuses
 #: every response answering it - and refuses it as a fact about the data rather than about the guide.
 _FORM_RESOURCE_TYPE = "Questionnaire"
+
+#: The five resource types the QR -> DHIS2 translator reads, in the order they are collected. A guide
+#: publishes far more than this; nothing else is consulted in the response direction.
+TRANSLATED_RESOURCE_TYPES: tuple[str, ...] = (_FORM_RESOURCE_TYPE, "CodeSystem", "ValueSet", "ConceptMap", "Location")
 
 
 class CompiledIgMissingError(LookupError):
@@ -94,6 +106,15 @@ class CompiledArtifacts(BaseModel):
         )
 
 
+class SourcedDocument(BaseModel):
+    """One wire document paired with whatever names it in a diagnostic - a file path, or a builder."""
+
+    model_config = ConfigDict(frozen=True)
+
+    source: str
+    body: dict[str, Any]
+
+
 def load_compiled_artifacts(project: FhirProject) -> CompiledArtifacts:
     """Read one project's compiled IG plus its predefined resource tree into the artifacts the translator reads.
 
@@ -106,7 +127,26 @@ def load_compiled_artifacts(project: FhirProject) -> CompiledArtifacts:
         raise CompiledIgMissingError(compiled_directory)
     predefined_directory = project.resources_directory
     predefined_paths = sorted(predefined_directory.rglob("*.json")) if predefined_directory.is_dir() else []
+    return collect_artifacts(
+        SourcedDocument(source=str(path), body=_read_resource(path)) for path in [*compiled_paths, *predefined_paths]
+    )
 
+
+def collect_artifacts(documents: Iterable[SourcedDocument]) -> CompiledArtifacts:
+    """Sort wire documents into the five resource types the QR -> DHIS2 translator reads.
+
+    One collection point for both ways a project's guide reaches the translator: read off disk from
+    a compiled build, or built in memory from the instance a `--live` run points at. Anything
+    outside `TRANSLATED_RESOURCE_TYPES` is passed over, because nothing in the response direction
+    consults it.
+
+    How an unreadable document is handled depends on what it is. A **Questionnaire** the R4 models
+    cannot read fails the collection naming its source: a form quietly skipped turns every response
+    answering it into an `unknown-form` refusal, which reads as a problem with the data rather than
+    with the guide. The other four cost only what they carry - a coded answer resolved unchecked, an
+    organisation-unit reference read as a UID - so an unreadable one is left out and named on
+    `unreadable_resources`, which the caller reports.
+    """
     questionnaires: list[Questionnaire] = []
     code_systems: list[CodeSystem] = []
     value_sets: list[ValueSet] = []
@@ -120,15 +160,14 @@ def load_compiled_artifacts(project: FhirProject) -> CompiledArtifacts:
         "ConceptMap": (ConceptMap, concept_maps),
         "Location": (Location, locations),
     }
-    for path in [*compiled_paths, *predefined_paths]:
-        body = _read_resource(path)
-        resource_type = str(body.get("resourceType"))
+    for document in documents:
+        resource_type = str(document.body.get("resourceType"))
         kept = collections.get(resource_type)
         if kept is None:
             continue
         model, collected = kept
         try:
-            collected.append(_parse(model, body, path))
+            collected.append(_parse(model, document.body, document.source))
         except CompiledArtifactReadError as error:
             if resource_type == _FORM_RESOURCE_TYPE:
                 raise
@@ -224,11 +263,11 @@ def _read_resource(path: Path) -> dict[str, Any]:
     return body
 
 
-def _parse[T: BaseModel](model: type[T], body: dict[str, Any], path: Path) -> T:
+def _parse[T: BaseModel](model: type[T], body: dict[str, Any], source: str) -> T:
     """Validate one published resource against the R4 model the translator reads it as."""
     try:
         return model.model_validate(body)
     except ValidationError as error:
         raise CompiledArtifactReadError(
-            f"{path}: the published {model.__name__} carries elements this package cannot read ({error})"
+            f"{source}: the published {model.__name__} carries elements this package cannot read ({error})"
         ) from error

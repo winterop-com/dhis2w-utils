@@ -31,6 +31,12 @@ export interface SpoolState {
  *
  * A refresh keeps the previous listing on screen while it runs, so returning to
  * the tab does not blank the table for a frame.
+ *
+ * WHAT THIS DOES NOT DO. A window left open and unfocused stays as it was until
+ * it regains focus, however long a forwarder run takes in the meantime; nothing
+ * here polls. `reload` is the way a page asks for a read of its own - the
+ * Responses page calls it on every arrival at the route, and its Reload button
+ * is the one a person presses while looking straight at the table.
  */
 export function useSpool(): SpoolState {
     const [listing, setListing] = useState<SpoolListing>(EMPTY_SPOOL)

@@ -418,6 +418,7 @@ def _question(
         option_system=code_system_urls_by_value_set.get(item.answerValueSet or ""),
         value_type=value_type,
         entity_level=_entity_level(item, naming),
+        required=bool(item.required),
     )
 
 

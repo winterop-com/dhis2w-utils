@@ -413,6 +413,11 @@ REGISTRATION_PROGRAM_ONLY_ATTRIBUTE = "TeaHousehld"
 #: The attribute the second tracked entity type collects: a unique laboratory reference.
 SPECIMEN_UNIQUE_ATTRIBUTE = "TeaLabRef01"
 
+#: The attribute DHIS2 types TRUE_ONLY, which stores `"true"` or nothing and never `"false"`. R4
+#: spells it the same `#boolean` item a BOOLEAN attribute takes, so the pair is what a consumer has
+#: to tell apart through the value type the dictionary publishes rather than through the form.
+REGISTRATION_TRUE_ONLY_ATTRIBUTE = "TeaConsent1"
+
 #: The extension a registration question states its DHIS2 import level on.
 ENTITY_LEVEL_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-entity-level"
 
@@ -515,6 +520,19 @@ REGISTRATION_QUESTIONNAIRE_BODY: dict[str, Any] = {
                 {"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": False},
             ],
         },
+        {
+            "linkId": REGISTRATION_TRUE_ONLY_ATTRIBUTE,
+            "code": [
+                {
+                    "system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
+                    "code": REGISTRATION_TRUE_ONLY_ATTRIBUTE,
+                    "display": "Consent given",
+                }
+            ],
+            "text": "Consent given",
+            "type": "boolean",
+            "extension": [{"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": False}],
+        },
     ],
 }
 
@@ -616,6 +634,15 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
                 {"code": "value-type", "valueCode": "TEXT"},
                 {"code": "unique", "valueBoolean": True},
                 {"code": "searchable", "valueBoolean": True},
+            ],
+        },
+        {
+            "code": REGISTRATION_TRUE_ONLY_ATTRIBUTE,
+            "display": "Consent given",
+            "property": [
+                {"code": "dhis2-code", "valueString": "TEA_CONSENT"},
+                {"code": "value-type", "valueCode": "TRUE_ONLY"},
+                {"code": "unique", "valueBoolean": False},
             ],
         },
     ],

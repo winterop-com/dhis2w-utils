@@ -153,17 +153,59 @@ export const EMPTY_SPOOL: SpoolListing = {
 }
 
 /**
- * A receipt instant as a person reads it.
+ * The fields of an ISO date, or of a date and a time of day: year, month, day, hour, minute, second.
  *
- * The server sends a UTC `instant`; the browser shows it in local time, because
- * the person looking at the queue is standing where the capture happened. An
- * unparseable value is shown verbatim rather than as "Invalid Date" - if the
- * wire ever carries something unexpected, the raw string is the useful thing.
+ * Anchored at both ends, so a string that is only shaped like an instant for its first ten
+ * characters is not one - `formatInstant` shows such a value whole rather than rendering a prefix
+ * of it. A zone designator is matched but captured by nothing, which is the discarding the rule
+ * below argues for.
+ */
+const WALL_CLOCK_FIELDS =
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/
+
+/**
+ * One instant as a person reads it: the wall clock DHIS2 sent, digit for digit.
+ *
+ * ONE RULE, THE SAME FOR EVERY VALUE ON THE WIRE. The date and time written in the string are the
+ * date and time on screen. The browser's own zone never moves them, and neither does a zone the
+ * string carries: `2026-08-09T09:30:00` and `2026-08-09T09:30:00Z` both read half past nine.
+ *
+ * WHY THE ZONE IS DROPPED RATHER THAN APPLIED. DHIS2 keeps its instants in the clock the deployment
+ * runs on, and the two spellings above are the same moment to the people using it - one endpoint
+ * states the offset and its neighbour does not. A browser that honoured the offset would file a
+ * receipt captured at half nine under a different hour on a laptop in another zone, and under a
+ * different hour again from the enrollment date beside it on the same screen. So the fields are
+ * read out of the string and rendered as they were written, and every screen in this app agrees
+ * with the register the capture was written in.
+ *
+ * The locale still decides the shape - which month name, what order, whether the hour is written to
+ * twelve or twenty-four - because that is a fact about the reader rather than about the instant.
+ *
+ * A value this rule cannot read is shown verbatim rather than as "Invalid Date": if the wire ever
+ * carries something unexpected, the raw string is the useful thing.
  */
 export function formatInstant(instant: string): string {
-    const parsed = new Date(instant)
-    if (Number.isNaN(parsed.getTime())) return instant
-    return parsed.toLocaleString(undefined, {
+    const fields = WALL_CLOCK_FIELDS.exec(instant)
+    if (fields === null) return instant
+    const [, year, month, day, hour = '00', minute = '00', second = '00'] = fields
+    // Built in UTC and rendered in UTC, which is what makes the arithmetic a no-op: the fields go in
+    // and the same fields come out, whatever zone the browser stands in.
+    const wallClock = new Date(
+        Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)),
+    )
+    // A date nobody has - the thirtieth of February, the twenty-fifth hour - rolls over into a real
+    // one rather than failing, so it is caught by reading the fields back rather than by a NaN.
+    if (
+        wallClock.getUTCFullYear() !== Number(year) ||
+        wallClock.getUTCMonth() !== Number(month) - 1 ||
+        wallClock.getUTCDate() !== Number(day) ||
+        wallClock.getUTCHours() !== Number(hour) ||
+        wallClock.getUTCMinutes() !== Number(minute)
+    ) {
+        return instant
+    }
+    return wallClock.toLocaleString(undefined, {
+        timeZone: 'UTC',
         year: 'numeric',
         month: 'short',
         day: '2-digit',

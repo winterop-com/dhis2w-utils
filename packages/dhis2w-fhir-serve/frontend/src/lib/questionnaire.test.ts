@@ -20,6 +20,8 @@ import {
     trackedEntityOf,
     trackerEnrollmentOf,
     type Bundle,
+    type CodeSystem,
+    type Extension,
     type Questionnaire,
     type QuestionnaireResponse,
     type Reference,
@@ -29,10 +31,14 @@ import {
     answersReducer,
     buildQuestionnaireResponse,
     clearedEntityLevelAnswers,
+    collectsIncidentDate,
     dateTimeInputValue,
     enabledLinkIds,
     entityLevelLinkIds,
     EMPTY_SLOT,
+    extensionsWithEnrolledAt,
+    extensionsWithIncidentAt,
+    extensionsWithReportingPeriod,
     flattenQuestionnaire,
     initialAnswers,
     isAnswered,
@@ -41,14 +47,18 @@ import {
     NO_CAPTURE_CONTEXT,
     openedAttributeOptionCombo,
     openedReportingUnit,
+    questionCodeSystemIds,
     refilledAttributeOptionCombo,
     refilledEnrollment,
     refilledReportingUnit,
+    reportingPeriodOf,
     slotAnswer,
+    TRUE_ONLY_VALUE_TYPE,
     unansweredRequiredLinkIds,
+    valueTypesByConcept,
     type AnswerState,
 } from '@/lib/questionnaire'
-import { carriesUnitOnExtension, reportingUnitOf } from '@/lib/orgunits'
+import { carriesUnitOnExtension, reportingUnitOf, type OrgUnitChoice } from '@/lib/orgunits'
 import { marksAnExistingSubject } from '@/lib/patients'
 
 /**
@@ -886,10 +896,76 @@ describe('the organisation unit a submission reports from', () => {
 
     it('pre-selects the drawn unit when a form opens, and never over a choice already made', () => {
         expect(openedReportingUnit(null, scopedSkeleton, scopedForm)).toEqual({
-            reference: 'Location/DiszpKrYNg8',
+            unit: { reference: 'Location/DiszpKrYNg8' },
+            keptUnitNotAdmitted: false,
         })
-        expect(openedReportingUnit(chosen, scopedSkeleton, scopedForm)).toEqual(chosen)
-        expect(openedReportingUnit(null, null, scopedForm)).toBeNull()
+        expect(openedReportingUnit(chosen, scopedSkeleton, scopedForm)).toEqual({
+            unit: chosen,
+            keptUnitNotAdmitted: false,
+        })
+        expect(openedReportingUnit(null, null, scopedForm)).toEqual({
+            unit: null,
+            keptUnitNotAdmitted: false,
+        })
+    })
+
+    /**
+     * The unit a browser tab keeps, graded against the form that is opening.
+     *
+     * A supervisor filing six forms reports them all from one facility, so the kept unit comes
+     * before the draw - but only where the form's assignment admits it, because a submission from a
+     * unit the form is not assigned to is refused when it reaches DHIS2. The offer is what says
+     * which of the two it is, and while there is no offer there is nothing to grade against.
+     */
+    describe('the organisation unit a browser tab keeps', () => {
+        const ngelehun: OrgUnitChoice = {
+            id: 'DiszpKrYNg8',
+            name: 'Ngelehun CHC',
+            location: { resourceType: 'Location', id: 'DiszpKrYNg8', name: 'Ngelehun CHC' },
+            level: null,
+            parentName: 'Badjia',
+        }
+        const bo: OrgUnitChoice = {
+            id: 'O6uvpzGd5pu',
+            name: 'Bo',
+            location: { resourceType: 'Location', id: 'O6uvpzGd5pu', name: 'Bo' },
+            level: null,
+            parentName: 'Sierra Leone',
+        }
+        const offer = new Map([
+            [ngelehun.id, ngelehun],
+            [bo.id, bo],
+        ])
+
+        it('opens on the kept unit rather than on the draw', () => {
+            expect(openedReportingUnit(null, scopedSkeleton, scopedForm, bo.id, offer)).toEqual({
+                unit: { reference: 'Location/O6uvpzGd5pu', display: 'Bo' },
+                keptUnitNotAdmitted: false,
+            })
+        })
+
+        it('falls back to the draw and states the mismatch when the form excludes the kept unit', () => {
+            const elsewhere = new Map([[ngelehun.id, ngelehun]])
+
+            expect(openedReportingUnit(null, scopedSkeleton, scopedForm, bo.id, elsewhere)).toEqual({
+                unit: { reference: 'Location/DiszpKrYNg8' },
+                keptUnitNotAdmitted: true,
+            })
+        })
+
+        it('adopts nothing and states nothing while the offer is still being read', () => {
+            expect(openedReportingUnit(null, scopedSkeleton, scopedForm, bo.id, null)).toEqual({
+                unit: { reference: 'Location/DiszpKrYNg8' },
+                keptUnitNotAdmitted: false,
+            })
+        })
+
+        it('leaves a choice already made alone, kept unit or not', () => {
+            expect(openedReportingUnit(chosen, scopedSkeleton, scopedForm, ngelehun.id, offer)).toEqual({
+                unit: chosen,
+                keptUnitNotAdmitted: false,
+            })
+        })
     })
 
     it('takes the fresh draw on a refill, and keeps the choice when the draw states none', () => {
@@ -1204,5 +1280,318 @@ describe('a registration answering for a person the instance already holds', () 
         // worse than one that says nothing.
         expect(unansweredRequiredLinkIds(spec, {})).toEqual(['TeaNationId'])
         expect(unansweredRequiredLinkIds(spec, {}, entityLevelLinkIds(spec))).toEqual([])
+    })
+})
+
+/**
+ * The DHIS2 value type behind a tick, and the No a TRUE_ONLY question does not have.
+ *
+ * R4 spells `BOOLEAN` and `TRUE_ONLY` as one `#boolean` item type, so a form on its own cannot tell
+ * the two apart - the fact is a `value-type` property on the concept the item's `code` names, in the
+ * data dictionary the guide publishes beside the form. The DHIS2 difference is one value: a
+ * TRUE_ONLY data element stores `true` or nothing, and `dhis2w_fhir.conversion.values` drops a
+ * `false` on the way to the instance. So this asserts the whole chain - the dictionary read, the
+ * value type on the node, and the answer that is never written.
+ *
+ * The dictionary is hand-written because the fixture goldens declare no TRUE_ONLY data element;
+ * every shape here is the emitter's, as `CodeSystem-d2-de-cs.json` publishes it.
+ */
+describe('a TRUE_ONLY question', () => {
+    const dataElements: CodeSystem = {
+        resourceType: 'CodeSystem',
+        status: 'active',
+        url: 'http://localhost:8080/fhir/CodeSystem/d2-de-cs',
+        concept: [
+            {
+                code: 'DeConfirmed',
+                display: 'Confirmed',
+                property: [{ code: 'value-type', valueCode: 'TRUE_ONLY' }],
+            },
+            {
+                code: 'DeAncDanger',
+                display: 'Danger signs present',
+                property: [{ code: 'value-type', valueCode: 'BOOLEAN' }],
+            },
+            { code: 'DeNoTypeSaid', display: 'Stated with no value type' },
+        ],
+    }
+
+    /** The other dictionary a form can draw from, holding one code the first one also holds. */
+    const attributes: CodeSystem = {
+        resourceType: 'CodeSystem',
+        status: 'active',
+        url: 'http://localhost:8080/fhir/CodeSystem/d2-tea-cs',
+        concept: [
+            {
+                code: 'DeConfirmed',
+                display: 'A different object under the same code',
+                property: [{ code: 'value-type', valueCode: 'BOOLEAN' }],
+            },
+        ],
+    }
+
+    const form: Questionnaire = {
+        resourceType: 'Questionnaire',
+        status: 'active',
+        item: [
+            {
+                linkId: 'DeConfirmed',
+                text: 'Confirmed',
+                type: 'boolean',
+                code: [{ system: dataElements.url, code: 'DeConfirmed' }],
+            },
+            {
+                linkId: 'DeAncDanger',
+                text: 'Danger signs present',
+                type: 'boolean',
+                code: [{ system: dataElements.url, code: 'DeAncDanger' }],
+            },
+            {
+                linkId: 'DeNoTypeSaid',
+                text: 'Stated with no value type',
+                type: 'boolean',
+                code: [{ system: dataElements.url, code: 'DeNoTypeSaid' }],
+            },
+            { linkId: 'DeUncoded001', text: 'Coded in nothing at all', type: 'boolean' },
+        ],
+    }
+
+    const valueTypes = valueTypesByConcept([dataElements, attributes])
+    const spec = flattenQuestionnaire(form, valueTypes)
+
+    it('reads the value type off the dictionary the question’s own code names', () => {
+        expect(spec.byLinkId.get('DeConfirmed')?.valueType).toBe(TRUE_ONLY_VALUE_TYPE)
+        expect(spec.byLinkId.get('DeAncDanger')?.valueType).toBe('BOOLEAN')
+    })
+
+    it('states none for an untyped concept, a question with no code, or a dictionary not yet read', () => {
+        expect(spec.byLinkId.get('DeNoTypeSaid')?.valueType).toBeNull()
+        expect(spec.byLinkId.get('DeUncoded001')?.valueType).toBeNull()
+        // The state every form is in before its dictionary lands: absence means the form does not
+        // say, so a boolean question keeps the three states a BOOLEAN has.
+        expect(flattenQuestionnaire(form).byLinkId.get('DeConfirmed')?.valueType).toBeNull()
+    })
+
+    it('keys the dictionary by system and code, so two vocabularies sharing a code do not collide', () => {
+        expect(valueTypes.get(`${dataElements.url ?? ''}|DeConfirmed`)).toBe(TRUE_ONLY_VALUE_TYPE)
+        expect(valueTypes.get(`${attributes.url ?? ''}|DeConfirmed`)).toBe('BOOLEAN')
+    })
+
+    it('names the dictionaries one form is coded in, once each, and no other resource', () => {
+        expect(questionCodeSystemIds(spec)).toEqual(['d2-de-cs'])
+        expect(questionCodeSystemIds(flattenQuestionnaire(servedForm('PsAncVisit1')))).toEqual(['d2-de-cs'])
+        // A coding into something this server does not publish as a CodeSystem names no read.
+        const elsewhere: Questionnaire = {
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [{ linkId: 'x', type: 'boolean', code: [{ system: 'http://loinc.org', code: '1234-5' }] }],
+        }
+        expect(questionCodeSystemIds(flattenQuestionnaire(elsewhere))).toEqual([])
+    })
+
+    it('answers yes or nothing, and never the false DHIS2 does not store', () => {
+        const trueOnly = spec.byLinkId.get('DeConfirmed')
+        const boolean = spec.byLinkId.get('DeAncDanger')
+        if (trueOnly === undefined || boolean === undefined) throw new Error('the form asks both questions')
+
+        expect(slotAnswer(trueOnly, { ...EMPTY_SLOT, text: 'true' })).toEqual({ valueBoolean: true })
+        expect(slotAnswer(trueOnly, { ...EMPTY_SLOT, text: 'false' })).toBeNull()
+        expect(slotAnswer(trueOnly, EMPTY_SLOT)).toBeNull()
+        // The plain BOOLEAN beside it is untouched: No is an answer DHIS2 stores for one.
+        expect(slotAnswer(boolean, { ...EMPTY_SLOT, text: 'false' })).toEqual({ valueBoolean: false })
+    })
+
+    it('leaves a TRUE_ONLY question out of the submission rather than answering it false', () => {
+        const answers: AnswerState = {
+            DeConfirmed: [{ ...EMPTY_SLOT, text: 'false' }],
+            DeAncDanger: [{ ...EMPTY_SLOT, text: 'false' }],
+        }
+        const built = buildQuestionnaireResponse(spec, answers, form, null, NO_CAPTURE_CONTEXT)
+        const trueOnly = spec.byLinkId.get('DeConfirmed')
+        if (trueOnly === undefined) throw new Error('the form asks the TRUE_ONLY question')
+
+        expect(built.item).toEqual([{ linkId: 'DeAncDanger', answer: [{ valueBoolean: false }] }])
+        // And it is still unanswered, because nothing anyone can type answers it false.
+        expect(isAnswered(trueOnly, answers)).toBe(false)
+    })
+})
+
+/**
+ * The dates and the period a person states for themselves, over the ones the draft drew.
+ *
+ * FOUR FACTS, ONE RULE. `authored` dates an event - the forwarder derives `TrackerEvent.occurredAt`
+ * from it - `D2EnrolledAt` and `D2IncidentAt` date a registration's enrollment, and `D2Period` is
+ * the period an aggregate submission reports for. Each rewrite replaces what the envelope states,
+ * in the slot the envelope states it in, and writes nothing where the envelope states nothing: a
+ * date of a kind the response does not carry is a no-op rather than an invention.
+ *
+ * THE PERIOD IS THE ONE WITH A SERVER CONTRACT ATTACHED. `_period_issues` in
+ * `dhis2w_fhir_serve.capture.validate` refuses a response whose `type` disagrees with the type its
+ * ISO identifier parses as, and one whose `period` range disagrees with the range that identifier
+ * resolves to - and the range is optional, because the ISO period is what is captured. This UI has
+ * no DHIS2 period arithmetic, so an edited identifier keeps the drafted type and drops the range
+ * rather than claiming a range it cannot resolve.
+ */
+describe('the dates and the period a submission carries', () => {
+    const aggregateForm = servedForm('BfMAe6Itzgt')
+    const aggregateSkeleton = generateAggregateFixture as unknown as QuestionnaireResponse
+    const eventForm = scopedQuestionnaireFixture as unknown as Questionnaire
+    const eventSkeleton = generateScopedFixture as unknown as QuestionnaireResponse
+    const drafted: Extension[] = aggregateSkeleton.extension ?? []
+
+    const registrationForm: Questionnaire = {
+        resourceType: 'Questionnaire',
+        id: 'PrTracker001',
+        url: 'http://localhost:8080/fhir/Questionnaire/PrTracker001',
+        status: 'active',
+        extension: [
+            { url: 'http://localhost:8080/fhir/StructureDefinition/d2-form-type', valueCode: 'tracker' },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-collects-incident-date',
+                valueBoolean: true,
+            },
+        ],
+        item: [{ linkId: 'TeaFirstNm1', text: 'First name', type: 'string' }],
+    }
+
+    const registrationSkeleton: QuestionnaireResponse = {
+        resourceType: 'QuestionnaireResponse',
+        status: 'completed',
+        questionnaire: registrationForm.url,
+        subject: {
+            type: 'Patient',
+            identifier: { system: 'http://dhis2.org/fhir/id/tracked-entity', value: 'wJt3Qy1PxLd' },
+        },
+        extension: [
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-enrolled-at',
+                valueDateTime: '2026-07-21T04:00:00Z',
+            },
+            {
+                url: 'http://localhost:8080/fhir/StructureDefinition/d2-incident-at',
+                valueDateTime: '2026-07-14T04:00:00Z',
+            },
+            { url: 'http://localhost:8080/fhir/StructureDefinition/d2-form-type', valueCode: 'tracker' },
+        ],
+    }
+
+    it('reads the drafted period off the aggregate skeleton, and none off any other kind', () => {
+        expect(reportingPeriodOf(aggregateSkeleton)).toEqual({ iso: '202607', periodType: 'Monthly' })
+        expect(reportingPeriodOf(eventSkeleton)).toBeNull()
+        expect(reportingPeriodOf(null)).toBeNull()
+    })
+
+    it('passes the whole period through untouched when the drafted identifier stands', () => {
+        expect(extensionsWithReportingPeriod(drafted, '202607')).toBe(drafted)
+        expect(extensionsWithReportingPeriod(drafted, null)).toBe(drafted)
+        // An event response carries no period at all, so there is nothing to write into.
+        const eventExtensions = eventSkeleton.extension ?? []
+        expect(extensionsWithReportingPeriod(eventExtensions, '202605')).toBe(eventExtensions)
+    })
+
+    it('writes an edited identifier, keeps the drafted type, and claims no date range', () => {
+        const written = extensionsWithReportingPeriod(drafted, '202605')
+        const period = written.find((extension) => extension.url.endsWith('/d2-period'))
+
+        expect(period?.extension).toEqual([
+            { url: 'iso', valueString: '202605' },
+            { url: 'type', valueCode: 'Monthly' },
+        ])
+        // Replaced where the server wrote it: the form type keeps its place, so the rebuilt
+        // response reads as the same document rather than as one with its context shuffled.
+        expect(written.map((extension) => extension.url)).toEqual(drafted.map((extension) => extension.url))
+    })
+
+    it('carries an edited period through a whole rebuilt aggregate submission', () => {
+        const spec = flattenQuestionnaire(aggregateForm)
+        const built = buildQuestionnaireResponse(spec, {}, aggregateForm, aggregateSkeleton, {
+            ...NO_CAPTURE_CONTEXT,
+            reportingPeriodIso: '202605',
+        })
+
+        expect(reportingPeriodOf(built)).toEqual({ iso: '202605', periodType: 'Monthly' })
+        expect(
+            built.extension
+                ?.find((extension) => extension.url.endsWith('/d2-period'))
+                ?.extension?.some((sub) => sub.url === 'period'),
+        ).toBe(false)
+    })
+
+    it('replaces either enrollment date in place, and writes neither where the draft states none', () => {
+        const carried = registrationSkeleton.extension ?? []
+        const withEnrolledAt = { ...registrationSkeleton, extension: extensionsWithEnrolledAt(carried, '2026-07-02T09:00:00Z') }
+        const withIncidentAt = { ...registrationSkeleton, extension: extensionsWithIncidentAt(carried, '2026-06-30T09:00:00Z') }
+
+        expect(enrolledAtOf(withEnrolledAt)).toBe('2026-07-02T09:00:00Z')
+        expect(incidentAtOf(withIncidentAt)).toBe('2026-06-30T09:00:00Z')
+        // Untouched by the other rewrite, and untouched by a date that is already the drafted one.
+        expect(incidentAtOf(withEnrolledAt)).toBe('2026-07-14T04:00:00Z')
+        expect(extensionsWithEnrolledAt(carried, null)).toBe(carried)
+        expect(extensionsWithEnrolledAt(carried, '2026-07-21T04:00:00Z')).toBe(carried)
+        // An aggregate envelope has no enrollment date to replace, so a stated one writes nothing.
+        expect(extensionsWithEnrolledAt(drafted, '2026-07-02T09:00:00Z')).toBe(drafted)
+    })
+
+    it('carries both stated dates through a whole rebuilt registration', () => {
+        const spec = flattenQuestionnaire(registrationForm)
+        const built = buildQuestionnaireResponse(spec, {}, registrationForm, registrationSkeleton, {
+            ...NO_CAPTURE_CONTEXT,
+            enrolledAt: '2026-07-02T09:00:00Z',
+            incidentAt: '2026-06-30T09:00:00Z',
+        })
+
+        expect(enrolledAtOf(built)).toBe('2026-07-02T09:00:00Z')
+        expect(incidentAtOf(built)).toBe('2026-06-30T09:00:00Z')
+        expect(built.extension?.map((extension) => extension.url)).toEqual(
+            registrationSkeleton.extension?.map((extension) => extension.url),
+        )
+    })
+
+    it('reads whether the program collects an incident date off the form’s own declaration', () => {
+        expect(collectsIncidentDate(registrationForm)).toBe(true)
+        expect(
+            collectsIncidentDate({
+                ...registrationForm,
+                extension: [
+                    {
+                        url: 'http://localhost:8080/fhir/StructureDefinition/d2-collects-incident-date',
+                        valueBoolean: false,
+                    },
+                ],
+            }),
+        ).toBe(false)
+        expect(collectsIncidentDate(aggregateForm)).toBe(false)
+    })
+
+    it('dates an event with the stated visit date, and with the drafted one when none is stated', () => {
+        const spec = flattenQuestionnaire(eventForm)
+
+        expect(
+            buildQuestionnaireResponse(spec, {}, eventForm, eventSkeleton, {
+                ...NO_CAPTURE_CONTEXT,
+                authored: '2026-07-02T09:00:00Z',
+            }).authored,
+        ).toBe('2026-07-02T09:00:00Z')
+        expect(buildQuestionnaireResponse(spec, {}, eventForm, eventSkeleton, NO_CAPTURE_CONTEXT).authored).toBe(
+            eventSkeleton.authored,
+        )
+        // With no envelope at all a stated date is still the submission's, which is all this screen
+        // can say about when a capture happened once `$generate` has been refused.
+        expect(
+            buildQuestionnaireResponse(spec, {}, eventForm, null, {
+                ...NO_CAPTURE_CONTEXT,
+                authored: '2026-07-02T09:00:00Z',
+            }).authored,
+        ).toBe('2026-07-02T09:00:00Z')
+    })
+
+    it('stamps what a datetime-local control holds as the wall time it states', () => {
+        // The one rule these controls share with the form's own date questions: the browser yields
+        // no zone, and the instant a capture states is the instant it states - never shifted by
+        // whichever zone the operator's laptop is in.
+        expect(normaliseDateTime('2026-07-02T09:00')).toBe('2026-07-02T09:00:00Z')
+        expect(dateTimeInputValue('2026-07-21T04:00:00Z')).toBe('2026-07-21T04:00:00')
+        // An untouched or emptied control states nothing, and the draft's own value rides.
+        expect(normaliseDateTime('')).toBeNull()
     })
 })

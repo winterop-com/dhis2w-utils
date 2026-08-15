@@ -385,6 +385,23 @@ export function levelOf(location: Location): OrgUnitLevel | null {
     }
 }
 
+/**
+ * How one level is spelled on screen: the display its CodeSystem states, else `Level <n>`.
+ *
+ * ONE SPELLING WHEREVER A LEVEL IS SHOWN. `level-3` is the concept code, and a code belongs where
+ * codes belong - in an identifier badge, in a query, in the document itself. A tree row saying
+ * `level-3` beside a panel saying `Level 3` is one fact wearing two costumes, and a reader has to
+ * work out that the two are the same fact before they can ignore one of them.
+ *
+ * The number comes off the code when the level CodeSystem published no display, and the code itself
+ * is the last resort - a project whose levels are not numbered at all is shown what it published.
+ */
+export function levelLabel(level: OrgUnitLevel): string {
+    if (level.display !== null && level.display !== '') return level.display
+    if (level.depth !== null) return `Level ${String(level.depth)}`
+    return level.code
+}
+
 /** What a unit is called, as page text - unescaped, and falling back to the id it is served under. */
 export function orgUnitName(location: Location): string {
     const raw = location.name

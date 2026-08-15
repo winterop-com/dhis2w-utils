@@ -11,6 +11,7 @@ import { orgUnitReference, referencedUnitId } from '@/lib/orgunits'
 import {
     dateTimeInputValue,
     EMPTY_SLOT,
+    TRUE_ONLY_VALUE_TYPE,
     type AnswerAction,
     type AnswerSlot,
     type QuestionnaireNode,
@@ -35,6 +36,12 @@ import {
  * published Location - and the set it may name is the form's own assignment, which is what
  * `OrgUnitPicker` offers. It is the one control here that needs the server, and the one whose
  * answer is a `value[x]` the reducer holds settled rather than a literal.
+ *
+ * WHY A BOOLEAN QUESTION HAS TWO SHAPES. R4 spells the DHIS2 value types `BOOLEAN` and `TRUE_ONLY`
+ * as one `#boolean` item type, and the question's own concept is what tells them apart - the
+ * `value-type` property of the served data dictionary, on `node.valueType`. A `BOOLEAN` takes Yes,
+ * No, or no answer; a `TRUE_ONLY` takes a tick or no answer, because DHIS2 stores no false value
+ * for one and a No offered here would be discarded on the way in.
  *
  * WHY SOME QUESTIONS STILL HAVE NO CONTROL. `attachment` needs a file and `quantity` has no DHIS2
  * wire spelling at all. Rather than fake either, the question is shown, named, and stated as
@@ -149,6 +156,27 @@ function SlotControl({
 
     switch (node.type) {
         case 'boolean':
+            // TWO STATES, NOT THREE, FOR A TRUE_ONLY QUESTION. R4 spells `BOOLEAN` and `TRUE_ONLY`
+            // as one `#boolean` item type, and the DHIS2 value types behind them differ on exactly
+            // one point: a TRUE_ONLY data element stores `true` or nothing, and the forwarder drops
+            // a `false` on the way to DHIS2. So the control for one is a tick that is either on or
+            // unanswered, and offers no No it would have to discard.
+            if (node.valueType === TRUE_ONLY_VALUE_TYPE) {
+                return (
+                    <div className="flex items-center gap-2">
+                        <Switch
+                            id={controlId}
+                            checked={slot.text === 'true'}
+                            disabled={disabled}
+                            aria-required={node.required}
+                            onCheckedChange={(checked) => write(checked ? 'true' : '')}
+                        />
+                        <span className="text-muted-foreground text-xs">
+                            {slot.text === 'true' ? 'Yes' : 'Not answered'}
+                        </span>
+                    </div>
+                )
+            }
             return (
                 <div className="flex items-center gap-2">
                     <Switch

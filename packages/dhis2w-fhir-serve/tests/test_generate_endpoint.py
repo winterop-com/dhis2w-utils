@@ -727,7 +727,7 @@ async def test_a_format_constrained_answer_is_spelled_the_way_its_dhis2_value_ty
     assert answered["DePhone0001"].startswith("+")
     assert answered["DePhone0001"][1:].isdigit()
     assert answered["DeEmail0001"].count("@") == 1
-    assert answered["DeEmail0001"].endswith("@example.invalid")
+    assert answered["DeEmail0001"].endswith("@example.com")
     assert answered["DeLetter001"].isalpha()
     assert len(answered["DeLetter001"]) == 1
     assert username.isalnum()

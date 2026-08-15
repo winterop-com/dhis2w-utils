@@ -4,12 +4,14 @@ import questionnaireBundleFixture from '@/lib/__fixtures__/questionnaire-bundle.
 import {
     defaultEnrollmentOption,
     enrollmentOptionOf,
+    personCardValues,
     registrationFormForProgram,
     registrationReceiptsFor,
     reloadedEnrollment,
     type EnrollmentOption,
 } from '@/lib/enrollments'
 import { bundleResources, type Bundle, type Questionnaire, type QuestionnaireResponse } from '@/lib/fhir'
+import type { PatientProjection } from '@/lib/patients'
 import type { SpoolResponseSummary } from '@/lib/spool'
 
 /**
@@ -244,5 +246,59 @@ describe('the selection after the offer reloads', () => {
         const unrelated = optionOf({ enrollment: 'EnOther0001', lifecycle: 'forwarded' })
 
         expect(reloadedEnrollment(chosen, [unrelated])).toBe(chosen)
+    })
+})
+
+/** One searched person in the shape the projection unpacks a served Patient into. */
+function personOf(overrides: Partial<PatientProjection>): PatientProjection {
+    return {
+        trackedEntityUid: 'TePerson001',
+        trackedEntityTypeUid: 'TetPerson01',
+        identifiers: [{ attributeUid: 'TeaNationId', value: '19740512-88' }],
+        attributeValues: [],
+        ...overrides,
+    }
+}
+
+describe('the values a picker card names a chosen person by', () => {
+    it('names each value through the dictionary this project published', () => {
+        const names = new Map([['TeaNationId', 'National identity number']])
+
+        expect(personCardValues(personOf({}), names)).toEqual([
+            {
+                key: 'TeaNationId-19740512-88',
+                attribute: 'National identity number',
+                isMachineSpelling: false,
+                value: '19740512-88',
+            },
+        ])
+    })
+
+    it('keeps the machine spelling for an attribute this project published no name for', () => {
+        const [named] = personCardValues(personOf({}), new Map())
+
+        expect(named.attribute).toBe('TeaNationId')
+        expect(named.isMachineSpelling).toBe(true)
+    })
+
+    it('names every unique value the person holds, in the order the projection carries them', () => {
+        const person = personOf({
+            identifiers: [
+                { attributeUid: 'TeaNationId', value: '19740512-88' },
+                { attributeUid: 'TeaChildRef', value: 'CH-4471' },
+            ],
+        })
+
+        expect(personCardValues(person, new Map()).map((value) => value.value)).toEqual(['19740512-88', 'CH-4471'])
+    })
+
+    it("leaves the describing values to the person's own page, carrying only what names them", () => {
+        const person = personOf({ attributeValues: [{ attributeUid: 'TeaHouseSize', attributeCode: null, value: '6' }] })
+
+        expect(personCardValues(person, new Map()).map((value) => value.value)).toEqual(['19740512-88'])
+    })
+
+    it('names nothing for a person holding no unique attribute, so the card states their uid once', () => {
+        expect(personCardValues(personOf({ identifiers: [] }), new Map())).toEqual([])
     })
 })

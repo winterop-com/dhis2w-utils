@@ -189,6 +189,53 @@ def test_details_prints_every_response_instead_of_writing_them(forward_project: 
     assert "do not match" in result.output
 
 
+def test_the_details_table_keeps_every_column_at_a_narrow_terminal(
+    forward_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A column squeezed to nothing tells the reader less than no column at all, so none is.
+
+    A run piped to a file gets Rich's eighty-column fall-back rather than a terminal's own width,
+    which is the width the outcomes table has to survive - six columns, one holding the receipt's
+    own thirty-two-character id and two more holding a sentence and a path.
+    """
+    monkeypatch.setenv("COLUMNS", "80")
+    receipt_id = "0026db13b7964b7785d1141238c81657"
+    report = _report(forward_project).model_copy(
+        update={
+            "outcomes": (
+                ForwardOutcome(
+                    response_id=receipt_id,
+                    questionnaire="http://example.org/fhir/Questionnaire/ScProgBbb01",
+                    target_kind=ConversionTargetKind.TRACKER_ENROLLMENT,
+                    kind=ForwardOutcomeKind.ACCEPTED,
+                    spool_path=f".serve/responses/forwarded/{receipt_id}.json",
+                ),
+            )
+        }
+    )
+    result, _ = _invoke(["--no-progress", "--details"], report)
+
+    for label in ("Response", "Target", "Outcome", "Notes", "Why", "Spool"):
+        assert label in result.output, result.output
+    header = next(line for line in result.output.splitlines() if "Response" in line and "Spool" in line)
+    for column in header.strip().strip("┃").split("┃"):
+        assert len(column.strip()) > 1, header
+
+
+def test_a_spool_path_too_wide_for_its_cell_keeps_the_end_that_names_the_receipt() -> None:
+    """A path cut at its front still says which file the row is; cut at its end it says nothing."""
+    from dhis2w_fhir.cli import _SPOOL_CELL_WIDTH, _truncate_path
+
+    short = ".serve/responses/received/Rx1.json"
+    long_path = f".serve/responses/received/{'d' * 60}.json"
+
+    assert _truncate_path(short, len(short)) == short
+    truncated = _truncate_path(long_path, _SPOOL_CELL_WIDTH)
+    assert len(truncated) == _SPOOL_CELL_WIDTH
+    assert truncated.startswith("...")
+    assert truncated.endswith(".json")
+
+
 def test_a_rejection_and_a_refusal_each_get_their_own_closing_line(forward_project: Path) -> None:
     """The two failure modes are different jobs, so the terminal never collapses them into one count."""
     result, _ = _invoke(["--no-progress"], _report(forward_project))

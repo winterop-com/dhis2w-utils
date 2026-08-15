@@ -411,7 +411,7 @@ def translate_tracker_registration_response(
         enrolledAt=enrolled_at,
         occurredAt=incident_at,
         status=REGISTERED_ENROLLMENT_STATUS,
-        attributes=_registration_attributes(translated, entity_level=False) or None,
+        attributes=_enrollment_attributes(translated, subject_exists=subject_exists) or None,
     )
     if subject_exists:
         return RegistrationTranslation(notes=tuple(notes), enrollment=created, target_kind=target_kind)
@@ -422,7 +422,7 @@ def translate_tracker_registration_response(
             trackedEntity=tracked_entity,
             trackedEntityType=tracked_entity_type,
             orgUnit=organisation_unit,
-            attributes=_registration_attributes(translated, entity_level=True),
+            attributes=_tracked_entity_attributes(translated),
             enrollments=[created],
         ),
     )
@@ -546,17 +546,25 @@ def _subject_exists(response: QuestionnaireResponse, context: ConversionContext)
 
 
 def _existing_subject_refusals(translated: TranslatedAnswers, form: FormSpec) -> tuple[ConversionRefusal, ...]:
-    """Refuse every answer belonging to the person's own record when the instance already holds that person.
+    """Refuse the optional answers belonging to the person's own record when the instance already holds them.
 
     An enrollment-only import carries the program's attributes and nothing else, so an entity-level
-    answer has nowhere on the payload to go. The alternative - wrapping the enrollment in a
-    `trackedEntities` entry so the attribute has a home - rewrites the owning organisation unit of a
-    person this response did not create (BUGS.md 73). Dropping the answer silently is the third
+    answer generally has nowhere on the payload to go. The alternative - wrapping the enrollment in
+    a `trackedEntities` entry so the attribute has a home - rewrites the owning organisation unit of
+    a person this response did not create (BUGS.md 73). Dropping the answer silently is the third
     option and the worst: a captured value that reaches no instance is data loss nobody is told
-    about. So the whole response is refused, each answer named, and the fix stated.
+    about. So an optional entity-level answer is refused, named, and the fix stated.
 
-    OWNER REVIEW: refusal is the strict reading of all-or-nothing. The looser reading - import the
-    enrollment and report the dropped answers as notes - is a policy decision, not a technical one.
+    The mandatory ones are the exception, and refusing them would make a whole shape of program
+    uncapturable. DHIS2 answers `E1018` to a *program-mandatory* attribute that arrives on nothing,
+    and a program may mark an attribute of its tracked entity type mandatory - so on such a program
+    every linked registration would be refused here and rejected by DHIS2 if it were not. What
+    resolves it is that a tracked entity attribute value and an enrollment attribute value are the
+    same store: stating the value on the enrollment satisfies `E1018` and writes the person's own
+    record with what it already holds. That is only true of the value the person already carries,
+    which is why the capture UI prefills a mandatory entity-level question read-only from the
+    chosen person and never offers it for editing - an edited value would be a mutation of a
+    record this response did not create, which is the very thing the refusal exists to prevent.
     """
     return tuple(
         ConversionRefusal(
@@ -565,16 +573,33 @@ def _existing_subject_refusals(translated: TranslatedAnswers, form: FormSpec) ->
             element="QuestionnaireResponse.item.answer",
             reason=f"`{answer.question.link_id}` is a question of the person's own record, and this response "
             f"enrols a person the instance already holds - so it imports as an enrollment alone, which "
-            f"carries no answer of that kind. Answer it on that person's own record, or capture a new "
-            f"person through `{form.canonical}` without stating that the subject already exists",
+            f"carries no optional answer of that kind. Answer it on that person's own record, or capture "
+            f"a new person through `{form.canonical}` without stating that the subject already exists",
         )
         for answer in translated.answers
-        if _is_entity_level(answer)
+        if _is_entity_level(answer) and not answer.question.required
     )
 
 
-def _registration_attributes(translated: TranslatedAnswers, *, entity_level: bool) -> list[TrackerAttribute]:
-    """The answers of one registration belonging to a single DHIS2 level, in the response's own order.
+def _enrollment_attributes(translated: TranslatedAnswers, *, subject_exists: bool) -> list[TrackerAttribute]:
+    """The answers one registration states on the enrollment it creates, in the response's own order.
+
+    A registration minting its own person splits the answers by level and the enrollment takes the
+    program's own attributes alone, the tracked entity taking the rest. A registration enrolling a
+    person the instance already holds mints no tracked entity, so the program's mandatory
+    entity-level questions ride the enrollment as well - which is what keeps `E1018` answered on a
+    program that marks an attribute of its tracked entity type mandatory. The value is the one the
+    person already carries, so the write restates the record rather than changing it.
+    """
+    return [
+        TrackerAttribute(attribute=answer.question.data_element_uid, value=answer.value)
+        for answer in translated.answers
+        if not _is_entity_level(answer) or (subject_exists and answer.question.required)
+    ]
+
+
+def _tracked_entity_attributes(translated: TranslatedAnswers) -> list[TrackerAttribute]:
+    """The answers one registration states on the person it mints, in the response's own order.
 
     A question stating no level counts as entity-level, so a guide compiled before `D2EntityLevel`
     was published writes every answer where it wrote them before: on the tracked entity.
@@ -582,7 +607,7 @@ def _registration_attributes(translated: TranslatedAnswers, *, entity_level: boo
     return [
         TrackerAttribute(attribute=answer.question.data_element_uid, value=answer.value)
         for answer in translated.answers
-        if _is_entity_level(answer) is entity_level
+        if _is_entity_level(answer)
     ]
 
 

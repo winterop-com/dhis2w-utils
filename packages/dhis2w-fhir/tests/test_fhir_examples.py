@@ -1785,7 +1785,7 @@ def test_a_unique_email_and_url_keep_the_shape_their_value_type_asks_for() -> No
     urls = _unique_values(_unique_registration("URL"), 4, [])
     phones = _unique_values(_unique_registration("PHONE_NUMBER"), 4, [])
 
-    assert all(value.endswith("@example.invalid") and value.count("@") == 1 for value in emails)
+    assert all(value.endswith("@example.com") and value.count("@") == 1 for value in emails)
     assert all(value.startswith("https://example.invalid/") for value in urls)
     assert all(value.startswith("+") and value[1:].isdigit() for value in phones)
 
