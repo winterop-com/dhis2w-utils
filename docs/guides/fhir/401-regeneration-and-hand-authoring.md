@@ -33,6 +33,12 @@ just produce. JSON carries no comment syntax, so none of
 its directory outright and deletes every `*.json` in it the run did not
 produce. That is also why each of the three has a directory to itself.
 
+`ig/input/resources/concept-maps/` is the one shared JSON directory, because
+two targets write into it. Neither owns it outright: each sweeps only the
+file-name prefix its own id stem produces (`ConceptMap-d2-os-`,
+`ConceptMap-d2-cat-`), so both still converge without deleting each other's
+maps. The same warning applies - nothing of yours belongs there either.
+
 !!! warning "Put nothing of your own under ig/input/resources/"
     Those directories are owned outright by their generate targets, and a
     file without a header cannot protect itself there. Everywhere else, the
