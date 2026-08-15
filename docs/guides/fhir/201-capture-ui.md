@@ -1,6 +1,15 @@
 # Capture in the browser
 
-**Who this is for:** the operator exercising a served guide by hand -
+The served endpoint answers machines. This turns the same endpoint into
+something a person can use: open a data set and it renders as a form with its
+sections, its disaggregated grids, and its option lists; open a tracker
+programme and it asks for the person, the enrolment dates, and the
+attributes DHIS2 collects at registration. Fill it in, submit it, and the
+submission comes back as a receipt you can read question by question. It is
+how you check that what came out of your instance is still the form your
+staff would recognise - not a replacement for the DHIS2 Capture app.
+
+**Who this is for:** the operator exercising a served project by hand -
 opening forms, filling them, and reading receipts - without writing a line
 of curl.
 
@@ -137,7 +146,10 @@ carries the rest as extensions the screen reads:
   drawn value shaped like a real identifier would be a claim about a person
   this server has no grounds to make. The capture validator holds the same rule
   from the other side and admits the absence even where the form marks the
-  question required.
+  question required. The shape is DHIS2's own text pattern, verbatim - the
+  Child Programme's *Unique ID (Play)* reads *DHIS2 fills this in when the
+  submission is imported, shaped `RANDOM(#######)`* - so what the screen shows
+  is the rule the instance will apply, not an example of its output.
 
 ![An aggregate form filled with test data, with the reporting-unit picker and the attribute option combo picker above the questions](../../img/fhir/capture-ui-form-fill.png)
 
@@ -169,10 +181,20 @@ sit above the questions - both visible in the screenshot:
   answered and Submit is never blocked on it. What it offers is the
   published registry narrowed to the form's own organisation-unit assignment
   - exactly the set the facade grades a submission against, so the control
-  cannot produce a capture the server refuses with `E1029`. Search by name,
-  uid, or DHIS2 code, or switch the popover to **Browse** and walk the
-  hierarchy, where units the assignment does not name are shown disabled as
-  the parent chain that tells two facilities of the same name apart.
+  cannot produce a capture the server refuses with `E1029`. It says how large
+  that set is - *1166 organisation units are assigned to this form* - and what
+  stepping outside it would cost. Search by name, uid, or DHIS2 code, or
+  switch the popover to **Browse** and walk the hierarchy, where units the
+  assignment does not name are shown disabled as the parent chain that tells
+  two facilities of the same name apart.
+
+    **The unit you choose sticks for the browser tab**, so the next form opens
+    reporting from it - a morning spent filing for one facility is one choice,
+    not one per form. The control says so under itself. It is a fact about
+    what you are doing right now rather than a setting: a fresh tab starts
+    fresh, which is also what makes two tabs open on two facilities something
+    you can do, and a browser that refuses storage simply keeps nothing and
+    opens each form on the server's own draw.
 - Beside it, for a data set on a non-default category combo, is the
   **attribute option combo** the whole submission is filed under. It opens
   *Not chosen* and blocks Submit until it has a value, because nothing derives
@@ -202,14 +224,16 @@ because a registration typed up on Thursday is not a registration filed on
 Thursday, while the minted uid is stated and not asked.
 
 **The dates wear the words the instance uses for them.** DHIS2 lets a
-programme rename all three - an antenatal programme's enrollment date is
-"Date first seen" and its incident date "Date of last menstrual period" - and
-a generated form carries whatever the instance states on `D2DateLabels`. The
-controls take their labels from there, falling back to this project's own
-fact-stating words (*Enrollment date*, *Incident date*, *Visit date*) for a
-date the instance renamed not at all. The receipt page labels the same facts
-through the same function, so a programme's own word for a date reads the same
-on the form and on the receipt rather than in one place out of two.
+programme rename all three, and a generated form carries whatever the
+instance states on `D2DateLabels`. On the Sierra Leone demo database the
+Child Programme's registration form reads *Date of enrollment* and *Date of
+birth* - the second being that programme's own word for the incident date,
+which is the whole reason the label is read off the instance rather than
+guessed. The controls fall back to this project's own fact-stating words
+(*Enrollment date*, *Incident date*, *Visit date*) for a date the instance
+renamed not at all. The receipt page labels the same facts through the same
+function, so a programme's own word for a date reads the same on the form and
+on the receipt rather than in one place out of two.
 
 ### Who a registration is about
 
@@ -291,12 +315,15 @@ form without opening a terminal.
 ## Responses, and the receipt
 
 **Responses** is every receipt this server holds, newest first: when it
-arrived, which form it answers, how many answers it carries, its receipt id,
-and - the column that matters - **which lifecycle state it is in**.
-`Received` is the queue [`d2w fhir forward`](201-forward.md) drains,
-`Forwarded` means DHIS2 took it, and `Rejected` means DHIS2 refused it. The
-state filter lives in the URL (`#/responses?lifecycle=rejected`), which is
-what lets the Overview's tiles link straight into a narrowed table.
+arrived, which form it answers, the DHIS2 capture model that form came from,
+how many answers it carries, its receipt id, and - the column that matters -
+**which lifecycle state it is in**. `Received` is the queue
+[`d2w fhir forward`](201-forward.md) drains, `Forwarded` means DHIS2 took it,
+and `Rejected` means DHIS2 refused it. Two filters sit above the table: the
+lifecycle states as a button group, each carrying its own count, and a form
+picker for narrowing to one questionnaire. The state filter lives in the URL
+(`#/responses?lifecycle=rejected`), which is what lets the Overview's tiles
+link straight into a narrowed table.
 
 A row opens the receipt at `/responses/{id}` - a page rather than a dialog,
 so one receipt is a link you can send someone:
@@ -326,11 +353,12 @@ which refetches on focus.
 
 ## The register
 
-A **live** server carries one more page: the people - or the specimen batches,
-or the herds - the DHIS2 instance holds. It is in the navigation only when this
-server answers about the instance's tracked entities - a compiled guide has no
-instance behind it, and a project that states `[serve.tracked_entities] enabled
-= false` has said it does not want the surface at all
+A **live** server carries one more page, at `#/tracked-entities`: the people -
+or the specimen batches, or the herds - the DHIS2 instance holds. It is in the
+navigation only when this server answers about the instance's tracked entities
+- a compiled guide has no instance behind it, and a project that states
+`[serve.tracked_entities] enabled = false` has said it does not want the
+surface at all
 ([Configure serving](301-serving.md#tracked_entities)). In both cases there is no
 page, rather than a page that apologises.
 
@@ -360,30 +388,38 @@ declares unique **or** searchable, which is what makes finding a woman by her
 first name work where the instance marks that attribute searchable - and it means
 a search can honestly come back with several people who share a value, which the
 list below is already the shape for. What it never does is guess: there is no
-attribute it treats as a name because DHIS2 declares none. Type nothing and the page lists the people the instance holds,
-twenty at a time, with **Next** and **Previous** underneath. Searching is for a
-clerk holding a card; browsing is for one who is not.
+attribute it treats as a name because DHIS2 declares none. Type nothing and the
+page lists the people the instance holds, twenty-five at a time, with **Next**
+and **Previous** underneath. Searching is for a clerk holding a card; browsing is
+for one who is not.
 
-How many a page holds is `[serve.tracked_entities] page_size`, and a project that
-states `listing = false` has kept the search and dropped the browsing: the page
-then opens on its search box alone, with nothing to page through. That is a
-posture rather than a fault - looking up somebody a clerk can already name is a
+The screen asks for its own page of twenty-five;
+`[serve.tracked_entities] page_size` is what the endpoint answers a caller that
+asks for no size at all, and `page_size_limit` caps what any caller may ask for
+([Configure serving](301-serving.md#tracked_entities)). A project that states
+`listing = false` has kept the search and dropped the browsing: the page then
+opens on its search box alone, with nothing to page through. That is a posture
+rather than a fault - looking up somebody a clerk can already name is a
 different act from paging through everyone an instance holds, and a deployment
 may offer the first without the second.
 
-A count of all the people sits above the list when DHIS2 states one, and stays
-away when it does not - the instance does not always count what it pages, and
-"137 people" is worth showing only when it is true. Where there is no count,
-the paging controls are the whole of what the page claims: there is a next page
-or there is not.
+A count of all the people sits with the paging controls when DHIS2 states one -
+*Showing 25 of 515 people this DHIS2 instance holds as tracked entities* - and
+stays away when it does not, because the instance does not always count what it
+pages and "137 people" is worth showing only when it is true. Where there is no
+count, the paging controls are the whole of what the page claims: there is a
+next page or there is not.
 
 **What a row shows is what the server states about a person, and nothing
-more.** The value of a unique attribute leads, because that is the value that
-names them; the other attribute values sit beside it, and the DHIS2 tracked
-entity id is last. There is no name column. DHIS2 states no attribute that
-means a name - which of an instance's attributes carry one is that instance's
-own decision - so a name column would be this page guessing, and a wrong name
-on a person's row is worse than no name at all.
+more.** Four columns: the identifier values that name them - the values of the
+attributes DHIS2 declares unique, each labelled with the attribute it belongs
+to - then the DHIS2 tracked entity uid, then the type the instance holds them
+as, then the rest of the attribute values with a count of any left over. A
+person the instance holds no unique value for shows a dash in the first column
+and is still findable and still openable by their uid. There is no name column.
+DHIS2 states no attribute that means a name - which of an instance's attributes
+carry one is that instance's own decision - so a name column would be this page
+guessing, and a wrong name on a person's row is worse than no name at all.
 
 **Which attribute values a row shows is DHIS2's choice where DHIS2 made one.**
 An administrator marks the attributes that belong in a list of a type's
@@ -475,7 +511,11 @@ app in a new tab. It is there in three places:
 - each **Data sets** and **Programs** row of that rail, on the data set,
   program, or program stage the form was generated from;
 - each concept row of the data-element dictionary (`D2DE_CS`), on the data
-  element the concept code is the uid of.
+  element the concept code is the uid of;
+- each enrollment listed on a person's page in the register, which opens that
+  enrollment in the instance's **Capture** app rather than in Maintenance -
+  an enrollment is a record about somebody, not a metadata object, and
+  Capture is where DHIS2 shows it.
 
 **The links exist only when the server knows which instance to point at.**
 The address comes from the DHIS2 profile the serve run resolved (see

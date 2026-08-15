@@ -161,8 +161,6 @@ and it is taken verbatim rather than intersected with the published one - a UID
 it names that the guide never published is served as a `Patient`
 ([Configure serving](301-serving.md#tracked_entities)).
 
-<a id="patient-who-a-person-is-in-the-instance"></a>
-
 ### The register search: `identifier`
 
 Every search above answers from what the project published. This one answers
