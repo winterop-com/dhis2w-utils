@@ -1,12 +1,16 @@
 # fhir.toml.example - every option `d2w fhir generate` and `d2w fhir serve` understand,
 # with its default. Copy what you need into fhir.toml; omitted options keep these defaults.
 #
+# Nothing reads this file. It is the catalog you copy option lines out of, which is also the
+# easiest way to get an option's spelling right: fhir.toml refuses a name it does not declare.
+#
 # Every option is explained in depth - what it controls, when to change it, and what the
 # error looks like when it is wrong - at
 # https://winterop-com.github.io/dhis2w-utils/guides/fhir/
 # A pointer like `-> 301-generation#timezone` names the page and the section there.
 
-# Which saved DHIS2 server connection to read from; `-p` / `DHIS2_PROFILE` win. -> 301-identity#profile
+# Which saved DHIS2 server connection to read from; `-p` then `DHIS2_PROFILE` win over
+# this line, in that order. -> 301-identity#profile
 # profile = "myserver"
 
 [ig]
@@ -22,12 +26,15 @@ status = "{{ status }}"
 [generate]
 # Web-address stem of the DHIS2 identifiers every published entry carries. -> 301-generation#identifier_system_base
 identifier_system_base = "http://dhis2.org/fhir"
-# Whether a published option's code is its DHIS2 id or its DHIS2 code. -> 301-generation#concept_code_source
+# Whether a published concept's code is its DHIS2 id or its DHIS2 code; reaches option sets,
+# categories, and category option combos. `d2w fhir validate --code-source code` reports what
+# switching would cost before you switch. -> 301-generation#concept_code_source
 concept_code_source = "id"
 # IANA time zone the server's clock times are read in ("Asia/Vientiane"). -> 301-generation#timezone
 # timezone = "Asia/Vientiane"
 # Languages to publish translations for (absent = every language found). -> 301-generation#locales
-# Reaches concept designations, form and vocabulary titles, and question labels.
+# Reaches concept designations, form and vocabulary titles, question labels, the guidance text
+# under a question or a section, and the words a form puts on its dates.
 # locales = ["lo", "en"]
 
 [generate.naming]
@@ -57,6 +64,7 @@ tracked_entity_type = "TET"         # the person-only registration form -> 301-g
 
 [generate.data_sets]
 # Data sets to publish as forms, by UID (absent = all data sets). -> 301-what-goes-in#data-sets
+# A UID that matches nothing on the instance is named in the run's notes. -> 301-what-goes-in#reading-the-notes
 # include_ids = ["BfMAe6Itzgt"]
 
 [generate.event_programs]
@@ -86,12 +94,12 @@ per_target = 1
 source = "synthetic"
 
 [generate.organisation_units]
-# Which part of the org-unit tree the guide covers - the size lever. -> 301-what-goes-in#organisation-units
-# Top unit to start from, by UID (absent = the whole tree). -> 301-what-goes-in#root
+# Which part of the organisation unit tree the guide covers - the size lever. -> 301-what-goes-in#organisation-units
+# Top organisation unit to start from, by UID (absent = the whole tree). -> 301-what-goes-in#root
 # root = "ImspTQPwCqd"
 # Deepest level to include (absent = every level). -> 301-what-goes-in#max_level
 # max_level = 4
-# Also publish the org-unit code list. -> 301-what-goes-in#terminology
+# Also publish the organisation unit code list. -> 301-what-goes-in#terminology
 terminology = false
 
 [serve]
@@ -101,12 +109,9 @@ port = 8080                         # a local dev DHIS2 commonly owns 8080; port
 strict_codes = false                # true refuses an out-of-list answer instead of warning -> 301-serving#strict_codes
 ui = false                          # true also serves the data-entry screens at / -> 301-serving#ui
 
-[forward]
-# What `d2w fhir forward` reads when this project holds no compiled guide. -> 301-serving#forward
-live = true                         # false refuses instead, naming generate and sushi -> 301-serving#forward
-
 [serve.tracked_entities]
-# What a live run answers about the instance's tracked entities; a compiled guide answers none of it. -> 301-serving#tracked_entities
+# What a live run answers about the instance's tracked entities; a compiled guide answers none
+# of it, and no command-line flag overrides this table. -> 301-serving#tracked_entities
 enabled = true                      # false answers nothing about tracked entities, even under --live -> 301-serving#tracked_entities-enabled
 listing = true                      # false keeps identifier search and drops the browse listing -> 301-serving#tracked_entities-listing
 page_size = 20                      # rows per page when the caller asks for no size -> 301-serving#tracked_entities-page_size
@@ -118,7 +123,7 @@ page_size_limit = 100               # the largest page anyone may ask for; a big
 # (absent = the attributes DHIS2 declares unique or searchable). -> 301-serving#tracked_entities-search_attributes
 # search_attributes = ["lZGmxYbs97q"]
 
-# The map backgrounds the organisation-unit map offers - the one outbound call. The screens'
+# The map backgrounds the organisation unit map offers - the one outbound call. The screens'
 # layer control lists these in order, opens on the first, and always carries a None entry
 # beside them, so drawing the boundaries on a plain canvas is a click. `basemaps = []` offers
 # nothing but None, which is the fully offline posture. -> 301-serving#basemaps
@@ -133,3 +138,7 @@ url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 # [[serve.basemaps]]
 # name = "Satellite"
 # url = "https://tiles.example.org/satellite/{z}/{x}/{y}.jpg?api_key=YOUR_KEY"
+
+[forward]
+# What `d2w fhir forward` reads when this project holds no compiled guide. -> 301-serving#forward
+live = true                         # false refuses instead, naming generate and sushi -> 301-serving#live
