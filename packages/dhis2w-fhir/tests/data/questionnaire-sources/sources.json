@@ -2252,7 +2252,9 @@
         "attribute_uid": "AtrFhirDsQ1",
         "value": "Paper register 12A, revision 2025-03"
       }
-    ]
+    ],
+    "program_rules": [],
+    "program_rule_variables": []
   },
   {
     "uid": "TuL8IOPzpHh",
@@ -2814,7 +2816,9 @@
         }
       }
     ],
-    "attribute_values": []
+    "attribute_values": [],
+    "program_rules": [],
+    "program_rule_variables": []
   },
   {
     "uid": "PsAncVisit1",
@@ -2941,7 +2945,9 @@
         }
       }
     ],
-    "attribute_values": []
+    "attribute_values": [],
+    "program_rules": [],
+    "program_rule_variables": []
   },
   {
     "uid": "lxAQ7Zs9VYR",
@@ -3067,7 +3073,60 @@
         }
       }
     ],
-    "attribute_values": []
+    "attribute_values": [],
+    "program_rules": [
+      {
+        "uid": "GC4gpdoSD4r",
+        "name": "Hemoglobin warning",
+        "description": "Show warning if hemoglobin is dangerously low",
+        "condition": "#{hemoglobin} < 9",
+        "translations": [],
+        "actions": [
+          {
+            "action_type": "SHOWWARNING",
+            "data_element_uid": "vANAXwtLwcT"
+          }
+        ]
+      },
+      {
+        "uid": "xOe5qCzRS0Y",
+        "name": "Hide smoking cessation councelling",
+        "description": "Hide smoking cessation councelling dataelement unless patient is smoking",
+        "condition": "!#{womanSmoking} ",
+        "translations": [],
+        "actions": [
+          {
+            "action_type": "HIDEFIELD",
+            "data_element_uid": "Ok9OQpitjQr"
+          }
+        ]
+      },
+      {
+        "uid": "dahuKlP7jR2",
+        "name": "Show error for high hemoglobin value",
+        "description": "Show error for hemoglobin value higher than 99",
+        "condition": "#{hemoglobin} > 99",
+        "translations": [],
+        "actions": [
+          {
+            "action_type": "SHOWERROR",
+            "data_element_uid": "vANAXwtLwcT"
+          }
+        ]
+      }
+    ],
+    "program_rule_variables": [
+      {
+        "name": "hemoglobin",
+        "source_type": "DATAELEMENT_NEWEST_EVENT_PROGRAM",
+        "data_element_uid": "vANAXwtLwcT"
+      },
+      {
+        "name": "womanSmoking",
+        "source_type": "DATAELEMENT_NEWEST_EVENT_PROGRAM",
+        "data_element_uid": "sWoqcoByYmD"
+      }
+    ]
   },
   {
     "uid": "A03MvHHogjR",
@@ -3396,7 +3455,60 @@
         }
       }
     ],
-    "attribute_values": []
+    "attribute_values": [],
+    "program_rules": [
+      {
+        "uid": "NAgjOfWMXg6",
+        "name": "Ask for comment for low apgar",
+        "description": "Show warrning if Apgar is between 0 and 4 and there is no comment provided.",
+        "condition": "#{apgarscore} >= 0 && #{apgarscore} < 4 && #{apgarcomment} == ''",
+        "translations": [],
+        "actions": [
+          {
+            "action_type": "SHOWWARNING",
+            "data_element_uid": "H6uSAMO5WLD"
+          }
+        ]
+      },
+      {
+        "uid": "tTPMkizzUZg",
+        "name": "Demand comment if apgar is under zero",
+        "description": "If Apgar is provided as being under zero and there is no comment for the anomaly, show an error message.",
+        "condition": "#{apgarscore} <0 && #{apgarcomment} == ''",
+        "translations": [],
+        "actions": [
+          {
+            "action_type": "SHOWERROR",
+            "data_element_uid": "a3kGcGDCuk6"
+          }
+        ]
+      },
+      {
+        "uid": "ppdTpuQC7Q5",
+        "name": "Hide Apgar comment if score > 7",
+        "description": "Hide Apgar comment if score > 7",
+        "condition": "#{apgarscore} > 7",
+        "translations": [],
+        "actions": [
+          {
+            "action_type": "HIDEFIELD",
+            "data_element_uid": "H6uSAMO5WLD"
+          }
+        ]
+      }
+    ],
+    "program_rule_variables": [
+      {
+        "name": "apgarscore",
+        "source_type": "DATAELEMENT_NEWEST_EVENT_PROGRAM",
+        "data_element_uid": "a3kGcGDCuk6"
+      },
+      {
+        "name": "apgarcomment",
+        "source_type": "DATAELEMENT_NEWEST_EVENT_PROGRAM",
+        "data_element_uid": "H6uSAMO5WLD"
+      }
+    ]
   },
   {
     "uid": "ZzYYXq4fJie",
@@ -3960,7 +4072,60 @@
         }
       }
     ],
-    "attribute_values": []
+    "attribute_values": [],
+    "program_rules": [
+      {
+        "uid": "NAgjOfWMXg6",
+        "name": "Ask for comment for low apgar",
+        "description": "Show warrning if Apgar is between 0 and 4 and there is no comment provided.",
+        "condition": "#{apgarscore} >= 0 && #{apgarscore} < 4 && #{apgarcomment} == ''",
+        "translations": [],
+        "actions": [
+          {
+            "action_type": "SHOWWARNING",
+            "data_element_uid": "H6uSAMO5WLD"
+          }
+        ]
+      },
+      {
+        "uid": "tTPMkizzUZg",
+        "name": "Demand comment if apgar is under zero",
+        "description": "If Apgar is provided as being under zero and there is no comment for the anomaly, show an error message.",
+        "condition": "#{apgarscore} <0 && #{apgarcomment} == ''",
+        "translations": [],
+        "actions": [
+          {
+            "action_type": "SHOWERROR",
+            "data_element_uid": "a3kGcGDCuk6"
+          }
+        ]
+      },
+      {
+        "uid": "ppdTpuQC7Q5",
+        "name": "Hide Apgar comment if score > 7",
+        "description": "Hide Apgar comment if score > 7",
+        "condition": "#{apgarscore} > 7",
+        "translations": [],
+        "actions": [
+          {
+            "action_type": "HIDEFIELD",
+            "data_element_uid": "H6uSAMO5WLD"
+          }
+        ]
+      }
+    ],
+    "program_rule_variables": [
+      {
+        "name": "apgarscore",
+        "source_type": "DATAELEMENT_NEWEST_EVENT_PROGRAM",
+        "data_element_uid": "a3kGcGDCuk6"
+      },
+      {
+        "name": "apgarcomment",
+        "source_type": "DATAELEMENT_NEWEST_EVENT_PROGRAM",
+        "data_element_uid": "H6uSAMO5WLD"
+      }
+    ]
   },
   {
     "uid": "EVTsupVis01",
@@ -4119,6 +4284,8 @@
         }
       }
     ],
-    "attribute_values": []
+    "attribute_values": [],
+    "program_rules": [],
+    "program_rule_variables": []
   }
 ]

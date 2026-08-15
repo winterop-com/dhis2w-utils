@@ -28,11 +28,13 @@ from dhis2w_fhir.conversion.artifacts import (
     BoundQuestionUids,
     CompiledArtifacts,
     CompiledIgMissingError,
+    ProgramRuleNames,
     SourcedDocument,
     bound_question_uids,
     build_project_context,
     collect_artifacts,
     load_compiled_artifacts,
+    program_rule_names,
 )
 from dhis2w_fhir.conversion.schemas import (
     FORWARD_TARGET_ORDER,
@@ -130,6 +132,9 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryOptionComboIn,
     FormKind,
     ProgramContextIn,
+    ProgramRuleActionIn,
+    ProgramRuleIn,
+    ProgramRuleVariableIn,
     QuestionnaireItemIn,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
@@ -169,6 +174,7 @@ if TYPE_CHECKING:
         OptionSet,
         OrganisationUnit,
         Program,
+        ProgramRule,
         TrackedEntityAttribute,
         TrackedEntityType,
     )
@@ -302,10 +308,25 @@ _TRACKED_ENTITY_TYPE_FIELDS = (
     "trackedEntityTypeAttributes[mandatory,searchable,displayInList,sortOrder,"
     f"{_QUESTIONNAIRE_TRACKED_ENTITY_ATTRIBUTE_FIELDS}]"
 )
+#: The rule-variable projection, which rides the program read the forms already cost. DHIS2 holds
+#: `programRuleVariables` as a collection on Program, so knowing which question a rule condition
+#: reads is worth no extra request - unlike the rules themselves, which the Program schema does not
+#: carry at all and which `_fetch_program_rules` therefore reads on their own.
+_PROGRAM_RULE_VARIABLE_FIELDS = (
+    "programRuleVariables[id,name,programRuleVariableSourceType,dataElement[id],trackedEntityAttribute[id]]"
+)
+
 _PROGRAM_FIELDS = (
     f"id,name,code,description,programType,{_TRANSLATION_FIELDS},"
-    f"{_ATTRIBUTE_VALUE_FIELDS},{_PROGRAM_ATTRIBUTE_FIELDS},"
+    f"{_ATTRIBUTE_VALUE_FIELDS},{_PROGRAM_ATTRIBUTE_FIELDS},{_PROGRAM_RULE_VARIABLE_FIELDS},"
     f"programStages[{_PROGRAM_STAGE_FIELDS}]"
+)
+
+#: The program-rule projection: the expression the server evaluates, the rule's identity and its
+#: translations, and every action it takes with whichever question the action lands on.
+_PROGRAM_RULE_FIELDS = (
+    f"id,name,description,condition,program[id],{_TRANSLATION_FIELDS},"
+    "programRuleActions[programRuleActionType,dataElement[id],trackedEntityAttribute[id]]"
 )
 
 #: The attribute projection the emit-time join reads: an attribute's UID, its code, and whether
@@ -358,6 +379,12 @@ _LOAD_SET_DATA_SET_FIELDS = "id,organisationUnits[id]"
 #: The id-only program projection the load set reads its capture constraints from. DHIS2 hangs the
 #: assignment on the program, so a tracker stage is placed by the program's units rather than its own.
 _LOAD_SET_PROGRAM_FIELDS = "id,organisationUnits[id]"
+
+
+class ProgramRuleIndex(BaseModel):
+    """One run's program rules, keyed by the program each belongs to, in the order the instance returned them."""
+
+    rules_by_program: dict[str, list[ProgramRuleIn]] = Field(default_factory=dict)
 
 
 class GenerateReport(BaseModel):
@@ -2776,29 +2803,128 @@ async def _fetch_program_sources(
     """
     event_ids = config.event_programs.include_ids
     tracker_ids = config.tracker_programs.include_ids
+    variables: dict[str, list[ProgramRuleVariableIn]] = {}
     if not event_ids and not tracker_ids:
-        return _swept_program_sources(await _list_programs(client, None), notes)
+        swept = await _list_programs(client, None)
+        variables.update({model.id or "": _program_rule_variable_inputs(model) for model in swept})
+        return _with_program_rules(_swept_program_sources(swept, notes), await _fetch_program_rules(client), variables)
     sources: list[QuestionnaireSourceIn] = []
     if event_ids:
         selected = await _list_programs(client, event_ids)
         sources.extend(_event_program_source(model, notes) for model in selected)
+        variables.update({model.id or "": _program_rule_variable_inputs(model) for model in selected})
         _note_unmatched(event_ids, {model.id for model in selected}, "event_programs", "event program", notes)
     else:
         swept = await _list_programs(client, None)
-        sources.extend(
-            _event_program_source(model, notes) for model in swept if _program_type(model) == _EVENT_PROGRAM_TYPE
-        )
+        events = [model for model in swept if _program_type(model) == _EVENT_PROGRAM_TYPE]
+        sources.extend(_event_program_source(model, notes) for model in events)
+        variables.update({model.id or "": _program_rule_variable_inputs(model) for model in events})
     if tracker_ids:
         selected = await _list_programs(client, tracker_ids)
         for model in selected:
             sources.extend(_tracker_program_sources(model, notes))
+            variables[model.id or ""] = _program_rule_variable_inputs(model)
         _note_unmatched(tracker_ids, {model.id for model in selected}, "tracker_programs", "tracker program", notes)
     else:
         swept = await _list_programs(client, None)
         for model in swept:
             if _program_type(model) == _TRACKER_PROGRAM_TYPE:
                 sources.extend(_tracker_program_sources(model, notes))
-    return sources
+                variables[model.id or ""] = _program_rule_variable_inputs(model)
+    return _with_program_rules(sources, await _fetch_program_rules(client), variables)
+
+
+async def _fetch_program_rules(client: Dhis2Client) -> ProgramRuleIndex:
+    """Read every program rule the instance holds, in one request, indexed by the program it belongs to.
+
+    The one read this target adds. `programRuleVariables` is a collection on Program and rides the
+    program projection the forms already cost, but `programRules` is not on the Program schema at
+    all - DHIS2 drops the field from the projection without complaint rather than answering it - so
+    the rules cost a request of their own. Unfiltered, because a run selecting no program at all
+    still costs one request and the rules of every published program then need no second read.
+    """
+    models: list[ProgramRule] = await client.resources.program_rules.list(
+        fields=_PROGRAM_RULE_FIELDS, order=["name:asc"], paging=False
+    )
+    index = ProgramRuleIndex()
+    for model in models:
+        program_uid = _referenced_uid(model.program)
+        if program_uid is None:
+            continue
+        index.rules_by_program.setdefault(program_uid, []).append(_program_rule_input(model))
+    return index
+
+
+def _program_rule_input(model: ProgramRule) -> ProgramRuleIn:
+    """Map one wire program rule onto the projection the emitters read it through."""
+    uid = model.id or ""
+    return ProgramRuleIn(
+        uid=uid,
+        name=model.name or uid,
+        description=model.description,
+        condition=model.condition or "",
+        translations=_translation_inputs(model.translations),
+        actions=[
+            ProgramRuleActionIn(
+                action_type=_optional_text(action.get("programRuleActionType")) or "",
+                data_element_uid=_referenced_uid(action.get("dataElement")),
+                tracked_entity_attribute_uid=_referenced_uid(action.get("trackedEntityAttribute")),
+            )
+            for action in model.programRuleActions or []
+            if isinstance(action, dict)
+        ],
+    )
+
+
+def _program_rule_variable_inputs(model: Program) -> list[ProgramRuleVariableIn]:
+    """The rule variables one program declares, read off the program projection they ride in on."""
+    return [
+        ProgramRuleVariableIn(
+            name=_optional_text(variable.get("name")) or "",
+            source_type=_optional_text(variable.get("programRuleVariableSourceType")) or "",
+            data_element_uid=_referenced_uid(variable.get("dataElement")),
+            tracked_entity_attribute_uid=_referenced_uid(variable.get("trackedEntityAttribute")),
+        )
+        for variable in model.programRuleVariables or []
+        if isinstance(variable, dict)
+    ]
+
+
+def _referenced_uid(reference: object) -> str | None:
+    """The UID one wire reference names, whichever shape it arrives in, or None where DHIS2 sent none.
+
+    A projection the generated model declares - `ProgramRule.program` - arrives as a typed
+    `Reference`, and one it does not - a rule action's data element, nested inside a collection the
+    model leaves loose - arrives as the raw object. Both are the same DHIS2 fact, so both are read
+    here rather than at each call site.
+    """
+    uid = reference.get("id") if isinstance(reference, dict) else getattr(reference, "id", None)
+    return _optional_text(uid)
+
+
+def _with_program_rules(
+    sources: list[QuestionnaireSourceIn],
+    rules: ProgramRuleIndex,
+    variables: dict[str, list[ProgramRuleVariableIn]],
+) -> list[QuestionnaireSourceIn]:
+    """Carry each program's rules and rule variables onto every form that program publishes.
+
+    A rule is the program's rather than one stage's, so a stage form, its siblings, and the
+    registration form beside them all state the same list: a consumer holding one form learns from
+    that form alone which rules the server may refuse its answers under.
+    """
+    carried: list[QuestionnaireSourceIn] = []
+    for source in sources:
+        program_uid = source.program.uid if source.kind == "tracker-event" and source.program else source.uid
+        carried.append(
+            source.model_copy(
+                update={
+                    "program_rules": rules.rules_by_program.get(program_uid, []),
+                    "program_rule_variables": variables.get(program_uid, []),
+                }
+            )
+        )
+    return carried
 
 
 async def _list_programs(client: Dhis2Client, uids: list[str] | None) -> list[Program]:
@@ -4280,6 +4406,9 @@ class ForwardReport(BaseModel):
     stopped: ForwardStop | None = None
     """Why the drain stopped short, when it did; None is a run that was through the whole spool."""
 
+    program_rule_names: ProgramRuleNames = Field(default_factory=ProgramRuleNames)
+    """The rules the guide publishes, which is what lets a refusal name the rule rather than a UID."""
+
     @property
     def refused(self) -> tuple[ForwardOutcome, ...]:
         """Every response the translator would not read whole, which is every response that stayed put."""
@@ -4371,7 +4500,7 @@ class ForwardReport(BaseModel):
             issues = imported.issues if imported is not None else ()
             causes: dict[tuple[str | None, str], str] = {}
             for issue in issues:
-                reason = _generalised_reason(issue.reason)
+                reason = _generalised_reason(issue.reason, self.program_rule_names)
                 causes.setdefault(_rejection_cause_key(issue.error_code, reason), reason)
             if not causes:
                 message = (imported.message or "DHIS2 gave no reason") if imported is not None else ""
@@ -4552,6 +4681,7 @@ async def forward_responses(
         outcomes=outcomes,
         unreadable_artifacts=artifacts.unreadable_resources,
         stopped=posted.stopped,
+        program_rule_names=program_rule_names(artifacts, naming),
     )
     progress.complete(report.counts_line)
     return report
@@ -4940,9 +5070,21 @@ def _tracker_issue(error: TrackerImportError) -> ForwardImportIssue:
     return ForwardImportIssue(error_code=error.errorCode, subject=error.uid, message=error.message)
 
 
-def _generalised_reason(reason: str) -> str:
-    """One DHIS2 message with its quoted identifiers generalised away, so one rule reads as one cause."""
-    return _QUOTED_IDENTIFIER.sub("`...`", reason)
+def _generalised_reason(reason: str, rule_names: ProgramRuleNames) -> str:
+    """One DHIS2 message read back for a person: a published rule by name, every other UID generalised away.
+
+    DHIS2 names the program rule that refused an import by UID alone (`E1300`), and the guide
+    published that UID beside the rule's own name, so the roll-up says which rule refused rather
+    than which twelve characters did. Every other quoted identifier still generalises, because two
+    rejections of one rule against two different objects are one cause of the run. The UID itself is
+    untouched on the response's own report, which is where a reader goes for the object.
+    """
+
+    def _read(match: re.Match[str]) -> str:
+        name = rule_names.name_for(match.group(0).strip("`"))
+        return f"`{name}`" if name is not None else "`...`"
+
+    return _QUOTED_IDENTIFIER.sub(_read, reason)
 
 
 def _rejection_cause_key(error_code: str | None, generalised_reason: str) -> tuple[str | None, str]:

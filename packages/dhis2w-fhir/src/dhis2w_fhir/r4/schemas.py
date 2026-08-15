@@ -140,6 +140,9 @@ class Extension(Element):
     extension: list[Extension] | None = None
     valueBoolean: bool | None = None
     valueCode: str | None = None
+    valueId: str | None = None
+    """A FHIR `id` - a DHIS2 UID is one, which is what a published program rule names itself by."""
+
     valueCanonical: str | None = None
     valueString: str | None = None
     valueString_element: Element | None = Field(
@@ -419,6 +422,21 @@ class ConceptMap(DomainResource):
     group: list[ConceptMapGroup] | None = None
 
 
+class QuestionnaireEnableWhen(BackboneElement):
+    """`Questionnaire.item.enableWhen` - one condition on another question that shows this one."""
+
+    question: str | None = None
+    operator: Literal["exists", "=", "!=", ">", "<", ">=", "<="] | None = None
+    answerBoolean: bool | None = None
+    answerDecimal: int | float | None = None
+    answerInteger: int | None = None
+    answerDate: str | None = None
+    answerDateTime: str | None = None
+    answerTime: str | None = None
+    answerString: str | None = None
+    answerCoding: Coding | None = None
+
+
 class QuestionnaireItem(BackboneElement):
     """`Questionnaire.item` - one question, or a group nesting the questions of a section or a disaggregation."""
 
@@ -449,6 +467,12 @@ class QuestionnaireItem(BackboneElement):
         ]
         | None
     ) = None
+    enableWhen: list[QuestionnaireEnableWhen] | None = None
+    """What shows the question - a DHIS2 program rule that hides it on another question's answer."""
+
+    enableBehavior: Literal["all", "any"] | None = None
+    """How several conditions join; set only where a question carries more than one."""
+
     answerValueSet: str | None = None
     required: bool | None = None
     repeats: bool | None = None

@@ -171,6 +171,7 @@ def _mock_metadata(*, override: dict[str, Any] | None, operands: list[dict[str, 
         return_value=httpx.Response(200, json=_data_sets_payload(override=override, operands=operands))
     )
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json={"optionSets": []}))
     respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))

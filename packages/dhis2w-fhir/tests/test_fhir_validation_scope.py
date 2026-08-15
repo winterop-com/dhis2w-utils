@@ -309,6 +309,7 @@ def _mock_scope_endpoints(
         "optionSets": option_sets or [],
         "categories": categories or [],
         "organisationUnits": organisation_units or [],
+        "programRules": [],
     }
     return {
         resource: respx.get(f"{_HOST}/api/{resource}").mock(return_value=httpx.Response(200, json={resource: items}))

@@ -174,6 +174,7 @@ def _mock_metadata() -> None:
     """Mock every metadata endpoint one load-set run reads."""
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_data_sets_payload()))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_programs_payload()))
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORG_UNITS_PAYLOAD))
@@ -584,6 +585,7 @@ async def _tracker_run(tmp_path: Path, per_target: int) -> service.LoadSetReport
     """Scaffold a project holding one tracker program and generate a corpus over its whole surface."""
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_TRACKER_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORG_UNITS_PAYLOAD))
@@ -769,6 +771,7 @@ async def _two_program_run(tmp_path: Path, per_target: int) -> service.LoadSetRe
     """Scaffold a project holding two tracker programs and generate one corpus over both surfaces."""
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_TWO_TRACKER_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORG_UNITS_PAYLOAD))

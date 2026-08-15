@@ -32,6 +32,11 @@ from dhis2w_fhir.foundation.schemas import (
     DATE_LABEL_ENROLLMENT_SUB_EXTENSION,
     DATE_LABEL_EVENT_SUB_EXTENSION,
     DATE_LABEL_INCIDENT_SUB_EXTENSION,
+    PROGRAM_RULE_ACTION_SUB_EXTENSION,
+    PROGRAM_RULE_CONDITION_SUB_EXTENSION,
+    PROGRAM_RULE_DESCRIPTION_SUB_EXTENSION,
+    PROGRAM_RULE_NAME_SUB_EXTENSION,
+    PROGRAM_RULE_UID_SUB_EXTENSION,
     FoundationNaming,
 )
 from dhis2w_fhir.i18n import (
@@ -58,6 +63,7 @@ from dhis2w_fhir.r4 import (
     Extension,
     Identifier,
     Questionnaire,
+    QuestionnaireEnableWhen,
     QuestionnaireItem,
     Reference,
     ValueSet,
@@ -72,15 +78,12 @@ from dhis2w_fhir.resources.option_sets import (
     value_set_canonical,
 )
 from dhis2w_fhir.resources.questionnaires import (
-    BOUND_ELEMENTS_BY_ITEM_TYPE,
-    BOUNDS_BY_VALUE_TYPE,
     ITEM_CONTROL_CODE_SYSTEM_URL,
     ITEM_CONTROL_EXTENSION_URL,
-    MAXIMUM_VALUE_EXTENSION_URL,
-    MINIMUM_VALUE_EXTENSION_URL,
     bound_option_set_uids,
     collect_referenced_objects,
     domain_code,
+    enable_behavior_of,
     form_collects_incident_date,
     grouping_identifiers,
     is_disaggregated,
@@ -90,8 +93,18 @@ from dhis2w_fhir.resources.questionnaires import (
     question_read_only,
     search_context_declarations,
     source_description,
+    value_type_bounds,
 )
 from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
+from dhis2w_fhir.resources.questionnaires.program_rules import (
+    EnableWhenCondition,
+    FormProgramRules,
+    ItemEnableWhen,
+    ProgramRuleBound,
+    PublishedProgramRule,
+    merged_bounds,
+    plan_program_rules,
+)
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CATEGORY_OPTION_COMBO_TERMINOLOGY,
     DATA_ELEMENT_TERMINOLOGY,
@@ -149,6 +162,12 @@ __all__ = [
     "build_data_dictionary_documents",
     "build_questionnaire_documents",
 ]
+
+#: The `Questionnaire.item.enableWhen.operator` codes R4 admits, and how several conditions may join.
+#: The translation computes each as a plain string, and a guard test asserts every one it can
+#: produce is a member here.
+_EnableWhenOperator = Literal["exists", "=", "!=", ">", "<", ">=", "<="]
+_EnableBehavior = Literal["all", "any"]
 
 #: The `Questionnaire.item.type` codes R4 admits. `item_type` computes one as a plain string from
 #: a DHIS2 value type, and a guard test asserts every string it can produce is a member here.
@@ -239,6 +258,7 @@ class _QuestionnaireSystems(BaseModel):
     attribute_option_combos_extension_url: str
     attribute_value_extension_url: str
     entity_level_extension_url: str
+    program_rule_extension_url: str
     data_element_code_system_url: str
     tracked_entity_attribute_code_system_url: str
     category_option_combo_code_system_url: str
@@ -269,6 +289,7 @@ class _QuestionnaireSystems(BaseModel):
             ),
             attribute_value_extension_url=attribute_value_extension_url(config, canonical),
             entity_level_extension_url=f"{canonical}/StructureDefinition/{foundation.entity_level_extension_id}",
+            program_rule_extension_url=f"{canonical}/StructureDefinition/{foundation.program_rule_extension_id}",
             data_element_code_system_url=code_system_canonical(canonical, names.data_element_code_system_id),
             tracked_entity_attribute_code_system_url=code_system_canonical(
                 canonical, names.tracked_entity_attribute_code_system_id
@@ -333,6 +354,7 @@ def build_questionnaire_documents(
     attribute_combo_plan = attribute_combos if attribute_combos is not None else AttributeComboPlan()
     plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
+    rule_plan = plan_program_rules(sources)
     questionnaires = [
         _questionnaire_document(
             source,
@@ -346,6 +368,7 @@ def build_questionnaire_documents(
             attribute_combos=attribute_combo_plan,
             tracked_entity_types=config.tracked_entity_types,
             locales=config.locales,
+            program_rules=rule_plan.for_form(source.uid),
         )
         for source in sorted(sources, key=lambda item: (item.name, item.uid))
     ]
@@ -525,6 +548,7 @@ def _questionnaire_document(
     attribute_combos: AttributeComboPlan,
     tracked_entity_types: Mapping[str, str],
     locales: list[str],
+    program_rules: FormProgramRules,
 ) -> Questionnaire:
     """Build one form's Questionnaire, every name already resolved to the URL it is served under.
 
@@ -550,6 +574,7 @@ def _questionnaire_document(
             *_date_labels_extension(source, systems, locales),
             *_assignment_extension(source, systems, assignments),
             *_attribute_option_combos_extension(source, systems, attribute_combos),
+            *_program_rule_extensions(program_rules.published, systems, locales),
             *attribute_value_extensions(
                 source.attribute_values, attribute_codes, systems.attribute_value_extension_url
             ),
@@ -560,7 +585,7 @@ def _questionnaire_document(
         experimental=experimental_for_status(ig_status),
         subjectType=[form_subject_type(source, tracked_entity_types)],
         code=[Coding(system=systems.form_type_code_system_url, code=source.kind)],
-        item=_items(source, systems, identities, locales) or None,
+        item=_items(source, systems, identities, locales, program_rules) or None,
     )
 
 
@@ -678,17 +703,94 @@ def _identifiers(
     return identifiers
 
 
+def _program_rule_extensions(
+    published: list[PublishedProgramRule], systems: _QuestionnaireSystems, locales: list[str]
+) -> list[Extension]:
+    """One D2ProgramRule extension per rule this form does not express, in the instance's own order."""
+    return [
+        Extension(
+            url=systems.program_rule_extension_url,
+            extension=[
+                Extension(url=PROGRAM_RULE_UID_SUB_EXTENSION, valueId=rule.uid),
+                Extension(
+                    url=PROGRAM_RULE_NAME_SUB_EXTENSION,
+                    valueString=flatten_whitespace(rule.name),
+                    valueString_element=translated_element(name_translations(rule.translations, locales)),
+                ),
+                Extension(url=PROGRAM_RULE_CONDITION_SUB_EXTENSION, valueString=rule.condition),
+                Extension(url=PROGRAM_RULE_ACTION_SUB_EXTENSION, valueCode=rule.action),
+                # Last, because that is where SUSHI puts the optional slice: the compiled guide and
+                # the served document have to carry one order, and SUSHI's is the one to match.
+                *(
+                    [
+                        Extension(
+                            url=PROGRAM_RULE_DESCRIPTION_SUB_EXTENSION,
+                            valueString=flatten_whitespace(rule.description),
+                            valueString_element=translated_element(
+                                description_translations(rule.translations, locales)
+                            ),
+                        )
+                    ]
+                    if rule.description
+                    else []
+                ),
+            ],
+        )
+        for rule in published
+    ]
+
+
+def _enable_when(
+    shown: ItemEnableWhen | None, identities: dict[str, OptionSetIdentity], systems: _QuestionnaireSystems
+) -> list[QuestionnaireEnableWhen] | None:
+    """One question's showing conditions as R4 states them, or None where no rule hides it."""
+    if shown is None:
+        return None
+    return [_enable_when_entry(condition, identities, systems) for condition in shown.conditions]
+
+
+def _enable_when_entry(
+    condition: EnableWhenCondition, identities: dict[str, OptionSetIdentity], systems: _QuestionnaireSystems
+) -> QuestionnaireEnableWhen:
+    """One condition, its answer landing on the `answer[x]` its question's item type compares on."""
+    entry = QuestionnaireEnableWhen(question=condition.question_link_id, operator=_enable_when_operator(condition))
+    if condition.answer_element == "answerCoding":
+        identity = identities[condition.option_set_uid] if condition.option_set_uid else None
+        system = code_system_canonical(systems.canonical, identity.code_system_id) if identity is not None else None
+        return entry.model_copy(update={"answerCoding": Coding(system=system, code=condition.text)})
+    if condition.answer_element == "answerBoolean":
+        return entry.model_copy(update={"answerBoolean": condition.boolean})
+    if condition.answer_element == "answerInteger":
+        return entry.model_copy(update={"answerInteger": condition.integer})
+    if condition.answer_element == "answerDecimal":
+        return entry.model_copy(update={"answerDecimal": _decimal_answer(condition.number)})
+    return entry.model_copy(update={condition.answer_element: condition.text})
+
+
+def _enable_when_operator(condition: EnableWhenCondition) -> _EnableWhenOperator:
+    """Read an operator computed as a plain string as the R4 code it is; a guard test pins the two together."""
+    return cast(_EnableWhenOperator, condition.operator)
+
+
+def _decimal_answer(value: float) -> int | float:
+    """A decimal answer, kept a whole number where it is one so the document matches what SUSHI compiles."""
+    return int(value) if value.is_integer() else value
+
+
 def _items(
     source: QuestionnaireSourceIn,
     systems: _QuestionnaireSystems,
     identities: dict[str, OptionSetIdentity],
     locales: list[str],
+    program_rules: FormProgramRules,
 ) -> list[QuestionnaireItem]:
     """Build the form's item tree: one group per section holding its questions, then the unsectioned tail."""
     items: list[QuestionnaireItem] = []
     for section in source.sections:
         children = [
-            child for item in section.items for child in _data_element_items(item, source, systems, identities, locales)
+            child
+            for item in section.items
+            for child in _data_element_items(item, source, systems, identities, locales, program_rules)
         ]
         items.append(
             QuestionnaireItem(
@@ -696,6 +798,8 @@ def _items(
                 text=flatten_whitespace(section.name),
                 text_element=translated_element(name_translations(section.translations, locales)),
                 type="group",
+                enableWhen=_enable_when(program_rules.enable_when_for(section.uid), identities, systems),
+                enableBehavior=_enable_behavior(program_rules.enable_when_for(section.uid)),
                 extension=[
                     *_description_extension(section.description, section.translations, locales, systems),
                     *(
@@ -709,7 +813,7 @@ def _items(
             )
         )
     for item in source.flat_items:
-        items.extend(_data_element_items(item, source, systems, identities, locales))
+        items.extend(_data_element_items(item, source, systems, identities, locales, program_rules))
     return items
 
 
@@ -719,6 +823,7 @@ def _data_element_items(
     systems: _QuestionnaireSystems,
     identities: dict[str, OptionSetIdentity],
     locales: list[str],
+    program_rules: FormProgramRules,
 ) -> list[QuestionnaireItem]:
     """Build one data element's items: a question, or a group holding one cell per category option combo.
 
@@ -740,7 +845,8 @@ def _data_element_items(
     resolved_item_type = _item_type_code(item_type(item))
     answer_value_set = _answer_value_set(item, identities, systems.canonical)
     repeats = is_multi_valued(item.value_type, resolved_item_type) or None
-    bounds = _bound_extensions(item.value_type, resolved_item_type)
+    bounds = _bound_extensions(item.value_type, resolved_item_type, program_rules.bounds_for(item.uid))
+    shown = program_rules.enable_when_for(item.uid)
     description = _description_extension(item.description, item.translations, locales, systems)
     if not is_disaggregated(item, source.kind):
         extensions = [*description, *bounds, *_entity_level_extension(item, source.kind, systems)]
@@ -751,6 +857,8 @@ def _data_element_items(
                 text=text,
                 text_element=text_element,
                 type=resolved_item_type,
+                enableWhen=_enable_when(shown, identities, systems),
+                enableBehavior=_enable_behavior(shown),
                 answerValueSet=answer_value_set,
                 required=item.compulsory or None,
                 repeats=repeats,
@@ -786,6 +894,8 @@ def _data_element_items(
             text=text,
             text_element=text_element,
             type="group",
+            enableWhen=_enable_when(shown, identities, systems),
+            enableBehavior=_enable_behavior(shown),
             required=item.compulsory or None,
             extension=list(description) or None,
             item=cells or None,
@@ -820,25 +930,25 @@ def _answer_value_set(
     return value_set_canonical(canonical, identities[item.option_set_uid].value_set_id)
 
 
-def _bound_extensions(value_type: str, resolved_item_type: str) -> list[Extension]:
-    """The `minValue` / `maxValue` extensions one question carries, on the element its item type asks for."""
-    bounds = BOUNDS_BY_VALUE_TYPE.get(value_type)
-    element = BOUND_ELEMENTS_BY_ITEM_TYPE.get(resolved_item_type)
-    if bounds is None or element is None:
-        return []
-    extensions: list[Extension] = []
-    if bounds.minimum_value is not None:
-        extensions.append(_bound_extension(MINIMUM_VALUE_EXTENSION_URL, element, bounds.minimum_value))
-    if bounds.maximum_value is not None:
-        extensions.append(_bound_extension(MAXIMUM_VALUE_EXTENSION_URL, element, bounds.maximum_value))
-    return extensions
+def _bound_extensions(value_type: str, resolved_item_type: str, rule_bounds: list[ProgramRuleBound]) -> list[Extension]:
+    """The `minValue` / `maxValue` extensions one question carries, from its value type and from any rule."""
+    return [
+        _bound_extension(bound)
+        for bound in merged_bounds(value_type_bounds(value_type, resolved_item_type), rule_bounds)
+    ]
 
 
-def _bound_extension(url: str, element: str, value: int) -> Extension:
-    """One bound as its extension, the whole number landing on `valueInteger` or on `valueDecimal`."""
-    if element == _INTEGER_BOUND_ELEMENT:
-        return Extension(url=url, valueInteger=value)
-    return Extension(url=url, valueDecimal=value)
+def _bound_extension(bound: ProgramRuleBound) -> Extension:
+    """One bound as its extension, the number landing on `valueInteger` or on `valueDecimal`."""
+    if bound.element == _INTEGER_BOUND_ELEMENT:
+        return Extension(url=bound.url, valueInteger=bound.integer)
+    return Extension(url=bound.url, valueDecimal=_decimal_answer(bound.decimal or 0.0))
+
+
+def _enable_behavior(shown: ItemEnableWhen | None) -> _EnableBehavior | None:
+    """How a question's showing conditions join, read as the R4 code it is."""
+    behavior = enable_behavior_of(shown)
+    return None if behavior is None else cast(_EnableBehavior, behavior)
 
 
 def _item_type_code(value: str) -> _ItemTypeCode:

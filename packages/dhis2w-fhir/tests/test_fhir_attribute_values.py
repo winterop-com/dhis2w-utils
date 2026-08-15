@@ -198,6 +198,7 @@ async def test_every_metadata_fetch_asks_for_the_attribute_values(
     )
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     categories = respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
 
     profile = resolve_profile("probe")
@@ -242,6 +243,7 @@ async def test_attribute_values_survive_the_whole_fetch_path(
             },
         )
     )
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
 
     async with open_client(resolve_profile("probe")) as client:
         sources = await service._fetch_questionnaire_sources(client, load_project(tmp_path).config.generate, [])

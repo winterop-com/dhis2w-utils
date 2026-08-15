@@ -355,10 +355,25 @@ construction.
 | Program rule variables | `WORTH CARRYING` | Implied by tiers 1 and 2: a translated condition names the variable's `linkId` | forward, capture |
 | `ProgramRuleAction.templateUid`, evaluation environments and times | `DELIBERATELY NOT` | Server-side scheduling detail of the side-effect actions | - |
 
-**Live check.** The instance holds six program rules: two `SHOWERROR` (both numeric
-bounds, both translatable at tier 1), two `SHOWWARNING`, two `HIDEFIELD` (both
-single-variable, both translatable at tier 2). On this instance the three tiers cover
-every rule, four of six as machine-readable constraints.
+**Live check, measured against the shipped grammar.** The local instance holds six
+program rules: one reaches tier 1 (`#{hemoglobin} > 99` with `SHOWERROR`, published as
+`maxValue` 99), one reaches tier 2 (`#{apgarscore} > 7` with `HIDEFIELD`, published as
+`enableWhen`), and four are published whole. Of those four, two compare three variables
+at once, one negates a variable outright (`!#{womanSmoking}`), and one is a
+`SHOWWARNING`, which DHIS2 does not enforce on import and which a bound would therefore
+overstate.
+
+Against the larger `play.im.dhis2.org/dev-2-43` corpus - 79 rules across six programs -
+the same grammar reaches tier 1 once and tier 2 eighteen times, publishing the remaining
+60. The commonest reasons a rule is published rather than translated: 49 conditions fall
+outside the single-comparison grammar (an `||` chain, a `d2:` function, an `A{...}`
+attribute reference, a `!==` operator DHIS2's own engine does not define), and the rest
+are actions with no R4 carrier - `HIDESECTION`, `DISPLAYTEXT`, `HIDEPROGRAMSTAGE`,
+`SHOWWARNING`.
+
+That 19-of-79 is the honest headline, and it is the number the conservative grammar buys:
+every one of the 60 is published with its expression verbatim, so nothing is lost, and
+none of the 19 states a constraint DHIS2 does not enforce.
 
 ### 3.10 Tracked entities
 

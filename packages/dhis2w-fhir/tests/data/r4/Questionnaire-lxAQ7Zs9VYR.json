@@ -17,6 +17,56 @@
         }
       ],
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-date-labels"
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "GC4gpdoSD4r"
+        },
+        {
+          "url": "name",
+          "valueString": "Hemoglobin warning"
+        },
+        {
+          "url": "condition",
+          "valueString": "#{hemoglobin} < 9"
+        },
+        {
+          "url": "action",
+          "valueCode": "SHOWWARNING"
+        },
+        {
+          "url": "description",
+          "valueString": "Show warning if hemoglobin is dangerously low"
+        }
+      ],
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-program-rule"
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "xOe5qCzRS0Y"
+        },
+        {
+          "url": "name",
+          "valueString": "Hide smoking cessation councelling"
+        },
+        {
+          "url": "condition",
+          "valueString": "!#{womanSmoking} "
+        },
+        {
+          "url": "action",
+          "valueCode": "HIDEFIELD"
+        },
+        {
+          "url": "description",
+          "valueString": "Hide smoking cessation councelling dataelement unless patient is smoking"
+        }
+      ],
+      "url": "http://localhost:8080/fhir/StructureDefinition/d2-program-rule"
     }
   ],
   "identifier": [
@@ -87,6 +137,10 @@
         {
           "url": "http://localhost:8080/fhir/StructureDefinition/d2-description",
           "valueString": "Screening for anemia."
+        },
+        {
+          "url": "http://hl7.org/fhir/StructureDefinition/maxValue",
+          "valueDecimal": 99
         }
       ]
     }

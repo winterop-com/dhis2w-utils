@@ -67,6 +67,19 @@ def quote(value: str) -> str:
     return f'"{escape_fsh_string(flatten_whitespace(value))}"'
 
 
+def quote_verbatim(value: str) -> str:
+    r"""Render a double-quoted FSH literal that carries its value character for character.
+
+    `quote` flattens whitespace, which is right for a DHIS2 name a person reads and wrong for a
+    DHIS2 expression a server evaluates: a published condition is the string an administrator
+    searches the instance for, so the run of spaces the instance holds is part of it. A line break
+    rides as the `\n` escape SUSHI decodes back into one, because a double-quoted FSH literal
+    carries no raw newline.
+    """
+    escaped = escape_fsh_string(value).replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n")
+    return f'"{escaped}"'
+
+
 def escape_markup(value: str) -> str:
     """HTML-escape the three markup characters IG page furniture cannot carry raw.
 

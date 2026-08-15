@@ -1383,7 +1383,12 @@ The components:
   codegen refresh cannot introduce a silent `string`), the four sync directory names
   (`DATA_SET_DIRECTORY` / `EVENT_PROGRAM_DIRECTORY` / `TRACKER_PROGRAM_DIRECTORY` /
   `DATA_DICTIONARY_DIRECTORY`,
-  collected as `QUESTIONNAIRE_DIRECTORIES`), `assignments.py` emitting the
+  collected as `QUESTIONNAIRE_DIRECTORIES`), `program_rules.py` reading the DHIS2 program
+  rules of a form's program into the three tiers R4 can carry them in - `minValue` /
+  `maxValue` for a numeric refusal, `item.enableWhen` for a single-question hide, a
+  `D2ProgramRule` extension for everything else - through one deliberately conservative
+  grammar, resolved once per run by `plan_program_rules` so the FSH emitter and the JSON
+  emitter cannot disagree about which tier a rule reached, `assignments.py` emitting the
   organisation-unit assignment `List` of every form whose assignment is a proper subset
   of the published registry into `ASSIGNMENT_DIRECTORY` and answering with the
   `AssignmentPlan` both Questionnaire emitters stamp their `D2OrganisationUnitAssignment`

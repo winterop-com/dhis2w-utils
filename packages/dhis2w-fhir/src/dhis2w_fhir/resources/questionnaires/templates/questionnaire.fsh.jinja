@@ -30,6 +30,29 @@ Usage: #definition
 {% if questionnaire.attribute_option_combo_value_set is not none %}
 * extension[{{ questionnaire.attribute_option_combos_extension }}].valueCanonical = Canonical({{ questionnaire.attribute_option_combo_value_set }})
 {% endif %}
+{% for rule in questionnaire.program_rules %}
+* extension[{{ questionnaire.program_rule_extension }}][+].extension[{{ program_rule_uid_sub_extension }}].valueId = "{{ rule.uid }}"
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_name_sub_extension }}].valueString = {{ rule.name_literal }}
+{% for translation in rule.name_translations %}
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_name_sub_extension }}].valueString.extension[+].url = "{{ translation_extension_url }}"
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_name_sub_extension }}].valueString.extension[=].extension[+].url = "lang"
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_name_sub_extension }}].valueString.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_name_sub_extension }}].valueString.extension[=].extension[+].url = "content"
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_name_sub_extension }}].valueString.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_condition_sub_extension }}].valueString = {{ rule.condition_literal }}
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_action_sub_extension }}].valueCode = #{{ rule.action_code }}
+{% if rule.description_literal is not none %}
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_description_sub_extension }}].valueString = {{ rule.description_literal }}
+{% for translation in rule.description_translations %}
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_description_sub_extension }}].valueString.extension[+].url = "{{ translation_extension_url }}"
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_description_sub_extension }}].valueString.extension[=].extension[+].url = "lang"
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_description_sub_extension }}].valueString.extension[=].extension[=].valueCode = #{{ translation.locale }}
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_description_sub_extension }}].valueString.extension[=].extension[+].url = "content"
+* extension[{{ questionnaire.program_rule_extension }}][=].extension[{{ program_rule_description_sub_extension }}].valueString.extension[=].extension[=].valueString = {{ translation.value_literal }}
+{% endfor %}
+{% endif %}
+{% endfor %}
 {% for attribute_value in questionnaire.attribute_values %}
 * extension[{{ questionnaire.attribute_value_extension }}][+].extension[{{ attribute_id_sub_extension }}].valueString = {{ attribute_value.attribute_id_literal }}
 {% if attribute_value.attribute_code_literal is not none %}
@@ -78,6 +101,14 @@ Usage: #definition
 * {{ item.path }}.text.extension[=].extension[=].valueString = {{ translation.value_literal }}
 {% endfor %}
 * {{ item.path }}.type = #{{ item.type_code }}
+{% for condition in item.enable_when %}
+* {{ item.path }}.enableWhen[+].question = {{ condition.question_literal }}
+* {{ item.path }}.enableWhen[=].operator = {{ condition.operator_token }}
+* {{ item.path }}.enableWhen[=].{{ condition.answer_element }} = {{ condition.answer_literal }}
+{% endfor %}
+{% if item.enable_behavior is not none %}
+* {{ item.path }}.enableBehavior = #{{ item.enable_behavior }}
+{% endif %}
 {% if item.answer_value_set is not none %}
 * {{ item.path }}.answerValueSet = Canonical({{ item.answer_value_set }})
 {% endif %}
