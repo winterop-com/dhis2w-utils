@@ -1205,7 +1205,7 @@ def serve_command(
         ui=resolved_ui,
         basemaps=resolved_basemaps,
         dhis2_base_url=None if generation is None else generation.profile.base_url,
-        patients=serve_config.patients,
+        tracked_entities=serve_config.tracked_entities,
     )
     _preflight_bind(resolved_host, resolved_port)
     configure_logging()

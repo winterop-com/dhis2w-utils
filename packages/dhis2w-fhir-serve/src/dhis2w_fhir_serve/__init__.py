@@ -36,8 +36,8 @@ from dhis2w_fhir_serve.errors import (
     NotFoundError,
     NotServedError,
     NotServedFromCompiledIgError,
-    PatientListingDisabledError,
-    PatientSurfaceDisabledError,
+    RegisterDisabledError,
+    RegisterListingDisabledError,
     ServeError,
     UpstreamError,
     outcome,
@@ -45,17 +45,17 @@ from dhis2w_fhir_serve.errors import (
 )
 from dhis2w_fhir_serve.log import RequestLogMiddleware, configure_logging
 from dhis2w_fhir_serve.metadata import build_metadata_body
-from dhis2w_fhir_serve.patients.index import PatientIndex, PublishedAttribute
-from dhis2w_fhir_serve.patients.listing import (
+from dhis2w_fhir_serve.register.index import PublishedAttribute, PublishedTrackedEntityType, TrackedEntityIndex
+from dhis2w_fhir_serve.register.listing import (
     COUNT_PARAMETER,
     PAGE_PARAMETER,
     ListingCursor,
-    PatientListingPage,
+    RegisterListingPage,
     read_listing_page,
 )
-from dhis2w_fhir_serve.patients.projection import patient_for
-from dhis2w_fhir_serve.patients.surface import PatientSurface
-from dhis2w_fhir_serve.patients.wire import (
+from dhis2w_fhir_serve.register.projection import registered_entity_for
+from dhis2w_fhir_serve.register.surface import RegisterSurface, ServedRegister
+from dhis2w_fhir_serve.register.wire import (
     SEARCH_ORG_UNIT_MODE,
     TOTAL_PAGES_PARAMETER,
     TRACKED_ENTITY_FIELDS,
@@ -65,9 +65,9 @@ from dhis2w_fhir_serve.patients.wire import (
     search_tracked_entities,
 )
 from dhis2w_fhir_serve.routes.enrollments import (
-    PATIENT_ENROLLMENTS_PATH,
-    PatientEnrollment,
-    PatientEnrollments,
+    TRACKED_ENTITY_ENROLLMENTS_PATH,
+    TrackedEntityEnrollment,
+    TrackedEntityEnrollments,
 )
 from dhis2w_fhir_serve.routes.spool import (
     SPOOL_PATH,
@@ -82,11 +82,13 @@ from dhis2w_fhir_serve.routes.uiconfig import (
     OPENSTREETMAP_ATTRIBUTION,
     UI_CONFIG_PATH,
     BasemapLayer,
-    PatientsUiConfig,
+    RegisteredTypeUiConfig,
+    RegisterUiConfig,
+    TrackedEntitiesUiConfig,
     UiConfig,
     basemap_layers,
-    patients_surface_config,
     public_instance_url,
+    tracked_entities_config,
 )
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import (
@@ -142,7 +144,7 @@ __all__ = [
     "GENERATE_SEED_IDENTIFIER_SEGMENT",
     "MAXIMUM_SEED",
     "PAGE_PARAMETER",
-    "PATIENT_ENROLLMENTS_PATH",
+    "TRACKED_ENTITY_ENROLLMENTS_PATH",
     "RECEIVED_RESPONSES_RELATIVE_PATH",
     "REJECTED_RESPONSES_RELATIVE_PATH",
     "IMPORT_REPORT_SUFFIX",
@@ -178,14 +180,18 @@ __all__ = [
     "NotFoundError",
     "NotServedError",
     "NotServedFromCompiledIgError",
-    "PatientEnrollment",
-    "PatientEnrollments",
-    "PatientIndex",
-    "PatientListingDisabledError",
-    "PatientListingPage",
-    "PatientSurface",
-    "PatientSurfaceDisabledError",
-    "PatientsUiConfig",
+    "PublishedTrackedEntityType",
+    "RegisterDisabledError",
+    "RegisterListingDisabledError",
+    "RegisterListingPage",
+    "RegisterSurface",
+    "RegisterUiConfig",
+    "RegisteredTypeUiConfig",
+    "ServedRegister",
+    "TrackedEntitiesUiConfig",
+    "TrackedEntityEnrollment",
+    "TrackedEntityEnrollments",
+    "TrackedEntityIndex",
     "PublishedAttribute",
     "RequestLogMiddleware",
     "ResolvedCoding",
@@ -230,8 +236,8 @@ __all__ = [
     "mount_ui_shell",
     "new_response_id",
     "outcome",
-    "patient_for",
-    "patients_surface_config",
+    "registered_entity_for",
+    "tracked_entities_config",
     "read_listing_page",
     "register_error_handlers",
     "rejection_outcome",

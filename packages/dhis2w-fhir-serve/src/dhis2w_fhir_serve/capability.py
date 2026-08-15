@@ -28,12 +28,14 @@ entry, so each is declared exactly when the store holds that type: no ConceptMap
 it is a custom operation, deliberately not SDC's `$populate`. `$translate` conforms to R4's own
 ConceptMap definition and names it.
 
-Patient is the one entry that is not about the store at all. It is answered from the DHIS2 instance
-per request, so it is declared only by a process that has one - `--live`, over a project that
-publishes a registration form and therefore names a tracked entity type. A compiled run declares no
-Patient, which is the same refusal `GET /Patient` gives, stated before the request rather than
-after it - and so does a live run over a project whose `[serve.patients] enabled` is false, which is
-that same refusal reached from the project rather than from the invocation.
+The register's entries are the ones that are not about the store at all. They are answered from the
+DHIS2 instance per request, and which resource types they are is the published `D2TET_CM`'s to say -
+one entry per FHIR resource the map takes an in-scope tracked entity type onto. They are declared
+only by a process that has an instance - `--live`, over a project that publishes a registration form
+and therefore names a tracked entity type. A compiled run declares none of them, which is the same
+refusal the register gives, stated before the request rather than after it - and so does a live run
+over a project whose `[serve.tracked_entities] enabled` is false, which is that same refusal reached
+from the project rather than from the invocation.
 """
 
 from __future__ import annotations
@@ -63,7 +65,7 @@ from dhis2w_fhir_serve.store import CONCEPT_MAP_RESOURCE_TYPE
 if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject
 
-    from dhis2w_fhir_serve.patients.surface import PatientSurface
+    from dhis2w_fhir_serve.register.surface import RegisterSurface, ServedRegister
     from dhis2w_fhir_serve.settings import ServeSettings
     from dhis2w_fhir_serve.store import StoreSummary
 
@@ -94,21 +96,28 @@ GENERATE_DOCUMENTATION = (
     "QuestionnaireResponse endpoint unchanged."
 )
 
-#: The resource type answered from the DHIS2 instance rather than from the store, and what it states.
-PATIENT_RESOURCE_TYPE = "Patient"
-PATIENT_DOCUMENTATION = (
-    "One DHIS2 tracked entity per Patient, read from the instance at request time. Identity only - "
-    "the tracked entity UID, the values of the attributes DHIS2 declares unique, and the rest of the "
-    "attribute values as extensions. No name, gender, or birth date: DHIS2 states no mapping for them."
-)
 
-#: What the Patient entry adds about the no-identifier search, which is either a page or a refusal.
+def register_documentation(resource_type: str, tracked_entity_type_labels: tuple[str, ...]) -> str:
+    """What one register entry says it answers, and over which of the instance's tracked entity types."""
+    over = ", ".join(tracked_entity_type_labels)
+    return (
+        f"One DHIS2 tracked entity per {resource_type}, read from the instance at request time, over the "
+        f"tracked entity types this guide publishes as {resource_type}: {over}. Identity only - the tracked "
+        "entity UID, the values of the attributes DHIS2 declares unique, and the rest of the attribute "
+        f"values as extensions. Nothing a {resource_type} otherwise defines is filled in: DHIS2 states no "
+        "mapping for those elements."
+    )
+
+
+#: What a register entry adds about the no-identifier search, which is either a page or a refusal.
 LISTING_DOCUMENTATION = (
-    "A search naming no identifier is answered with one page of the register: `_count` people at a "
+    "A search naming no identifier is answered with one page of the register: `_count` rows at a "
     "time, walked by following the Bundle's own `next` and `previous` links, whose `page` parameter "
     "names the page and is this server's to compose."
 )
-LISTING_OFF_DOCUMENTATION = "A search naming no identifier is refused: this project serves people by identifier only."
+LISTING_OFF_DOCUMENTATION = (
+    "A search naming no identifier is refused: this project serves the register by identifier only."
+)
 
 #: What the QuestionnaireResponse entry states about the resources it holds.
 RESPONSE_DOCUMENTATION = "One response per request; stored responses are receipts of what was submitted"
@@ -124,10 +133,10 @@ def build_server_capability(
     store_summary: StoreSummary,
     spool_count: int,
     settings: ServeSettings,
-    patient_surface: PatientSurface,
+    register_surface: RegisterSurface,
     server_version: str,
 ) -> CapabilityStatement:
-    """State what this process serves: the capture contract, the read types the store holds, and live Patient."""
+    """State what this process serves: the capture contract, the read types the store holds, and the register."""
     canonical = project.config.ig.canonical
     names = FoundationNaming.from_naming(project.config.generate.naming)
     store_mode = "live" if settings.live else "compiled"
@@ -138,7 +147,7 @@ def build_server_capability(
             for resource_type in SERVED_READ_RESOURCE_TYPES
             if resource_type in store_summary.counts_by_type
         ),
-        *_patient_resource(settings, patient_surface),
+        *_register_resources(settings, register_surface),
     ]
     return CapabilityStatement(
         status="active",
@@ -168,27 +177,36 @@ def build_server_capability(
     )
 
 
-def _patient_resource(settings: ServeSettings, patient_surface: PatientSurface) -> list[CapabilityStatementResource]:
-    """Declare Patient only when this process can actually answer for one.
+def _register_resources(
+    settings: ServeSettings, register_surface: RegisterSurface
+) -> list[CapabilityStatementResource]:
+    """Declare one entry per FHIR resource the register answers, and none when it answers nothing.
 
-    Three conditions. Two are properties of how the process was started rather than of the IG: the
-    store has to be live, because a Patient is read from the DHIS2 instance and there is no instance
-    behind a compiled guide, and the project has to publish a registration form (or name a type in
-    `[serve.patients]`), because the tracked entity type is what a DHIS2 search must be given. The
-    third is the project's own word: `[serve.patients] enabled = false` removes the surface, and a
-    statement declaring it anyway would advertise an interaction every request to it refuses.
+    Three conditions gate the whole set. Two are properties of how the process was started rather
+    than of the IG: the store has to be live, because a register entity is read from the DHIS2
+    instance and there is no instance behind a compiled guide, and the project has to publish a
+    registration form (or name a type in `[serve.tracked_entities]`), because the tracked entity type
+    is what a DHIS2 search must be given. The third is the project's own word:
+    `[serve.tracked_entities] enabled = false` removes the register, and a statement declaring it
+    anyway would advertise an interaction every request to it refuses.
 
-    The listing is stated in the resource's documentation rather than as another search parameter:
+    Which entries there are is not gated at all - it is read off the published map. A project whose
+    types all map to `Patient` declares exactly the one entry it always did; a project that also
+    registers samples declares `Specimen` beside it, each naming in its documentation the tracked
+    entity types it is served over, so a client reading the statement knows what a hit under either
+    resource actually is.
+
+    The listing is stated in each resource's documentation rather than as another search parameter:
     `_count` is a FHIR-wide parameter and `page` is this server's own naming of the cursor, and
-    neither is a search parameter of Patient in the sense `searchParam` enumerates.
+    neither is a search parameter of the resource in the sense `searchParam` enumerates.
     """
-    if not settings.live or not patient_surface.serves_patients():
+    if not settings.live or not register_surface.serves_tracked_entities():
         return []
-    index = patient_surface.index
+    index = register_surface.index
     return [
         CapabilityStatementResource(
-            type=PATIENT_RESOURCE_TYPE,
-            documentation=_patient_documentation(patient_surface),
+            type=register.resource_type,
+            documentation=_register_documentation(register_surface, register),
             interaction=[
                 CapabilityStatementInteraction(code="read"),
                 CapabilityStatementInteraction(code="search-type"),
@@ -199,21 +217,27 @@ def _patient_resource(settings: ServeSettings, patient_surface: PatientSurface) 
                     type="token",
                     documentation=(
                         f"The DHIS2 tracked entity UID under `{index.tracked_entity_system}`, or the value "
-                        "of a tracked entity attribute this server holds as an identifier key under "
+                        "of a tracked entity attribute this server holds as a search key under "
                         f"`{index.identifier_system_base}/tracked-entity-attribute/<uid>`. A token naming "
                         "no system is searched across every one of them."
                     ),
                 )
             ],
         )
+        for register in register_surface.registers()
     ]
 
 
-def _patient_documentation(patient_surface: PatientSurface) -> str:
-    """What the Patient entry says this server answers, listing included when this project serves one."""
-    if not patient_surface.serves_listing():
-        return f"{PATIENT_DOCUMENTATION} {LISTING_OFF_DOCUMENTATION}"
-    return f"{PATIENT_DOCUMENTATION} {LISTING_DOCUMENTATION}"
+def _register_documentation(register_surface: RegisterSurface, register: ServedRegister) -> str:
+    """What one register entry says this server answers, listing included when this project serves one."""
+    labels = tuple(
+        published.uid if published.name is None else f"{published.name} ({published.uid})"
+        for published in register.tracked_entity_types
+    )
+    stated = register_documentation(register.resource_type, labels)
+    if not register_surface.serves_listing():
+        return f"{stated} {LISTING_OFF_DOCUMENTATION}"
+    return f"{stated} {LISTING_DOCUMENTATION}"
 
 
 def _operations(

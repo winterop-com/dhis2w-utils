@@ -8,7 +8,7 @@ the raster layers the organisation-unit map may draw under the boundaries, which
 decision made in fhir.toml or on the command line that a bundle compiled weeks earlier cannot know.
 The profile this run resolved names the DHIS2 instance the guide was generated from, which is what
 lets a published organisation unit, form, or data element link back to the object it came from. And
-`[serve.patients]` decides whether there is a person surface to navigate to at all, which no
+`[serve.tracked_entities]` decides whether there is a register to navigate to at all, which no
 published resource states: a Questionnaire that registers people is published by projects whose
 server answers for none.
 
@@ -45,7 +45,7 @@ from starlette.requests import Request
 from dhis2w_fhir_serve.routes.context import serve_context
 
 if TYPE_CHECKING:
-    from dhis2w_fhir_serve.patients.surface import PatientSurface
+    from dhis2w_fhir_serve.register.surface import RegisterSurface
 
 #: Where the settings are served from. One lowercase segment, so no FHIR resource type can collide.
 UI_CONFIG_PATH = "/uiconfig"
@@ -88,26 +88,59 @@ class BasemapLayer(BaseModel):
     """The credit line the map must display, as HTML, or None when this server cannot know it."""
 
 
-class PatientsUiConfig(BaseModel):
-    """Whether this process answers for people, and whether it will list them.
+class RegisteredTypeUiConfig(BaseModel):
+    """One tracked entity type a register rides, as a screen has to name it."""
 
-    Both are resolved facts rather than the `[serve.patients]` table read back: `enabled` is false
-    for a compiled run and for a project publishing no registration form, exactly as it is for one
-    whose table switches the surface off, because all three mean the same thing to a screen - there
-    is nobody here to show. `listing` is the same question for the screen that shows everybody.
+    model_config = ConfigDict(frozen=True)
 
-    So the UI gates its navigation on these two and never asks `/metadata` a second question about
-    it: a `Patient` entry in the CapabilityStatement says the same thing, but reading it means
-    parsing a conformance document to decide whether to draw a link.
+    uid: str
+    """The DHIS2 tracked entity type UID, which is what a served resource carries as its `meta.tag`."""
+
+    name: str | None = None
+    """The name the instance holds for the type, as `D2TET_CM` published it, or None when it published none."""
+
+
+class RegisterUiConfig(BaseModel):
+    """One FHIR resource type this run serves from the instance, and the types that ride it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    resource: str
+    """The FHIR resource type - the path a screen reads and pages under."""
+
+    types: list[RegisteredTypeUiConfig] = Field(default_factory=list)
+
+
+class TrackedEntitiesUiConfig(BaseModel):
+    """Whether this process answers for the instance's tracked entities, what it serves them as, and whether it lists.
+
+    `enabled` and `listing` are resolved facts rather than the `[serve.tracked_entities]` table read
+    back: `enabled` is false for a compiled run and for a project publishing no registration form,
+    exactly as it is for one whose table switches the register off, because all three mean the same
+    thing to a screen - there is nothing here to show. `listing` is the same question for the screen
+    that shows everything.
+
+    `registers` is what makes the screen honest about what it is showing. A run whose every type is
+    published as `Patient` carries one entry and the screen is the one it always was; a run that also
+    registers samples carries a second, and the screen names each section by the types riding it
+    rather than calling a specimen batch a person. The resource is what a screen reads and pages
+    under, and the type names are what it titles a section with.
+
+    So the UI gates its navigation on this and never asks `/metadata` a second question about it: the
+    CapabilityStatement's resource entries say the same thing, but reading them means parsing a
+    conformance document to decide whether to draw a link and what to call it.
     """
 
     model_config = ConfigDict(frozen=True)
 
     enabled: bool
-    """Whether `GET /Patient` and the enrollment listing answer at all in this process."""
+    """Whether the register's resource routes and the enrollment listing answer at all in this process."""
 
     listing: bool
-    """Whether a `GET /Patient` naming no identifier answers with a page of the register."""
+    """Whether a register search naming no identifier answers with a page of the register."""
+
+    registers: list[RegisterUiConfig] = Field(default_factory=list)
+    """One entry per FHIR resource type served, empty when this process serves none."""
 
 
 class UiConfig(BaseModel):
@@ -120,7 +153,7 @@ class UiConfig(BaseModel):
     `dhis2_base_url` is None when no profile resolved, and the UI answers that by rendering no
     links out at all - a guide with no named instance behind it has nowhere honest to point.
 
-    `patients` is None on the same terms: a server that says nothing about its Patient surface is
+    `tracked_entities` is None on the same terms: a server that says nothing about its register is
     one a screen must assume nothing about, and reads exactly as `enabled = false` does. This
     process always states it, because it always knows.
     """
@@ -129,7 +162,7 @@ class UiConfig(BaseModel):
 
     basemaps: list[BasemapLayer] = Field(default_factory=list)
     dhis2_base_url: str | None = None
-    patients: PatientsUiConfig | None = None
+    tracked_entities: TrackedEntitiesUiConfig | None = None
 
 
 @router.get(UI_CONFIG_PATH)
@@ -140,14 +173,32 @@ async def read_ui_config(request: Request) -> UiConfig:
     return UiConfig(
         basemaps=basemap_layers(settings.basemaps),
         dhis2_base_url=public_instance_url(settings.dhis2_base_url),
-        patients=patients_surface_config(live=settings.live, surface=context.patient_surface),
+        tracked_entities=tracked_entities_config(live=settings.live, surface=context.register_surface),
     )
 
 
-def patients_surface_config(*, live: bool, surface: PatientSurface) -> PatientsUiConfig:
-    """The Patient surface as a screen has to read it: served or not, and listing or not."""
-    enabled = live and surface.serves_patients()
-    return PatientsUiConfig(enabled=enabled, listing=enabled and surface.serves_listing())
+def tracked_entities_config(*, live: bool, surface: RegisterSurface) -> TrackedEntitiesUiConfig:
+    """The register as a screen has to read it: served or not, listing or not, and what it is served as.
+
+    `registers` is empty whenever the register is not served, because a screen that draws no link has
+    nothing to name; a resource stated beside `enabled = false` would be a section heading for a page
+    the navigation does not offer.
+    """
+    enabled = live and surface.serves_tracked_entities()
+    return TrackedEntitiesUiConfig(
+        enabled=enabled,
+        listing=enabled and surface.serves_listing(),
+        registers=[
+            RegisterUiConfig(
+                resource=register.resource_type,
+                types=[
+                    RegisteredTypeUiConfig(uid=published.uid, name=published.name)
+                    for published in register.tracked_entity_types
+                ],
+            )
+            for register in (surface.registers() if enabled else ())
+        ],
+    )
 
 
 def basemap_layers(sources: list[BasemapSource]) -> list[BasemapLayer]:

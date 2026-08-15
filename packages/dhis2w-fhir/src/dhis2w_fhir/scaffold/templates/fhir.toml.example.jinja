@@ -101,17 +101,17 @@ port = 8080                         # a local dev DHIS2 commonly owns 8080; port
 strict_codes = false                # true refuses an out-of-list answer instead of warning -> 301-serving#strict_codes
 ui = false                          # true also serves the data-entry screens at / -> 301-serving#ui
 
-[serve.patients]
-# What a live run answers about people; a compiled guide answers none of it. -> 301-serving#patients
-enabled = true                      # false answers nothing about people, even under --live -> 301-serving#patients-enabled
-listing = true                      # false keeps identifier search and drops the browse listing -> 301-serving#patients-listing
-page_size = 20                      # people per page when the caller asks for no size -> 301-serving#patients-page_size
-page_size_limit = 100               # the largest page anyone may ask for; a bigger ask gets this -> 301-serving#patients-page_size_limit
-# Tracked entity types the people surface covers, by UID
-# (absent = the types the published registration forms register). -> 301-serving#patients-tracked_entity_types
+[serve.tracked_entities]
+# What a live run answers about the instance's tracked entities; a compiled guide answers none of it. -> 301-serving#tracked_entities
+enabled = true                      # false answers nothing about tracked entities, even under --live -> 301-serving#tracked_entities-enabled
+listing = true                      # false keeps identifier search and drops the browse listing -> 301-serving#tracked_entities-listing
+page_size = 20                      # rows per page when the caller asks for no size -> 301-serving#tracked_entities-page_size
+page_size_limit = 100               # the largest page anyone may ask for; a bigger ask gets this -> 301-serving#tracked_entities-page_size_limit
+# Tracked entity types the register covers, by UID
+# (absent = the types the published registration forms register). -> 301-serving#tracked_entities-tracked_entity_types
 # tracked_entity_types = ["nEenWmSyUEp"]
 # Tracked entity attributes an identifier search keys on, by UID
-# (absent = the attributes DHIS2 declares unique). -> 301-serving#patients-search_attributes
+# (absent = the attributes DHIS2 declares unique or searchable). -> 301-serving#tracked_entities-search_attributes
 # search_attributes = ["lZGmxYbs97q"]
 
 # The map backgrounds the organisation-unit map offers - the one outbound call. The screens'

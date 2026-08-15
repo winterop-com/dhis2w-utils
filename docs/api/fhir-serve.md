@@ -31,9 +31,11 @@ so anything cached would be stale within seconds of a drain.
   `resolve_period_type`, `MAXIMUM_SEED`).
 - Render the FHIR error and outcome bodies the facade answers with (`outcome`, `rejection_outcome`,
   `success_outcome`, `build_server_capability`).
-- Read what a guide states about people, or search a DHIS2 instance for one, without an HTTP server
-  (`PatientIndex`, `PublishedAttribute`, `patient_for`, `search_tracked_entities`,
-  `fetch_tracked_entity`, `PatientEnrollment`, `PatientEnrollments`).
+- Read what a guide states about the tracked entities an instance holds, or search a DHIS2 instance
+  for one, without an HTTP server (`TrackedEntityIndex`, `PublishedAttribute`,
+  `PublishedTrackedEntityType`, `RegisterSurface`, `ServedRegister`, `registered_entity_for`,
+  `search_tracked_entities`, `fetch_tracked_entity`, `TrackedEntityEnrollment`,
+  `TrackedEntityEnrollments`).
 
 ## Worked example - load a store and read one resource
 
@@ -112,27 +114,33 @@ machine that runs the whole thing, and the OperationOutcome vocabulary every ans
 
 ::: dhis2w_fhir_serve.capture.outcome
 
-### Patients
+### The register
 
-`GET /Patient` and `GET /Patient/{id}`, answered from the DHIS2 instance rather than from the store,
-and only by a process started with `--live`. The index reads what the guide already publishes about
-people, the wire module holds the empirical `/api/tracker/trackedEntities` contract the search obeys,
-and the projection turns one tracked entity into a Patient carrying identity and no demographic
-claims - each module docstring states why.
+`GET /{resourceType}` and `GET /{resourceType}/{id}`, answered from the DHIS2 instance rather than
+from the store, and only by a process started with `--live`. Which resource types those are is the
+published `D2TET_CM`'s to say - one per FHIR resource the map takes a registered tracked entity type
+onto - so a project tracking people alone serves `Patient` and one that also registers samples serves
+`Specimen` beside it. The index reads what the guide publishes about the instance's subjects, the
+surface narrows that by `[serve.tracked_entities]`, the wire module holds the empirical
+`/api/tracker/trackedEntities` contract the search obeys, and the projection turns one tracked entity
+into the resource its type is registered as, carrying identity and no claim the target resource
+otherwise defines - each module docstring states why.
 
-::: dhis2w_fhir_serve.patients.index
+::: dhis2w_fhir_serve.register.index
 
-::: dhis2w_fhir_serve.patients.wire
+::: dhis2w_fhir_serve.register.surface
 
-::: dhis2w_fhir_serve.patients.projection
+::: dhis2w_fhir_serve.register.wire
 
-::: dhis2w_fhir_serve.routes.patient
+::: dhis2w_fhir_serve.register.projection
+
+::: dhis2w_fhir_serve.routes.register
 
 ### Enrollment listing
 
-`GET /patients/{uid}/enrollments` - which programs one person is enrolled in, as the picker's typed
-JSON feed rather than as a FHIR resource, because whether a DHIS2 enrollment is an `EpisodeOfCare`
-or a `CarePlan` is a decision this project has deliberately not taken yet.
+`GET /tracked-entities/{uid}/enrollments` - which programs one tracked entity is enrolled in, as the
+picker's typed JSON feed rather than as a FHIR resource, because whether a DHIS2 enrollment is an
+`EpisodeOfCare` or a `CarePlan` is a decision this project has deliberately not taken yet.
 
 ::: dhis2w_fhir_serve.routes.enrollments
 

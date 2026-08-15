@@ -15,7 +15,10 @@ import tailwindcss from '@tailwindcss/vite'
 // The dev server proxies every guarded FHIR path to a running `d2w fhir serve`,
 // so the UI in dev talks to the same routes it will talk to in production. The
 // list is the router table of dhis2w_fhir_serve.routes, not a guess: /metadata
-// plus the resource types the read catch-alls answer for.
+// plus the resource types the read catch-alls answer for. The register serves
+// as many resource types as a published D2TET_CM names, so a project serving one
+// this list omits adds it here for its own dev server - production needs no such
+// list, since the server owns every path ahead of the static mount.
 //
 // `base: './'` would break nothing here, but '/' is what the server mounts at
 // and keeps asset URLs stable however deep a hash route goes.
@@ -24,8 +27,9 @@ const proxiedPaths = [
     '/metadata',
     '/spool',
     '/uiconfig',
-    '/patients',
+    '/tracked-entities',
     '/Patient',
+    '/Specimen',
     '/Questionnaire',
     '/QuestionnaireResponse',
     '/CodeSystem',

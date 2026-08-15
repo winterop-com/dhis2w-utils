@@ -44,7 +44,7 @@ transaction Bundle, which is a different project.
 So what is left is **the read side**: whether, when a FHIR client asks this project's
 server what programs a person is in, the answer is a resource of a standard type or the
 typed JSON listing that answers today at
-`GET /patients/{trackedEntityUid}/enrollments`. That listing exists in exactly this shape
+`GET /tracked-entities/{uid}/enrollments`. That listing exists in exactly this shape
 because of this open decision - it says so in its own module docstring - and it is
 deliberately on a lowercase path no FHIR resource type can collide with, so the day a
 resource lands nothing has to be un-published.
@@ -111,7 +111,7 @@ round-tripping at 225/225/0. Nothing here is worth reopening it for.
 enrollment UID, program UID and name, status, active flag, enrolment date, organisation
 unit UID and name. A resource that cannot carry those is not an upgrade.
 
-**R5 - Serve from `PatientIndex` joins that already exist.** The index already holds
+**R5 - Serve from `TrackedEntityIndex` joins that already exist.** The index already holds
 `{base}/id/program` with program names off the published Questionnaires, and
 `{base}/id/org-unit` with organisation unit names off the published registry. A projection
 that needs a join the index does not have is a bigger slice than it looks.
@@ -371,7 +371,7 @@ enrollment-only payload does not carry.
 **The output-leg data half.** Serving DHIS2's *data* as FHIR is the long-term item, with
 the enrollment listing as its first read surface. Under `EpisodeOfCare`, the swap is
 mechanical: `GET /EpisodeOfCare?patient=`, `GET /EpisodeOfCare/{uid}`, every element filled
-from the same entity read the listing already makes, every join already in `PatientIndex`
+from the same entity read the listing already makes, every join already in `TrackedEntityIndex`
 (R5). Under `CarePlan`, the same route exists but each instance carries a fabricated
 `intent` and an empty `activity[]`. Under status quo, there is no FHIR route.
 
@@ -448,14 +448,14 @@ Small, and entirely on the read side.
    discipline: what it carries, where each fact comes from, and what it deliberately does
    not carry. `id` is the enrollment UID, so `EpisodeOfCare/<uid>` reads back the same
    enrollment. Status map as a frozen table; `period.end` only where `completedAt` exists;
-   `type` from `{base}/id/program` with the display off `PatientIndex.program_names`; the
+   `type` from `{base}/id/program` with the display off `TrackedEntityIndex.program_names`; the
    owning unit on `D2OrganisationUnit`.
 3. **Two routes in live mode** - `GET /EpisodeOfCare/{uid}` and
    `GET /EpisodeOfCare?patient=<tracked-entity-uid>` returning a searchset `Bundle`, both
    read from the same entity-scoped tracker read the listing already uses (never with
-   `program=`, per BUGS.md 72), both gated by `[serve.patients] enabled` and by whether the
+   `program=`, per BUGS.md 72), both gated by `[serve.tracked_entities] enabled` and by whether the
    project publishes a `Patient`-subject tracked entity type, refusing with the existing
-   `PatientSurfaceDisabledError` / `NoPublishedSubjectTypeError`.
+   `RegisterDisabledError` / `NoPublishedSubjectTypeError`.
 4. **`CapabilityStatement` gains the resource**, so a client discovers it rather than
    guessing.
 5. **The listing stays exactly as it is**, with its module docstring rewritten from "this

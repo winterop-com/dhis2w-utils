@@ -16,21 +16,29 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
-from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, BasemapSource, FhirProject, PatientsConfig
+from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, BasemapSource, FhirProject, TrackedEntitiesConfig
 from dhis2w_fhir_serve.app import create_app
-from dhis2w_fhir_serve.patients.index import PatientIndex
-from dhis2w_fhir_serve.patients.surface import PatientSurface
+from dhis2w_fhir_serve.register.index import TrackedEntityIndex
+from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.routes.uiconfig import (
     OPENSTREETMAP_ATTRIBUTION,
     UI_CONFIG_PATH,
-    PatientsUiConfig,
+    RegisteredTypeUiConfig,
+    RegisterUiConfig,
+    TrackedEntitiesUiConfig,
     basemap_layers,
-    patients_surface_config,
     public_instance_url,
+    tracked_entities_config,
 )
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import load_compiled_store
 from fastapi import FastAPI
+from fixture_project import (
+    REGISTRATION_TRACKED_ENTITY_TYPE_UID,
+    SPECIMEN_RESOURCE_TYPE,
+    SPECIMEN_TRACKED_ENTITY_TYPE_NAME,
+    SPECIMEN_TRACKED_ENTITY_TYPE_UID,
+)
 
 #: The layers the app under test is started with unless a test overrides the `basemaps` fixture.
 OPENSTREETMAP_LAYERS = [BasemapSource(name="OpenStreetMap", url=DEFAULT_BASEMAP_TEMPLATE)]
@@ -137,32 +145,55 @@ async def test_the_settings_carry_nothing_a_browser_has_no_business_knowing(
     """The model is the enumeration of what the UI acts on, and the omissions are the point."""
     body = (await ui_config_client.get(UI_CONFIG_PATH)).json()
 
-    assert set(body) == {"basemaps", "dhis2_base_url", "patients"}
+    assert set(body) == {"basemaps", "dhis2_base_url", "tracked_entities"}
     serialised = str(body)
     for leaked in ("profile", "project_dir", "strict_codes", "live", "port"):
         assert leaked not in serialised, serialised
 
 
-async def test_a_compiled_run_reports_no_patient_surface_to_navigate_to(
+async def test_a_compiled_run_reports_no_register_surface_to_navigate_to(
     ui_config_client: httpx.AsyncClient,
 ) -> None:
-    """The state is the effective one, not the table read back: a compiled run answers for nobody."""
-    assert (await ui_config_client.get(UI_CONFIG_PATH)).json()["patients"] == {"enabled": False, "listing": False}
+    """The state is the effective one, not the table read back: a compiled run answers for nothing."""
+    assert (await ui_config_client.get(UI_CONFIG_PATH)).json()["tracked_entities"] == {
+        "enabled": False,
+        "listing": False,
+        "registers": [],
+    }
 
 
-def test_the_patient_surface_is_reported_as_a_live_run_resolves_it(capture_project: FhirProject) -> None:
-    """Live, over a guide publishing a registration form: people are served, and so is the listing."""
-    index = PatientIndex.from_store(capture_project, load_compiled_store(capture_project))
+def test_the_register_is_reported_as_a_live_run_resolves_it(capture_project: FhirProject) -> None:
+    """Live, over a guide publishing registration forms: the register is served, and so is the listing.
 
-    served = patients_surface_config(live=True, surface=PatientSurface.resolve(index, PatientsConfig()))
-    listing_off = patients_surface_config(
-        live=True, surface=PatientSurface.resolve(index, PatientsConfig(listing=False))
+    `registers` is the shape the screens act on: one entry per FHIR resource the published map names,
+    each carrying the tracked entity types riding it under the names the instance holds - which is
+    what lets a page title a section "Specimen batch" rather than calling a sample a person.
+    """
+    index = TrackedEntityIndex.from_store(capture_project, load_compiled_store(capture_project))
+    registers = [
+        RegisterUiConfig(
+            resource="Patient",
+            types=[RegisteredTypeUiConfig(uid=REGISTRATION_TRACKED_ENTITY_TYPE_UID, name="Person")],
+        ),
+        RegisterUiConfig(
+            resource=SPECIMEN_RESOURCE_TYPE,
+            types=[
+                RegisteredTypeUiConfig(uid=SPECIMEN_TRACKED_ENTITY_TYPE_UID, name=SPECIMEN_TRACKED_ENTITY_TYPE_NAME)
+            ],
+        ),
+    ]
+
+    served = tracked_entities_config(live=True, surface=RegisterSurface.resolve(index, TrackedEntitiesConfig()))
+    listing_off = tracked_entities_config(
+        live=True, surface=RegisterSurface.resolve(index, TrackedEntitiesConfig(listing=False))
     )
-    disabled = patients_surface_config(live=True, surface=PatientSurface.resolve(index, PatientsConfig(enabled=False)))
+    disabled = tracked_entities_config(
+        live=True, surface=RegisterSurface.resolve(index, TrackedEntitiesConfig(enabled=False))
+    )
 
-    assert served == PatientsUiConfig(enabled=True, listing=True)
-    assert listing_off == PatientsUiConfig(enabled=True, listing=False)
-    assert disabled == PatientsUiConfig(enabled=False, listing=False)
+    assert served == TrackedEntitiesUiConfig(enabled=True, listing=True, registers=registers)
+    assert listing_off == TrackedEntitiesUiConfig(enabled=True, listing=False, registers=registers)
+    assert disabled == TrackedEntitiesUiConfig(enabled=False, listing=False, registers=[])
 
 
 async def test_the_path_is_not_claimed_by_the_read_catch_all(client: httpx.AsyncClient) -> None:

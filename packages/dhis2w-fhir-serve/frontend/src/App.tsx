@@ -5,13 +5,13 @@ import { FormFill } from '@/pages/FormFill'
 import { Forms } from '@/pages/Forms'
 import { OrgUnits } from '@/pages/OrgUnits'
 import { Overview } from '@/pages/Overview'
-import { PatientDetail } from '@/pages/PatientDetail'
-import { Patients } from '@/pages/Patients'
 import { ResponseDetail } from '@/pages/ResponseDetail'
 import { Responses } from '@/pages/Responses'
 import { Server } from '@/pages/Server'
 import { Terminology } from '@/pages/Terminology'
 import { TerminologyDetail } from '@/pages/TerminologyDetail'
+import { TrackedEntities } from '@/pages/TrackedEntities'
+import { TrackedEntityDetail } from '@/pages/TrackedEntityDetail'
 
 /**
  * The route table.
@@ -29,19 +29,24 @@ import { TerminologyDetail } from '@/pages/TerminologyDetail'
  * to know.
  *
  * `/forms/:questionnaireId`, `/responses/:responseId`,
- * `/terminology/:resourceType/:resourceId`, and `/patients/:trackedEntityUid`
- * are the four routes that are not listings: the first renders one Questionnaire
- * as a fillable form and posts the answers back, the second opens one stored
- * receipt with its answers joined to the questions that were asked, the third
- * opens one terminology resource and shows the codes inside it, and the fourth
- * opens one person the DHIS2 instance holds.
+ * `/terminology/:resourceType/:resourceId`, and
+ * `/tracked-entities/:resourceType/:trackedEntityUid` are the four routes that
+ * are not listings: the first renders one Questionnaire as a fillable form and
+ * posts the answers back, the second opens one stored receipt with its answers
+ * joined to the questions that were asked, the third opens one terminology
+ * resource and shows the codes inside it, and the fourth opens one tracked
+ * entity the DHIS2 instance holds.
  *
- * `/patients` and `/patients/:trackedEntityUid` are the two routes that can be
- * offered or not: the person routes are mounted only by a run that reaches a
- * DHIS2 instance, so both pages read `/uiconfig` and send a reader to the
- * overview when this run offers no people. The route table stays whole either
- * way, because whether a page exists is a fact about the running server rather
- * than about the bundle.
+ * The tracked entity route carries a resource type because the register serves
+ * as many FHIR resources as the published map names - `Patient` for the people,
+ * whatever a project states for the rest - and a tracked entity uid alone does
+ * not say which of them reads it back.
+ *
+ * `/tracked-entities` and its detail route are the two that can be offered or
+ * not: the register is mounted only by a run that reaches a DHIS2 instance, so
+ * both pages read `/uiconfig` and send a reader to the overview when this run
+ * offers no register. The route table stays whole either way, because whether a
+ * page exists is a fact about the running server rather than about the bundle.
  *
  * `/organisation-units` is the one page that keeps its selection in the query
  * string (`#/organisation-units?unit=<uid>`) rather than in the path: the tree,
@@ -63,8 +68,11 @@ export default function App() {
                 <Route path="forms/:questionnaireId" element={<FormFill />} />
                 <Route path="responses" element={<Responses />} />
                 <Route path="responses/:responseId" element={<ResponseDetail />} />
-                <Route path="patients" element={<Patients />} />
-                <Route path="patients/:trackedEntityUid" element={<PatientDetail />} />
+                <Route path="tracked-entities" element={<TrackedEntities />} />
+                <Route
+                    path="tracked-entities/:resourceType/:trackedEntityUid"
+                    element={<TrackedEntityDetail />}
+                />
                 <Route path="organisation-units" element={<OrgUnits />} />
                 <Route path="terminology" element={<Terminology />} />
                 <Route path="terminology/:resourceType/:resourceId" element={<TerminologyDetail />} />

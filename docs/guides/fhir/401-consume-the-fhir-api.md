@@ -93,7 +93,29 @@ $ curl -s 'localhost:8091/Questionnaire?identifier=http://dhis2.org/fhir/id/prog
 "Child Programme - Baby Postnatal"
 ```
 
-## `Patient`: who a person is in the instance
+## The register: what the instance holds, one resource per tracked entity type
+
+**Which resource types this section is about is the guide's to say.** A running
+server reads `D2TET_CM` - the ConceptMap `d2w fhir generate` publishes over the
+tracked entity types the project's forms register - and serves one read surface
+per FHIR resource that map names. A project tracking people alone serves
+`Patient`; one that also registers specimen batches serves `Specimen` beside it,
+over exactly the types the map put there. The published artifact is the contract:
+`[generate.tracked_entity_types]` is what produced it, and the server never reads
+that table.
+
+Every surface answers identically - the same `identifier` search, the same paged
+listing, the same projection. `Patient` is used throughout below because it is
+the resource every deployment has; substitute any other the map names and every
+request and answer shape here holds unchanged.
+
+```console
+$ curl -s localhost:8391/metadata | jq -r '.rest[0].resource[] | select(.searchParam[]?.name == "identifier") | .type'
+Patient
+Specimen
+```
+
+### `Patient`: who a person is in the instance
 
 Every search above answers from what the project published. This one answers
 from the DHIS2 instance the server runs against, at request time, which is why
@@ -182,7 +204,7 @@ comes back holding it.
 entry's `fullUrl` points at. A UID the instance does not hold is a 404 there -
 a read, unlike a search, names a specific resource.
 
-## The `Patient` listing: who the instance holds, a page at a time
+### The listing: what the instance holds, a page at a time
 
 `GET /Patient` carrying no parameters at all is the listing rather than a
 search that matched nothing: what a facade has to offer for "no criteria" is
@@ -201,11 +223,11 @@ Entries are the same projection the search answers with, and each `fullUrl`
 points at `GET /Patient/{trackedEntityUid}`.
 
 **Two parameters page it: `_count` and `page`.** `_count` is R4's page size.
-A call naming none is answered with `[serve.patients] page_size` entries; a
-call naming more than `[serve.patients] page_size_limit` is answered with
+A call naming none is answered with `[serve.tracked_entities] page_size` entries; a
+call naming more than `[serve.tracked_entities] page_size_limit` is answered with
 `page_size_limit` of them and a `next` link, rather than refused - a client
 that asked for too much should be handed a smaller page, not an error
-([Configure serving](301-serving.md#patients)).
+([Configure serving](301-serving.md#tracked_entities)).
 
 ```console
 $ curl -s 'localhost:8391/Patient?_count=5' | jq '.entry | length'
@@ -213,7 +235,8 @@ $ curl -s 'localhost:8391/Patient?_count=5' | jq '.entry | length'
 ```
 
 **`page` is an opaque token. Follow the links; never construct one.** The
-listing spans every tracked entity type this project treats as people, and
+listing spans every tracked entity type the published map takes onto this
+resource, and
 DHIS2 pages each type's records on its own, so one page of this listing can sit
 part-way through several of the instance's own cursors at once. The token is
 how the server carries that position across a request; it is bytes to a client,
@@ -243,15 +266,15 @@ worse answer than no total.
 **Naming `identifier` is always the search**, whatever the listing is set to:
 the two share an endpoint, and the parameter is what tells them apart.
 
-**What the configuration answers with when it is off.** `[serve.patients]`
+**What the configuration answers with when it is off.** `[serve.tracked_entities]`
 gates the surface, and each of its two switches refuses with the fact and the
-line to change ([Configure serving](301-serving.md#patients)). With
+line to change ([Configure serving](301-serving.md#tracked_entities)). With
 `listing = false`, the search is untouched and the no-parameter call is not
 served:
 
 ```console
 $ curl -s localhost:8391/Patient
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this facade serves no `Patient` listing; name an `identifier` to search for a person, or set `[serve.patients] listing = true` in fhir.toml and serve again"}]}
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this facade serves no `Patient` listing; name an `identifier` to search for a person, or set `[serve.tracked_entities] listing = true` in fhir.toml and serve again"}]}
 $ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001' | jq .total
 1
 ```
@@ -263,18 +286,18 @@ guide:
 
 ```console
 $ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001'
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is not served here: this project sets `[serve.patients] enabled` to false; set it true in fhir.toml and serve again to search or list people"}]}
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is not served here: this project sets `[serve.tracked_entities] enabled` to false; set it true in fhir.toml and serve again to search or list people"}]}
 ```
 
-Which people the two surfaces cover is configuration too:
-`[serve.patients] tracked_entity_types` narrows both to named tracked entity
+Which records the two surfaces cover is configuration too:
+`[serve.tracked_entities] tracked_entity_types` narrows both to named tracked entity
 types - the setting a laboratory instance reaches for, so that specimens are
-not listed beside patients - and `[serve.patients] search_attributes` names the
+not listed beside patients - and `[serve.tracked_entities] search_attributes` names the
 attributes an identifier keys on, in place of the ones DHIS2 declares unique.
 Both are explained for the person editing the file in
-[Configure serving](301-serving.md#patients).
+[Configure serving](301-serving.md#tracked_entities).
 
-## `/patients/{uid}/enrollments`: which programs a person is in
+## `/tracked-entities/{uid}/enrollments`: which programs a person is in
 
 A capture client that has found a person still has to answer a stage form
 against one of that person's enrollments. This is the list it picks from, and
@@ -284,7 +307,7 @@ DHIS2 enrollment is an `EpisodeOfCare` or a `CarePlan` is
 a picker's data feed would settle it by accident.
 
 ```console
-$ curl -s localhost:8391/patients/PLoWmEuLJl2/enrollments | jq .
+$ curl -s localhost:8391/tracked-entities/PLoWmEuLJl2/enrollments | jq .
 {
   "tracked_entity_uid": "PLoWmEuLJl2",
   "enrollments": [
@@ -315,7 +338,7 @@ not this facade's.
 
 Like `/Patient`, this listing is live-only, and answers the same
 `not-supported` OperationOutcome under a compiled guide - and under
-`[serve.patients] enabled = false`, which takes the whole people surface away
+`[serve.tracked_entities] enabled = false`, which takes the whole people surface away
 in one line.
 
 ## `$translate`: generated codes back to DHIS2 identifiers
@@ -573,7 +596,8 @@ The handful of run-time settings the capture UI has to act on - today, the
 basemap layers this run offers with the attribution the server can honestly
 state for each, the address of the DHIS2 instance it resolved a profile for,
 which is what an identity on a page links back to, and whether this run answers
-about people at all. Deliberately not the profile's name, its credentials, the
+about the instance's tracked entities at all. Deliberately not the profile's
+name, its credentials, the
 host this process listens on, or the strictness dial: those describe the process
 to whoever runs it, and a browser that could read them would be a browser that
 leaks them.
@@ -589,9 +613,13 @@ $ curl -s localhost:8091/uiconfig | jq .
     }
   ],
   "dhis2_base_url": "https://play.dhis2.org/40",
-  "patients": {
+  "tracked_entities": {
     "enabled": true,
-    "listing": true
+    "listing": true,
+    "registers": [
+      { "resource": "Patient", "types": [{ "uid": "nEenWmSyUEp", "name": "Person" }] },
+      { "resource": "Specimen", "types": [{ "uid": "Kd6Nk9wnAJa", "name": "Specimen batch" }] }
+    ]
   }
 }
 ```
@@ -601,16 +629,27 @@ $ curl -s localhost:8091/uiconfig | jq .
 absences it guesses at: the map's layer control holds `None` alone, and the
 screens carry no links out.
 
-`patients` is the two switches of `[serve.patients]` that change what the
-screens draw - `enabled` false and there is no Patients page in the navigation
-at all, `listing` false and that page searches without offering to browse. The
-UI reads them here rather than discovering them from a refusal, so a control
-that cannot be answered is never drawn in the first place. What is reported is
-what this run does, not what the file says: a compiled run reports `enabled`
-false whatever `fhir.toml` states, because the people surface answers from an
-instance and a compiled run is connected to none. The other four settings of
-that table shape the answers rather than the screens, so the browser is never
-told them.
+`tracked_entities` is what the screens act on. `enabled` and `listing` are the
+two switches of `[serve.tracked_entities]` that change what is drawn - `enabled`
+false and the register has no entry in the navigation at all, `listing` false and
+its page searches without offering to browse. The UI reads them here rather than
+discovering them from a refusal, so a control that cannot be answered is never
+drawn in the first place. What is reported is what this run does, not what the
+file says: a compiled run reports `enabled` false whatever `fhir.toml` states,
+because the register answers from an instance and a compiled run is connected to
+none. The other four settings of that table shape the answers rather than the
+screens, so the browser is never told them.
+
+`registers` is the third fact, and it is the published `D2TET_CM` read for a
+screen: one entry per FHIR resource this run serves from the instance, each
+carrying the tracked entity types riding it under the names the instance holds
+for them. It is what lets the navigation entry read **Patients** on a deployment
+that tracks only people and **Tracked entities** on one that tracks something
+else besides, and what lets a section on that page be titled *Specimen batch*
+rather than `Specimen` - the resource type is this project's projection, and the
+type's own name is what a reader working in DHIS2 recognises. It is `[]` whenever
+`enabled` is false, because a page the navigation does not offer has no sections
+to name.
 
 Both live on single lowercase path segments precisely so they can never
 shadow a FHIR resource type, which is PascalCase.

@@ -64,10 +64,12 @@ describe('the guarded-path pattern', () => {
             '/ConceptMap/$translate?code=x',
             '/Location/ImspTQPwCqd',
             '/Organization',
-            // The two a live process answers from the DHIS2 instance rather than from its store.
+            // The ones a live process answers from the DHIS2 instance rather than from its store.
             '/Patient?identifier=12345678',
             '/Patient/TeiPerson01',
-            '/patients/TeiPerson01/enrollments',
+            '/Specimen?identifier=LAB-0001',
+            '/Specimen/TeiSample01',
+            '/tracked-entities/TeiPerson01/enrollments',
         ]
         for (const path of served) {
             expect(GUARDED_PATH_PATTERN.test(path), path).toBe(true)
@@ -81,8 +83,6 @@ describe('the guarded-path pattern', () => {
             '/assets/index-abc123.js',
             '/api/dataValueSets',
             '/fhir/Questionnaire',
-            '/Patients',
-            '/QuestionnaireResponses',
             '/metadataX',
             'Questionnaire',
             'https://elsewhere.example/Questionnaire',
@@ -92,12 +92,16 @@ describe('the guarded-path pattern', () => {
         }
     })
 
-    it('tells QuestionnaireResponse apart from Questionnaire', () => {
-        // The two share a prefix, so the longer name has to be its own
-        // alternative rather than relying on the shorter one plus a separator.
-        expect(GUARDED_PATH_PATTERN.test('/QuestionnaireResponse')).toBe(true)
+    it('guards a resource type by its shape, since the register serves as many as the guide names', () => {
+        // Which resource types the register answers is what the published map says, so the guard
+        // recognises the spelling rather than a list this bundle could never keep current. A type
+        // this server does not serve is refused by the server, in its own words.
+        expect(GUARDED_PATH_PATTERN.test('/Specimen?identifier=LAB-0001')).toBe(true)
         expect(GUARDED_PATH_PATTERN.test('/QuestionnaireResponse/receipt-1')).toBe(true)
-        expect(GUARDED_PATH_PATTERN.test('/QuestionnaireBogus')).toBe(false)
+        expect(GUARDED_PATH_PATTERN.test('/Group')).toBe(true)
+        // Not a resource type: lowercase is how this server spells everything the UI is served from.
+        expect(GUARDED_PATH_PATTERN.test('/assets/index-abc123.js')).toBe(false)
+        expect(GUARDED_PATH_PATTERN.test('/Questionnaire9')).toBe(false)
     })
 })
 

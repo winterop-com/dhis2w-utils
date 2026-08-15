@@ -20,7 +20,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSidebar } from '@/hooks/use-sidebar'
 import { useUiConfig } from '@/hooks/use-ui-config'
-import { patientSettings, type UiConfig } from '@/lib/uiconfig'
+import { servesPeopleOnly, trackedEntitySettings, type UiConfig } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
 /** One entry in the sidebar rail: where it goes, what it is called, and what it is for. */
@@ -37,7 +37,21 @@ export interface NavItem {
      * so a bundle that shipped with the server can be certain they are there.
      */
     offered?: (settings: UiConfig) => boolean
+    /**
+     * The label and hint this run gives the page, for one whose subject depends on the server.
+     *
+     * Absent for every page whose subject is fixed. The register has one because a project tracking
+     * only people would be badly served by a rail entry reading "Tracked entities", and a project
+     * tracking samples besides would be lied to by one reading "Patients".
+     */
+    naming?: (settings: UiConfig) => { label: string; hint: string }
 }
+
+/** What the register entry is called on a run serving nobody but people, and on any other. */
+export const PEOPLE_NAV_LABEL = 'Patients'
+export const PEOPLE_NAV_HINT = 'People this DHIS2 instance holds'
+export const REGISTER_NAV_LABEL = 'Tracked entities'
+export const REGISTER_NAV_HINT = 'What this DHIS2 instance tracks'
 
 /**
  * The whole navigation surface, as data.
@@ -50,21 +64,33 @@ export interface NavItem {
  * can fill, through the people those forms are about and what came back, to the
  * terminology and the server behind all of it.
  *
- * A PAGE THAT IS NOT ALWAYS THERE STATES ITS OWN CONDITION, in `offered`. Patients
- * is the first of those: the person routes are mounted only by a run that reaches
- * a DHIS2 instance, and a rail entry leading to a page that answers a refusal is
- * worse than no entry - so the condition is asked before the entry is drawn,
- * rather than discovered by following it.
+ * A PAGE THAT IS NOT ALWAYS THERE STATES ITS OWN CONDITION, in `offered`. The
+ * register is the first of those: its routes are mounted only by a run that
+ * reaches a DHIS2 instance, and a rail entry leading to a page that answers a
+ * refusal is worse than no entry - so the condition is asked before the entry is
+ * drawn, rather than discovered by following it.
+ *
+ * A PAGE THAT IS NOT ALWAYS THE SAME PAGE STATES ITS OWN NAME, in `naming`. The
+ * register is the only one of those too: DHIS2 tracks whatever a project tracks,
+ * so a deployment that registers only people gets an entry reading Patients and
+ * a deployment that also registers samples gets the entry that covers both. The
+ * entry is one either way - splitting the rail per FHIR resource would put the
+ * navigation at the mercy of a config file - and the sections inside the page are
+ * where the types are named.
  */
 export const NAV_ITEMS: NavItem[] = [
     { path: '', label: 'Overview', hint: 'State of capture', icon: LayoutDashboard },
     { path: 'forms', label: 'Forms', hint: 'Questionnaires served', icon: ClipboardList },
     {
-        path: 'patients',
-        label: 'Patients',
-        hint: 'People this DHIS2 instance holds',
+        path: 'tracked-entities',
+        label: PEOPLE_NAV_LABEL,
+        hint: PEOPLE_NAV_HINT,
         icon: Users,
-        offered: (settings) => patientSettings(settings).enabled,
+        offered: (settings) => trackedEntitySettings(settings).enabled,
+        naming: (settings) =>
+            servesPeopleOnly(trackedEntitySettings(settings))
+                ? { label: PEOPLE_NAV_LABEL, hint: PEOPLE_NAV_HINT }
+                : { label: REGISTER_NAV_LABEL, hint: REGISTER_NAV_HINT },
     },
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
     { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },
@@ -72,9 +98,10 @@ export const NAV_ITEMS: NavItem[] = [
     { path: 'server', label: 'Server', hint: 'What /metadata declares', icon: ServerCog },
 ]
 
-/** The entries this run really offers - every unconditional one, plus those whose condition holds. */
+/** The entries this run really offers, each under the name this run gives it. */
 export function offeredNavItems(settings: UiConfig): NavItem[] {
-    return NAV_ITEMS.filter((item) => item.offered === undefined || item.offered(settings))
+    const offered = NAV_ITEMS.filter((item) => item.offered === undefined || item.offered(settings))
+    return offered.map((item) => (item.naming === undefined ? item : Object.assign({}, item, item.naming(settings))))
 }
 
 /** Sidebar shell: collapsible navigation rail, status header, page content. */
@@ -89,7 +116,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
     // A detail route (forms/:id, responses/:id, terminology/:type/:id) belongs to the section
     // whose listing links to it, so the header names the section - the app name is only for a
     // route no nav entry claims at all.
+    // Named off the same list the rail is drawn from, so a page whose name depends on the server -
+        // the register - is headed by the name its own entry carries rather than by the table's default.
+    const named = offeredNavItems(config)
     const title =
+        named.find((item) => item.path === current)?.label ??
+        named.find((item) => item.path !== '' && current.startsWith(`${item.path}/`))?.label ??
         NAV_ITEMS.find((item) => item.path === current)?.label ??
         NAV_ITEMS.find((item) => item.path !== '' && current.startsWith(`${item.path}/`))?.label ??
         'DHIS2 FHIR capture'

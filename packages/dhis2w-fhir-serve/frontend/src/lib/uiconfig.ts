@@ -26,25 +26,51 @@ export interface BasemapLayer {
     attribution: string | null
 }
 
+/** One DHIS2 tracked entity type a served resource covers, as the published map names it. */
+export interface RegisteredType {
+    /** The DHIS2 tracked entity type uid, which is what a served resource carries as its `meta.tag`. */
+    uid: string
+    /** The name the instance holds for the type, or null when the guide published none. */
+    name: string | null
+}
+
 /**
- * What this run answers about the people the DHIS2 instance behind it holds.
+ * One FHIR resource type this run serves from the DHIS2 instance, and the types riding it.
+ *
+ * `resource` is a path as much as a name: the register is read at `/{resource}` and paged there, so
+ * a screen showing a section needs no second lookup to know where its rows come from.
+ */
+export interface Register {
+    resource: string
+    types: RegisteredType[]
+}
+
+/**
+ * What this run answers about the tracked entities the DHIS2 instance behind it holds.
  *
  * THE EFFECTIVE STATE, NOT THE CONFIGURED ONE. The server resolves what it can actually do and
- * reports that: a compiled run answers `{enabled: false, listing: false}` rather than leaving the
- * object out, so a reader never has to work out what a setting would have meant on a process that
- * cannot honour it. `enabled` false takes every person route with it, the enrollment listing
- * included.
+ * reports that: a compiled run answers `{enabled: false, listing: false, registers: []}` rather than
+ * leaving the object out, so a reader never has to work out what a setting would have meant on a
+ * process that cannot honour it. `enabled` false takes every register route with it, the enrollment
+ * listing included.
  *
  * Two settings rather than one, because they are two different offers. `enabled` is whether the
- * person routes are mounted at all - a run that reaches no DHIS2 instance mounts none, and every
- * one of them answers a not-supported OperationOutcome. `listing` is whether `GET /Patient` with no
- * parameters answers a page of people, which a deployment can decline while still answering a
- * search: reading a whole instance's tracked entities is a heavier thing to offer than looking one
- * up by the value on their card.
+ * register routes are mounted at all - a run that reaches no DHIS2 instance mounts none, and every
+ * one of them answers a not-supported OperationOutcome. `listing` is whether a register search with
+ * no parameters answers a page, which a deployment can decline while still answering a search:
+ * reading a whole instance's tracked entities is a heavier thing to offer than looking one up by the
+ * value on their card.
+ *
+ * `registers` is the third fact, and the one that keeps the screens honest. DHIS2 tracks whatever a
+ * project tracks, and the published `D2TET_CM` says which FHIR resource each tracked entity type is
+ * served as. A run whose every type is a person carries one entry and the screens read exactly as
+ * they always did; a run that also tracks samples carries a second, and the screens name each
+ * section by the types riding it rather than calling a specimen batch a person.
  */
-export interface PatientSettings {
+export interface TrackedEntitiesSettings {
     enabled: boolean
     listing: boolean
+    registers: Register[]
 }
 
 /**
@@ -53,33 +79,60 @@ export interface PatientSettings {
  * `basemaps` empty means this run offers no tiles, which is a state rather than a gap: the layer
  * control then holds None alone and the map draws the boundary-only canvas. `dhis2_base_url` null
  * means the run resolved no profile, and the UI answers that by linking nothing out - a guide with
- * no named instance behind it has nowhere honest to point. `patients` absent or null means the
- * server stated nothing about people at all, which is read as offering none.
+ * no named instance behind it has nowhere honest to point. `tracked_entities` absent or null means
+ * the server stated nothing about the instance's subjects at all, which is read as offering none.
  */
 export interface UiConfig {
     basemaps: BasemapLayer[]
     dhis2_base_url: string | null
-    patients?: PatientSettings | null
+    tracked_entities?: TrackedEntitiesSettings | null
 }
 
-/** What a server stating nothing about people is read as: no routes, and so no listing either. */
-export const NO_PATIENTS_OFFERED: PatientSettings = { enabled: false, listing: false }
+/** What a server stating nothing is read as: no routes, so no listing and no register either. */
+export const NO_REGISTER_OFFERED: TrackedEntitiesSettings = { enabled: false, listing: false, registers: [] }
+
+/** The FHIR resource a DHIS2 tracked entity type is served as when the guide maps it to nothing. */
+export const PEOPLE_RESOURCE_TYPE = 'Patient'
 
 /**
- * What this run offers about people, with silence read as offering none.
+ * What this run offers about the instance's tracked entities, with silence read as offering none.
  *
  * The one place the absent case is decided, so no screen can accidentally read a missing setting as
  * an offer. A navigation entry, a page, and a route guard all ask this and get the same answer.
  *
  * A live server always states the object, so silence means one of two things: something in front of
  * this server swallowed `/uiconfig`, or the read failed and `DEFAULT_UI_CONFIG` is what is being
- * asked. Both are states in which nothing is known about the person routes, and offering a page
+ * asked. Both are states in which nothing is known about the register routes, and offering a page
  * that might answer a refusal is worse than offering none - so the answer is the same as a server
  * that stated it offers nothing.
  */
-export function patientSettings(config: UiConfig): PatientSettings {
-    return config.patients ?? NO_PATIENTS_OFFERED
+export function trackedEntitySettings(config: UiConfig): TrackedEntitiesSettings {
+    return config.tracked_entities ?? NO_REGISTER_OFFERED
+}
+
+/**
+ * Whether every tracked entity type this run serves is published as a person.
+ *
+ * The overwhelmingly common deployment, and the one whose screens must not change a word: a project
+ * that tracks only people gets the pages it always had, named for the people they hold. A run
+ * serving nothing counts as one of those, because the pages it would name are pages it does not
+ * offer.
+ */
+export function servesPeopleOnly(settings: TrackedEntitiesSettings): boolean {
+    return settings.registers.every((register) => register.resource === PEOPLE_RESOURCE_TYPE)
+}
+
+/**
+ * What a section over one served resource is called: the names the instance holds for its types.
+ *
+ * Never the FHIR resource type. A reader of these screens works in DHIS2, where the thing is called
+ * a Person or a Specimen batch, and telling them the row is a `Specimen` would be naming the
+ * projection rather than the subject. A type the guide published no name for falls back to its uid,
+ * which is at least a thing that can be looked up.
+ */
+export function registerSectionTitle(register: Register): string {
+    return register.types.map((type) => type.name ?? type.uid).join(', ')
 }
 
 /** What this UI assumes before the settings have arrived, and if the read fails: no tiles, no links. */
-export const DEFAULT_UI_CONFIG: UiConfig = { basemaps: [], dhis2_base_url: null, patients: null }
+export const DEFAULT_UI_CONFIG: UiConfig = { basemaps: [], dhis2_base_url: null, tracked_entities: null }

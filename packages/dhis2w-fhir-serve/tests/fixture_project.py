@@ -4,13 +4,16 @@ The resources are the dhis2w-fhir goldens - one Questionnaire per form kind plus
 they bind, and the ConceptMap the emitter writes beside one of the option sets - so a test that
 accepts them is a test that the facade accepts the documented contract.
 
-Two forms are written here rather than harvested. The first is the registration form of the tracker
+Three forms are written here rather than harvested. The first is the registration form of the tracker
 program whose stage form the goldens already publish: it gives the fixture a whole tracker surface -
 register a person against `PrAncCare01`, mint the identifier pair, then answer `PsAncVisit1` with the
 same pair - which is what the capture, `$generate`, and e2e paths all need to exercise the
 registration contract end to end. The second is the person-only form of the tracked entity type that
 program registers into, which is the same surface with the enrollment taken out of it: a person put
-in the instance and enrolled in nothing.
+in the instance and enrolled in nothing. The third registers a tracked entity type that is not a
+person at all, and the `D2TET_CM` beside them takes it onto `Specimen` - so the register this project
+serves is two FHIR resources rather than one, which is what makes the generalized read surface and
+the typed capture screens real rather than hypothetical.
 
 Beside them sits an organisation-unit registry: ten Locations over four levels, carrying every
 geometry state a real selection produces, the curated profile exemplar a generated IG publishes
@@ -407,6 +410,9 @@ REGISTRATION_DATE_ATTRIBUTE = "TeaBirthDat"
 REGISTRATION_CODED_ATTRIBUTE = "TeaSex00001"
 REGISTRATION_PROGRAM_ONLY_ATTRIBUTE = "TeaHousehld"
 
+#: The attribute the second tracked entity type collects: a unique laboratory reference.
+SPECIMEN_UNIQUE_ATTRIBUTE = "TeaLabRef01"
+
 #: The extension a registration question states its DHIS2 import level on.
 ENTITY_LEVEL_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-entity-level"
 
@@ -537,11 +543,15 @@ SEX_VALUE_SET_BODY: dict[str, Any] = {
     "compose": {"include": [{"system": SEX_CODE_SYSTEM}]},
 }
 
-#: The data-dictionary pair over the attributes the registration form asks, as `D2TEA_CS` publishes
-#: it: the DHIS2 code, the value type, and whether DHIS2 declares the attribute unique. The
-#: household attribute carries no `dhis2-code` on purpose - DHIS2 does not require a code on a
-#: tracked entity attribute, and a consumer of this system has to render that absence honestly
-#: rather than invent one.
+#: The data-dictionary pair over the attributes the registration forms ask, as `D2TEA_CS` publishes
+#: it: the DHIS2 code, the value type, whether DHIS2 declares the attribute unique, and whether it
+#: declares it searchable. The household attribute carries no `dhis2-code` on purpose - DHIS2 does
+#: not require a code on a tracked entity attribute, and a consumer of this system has to render that
+#: absence honestly rather than invent one.
+#:
+#: Date of birth is the searchable-but-not-unique case, which is the one the widened search default
+#: exists for: DHIS2 lets a clerk look somebody up by it, nothing enforces that two people differ in
+#: it, and a facade keying on uniqueness alone would refuse the lookup the instance permits.
 TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
     "resourceType": "CodeSystem",
     "id": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM.rsplit("/", 1)[-1],
@@ -556,6 +566,7 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
         {"code": "dhis2-code", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/dhis2-code", "type": "string"},
         {"code": "value-type", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/value-type", "type": "code"},
         {"code": "unique", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/unique", "type": "boolean"},
+        {"code": "searchable", "uri": f"{CAPTURE_IDENTIFIER_BASE}/property/searchable", "type": "boolean"},
     ],
     "concept": [
         {
@@ -565,6 +576,7 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
                 {"code": "dhis2-code", "valueString": "TEA_BIRTH_DATE"},
                 {"code": "value-type", "valueCode": "DATE"},
                 {"code": "unique", "valueBoolean": False},
+                {"code": "searchable", "valueBoolean": True},
             ],
         },
         {
@@ -573,6 +585,7 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
             "property": [
                 {"code": "value-type", "valueCode": "INTEGER_POSITIVE"},
                 {"code": "unique", "valueBoolean": False},
+                {"code": "searchable", "valueBoolean": False},
             ],
         },
         {
@@ -582,6 +595,7 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
                 {"code": "dhis2-code", "valueString": "TEA_NATIONAL_ID"},
                 {"code": "value-type", "valueCode": "TEXT"},
                 {"code": "unique", "valueBoolean": True},
+                {"code": "searchable", "valueBoolean": True},
             ],
         },
         {
@@ -591,10 +605,21 @@ TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY: dict[str, Any] = {
                 {"code": "dhis2-code", "valueString": "TEA_SEX"},
                 {"code": "value-type", "valueCode": "TEXT"},
                 {"code": "unique", "valueBoolean": False},
+                {"code": "searchable", "valueBoolean": False},
+            ],
+        },
+        {
+            "code": SPECIMEN_UNIQUE_ATTRIBUTE,
+            "display": "Laboratory reference",
+            "property": [
+                {"code": "dhis2-code", "valueString": "TEA_LAB_REF"},
+                {"code": "value-type", "valueCode": "TEXT"},
+                {"code": "unique", "valueBoolean": True},
+                {"code": "searchable", "valueBoolean": True},
             ],
         },
     ],
-    "count": 4,
+    "count": 5,
 }
 
 TRACKED_ENTITY_ATTRIBUTE_VALUE_SET_BODY: dict[str, Any] = {
@@ -605,6 +630,122 @@ TRACKED_ENTITY_ATTRIBUTE_VALUE_SET_BODY: dict[str, Any] = {
     "title": "DHIS2 tracked entity attributes",
     "status": "draft",
     "compose": {"include": [{"system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM}]},
+}
+
+#: The second tracked entity type this project registers, and the one that is not a person. It is
+#: what makes the fixture's register more than a Patient surface: `D2TET_CM` takes it onto Specimen,
+#: so the facade serves `GET /Specimen` over it with the same machinery `GET /Patient` runs on, and
+#: the capture UI has a second typed section to name.
+SPECIMEN_TRACKED_ENTITY_TYPE_UID = "TetSample01"
+SPECIMEN_TRACKED_ENTITY_TYPE_NAME = "Specimen batch"
+SPECIMEN_RESOURCE_TYPE = "Specimen"
+SPECIMEN_QUESTIONNAIRE = f"{CAPTURE_CANONICAL}/Questionnaire/{SPECIMEN_TRACKED_ENTITY_TYPE_UID}"
+
+#: The tracked-entity-type vocabulary and the map onto FHIR resource types, as
+#: `dhis2w_fhir.resources.questionnaires.documents` emits the pair for a run publishing two types.
+TRACKED_ENTITY_TYPE_CODE_SYSTEM = f"{CAPTURE_CANONICAL}/CodeSystem/d2-tet-cs"
+TRACKED_ENTITY_TYPE_VALUE_SET = f"{CAPTURE_CANONICAL}/ValueSet/d2-tet-vs"
+TRACKED_ENTITY_TYPE_RESOURCE_MAP = f"{CAPTURE_CANONICAL}/ConceptMap/d2-tet-cm"
+RESOURCE_TYPE_CODE_SYSTEM = "http://hl7.org/fhir/resource-types"
+RESOURCE_TYPE_VALUE_SET = "http://hl7.org/fhir/ValueSet/resource-types"
+
+TRACKED_ENTITY_TYPE_CODE_SYSTEM_BODY: dict[str, Any] = {
+    "resourceType": "CodeSystem",
+    "id": TRACKED_ENTITY_TYPE_CODE_SYSTEM.rsplit("/", 1)[-1],
+    "url": TRACKED_ENTITY_TYPE_CODE_SYSTEM,
+    "name": "D2TET_CS",
+    "title": "DHIS2 tracked entity types",
+    "status": "draft",
+    "content": "complete",
+    "caseSensitive": True,
+    "valueSet": TRACKED_ENTITY_TYPE_VALUE_SET,
+    "concept": [
+        {"code": REGISTRATION_TRACKED_ENTITY_TYPE_UID, "display": "Person"},
+        {"code": SPECIMEN_TRACKED_ENTITY_TYPE_UID, "display": SPECIMEN_TRACKED_ENTITY_TYPE_NAME},
+    ],
+    "count": 2,
+}
+
+TRACKED_ENTITY_TYPE_VALUE_SET_BODY: dict[str, Any] = {
+    "resourceType": "ValueSet",
+    "id": TRACKED_ENTITY_TYPE_VALUE_SET.rsplit("/", 1)[-1],
+    "url": TRACKED_ENTITY_TYPE_VALUE_SET,
+    "name": "D2TET_VS",
+    "title": "DHIS2 tracked entity types",
+    "status": "draft",
+    "compose": {"include": [{"system": TRACKED_ENTITY_TYPE_CODE_SYSTEM}]},
+}
+
+#: The published contract the register reads at startup: every type this project registers, and the
+#: FHIR resource its registrations are served as. Both rows are explicit - the Patient row included,
+#: because a map whose defaults were implied would leave a reader unable to tell an unmapped type
+#: from a type deliberately published as a person.
+TRACKED_ENTITY_TYPE_RESOURCE_MAP_BODY: dict[str, Any] = {
+    "resourceType": "ConceptMap",
+    "id": TRACKED_ENTITY_TYPE_RESOURCE_MAP.rsplit("/", 1)[-1],
+    "url": TRACKED_ENTITY_TYPE_RESOURCE_MAP,
+    "name": "D2TET_CM",
+    "title": "DHIS2 tracked entity types as FHIR resource types",
+    "status": "draft",
+    "sourceCanonical": TRACKED_ENTITY_TYPE_VALUE_SET,
+    "targetCanonical": RESOURCE_TYPE_VALUE_SET,
+    "group": [
+        {
+            "source": TRACKED_ENTITY_TYPE_CODE_SYSTEM,
+            "target": RESOURCE_TYPE_CODE_SYSTEM,
+            "element": [
+                {
+                    "code": REGISTRATION_TRACKED_ENTITY_TYPE_UID,
+                    "display": "Person",
+                    "target": [{"code": "Patient", "equivalence": "equal"}],
+                },
+                {
+                    "code": SPECIMEN_TRACKED_ENTITY_TYPE_UID,
+                    "display": SPECIMEN_TRACKED_ENTITY_TYPE_NAME,
+                    "target": [{"code": SPECIMEN_RESOURCE_TYPE, "equivalence": "equal"}],
+                },
+            ],
+        }
+    ],
+}
+
+#: The person-only registration form of the specimen type - the same shape as the Person form, over
+#: a type the map takes onto something other than `Patient`, and declaring that resource as its
+#: `subjectType` the way the emitter resolves it.
+SPECIMEN_QUESTIONNAIRE_BODY: dict[str, Any] = {
+    "resourceType": "Questionnaire",
+    "id": SPECIMEN_TRACKED_ENTITY_TYPE_UID,
+    "url": SPECIMEN_QUESTIONNAIRE,
+    "title": SPECIMEN_TRACKED_ENTITY_TYPE_NAME,
+    "description": (
+        f"DHIS2 tracked entity type {SPECIMEN_TRACKED_ENTITY_TYPE_NAME} ({SPECIMEN_TRACKED_ENTITY_TYPE_UID}) as a "
+        "registration form: the tracked entity attributes the type itself collects."
+    ),
+    "extension": [{"url": FORM_TYPE_URL, "valueCode": "tracked-entity"}],
+    "identifier": [
+        {"system": TRACKED_ENTITY_TYPE_IDENTIFIER_SYSTEM, "value": SPECIMEN_TRACKED_ENTITY_TYPE_UID},
+    ],
+    "name": f"D2TET_{SPECIMEN_TRACKED_ENTITY_TYPE_UID}",
+    "status": "draft",
+    "experimental": True,
+    "subjectType": [SPECIMEN_RESOURCE_TYPE],
+    "code": [{"system": f"{CAPTURE_CANONICAL}/CodeSystem/d2-form-type-cs", "code": "tracked-entity"}],
+    "item": [
+        {
+            "linkId": SPECIMEN_UNIQUE_ATTRIBUTE,
+            "code": [
+                {
+                    "system": TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM,
+                    "code": SPECIMEN_UNIQUE_ATTRIBUTE,
+                    "display": "Laboratory reference",
+                }
+            ],
+            "text": "Laboratory reference",
+            "type": "string",
+            "required": True,
+            "extension": [{"url": ENTITY_LEVEL_EXTENSION, "valueBoolean": True}],
+        }
+    ],
 }
 
 #: The person-only registration form of the same tracked entity type the tracker program registers
@@ -839,6 +980,7 @@ def build_capture_project(destination: Path) -> FhirProject:
     write_resource(compiled / f"Questionnaire-{SCOPED_QUESTIONNAIRE_UID}.json", SCOPED_QUESTIONNAIRE_BODY)
     write_resource(compiled / f"Questionnaire-{REGISTRATION_PROGRAM_UID}.json", REGISTRATION_QUESTIONNAIRE_BODY)
     write_resource(compiled / f"Questionnaire-{REGISTRATION_TRACKED_ENTITY_TYPE_UID}.json", PERSON_QUESTIONNAIRE_BODY)
+    write_resource(compiled / f"Questionnaire-{SPECIMEN_TRACKED_ENTITY_TYPE_UID}.json", SPECIMEN_QUESTIONNAIRE_BODY)
 
     registry = destination / "ig" / "input" / "resources" / "registry"
     for unit in ORG_UNITS:
@@ -862,6 +1004,9 @@ def build_capture_project(destination: Path) -> FhirProject:
         SEX_VALUE_SET_BODY,
         TRACKED_ENTITY_ATTRIBUTE_CODE_SYSTEM_BODY,
         TRACKED_ENTITY_ATTRIBUTE_VALUE_SET_BODY,
+        TRACKED_ENTITY_TYPE_CODE_SYSTEM_BODY,
+        TRACKED_ENTITY_TYPE_VALUE_SET_BODY,
+        TRACKED_ENTITY_TYPE_RESOURCE_MAP_BODY,
     ]
     for resource in built:
         write_resource(terminology / f"{resource['resourceType']}-{resource['id']}.json", resource)
