@@ -58,9 +58,11 @@ export function LockedQuestionsProvider({ locked, children }: { locked: LockedQu
  * validator's refusals, in the spool, and in DHIS2 itself - so hiding it behind a tooltip would
  * hide the one string that connects this screen to everything else.
  *
- * ENABLEWHEN HIDES, IT DOES NOT DISCARD. A disabled item is not rendered, and its answers stay
- * in the reducer: re-enabling it brings back what was typed. `buildQuestionnaireResponse`
- * writes none of them, which is what makes the hidden state safe.
+ * ENABLEWHEN HIDES, AND WHAT IS HIDDEN IS CLEARED. A disabled item is not rendered and carries no
+ * answer: a value typed under a question the form then stopped asking describes nothing, and
+ * forwarded it becomes a real DHIS2 data value about a real person - the very thing DHIS2's program
+ * rules exist to prevent. The clearing itself is `clearedHiddenAnswers` in lib/questionnaire.ts;
+ * this component only declines to render what the form is not asking.
  *
  * WHAT DHIS2 SAYS ABOUT A QUESTION IS SAID BESIDE IT. A data element's description is help text a
  * form designer wrote, so it reads under the label and above the control - the same place the
@@ -247,6 +249,12 @@ function QuestionHint({ node }: { node: QuestionnaireNode }) {
     if (node.minimum !== null && node.maximum !== null) notes.push(`between ${node.minimum} and ${node.maximum}`)
     else if (node.minimum !== null) notes.push(`${node.minimum} or more`)
     else if (node.maximum !== null) notes.push(`${node.maximum} or less`)
+    // The same fact one element over: a bounded day reads as days rather than as numbers, because
+    // "between 2026-01-01 and 2026-12-31" is a range of dates and nothing about it is a quantity.
+    if (node.minimumDate !== null && node.maximumDate !== null) {
+        notes.push(`between ${node.minimumDate} and ${node.maximumDate}`)
+    } else if (node.minimumDate !== null) notes.push(`${node.minimumDate} or later`)
+    else if (node.maximumDate !== null) notes.push(`${node.maximumDate} or earlier`)
     // The one note that comes from the data dictionary rather than from the form: a TRUE_ONLY data
     // element holds `true` or nothing, so the two answers the control offers are the two DHIS2 keeps.
     if (node.valueType === TRUE_ONLY_VALUE_TYPE) {

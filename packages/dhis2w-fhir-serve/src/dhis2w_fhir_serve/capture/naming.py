@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dhis2w_fhir.foundation.schemas import IDENTIFIER_SYSTEM_SUBJECTS, FoundationNaming
+from dhis2w_fhir.names import join_id_tokens
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
@@ -56,6 +57,9 @@ class CaptureNaming(BaseModel):
     collects_incident_date_url: str
     """Extension url a registration form declares whether its program collects an incident date on."""
 
+    program_rule_url: str
+    """Extension url a form lists the DHIS2 program rules its instance enforces on import under, one repeat per rule."""
+
     subject_exists_url: str
     """Extension url a registration response states that the person it is subject to is already held on."""
 
@@ -90,6 +94,7 @@ class CaptureNaming(BaseModel):
             enrolled_at_url=_definition_url(canonical, names.enrolled_at_extension_id),
             incident_at_url=_definition_url(canonical, names.incident_at_extension_id),
             collects_incident_date_url=_definition_url(canonical, names.collects_incident_date_extension_id),
+            program_rule_url=_definition_url(canonical, join_id_tokens(names.definition_prefix, "program", "rule")),
             subject_exists_url=_definition_url(canonical, names.subject_exists_extension_id),
             tracked_entity_system=_identifier_system(base, "TrackedEntity"),
             tracker_enrollment_system=_identifier_system(base, "TrackerEnrollment"),

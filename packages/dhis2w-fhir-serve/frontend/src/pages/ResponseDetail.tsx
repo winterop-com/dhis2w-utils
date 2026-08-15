@@ -26,12 +26,19 @@ import {
     type QuestionnaireResponse,
 } from '@/lib/fhir'
 import type { OrgUnitChoice } from '@/lib/orgunits'
-import { dateLabelsOf, flattenQuestionnaire, type DateLabels } from '@/lib/questionnaire'
+import {
+    dateLabelsOf,
+    flattenQuestionnaire,
+    programRulesOf,
+    type DateLabels,
+    type ProgramRule,
+} from '@/lib/questionnaire'
 import {
     attributeOptionComboFact,
     formLabel,
     joinAnswersToQuestions,
     mergeContextFacts,
+    rejectionRuleName,
     trackerContextFacts,
     type ReceiptAnswerRow,
     type ReceiptAnswerValue,
@@ -190,7 +197,10 @@ export function ResponseDetail() {
                         )}
 
                         {summary !== null && summary.rejection ? (
-                            <RejectionSection rejection={summary.rejection} />
+                            <RejectionSection
+                                rejection={summary.rejection}
+                                rules={programRulesOf(form.resource)}
+                            />
                         ) : null}
 
                         <RawResource resource={stored.resource} />
@@ -488,7 +498,7 @@ function valueKey(value: ReceiptAnswerValue): string {
  * state a person cannot act on, and the import report the forwarder wrote beside the receipt is
  * exactly the missing sentence - rendered in the same shape the forward report's rollup uses.
  */
-function RejectionSection({ rejection }: { rejection: SpoolRejection }) {
+function RejectionSection({ rejection, rules }: { rejection: SpoolRejection; rules: ProgramRule[] }) {
     return (
         <section className="space-y-3">
             <h3 className="flex items-center gap-2 text-base font-semibold">
@@ -513,19 +523,29 @@ function RejectionSection({ rejection }: { rejection: SpoolRejection }) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {keyedIssues(rejection.issues).map((row) => (
-                                <TableRow key={row.key}>
-                                    <TableCell className="font-mono text-xs">
-                                        {row.issue.error_code ?? '-'}
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs">
-                                        {row.issue.subject ?? '-'}
-                                    </TableCell>
-                                    <TableCell className="text-xs">
-                                        {row.issue.message ?? 'no reason given'}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            {keyedIssues(rejection.issues).map((row) => {
+                                // The one join this table makes: DHIS2 names a program rule by uid,
+                                // and the served form is where that uid has a name. It reads above
+                                // what DHIS2 said rather than replacing it - the instance's own
+                                // sentence is still the record of what happened.
+                                const ruleName = rejectionRuleName(row.issue, rules)
+                                return (
+                                    <TableRow key={row.key}>
+                                        <TableCell className="font-mono text-xs">
+                                            {row.issue.error_code ?? '-'}
+                                        </TableCell>
+                                        <TableCell className="font-mono text-xs">
+                                            {row.issue.subject ?? '-'}
+                                        </TableCell>
+                                        <TableCell className="text-xs">
+                                            {ruleName !== null && (
+                                                <span className="block font-medium">{ruleName}</span>
+                                            )}
+                                            {row.issue.message ?? 'no reason given'}
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            })}
                         </TableBody>
                     </Table>
                 </div>

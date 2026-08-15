@@ -152,6 +152,27 @@ DATE_LABELS_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-date-labels
 PERIOD_TYPE_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-period-type"
 REPEATABLE_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-repeatable"
 DESCRIPTION_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-description"
+PROGRAM_RULE_EXTENSION = f"{CAPTURE_CANONICAL}/StructureDefinition/d2-program-rule"
+
+#: The sub-extensions one `d2-program-rule` repeat slices one DHIS2 program rule under.
+RULE_SUB_EXTENSION = "rule"
+RULE_NAME_SUB_EXTENSION = "name"
+RULE_DESCRIPTION_SUB_EXTENSION = "description"
+RULE_CONDITION_SUB_EXTENSION = "condition"
+RULE_ACTION_SUB_EXTENSION = "action"
+
+#: The two program rules the fixture's instance holds for its antenatal visit stage, exactly as the
+#: DHIS2 demo database states them: one that refuses an implausible haemoglobin reading, and one that
+#: warns on a visit filed out of order. The first is the rule the `E1300` repro in
+#: docs/project/fhir-dhis2-fidelity.md names, which is what makes a rejection carrying that uid
+#: something the receipt page can read a name off.
+HAEMOGLOBIN_RULE_UID = "PrRuleHb001"
+HAEMOGLOBIN_RULE_NAME = "The haemoglobin value cannot be above 99"
+HAEMOGLOBIN_RULE_DESCRIPTION = "A haemoglobin reading above 99 g/L is a transcription error, not a measurement."
+HAEMOGLOBIN_RULE_CONDITION = "#{DeAncVisNo1} > 99"
+VISIT_ORDER_RULE_UID = "PrRuleOrd01"
+VISIT_ORDER_RULE_NAME = "A visit is filed in the order it happened"
+VISIT_ORDER_RULE_CONDITION = "d2:hasValue(#{DeAncVisNo1})"
 
 #: The sub-extensions `d2-date-labels` slices, one per date a DHIS2 program lets an instance rename.
 ENROLLMENT_DATE_LABEL_SUB_EXTENSION = "enrollmentDate"
@@ -168,6 +189,13 @@ AGGREGATE_PERIOD_TYPE = "Monthly"
 
 #: The descriptions DHIS2 holds for one section, one data element group, and one stage question.
 VISIT_NUMBER_DESCRIPTION = "The number of this visit in the pregnancy, counting from one."
+
+#: The calendar days the temporal form's visit date is bounded to, and the coverage figure above
+#: which it asks for a link to the outbreak report. Fixed rather than derived from today, so a
+#: generated response drawn in any year lands inside the range the form publishes.
+OUTBREAK_FIRST_DAY = "2026-01-01"
+OUTBREAK_LAST_DAY = "2026-12-31"
+COVERAGE_LINK_THRESHOLD = 50
 
 TEMPORAL_QUESTIONNAIRE_UID = "PrTemporal1"
 TEMPORAL_QUESTIONNAIRE = f"{CAPTURE_CANONICAL}/Questionnaire/{TEMPORAL_QUESTIONNAIRE_UID}"
@@ -191,10 +219,27 @@ TEMPORAL_QUESTIONNAIRE_BODY: dict[str, Any] = {
     "experimental": True,
     "subjectType": ["Location"],
     "item": [
-        {"linkId": "DeVisitDate1", "text": "Visit date", "type": "date"},
+        {
+            "linkId": "DeVisitDate1",
+            "text": "Visit date",
+            "type": "date",
+            # A range of calendar days, which no DHIS2 value type states and only a program rule can:
+            # the outbreak this form records ran for one year, and a visit outside it is a typo.
+            "extension": [
+                {"url": MINIMUM_VALUE_URL, "valueDate": OUTBREAK_FIRST_DAY},
+                {"url": MAXIMUM_VALUE_URL, "valueDate": OUTBREAK_LAST_DAY},
+            ],
+        },
         {"linkId": "DeVisitTime1", "text": "Visit time", "type": "time"},
         {"linkId": "DeVisitStamp", "text": "Visit stamp", "type": "dateTime"},
-        {"linkId": "DeVisitLink1", "text": "Visit link", "type": "url"},
+        {
+            "linkId": "DeVisitLink1",
+            "text": "Visit link",
+            "type": "url",
+            # Asked only where coverage reached the reporting threshold - the one item of the fixture
+            # whose presence depends on another answer, which is what an `enableWhen` consumer needs.
+            "enableWhen": [{"question": "DeCoverage01", "operator": ">=", "answerDecimal": COVERAGE_LINK_THRESHOLD}],
+        },
         # A DHIS2 ORGANISATION_UNIT data element, which the emitter answers as `reference`.
         {"linkId": "DeVisitUnit1", "text": "Visited unit", "type": "reference"},
         {
@@ -1102,19 +1147,50 @@ def description(text: str) -> dict[str, Any]:
     return {"url": DESCRIPTION_EXTENSION, "valueString": text}
 
 
+def program_rule(
+    rule_uid: str,
+    name: str,
+    condition: str,
+    action: str,
+    rule_description: str | None = None,
+) -> dict[str, Any]:
+    """One `d2-program-rule` repeat: the rule a DHIS2 instance evaluates when a submission is imported."""
+    sliced: list[dict[str, Any]] = [
+        {"url": RULE_SUB_EXTENSION, "valueId": rule_uid},
+        {"url": RULE_NAME_SUB_EXTENSION, "valueString": name},
+    ]
+    if rule_description is not None:
+        sliced.append({"url": RULE_DESCRIPTION_SUB_EXTENSION, "valueString": rule_description})
+    sliced.append({"url": RULE_CONDITION_SUB_EXTENSION, "valueString": condition})
+    sliced.append({"url": RULE_ACTION_SUB_EXTENSION, "valueCode": action})
+    return {"url": PROGRAM_RULE_EXTENSION, "extension": sliced}
+
+
 def capture_questionnaire(filename: str) -> dict[str, Any]:
     """One golden Questionnaire with the form-fidelity facts its instance did not publish.
 
-    The reharvested goldens already carry the period type, repeatability, and descriptions the
-    local instance states, so those ride as the emitter wrote them. What the instance does NOT
-    state - no program on it renames a date, and the ANC visit stage describes no element - is
-    written on here, so the suites still hold a project carrying every element of the contract
-    without editing the goldens, which are the emitter's own output.
+    The reharvested goldens already carry the period type, repeatability, descriptions, and the
+    numeric bounds the local instance states, so those ride as the emitter wrote them. What the
+    instance does NOT state - no program on it renames a date, the ANC visit stage describes no
+    element, and no program rule was configured on it - is written on here, so the suites still hold
+    a project carrying every element of the contract without editing the goldens, which are the
+    emitter's own output.
     """
     resource = golden(filename)
     identity = resource.get("id")
     if identity == "PsAncVisit1":
-        stated = with_extensions(resource, date_labels(**{EVENT_DATE_LABEL_SUB_EXTENSION: EVENT_DATE_LABEL}))
+        stated = with_extensions(
+            resource,
+            date_labels(**{EVENT_DATE_LABEL_SUB_EXTENSION: EVENT_DATE_LABEL}),
+            program_rule(
+                HAEMOGLOBIN_RULE_UID,
+                HAEMOGLOBIN_RULE_NAME,
+                HAEMOGLOBIN_RULE_CONDITION,
+                "SHOWERROR",
+                HAEMOGLOBIN_RULE_DESCRIPTION,
+            ),
+            program_rule(VISIT_ORDER_RULE_UID, VISIT_ORDER_RULE_NAME, VISIT_ORDER_RULE_CONDITION, "SHOWWARNING"),
+        )
         return with_item_extension(stated, "DeAncVisNo1", description(VISIT_NUMBER_DESCRIPTION))
     return resource
 

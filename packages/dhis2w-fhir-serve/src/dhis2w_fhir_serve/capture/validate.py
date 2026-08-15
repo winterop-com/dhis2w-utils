@@ -74,6 +74,7 @@ from dhis2w_fhir_serve.capture.index import (
     FORM_KINDS,
     CaptureAssignment,
     CaptureAttributeOptionCombos,
+    CaptureBound,
     CaptureIndex,
     CaptureIndexCache,
     CaptureQuestion,
@@ -1084,27 +1085,48 @@ class _ItemValidator(BaseModel):
             )
 
     def _bounds(self, question: CaptureQuestion, answer: QuestionnaireResponseAnswer) -> None:
-        """Check a numeric answer against the range the question's DHIS2 value type admits."""
+        """Check a bounded answer against the range the question's own `minValue` / `maxValue` pin.
+
+        TWO KINDS OF BOUND, GRADED ON TWO DIALS. A numeric range is what a DHIS2 value type means -
+        `INTEGER_POSITIVE` starts at 1, `PERCENTAGE` ends at 100 - so a number outside it is a value
+        the wire contract does not admit, and this server refuses it. No DHIS2 value type states a
+        range of calendar days, so a date range can only have come from a program rule, and DHIS2
+        evaluates its own rules on import: a date outside one is noted with the `E1300` it will come
+        back as, rather than refused by a server that is not the enforcer.
+
+        Both ends order without a calendar: an R4 `date` is an ISO-8601 full date, and those sort
+        lexicographically. An answer of the kind neither bound speaks about is left alone.
+        """
         bounds = question.bounds
         if bounds is None:
             return
-        value = answer.valueInteger if answer.valueInteger is not None else answer.valueDecimal
-        if value is None:
+        graded = _bounded_answer(answer)
+        if graded is None:
             return
-        if bounds.minimum_value is not None and value < bounds.minimum_value:
-            self._issues.append(
-                _error(
-                    "value",
-                    _item_expression(question.link_id),
-                    f"{value} is below the minimum {bounds.minimum_value} `{question.link_id}` admits",
+        if bounds.minimum is not None:
+            self._grade_bound(question, graded, bounds.minimum, below=True)
+        if bounds.maximum is not None:
+            self._grade_bound(question, graded, bounds.maximum, below=False)
+
+    def _grade_bound(self, question: CaptureQuestion, graded: _BoundedAnswer, bound: CaptureBound, below: bool) -> None:
+        """Grade one answer against one end of the range, on the dial that end's kind decides."""
+        side = "below the minimum" if below else "above the maximum"
+        expression = _item_expression(question.link_id)
+        if graded.number is not None and bound.number is not None:
+            if graded.number < bound.number if below else graded.number > bound.number:
+                self._issues.append(
+                    _error("value", expression, f"{graded.stated} is {side} {bound.stated} `{question.link_id}` admits")
                 )
-            )
-        if bounds.maximum_value is not None and value > bounds.maximum_value:
+            return
+        if graded.date is None or bound.date is None:
+            return
+        if graded.date < bound.date if below else graded.date > bound.date:
             self._issues.append(
-                _error(
-                    "value",
-                    _item_expression(question.link_id),
-                    f"{value} is above the maximum {bounds.maximum_value} `{question.link_id}` admits",
+                _warning(
+                    "business-rule",
+                    expression,
+                    f"{graded.stated} is {side} {bound.stated} `{question.link_id}` admits; a date range on a "
+                    f"DHIS2 data element is a program rule, and DHIS2 refuses a submission breaking one with E1300",
                 )
             )
 
@@ -1176,6 +1198,31 @@ class _ItemValidator(BaseModel):
         if resolved.matched_by != "concept-code":
             note = _fallback_note(question, coding.code, resolved)
             self._issues.append(_warning("code-invalid", _item_expression(question.link_id), note))
+
+
+class _BoundedAnswer(BaseModel):
+    """One answer reduced to what a bound grades it as, beside the literal a refusal names it back by.
+
+    The literal is carried rather than derived from the number, because `13` read back as `13.0` is
+    a server restating a person's answer in a spelling they did not use.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    number: float | None = None
+    date: str | None = None
+    stated: str
+
+
+def _bounded_answer(answer: QuestionnaireResponseAnswer) -> _BoundedAnswer | None:
+    """What one answer is graded against a range as, or None when it carries nothing a range speaks about."""
+    if answer.valueInteger is not None:
+        return _BoundedAnswer(number=float(answer.valueInteger), stated=str(answer.valueInteger))
+    if answer.valueDecimal is not None:
+        return _BoundedAnswer(number=float(answer.valueDecimal), stated=str(answer.valueDecimal))
+    if answer.valueDate is not None:
+        return _BoundedAnswer(date=answer.valueDate, stated=answer.valueDate)
+    return None
 
 
 def _fallback_note(question: CaptureQuestion, code: str, resolved: ResolvedCoding) -> str:

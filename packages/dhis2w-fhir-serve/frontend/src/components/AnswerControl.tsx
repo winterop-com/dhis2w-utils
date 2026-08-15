@@ -247,6 +247,10 @@ function SlotControl({
                 <Input
                     id={controlId}
                     type="date"
+                    // The browser's own calendar greys out what the form does not accept, which is
+                    // the earliest a bounded day can be caught. Submit refuses one typed in anyway.
+                    min={node.minimumDate ?? undefined}
+                    max={node.maximumDate ?? undefined}
                     className="max-w-xs"
                     value={slot.text}
                     disabled={disabled}

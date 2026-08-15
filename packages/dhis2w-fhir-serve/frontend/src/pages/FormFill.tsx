@@ -47,8 +47,10 @@ import type { PatientProjection } from '@/lib/patients'
 import {
     answersFromResponse,
     answersReducer,
+    boundBreaches,
     buildQuestionnaireResponse,
     clearedEntityLevelAnswers,
+    clearedHiddenAnswers,
     collectsIncidentDate,
     dateLabelsOf,
     dateTimeInputValue,
@@ -61,6 +63,7 @@ import {
     NO_DICTIONARY,
     openedReportingUnit,
     periodShape,
+    programRulesOf,
     questionCodeSystemIds,
     refilledAttributeOptionCombo,
     refilledEnrollment,
@@ -72,6 +75,7 @@ import {
     type AnswerState,
     type DateLabels,
     type ExistingSubject,
+    type ProgramRule,
     type QuestionDictionary,
 } from '@/lib/questionnaire'
 import { TRACKER_ENROLLMENT_FACT_LABEL } from '@/lib/spool'
@@ -259,6 +263,16 @@ export function FormFill() {
         if (cleared !== answers) dispatch({ kind: 'replace', answers: cleared })
     }, [existingPerson, spec, answers])
 
+    // The same shape of rule one condition over, and for a sharper reason: an answer to a question
+    // the form has stopped asking describes nothing, and forwarded it becomes a real DHIS2 data
+    // value about a real person. It runs on every answer change rather than at Submit, so what is
+    // on screen and what would be sent never disagree - and it cascades, because clearing one
+    // answer can close the question the next condition depended on.
+    useEffect(() => {
+        const cleared = clearedHiddenAnswers(spec, answers)
+        if (cleared !== answers) dispatch({ kind: 'replace', answers: cleared })
+    }, [spec, answers])
+
     // Every stated date and period back to "the draft's value stands". Run wherever a fresh draft
     // lands, because a redrawn envelope is a fresh set of defaults for these controls to open on.
     const clearStatedDates = useCallback(() => {
@@ -415,10 +429,15 @@ export function FormFill() {
     // The other. An aggregate submission is keyed by its period, and neither an empty box nor an
     // identifier of the wrong shape is one - so both are refused here rather than at the server.
     const unfitReportingPeriod = reportsForAPeriod && !isWellShapedPeriod(reportingPeriod, periodType)
+    // The third, and the one that is about an answer rather than about the submission. A value the
+    // form itself publishes as outside what it accepts is a mistake the person who typed it can fix
+    // under the cursor, and a round trip spent being told what the form already says is a round trip
+    // wasted. The fact is stated per question; nothing here instructs anyone what to type instead.
+    const breaches = boundBreaches(spec, answers)
 
     const submit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
-        if (busy || missingAttributeOptionCombo || unfitReportingPeriod) return
+        if (busy || missingAttributeOptionCombo || unfitReportingPeriod || breaches.length > 0) return
         setBusy(true)
         setIssues([])
         try {
@@ -578,6 +597,22 @@ export function FormFill() {
                 </LockedQuestionsProvider>
             </OrgUnitScopeProvider>
 
+            {breaches.length > 0 && (
+                <div className="mt-4 grid gap-2">
+                    {breaches.map((breach) => (
+                        <Alert key={`${breach.linkId}-${String(breach.index)}`} variant="destructive">
+                            <AlertTitle className="flex flex-wrap items-center gap-2">
+                                <span>{breach.text}</span>
+                                <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
+                                    {breach.linkId}
+                                </Badge>
+                            </AlertTitle>
+                            <AlertDescription>{breach.fact}</AlertDescription>
+                        </Alert>
+                    ))}
+                </div>
+            )}
+
             {issues.length > 0 && (
                 <div className="mt-4 grid gap-2">
                     {issues.map((issue, index) => (
@@ -594,7 +629,10 @@ export function FormFill() {
             {/* Sticky rather than fixed: it belongs to the form, so it scrolls with it on a
                 short one and pins itself over a long one. */}
             <div className="bg-sidebar sticky bottom-0 z-10 mt-6 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 md:-mx-8 md:px-8">
-                <Button type="submit" disabled={busy || missingAttributeOptionCombo || unfitReportingPeriod}>
+                <Button
+                    type="submit"
+                    disabled={busy || missingAttributeOptionCombo || unfitReportingPeriod || breaches.length > 0}
+                >
                     <Send className="size-4" />
                     {busy ? 'Submitting' : 'Submit'}
                 </Button>
@@ -635,6 +673,13 @@ export function FormFill() {
                         {reportingPeriod.trim() === ''
                             ? 'This submission reports for a period, and none is stated'
                             : `${reportingPeriod} is not a ${periodType ?? 'DHIS2'} period`}
+                    </p>
+                )}
+                {breaches.length > 0 && (
+                    <p className="text-muted-foreground text-xs">
+                        {breaches.length === 1
+                            ? '1 answer is outside what this form accepts'
+                            : `${String(breaches.length)} answers are outside what this form accepts`}
                     </p>
                 )}
                 {missingRequired.length > 0 && (
@@ -931,6 +976,50 @@ function FormFillHeader({
             {stageRepeats === true && (
                 <p className="text-muted-foreground text-sm">Repeats: each visit is its own record</p>
             )}
+            <ProgramRules rules={programRulesOf(questionnaire)} />
         </div>
+    )
+}
+
+/**
+ * The DHIS2 program rules this form's instance enforces once the submission is imported.
+ *
+ * WHERE THE FORM DESCRIBES ITSELF, because that is what this is: a fact about the form, alongside
+ * its kind, its question count, and whether its stage repeats. It is not a warning about anything a
+ * person has done - it reads identically on a blank form and a filled one - and it belongs before
+ * the questions rather than after a refusal, because the whole point is that it is knowable in
+ * advance. A form its instance holds no rules for says nothing at all.
+ *
+ * "N MORE RULES" IS DELIBERATE. The form has already stated the rules it enforces itself - the
+ * bounds on its own questions, which Submit refuses - so these are the ones beyond it: evaluated
+ * somewhere else, after the submission leaves, by the system that has the data to evaluate them.
+ *
+ * THE CONDITION IS BEHIND THE EXPAND. `#{DeAncVisNo1} > 99` is the instance's own spelling and the
+ * only exact statement of what the rule does, so it is here rather than paraphrased - and it is mono
+ * and folded away, on the rule this app follows everywhere: the machine spelling of a fact is kept
+ * for whoever needs it and never put in front of a reader who does not.
+ */
+function ProgramRules({ rules }: { rules: ProgramRule[] }) {
+    if (rules.length === 0) return null
+    return (
+        <details className="rounded-lg border px-4 py-3">
+            <summary className="cursor-pointer text-sm">
+                This DHIS2 instance enforces {rules.length} more {rules.length === 1 ? 'rule' : 'rules'} when the
+                submission is imported
+            </summary>
+            <dl className="mt-3 grid gap-3">
+                {rules.map((rule) => (
+                    <div key={rule.ruleUid} className="grid gap-1">
+                        <dt className="text-sm font-medium">{rule.name}</dt>
+                        {rule.description !== null && (
+                            <dd className="text-muted-foreground text-sm">{rule.description}</dd>
+                        )}
+                        <dd className="text-muted-foreground font-mono text-xs break-words">
+                            {rule.ruleUid} {rule.condition}
+                        </dd>
+                    </div>
+                ))}
+            </dl>
+        </details>
     )
 }

@@ -63,8 +63,8 @@ from dhis2w_fhir.r4 import (
     Extension,
     Identifier,
     Questionnaire,
-    QuestionnaireEnableWhen,
     QuestionnaireItem,
+    QuestionnaireItemEnableWhen,
     Reference,
     ValueSet,
     ValueSetCompose,
@@ -742,7 +742,7 @@ def _program_rule_extensions(
 
 def _enable_when(
     shown: ItemEnableWhen | None, identities: dict[str, OptionSetIdentity], systems: _QuestionnaireSystems
-) -> list[QuestionnaireEnableWhen] | None:
+) -> list[QuestionnaireItemEnableWhen] | None:
     """One question's showing conditions as R4 states them, or None where no rule hides it."""
     if shown is None:
         return None
@@ -751,9 +751,9 @@ def _enable_when(
 
 def _enable_when_entry(
     condition: EnableWhenCondition, identities: dict[str, OptionSetIdentity], systems: _QuestionnaireSystems
-) -> QuestionnaireEnableWhen:
+) -> QuestionnaireItemEnableWhen:
     """One condition, its answer landing on the `answer[x]` its question's item type compares on."""
-    entry = QuestionnaireEnableWhen(question=condition.question_link_id, operator=_enable_when_operator(condition))
+    entry = QuestionnaireItemEnableWhen(question=condition.question_link_id, operator=_enable_when_operator(condition))
     if condition.answer_element == "answerCoding":
         identity = identities[condition.option_set_uid] if condition.option_set_uid else None
         system = code_system_canonical(systems.canonical, identity.code_system_id) if identity is not None else None
