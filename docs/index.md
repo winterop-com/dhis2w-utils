@@ -14,7 +14,7 @@ Other entry points:
 
 - **New to the repo?** Skim the [Walkthrough](walkthrough.md), set up [a local DHIS2](local-setup.md), then pick a surface above.
 - **Connecting to a remote DHIS2?** [Connecting to DHIS2](guides/connecting-to-dhis2.md) covers Basic / PAT / OAuth2 with profiles.
-- **Publishing a FHIR Implementation Guide?** The [`d2w fhir` series](guides/fhir/index.md) runs from why-an-IG through generate, build, serve, and forward in graded 101/201/301/401 steps.
+- **Publishing a FHIR Implementation Guide?** The [`d2w fhir` series](guides/fhir/index.md) runs from why-an-IG through doctor, generate, build, serve, and forward in graded 101/201/301/401 steps. New to FHIR? [FHIR for DHIS2 people](guides/fhir/101-fhir-concepts.md) names every term through its DHIS2 counterpart.
 - **Looking for the architecture?** Start at [Overview](architecture/overview.md), then [Typed schemas](architecture/typed-schemas.md) + [Codegen](codegen.md).
 - **Browsing by symbol?** The [API reference](api/index.md) auto-renders every `dhis2w-client` module's docstrings.
 

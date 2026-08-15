@@ -45,8 +45,8 @@ not a menu - the pages build on each other left to right.
 - [FHIR for DHIS2 people](101-fhir-concepts.md) - the FHIR model itself,
   explained in DHIS2 terms and at length. Where the glossary gives you a
   sentence, this gives you the reasoning.
-- [Quickstart: six commands to a served IG](101-quickstart.md) - scaffold,
-  validate, generate, and compile a guide from the play server.
+- [Quickstart: from nothing to a served IG](101-quickstart.md) - scaffold,
+  validate, generate, compile, and serve a guide from a DHIS2 instance.
 
 ## 201 - Operate a project
 
