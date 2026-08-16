@@ -73,7 +73,7 @@ async def test_spool_lists_every_receipt_newest_first(client: httpx.AsyncClient)
     body = response.json()
     assert body["total"] == 3
     assert [row["response_id"] for row in body["responses"]] == ["receipt-newest", "receipt-middle", "receipt-oldest"]
-    assert body["counts"] == {"received": 3, "forwarded": 0, "rejected": 0}
+    assert body["counts"] == {"received": 3, "forwarded": 0, "rejected": 0, "malformed": 0}
 
 
 async def test_the_listing_states_the_form_the_receipt_answered(client: httpx.AsyncClient) -> None:
@@ -95,13 +95,13 @@ async def test_the_listing_re_reads_the_directory_on_every_request(
     it renames files under this one.
     """
     before = (await client.get("/spool")).json()
-    assert before["counts"] == {"received": 3, "forwarded": 0, "rejected": 0}
+    assert before["counts"] == {"received": 3, "forwarded": 0, "rejected": 0, "malformed": 0}
 
     drain(compiled_project, "receipt-oldest", ResponseLifecycle.FORWARDED)
     drain(compiled_project, "receipt-middle", ResponseLifecycle.REJECTED)
 
     after = (await client.get("/spool")).json()
-    assert after["counts"] == {"received": 1, "forwarded": 1, "rejected": 1}
+    assert after["counts"] == {"received": 1, "forwarded": 1, "rejected": 1, "malformed": 0}
     assert {row["response_id"]: row["lifecycle"] for row in after["responses"]} == {
         "receipt-newest": "received",
         "receipt-oldest": "forwarded",
@@ -163,7 +163,15 @@ async def test_an_empty_spool_lists_nothing(bare_client: httpx.AsyncClient) -> N
     """A project nothing has been captured into answers an empty listing, not a refusal."""
     body = (await bare_client.get("/spool")).json()
 
-    assert body == {"total": 0, "counts": {"received": 0, "forwarded": 0, "rejected": 0}, "responses": []}
+    assert body == {
+        "total": 0,
+        "counts": {"received": 0, "forwarded": 0, "rejected": 0, "malformed": 0},
+        "responses": [],
+        "malformed": [],
+        "self_url": "http://serve.test/spool?_count=50&page=bzBuMA",
+        "previous_url": None,
+        "next_url": None,
+    }
 
 
 async def test_the_read_catch_all_does_not_claim_the_listing(client: httpx.AsyncClient) -> None:

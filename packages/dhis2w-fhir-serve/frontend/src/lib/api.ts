@@ -341,6 +341,9 @@ export async function readUiConfig(): Promise<UiConfig> {
     return readJson<UiConfig>('/uiconfig')
 }
 
+/** How many receipts one page of the spool walk asks for - the server's own ceiling per request. */
+const SPOOL_PAGE_SIZE = 500
+
 /**
  * Every stored receipt with the lifecycle state its file is currently in.
  *
@@ -348,11 +351,37 @@ export async function readUiConfig(): Promise<UiConfig> {
  * forward` run in another terminal shows up on the next call with nothing
  * restarted. That is what makes a reload button on the Responses page honest.
  *
+ * WHY THIS FOLLOWS LINKS. `/spool` is paged, so one request is one page of the
+ * receipts. The Responses page filters and sorts across the whole spool, so it
+ * needs the whole spool, and the honest way to get it is to follow the `next`
+ * link the server hands out rather than to compose a page parameter of our own -
+ * the cursor is the server's business and its shape is not a contract.
+ *
+ * The counts come off the first page and are left alone: they are the whole
+ * spool on every page, so summing them across pages would multiply them.
+ *
  * Sent with `cache: 'no-store'`: this is the one read in the app whose answer
  * changes without anything in the browser having done something.
  */
 export async function readSpool(): Promise<SpoolListing> {
-    return readJson<SpoolListing>('/spool', { cache: 'no-store' })
+    const first = await readJson<SpoolListing>(`/spool?_count=${SPOOL_PAGE_SIZE}`, { cache: 'no-store' })
+    const responses = [...first.responses]
+    let next = first.next_url
+    while (next !== null && next !== undefined) {
+        // A cursor walk is sequential by construction: the link to the next page is on the page
+        // before it, so there is nothing to run in parallel.
+        // oxlint-disable-next-line eslint/no-await-in-loop
+        const page = await readJson<SpoolListing>(pathAndQuery(next), { cache: 'no-store' })
+        responses.push(...page.responses)
+        next = page.next_url
+    }
+    return { ...first, responses }
+}
+
+/** One absolute link the server minted, as this app asks for it again - same origin, so path only. */
+function pathAndQuery(url: string): string {
+    const parsed = new URL(url, window.location.origin)
+    return `${parsed.pathname}${parsed.search}`
 }
 
 /** One guarded request, parsed, with a refusal raised as the outcome the server sent. */

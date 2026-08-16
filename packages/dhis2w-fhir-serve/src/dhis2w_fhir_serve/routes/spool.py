@@ -24,20 +24,38 @@ the resource type `spool`".
 
 Every read re-reads the directory. `d2w fhir forward` moves files while this server runs, so a
 listing built from anything else is stale by design; see `dhis2w_fhir_serve.spool`.
+
+THE LISTING IS PAGED, with the same two parameters the register listing uses: `_count` for how many
+rows a page carries and `page` for an opaque cursor a client only ever gets from a `next` or
+`previous` link. `total` is the whole listing on every page of one walk, and the per-state counts are
+the whole spool rather than the page - a queue depth that changed with the page you were looking at
+would be no queue depth at all.
 """
 
 from __future__ import annotations
 
 from dhis2w_fhir.r4 import Extension, QuestionnaireResponse, QuestionnaireResponseItem
 from dhis2w_fhir.service import ForwardImportOutcome
+from dhis2w_fhir.spool import QuarantinedFile
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, ValidationError
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 from dhis2w_fhir_serve.capture.naming import PERIOD_ISO_SUB_EXTENSION, PERIOD_TYPE_SUB_EXTENSION, CaptureNaming
 from dhis2w_fhir_serve.routes.capture import capture_state
 from dhis2w_fhir_serve.routes.context import serve_context
-from dhis2w_fhir_serve.spool import ResponseLifecycle, StoredReceipt
+from dhis2w_fhir_serve.spool import (
+    COUNT_PARAMETER,
+    PAGE_PARAMETER,
+    ResponseLifecycle,
+    ResponseSpool,
+    SpoolCursor,
+    StoredReceipt,
+    page_of,
+    requested_cursor,
+    requested_page_size,
+)
 
 #: Where the listing is served from. One lowercase segment, so no FHIR resource type can collide.
 SPOOL_PATH = "/spool"
@@ -165,34 +183,82 @@ class SpoolCounts(BaseModel):
     received: int = 0
     forwarded: int = 0
     rejected: int = 0
+    malformed: int = 0
+    """Files in the holding pen. Not receipts and not a lifecycle state - bytes that would not parse as one."""
 
 
 class SpoolListing(BaseModel):
-    """Every receipt this project holds, newest first, with the per-state counts beside them."""
+    """One page of this project's receipts, newest first, with the whole listing's counts beside them.
+
+    `total` is the whole searchset rather than the page, and it is the same number on every page of
+    one walk. `next` and `previous` are the links a client follows; the page token is this server's
+    business and is not a number a client composes.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     total: int
     counts: SpoolCounts
     responses: tuple[SpoolResponseSummary, ...]
+    malformed: tuple[QuarantinedFile, ...] = ()
+    """Every file the spool moved aside because it does not read as a receipt, with what stopped it."""
+
+    self_url: str = ""
+    """This page, as a client may ask for it again and be handed the same page."""
+
+    previous_url: str | None = None
+    next_url: str | None = None
 
 
 @router.get(SPOOL_PATH)
 async def read_spool(request: Request) -> SpoolListing:
-    """List every stored receipt with its lifecycle state, re-reading the spool directory as it answers."""
+    """Answer one page of the receipts, re-reading the spool directory as it does.
+
+    The read runs off the event loop. Every fact in a listing comes from `stat`ing and parsing files,
+    which is blocking work, and a facade doing it inline would stall every other request it is
+    serving - including the capture that is trying to write into the same directory.
+    """
     context = serve_context(request)
     naming = capture_state(request).naming
-    receipts = context.spool.search()
+    count = requested_page_size(request.query_params.get(COUNT_PARAMETER))
+    cursor = requested_cursor(request.query_params.get(PAGE_PARAMETER))
+    reading = await run_in_threadpool(context.spool.search)
     counts = SpoolCounts(
-        received=sum(1 for receipt in receipts if receipt.lifecycle is ResponseLifecycle.RECEIVED),
-        forwarded=sum(1 for receipt in receipts if receipt.lifecycle is ResponseLifecycle.FORWARDED),
-        rejected=sum(1 for receipt in receipts if receipt.lifecycle is ResponseLifecycle.REJECTED),
+        received=sum(1 for receipt in reading.receipts if receipt.lifecycle is ResponseLifecycle.RECEIVED),
+        forwarded=sum(1 for receipt in reading.receipts if receipt.lifecycle is ResponseLifecycle.FORWARDED),
+        rejected=sum(1 for receipt in reading.receipts if receipt.lifecycle is ResponseLifecycle.REJECTED),
+        malformed=len(reading.quarantined),
     )
-    responses = tuple(
-        _summary(receipt, naming, context.spool.import_report(receipt.response_id, receipt.lifecycle))
-        for receipt in receipts
+    page = page_of(reading.receipts, cursor, count)
+    responses = await run_in_threadpool(_summaries, context.spool, page.receipts, naming)
+    return SpoolListing(
+        total=page.total,
+        counts=counts,
+        responses=responses,
+        malformed=reading.quarantined,
+        self_url=_page_url(request, page.cursor, count),
+        previous_url=None if page.previous_cursor is None else _page_url(request, page.previous_cursor, count),
+        next_url=None if page.next_cursor is None else _page_url(request, page.next_cursor, count),
     )
-    return SpoolListing(total=len(responses), counts=counts, responses=responses)
+
+
+def _page_url(request: Request, cursor: SpoolCursor, count: int) -> str:
+    """One page of the listing as a client may ask for it again and be given the same page."""
+    return str(request.url.include_query_params(**{COUNT_PARAMETER: count, PAGE_PARAMETER: cursor.token()}))
+
+
+def _summaries(
+    spool: ResponseSpool, receipts: tuple[StoredReceipt, ...], naming: CaptureNaming
+) -> tuple[SpoolResponseSummary, ...]:
+    """Project one page of receipts into listing rows, reading the report beside each drained one.
+
+    Only the page pays for this. Deriving a row parses the stored resource and reads a sidecar off
+    disk, which is the expensive half of the listing, so a spool of ten thousand receipts costs a
+    page of it rather than all of it.
+    """
+    return tuple(
+        _summary(receipt, naming, spool.import_report(receipt.response_id, receipt.lifecycle)) for receipt in receipts
+    )
 
 
 def _summary(

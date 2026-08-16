@@ -37,7 +37,6 @@ def _capability(project: FhirProject, summary: StoreSummary, *, live: bool = Fal
     return build_server_capability(
         project=project,
         store_summary=summary,
-        spool_count=11,
         settings=ServeSettings(project_dir=project.project_root, live=live),
         register_surface=_register_surface(project),
         server_version="9.9.9",
@@ -59,12 +58,14 @@ def test_capability_states_the_instance_it_describes(compiled_project: FhirProje
     assert capability.instantiates == [f"{CANONICAL}/CapabilityStatement/d2-capture-server"]
 
 
-def test_capability_reports_the_store_and_spool_it_started_with(compiled_project: FhirProject) -> None:
+def test_capability_reports_the_store_and_points_at_the_spool_for_the_queue(compiled_project: FhirProject) -> None:
+    """The store is fixed for the life of the process and is counted; the spool is not, and is not."""
     capability = _capability(compiled_project, FULL_SUMMARY)
 
     assert capability.description is not None
     assert "24 resources across 7 types" in capability.description
-    assert "11 stored responses at startup" in capability.description
+    assert "`GET /spool` states how many responses are stored" in capability.description
+    assert "stored responses at startup" not in capability.description
 
 
 def test_capability_names_the_store_mode(compiled_project: FhirProject) -> None:
@@ -160,7 +161,6 @@ def test_capability_round_trips_through_the_r4_model(compiled_project: FhirProje
     body = build_metadata_body(
         project=compiled_project,
         store_summary=FULL_SUMMARY,
-        spool_count=11,
         settings=ServeSettings(project_dir=compiled_project.project_root),
         register_surface=_register_surface(compiled_project),
         server_version="9.9.9",

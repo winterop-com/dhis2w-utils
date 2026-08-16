@@ -141,7 +141,6 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
             capability_body=build_metadata_body(
                 project=project,
                 store_summary=summary,
-                spool_count=spool.count(),
                 settings=settings,
                 register_surface=register_surface,
                 server_version=server_version(),

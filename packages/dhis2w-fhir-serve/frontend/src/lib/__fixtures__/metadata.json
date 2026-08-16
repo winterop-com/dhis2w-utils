@@ -2,7 +2,7 @@
   "resourceType": "CapabilityStatement",
   "status": "active",
   "date": "2026-08-09T10:39:24Z",
-  "description": "DHIS2 FHIR Capture IG served as a FHIR capture facade: 28 resources across 4 types, and 0 stored responses at startup.",
+  "description": "DHIS2 FHIR Capture IG served as a FHIR capture facade: 28 resources across 4 types. `GET /spool` states how many responses are stored, which is a number that changes while this server runs.",
   "kind": "instance",
   "instantiates": [
     "http://localhost:8080/fhir/CapabilityStatement/d2-capture-server"

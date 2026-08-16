@@ -312,7 +312,7 @@ what the IG asks for.
 
 ## The spool on disk
 
-Receipts are held in memory for reads and mirrored to the project:
+A receipt is a file, and the directory it is in is its state:
 
 ```
 demo-ig/.serve/responses/received/<id>.json
@@ -320,15 +320,30 @@ demo-ig/.serve/responses/received/<id>.json
 
 Each file holds the response as received plus the receipt metadata around it
 - when it was accepted, which form kind it declared, which questionnaire it
-answered, and every warning recorded against it. Writes are atomic (a
-temporary file, then a rename), so a crash never leaves a half-written
-receipt, and a restart rebuilds the index by scanning the directory.
+answered, and every warning recorded against it. The server holds no index of
+any of that: every read re-scans the directory, because
+[`d2w fhir forward`](201-forward.md) is a separate process renaming these
+files while the server runs, and anything remembered would be stale the
+moment the first drain finished.
+
+A write is atomic *and* durable - a temporary file, `fsync`, a rename, then
+an `fsync` of the directory - so a reader never sees a half-written receipt
+and the `201` a client is answered with is a promise that survives the
+machine losing power.
 
 `ls .serve/responses/received | wc -l` is therefore the pending count, with
 no extra bookkeeping: the directory *is* the queue
 [`d2w fhir forward`](201-forward.md) drains, which is why it is named
 `received/` rather than `responses/` - `forwarded/` and `rejected/` are its
 siblings.
+
+A fourth directory, `malformed/`, is not a state a receipt is in. A file that
+no longer reads as a receipt - truncated, hand-edited, half-copied - is moved
+there with a `<file>.reason.json` beside it naming what stopped it, and the
+read that found it carries on with everything else. One unreadable byte costs
+one row rather than the whole listing, and the file is named rather than
+skipped: a submission that disappears quietly looks to its sender exactly like
+one that never arrived.
 
 `.serve/` is gitignored by the scaffold. A project scaffolded before the
 entry existed gains it from `d2w fhir init . --refresh`.
@@ -342,7 +357,8 @@ $ curl -s localhost:8390/spool | jq .counts
 {
   "received": 0,
   "forwarded": 28,
-  "rejected": 1
+  "rejected": 1,
+  "malformed": 0
 }
 ```
 
@@ -350,6 +366,25 @@ $ curl -s localhost:8390/spool | jq .counts
 `GET /spool` splits them by directory, which is the envelope the capture UI's
 own pages read. The spool search takes `_id` and `questionnaire`; the
 definitional types take `_id`, `url`, and `identifier`.
+
+Both reads are paged, with the same two parameters the register listing uses:
+`_count` for how many rows a page carries (50 by default, 500 at most) and
+`page` for a cursor a client only ever gets from a `next` or `previous` link.
+`total` is the whole listing on every page of a walk, and `/spool`'s counts are
+the whole spool rather than the page:
+
+```console
+$ curl -s 'localhost:8390/spool?_count=2' | jq '{total, rows: (.responses | length), next: .next_url}'
+{
+  "total": 29,
+  "rows": 2,
+  "next": "http://localhost:8390/spool?_count=2&page=bzJuMjk"
+}
+```
+
+`d2w fhir spool` answers the same question from the other side, off the
+directory alone and with no DHIS2 connection - see
+[Forward captures into DHIS2](201-forward.md#reading-the-queue).
 
 ## Generating a load set
 

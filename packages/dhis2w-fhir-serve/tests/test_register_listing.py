@@ -139,7 +139,6 @@ def _capability(project: FhirProject, tracked_entities: TrackedEntitiesConfig) -
     return build_server_capability(
         project=project,
         store_summary=store.summary(),
-        spool_count=0,
         settings=settings,
         register_surface=RegisterSurface.resolve(TrackedEntityIndex.from_store(project, store), tracked_entities),
         server_version="9.9.9",

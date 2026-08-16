@@ -661,8 +661,8 @@ def adopted_tracker_pair(
     forms = _program_form_entries(index.program_uid, naming, store)
     if not forms:
         return None
-    receipts = spool.search(form_kind=_REGISTRATION_FORM_KIND, lifecycles=_ADOPTABLE_LIFECYCLES)
-    preferred = sorted(receipts, key=lambda receipt: _ADOPTABLE_LIFECYCLES.index(receipt.lifecycle))
+    reading = spool.search(form_kind=_REGISTRATION_FORM_KIND, lifecycles=_ADOPTABLE_LIFECYCLES)
+    preferred = sorted(reading.receipts, key=lambda receipt: _ADOPTABLE_LIFECYCLES.index(receipt.lifecycle))
     for receipt in preferred:
         if not any(_answers_form(receipt, entry) for entry in forms):
             continue

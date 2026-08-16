@@ -93,6 +93,7 @@ __all__ = [
     "PERIOD_RANGE_SUB_EXTENSION",
     "PERIOD_TYPE_SUB_EXTENSION",
     "REGISTERED_ENROLLMENT_STATUS",
+    "WITHDRAWAL_RESPONSE_STATUS",
     "TranslatedAnswer",
     "TranslatedAnswers",
     "receipt_event_uid",
@@ -128,6 +129,11 @@ COMPLETED_EVENT_STATUSES = (
 
 #: The response statuses whose DHIS2 event status several response statuses would have produced.
 _COLLAPSING_RESPONSE_STATUSES = frozenset({"completed", "amended"})
+
+#: The `QuestionnaireResponse.status` that withdraws a submission rather than recording one. It has
+#: its own refusal category because it is the one refusal nothing can fix: withdrawal is a deletion,
+#: this toolchain builds imports, and so the forwarder files such a receipt rather than retrying it.
+WITHDRAWAL_RESPONSE_STATUS = "entered-in-error"
 
 #: What separates the day of an R4 instant from its wall clock, which is where a completeness date ends.
 _DATE_PART_SEPARATOR = "T"
@@ -1062,13 +1068,22 @@ def _event_status(
         )
         return None
     event_status = EVENT_STATUSES_BY_RESPONSE_STATUS.get(status)
+    if status == WITHDRAWAL_RESPONSE_STATUS:
+        refusals.append(
+            ConversionRefusal(
+                category=ConversionRefusalCategory.ENTERED_IN_ERROR_IS_A_DELETION,
+                element="QuestionnaireResponse.status",
+                reason=f"`{status}` withdraws an event rather than recording one, and a withdrawal is a "
+                f"deletion rather than an import",
+            )
+        )
+        return None
     if event_status is None:
         refusals.append(
             ConversionRefusal(
                 category=ConversionRefusalCategory.UNMAPPABLE_STATUS,
                 element="QuestionnaireResponse.status",
-                reason=f"`{status}` names no DHIS2 event status; retracting an event is a deletion rather "
-                f"than an import",
+                reason=f"`{status}` names no DHIS2 event status",
             )
         )
         return None

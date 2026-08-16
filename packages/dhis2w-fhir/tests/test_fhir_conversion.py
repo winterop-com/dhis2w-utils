@@ -935,10 +935,14 @@ def test_the_status_inverse_writes_the_dhis2_event_status_and_names_the_collapse
 
 
 def test_an_entered_in_error_response_refuses_because_retraction_is_not_an_import() -> None:
-    """R4 has a lifecycle state for a mistaken response; DHIS2 has a deletion, which is a different call."""
+    """R4 has a lifecycle state for a mistaken response; DHIS2 has a deletion, which is a different call.
+
+    Its own category rather than the unmappable-status one, because it is the one refusal nothing can
+    fix: the forwarder files such a receipt instead of retrying it on every drain.
+    """
     document = _tracker_document().model_copy(update={"status": "entered-in-error"})
     result = translate_response(document, _context([_BIRTH_STAGE]))
-    assert ConversionRefusalCategory.UNMAPPABLE_STATUS in _refusal_categories(result)
+    assert ConversionRefusalCategory.ENTERED_IN_ERROR_IS_A_DELETION in _refusal_categories(result)
 
 
 def test_an_event_response_recording_no_occurrence_refuses() -> None:

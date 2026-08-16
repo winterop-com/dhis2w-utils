@@ -1,9 +1,10 @@
 """`GET /metadata` - the conformance endpoint, answered from a body built once at startup.
 
-The statement describes the store and the spool as the process found them, so it is built in the
-lifespan and served verbatim from then on. Rebuilding it per request would re-read nothing new:
-the compiled store is fixed for the life of the process, and the counts it reports are stated as
-what the server started with.
+The statement describes what this process serves, so it is built in the lifespan and served verbatim
+from then on. Rebuilding it per request would re-read nothing new: the compiled store is fixed for
+the life of the process. It states no spool count for the opposite reason - `d2w fhir forward` moves
+receipts while this server runs, so a number frozen at startup is wrong within minutes, and no number
+is better than a wrong one. `GET /spool` answers that question against the directory as it now is.
 """
 
 from __future__ import annotations
@@ -31,7 +32,6 @@ router = APIRouter()
 def build_metadata_body(
     project: FhirProject,
     store_summary: StoreSummary,
-    spool_count: int,
     settings: ServeSettings,
     register_surface: RegisterSurface,
     server_version: str,
@@ -44,7 +44,6 @@ def build_metadata_body(
     capability = build_server_capability(
         project=project,
         store_summary=store_summary,
-        spool_count=spool_count,
         settings=settings,
         register_surface=register_surface,
         server_version=server_version,

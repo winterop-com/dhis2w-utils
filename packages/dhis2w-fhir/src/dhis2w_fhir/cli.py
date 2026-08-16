@@ -18,12 +18,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
+from dhis2w_core.cli_errors import CliUserError
 from dhis2w_core.cli_output import ColumnSpec, DetailRow, is_json_output, render_detail, render_list
 from dhis2w_core.progress import animated_progress, make_reporter
 from dhis2w_core.rich_console import STDERR_CONSOLE
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_fhir import DEFAULT_LOAD_SET_PER_TARGET, DEFAULT_SUSHI_TIMEOUT_SECONDS, GenerateReport, load_project
+from dhis2w_fhir import (
+    DEFAULT_LOAD_SET_PER_TARGET,
+    DEFAULT_SUSHI_TIMEOUT_SECONDS,
+    MALFORMED_RESPONSES_RELATIVE_PATH,
+    GenerateReport,
+    load_project,
+)
 from dhis2w_fhir.doctor import DEFAULT_ORACLE_SAMPLES
 
 if TYPE_CHECKING:
@@ -40,6 +47,7 @@ if TYPE_CHECKING:
         GenerateFullReport,
         GenerationProfile,
         LoadSetReport,
+        SpoolStateReport,
     )
     from dhis2w_fhir.validation.schemas import FhirValidationReport
 
@@ -1572,6 +1580,32 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
                 "",
             ]
         )
+    if report.quarantined:
+        lines.extend(
+            [
+                "## Files that do not read as receipts",
+                "",
+                "Each was moved to `.serve/responses/malformed/` with its reason written beside it, and this",
+                "run carried on with everything else. Nothing in that directory is a receipt.",
+                "",
+                "| File | What stopped it |",
+                "| --- | --- |",
+            ]
+        )
+        lines.extend(f"| `{entry.file_name}` | {entry.reason} |" for entry in report.quarantined)
+        lines.append("")
+    if report.filing_issues:
+        lines.extend(
+            [
+                "## Receipts whose file had already moved",
+                "",
+                "DHIS2 answered about each of these, and the answer is in this report - but the file was gone",
+                "when the run went to file it, so it is wherever whatever moved it put it.",
+                "",
+            ]
+        )
+        lines.extend(f"- `{issue.response_id}` - {issue.reason}" for issue in report.filing_issues)
+        lines.append("")
     reasons = report.rejection_reasons
     if reasons:
         lines.extend(
@@ -1669,6 +1703,14 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
     )
     for unreadable in report.unreadable_artifacts:
         _hint("note", f"published resource left out of the translation context: {unreadable}")
+    for quarantined in report.quarantined:
+        _hint(
+            "note",
+            f"{quarantined.file_name} does not read as a receipt and was moved to "
+            f"{MALFORMED_RESPONSES_RELATIVE_PATH}: {quarantined.reason}",
+        )
+    for issue in report.filing_issues:
+        _hint("note", f"{issue.response_id}: {issue.reason}")
     if not report.spooled:
         _hint("note", "the spool is empty - `d2w fhir serve` is what fills it")
         return
@@ -1799,6 +1841,135 @@ def forward_command(
         _render_forward_report(report, generation, details=details)
     if report.rejected or report.stopped is not None:
         raise typer.Exit(code=1)
+
+
+def _render_spool_state(report: SpoolStateReport, *, details: bool) -> None:
+    """Render one spool listing: the count in each state, then a row per receipt under `--details`."""
+    render_detail(
+        "fhir spool",
+        [
+            DetailRow("project", str(report.project_root)),
+            DetailRow("not yet sent to DHIS2", str(report.counts.received)),
+            DetailRow("accepted by DHIS2", str(report.counts.forwarded)),
+            DetailRow("refused by DHIS2", str(report.counts.rejected)),
+            DetailRow("unreadable files", str(report.counts.malformed)),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    if details and report.receipts:
+        render_list(
+            "receipts",
+            [
+                {
+                    "id": row.response_id,
+                    "state": row.state.value,
+                    "form": row.questionnaire.rsplit("/", 1)[-1] or row.questionnaire,
+                    "received": row.received_at,
+                    "reason": row.reason or "",
+                }
+                for row in report.receipts
+            ],
+            [
+                ColumnSpec("Receipt", "id", no_wrap=True),
+                ColumnSpec("State", "state", no_wrap=True),
+                ColumnSpec("Form", "form"),
+                ColumnSpec("Received", "received", no_wrap=True),
+                ColumnSpec("Why it is there", "reason"),
+            ],
+            console=STDERR_CONSOLE,
+        )
+    if details and report.quarantined:
+        render_list(
+            "unreadable files",
+            [{"file": entry.file_name, "reason": entry.reason} for entry in report.quarantined],
+            [ColumnSpec("File", "file", no_wrap=True), ColumnSpec("What stopped it", "reason")],
+            console=STDERR_CONSOLE,
+        )
+    if not report.receipts:
+        _hint("note", "the spool holds no receipts - `d2w fhir serve` is what fills it")
+        return
+    if report.counts.malformed:
+        _hint(
+            "note",
+            f"{report.counts.malformed} file(s) in {MALFORMED_RESPONSES_RELATIVE_PATH} do not read as receipts; "
+            "each has its reason written beside it",
+        )
+    if report.counts.rejected:
+        _hint(
+            "note",
+            f"{report.counts.rejected} receipt(s) were refused by DHIS2; fix the instance or the data and "
+            "`d2w fhir requeue` puts them back in the queue",
+        )
+    if not details:
+        _hint("note", "--details lists every receipt")
+
+
+@app.command("spool")
+def spool_command(
+    directory: Annotated[
+        Path, typer.Argument(file_okay=False, help="Project directory (default: current directory).")
+    ] = Path("."),
+    details: Annotated[
+        bool, typer.Option("--details", help="List every receipt, not just how many are in each state.")
+    ] = False,
+) -> None:
+    """List the capture spool - how many receipts wait for DHIS2, and what became of the rest.
+
+    Reads the project's own .serve/responses/ directory and nothing else: no DHIS2 connection, no
+    profile, no network. Which directory a receipt's file is in is its state, and the report DHIS2's
+    answer was written into says why a drained one is where it is.
+
+    A file that does not read as a receipt is moved to .serve/responses/malformed/ with its reason
+    beside it and counted there, so one unreadable file costs one row rather than the listing.
+    """
+    from dhis2w_fhir import service
+
+    project = load_project(directory)
+    report = service.read_spool_state(project)
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    _render_spool_state(report, details=details)
+
+
+@app.command("requeue")
+def requeue_command(
+    response_ids: Annotated[list[str] | None, typer.Argument(help="Receipt ids to move back into the queue.")] = None,
+    directory: Annotated[
+        Path, typer.Option("--directory", file_okay=False, help="Project directory (default: current directory).")
+    ] = Path("."),
+    all_rejected: Annotated[
+        bool, typer.Option("--all-rejected", help="Move every receipt DHIS2 refused back into the queue.")
+    ] = False,
+) -> None:
+    """Move receipts DHIS2 refused back into the queue, so the next forward posts them again.
+
+    The one reverse move the spool has, and it is a decision rather than a repair: a rejection is
+    DHIS2 stating that this payload is wrong, so nothing moves it back until a person who has changed
+    the instance, the guide, or their mind says so.
+
+    The import report stays in rejected/ as the record of what DHIS2 last answered about the payload.
+    The next drain writes a fresh one wherever the receipt lands.
+
+    Needs no DHIS2 connection and no profile - it is a rename inside the project directory.
+    """
+    from dhis2w_fhir import service
+
+    named = list(response_ids or [])
+    if not named and not all_rejected:
+        raise CliUserError("name the receipt(s) to requeue, or pass --all-rejected to move every refused one")
+    if named and all_rejected:
+        raise CliUserError("--all-rejected moves every refused receipt, so it takes no ids of its own")
+    project = load_project(directory)
+    report = service.requeue_rejected_responses(project, named, all_rejected=all_rejected)
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        return
+    for receipt in report.requeued:
+        _line(f"{receipt.response_id} -> {receipt.spool_path}")
+    _hint("ok", report.counts_line)
+    if report.requeued:
+        _hint("note", "`d2w fhir forward --import` posts them again")
 
 
 #: The Rich style each doctor outcome renders in, so a glance separates a break from a note.

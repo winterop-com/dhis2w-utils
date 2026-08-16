@@ -131,7 +131,6 @@ _REST_DOCUMENTATION = (
 def build_server_capability(
     project: FhirProject,
     store_summary: StoreSummary,
-    spool_count: int,
     settings: ServeSettings,
     register_surface: RegisterSurface,
     server_version: str,
@@ -155,7 +154,8 @@ def build_server_capability(
         kind="instance",
         description=(
             f"{project.config.ig.title} served as a FHIR capture facade: {store_summary.total} resources "
-            f"across {len(store_summary.counts_by_type)} types, and {spool_count} stored responses at startup."
+            f"across {len(store_summary.counts_by_type)} types. `GET /spool` states how many responses "
+            f"are stored, which is a number that changes while this server runs."
         ),
         instantiates=[f"{canonical}/CapabilityStatement/{names.capture_server_id}"],
         software=CapabilityStatementSoftware(name=SOFTWARE_NAME, version=server_version),

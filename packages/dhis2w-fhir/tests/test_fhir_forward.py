@@ -11,7 +11,10 @@ instance alone.
 from __future__ import annotations
 
 import datetime
+import fcntl
 import json
+import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -59,11 +62,17 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireSectionIn,
 )
 from dhis2w_fhir.spool import (
+    DRAIN_LOCK_FILE_NAME,
     FORWARDED_RESPONSES_RELATIVE_PATH,
     IMPORT_REPORT_SUFFIX,
+    MALFORMED_RESPONSES_RELATIVE_PATH,
+    ORPHAN_TEMPORARY_FILE_AGE_SECONDS,
     RECEIVED_RESPONSES_RELATIVE_PATH,
     REJECTED_RESPONSES_RELATIVE_PATH,
+    SPOOL_RELATIVE_PATH,
+    SpoolLockedError,
     SpoolReadError,
+    SpoolState,
 )
 from pydantic import BaseModel, ConfigDict
 
@@ -969,26 +978,55 @@ async def test_an_empty_spool_with_no_compiled_guide_never_builds_one(
 
 
 @respx.mock
-async def test_an_unreadable_receipt_still_fails_on_an_otherwise_empty_spool(forward_project: Path) -> None:
-    """The spool is read before the run short-circuits, so an unreadable receipt is never skipped past."""
-    _mock_instance()
+async def test_an_unreadable_receipt_on_an_otherwise_empty_spool_is_quarantined_for_free(forward_project: Path) -> None:
+    """The spool is read before the run short-circuits, so the quarantine is reported at zero request cost."""
+    routes = _mock_instance()
     for path in (forward_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"):
         path.unlink()
     broken = forward_project / RECEIVED_RESPONSES_RELATIVE_PATH / "broken.json"
     broken.write_text("{not json", encoding="utf-8")
 
-    with pytest.raises(SpoolReadError, match="broken.json"):
-        await _forward(forward_project)
+    report = await _forward(forward_project)
+
+    assert (report.spooled, report.outcomes) == (0, ())
+    assert [entry.file_name for entry in report.quarantined] == ["broken.json"]
+    assert list(respx.calls) == []
+    assert [route.call_count for route in routes.values()] == [0] * len(routes)
 
 
 @respx.mock
-async def test_an_unreadable_receipt_fails_the_run_naming_the_file(forward_project: Path) -> None:
-    """A receipt silently skipped would look to its sender exactly like one that never arrived."""
+async def test_an_unreadable_receipt_is_quarantined_and_the_drain_proceeds(forward_project: Path) -> None:
+    """A receipt silently skipped would look to its sender exactly like one that never arrived - so it is named.
+
+    Named rather than fatal: aborting the drain over one unreadable file would cost every other
+    receipt its turn, which is the larger silence. The file moves to `malformed/` with its reason
+    written beside it, the report says so, and everything else forwards.
+    """
     _mock_instance()
     broken = forward_project / RECEIVED_RESPONSES_RELATIVE_PATH / "broken.json"
     broken.write_text("{not json", encoding="utf-8")
-    with pytest.raises(SpoolReadError, match="broken.json"):
-        await _forward(forward_project)
+
+    report = await _forward(forward_project)
+
+    assert [entry.file_name for entry in report.quarantined] == ["broken.json"]
+    assert "not readable as JSON" in report.quarantined[0].reason
+    assert report.spooled > 0
+    assert not broken.exists()
+    quarantined = forward_project / MALFORMED_RESPONSES_RELATIVE_PATH / "broken.json"
+    assert quarantined.is_file()
+
+
+@respx.mock
+async def test_an_unreadable_spool_directory_fails_the_run(forward_project: Path) -> None:
+    """One bad file is quarantined; a directory the process cannot read is a failure of the whole drain."""
+    _mock_instance()
+    received = forward_project / RECEIVED_RESPONSES_RELATIVE_PATH
+    received.chmod(0o000)
+    try:
+        with pytest.raises(SpoolReadError, match="cannot be read"):
+            await _forward(forward_project)
+    finally:
+        received.chmod(0o755)
 
 
 def test_the_context_is_assembled_from_the_published_guide(forward_project: Path) -> None:
@@ -2114,3 +2152,270 @@ def test_each_stored_409_body_names_the_instance_it_was_harvested_off(wire_versi
     assert len(_HARVESTED_INSTANCE_REVISIONS[wire_version]) == 7
     for name in ("data-value-set-value-type", "tracker-absent-enrollment", "tracker-value-type"):
         assert (_HARVESTED_409_DIRECTORY / f"{name}-{wire_version}.json").is_file()
+
+
+# --- Spool hardening: the lock, filing as the drain goes, quarantine, sweeping, and requeue. ---
+
+
+@respx.mock
+async def test_each_receipt_is_filed_before_the_next_one_is_posted(three_event_project: Path) -> None:
+    """The disk agrees with DHIS2 at every point of the loop, not only once the loop has ended.
+
+    Asserted from inside the mock: when the second POST arrives, the first receipt is already in
+    `forwarded/` with its report beside it. That is the property a killed drain depends on - what was
+    posted is filed, and what was not is untouched.
+    """
+    filed_when_the_second_post_arrived: list[list[str]] = []
+
+    def _answer(request: httpx.Request) -> httpx.Response:
+        forwarded = three_event_project / FORWARDED_RESPONSES_RELATIVE_PATH
+        filed_when_the_second_post_arrived.append(sorted(path.name for path in forwarded.glob("*")))
+        return _accepted_tracker()
+
+    respx.get(f"{_BASE_URL}/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": _HARVESTED_INSTANCE_VERSIONS["v42"]})
+    )
+    respx.get(f"{_BASE_URL}/api/dataElements").mock(
+        return_value=httpx.Response(
+            200, json={"dataElements": [{"id": uid, "valueType": value} for uid, value in _VALUE_TYPES.items()]}
+        )
+    )
+    respx.post(f"{_BASE_URL}/api/tracker").mock(side_effect=_answer)
+
+    report = await _forward(three_event_project, import_responses=True)
+
+    ordered = sorted(outcome.response_id for outcome in report.outcomes)
+    # Nothing was filed when the first payload was posted, and the first was filed with its report by
+    # the time the second was.
+    assert filed_when_the_second_post_arrived[0] == []
+    assert filed_when_the_second_post_arrived[1] == [f"{ordered[0]}.json", f"{ordered[0]}{IMPORT_REPORT_SUFFIX}"]
+    assert len(filed_when_the_second_post_arrived[2]) == 4
+
+
+@respx.mock
+async def test_a_dry_run_files_nothing_as_it_goes(three_event_project: Path) -> None:
+    """Filing as the drain goes is a property of an import; a dry run wrote nothing to be filing about."""
+    _mock_instance()
+
+    await _forward(three_event_project)
+
+    assert len(list((three_event_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"))) == 3
+    assert not (three_event_project / FORWARDED_RESPONSES_RELATIVE_PATH).exists()
+
+
+@respx.mock
+async def test_a_receipt_whose_file_vanished_mid_drain_is_graded_rather_than_fatal(
+    three_event_project: Path,
+) -> None:
+    """A rename that lost a race must not throw away DHIS2's answer or the receipts queued behind it."""
+    received = three_event_project / RECEIVED_RESPONSES_RELATIVE_PATH
+    posts = 0
+
+    def _answer(request: httpx.Request) -> httpx.Response:
+        nonlocal posts
+        posts += 1
+        if posts == 1:
+            # Something else moves the receipt out from under the drain between the post and the file.
+            for path in sorted(received.glob("*.json")):
+                path.unlink()
+                break
+        return _accepted_tracker()
+
+    respx.get(f"{_BASE_URL}/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": _HARVESTED_INSTANCE_VERSIONS["v42"]})
+    )
+    respx.get(f"{_BASE_URL}/api/dataElements").mock(
+        return_value=httpx.Response(
+            200, json={"dataElements": [{"id": uid, "valueType": value} for uid, value in _VALUE_TYPES.items()]}
+        )
+    )
+    respx.post(f"{_BASE_URL}/api/tracker").mock(side_effect=_answer)
+
+    report = await _forward(three_event_project, import_responses=True)
+
+    assert len(report.accepted) == 3
+    assert len(report.filing_issues) == 1
+    assert "was gone when the drain went to file it" in report.filing_issues[0].reason
+
+
+@respx.mock
+async def test_a_second_drain_is_refused_while_another_holds_the_lock(forward_project: Path) -> None:
+    """Two drains over one spool would post every payload twice, so the second one fails at once."""
+    _mock_instance()
+    lock_path = forward_project / SPOOL_RELATIVE_PATH / DRAIN_LOCK_FILE_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)
+    os.write(descriptor, b"424242\n")
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        with pytest.raises(SpoolLockedError, match="process 424242"):
+            await _forward(forward_project, import_responses=True)
+    finally:
+        os.close(descriptor)
+
+    # Nothing was posted and nothing moved: the refusal is the whole of what the second run did.
+    assert len(list((forward_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"))) == 2
+
+
+@respx.mock
+async def test_the_lock_is_released_however_the_drain_ends(forward_project: Path) -> None:
+    """A drain that raised still leaves the spool drainable, or one bad run would wedge the project."""
+    respx.get(f"{_BASE_URL}/api/system/info").mock(side_effect=httpx.ConnectError("connection refused"))
+    with pytest.raises(httpx.ConnectError):
+        await _forward(forward_project)
+
+    _mock_instance()
+    report = await _forward(forward_project)
+
+    assert report.spooled == 2
+
+
+@respx.mock
+async def test_an_orphan_temporary_file_is_swept_at_drain_start_and_a_young_one_is_left(
+    forward_project: Path,
+) -> None:
+    """An abandoned write is deleted; one young enough to still be in flight is left exactly alone."""
+    _mock_instance()
+    received = forward_project / RECEIVED_RESPONSES_RELATIVE_PATH
+    abandoned = received / ".abandoned.json.tmp"
+    abandoned.write_text("half a receipt", encoding="utf-8")
+    in_flight = received / ".in-flight.json.tmp"
+    in_flight.write_text("half a receipt", encoding="utf-8")
+    stale = time.time() - 2 * ORPHAN_TEMPORARY_FILE_AGE_SECONDS
+    os.utime(abandoned, (stale, stale))
+
+    await _forward(forward_project)
+
+    assert not abandoned.exists()
+    assert in_flight.is_file()
+
+
+@respx.mock
+async def test_an_entered_in_error_receipt_is_filed_once_and_is_gone_from_the_next_drain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The one refusal nothing can fix is filed rather than retried by every drain for ever.
+
+    Withdrawal is a deletion and this toolchain imports (docs/project/fhir-data-lifecycle.md), so no
+    change to the guide and no change to the instance would make this receipt convert. It is filed to
+    `rejected/` with a sidecar naming the doctrine, and the next drain never sees it again.
+    """
+    _write_probe_profile(tmp_path, monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    _write_project(root)
+    withdrawn = _event_documents(1)[0].model_copy(update={"status": "entered-in-error"})
+    _fill_spool(root, [withdrawn])
+    monkeypatch.chdir(root)
+    _mock_instance()
+
+    first = await _forward(root, import_responses=True)
+
+    assert [outcome.kind for outcome in first.outcomes] == [ForwardOutcomeKind.REFUSED]
+    assert first.refused[0].refusals[0].category == "entered-in-error-is-a-deletion"
+    assert first.refused[0].spool_path == f"{REJECTED_RESPONSES_RELATIVE_PATH}/{withdrawn.id}.json"
+    sidecar = root / REJECTED_RESPONSES_RELATIVE_PATH / f"{withdrawn.id}{IMPORT_REPORT_SUFFIX}"
+    assert "Withdrawing a submission is unbuilt" in sidecar.read_text(encoding="utf-8")
+
+    second = await _forward(root, import_responses=True)
+
+    assert second.spooled == 0
+
+
+@respx.mock
+async def test_every_other_refusal_still_stays_in_the_queue(forward_project: Path) -> None:
+    """A refusal with a fix in the guide or in the data is retried by the next drain, as it always was."""
+    _mock_instance()
+    orphan = forward_project / RECEIVED_RESPONSES_RELATIVE_PATH / "orphan.json"
+    orphan.write_text(
+        json.dumps(
+            {
+                "response_id": "orphan",
+                "received_at": "2026-08-08T09:00:00Z",
+                "form_kind": "aggregate",
+                "questionnaire": f"{_CANONICAL}/Questionnaire/nothing-published",
+                "response": {
+                    "resourceType": "QuestionnaireResponse",
+                    "id": "orphan",
+                    "questionnaire": f"{_CANONICAL}/Questionnaire/nothing-published",
+                    "status": "completed",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    await _forward(forward_project, import_responses=True)
+
+    assert orphan.is_file()
+
+
+@respx.mock
+async def test_a_requeued_receipt_is_posted_again_by_the_next_drain(three_event_project: Path) -> None:
+    """The round trip: DHIS2 refuses a payload, an operator requeues it, and the next drain posts it."""
+    respx.get(f"{_BASE_URL}/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": _HARVESTED_INSTANCE_VERSIONS["v42"]})
+    )
+    respx.get(f"{_BASE_URL}/api/dataElements").mock(
+        return_value=httpx.Response(
+            200, json={"dataElements": [{"id": uid, "valueType": value} for uid, value in _VALUE_TYPES.items()]}
+        )
+    )
+    respx.post(f"{_BASE_URL}/api/tracker").mock(return_value=_rejected_tracker())
+    first = await _forward(three_event_project, import_responses=True)
+    refused = sorted(outcome.response_id for outcome in first.rejected)
+    assert len(refused) == 3
+
+    project = load_project(three_event_project)
+    requeued = service.requeue_rejected_responses(project, [refused[0]])
+
+    assert [receipt.response_id for receipt in requeued.requeued] == [refused[0]]
+    assert requeued.requeued[0].spool_path == f"{RECEIVED_RESPONSES_RELATIVE_PATH}/{refused[0]}.json"
+    # The report stays behind in rejected/ as the record of what DHIS2 last answered about the payload.
+    assert (three_event_project / REJECTED_RESPONSES_RELATIVE_PATH / f"{refused[0]}{IMPORT_REPORT_SUFFIX}").is_file()
+
+    respx.post(f"{_BASE_URL}/api/tracker").mock(return_value=_accepted_tracker())
+    second = await _forward(three_event_project, import_responses=True)
+
+    assert [outcome.response_id for outcome in second.accepted] == [refused[0]]
+    assert (three_event_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{refused[0]}.json").is_file()
+
+
+@respx.mock
+async def test_requeue_all_moves_every_refused_receipt(three_event_project: Path) -> None:
+    """`--all-rejected` is the same move over everything DHIS2 refused, which is the usual case."""
+    _mock_instance(tracker_response=_rejected_tracker())
+    await _forward(three_event_project, import_responses=True)
+    project = load_project(three_event_project)
+
+    report = service.requeue_rejected_responses(project, all_rejected=True)
+
+    assert len(report.requeued) == 3
+    assert len(list((three_event_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"))) == 3
+    assert list((three_event_project / REJECTED_RESPONSES_RELATIVE_PATH).glob("*[!t].json")) == []
+
+
+def test_requeueing_an_id_that_is_not_rejected_refuses_before_anything_moves(forward_project: Path) -> None:
+    """A command that reported success for a receipt it never found would be worse than a refusal."""
+    project = load_project(forward_project)
+
+    with pytest.raises(SpoolReadError, match="`nothing-here`"):
+        service.requeue_rejected_responses(project, ["nothing-here"])
+
+
+@respx.mock
+async def test_the_spool_listing_reads_the_directory_and_nothing_else(three_event_project: Path) -> None:
+    """`d2w fhir spool` answers while the instance is down, because every fact in it is on disk."""
+    _mock_instance(tracker_response=_rejected_tracker())
+    await _forward(three_event_project, import_responses=True)
+    (three_event_project / RECEIVED_RESPONSES_RELATIVE_PATH / "broken.json").write_text("{not json", encoding="utf-8")
+
+    report = service.read_spool_state(load_project(three_event_project))
+
+    assert report.counts.rejected == 3
+    assert report.counts.received == 0
+    assert report.counts.malformed == 1
+    assert [entry.file_name for entry in report.quarantined] == ["broken.json"]
+    assert {row.state for row in report.receipts} == {SpoolState.REJECTED}
+    # A rejected row states the short reason off the report the forwarder left beside it.
+    assert all(row.reason for row in report.receipts)
