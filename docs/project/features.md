@@ -2162,16 +2162,15 @@ stderr - a spinner on a terminal, plain `[k/N]` lines when redirected - and
 takes `--progress` / `--no-progress`. Tables, notes, and progress are stderr;
 stdout carries the `--json` payload alone, so `--json` implies a silent stderr.
 
-### MCP tools
+### No MCP tools
 
-Two tools, both calling the same service layer as the CLI:
-
-| Tool | Shape |
-| --- | --- |
-| `fhir_validate` | Read-only. The FHIR-safety check over an instance's codes. |
-| `fhir_forward` | Drains the capture spool. `dry_run` defaults to True so the tool an agent reaches for first cannot change the instance; `register_completeness` mirrors the CLI flag. |
-
-Scaffolding and generation are CLI-only.
+The surface is CLI-only, and the plugin registers nothing on the MCP server.
+Most of it could be nothing else - scaffolding, every generate target, and
+`doctor` write a file tree onto whatever machine the server runs on, and
+`serve` binds a port and stays up. `validate` and `forward` broke neither rule
+and are still not tools: each mirrored its command closely enough to earn
+nothing. What an agent drives instead is the served facade, which answers FHIR
+over HTTP.
 
 ### Documentation
 

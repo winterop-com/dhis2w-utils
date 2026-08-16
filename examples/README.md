@@ -29,8 +29,6 @@ guide someone else published.
 | [`fhir/client/generate_ig.py`](fhir/client/generate_ig.py) | Generate a whole IG from Python and read the `GenerateFullReport` back as a model |
 | [`fhir/client/consume_facade.py`](fhir/client/consume_facade.py) | Plain httpx against a running facade - discover, fill, submit, read the receipt |
 | [`fhir/client/forward_spool.py`](fhir/client/forward_spool.py) | Dry-run a drain from Python and read the `ForwardReport` back as a model |
-| [`fhir/mcp/validate.py`](fhir/mcp/validate.py) | The `fhir_validate` tool - FHIR-safety of an instance's codes |
-| [`fhir/mcp/forward.py`](fhir/mcp/forward.py) | The `fhir_forward` tool - drain a spool from an agent |
 
 `dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages - the client detects the DHIS2
 major from `/api/system/info` - so this group is one copy that runs against v41, v42, and v43 alike.

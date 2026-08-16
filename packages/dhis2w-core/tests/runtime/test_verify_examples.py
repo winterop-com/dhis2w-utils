@@ -39,7 +39,6 @@ def test_discover_examples_includes_the_fhir_group_on_every_major() -> None:
         discovered = {p.as_posix() for p in discover_examples(version_key)}
         assert any(path.endswith("examples/fhir/cli/generate.sh") for path in discovered)
         assert any(path.endswith("examples/fhir/client/consume_facade.py") for path in discovered)
-        assert any(path.endswith("examples/fhir/mcp/validate.py") for path in discovered)
 
 
 def test_discover_examples_takes_only_the_active_majors_variants() -> None:
