@@ -9937,6 +9937,8 @@ $ d2w fhir [OPTIONS] COMMAND [ARGS]...
 * `validate`: Check the instance&#x27;s codes for...
 * `serve`: Serve the project&#x27;s IG as a FHIR read and...
 * `forward`: Drain the capture spool into DHIS2 -...
+* `spool`: List the capture spool - how many receipts...
+* `requeue`: Move receipts DHIS2 refused back into the...
 * `doctor`: Run the whole FHIR toolchain against this...
 * `generate`: Generate the whole IG source from DHIS2...
 
@@ -10080,6 +10082,61 @@ $ d2w fhir forward [OPTIONS] [directory]
 * `--register-completeness / --no-register-completeness`: Register the data set complete for every aggregate response whose status is `completed`, once DHIS2 has taken its values. On by default - the response said it was finished.  [default: register-completeness]
 * `--details`: Print every response&#x27;s outcome instead of writing them to the report.
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
+* `--help`: Show this message and exit.
+
+### `d2w fhir spool`
+
+List the capture spool - how many receipts wait for DHIS2, and what became of the rest.
+
+Reads the project&#x27;s own .serve/responses/ directory and nothing else: no DHIS2 connection, no
+profile, no network. Which directory a receipt&#x27;s file is in is its state, and the report DHIS2&#x27;s
+answer was written into says why a drained one is where it is.
+
+A file that does not read as a receipt is moved to .serve/responses/malformed/ with its reason
+beside it and counted there, so one unreadable file costs one row rather than the listing.
+
+**Usage**:
+
+```console
+$ d2w fhir spool [OPTIONS] [directory]
+```
+
+**Arguments**:
+
+* `directory`: Project directory (default: current directory).  [default: .]
+
+**Options**:
+
+* `--details`: List every receipt, not just how many are in each state.
+* `--help`: Show this message and exit.
+
+### `d2w fhir requeue`
+
+Move receipts DHIS2 refused back into the queue, so the next forward posts them again.
+
+The one reverse move the spool has, and it is a decision rather than a repair: a rejection is
+DHIS2 stating that this payload is wrong, so nothing moves it back until a person who has changed
+the instance, the guide, or their mind says so.
+
+The import report stays in rejected/ as the record of what DHIS2 last answered about the payload.
+The next drain writes a fresh one wherever the receipt lands.
+
+Needs no DHIS2 connection and no profile - it is a rename inside the project directory.
+
+**Usage**:
+
+```console
+$ d2w fhir requeue [OPTIONS] [response_ids]...
+```
+
+**Arguments**:
+
+* `response_ids...`: Receipt ids to move back into the queue.
+
+**Options**:
+
+* `--directory <directory>`: Project directory (default: current directory).  [default: .]
+* `--all-rejected`: Move every receipt DHIS2 refused back into the queue.
 * `--help`: Show this message and exit.
 
 ### `d2w fhir doctor`

@@ -26,6 +26,11 @@ Search is lenient in FHIR's own sense: an unrecognised parameter is ignored rath
 and the Bundle's `self` link echoes only the parameters that were honored, so a client can see
 what the server actually applied.
 
+A QuestionnaireResponse search is paged, with the same `_count` and `page` pair the register listing
+uses: `Bundle.total` is the whole searchset on every page of one walk, and a client's whole job is to
+follow the `next` link. The store searches are not paged - what the guide published is a fixed set
+that a client asked for by name, and this facade serves one project's worth of it.
+
 `alternatives`, `identifier_token`, `base_url`, and `bundle_response` are the parts of that
 grammar that are not about the store at all - how FHIR spells a token, and what a searchset Bundle
 looks like - so `dhis2w_fhir_serve.routes.register` builds its answers with the same four, and a
@@ -40,6 +45,7 @@ from urllib.parse import urlencode
 from dhis2w_fhir.r4 import Bundle, BundleEntry, BundleEntrySearch, BundleLink, JsonResource
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import QueryParams
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -47,6 +53,16 @@ from starlette.responses import JSONResponse, Response
 from dhis2w_fhir_serve.capability import QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE, SERVED_READ_RESOURCE_TYPES
 from dhis2w_fhir_serve.errors import FHIR_JSON_MEDIA_TYPE, BadSearchError, NotFoundError, NotServedError
 from dhis2w_fhir_serve.routes.context import serve_context
+from dhis2w_fhir_serve.spool import (
+    COUNT_PARAMETER,
+    PAGE_PARAMETER,
+    ResponseSpool,
+    SpoolCursor,
+    SpoolPage,
+    page_of,
+    requested_cursor,
+    requested_page_size,
+)
 from dhis2w_fhir_serve.store import IdentifierToken, SearchQuery
 
 #: Every resource type the facade answers a read or a search for.
@@ -130,22 +146,70 @@ async def search_resource_type(request: Request, resource_type: str) -> Response
     _require_served(resource_type)
     service_base = base_url(request)
     if resource_type == QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE:
-        parsed_responses = parse_response_search(request.query_params)
-        receipts = [
-            receipt
-            for receipt in context.spool.search(ids=parsed_responses.ids)
-            if not parsed_responses.questionnaires or receipt.questionnaire in parsed_responses.questionnaires
-        ]
-        entries = [
-            _bundle_entry(service_base, resource_type, receipt.response_id, receipt.response) for receipt in receipts
-        ]
-        return bundle_response(service_base, resource_type, parsed_responses.honored, entries)
+        return await _search_receipts(request, context.spool, service_base)
     parsed = parse_store_search(request.query_params)
     entries = [
         _bundle_entry(service_base, entry.resource_type, entry.resource_id, entry.body)
         for entry in context.store.search(resource_type, parsed.query)
     ]
     return bundle_response(service_base, resource_type, parsed.honored, entries)
+
+
+async def _search_receipts(request: Request, spool: ResponseSpool, service_base: str) -> Response:
+    """Answer one page of the receipts as a searchset, off the event loop and newest first.
+
+    A receipt search is a directory read - blocking work that would otherwise stall every other
+    request the facade is serving - and a spool that has taken ten thousand submissions is a Bundle
+    nobody asked for, so the searchset is paged with the same `page` cursor the register listing
+    uses. A file that will not parse is quarantined by the read rather than failing the search: the
+    client asked for the receipts that are readable, and it gets them.
+    """
+    parsed = parse_response_search(request.query_params)
+    count = requested_page_size(request.query_params.get(COUNT_PARAMETER))
+    cursor = requested_cursor(request.query_params.get(PAGE_PARAMETER))
+    reading = await run_in_threadpool(spool.search, None, None, parsed.ids)
+    matched = tuple(
+        receipt
+        for receipt in reading.receipts
+        if not parsed.questionnaires or receipt.questionnaire in parsed.questionnaires
+    )
+    page = page_of(matched, cursor, count)
+    entries = [
+        _bundle_entry(service_base, QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE, receipt.response_id, receipt.response)
+        for receipt in page.receipts
+    ]
+    bundle = Bundle(
+        type="searchset",
+        total=page.total,
+        link=_receipt_links(request, service_base, parsed.honored, page, count),
+        entry=entries or None,
+    )
+    return Response(content=bundle.model_dump_json(exclude_none=True, by_alias=True), media_type=FHIR_JSON_MEDIA_TYPE)
+
+
+def _receipt_links(
+    request: Request,
+    service_base: str,
+    honored: tuple[HonoredParameter, ...],
+    page: SpoolPage,
+    count: int,
+) -> list[BundleLink]:
+    """`self`, and the neighbours that exist - each naming the page it leads to, explicitly."""
+    links = [BundleLink(relation="self", url=_receipt_page_url(service_base, honored, page.cursor, count))]
+    if page.previous_cursor is not None:
+        links.append(
+            BundleLink(relation="previous", url=_receipt_page_url(service_base, honored, page.previous_cursor, count))
+        )
+    if page.next_cursor is not None:
+        links.append(BundleLink(relation="next", url=_receipt_page_url(service_base, honored, page.next_cursor, count)))
+    return links
+
+
+def _receipt_page_url(service_base: str, honored: tuple[HonoredParameter, ...], cursor: SpoolCursor, count: int) -> str:
+    """One page of the receipt search, carrying the filters that were applied along with the cursor."""
+    parameters = [(parameter.name, parameter.value) for parameter in honored]
+    parameters.extend([(COUNT_PARAMETER, str(count)), (PAGE_PARAMETER, cursor.token())])
+    return f"{service_base}/{QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE}?{urlencode(parameters)}"
 
 
 @router.get("/{resource_type}/{resource_id}")
@@ -158,7 +222,7 @@ async def read_resource(request: Request, resource_type: str, resource_id: str) 
         return await read_registered_entity(request, resource_type, resource_id)
     _require_served(resource_type)
     if resource_type == QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE:
-        receipt = context.spool.get(resource_id)
+        receipt = await run_in_threadpool(context.spool.get, resource_id)
         if receipt is None:
             raise NotFoundError(resource_type, resource_id)
         return JSONResponse(content=receipt.response, media_type=FHIR_JSON_MEDIA_TYPE)

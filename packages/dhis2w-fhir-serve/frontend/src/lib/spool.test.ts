@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+    EMPTY_SPOOL,
     LIFECYCLE_TINTS,
     RESPONSE_LIFECYCLES,
     captureContext,
@@ -266,9 +267,9 @@ describe('topRejectionCause', () => {
 describe('lifecyclesPresent', () => {
     it('reports only the states this project actually has receipts in', () => {
         const listing: SpoolListing = {
+            ...EMPTY_SPOOL,
             total: 3,
-            counts: { received: 2, forwarded: 0, rejected: 1 },
-            responses: [],
+            counts: { received: 2, forwarded: 0, rejected: 1, malformed: 0 },
         }
         expect(lifecyclesPresent(listing)).toEqual(['received', 'rejected'])
     })

@@ -136,20 +136,42 @@ export interface SpoolCounts {
     received: number
     forwarded: number
     rejected: number
+    /** Files that do not read as receipts. Not a lifecycle state - a holding pen beside the three. */
+    malformed: number
 }
 
-/** Every receipt this project holds, newest first, with the per-state counts beside them. */
+/** One file the facade moved aside because it does not read as a receipt, and what stopped it. */
+export interface QuarantinedFile {
+    file_name: string
+    reason: string
+}
+
+/**
+ * One page of this project's receipts, newest first, with the whole listing's counts beside them.
+ *
+ * `total` and `counts` are the whole spool on every page of a walk; `responses` is the page.
+ * `readSpool` in lib/api.ts follows `next_url` and hands back every page's rows in one listing.
+ */
 export interface SpoolListing {
     total: number
     counts: SpoolCounts
     responses: SpoolResponseSummary[]
+    malformed: QuarantinedFile[]
+    /** This page, as the server names it. */
+    self_url: string
+    previous_url: string | null
+    next_url: string | null
 }
 
 /** An empty listing, so a page can render its table shell before the first answer arrives. */
 export const EMPTY_SPOOL: SpoolListing = {
     total: 0,
-    counts: { received: 0, forwarded: 0, rejected: 0 },
+    counts: { received: 0, forwarded: 0, rejected: 0, malformed: 0 },
     responses: [],
+    malformed: [],
+    self_url: '/spool',
+    previous_url: null,
+    next_url: null,
 }
 
 /**

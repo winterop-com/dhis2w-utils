@@ -114,7 +114,7 @@ async def test_receipt_search_filters_by_questionnaire(client: httpx.AsyncClient
 
     body = response.json()
     assert [entry["resource"]["id"] for entry in body["entry"]] == ["receipt-newest", "receipt-oldest"]
-    expected_query = urlencode({"questionnaire": QUESTIONNAIRE_URL})
+    expected_query = urlencode({"questionnaire": QUESTIONNAIRE_URL, "_count": 50, "page": "bzBuMg"})
     assert body["link"][0]["url"] == f"http://serve.test/QuestionnaireResponse?{expected_query}"
 
 
@@ -130,4 +130,4 @@ async def test_receipt_search_ignores_unknown_parameters(client: httpx.AsyncClie
 
     body = response.json()
     assert body["total"] == 3
-    assert body["link"][0]["url"] == "http://serve.test/QuestionnaireResponse"
+    assert body["link"][0]["url"] == "http://serve.test/QuestionnaireResponse?_count=50&page=bzBuMw"

@@ -11,7 +11,8 @@ FastAPI parameter model cannot express, and reading the bytes here is also what 
 copy byte-faithful to what the client sent.
 
 Nothing here talks to DHIS2. Accepting a capture means the submission was understood and kept,
-not that it has been written to an instance.
+not that it has been written to an instance. Kept means durable: the receipt is fsynced and its
+directory entry with it before the 201 goes out, so a 201 is a promise that survives power loss.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -79,7 +81,10 @@ async def create_questionnaire_response(request: Request) -> Response:
             media_type=FHIR_JSON_MEDIA_TYPE,
         )
     envelope = _receipt(validated)
-    context.spool.save(envelope)
+    # Off the event loop: the write is a temporary file, an fsync of it, a rename, and an fsync of
+    # the directory - blocking work the facade must not do inline, since the point of the fsyncs is
+    # that they wait for the device.
+    await run_in_threadpool(context.spool.save, envelope)
     return _created(request, envelope.response_id, validated.warnings)
 
 

@@ -20,6 +20,7 @@ faster one; a project that has never run SUSHI forwards too.
 
 - validate an entire spool against the real instance without writing a byte
 - read a run's report and tell a translator refusal from a DHIS2 rejection
+- read the queue, and put a refused receipt back in it
 - retry each failure mode the way it wants to be retried
 
 `d2w fhir forward` is the last leg of the loop, and it closes it:
@@ -39,6 +40,9 @@ you have to ask twice:
 d2w fhir forward            # dry run: validate the whole spool against DHIS2, change nothing
 d2w fhir forward --import   # commit
 ```
+
+Two verbs sit beside it and touch no instance at all - `d2w fhir spool` reads
+the queue, and `d2w fhir requeue` puts a refused receipt back in it.
 
 ## Dry run first, always
 
@@ -251,7 +255,15 @@ values are known to have landed.
   received/    captured, not yet forwarded  - the queue
   forwarded/   DHIS2 accepted it, and <id>.report.json says what it counted
   rejected/    DHIS2 refused it, and <id>.report.json says why
+  malformed/   a file that no longer reads as a receipt, and <file>.reason.json says what stopped it
+  .drain.lock  held by the drain that is running, if one is
 ```
+
+`malformed/` is a holding pen rather than a state: nothing in it is a
+receipt. A file that will not parse - truncated, hand-edited, half-copied - is
+moved there with its reason written beside it, and the run that met it carries
+on with everything else. The run names it, and so does `d2w fhir spool`. One
+unreadable file costs one receipt, not the drain.
 
 Both drained states carry the report. A rejection needs one to say why it
 was refused; an acceptance needs one because "DHIS2 took it" is not the
@@ -273,6 +285,89 @@ state at every instant. The report is written before the receipt moves, so a
 process killed mid-move leaves a report with no receipt - which the next run
 overwrites - rather than a drained receipt nothing explains.
 
+**Each receipt is filed the instant DHIS2 answers about it**, inside the
+posting loop rather than in a pass at the end. A drain that is killed halfway
+- a closed laptop, a lost terminal, a `Ctrl-C` - leaves everything it posted
+in `forwarded/` or `rejected/` with the report beside it, and everything it
+had not reached untouched in `received/`. There is no window in which DHIS2
+holds a payload the spool still calls pending.
+
+## One drain at a time
+
+A drain holds an exclusive lock on `.serve/responses/.drain.lock` for its
+whole run, and writes its own process id into the file. A second drain of the
+same project fails immediately rather than waiting:
+
+```console
+$ d2w fhir forward . --import
+error: another drain of this spool is running: process 48122 holds
+  /home/anna/demo-ig/.serve/responses/.drain.lock. Wait for it to finish and
+  forward again; if no such process is running, remove that file.
+```
+
+Failing beats queueing in both directions: an operator who started the second
+run by mistake wants to be told, and one who started it deliberately wants the
+first run's answer rather than a second run behind it. Two drains over one
+spool would translate the same receipts, post both copies, and race each
+other's renames.
+
+The lock is an `flock` on an open file descriptor, so the kernel releases it
+whether the drain returned, raised, or was killed. `d2w fhir serve` never takes
+it - the facade writes into `received/` and reads everywhere, and neither
+conflicts with a drain.
+
+## Reading the queue
+
+`d2w fhir spool` answers what is queued, off the project directory alone:
+
+```console
+$ d2w fhir spool
+  fhir spool
+  project                 /home/anna/demo-ig
+  not yet sent to DHIS2   4
+  accepted by DHIS2       26
+  refused by DHIS2        1
+  unreadable files        0
+
+note: 1 receipt(s) were refused by DHIS2; fix the instance or the data and
+  `d2w fhir requeue` puts them back in the queue
+note: --details lists every receipt
+```
+
+`--details` adds a row per receipt - the id, its state, the form it answered,
+when it arrived, and for a refused one the short reason off the report beside
+it. `--json` puts the whole thing on stdout.
+
+No DHIS2 connection and no profile: every fact in the listing is on disk,
+which is what makes it answerable while the instance is down - exactly when
+somebody will ask.
+
+## Putting a refused receipt back in the queue
+
+A rejection is DHIS2 stating that this payload is wrong, so nothing moves it
+back on its own. `d2w fhir requeue` is the operator saying otherwise, once the
+instance, the guide, or their mind has changed:
+
+```console
+$ d2w fhir requeue 0c81a28f79ba4226b8d4d348f2b96de1
+0c81a28f79ba4226b8d4d348f2b96de1 -> .serve/responses/received/0c81a28f79ba4226b8d4d348f2b96de1.json
+ok: 1 receipt(s) moved back to received/
+note: `d2w fhir forward --import` posts them again
+```
+
+`--all-rejected` moves everything DHIS2 refused, which is the usual case after
+a fix on the instance. An id that is not in `rejected/` is refused by name, and
+refused before anything moves - so a run of five never leaves you working out
+which three it got to.
+
+The import report **stays in `rejected/`**. It says what DHIS2 answered the
+last time that payload was posted, which is still true of that post and is the
+only record of what the receipt was requeued from. The next drain writes a
+fresh report wherever the receipt lands.
+
+Like `d2w fhir spool`, this needs no DHIS2 connection: it is a rename inside
+the project directory.
+
 ## Correcting or withdrawing what you forwarded
 
 The question a DHIS2 person asks next is: somebody typed a number wrong, and
@@ -290,10 +385,21 @@ The capture contract already carries the two lifecycle words this will
 eventually be built on, and both currently do something other than what the
 word promises: a response whose status is `amended` is collapsed to
 `COMPLETED` and forwarded as a brand-new record, and one whose status is
-`entered-in-error` is refused by the translator, so the receipt stays in
-`received/`. Neither is a way to correct or retract anything today. The
-design that turns them into one is in the lifecycle document, along with why
-withdrawal is the hard half - DHIS2 permanently burns a deleted tracker UID.
+`entered-in-error` is refused by the translator and **filed to `rejected/`**
+with a sidecar naming the doctrine. Neither is a way to correct or retract
+anything today. The design that turns them into one is in the lifecycle
+document, along with why withdrawal is the hard half - DHIS2 permanently burns
+a deleted tracker UID.
+
+Filing that one rather than leaving it in the queue is the whole of what
+separates a terminal refusal from an ordinary one. Every other refusal has a
+fix somewhere - in the guide, in `fhir.toml`, in the data - so the receipt
+stays in `received/` and the next run is the retry. `entered-in-error` asks
+for a withdrawal, withdrawal is unbuilt, and no change to the guide and no
+change to the instance would ever make that response convert; a receipt that
+can never succeed is retried by every drain for the rest of the project's life
+unless something files it. `d2w fhir requeue` brings it back for an operator
+who wants it tried again.
 
 ## When the instance stops answering
 
@@ -318,12 +424,15 @@ them:
 | Who said no | the translator, before DHIS2 saw it | DHIS2, on the import |
 | Where to look | the response, the guide, or `fhir.toml` | the import summary on the outcome |
 | Typical cause | a canonical the guide does not publish, a missing `D2Period`, an attribute option combo the form declares and the response does not name | a data element outside the data set, an organisation unit the user cannot write to, a locked period |
-| What happens to the file | **stays in `received/`** | moves to `rejected/` with its report |
-| How to retry | fix locally, run again - the receipt never left the queue | fix the instance or the data, move the file back, run again |
+| What happens to the file | **stays in `received/`**, unless nothing could ever fix it | moves to `rejected/` with its report |
+| How to retry | fix locally, run again - the receipt never left the queue | fix the instance or the data, `d2w fhir requeue`, run again |
 
 A refused response stays put precisely because the retry is natural: nothing
 was written, nothing was moved, and the same command is the retry once the
-guide or the data is fixed.
+guide or the data is fixed. The one exception is the refusal no fix reaches -
+a response reporting itself `entered-in-error`, which asks for a withdrawal
+this toolchain does not build - and that one is filed to `rejected/` so it is
+not translated again on every drain for ever.
 
 Unverifiable is a third reading, and only a dry run produces it. DHIS2 named
 a reason, but the reason is one the dry run created by writing nothing - see

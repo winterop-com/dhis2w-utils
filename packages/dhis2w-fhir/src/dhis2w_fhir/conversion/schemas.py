@@ -286,6 +286,12 @@ class ConversionRefusalCategory(StrEnum):
     #: The response status names something DHIS2 has no event status for.
     UNMAPPABLE_STATUS = "unmappable-status"
 
+    #: The response reports itself `entered-in-error`: a withdrawal of something already recorded,
+    #: which is a deletion rather than an import. Its own category because it is the one refusal no
+    #: change to the guide and no change to the data can ever resolve - see
+    #: `docs/project/fhir-data-lifecycle.md` - so the forwarder files it instead of retrying it.
+    ENTERED_IN_ERROR_IS_A_DELETION = "entered-in-error-is-a-deletion"
+
 
 class ConversionNote(BaseModel):
     """One thing the translator had to interpret, recorded rather than left silent."""

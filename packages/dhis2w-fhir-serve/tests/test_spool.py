@@ -1,15 +1,19 @@
-"""The response spool: atomic writes, the three lifecycle states, per-call directory reads, and id minting."""
+"""The response spool: durable writes, the lifecycle states, quarantine, sweeping, and id minting."""
 
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
+import time
 from pathlib import Path
 
 import pytest
 from dhis2w_fhir.service import ForwardImportIssue, ForwardImportOutcome
 from dhis2w_fhir_serve.spool import (
     IMPORT_REPORT_SUFFIX,
+    ORPHAN_TEMPORARY_FILE_AGE_SECONDS,
     ResponseLifecycle,
     ResponseSpool,
     StoredResponseEnvelope,
@@ -150,7 +154,7 @@ def test_search_covers_every_lifecycle_state_newest_first(tmp_path: Path) -> Non
 
     found = spool.search()
 
-    assert [receipt.response_id for receipt in found] == ["newest", "middle", "oldest"]
+    assert [receipt.response_id for receipt in found.receipts] == ["newest", "middle", "oldest"]
 
 
 def test_search_narrows_to_one_lifecycle_state(tmp_path: Path) -> None:
@@ -162,7 +166,7 @@ def test_search_narrows_to_one_lifecycle_state(tmp_path: Path) -> None:
 
     queued = spool.search(lifecycles=(ResponseLifecycle.RECEIVED,))
 
-    assert [receipt.response_id for receipt in queued] == ["queued"]
+    assert [receipt.response_id for receipt in queued.receipts] == ["queued"]
 
 
 def test_search_filters_by_questionnaire(tmp_path: Path) -> None:
@@ -173,7 +177,7 @@ def test_search_filters_by_questionnaire(tmp_path: Path) -> None:
 
     found = spool.search(questionnaire="http://example.org/fhir/Questionnaire/epi")
 
-    assert [receipt.response_id for receipt in found] == ["epi"]
+    assert [receipt.response_id for receipt in found.receipts] == ["epi"]
 
 
 def test_search_filters_by_form_kind(tmp_path: Path) -> None:
@@ -182,7 +186,7 @@ def test_search_filters_by_form_kind(tmp_path: Path) -> None:
     spool.save(make_envelope(response_id="agg", form_kind="aggregate"))
     spool.save(make_envelope(response_id="evt", form_kind="event"))
 
-    assert [receipt.response_id for receipt in spool.search(form_kind="event")] == ["evt"]
+    assert [receipt.response_id for receipt in spool.search(form_kind="event").receipts] == ["evt"]
 
 
 def test_search_filters_by_ids(tmp_path: Path) -> None:
@@ -195,8 +199,8 @@ def test_search_filters_by_ids(tmp_path: Path) -> None:
     both = spool.search(ids=("one", "three"))
     narrowed = spool.search(form_kind="event", ids=("one", "three"))
 
-    assert [receipt.response_id for receipt in both] == ["three", "one"]
-    assert [receipt.response_id for receipt in narrowed] == ["three"]
+    assert [receipt.response_id for receipt in both.receipts] == ["three", "one"]
+    assert [receipt.response_id for receipt in narrowed.receipts] == ["three"]
 
 
 def test_count(tmp_path: Path) -> None:
@@ -240,7 +244,7 @@ def test_a_report_file_is_not_mistaken_for_a_receipt(tmp_path: Path) -> None:
         ForwardImportOutcome(status="ERROR").model_dump_json(), encoding="utf-8"
     )
 
-    assert [receipt.response_id for receipt in spool.search()] == ["refused"]
+    assert [receipt.response_id for receipt in spool.search().receipts] == ["refused"]
 
 
 def test_a_receipt_with_no_report_answers_none(tmp_path: Path) -> None:
@@ -262,27 +266,97 @@ def test_an_unreadable_report_does_not_fail_the_listing(tmp_path: Path) -> None:
     )
 
     assert spool.import_report("refused", ResponseLifecycle.REJECTED) is None
-    assert [receipt.response_id for receipt in spool.search()] == ["refused"]
+    assert [receipt.response_id for receipt in spool.search().receipts] == ["refused"]
 
 
-def test_reading_fails_loudly_on_unparseable_json(tmp_path: Path) -> None:
-    """A corrupt receipt file names itself rather than being skipped."""
+def test_unparseable_json_is_quarantined_and_named(tmp_path: Path) -> None:
+    """A corrupt receipt file is moved aside and named, and every receipt around it still reads."""
     spool = ResponseSpool.at(tmp_path)
+    spool.save(make_envelope(response_id="whole"))
     (spool.directory_for(ResponseLifecycle.RECEIVED) / "broken.json").write_text("{not json", encoding="utf-8")
 
-    with pytest.raises(UnreadableReceiptError, match=r"broken\.json: not readable as JSON"):
-        spool.search()
+    found = spool.search()
+
+    assert [receipt.response_id for receipt in found.receipts] == ["whole"]
+    assert [entry.file_name for entry in found.quarantined] == ["broken.json"]
+    assert "not readable as JSON" in found.quarantined[0].reason
+    assert (spool.malformed_directory / "broken.json").is_file()
+    assert not (spool.directory_for(ResponseLifecycle.RECEIVED) / "broken.json").exists()
 
 
-def test_reading_fails_loudly_on_a_file_that_is_not_an_envelope(tmp_path: Path) -> None:
-    """Valid JSON that is not a receipt names the file."""
+def test_a_file_that_is_not_an_envelope_is_quarantined_and_named(tmp_path: Path) -> None:
+    """Valid JSON that is not a receipt is moved aside with the reason it is not one."""
     spool = ResponseSpool.at(tmp_path)
     (spool.directory_for(ResponseLifecycle.RECEIVED) / "stray.json").write_text(
         '{"resourceType": "QuestionnaireResponse"}', encoding="utf-8"
     )
 
-    with pytest.raises(UnreadableReceiptError, match=r"stray\.json: not a stored response envelope"):
-        spool.search()
+    found = spool.search()
+
+    assert found.receipts == ()
+    assert [entry.file_name for entry in found.quarantined] == ["stray.json"]
+    assert "not a stored response envelope" in found.quarantined[0].reason
+
+
+def test_a_quarantined_file_keeps_its_reason_for_every_later_listing(tmp_path: Path) -> None:
+    """The reason is written beside the file as it moves, so a listing an hour later still states it."""
+    spool = ResponseSpool.at(tmp_path)
+    (spool.directory_for(ResponseLifecycle.RECEIVED) / "broken.json").write_text("{not json", encoding="utf-8")
+    spool.search()
+
+    quarantined = ResponseSpool.at(tmp_path).malformed()
+
+    assert [entry.file_name for entry in quarantined] == ["broken.json"]
+    assert "not readable as JSON" in quarantined[0].reason
+
+
+def test_an_unreadable_spool_directory_is_raised(tmp_path: Path) -> None:
+    """One bad file is quarantined; a directory this process cannot read fails the whole read."""
+    spool = ResponseSpool.at(tmp_path)
+    received = spool.directory_for(ResponseLifecycle.RECEIVED)
+    received.chmod(0o000)
+    try:
+        with pytest.raises(UnreadableReceiptError, match="cannot be read"):
+            spool.search()
+    finally:
+        received.chmod(0o755)
+
+
+def test_an_orphan_temporary_file_is_swept_once_it_is_old_enough(tmp_path: Path) -> None:
+    """An abandoned write is deleted; one young enough to still be in flight is left exactly alone."""
+    spool = ResponseSpool.at(tmp_path)
+    received = spool.directory_for(ResponseLifecycle.RECEIVED)
+    abandoned = received / ".abandoned.json.tmp"
+    abandoned.write_text("half a rec", encoding="utf-8")
+    in_flight = received / ".in-flight.json.tmp"
+    in_flight.write_text("half a rec", encoding="utf-8")
+    stale = time.time() - 2 * ORPHAN_TEMPORARY_FILE_AGE_SECONDS
+    os.utime(abandoned, (stale, stale))
+
+    swept = spool.sweep_orphan_temporary_files()
+
+    assert swept == (".abandoned.json.tmp",)
+    assert not abandoned.exists()
+    assert in_flight.is_file()
+
+
+def test_saving_a_receipt_flushes_it_and_its_directory_entry_to_the_device(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A capture is durable before it is acknowledged: the file is fsynced, then the directory naming it."""
+    synced: list[str] = []
+    real_fsync = os.fsync
+
+    def _record(descriptor: int) -> None:
+        synced.append("directory" if stat.S_ISDIR(os.fstat(descriptor).st_mode) else "file")
+        real_fsync(descriptor)
+
+    monkeypatch.setattr(os, "fsync", _record)
+    spool = ResponseSpool.at(tmp_path)
+
+    spool.save(make_envelope(response_id="durable"))
+
+    assert synced == ["file", "directory"]
 
 
 def test_new_response_id_is_a_fhir_safe_id() -> None:

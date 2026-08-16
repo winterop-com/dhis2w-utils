@@ -42,6 +42,7 @@ from dhis2w_fhir.conversion.schemas import (
     ConversionNaming,
     ConversionNote,
     ConversionRefusal,
+    ConversionRefusalCategory,
     ConversionReport,
     ConversionResult,
     ConversionTargetKind,
@@ -144,7 +145,22 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
 )
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
-from dhis2w_fhir.spool import SpooledResponse, move_to_forwarded, move_to_rejected, read_received_responses
+from dhis2w_fhir.spool import (
+    IMPORT_REPORT_SUFFIX,
+    REJECTED_RESPONSES_RELATIVE_PATH,
+    QuarantinedFile,
+    SpooledReceipt,
+    SpooledResponse,
+    SpoolReadError,
+    SpoolState,
+    drain_lock,
+    move_to_forwarded,
+    move_to_received,
+    move_to_rejected,
+    read_received_responses,
+    read_spooled_receipts,
+    sweep_orphan_temporary_files,
+)
 from dhis2w_fhir.validation import build_aborting_code, build_code_validation
 from dhis2w_fhir.validation.schemas import (
     FhirValidationReport,
@@ -4151,7 +4167,9 @@ _UNVERIFIABLE_IN_DRY_RUN_REASON = (
 class ForwardOutcomeKind(StrEnum):
     """What became of one spooled response in a forward run."""
 
-    #: The translator would not read the response whole, so it never reached DHIS2 and stays in the spool.
+    #: The translator would not read the response whole, so it never reached DHIS2. The receipt stays
+    #: in `received/` for the next drain to retry, unless the refusal is one nothing can fix - see
+    #: `TERMINAL_REFUSAL_CATEGORIES` - in which case an import files it to `rejected/`.
     REFUSED = "refused"
 
     #: DHIS2 took the payload - imported it, or validated it on a dry run.
@@ -4167,11 +4185,26 @@ class ForwardOutcomeKind(StrEnum):
     NOT_POSTED = "not-posted"
 
 
-#: The three states that leave a receipt exactly where the run found it: one the translator would not
-#: read, one a dry run could not check, and one the drain stopped short of. Each is a receipt the next
-#: run has to try again, so each stays in `received/` whatever mode ran.
-_UNMOVED_OUTCOME_KINDS = frozenset(
-    {ForwardOutcomeKind.REFUSED, ForwardOutcomeKind.UNVERIFIABLE, ForwardOutcomeKind.NOT_POSTED}
+#: The refusal categories that no change to the guide and no change to the instance could ever
+#: resolve, so a receipt carrying one is filed to `rejected/` instead of being retried by every drain
+#: for the rest of the project's life. The discriminator is stated as a set rather than as a flag on
+#: a refusal, because membership is a doctrine about what this toolchain builds rather than a
+#: property of the response: `entered-in-error` asks for a withdrawal, withdrawal is a deletion, and
+#: this toolchain imports - see `docs/project/fhir-data-lifecycle.md`. Every other refusal has a fix
+#: somewhere, so every other refusal stays in the queue.
+TERMINAL_REFUSAL_CATEGORIES = frozenset({ConversionRefusalCategory.ENTERED_IN_ERROR_IS_A_DELETION})
+
+#: What the sidecar of a terminally refused receipt states in place of a DHIS2 answer. DHIS2 was
+#: never asked, so the status is the forwarder's own word for what happened.
+_TERMINAL_REFUSAL_STATUS = "REFUSED"
+
+#: The doctrine the sidecar of a terminally refused receipt writes down, so a person reading
+#: `rejected/` cold learns why the receipt is there without a drain report in front of them.
+_TERMINAL_REFUSAL_MESSAGE = (
+    "The translator will never convert this response, whatever changes in the guide or in the data, so it is "
+    "filed here rather than retried by every drain. Withdrawing a submission is unbuilt in this toolchain - "
+    "see docs/project/fhir-data-lifecycle.md - and `d2w fhir requeue` puts the receipt back in the queue for "
+    "an operator who wants it tried again."
 )
 
 
@@ -4360,6 +4393,21 @@ class ForwardStop(BaseModel):
     reason: str
 
 
+class ForwardFilingIssue(BaseModel):
+    """One receipt whose file was already gone when the drain went to move it.
+
+    A lost race rather than a failure: something else - a second operator, a hand-run `mv` - moved
+    the file between the read that listed it and the rename that would have filed it. DHIS2 has
+    already answered about the payload either way, so the answer is kept and the run says the file
+    was not where it left it, rather than aborting a drain that has done its work.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    response_id: str
+    reason: str
+
+
 class ForwardOutcome(BaseModel):
     """What one spooled response became: a DHIS2 import answer, or the reasons it never reached DHIS2."""
 
@@ -4405,6 +4453,12 @@ class ForwardReport(BaseModel):
 
     stopped: ForwardStop | None = None
     """Why the drain stopped short, when it did; None is a run that was through the whole spool."""
+
+    quarantined: tuple[QuarantinedFile, ...] = ()
+    """Every file in `received/` that would not read as a receipt, moved to `malformed/` and named here."""
+
+    filing_issues: tuple[ForwardFilingIssue, ...] = ()
+    """Every receipt whose file had already moved when the drain went to file it."""
 
     program_rule_names: ProgramRuleNames = Field(default_factory=ProgramRuleNames)
     """The rules the guide publishes, which is what lets a refusal name the rule rather than a UID."""
@@ -4605,12 +4659,46 @@ async def forward_responses(
 
     `coded_answer_mode` defaults to what `[serve] strict_codes` says, so a project that captures
     strictly forwards strictly without stating it twice.
+
+    ONE DRAIN AT A TIME, AND EACH RECEIPT FILED THE MOMENT ITS VERDICT IS KNOWN. The run holds an
+    exclusive lock on the spool root for its whole length, so a second drain of the same project
+    fails at once naming the process that holds it rather than posting every payload twice. Inside
+    the run, a receipt moves to `forwarded/` or `rejected/` beside its report as soon as DHIS2 has
+    answered about it - not in a pass at the end - so a drain that is killed halfway leaves every
+    already-posted receipt filed with what DHIS2 said and every unposted one untouched in the queue.
+
+    A file in `received/` that does not read as a receipt is moved to `malformed/` with its reason
+    beside it and named in the report; the drain proceeds with the rest.
     """
     mode = coded_answer_mode if coded_answer_mode is not None else _configured_coded_answer_mode(project)
+    with drain_lock(project.project_root):
+        return await _drain_spool(
+            profile,
+            project,
+            mode=mode,
+            import_responses=import_responses,
+            register_completeness=register_completeness,
+            reporter=reporter,
+        )
+
+
+async def _drain_spool(
+    profile: Profile,
+    project: FhirProject,
+    *,
+    mode: CodedAnswerMode,
+    import_responses: bool,
+    register_completeness: bool,
+    reporter: ProgressReporter | None,
+) -> ForwardReport:
+    """Run one drain, with the spool lock already held - the body `forward_responses` documents."""
     progress = _StepAnnouncer(reporter, FORWARD_STEPS)
     progress.step("spool", "reading the capture spool")
-    spooled = read_received_responses(project.project_root)
-    progress.complete(f"{len(spooled):,} pending response(s)")
+    sweep_orphan_temporary_files(project.project_root)
+    reading = read_received_responses(project.project_root)
+    spooled = reading.responses
+    quarantined_note = f", {len(reading.quarantined):,} moved to malformed/" if reading.quarantined else ""
+    progress.complete(f"{len(spooled):,} pending response(s){quarantined_note}")
 
     compiled = _compiled_artifacts_or_none(project)
     if compiled is not None:
@@ -4632,6 +4720,7 @@ async def forward_responses(
             coded_answer_mode=mode,
             register_completeness=register_completeness,
             unreadable_artifacts=() if compiled is None else compiled.unreadable_resources,
+            quarantined=reading.quarantined,
         )
         progress.complete(report.counts_line)
         return report
@@ -4658,8 +4747,12 @@ async def forward_responses(
         conversion = translate_responses([entry.response for entry in spooled], context)
         progress.complete(f"{len(conversion.translated):,} translated, {len(conversion.refused):,} refused")
 
+        terminal = _file_terminal_refusals(spooled, conversion, moving=import_responses)
+
         progress.step("post", _post_caption(0, len(conversion.translated), dry_run=dry_run))
-        posted = await _post_translations(client, spooled, conversion, dry_run=dry_run, progress=progress)
+        posted = await _post_translations(
+            client, spooled, conversion, dry_run=dry_run, moving=import_responses, progress=progress
+        )
         stopped_note = f", stopped: {posted.stopped.reason}" if posted.stopped is not None else ""
         progress.complete(
             f"{len(posted.imports):,} payload(s) posted{' (validate only)' if dry_run else ''}{stopped_note}"
@@ -4677,15 +4770,16 @@ async def forward_responses(
         )
         progress.complete(_completeness_completion(completeness, dry_run=dry_run, registering=register_completeness))
 
-    progress.step("spool", "filing what each response became")
+    progress.step("spool", "stating what each response became")
     minted_enrollments = _minted_enrollment_uids(conversion) if dry_run else frozenset[str]()
-    outcomes = _file_outcomes(
+    filed = {**terminal.paths, **posted.filed}
+    outcomes = _collect_outcomes(
         spooled,
         conversion,
         posted.imports,
         completeness,
         project.project_root,
-        moving=import_responses,
+        filed=filed,
         minted_enrollments=minted_enrollments,
     )
     report = ForwardReport(
@@ -4697,6 +4791,8 @@ async def forward_responses(
         outcomes=outcomes,
         unreadable_artifacts=artifacts.unreadable_resources,
         stopped=posted.stopped,
+        quarantined=reading.quarantined,
+        filing_issues=(*terminal.issues, *posted.filing_issues),
         program_rule_names=program_rule_names(artifacts, naming),
     )
     progress.complete(report.counts_line)
@@ -4757,6 +4853,17 @@ def _post_caption(posted: int, total: int, *, dry_run: bool) -> str:
     return f"{verb} payloads ({posted:,}/{total:,})"
 
 
+class _FiledReceipts(BaseModel):
+    """Where the receipts one pass filed now sit, and every move that found nothing to move."""
+
+    model_config = ConfigDict(frozen=True)
+
+    paths: dict[str, Path] = Field(default_factory=dict)
+    """Where each filed receipt landed, keyed by response id; a receipt that stayed put is absent."""
+
+    issues: tuple[ForwardFilingIssue, ...] = ()
+
+
 class _PostedPayloads(BaseModel):
     """What one drain's posting pass got through, and why it stopped if it did not get through it all."""
 
@@ -4765,6 +4872,10 @@ class _PostedPayloads(BaseModel):
     imports: dict[str, ForwardImportOutcome] = Field(default_factory=dict)
     """DHIS2's answer per receipt, holding an entry only for the receipts that were actually posted."""
 
+    filed: dict[str, Path] = Field(default_factory=dict)
+    """Where each posted receipt was filed as its verdict arrived; empty on a dry run, which moves nothing."""
+
+    filing_issues: tuple[ForwardFilingIssue, ...] = ()
     stopped: ForwardStop | None = None
 
 
@@ -4774,9 +4885,10 @@ async def _post_translations(
     conversion: ConversionReport,
     *,
     dry_run: bool,
+    moving: bool,
     progress: _StepAnnouncer,
 ) -> _PostedPayloads:
-    """Post every translated payload, one response at a time, keyed by the receipt it came from.
+    """Post every translated payload one at a time, filing each receipt as soon as DHIS2 answers about it.
 
     One payload per POST is what makes the outcome attributable: DHIS2 answers a bundle with one
     report for the bundle, and a spool whose receipts move individually needs one answer each.
@@ -4789,26 +4901,109 @@ async def _post_translations(
     DHIS2 rejects still leaves its stage events to fail `E1313`, which the next drain retries once
     the cause is fixed.
 
+    **The receipt is filed the instant its verdict is known**, sidecar first and then the rename, so
+    the disk agrees with DHIS2 at every point of the loop rather than only at the end of it. A drain
+    that is killed, loses its terminal, or meets an unwell instance leaves everything it posted in
+    `forwarded/` or `rejected/` with the report beside it, and everything it had not reached
+    untouched in `received/`. A dry run files nothing, because it wrote nothing.
+
     **An instance that fails mid-drain stops the drain.** A 5xx or a connection that never completed
     is the instance being unwell, not a verdict on the payload that met it, and the two things that
     must not happen next are posting the remaining two hundred payloads into it and filing the
     receipt that met it as though DHIS2 had refused it. So the pass stops where it is and answers
-    with the outcomes it did get, which the caller files; everything from the failure onwards is
-    untouched in `received/` and the report names what stopped it.
+    with the outcomes it did get; the receipts already filed stay filed, everything from the failure
+    onwards is untouched in `received/`, and the report names what stopped it.
     """
     translated = sorted(
         ((entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused),
         key=lambda pair: _post_order(pair[1]),
     )
     imports: dict[str, ForwardImportOutcome] = {}
+    filed: dict[str, Path] = {}
+    issues: list[ForwardFilingIssue] = []
     for posted, (entry, result) in enumerate(translated, start=1):
         try:
-            imports[entry.response_id] = await _post_result(client, result, dry_run=dry_run)
+            imported = await _post_result(client, result, dry_run=dry_run)
         except (Dhis2ApiError, httpx.HTTPError) as error:
-            return _PostedPayloads(imports=imports, stopped=_forward_stop(entry, error))
+            return _PostedPayloads(
+                imports=imports, filed=filed, filing_issues=tuple(issues), stopped=_forward_stop(entry, error)
+            )
+        imports[entry.response_id] = imported
+        if moving:
+            _file_now(entry, imported, result.target_kind, filed, issues)
         if posted % _POST_TICK_INTERVAL == 0 or posted == len(translated):
             progress.tick(_post_caption(posted, len(translated), dry_run=dry_run))
-    return _PostedPayloads(imports=imports)
+    return _PostedPayloads(imports=imports, filed=filed, filing_issues=tuple(issues))
+
+
+def _file_now(
+    entry: SpooledResponse,
+    imported: ForwardImportOutcome,
+    target_kind: ConversionTargetKind | None,
+    filed: dict[str, Path],
+    issues: list[ForwardFilingIssue],
+) -> None:
+    """Move one receipt into the state DHIS2 just put it in, its import report written down first.
+
+    A receipt whose file has already gone is graded rather than raised: DHIS2 has answered about the
+    payload, and losing the rest of the drain over a rename that lost a race would throw that answer
+    away along with every receipt still queued behind it.
+    """
+    record = ForwardImportRecord(**dict(imported), target_kind=target_kind)
+    try:
+        filed[entry.response_id] = (
+            move_to_rejected(entry, record) if imported.is_rejected else move_to_forwarded(entry, record)
+        )
+    except FileNotFoundError as error:
+        issues.append(
+            ForwardFilingIssue(
+                response_id=entry.response_id,
+                reason=f"{entry.path} was gone when the drain went to file it ({error}); DHIS2's answer is in "
+                f"this report and the receipt is wherever whatever moved it put it",
+            )
+        )
+
+
+def _file_terminal_refusals(
+    spooled: Sequence[SpooledResponse], conversion: ConversionReport, *, moving: bool
+) -> _FiledReceipts:
+    """File every receipt whose refusal nothing can fix, so no drain ever translates it again.
+
+    `TERMINAL_REFUSAL_CATEGORIES` is the whole of the judgment, and the sidecar states it in the
+    receipt's own directory so the file explains itself. A dry run files nothing, exactly as it moves
+    nothing else, and `d2w fhir requeue` is the way back for an operator who disagrees.
+    """
+    if not moving:
+        return _FiledReceipts()
+    paths: dict[str, Path] = {}
+    issues: list[ForwardFilingIssue] = []
+    for entry, result in zip(spooled, conversion.results, strict=True):
+        if not _is_terminally_refused(result):
+            continue
+        record = ForwardImportRecord(
+            status=_TERMINAL_REFUSAL_STATUS,
+            message=_TERMINAL_REFUSAL_MESSAGE,
+            issues=tuple(
+                ForwardImportIssue(error_code=refusal.category.value, subject=refusal.element, message=refusal.reason)
+                for refusal in result.refusals
+            ),
+            target_kind=result.target_kind,
+        )
+        try:
+            paths[entry.response_id] = move_to_rejected(entry, record)
+        except FileNotFoundError as error:
+            issues.append(
+                ForwardFilingIssue(
+                    response_id=entry.response_id,
+                    reason=f"{entry.path} was gone when the drain went to file it ({error})",
+                )
+            )
+    return _FiledReceipts(paths=paths, issues=tuple(issues))
+
+
+def _is_terminally_refused(result: ConversionResult) -> bool:
+    """Whether a refusal is one no change to the guide and no change to the data could ever resolve."""
+    return any(refusal.category in TERMINAL_REFUSAL_CATEGORIES for refusal in result.refusals)
 
 
 def _forward_stop(entry: SpooledResponse, error: Dhis2ApiError | httpx.HTTPError) -> ForwardStop:
@@ -5112,17 +5307,21 @@ def _rejection_cause_key(error_code: str | None, generalised_reason: str) -> tup
     return (error_code, "") if error_code else (None, generalised_reason)
 
 
-def _file_outcomes(
+def _collect_outcomes(
     spooled: Sequence[SpooledResponse],
     conversion: ConversionReport,
     imports: dict[str, ForwardImportOutcome],
     completeness: dict[str, ForwardCompletenessOutcome],
     project_root: Path,
     *,
-    moving: bool,
+    filed: dict[str, Path],
     minted_enrollments: frozenset[str],
 ) -> tuple[ForwardOutcome, ...]:
-    """Pair every receipt with what DHIS2 said about it, moving the file when the run really imported.
+    """Pair every receipt with what DHIS2 said about it, and with where the run left its file.
+
+    Nothing moves here. The renames happened as the verdicts arrived, so this states the spool as it
+    now is: a receipt the run filed is named at its new path, and one nothing was decided about -
+    refused, unverifiable, or never reached - is named where the run found it.
 
     `minted_enrollments` is empty on an import run, which is what keeps the unverifiable reading a
     dry-run reading: an import creates the enrollments it posts, so nothing it rejects goes unchecked.
@@ -5131,7 +5330,7 @@ def _file_outcomes(
     for entry, result in zip(spooled, conversion.results, strict=True):
         imported = imports.get(entry.response_id)
         kind = _outcome_kind(result, imported, minted_enrollments)
-        path = _filed_path(entry, kind, imported, result.target_kind, moving=moving)
+        path = filed.get(entry.response_id, entry.path)
         outcomes.append(
             ForwardOutcome(
                 response_id=entry.response_id,
@@ -5204,36 +5403,176 @@ def _is_unverifiable(
     return bool(error_codes) and all(code in _ABSENT_ENROLLMENT_ERROR_CODES for code in error_codes)
 
 
-def _filed_path(
-    entry: SpooledResponse,
-    kind: ForwardOutcomeKind,
-    imported: ForwardImportOutcome | None,
-    target_kind: ConversionTargetKind | None,
-    *,
-    moving: bool,
-) -> Path:
-    """Move the receipt into the state it ended in, and answer with where it now sits.
-
-    A dry run moves nothing at all, so a run that validated the whole spool leaves the queue exactly
-    as it found it and can be run again as the import. `unverifiable` is a dry-run reading and so is
-    named here for the same reason: what a run could not check stays where the next run finds it. A
-    receipt the drain stopped short of stays put on the same principle - nothing was asked about it,
-    so nothing is known about it, and the next drain is the retry.
-
-    Both drained states take their import report along, and the report names the payload kind DHIS2
-    was given as well as what DHIS2 said about it.
-    """
-    if not moving or kind in _UNMOVED_OUTCOME_KINDS or imported is None:
-        return entry.path
-    record = ForwardImportRecord(**dict(imported), target_kind=target_kind)
-    if kind == ForwardOutcomeKind.ACCEPTED:
-        return move_to_forwarded(entry, record)
-    return move_to_rejected(entry, record)
-
-
 def _relative_path(path: Path, project_root: Path) -> str:
     """Name one spool file relative to the project when it lives inside it, so the report stays portable."""
     try:
         return path.relative_to(project_root).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+class SpoolStateCounts(BaseModel):
+    """How many receipts sit in each state, plus how many files are in quarantine beside them."""
+
+    model_config = ConfigDict(frozen=True)
+
+    received: int = 0
+    forwarded: int = 0
+    rejected: int = 0
+    malformed: int = 0
+    """Files in `malformed/`, which are not receipts - they are bytes that would not read as one."""
+
+    @property
+    def total(self) -> int:
+        """How many receipts the spool holds, which counts the three states and not the holding pen."""
+        return self.received + self.forwarded + self.rejected
+
+
+class SpoolReceiptRow(BaseModel):
+    """One receipt as the spool listing states it: where it sits, what it answers, and why it is there."""
+
+    model_config = ConfigDict(frozen=True)
+
+    response_id: str
+    state: SpoolState
+    questionnaire: str
+    form_kind: str
+    received_at: str
+    reason: str | None = None
+    """Why DHIS2 refused it, or why the translator would not convert it, off the report beside the file."""
+
+
+class SpoolStateReport(BaseModel):
+    """One project's capture spool as `d2w fhir spool` states it, read off the directory alone."""
+
+    model_config = ConfigDict(frozen=True)
+
+    project_root: Path
+    counts: SpoolStateCounts
+    receipts: tuple[SpoolReceiptRow, ...] = ()
+    quarantined: tuple[QuarantinedFile, ...] = ()
+
+    @property
+    def counts_line(self) -> str:
+        """The whole spool in one line, which is what a summary hint wants."""
+        line = (
+            f"{self.counts.received:,} received, {self.counts.forwarded:,} forwarded, {self.counts.rejected:,} rejected"
+        )
+        return f"{line}, {self.counts.malformed:,} malformed" if self.counts.malformed else line
+
+
+class RequeuedReceipt(BaseModel):
+    """One receipt moved back into the queue, and where its file now sits."""
+
+    model_config = ConfigDict(frozen=True)
+
+    response_id: str
+    spool_path: str
+    """Where the receipt sits now, relative to the project root."""
+
+
+class RequeueReport(BaseModel):
+    """What one `d2w fhir requeue` moved, in the order the ids were given."""
+
+    model_config = ConfigDict(frozen=True)
+
+    project_root: Path
+    requeued: tuple[RequeuedReceipt, ...] = ()
+
+    @property
+    def counts_line(self) -> str:
+        """What the run amounted to, which is the one line a summary states."""
+        return f"{len(self.requeued):,} receipt(s) moved back to received/"
+
+
+def read_spool_state(project: FhirProject) -> SpoolStateReport:
+    """State what one project's capture spool holds, from the directory alone.
+
+    NO DHIS2 CONNECTION AND NO PROFILE. Every fact in the report is on disk: which directory a
+    receipt is in is its state, the sidecar beside a drained one says what DHIS2 answered, and the
+    holding pen says what would not read as a receipt at all. An operator asking what is queued has
+    to be able to ask it while the instance is down, which is exactly when they will.
+
+    A file that does not read as a receipt is moved to `malformed/` by the read that met it and
+    counted there, so the listing states it rather than failing over it.
+
+    Rows read oldest first, which is how a queue reads: the receipt that has been waiting longest is
+    at the top.
+    """
+    contents = read_spooled_receipts(project.project_root)
+    rows = tuple(
+        SpoolReceiptRow(
+            response_id=receipt.response_id,
+            state=receipt.state,
+            questionnaire=receipt.questionnaire,
+            form_kind=receipt.form_kind,
+            received_at=receipt.received_at,
+            reason=_receipt_reason(receipt),
+        )
+        for receipt in sorted(contents.receipts, key=lambda receipt: (receipt.received_at, receipt.response_id))
+    )
+    counts = SpoolStateCounts(
+        received=len(contents.in_state(SpoolState.RECEIVED)),
+        forwarded=len(contents.in_state(SpoolState.FORWARDED)),
+        rejected=len(contents.in_state(SpoolState.REJECTED)),
+        malformed=len(contents.quarantined),
+    )
+    return SpoolStateReport(
+        project_root=project.project_root,
+        counts=counts,
+        receipts=rows,
+        quarantined=contents.quarantined,
+    )
+
+
+def requeue_rejected_responses(
+    project: FhirProject, response_ids: Sequence[str] = (), *, all_rejected: bool = False
+) -> RequeueReport:
+    """Move rejected receipts back into `received/`, so the next drain posts them again.
+
+    The one reverse move the spool has, and it is an operator's decision rather than the forwarder's:
+    a rejection is DHIS2 stating that this payload is wrong, so it stays where it is until a person
+    who has changed the instance, the guide, or their mind says otherwise.
+
+    An id that is not in `rejected/` is refused by name rather than skipped, and refused before
+    anything moves: a run that had already requeued three of five receipts before naming the fourth
+    as unknown would leave the operator to work out which three.
+    """
+    contents = read_spooled_receipts(project.project_root)
+    rejected = {receipt.response_id for receipt in contents.in_state(SpoolState.REJECTED)}
+    wanted = sorted(rejected) if all_rejected else list(response_ids)
+    unknown = [response_id for response_id in wanted if response_id not in rejected]
+    if unknown:
+        named = ", ".join(f"`{response_id}`" for response_id in unknown)
+        raise SpoolReadError(
+            f"{named} is not in {REJECTED_RESPONSES_RELATIVE_PATH} of {project.project_root}; "
+            "`d2w fhir spool --details` lists what is there"
+        )
+    moved = [
+        RequeuedReceipt(
+            response_id=response_id,
+            spool_path=_relative_path(move_to_received(project.project_root, response_id), project.project_root),
+        )
+        for response_id in wanted
+    ]
+    return RequeueReport(project_root=project.project_root, requeued=tuple(moved))
+
+
+def _receipt_reason(receipt: SpooledReceipt) -> str | None:
+    """What the report beside one drained receipt says, as the one line a listing row shows.
+
+    Only a drained receipt has one: a receipt still in `received/` has been asked about by nobody, so
+    there is nothing on disk to read and the row states no reason rather than inventing one.
+    """
+    if receipt.state is SpoolState.RECEIVED:
+        return None
+    path = receipt.path.with_name(f"{receipt.response_id}{IMPORT_REPORT_SUFFIX}")
+    if not path.is_file():
+        return None
+    try:
+        record = ForwardImportRecord.model_validate_json(path.read_text(encoding="utf-8"))
+    except (OSError, ValidationError, ValueError):
+        return None
+    if record.issues:
+        return record.issues[0].line
+    return record.message

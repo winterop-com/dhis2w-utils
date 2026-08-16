@@ -334,15 +334,25 @@ class ResponseLifecycle(StrEnum):
     REJECTED = "rejected"
 ```
 
-Two transitions exist and both point forward. There is no `move_to_received`, no unlink, no
-requeue. `rejected/` is removal-adjacent but it is a *refusal* - it names something that
-never landed - not a withdrawal. The only reverse operation available to an operator is a
-manual `mv` on the filesystem.
+Two transitions point forward and one points back. `rejected/` is removal-adjacent but it is
+a *refusal* - it names something that never landed - not a withdrawal.
 
-**`entered-in-error` is refused at conversion and the receipt sticks.** `payloads.py:112`
-states it plainly - *"`entered-in-error` raises a refusal, because retracting an event is a
-deletion rather than an import"* - and a refused receipt never moves, so it stays in
-`received/` and every subsequent drain retries it forever.
+> **Status note.** Two of the mechanics this section describes have since been built, and
+> neither is a lifecycle slice: `d2w fhir requeue` is the reverse move `rejected/ ->
+> received/` (the operator's decision, not the forwarder's), and an `entered-in-error`
+> receipt is now *filed* to `rejected/` rather than retried forever. Everything else below -
+> `basedOn`, supersession, an actual withdrawal - is still unbuilt, and the slice plan at the
+> end of this document is unchanged.
+
+**`entered-in-error` is a terminal refusal, and the receipt is filed.** The translator still
+refuses it, under its own `entered-in-error-is-a-deletion` category, because retracting an
+event is a deletion rather than an import. What is different from every other refusal is
+what happens to the file: no change to the guide and no change to the instance could ever
+make that response convert, so an import files it to `rejected/` with a sidecar naming this
+document, rather than leaving a receipt in the queue for every drain to translate again for
+the rest of the project's life. `d2w fhir requeue` puts it back for an operator who wants it
+tried again. **None of that withdraws anything from DHIS2** - it is bookkeeping about a
+receipt, and the withdrawal itself is still unbuilt.
 
 **`amended` is accepted and means nothing.** `EVENT_STATUSES_BY_RESPONSE_STATUS` at
 `payloads.py:118` collapses it onto `EventStatus.COMPLETED` with a `STATUS_COLLAPSED` note.
@@ -369,9 +379,9 @@ toggle. No amend, revise, resubmit, retract, void, or prefill-from-receipt.
 | aggregate completeness | same tuple | re-registered as `updated`; documented as safe |
 | tracker event | new receipt, so a new derived UID | **a duplicate event is created** |
 | registration | `$generate` mints fresh UIDs | **a duplicate person and enrollment** |
-| replay of an identical body | the same client-minted UIDs | 409 to `rejected/`, no retry, no requeue |
+| replay of an identical body | the same client-minted UIDs | 409 to `rejected/`, no automatic retry; `d2w fhir requeue` is the operator putting it back |
 | `status: "amended"` | - | collapses to `COMPLETED`, forwarded as a brand-new event |
-| `status: "entered-in-error"` | - | refused; the receipt sticks in `received/` forever |
+| `status: "entered-in-error"` | - | refused as terminal and filed to `rejected/`; nothing is withdrawn from DHIS2 |
 
 Aggregate corrections work but are invisible. Tracker corrections are impossible. Withdrawal
 does not exist. None of it is written down.

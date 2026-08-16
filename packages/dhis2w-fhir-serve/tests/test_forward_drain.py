@@ -150,7 +150,7 @@ async def test_forward_drain_is_visible_to_the_running_facade(
     rows = _rows(listing)
 
     # The facade re-read the directory the forwarder moved the files into, without restarting.
-    assert listing["counts"] == {"received": 0, "forwarded": 1, "rejected": 1}
+    assert listing["counts"] == {"received": 0, "forwarded": 1, "rejected": 1, "malformed": 0}
     assert rows[event_id]["lifecycle"] == "forwarded"
     assert rows[aggregate_id]["lifecycle"] == "rejected"
 
@@ -213,7 +213,7 @@ async def test_a_receipt_the_drain_never_reached_is_still_offered_as_pending(
     assert tracker.call_count == 0
 
     listing = (await capture_client.get("/spool")).json()
-    assert listing["counts"] == {"received": 2, "forwarded": 0, "rejected": 0}
+    assert listing["counts"] == {"received": 2, "forwarded": 0, "rejected": 0, "malformed": 0}
     rows = _rows(listing)
     assert rows[aggregate_id]["lifecycle"] == "received"
     assert rows[event_id]["lifecycle"] == "received"
