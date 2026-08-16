@@ -96,6 +96,31 @@ ls .serve/responses/rejected 2>/dev/null | wc -l
 cat .serve/responses/rejected/*.report.json 2>/dev/null | head -c 300 || true
 echo
 
+# Values a previous submission already sent. Post the same aggregate load set again and every
+# cell it names is one the run above already landed - DHIS2 replaces those values in place and
+# counts the write exactly as it counts a first entry, so no import summary can say it happened.
+# The run says it instead, naming each value, the receipt that sent it before, and when that
+# receipt arrived. The dry run states it as a prediction, which is the moment there is still
+# something to be done about it. Every capture is a fresh receipt, so the facade goes back up
+# to receive the second submission of the same report.
+d2w fhir serve --port "$PORT" &
+SERVER_PID=$!
+trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+sleep 5
+
+for response in load/*.json; do
+    curl -s -o /dev/null -X POST "${BASE}/QuestionnaireResponse" \
+        -H 'Content-Type: application/fhir+json' \
+        --data-binary "@${response}"
+done
+
+kill "$SERVER_PID"
+trap - EXIT
+wait "$SERVER_PID" 2>/dev/null || true
+
+d2w fhir forward --details
+d2w fhir forward --import --details
+
 # Data set completeness. DHIS2 records whether a data set is *finished* for a period
 # separately from the values, keyed by the same (data set, period, organisation unit,
 # attribute option combo) tuple. QuestionnaireResponse.status is what states it: an

@@ -139,6 +139,14 @@ directly under the same conventions.
 
 ::: dhis2w_fhir.spool
 
+### Values a previous submission already sent
+
+The identity of an aggregate data value, and the index a drain reads out of `forwarded/` to
+say that a value it is about to send is one an earlier submission already sent. DHIS2 counts
+that write exactly as it counts a first entry, so the spool is where the answer lives.
+
+::: dhis2w_fhir.overwrite
+
 ### Package surface
 
 The names below re-export from `dhis2w_fhir` itself; the

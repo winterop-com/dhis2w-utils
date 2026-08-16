@@ -1499,6 +1499,35 @@ def _render_completeness(report: ForwardReport) -> None:
     )
 
 
+def _render_overwritten_values(report: ForwardReport) -> None:
+    """Name every value the run sent that an earlier submission had already sent, and which one sent it."""
+    overwrites = report.overwrites
+    if not overwrites:
+        return
+    render_list(
+        "values a previous submission already sent",
+        [
+            {
+                "response": overwrite.response_id,
+                "value": value.cell.line,
+                "previous": value.previous_response_id,
+                "received": value.previous_received_at,
+            }
+            for overwrite in overwrites
+            for value in overwrite.values
+        ],
+        [
+            ColumnSpec("Response", "response"),
+            ColumnSpec(
+                "Data element / category option combo / period / organisation unit / attribute option combo", "value"
+            ),
+            ColumnSpec("Sent before by", "previous"),
+            ColumnSpec("Received", "received", no_wrap=True),
+        ],
+        console=STDERR_CONSOLE,
+    )
+
+
 def _render_forward_outcomes(report: ForwardReport) -> None:
     """List every response the run drained, with what became of it and why."""
     if not report.outcomes:
@@ -1563,6 +1592,71 @@ def _completeness_report_lines(report: ForwardReport) -> list[str]:
     return lines
 
 
+#: What the written report says about the values an import replaced, above the table naming them. The
+#: fact a reader needs first is that DHIS2 counted the write the same way it counts a first entry, so
+#: this section is the only place the run can state which is which.
+_OVERWRITE_IMPORT_PREAMBLE = (
+    "Each value below was sent to DHIS2 by a receipt this spool has already forwarded, and this run",
+    "sent it again. The instance now holds the number this run's response carried.",
+    "",
+    "DHIS2 keeps the newest number for a value and counts writing it exactly as it counts a first",
+    "entry, so no import summary separates a correction from a first entry, and this run states it",
+    "here instead.",
+)
+
+#: The same section on a dry run, where nothing has been written and the whole point is that there is
+#: still time to act on it.
+_OVERWRITE_DRY_RUN_PREAMBLE = (
+    "Each value below was sent to DHIS2 by a receipt this spool has already forwarded, and this run",
+    "would send it again. Nothing has changed in the instance: this run wrote nothing.",
+    "",
+    "An import replaces each number below with the one this run's response carries. DHIS2 counts that",
+    "write exactly as it counts a first entry, so no import summary would separate the two afterwards.",
+)
+
+
+def _overwritten_value_report_lines(report: ForwardReport) -> list[str]:
+    """The written report's section for the values this run sent that an earlier submission had sent."""
+    overwrites = report.overwrites
+    if not overwrites and not report.forwarded_without_values:
+        return []
+    lines = ["## Values a previous submission already sent", ""]
+    if overwrites:
+        lines.extend(
+            [
+                *(_OVERWRITE_DRY_RUN_PREAMBLE if report.dry_run else _OVERWRITE_IMPORT_PREAMBLE),
+                "",
+                "The earlier receipt is named so the submission it came from can be read: it is",
+                "`.serve/responses/forwarded/<id>.json`, with what DHIS2 did with it in `<id>.report.json`",
+                "beside it.",
+                "",
+                "| Response | Data element | Category option combo | Period | Organisation unit "
+                "| Attribute option combo | Sent before by | Received |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- |",
+            ]
+        )
+        lines.extend(
+            f"| {overwrite.response_id} | {value.cell.data_element} | {value.cell.category_option_combo or ''} | "
+            f"{value.cell.period or ''} | {value.cell.organisation_unit or ''} | "
+            f"{value.cell.attribute_option_combo or ''} | {value.previous_response_id} | "
+            f"{value.previous_received_at} |"
+            for overwrite in overwrites
+            for value in overwrite.values
+        )
+        lines.append("")
+    if report.forwarded_without_values:
+        lines.extend(
+            [
+                f"{report.forwarded_without_values} receipt(s) DHIS2 has already accepted record no values, so "
+                "this run cannot say whether any of them sent these values first. Every receipt a drain files "
+                "records what it sent, so a receipt that records nothing is one something else put in "
+                "`.serve/responses/forwarded/`.",
+                "",
+            ]
+        )
+    return lines
+
+
 def _write_forward_report(report: ForwardReport, generation: GenerationProfile) -> Path:
     """Write every response's outcome to `reports/fhir-forward-report.md`, grouped by what became of it."""
     from datetime import UTC, datetime
@@ -1578,6 +1672,7 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
         f"- Mode: {'dry run (validate only)' if report.dry_run else 'import'}",
         f"- Coded answers: {report.coded_answer_mode}",
         f"- Data set completeness: {report.completeness_line or 'no aggregate response claimed any'}",
+        f"- Values a previous submission already sent: {report.overwrite_line or 'none'}",
         f"- Forwarded: {datetime.now(tz=UTC).isoformat(timespec='seconds')}",
         f"- Counts: {report.counts_line}",
         "",
@@ -1642,6 +1737,7 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
         lines.extend(["## What a dry run could not check", ""])
         for reason in unverifiable_reasons:
             lines.extend([f"{reason.reason} ({reason.responses} response(s))", ""])
+    lines.extend(_overwritten_value_report_lines(report))
     lines.extend(_completeness_report_lines(report))
     for heading, outcomes in (
         ("Rejected by DHIS2", report.rejected),
@@ -1673,6 +1769,33 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
     destination = directory / f"{_FORWARD_REPORT_STEM}.md"
     destination.write_text("\n".join(lines), encoding="utf-8")
     return destination
+
+
+def _render_overwrite_hints(report: ForwardReport) -> None:
+    """State that this run sent values an earlier submission had sent, which DHIS2's own answer cannot."""
+    overwrites = report.overwrites
+    if overwrites:
+        values = report.overwritten_value_count
+        _hint(
+            "note",
+            (
+                f"{len(overwrites)} response(s) sent {values} value(s) an earlier submission had already sent, "
+                "and the instance now holds the numbers these responses carried. DHIS2 counts that write "
+                "exactly as it counts a first entry, so nothing in the import summary says it happened - the "
+                "report names each value and the receipt that sent it before"
+                if not report.dry_run
+                else f"{len(overwrites)} response(s) carry {values} value(s) an earlier submission has already "
+                "sent. Nothing has changed in the instance yet, and an import replaces those numbers with the "
+                "ones these responses carry - the report names each value and the receipt that sent it before"
+            ),
+            style="yellow",
+        )
+    if report.forwarded_without_values:
+        _hint(
+            "note",
+            f"{report.forwarded_without_values} receipt(s) DHIS2 has already accepted record no values, so this "
+            "run cannot say whether they sent any of these values first",
+        )
 
 
 def _render_completeness_hints(report: ForwardReport) -> None:
@@ -1712,6 +1835,11 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
             DetailRow("rejected", str(len(report.rejected))),
             DetailRow("unverifiable in a dry run", str(len(report.unverifiable))),
             *([DetailRow("data set completeness", report.completeness_line)] if report.completeness_line else []),
+            *(
+                [DetailRow("values a previous submission already sent", report.overwrite_line)]
+                if report.overwrite_line
+                else []
+            ),
             *([DetailRow("not posted", str(len(report.not_posted)))] if report.stopped is not None else []),
         ],
         console=STDERR_CONSOLE,
@@ -1732,6 +1860,7 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
     _render_rejection_reasons(report)
     _render_unverifiable_reasons(report)
     if details:
+        _render_overwritten_values(report)
         _render_completeness(report)
         _render_forward_outcomes(report)
     else:
@@ -1768,6 +1897,7 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
             f"{len(report.unverifiable)} response(s) this dry run could not check - each is a stage event whose "
             "enrollment a registration of the same run creates, and only an import creates it",
         )
+    _render_overwrite_hints(report)
     _render_completeness_hints(report)
     if report.dry_run:
         _hint("dry run", _DRY_RUN_BANNER, style="bold yellow")
@@ -1829,6 +1959,11 @@ def forward_command(
     period, organisation unit, and attribute option combo its values landed under - a second write,
     made only after DHIS2 has taken the values. `in-progress` imports the values and registers
     nothing, and `--no-register-completeness` turns the second write off for the whole run.
+
+    A value an earlier submission already sent is named in the run, with the receipt that sent it and
+    when that receipt arrived. DHIS2 replaces such a value in place and counts the write exactly as it
+    counts a first entry, so no import summary can say it happened; a dry run says it too, while there
+    is still time to act on it. Nothing is refused over it.
 
     A DHIS2 rejection exits 1. A dry run counts a stage event whose enrollment a registration of the
     same run creates as unverifiable rather than rejected - a dry run writes nothing, so there is no

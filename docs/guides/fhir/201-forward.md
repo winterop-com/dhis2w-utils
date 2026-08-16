@@ -395,6 +395,86 @@ fresh report wherever the receipt lands.
 Like `d2w fhir spool`, this needs no DHIS2 connection: it is a rename inside
 the project directory.
 
+## Values a previous submission already sent
+
+A second capture of an aggregate report replaces the values the first one
+sent. DHIS2 does that in place and says nothing about it: `/api/dataValueSets`
+counts the write `updated: 1` whether the cell was empty or held last week's
+number, so no import summary can separate a correction from a first entry.
+
+The run says it instead. Before it posts anything, a drain carrying an
+aggregate payload reads what this project has already landed - one pass over
+the import reports in `.serve/responses/forwarded/`, where each forwarded
+receipt records the values its payload put in the instance. Every value this
+run sends that one of those receipts already sent is named, along with the
+receipt that sent it and when that receipt arrived:
+
+```console
+$ d2w fhir forward . --import
+...
+note: 1 response(s) sent 2 value(s) an earlier submission had already sent, and
+  the instance now holds the numbers these responses carried. DHIS2 counts that
+  write exactly as it counts a first entry, so nothing in the import summary says
+  it happened - the report names each value and the receipt that sent it before
+```
+
+A dry run says it too, and that is the most useful moment for it: nothing has
+been written yet, so the note is a prediction there is still time to act on.
+
+```console
+$ d2w fhir forward .
+...
+note: 1 response(s) carry 2 value(s) an earlier submission has already sent.
+  Nothing has changed in the instance yet, and an import replaces those numbers
+  with the ones these responses carry - the report names each value and the
+  receipt that sent it before
+```
+
+The written report gives them a section of their own, one row per value,
+because the earlier receipt id is the thing to act on:
+
+```markdown
+## Values a previous submission already sent
+
+| Response | Data element | Category option combo | Period | Organisation unit | Attribute option combo | Sent before by | Received |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 130e32d4... | De2aaaaaaaa | HllvX50cXC0 | 202607 | ImspTQPwCqd |  | 0c81a28f... | 2026-08-08T09:00:00Z |
+```
+
+`--details` prints the same rows to the terminal instead, and `--json`
+carries them on each response as `overwritten_values`.
+
+**What to do about it.** Nothing is refused and nothing is undone - the run
+states the fact and you decide.
+
+- If the second submission is the correction you meant to make, this is the
+  confirmation that it landed on the value you meant to correct rather than on
+  an empty cell somewhere else.
+- If it is not, `.serve/responses/forwarded/<id>.json` is the earlier
+  submission verbatim, with what DHIS2 did with it in `<id>.report.json`
+  beside it. Read the number it carried, then capture the form again with the
+  value you want.
+- If the two are different people filing the same form for the same month,
+  that is a fact about the deployment rather than about this run, and the two
+  receipt ids are what identify them.
+
+A value is the same value only when all five keys match: data element,
+category option combo, period, organisation unit, and attribute option combo.
+A capture for another month, another organisation unit, or another attribute
+option combo lands on a different value and is not named here.
+
+**Only `forwarded/` counts.** A receipt DHIS2 refused never landed its values,
+so it covers nothing, and a receipt still in the queue has not been sent at
+all. Receipts filed earlier in the same drain do count: a drain holding two
+captures of one report replaces the first with the second inside itself, and
+says so.
+
+A tracker drain reads none of this. `forwarded/` grows for the life of a
+project, so the reading happens only when a drain actually carries an
+aggregate payload, and it opens each forwarded receipt's import report once
+and nothing else. On a spool of a few hundred receipts the whole pass takes a
+small fraction of the time a single POST to DHIS2 takes.
+
 ## Correcting or withdrawing what you forwarded
 
 The question a DHIS2 person asks next is: somebody typed a number wrong, and
@@ -404,9 +484,9 @@ version, and it is a posture rather than a feature:
 
 | What you want | Where it stands today |
 | --- | --- |
-| Fix an aggregate value | Capture and forward the same data set, period, and organisation unit again. DHIS2 overwrites the values in place, and it works - but nothing in the run says a correction happened rather than a first entry. |
-| Fix a tracker event or a registration | Not available. A second capture is a second receipt, so it derives a new event UID and DHIS2 creates a **duplicate** rather than replacing anything. |
-| Withdraw a submission | Not available. There is no fourth spool state, and nothing deletes from DHIS2. |
+| Fix an aggregate value | Capture and forward the same data set, period, and organisation unit again. DHIS2 replaces the values in place, and the run names every value it replaced and the receipt that sent it before - see [Values a previous submission already sent](#values-a-previous-submission-already-sent). |
+| Fix a tracker event or a registration | Not available. A second capture is a second receipt, so it derives a new event UID and DHIS2 creates a **duplicate** rather than replacing anything. Re-forwarding the *same* receipt is the case DHIS2 refuses, with `E1030`. |
+| Withdraw a submission | Not available. There is no fourth spool state, and nothing deletes from DHIS2. `d2w data tracker delete` is the raw escape hatch, outside the FHIR path and behind a confirmation prompt. |
 
 The capture contract already carries the two lifecycle words this will
 eventually be built on, and both currently do something other than what the

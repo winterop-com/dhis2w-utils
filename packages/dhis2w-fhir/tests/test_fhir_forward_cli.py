@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from dhis2w_cli.main import build_app
 from dhis2w_fhir import (
+    AggregateCell,
     CodedAnswerMode,
     ConversionNote,
     ConversionNoteCategory,
@@ -27,6 +28,7 @@ from dhis2w_fhir import (
     ForwardOutcome,
     ForwardOutcomeKind,
     ForwardReport,
+    OverwrittenValue,
 )
 from typer.testing import CliRunner
 
@@ -465,3 +467,109 @@ def test_an_attribute_option_combo_refusal_is_written_out_in_full(forward_projec
     written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
     assert "missing-attribute-option-combo" in written
     assert "E8023" in written
+
+
+def _overwrite_report(root: Path, *, dry_run: bool = False) -> ForwardReport:
+    """One run whose response sent two values a forwarded receipt had already sent."""
+    cell = AggregateCell(
+        data_element="De2aaaaaaaa",
+        period="202607",
+        organisation_unit="ImspTQPwCqd",
+        category_option_combo="HllvX50cXC0",
+    )
+    return ForwardReport(
+        project_root=root,
+        dry_run=dry_run,
+        coded_answer_mode=CodedAnswerMode.LENIENT,
+        spooled=1,
+        outcomes=(
+            ForwardOutcome(
+                response_id="recapture-1",
+                questionnaire="http://example.org/fhir/Questionnaire/BfMAe6Itzgt",
+                target_kind=ConversionTargetKind.DATA_VALUE_SET,
+                kind=ForwardOutcomeKind.ACCEPTED,
+                import_outcome=ForwardImportOutcome(status="SUCCESS", updated=2),
+                overwritten_values=(
+                    OverwrittenValue(
+                        cell=cell,
+                        previous_response_id="0c81a28f79ba4226b8d4d348f2b96de1",
+                        previous_received_at="2026-08-08T09:00:00Z",
+                    ),
+                    OverwrittenValue(
+                        cell=cell.model_copy(update={"data_element": "De3aaaaaaaa"}),
+                        previous_response_id="0c81a28f79ba4226b8d4d348f2b96de1",
+                        previous_received_at="2026-08-08T09:00:00Z",
+                    ),
+                ),
+                spool_path=".serve/responses/forwarded/recapture-1.json",
+            ),
+        ),
+    )
+
+
+def test_the_terminal_says_an_earlier_submission_had_already_sent_these_values(forward_project: Path) -> None:
+    """The reader must learn the fact without knowing a command name or reading DHIS2's counts."""
+    result, _ = _invoke(["--no-progress", "--import"], _overwrite_report(forward_project))
+    assert "1 response(s) sent 2 value(s) an earlier submission had already sent" in result.output
+    assert "the instance now holds the numbers these responses carried" in result.output
+
+
+def test_a_dry_run_says_the_values_an_import_would_replace(forward_project: Path) -> None:
+    """Before committing is the moment the prediction is worth most, so the dry run states it too."""
+    result, _ = _invoke(["--no-progress"], _overwrite_report(forward_project, dry_run=True))
+    assert "1 response(s) carry 2 value(s) an earlier submission has already sent" in result.output
+    assert "Nothing has changed in the instance yet" in result.output
+
+
+def test_the_details_table_names_each_value_and_the_receipt_that_sent_it(forward_project: Path) -> None:
+    """Provenance is the point: an operator has to be able to find the earlier submission."""
+    result, _ = _invoke(["--no-progress", "--details", "--import"], _overwrite_report(forward_project))
+    assert "values a previous submission already sent" in result.output
+    assert "Sent before by" in result.output
+    assert "0c81a28f79ba4226b8d4d348f2b96de1" in result.output
+    assert "De2aaaaaaaa" in result.output
+
+
+def test_the_written_report_carries_a_section_naming_every_replaced_value(forward_project: Path) -> None:
+    """The condensed run writes the whole of it to the report, which is where a wide table can live."""
+    _invoke(["--no-progress", "--import"], _overwrite_report(forward_project))
+    written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
+    assert "## Values a previous submission already sent" in written
+    assert "- Values a previous submission already sent: 2 value(s) across 1 response(s)" in written
+    assert "| recapture-1 | De2aaaaaaaa | HllvX50cXC0 | 202607 | ImspTQPwCqd |  | 0c81a28f79ba4226b8d4d348f2b96de1" in (
+        written
+    )
+    assert "no import summary separates a correction from a first entry" in written
+
+
+def test_the_written_report_of_a_dry_run_states_that_nothing_has_been_written(forward_project: Path) -> None:
+    """A prediction read as a record of what happened would be the worst thing this section could do."""
+    _invoke(["--no-progress"], _overwrite_report(forward_project, dry_run=True))
+    written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
+    assert "would send it again. Nothing has changed in the instance: this run wrote nothing." in written
+
+
+def test_the_json_payload_carries_every_replaced_value_with_its_provenance(forward_project: Path) -> None:
+    """An agent reading `--json` gets the same facts the terminal states, typed rather than rendered."""
+    mock = AsyncMock(return_value=_overwrite_report(forward_project))
+    with patch("dhis2w_fhir.service.forward_responses", new=mock):
+        result = _runner.invoke(build_app(), ["--json", "fhir", "forward", "--no-progress", "--import"])
+    payload = json.loads(result.stdout)
+    values = payload["outcomes"][0]["overwritten_values"]
+    assert [value["previous_response_id"] for value in values] == ["0c81a28f79ba4226b8d4d348f2b96de1"] * 2
+    assert values[0]["previous_received_at"] == "2026-08-08T09:00:00Z"
+    assert values[0]["cell"] == {
+        "data_element": "De2aaaaaaaa",
+        "category_option_combo": "HllvX50cXC0",
+        "period": "202607",
+        "organisation_unit": "ImspTQPwCqd",
+        "attribute_option_combo": None,
+    }
+
+
+def test_a_run_that_replaced_nothing_says_so_in_the_written_report(forward_project: Path) -> None:
+    """A reader of the report should not have to work out whether the run checked at all."""
+    _invoke(["--no-progress"], _report(forward_project))
+    written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
+    assert "- Values a previous submission already sent: none" in written
+    assert "## Values a previous submission already sent" not in written

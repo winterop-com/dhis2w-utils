@@ -2044,6 +2044,61 @@ Each response goes through `dhis2w_fhir.conversion` all-or-nothing.
   2.42 it registers completeness even when every value was refused and even
   under `dryRun=true` (BUGS.md 76, 77).
 
+#### Values a previous submission already sent
+
+- **A drain names every aggregate value it sends that a forwarded receipt
+  already sent**, with the receipt that sent it and when that receipt arrived.
+  DHIS2 replaces such a value in place and counts the write exactly as it
+  counts a first entry (BUGS.md 85), so no import summary can separate a
+  correction from a first entry - the spool answers what the wire cannot.
+- **The record is the sidecar.** A forwarded receipt's `<id>.report.json`
+  carries the identity of every value its payload landed on - data element,
+  category option combo, period, organisation unit, attribute option combo -
+  and the day the receipt arrived. Identity only, never the numbers.
+- **Only `forwarded/` counts**: a receipt DHIS2 refused never landed its
+  values, and one still in the queue has not been sent. Receipts filed earlier
+  in the same drain do count, so a drain holding two captures of one report
+  says that the second replaced the first.
+- **A dry run states it too**, as the prediction it is - the moment there is
+  still something to be done about it.
+- **Nothing is refused over it.** The drain reports and the operator decides;
+  whether an unmarked overwrite should be refused outright is decision D8 in
+  [Corrections and withdrawals](fhir-data-lifecycle.md).
+- **The reading is built once per drain and only when the drain carries an
+  aggregate payload**, so a tracker-only run reads nothing at all. It opens
+  each forwarded receipt's import report once and nothing else, and it never
+  truncates or samples - a reading that quietly stopped part-way would answer
+  "no earlier submission" about a value that has one.
+- **Typed as `AggregateCell` / `OverwrittenValue` / `ForwardOverwrite`** on
+  `ForwardOutcome.overwritten_values`, and rendered as a terminal note, a
+  `--details` table, its own written-report section, and the `--json` payload.
+  A receipt in `forwarded/` whose report records no values is counted on
+  `forwarded_without_values` and named, rather than passed over in silence.
+
+#### Corrections and withdrawals
+
+The posture today, in one place, because "is this supported?" is the question
+this section exists to close. The full argument and the design that changes it
+are in [Corrections and withdrawals](fhir-data-lifecycle.md).
+
+- **A second capture of an aggregate report overwrites the first in place.**
+  The envelope names no `importStrategy`, so DHIS2 applies its own
+  `CREATE_AND_UPDATE`; the values are replaced and the report says which ones
+  (above).
+- **A second capture of a tracker visit creates a duplicate**, because an
+  event's UID is derived from the receipt's own id and every capture mints a
+  fresh receipt. Re-forwarding the *same* receipt is the case DHIS2 refuses,
+  with `E1030` - one receipt names one event, and that is the guarantee that
+  holds.
+- **A forwarded receipt cannot be withdrawn.** The spool has three states and
+  none of them retracts anything from DHIS2; a receipt reporting itself
+  `entered-in-error` is a refusal filed to `rejected/`, which is bookkeeping
+  about a receipt rather than a withdrawal.
+- **`d2w data tracker delete` is the raw escape hatch**, outside the FHIR path
+  and behind a confirmation prompt, with `d2w data aggregate delete` beside it.
+  Deleting a tracker object burns its UID permanently, so the receipt that
+  named it can never be forwarded again.
+
 #### Output
 
 - **`[serve] strict_codes` is the default coded-answer dial**, so a project
@@ -2052,7 +2107,8 @@ Each response goes through `dhis2w_fhir.conversion` all-or-nothing.
 - **The condensed terminal writes every response's outcome** to
   `reports/fhir-forward-report.md` with one counted hint, while `--details`
   prints the per-response table with a Why column carrying each response's
-  first reason, and `--json` carries the whole `ForwardReport`.
+  first reason, and `--json` carries the whole `ForwardReport`. The written
+  report's header states what the run replaced as well as what it counted.
 - **The scaffolded Makefile gains `make forward` / `make forward-import`.**
 
 ### Inspect and requeue the spool
