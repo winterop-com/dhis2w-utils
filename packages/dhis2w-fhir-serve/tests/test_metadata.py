@@ -92,6 +92,16 @@ async def test_metadata_never_advertises_a_type_the_facade_does_not_serve(client
     assert "ImplementationGuide" not in types
 
 
+async def test_the_questionnaire_search_parameter_states_how_it_matches(client: httpx.AsyncClient) -> None:
+    """A reference search parameter usually implies more than this one does, so the entry says what it is."""
+    response = _resource(await _metadata(client), "QuestionnaireResponse")
+
+    questionnaire = next(parameter for parameter in response["searchParam"] if parameter["name"] == "questionnaire")
+    assert questionnaire["type"] == "reference"
+    assert "exact canonical equality" in questionnaire["documentation"]
+    assert "no version suffix is stripped" in questionnaire["documentation"]
+
+
 async def test_read_types_declare_the_three_search_parameters(client: httpx.AsyncClient) -> None:
     questionnaire = _resource(await _metadata(client), "Questionnaire")
 

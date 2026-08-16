@@ -176,6 +176,22 @@ async def read_listing_page(
     )
 
 
+async def count_listing_total(client: Dhis2Client, *, tracked_entity_type_uids: tuple[str, ...]) -> int | None:
+    """How many tracked entities the whole listing holds, counted without carrying any of them back.
+
+    DHIS2 counts one type at a time, so this is one count-only request per type in scope, summed. A
+    type whose pager states no total makes the sum unknowable, and an unknowable sum is stated as no
+    total rather than as a partial one.
+    """
+    counted = 0
+    for tracked_entity_type_uid in tracked_entity_type_uids:
+        total = await count_tracked_entities(client, tracked_entity_type_uid=tracked_entity_type_uid)
+        if total is None:
+            return None
+        counted += total
+    return counted
+
+
 async def _searchset_total(
     client: Dhis2Client,
     page: TrackedEntitiesPage,
@@ -194,13 +210,7 @@ async def _searchset_total(
         return None if page.pager is None else page.pager.total
     if cursor.searchset_total is not None:
         return cursor.searchset_total
-    counted = 0
-    for tracked_entity_type_uid in tracked_entity_type_uids:
-        total = await count_tracked_entities(client, tracked_entity_type_uid=tracked_entity_type_uid)
-        if total is None:
-            return None
-        counted += total
-    return counted
+    return await count_listing_total(client, tracked_entity_type_uids=tracked_entity_type_uids)
 
 
 def _next_cursor(

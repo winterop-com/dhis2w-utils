@@ -371,7 +371,11 @@ Both reads are paged, with the same two parameters the register listing uses:
 `_count` for how many rows a page carries (50 by default, 500 at most) and
 `page` for a cursor a client only ever gets from a `next` or `previous` link.
 `total` is the whole listing on every page of a walk, and `/spool`'s counts are
-the whole spool rather than the page:
+the whole spool rather than the page. `_count=0` is the one value the two read
+differently: on `GET /QuestionnaireResponse` it is R4's request for the total
+alone, answered with a searchset stating how many receipts matched and carrying
+none of them, while `/spool` is this server's own envelope listing and refuses
+it as a page of no rows.
 
 ```console
 $ curl -s 'localhost:8390/spool?_count=2' | jq '{total, rows: (.responses | length), next: .next_url}'
@@ -422,6 +426,12 @@ the scaffold gitignores it, and the IG publisher never renders it.
   puts the endpoint behind something that authenticates.
 - **One process, one project.** No clustering, no shared state. The spool
   assumes a single writing process, which is what `d2w fhir serve` is.
+- **No batch and no transaction.** `POST /` is where FHIR posts a Bundle of
+  interactions; this facade takes one QuestionnaireResponse per request and
+  answers a 405 there saying so.
+- **One format.** Every FHIR route answers `application/fhir+json`. A request
+  whose `Accept` rules JSON out is answered 406 rather than sent a body it said
+  it could not read.
 - **The store is a snapshot.** Restart to serve regenerated state.
 - **The server never writes to DHIS2.** A capture is a receipt and nothing
   more. Writing to the instance is [`d2w fhir forward`](201-forward.md).

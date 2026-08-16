@@ -23,9 +23,14 @@ liveness probes lean on that - a monitor asking `HEAD /metadata` is asking wheth
 up, and a 405 there reads as down. FastAPI registers only the methods a decorator names, so the
 parity is applied here in one sweep over each router as it is mounted rather than repeated (and
 one day forgotten) on every route. The UI mounts need no sweep: `StaticFiles` answers HEAD itself.
+
+Which routers are FHIR is decided here too, once, by the list a router is mounted from. The FHIR
+routers carry the `Accept` negotiation as a mount-time dependency - a client that takes no JSON is
+refused before any of them runs - and the three that answer plain JSON about this facade rather
+than FHIR resources out of it do not. See `dhis2w_fhir_serve.routes.negotiation`.
 """
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, Depends, FastAPI
 from fastapi.routing import APIRoute
 
 __all__ = ["register_routes"]
@@ -42,7 +47,9 @@ def register_routes(app: FastAPI, serve_ui: bool = False) -> None:
     from dhis2w_fhir_serve.routes.capture import router as capture_router
     from dhis2w_fhir_serve.routes.enrollments import router as enrollments_router
     from dhis2w_fhir_serve.routes.generate import router as generate_router
+    from dhis2w_fhir_serve.routes.negotiation import require_json_is_acceptable
     from dhis2w_fhir_serve.routes.read import router as read_router
+    from dhis2w_fhir_serve.routes.root import build_root_router
     from dhis2w_fhir_serve.routes.spool import router as spool_router
     from dhis2w_fhir_serve.routes.translate import router as translate_router
     from dhis2w_fhir_serve.routes.uiconfig import router as ui_config_router
@@ -50,18 +57,23 @@ def register_routes(app: FastAPI, serve_ui: bool = False) -> None:
 
     if serve_ui:
         mount_ui_assets(app)
-    for router in (
+    fhir_routers: tuple[APIRouter, ...] = (
         metadata_router,
         capture_router,
-        spool_router,
-        ui_config_router,
-        enrollments_router,
+        build_root_router(serve_ui),
         translate_router,
         generate_router,
-        read_router,
-    ):
+    )
+    facade_routers: tuple[APIRouter, ...] = (spool_router, ui_config_router, enrollments_router)
+    for router in (*fhir_routers, *facade_routers, read_router):
         _accept_head_wherever_get_is_served(router)
+    for router in fhir_routers:
+        app.include_router(router, dependencies=[Depends(require_json_is_acceptable)])
+    for router in facade_routers:
         app.include_router(router)
+    # The read catch-alls claim every path of their shape, so they mount after every fixed path -
+    # which is why the one FHIR router that could not join the group above is named on its own.
+    app.include_router(read_router, dependencies=[Depends(require_json_is_acceptable)])
     if serve_ui:
         mount_ui_shell(app)
 

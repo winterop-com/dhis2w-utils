@@ -156,6 +156,28 @@ class BadSearchError(ServeError):
         super().__init__(diagnostics)
 
 
+class UnsupportedSearchParameterError(ServeError):
+    """The search names a parameter this server does not answer that resource type on.
+
+    Refusing is the whole point. A parameter the facade cannot apply, ignored, is answered with
+    everything the endpoint holds - and a client that asked for the people called Smith reads that
+    result set as the people called Smith. A 400 naming the parameter that is answered is the one
+    reply that cannot be misread.
+    """
+
+    status_code = 400
+    issue_code = "invalid"
+
+    def __init__(self, resource_type: str, parameter: str, supported_parameter: str) -> None:
+        super().__init__(
+            f"`{parameter}` is not a search parameter this server answers `{resource_type}` on: "
+            f"`{supported_parameter}` is the one it supports"
+        )
+        self.resource_type = resource_type
+        self.parameter = parameter
+        self.supported_parameter = supported_parameter
+
+
 class BadOperationError(ServeError):
     """The parameters an operation was invoked with cannot be read as what the operation declares."""
 
@@ -164,6 +186,17 @@ class BadOperationError(ServeError):
 
     def __init__(self, diagnostics: str) -> None:
         super().__init__(diagnostics)
+
+
+class NotAnEndpointError(ServeError):
+    """Nothing is served at that path, whatever method it was asked for."""
+
+    status_code = 404
+    issue_code = "not-found"
+
+    def __init__(self, path: str) -> None:
+        super().__init__(f"`{path}` is not an endpoint this server serves")
+        self.path = path
 
 
 class MethodNotAllowedError(ServeError):
@@ -176,6 +209,39 @@ class MethodNotAllowedError(ServeError):
         super().__init__(f"`{method}` is not supported on `{path}`")
         self.method = method
         self.path = path
+
+
+class BatchNotSupportedError(ServeError):
+    """The service base was posted to, which in FHIR is a batch or a transaction this facade does not run.
+
+    `POST [base]` is the one interaction the root path has, so the refusal names it rather than
+    stating a bare method mismatch: a client sending a Bundle there is asking for batch processing,
+    and this facade takes one QuestionnaireResponse per request instead.
+    """
+
+    status_code = 405
+    issue_code = "not-supported"
+
+    def __init__(self, method: str) -> None:
+        super().__init__(
+            f"`{method} /` is not served here: this server runs no batch and no transaction. Post one "
+            "QuestionnaireResponse per request to `/QuestionnaireResponse`."
+        )
+        self.method = method
+
+
+class NotAcceptableError(ServeError):
+    """The request accepts no format this server answers in."""
+
+    status_code = 406
+    issue_code = "not-supported"
+
+    def __init__(self, accept: str) -> None:
+        super().__init__(
+            f"`{accept}` accepts no JSON, and this server answers `{FHIR_JSON_MEDIA_TYPE}` only; "
+            "ask for that, for `application/json`, or for `*/*`"
+        )
+        self.accept = accept
 
 
 class UnsupportedMediaTypeError(ServeError):
@@ -245,7 +311,8 @@ async def _handle_http_exception(request: Request, exception: Exception) -> Resp
         error = MethodNotAllowedError(request.method, request.url.path)
         return outcome(error.status_code, "error", error.issue_code, error.diagnostics)
     if status_code == 404:
-        return outcome(404, "error", "not-found", f"`{request.url.path}` is not an endpoint this server serves")
+        missing = NotAnEndpointError(request.url.path)
+        return outcome(missing.status_code, "error", missing.issue_code, missing.diagnostics)
     detail = exception.detail if isinstance(exception, StarletteHTTPException) else "request failed"
     return outcome(status_code, "error", "processing", str(detail))
 

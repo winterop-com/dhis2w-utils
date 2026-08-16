@@ -281,6 +281,95 @@ async def test_two_people_holding_the_value_both_come_back(live_client: httpx.As
     assert [entry["resource"]["id"] for entry in body["entry"]] == [_PERSON_UID, _OTHER_PERSON_UID]
 
 
+async def test_a_search_parameter_this_server_cannot_answer_is_refused(live_client: httpx.AsyncClient) -> None:
+    """`family=Smith` is a query the register cannot run, so it is refused rather than answered with everybody."""
+    read = _read_route(None, "NOBODY00001")
+    search = _search_route()
+
+    response = await live_client.get("/Patient?family=Smith")
+
+    assert response.status_code == 400
+    assert response.headers["content-type"] == "application/fhir+json"
+    issue = response.json()["issue"][0]
+    assert issue["code"] == "invalid"
+    assert issue["diagnostics"] == (
+        "`family` is not a search parameter this server answers `Patient` on: `identifier` is the one it supports"
+    )
+    assert not read.called
+    assert not search.called
+
+
+async def test_an_unanswerable_parameter_beside_an_identifier_is_refused_too(
+    live_client: httpx.AsyncClient,
+) -> None:
+    """A refused parameter is refused whatever it was sent with - a partly-run query is not an answer."""
+    _read_route(None, _NATIONAL_ID)
+    _search_route(_entity())
+
+    response = await live_client.get(f"/Patient?identifier={_NATIONAL_ID}&birthdate=1994-03-02")
+
+    assert response.status_code == 400
+    assert "`birthdate`" in response.json()["issue"][0]["diagnostics"]
+
+
+async def test_a_page_named_on_an_identifier_search_is_refused(live_client: httpx.AsyncClient) -> None:
+    """`page` walks the listing; a search naming an identifier is answered whole, so the two do not combine."""
+    _read_route(None, _NATIONAL_ID)
+    _search_route(_entity())
+
+    response = await live_client.get(f"/Patient?identifier={_NATIONAL_ID}&page=dDBwMg")
+
+    assert response.status_code == 400
+    assert response.json()["issue"][0]["diagnostics"] == (
+        "`page` names a page of the `Patient` listing, and a search naming `identifier` is answered whole"
+    )
+
+
+async def test_the_identifier_search_carries_no_more_than_the_count_asked_for(
+    live_client: httpx.AsyncClient,
+) -> None:
+    """`_count` caps the matches a client is handed, and `total` still states how many there were."""
+    _read_route(None, _NATIONAL_ID)
+    _search_route(_entity(), _entity(_OTHER_PERSON_UID))
+
+    response = await live_client.get(f"/Patient?identifier={_NATIONAL_ID}&_count=1")
+    body = response.json()
+
+    assert body["total"] == 2
+    assert [entry["resource"]["id"] for entry in body["entry"]] == [_PERSON_UID]
+    assert body["link"][0]["relation"] == "self"
+    assert body["link"][0]["url"] == f"{_BASE_URL}/Patient?identifier={_NATIONAL_ID}&_count=1"
+    assert [link["relation"] for link in body["link"]] == ["self"]
+
+
+async def test_a_count_of_zero_on_an_identifier_search_answers_the_total_alone(
+    live_client: httpx.AsyncClient,
+) -> None:
+    """R4's way of asking how many matched: the number, and none of the matches."""
+    _read_route(None, _NATIONAL_ID)
+    _search_route(_entity(), _entity(_OTHER_PERSON_UID))
+
+    body = (await live_client.get(f"/Patient?identifier={_NATIONAL_ID}&_count=0")).json()
+
+    assert body["total"] == 2
+    assert "entry" not in body
+    assert body["link"][0]["url"] == f"{_BASE_URL}/Patient?identifier={_NATIONAL_ID}&_count=0"
+
+
+async def test_a_count_that_is_not_a_number_of_matches_is_refused(live_client: httpx.AsyncClient) -> None:
+    """An unreadable cap is a malformed query, and a negative one is not a number of rows."""
+    _read_route(None, _NATIONAL_ID)
+    _search_route(_entity())
+
+    words = await live_client.get(f"/Patient?identifier={_NATIONAL_ID}&_count=lots")
+    negative = await live_client.get(f"/Patient?identifier={_NATIONAL_ID}&_count=-1")
+
+    assert words.status_code == 400
+    assert words.json()["issue"][0]["code"] == "invalid"
+    assert negative.status_code == 400
+    assert negative.json()["issue"][0]["code"] == "invalid"
+
+
 async def test_an_identifier_nobody_holds_is_an_empty_searchset(live_client: httpx.AsyncClient) -> None:
     """An unmatched search is an empty Bundle, never a 404 - a 404 would deny the endpoint exists."""
     _read_route(None, "NOBODY00001")

@@ -45,6 +45,40 @@ Each operation is declared on the resource entry whose URL answers it -
 the store holds that type. So a client that follows the statement reaches an
 endpoint that answers, and `/metadata` never advertises what the store cannot do.
 
+## `Accept` and the service base
+
+**Every FHIR interaction answers `application/fhir+json`, and nothing else.**
+`/metadata` states that too - `format` names `json` alone - so a request that
+rules JSON out is told, rather than handed a body it has declared it cannot
+read:
+
+```console
+$ curl -s -H 'Accept: application/fhir+xml' localhost:8389/Questionnaire/BfMAe6Itzgt
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`application/fhir+xml` accepts no JSON, and this server answers `application/fhir+json` only; ask for that, for `application/json`, or for `*/*`"}]}
+```
+
+The test is one question, deliberately: does any media range in the header admit
+JSON? `*/*`, `application/*`, `application/json`, `application/fhir+json`, and
+every other `application/…+json` do, so an absent header, a browser's header,
+and a `curl` with no flags are all answered exactly as before. Only a client
+that named formats and named no JSON among them meets the 406. The two non-FHIR
+endpoints below, `/spool` and `/uiconfig`, negotiate nothing: they answer plain
+`application/json` about this facade rather than resources out of it.
+
+**`POST /` is where FHIR posts a batch or a transaction, and this server runs
+neither.** It says so, rather than answering the 404 an unrouted path would
+give - the address was right and the interaction was not:
+
+```console
+$ curl -s -X POST localhost:8389/ -H 'Content-Type: application/fhir+json' \
+    -d '{"resourceType":"Bundle","type":"batch"}'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`POST /` is not served here: this server runs no batch and no transaction. Post one QuestionnaireResponse per request to `/QuestionnaireResponse`."}]}
+```
+
+`PUT`, `PATCH`, and `DELETE` on the base answer the same way, each naming the
+method it refuses. `GET /` is the capture UI's under `--ui`
+([Capture in the browser](201-capture-ui.md)) and served by nothing otherwise.
+
 ## Reads and searches
 
 Seven definitional types are served - `Questionnaire`, `CodeSystem`,
@@ -85,9 +119,9 @@ $ curl -s 'localhost:8389/Questionnaire?_id=BfMAe6Itzgt,TuL8IOPzpHh' | jq .total
 2
 ```
 
-**An unrecognised parameter is ignored rather than refused, and the Bundle's
-`self` link echoes back only the parameters the server actually applied**, so a
-client can see what it got rather than assume:
+**On the store's own types an unrecognised parameter is ignored rather than
+refused, and the Bundle's `self` link echoes back only the parameters the server
+actually applied**, so a client can see what it got rather than assume:
 
 ```console
 $ curl -s 'localhost:8389/Questionnaire?_id=BfMAe6Itzgt,TuL8IOPzpHh&bogus=1' \
@@ -95,9 +129,42 @@ $ curl -s 'localhost:8389/Questionnaire?_id=BfMAe6Itzgt,TuL8IOPzpHh&bogus=1' \
 http://localhost:8389/Questionnaire?_id=BfMAe6Itzgt%2CTuL8IOPzpHh
 ```
 
+The register is the exception, and refuses instead
+([the register search](#the-register-search-identifier)): what it would
+otherwise answer an unapplied filter with is the whole register, which reads as
+a match set rather than as a query nobody ran.
+
 `total` is always stated on these searches, `0` included, and `entry` is absent
-rather than empty when nothing matched. There are no paging links: the store is
-what one project published, and a definitional search answers it whole.
+rather than empty when nothing matched.
+
+**`_count` caps a definitional search; it does not page one.** The store is what
+one project published, so a search answers it whole unless the client asks for
+less: `total` states every match, `entry` carries the first `_count` of them,
+and there is no `next` link to follow - there is no walk to continue, only a
+result the client chose to see less of. The `self` link names the cap beside the
+parameters that selected the matches:
+
+```console
+$ curl -s 'localhost:8389/Questionnaire?_id=BfMAe6Itzgt,TuL8IOPzpHh&_count=1' \
+    | jq '.total, (.entry | length), .link[0].url'
+2
+1
+"http://localhost:8389/Questionnaire?_id=BfMAe6Itzgt%2CTuL8IOPzpHh&_count=1"
+```
+
+`_count=0` is R4's request for the total alone: the Bundle states how many
+matched and carries no `entry` at all. A `_count` that is not a whole number, or
+is negative, is a 400 saying which. Every searchset this facade answers reads
+`_count` on those terms - the definitional types, the register's identifier
+search, and the register listing alike.
+
+`GET /QuestionnaireResponse` is the one search here that also **pages**, because
+a spool grows with every capture while the published artifacts do not. It takes
+`_count` (50 by default, 500 at most) and the same opaque `page` token the
+register listing uses, `total` is the whole searchset on every page of a walk,
+and a client's whole job is to follow the `next` link
+([the listing](#the-listing-what-the-instance-holds-a-page-at-a-time) describes
+that token in full).
 
 An `identifier` token takes either form. `system|value` matches only under that
 system; a bare `value` matches under any. A token naming a system but no value
@@ -219,6 +286,24 @@ there, two parameters narrow each other; here, every token and every
 comma-separated value is another key to try, and their matches are unioned. A
 client holding two cards for one person asks once.
 
+**A parameter other than `identifier` is refused, not ignored.** This is the
+second place the register parts company with the searches above, and for the
+same reason the union semantics exist: an unapplied filter here would be
+answered with the register itself, and a client that asked for the people called
+Smith would read every row of that answer as a Smith. So the server says what it
+answers on:
+
+```console
+$ curl -s 'localhost:8391/Patient?family=Smith'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`family` is not a search parameter this server answers `Patient` on: `identifier` is the one it supports"}]}
+```
+
+`_count` is honoured beside `identifier` and caps the matches handed back, on
+the same terms as every other searchset here - `total` states how many there
+were, and `_count=0` states that number alone. `page` belongs to the listing
+below and is refused on an identifier search, which is answered whole rather
+than paged. A request naming no parameter at all is the listing, unchanged.
+
 An identifier nobody holds, and a system this guide publishes nothing for, are
 both an empty searchset - never a 404, which on a search path would say the
 endpoint does not exist:
@@ -293,11 +378,22 @@ page_size_limit`, **100** by default, is answered with `page_size_limit` of them
 and a `next` link, rather than refused - a client that asked for too much should
 be handed a smaller page, not an error
 ([Configure serving](301-serving.md#tracked_entities)). A `_count` that is not a
-number, or is below 1, is a 400 saying which.
+whole number, or is negative, is a 400 saying which.
 
 ```console
 $ curl -s 'localhost:8391/Patient?_count=5' | jq '.entry | length'
 5
+```
+
+`_count=0` asks how large the register is and is answered with that and nobody -
+the total, no `entry`, and no page to follow. It costs one count of each tracked
+entity type in scope and never builds a page at all:
+
+```console
+$ curl -s 'localhost:8391/Patient?_count=0' | jq '.total, (.entry | length), (.link | length)'
+137
+0
+1
 ```
 
 **`page` is an opaque token. Follow the links; never construct one.** The
