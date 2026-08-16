@@ -40,40 +40,21 @@ theme:
     - content.code.copy
 
 nav:
-  # The three surfaces (Client / CLI / MCP) get their own tab, and so do the
-  # FHIR series and the query language; "Get started" carries the landing
-  # page, walkthroughs, guides, examples index, and maintainer-facing pages
-  # (release, testing, troubleshooting, decisions, lessons, roadmap);
-  # Architecture carries the cross-cutting and per-plugin design docs.
+  # One tab per feature surface - Client, CLI, MCP, FHIR, Query language -
+  # and each one is a self-contained directory under docs/ holding its own
+  # guides, reference, and design. "Get started" is onboarding only;
+  # "Architecture" is what the surfaces share; "Project" carries the
+  # catalog, the roadmap, and everything maintainer-facing.
   - Get started:
       - Home: index.md
       - Why dhis2w?: announcement.md
       - Install + local setup: local-setup.md
       - Connect to DHIS2: guides/connecting-to-dhis2.md
       - Walkthrough: walkthrough.md
-      - More guides:
+      - How-to:
           - Visualizations: guides/visualizations.md
           - Playwright PAT helper: pat-helper.md
-          - Manual testing: manual-testing.md
       - Examples index: examples.md
-      - Maintainers:
-          - Codegen: codegen.md
-          - Releasing to PyPI: releasing.md
-          - Testing strategy: testing.md
-          - Troubleshooting: troubleshooting.md
-          - Decisions log: decisions.md
-          - Lessons learned: lessons.md
-          - AI agent testing:
-              - Overview: ai-agent-testing.md
-              - Benchmark plan (1.0): notes/benchmark-plan.md
-              - Benchmark results (latest): notes/benchmark-results.md
-              - Model benchmarks:
-                  - General capability (axis 1): notes/general-benchmark.md
-                  - Bridge read + write (axis 2): notes/model-benchmark.md
-              - Bridge design + verification:
-                  - Design log + rounds: notes/small-model-bridge.md
-                  - Command x model matrix: notes/cli-matrix.md
-                  - Bridge verification: notes/bridge-verification.md
   - Architecture:
       - Overview: architecture/overview.md
       - Core:
@@ -105,10 +86,10 @@ nav:
           - Route plugin: architecture/route-plugin.md
           - Security plugin: architecture/security-plugin.md
           - Doctor plugin: architecture/doctor-plugin.md
-          - FHIR plugin: architecture/fhir-plugin.md
+          - FHIR plugin: fhir/architecture.md
   - Client:
       - Introduction: client/index.md
-      - Tutorial: guides/client-tutorial.md
+      - Tutorial: client/tutorial.md
       - Architecture: architecture/client.md
       - Reference overview: api/index.md
       - Core:
@@ -166,7 +147,7 @@ nav:
           - UIDs: api/uids.md
   - CLI:
       - Introduction: cli/index.md
-      - Tutorial: guides/cli-tutorial.md
+      - Tutorial: cli/tutorial.md
       - Architecture: architecture/cli.md
       - Reference: cli-reference.md
   - MCP:
@@ -182,44 +163,52 @@ nav:
       - Router:
           - Design: architecture/mcp-router.md
   - FHIR:
-      - Overview: guides/fhir/index.md
+      - Overview: fhir/index.md
       - 101 - Understand:
-          - Glossary: guides/fhir/glossary.md
-          - What and why: guides/fhir/101-what-and-why.md
-          - FHIR for DHIS2 people: guides/fhir/101-fhir-concepts.md
-          - Quickstart: guides/fhir/101-quickstart.md
+          - Glossary: fhir/glossary.md
+          - What and why: fhir/101-what-and-why.md
+          - FHIR for DHIS2 people: fhir/101-fhir-concepts.md
+          - Quickstart: fhir/101-quickstart.md
       - 201 - Operate a project:
-          - Check an instance with doctor: guides/fhir/201-doctor.md
-          - Set up a project: guides/fhir/201-set-up-a-project.md
-          - Validate an instance: guides/fhir/201-validate.md
-          - Generate the IG source: guides/fhir/201-generate.md
-          - Build and publish the guide: guides/fhir/201-build-and-publish.md
-          - Serve the guide: guides/fhir/201-serve.md
-          - Capture in the browser: guides/fhir/201-capture-ui.md
-          - Forward captures into DHIS2: guides/fhir/201-forward.md
-          - Troubleshooting: guides/fhir/201-troubleshooting.md
+          - Check an instance with doctor: fhir/201-doctor.md
+          - Set up a project: fhir/201-set-up-a-project.md
+          - Validate an instance: fhir/201-validate.md
+          - Generate the IG source: fhir/201-generate.md
+          - Build and publish the guide: fhir/201-build-and-publish.md
+          - Serve the guide: fhir/201-serve.md
+          - Capture in the browser: fhir/201-capture-ui.md
+          - Forward captures into DHIS2: fhir/201-forward.md
+          - Troubleshooting: fhir/201-troubleshooting.md
       - 301 - Configure fhir.toml:
-          - The settings file: guides/fhir/301-fhir-toml.md
-          - Identity - profile and ig: guides/fhir/301-identity.md
-          - What goes in - selection: guides/fhir/301-what-goes-in.md
-          - How things are generated: guides/fhir/301-generation.md
-          - Serving: guides/fhir/301-serving.md
+          - The settings file: fhir/301-fhir-toml.md
+          - Identity - profile and ig: fhir/301-identity.md
+          - What goes in - selection: fhir/301-what-goes-in.md
+          - How things are generated: fhir/301-generation.md
+          - Serving: fhir/301-serving.md
       - 401 - Integrate and extend:
-          - The capture contract: guides/fhir/401-capture-contract.md
-          - Consume the FHIR API: guides/fhir/401-consume-the-fhir-api.md
-          - Identifiers and extensions: guides/fhir/401-identifiers-and-extensions.md
-          - Terminology and ConceptMaps: guides/fhir/401-terminology-and-conceptmaps.md
-          - Custom subject types: guides/fhir/401-custom-subject-types.md
-          - Regeneration and hand-authoring: guides/fhir/401-regeneration-and-hand-authoring.md
+          - The capture contract: fhir/401-capture-contract.md
+          - Consume the FHIR API: fhir/401-consume-the-fhir-api.md
+          - Identifiers and extensions: fhir/401-identifiers-and-extensions.md
+          - Terminology and ConceptMaps: fhir/401-terminology-and-conceptmaps.md
+          - Custom subject types: fhir/401-custom-subject-types.md
+          - Regeneration and hand-authoring: fhir/401-regeneration-and-hand-authoring.md
       - Reference:
-          - CLI reference: cli-reference.md
-          - dhis2w_fhir API: api/fhir.md
-          - dhis2w_fhir_serve API: api/fhir-serve.md
+          - Runnable examples: examples.md
+          - dhis2w_fhir API: fhir/api-dhis2w-fhir.md
+          - dhis2w_fhir_serve API: fhir/api-dhis2w-fhir-serve.md
+      - Design:
+          - Architecture: fhir/architecture.md
+          - Roadmap + review guide: fhir/design/roadmap.md
+          - The conversion layer: fhir/design/conversion.md
+          - Corrections and withdrawals: fhir/design/data-lifecycle.md
+          - DHIS2 fidelity audit: fhir/design/dhis2-fidelity.md
+          - The enrollment resource: fhir/design/enrollment-resource.md
+          - Harmonization: fhir/design/harmonization.md
   - Query language:
       - Introduction: query/index.md
-      - d2ql tutorial: guides/d2ql-tutorial.md
-      - d2ql reference: guides/d2ql.md
-      - d2path: guides/d2path.md
+      - d2ql tutorial: query/d2ql-tutorial.md
+      - d2ql reference: query/d2ql.md
+      - d2path: query/d2path.md
       - d2path examples: query/d2path-examples.md
       - Language semantics: query/semantics.md
       - Cookbook: query/cookbook.md
@@ -227,14 +216,27 @@ nav:
   - Project:
       - Overview: project/index.md
       - Feature catalog: project/features.md
-      - Upstream DHIS2 quirks: project/upstream-quirks.md
       - Roadmap: roadmap.md
-      - FHIR roadmap + review guide: project/fhir-roadmap.md
-      - FHIR conversion layer: project/fhir-conversion.md
-      - FHIR enrollment resource: project/fhir-enrollment-resource.md
-      - Corrections and withdrawals: project/fhir-data-lifecycle.md
-      - DHIS2 fidelity audit: project/fhir-dhis2-fidelity.md
-      - FHIR harmonization: project/fhir-harmonization.md
+      - Upstream DHIS2 quirks: project/upstream-quirks.md
+      - Decisions log: decisions.md
+      - Lessons learned: lessons.md
+      - Maintaining:
+          - Codegen: codegen.md
+          - Releasing to PyPI: releasing.md
+          - Testing strategy: testing.md
+          - Manual testing: manual-testing.md
+          - Troubleshooting: troubleshooting.md
+      - AI agent testing:
+          - Overview: ai-agent-testing.md
+          - Benchmark plan (1.0): notes/benchmark-plan.md
+          - Benchmark results (latest): notes/benchmark-results.md
+          - Model benchmarks:
+              - General capability (axis 1): notes/general-benchmark.md
+              - Bridge read + write (axis 2): notes/model-benchmark.md
+          - Bridge design + verification:
+              - Design log + rounds: notes/small-model-bridge.md
+              - Command x model matrix: notes/cli-matrix.md
+              - Bridge verification: notes/bridge-verification.md
 
 markdown_extensions:
   - admonition

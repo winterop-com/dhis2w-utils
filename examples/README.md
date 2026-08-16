@@ -37,7 +37,7 @@ integrating against a guide.
 major from `/api/system/info` - so this group is one copy that runs against v41, v42, and v43 alike.
 
 Serving needs the extra: `pip install 'dhis2w-cli[serve]'` or `uv add dhis2w-fhir-serve`.
-The [`d2w fhir` guide series](../docs/guides/fhir/index.md) is the narrative these scripts sit under.
+The [`d2w fhir` guide series](../docs/fhir/index.md) is the narrative these scripts sit under.
 
 ## The three surfaces
 

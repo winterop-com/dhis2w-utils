@@ -20,7 +20,7 @@ It is two languages working together:
   feeding **stages** (`where`, `select`, `transform`, `order`, `limit`, `count`, `group by`, `fold`)
   and optionally a **sink** (`>>`). `define` / `define function` make a `.d2ql` file a reusable
   library.
-- **[d2path](../guides/d2path.md)** — the small expression language used inside every stage:
+- **[d2path](d2path.md)** — the small expression language used inside every stage:
   path navigation, operators, and functions (`categoryCombo.name`, `name.upper()`, `value > 100`).
 
 ## Why
@@ -54,9 +54,9 @@ d2w query explain -f examples/d2ql/metadata-anc-elements.d2ql
 
 | If you want to… | Go to |
 |------------------|-------|
-| Learn by doing, step by step | [d2ql tutorial](../guides/d2ql-tutorial.md) |
-| Look up a stage, source, or sink | [d2ql reference](../guides/d2ql.md) |
-| Look up an operator or function | [d2path](../guides/d2path.md) |
+| Learn by doing, step by step | [d2ql tutorial](d2ql-tutorial.md) |
+| Look up a stage, source, or sink | [d2ql reference](d2ql.md) |
+| Look up an operator or function | [d2path](d2path.md) |
 | Copy a working recipe (FHIR, GeoJSON, reports) | [Cookbook](cookbook.md) |
 | Use it from Python | [`dhis2w_ql` API](../api/query.md) |
 

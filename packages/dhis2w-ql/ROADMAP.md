@@ -63,6 +63,6 @@ predicates over `dataValues` stay local.
   results table / JSON / explain view, and a d2path tester. The samples catalog is the single
   source the gallery reads.
 - **Tests, docs, examples.** The example files (`examples/{cli,mcp,client}/`), the
-  `docs/guides/d2ql.md` and `docs/guides/d2path.md` guides, `docs/api/query.md`, and the pytest
+  `docs/query/d2ql.md` and `docs/query/d2path.md` guides, `docs/api/query.md`, and the pytest
   suites (engine unit tests, a parse-conformance test over `SAMPLES` + `generate()`, and
   respx-mocked plugin integration tests).

@@ -1,6 +1,6 @@
 # `dhis2w-client`: step-by-step guide
 
-> **Learning path · step 4 of 8** — Python library tutorial. Prev: [CLI tutorial](cli-tutorial.md). Next: [Examples index](../examples.md). For the typed API surface see [API reference](../api/index.md); for the underlying design see [Client architecture](../architecture/client.md).
+> **Learning path · step 4 of 8** — Python library tutorial. Prev: [CLI tutorial](../cli/tutorial.md). Next: [Examples index](../examples.md). For the typed API surface see [API reference](../api/index.md); for the underlying design see [Client architecture](../architecture/client.md).
 
 End-to-end tutorial for the `dhis2w-client` Python library. Most blocks are runnable scripts you can paste into a file, set your env, and run; a handful — clearly marked — are fragments that show one specific pattern (the OAuth2 direct-client section toward the end is the main one). When in doubt, the matching script under `examples/client/` (linked from each section) is the runnable form.
 
@@ -823,7 +823,7 @@ These are tracked as future-iteration items on `docs/roadmap.md`; the workaround
 
 ## Where next?
 
-- [Connecting to DHIS2](connecting-to-dhis2.md) — end-to-end setup for PAT / OAuth2 including registering an OAuth2 client
+- [Connecting to DHIS2](../guides/connecting-to-dhis2.md) — end-to-end setup for PAT / OAuth2 including registering an OAuth2 client
 - [Architecture: Pluggable auth](../architecture/auth.md) — how `AuthProvider` works under the hood
 - [Architecture: Profiles](../architecture/profiles.md) — file format, scope rules, precedence order
 - [Architecture: Typed schemas](../architecture/typed-schemas.md) — full model + enum inventory

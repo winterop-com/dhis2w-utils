@@ -173,7 +173,7 @@ surface answered empty (`/api/audits/dataValue` `total:0` system-wide, event and
 tracked-entity `changeLogs` `[]`), because this stack disables auditing in `infra/home/dhis.conf`
 for the reason #3 and #53 describe; and `/api/tracker/enrollments/{uid}/changeLogs` is a
 `404` on `2.43.1` — not a resource at all. The design consequences are in
-`docs/project/fhir-data-lifecycle.md`.
+`docs/fhir/design/data-lifecycle.md`.
 
 ### 2026-06-09 — full sweep (dev read-only + real-release write/data, v41/v42/v43)
 
@@ -4538,7 +4538,7 @@ make an accidental re-send fail loudly, which is exactly what the FHIR forwarder
 for tracker events, gets a silent last-write-wins on the aggregate side, with no way to
 learn from the response that anything was clobbered (compounded by #85).
 
-**Workaround in this repo:** none in code. `docs/project/fhir-data-lifecycle.md` records
+**Workaround in this repo:** none in code. `docs/fhir/design/data-lifecycle.md` records
 this as the reason the FHIR forwarder's aggregate leg cannot detect an overwrite, and
 designs the overwrite report off our own spool instead.
 
@@ -4584,7 +4584,7 @@ caller reconciling counts - a forwarder, a migration, a nightly sync - has to re
 back before writing to learn what it is about to do. Combined with #84 there is no
 wire-level defence against a silent clobber at all.
 
-**Workaround in this repo:** none in code. `docs/project/fhir-data-lifecycle.md` records
+**Workaround in this repo:** none in code. `docs/fhir/design/data-lifecycle.md` records
 that the spool, not the import summary, is where an aggregate overwrite has to be detected.
 
 **How to know it's fixed:** the post above returns `"imported":1,"updated":0`.
@@ -4634,7 +4634,7 @@ consequences in #2 and #87.
 entry needs a per-version table, because the same correcting payload would erase on one
 major and be refused on another.
 
-**Workaround in this repo:** none in code. `docs/project/fhir-data-lifecycle.md` requires a
+**Workaround in this repo:** none in code. `docs/fhir/design/data-lifecycle.md` requires a
 correcting payload to carry complete state on both surfaces, so a cleared answer is always
 an explicit value rather than an omission.
 
@@ -4689,7 +4689,7 @@ that was never there, and fabricates a value in the deleted-row history that no 
 ever asserted. Deletion becomes a one-way ratchet on metadata lifecycle: a client that
 issues deletes speculatively will slowly make its own metadata unremovable.
 
-**Workaround in this repo:** none in code yet. `docs/project/fhir-data-lifecycle.md` makes
+**Workaround in this repo:** none in code yet. `docs/fhir/design/data-lifecycle.md` makes
 "read before you delete" a requirement of the aggregate withdrawal slice for exactly this
 reason, and orders that slice after the event one because of it.
 
@@ -4739,7 +4739,7 @@ from a create. Anything auditing "how many values did this run remove?" from the
 summary is reading a number structurally incapable of answering.
 
 **Workaround in this repo:** the FHIR forwarder never sends inline `deleted`; the withdrawal
-design in `docs/project/fhir-data-lifecycle.md` uses `importStrategy=DELETE` and records the
+design in `docs/fhir/design/data-lifecycle.md` uses `importStrategy=DELETE` and records the
 outcome in the receipt's own sidecar rather than trusting the counters.
 
 **How to know it's fixed:** the second post above reports `"deleted":1`.
@@ -4786,7 +4786,7 @@ also trips #67 and #91 - and filter client-side. A client that holds only the UI
 the normal case after a delete, has no direct read at all.
 
 **Workaround in this repo:** none in code yet. Recorded in
-`docs/project/fhir-data-lifecycle.md` as a constraint on how a withdrawn receipt's DHIS2
+`docs/fhir/design/data-lifecycle.md` as a constraint on how a withdrawn receipt's DHIS2
 state can be verified.
 
 **How to know it's fixed:** `GET /api/tracker/events/{uid}?includeDeleted=true` returns the
@@ -4828,7 +4828,7 @@ UID. Any workflow that answers "was this person ever registered here?" from an i
 search answers "no" for someone who was.
 
 **Workaround in this repo:** none in code. Recorded in
-`docs/project/fhir-data-lifecycle.md` alongside the cascade findings, as one reason
+`docs/fhir/design/data-lifecycle.md` alongside the cascade findings, as one reason
 tracked-entity withdrawal is designed but deliberately unscheduled.
 
 **How to know it's fixed:** the filtered search above returns the entity with

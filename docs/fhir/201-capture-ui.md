@@ -63,7 +63,7 @@ none. Build it with `make build-frontend` (an installed wheel ships it already).
 
 The root route answers one question: what is the state of capture right now.
 
-![The Overview: the spool pulse, the quick-entry cards, and the server strip](../../img/fhir/capture-ui-overview.png)
+![The Overview: the spool pulse, the quick-entry cards, and the server strip](../img/fhir/capture-ui-overview.png)
 
 **The spool pulse** is three counts off `GET /spool` - `Received`,
 `Forwarded`, `Rejected` - with `Received` set large because it is the only
@@ -109,7 +109,7 @@ assignment on a data set and on a program and never on a type, so a
 person-only form is reportable at every published organisation unit and gets
 a **People** shelf of its own in the organisation-units rail too.
 
-![The forms list: data sets, event programs, and tracker programs as sections, with question count and id per served form](../../img/fhir/capture-ui-forms.png)
+![The forms list: data sets, event programs, and tracker programs as sections, with question count and id per served form](../img/fhir/capture-ui-forms.png)
 
 Open one and you get the form itself - every question as the control its R4
 item type asks for: a switch for a yes/no, a bounded number field for a
@@ -194,7 +194,7 @@ two of them to happen before anything leaves the browser.
   it is the exact statement of what the rule does and not the first thing
   anyone reading the form needs.
 
-![An aggregate form filled with test data, with the reporting-unit picker and the attribute option combo picker above the questions](../../img/fhir/capture-ui-form-fill.png)
+![An aggregate form filled with test data, with the reporting-unit picker and the attribute option combo picker above the questions](../img/fhir/capture-ui-form-fill.png)
 
 **Fill with test data** answers the whole form from `$generate` and puts the
 answers *into the form* rather than posting them - so you can change one
@@ -371,7 +371,7 @@ link straight into a narrowed table.
 A row opens the receipt at `/responses/{id}` - a page rather than a dialog,
 so one receipt is a link you can send someone:
 
-![A receipt: lifecycle badge, capture context, and the answers joined to the questions](../../img/fhir/capture-ui-receipt.png)
+![A receipt: lifecycle badge, capture context, and the answers joined to the questions](../img/fhir/capture-ui-receipt.png)
 
 The page reads the served `Questionnaire` as well as the receipt and puts
 them side by side: the question text in the order the form asks it, with its

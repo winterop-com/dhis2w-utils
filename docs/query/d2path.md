@@ -446,6 +446,6 @@ A handful of edge rules are worth knowing before they surprise you:
 ## See also
 
 - [d2ql tutorial](d2ql-tutorial.md) and [d2ql reference](d2ql.md) — where these expressions are used.
-- [Language semantics](../query/semantics.md) — the precise operator/precedence/pushdown rules.
-- [d2path examples](../query/d2path-examples.md) — a validated per-function example gallery.
+- [Language semantics](semantics.md) — the precise operator/precedence/pushdown rules.
+- [d2path examples](d2path-examples.md) — a validated per-function example gallery.
 - [`dhis2w_ql` API](../api/query.md) — evaluate d2path from Python.

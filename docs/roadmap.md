@@ -2,7 +2,7 @@
 
 A running inventory of what the workspace covers today, gaps surfaced during use, and the near-term plan. Every item is a judgment call about priority, not a commitment.
 
-The FHIR plugin keeps its own plan: roadmap, settled and open decisions, review dimensions, and build measurements all live in the [FHIR roadmap and review guide](project/fhir-roadmap.md), and this page does not restate them.
+The FHIR plugin keeps its own plan: roadmap, settled and open decisions, review dimensions, and build measurements all live in the [FHIR roadmap and review guide](fhir/design/roadmap.md), and this page does not restate them.
 
 ## Current state
 

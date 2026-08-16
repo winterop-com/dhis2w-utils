@@ -58,7 +58,7 @@ That's the pattern every example under [`examples/client/`](https://github.com/w
 
 ## Where next
 
-- [Tutorial](../guides/client-tutorial.md) — step-by-step from "first call" through retries, streaming, and bulk imports.
+- [Tutorial](tutorial.md) — step-by-step from "first call" through retries, streaming, and bulk imports.
 - [API reference overview](../api/index.md) — every accessor + helper module on `Dhis2Client`.
 - [Architecture](../architecture/client.md) — connect, version dispatch, accessor dispatch, retries.
 - [Examples index](../examples.md) — runnable scripts grouped by topic.

@@ -1,7 +1,7 @@
 # Language semantics
 
 This page is the precise reference for how d2ql and d2path behave — the rules that the
-[tutorial](../guides/d2ql-tutorial.md) and [reference](../guides/d2ql.md) lean on. Read it when a
+[tutorial](d2ql-tutorial.md) and [reference](d2ql.md) lean on. Read it when a
 program does something you didn't expect.
 
 ## The two layers
@@ -10,7 +10,7 @@ program does something you didn't expect.
   top-level `define`s.
 - **d2path** is the expression layer used *inside* stages (`where`, `select`, `transform`, `order`,
   `group by`, `fold`). Every value in d2path is a collection (a list); see
-  [d2path → Collection semantics](../guides/d2path.md#collection-semantics).
+  [d2path → Collection semantics](d2path.md#collection-semantics).
 
 The `|` character only ever separates pipeline stages. Collection union is the `union()` function,
 never `|`, so the two layers never collide on it.
@@ -127,14 +127,14 @@ Notes:
 ### String matching
 
 `like` / `~` is **case-insensitive substring** matching — *not* SQL `LIKE` (no `%`/`_` wildcards) and
-*not* a regular expression. For full regex use the [`matches(regex)`](../guides/d2path.md#matchesregex)
+*not* a regular expression. For full regex use the [`matches(regex)`](d2path.md#matchesregex)
 function. For prefix/suffix use `startsWith` / `endsWith`.
 
 ### `null`, missing, and presence
 
 A missing field and an explicit JSON `null` both evaluate to the empty collection, so `field = null`
 matches nothing. Test presence with `field.exists()` and absence with `field.empty()` — see
-[d2path → Presence and absence](../guides/d2path.md#presence-and-absence-there-is-no-null).
+[d2path → Presence and absence](d2path.md#presence-and-absence-there-is-no-null).
 
 ## `[]` is overloaded by position
 
@@ -177,7 +177,7 @@ Four corners are handled or called out explicitly:
   (e.g. an enum in the wrong case like `domainType = "aggregate"`) raises a `400` where local
   evaluation would simply return no rows. Use the exact value DHIS2 expects.
 - **Date / datetime comparisons:** date and datetime **literals** are first-class — `@2026-06-23`
-  and `@2026-06-23T12:00:00` (see [d2path → Date and datetime literals](../guides/d2path.md#date-and-datetime-literals)).
+  and `@2026-06-23T12:00:00` (see [d2path → Date and datetime literals](d2path.md#date-and-datetime-literals)).
   A literal evaluates to its ISO-8601 string and compares lexicographically, which is correct
   chronological order for ISO values. When a date `where` is pushed, DHIS2's own date semantics apply
   (correct). The local fallback is a string compare, so it lines up only when the field is *also* a
@@ -199,5 +199,5 @@ the implementation cannot drift apart silently.
 
 ## See also
 
-- [d2ql tutorial](../guides/d2ql-tutorial.md) · [d2ql reference](../guides/d2ql.md) ·
-  [d2path](../guides/d2path.md) · [Cookbook](cookbook.md)
+- [d2ql tutorial](d2ql-tutorial.md) · [d2ql reference](d2ql.md) ·
+  [d2path](d2path.md) · [Cookbook](cookbook.md)

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test, type APIRequestContext } from '@playwright/test'
 
 /**
- * The screenshot producer for `docs/guides/fhir/201-capture-ui.md` - NOT a test.
+ * The screenshot producer for `docs/fhir/201-capture-ui.md` - NOT a test.
  *
  * SKIPPED BY DEFAULT. This file asserts nothing the other specs do not already
  * prove; its whole output is four PNGs under `docs/img/fhir/`, and CI has no

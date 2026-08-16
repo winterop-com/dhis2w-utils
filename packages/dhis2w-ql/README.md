@@ -101,9 +101,9 @@ operator) to keep the two unambiguous.
 
 ## Documentation
 
-- [d2ql tutorial](https://winterop-com.github.io/dhis2w-utils/guides/d2ql-tutorial/) and
-  [reference](https://winterop-com.github.io/dhis2w-utils/guides/d2ql/)
-- [d2path reference](https://winterop-com.github.io/dhis2w-utils/guides/d2path/) and the
+- [d2ql tutorial](https://winterop-com.github.io/dhis2w-utils/query/d2ql-tutorial/) and
+  [reference](https://winterop-com.github.io/dhis2w-utils/query/d2ql/)
+- [d2path reference](https://winterop-com.github.io/dhis2w-utils/query/d2path/) and the
   [generated example catalog](https://winterop-com.github.io/dhis2w-utils/query/d2path-examples/)
   — 140 examples covering every function, each parsed and evaluated in CI against this engine
 - [Language semantics](https://winterop-com.github.io/dhis2w-utils/query/semantics/) and the

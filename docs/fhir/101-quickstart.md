@@ -22,7 +22,7 @@ differ, and long absolute paths are shortened to `/home/you/my-ig`. To run it
 against the public play server instead, use a URL from
 [play.im.dhis2.org](https://play.im.dhis2.org/) in step 3 - the instance names
 rotate, so pick a current one. To run a DHIS2 locally, see
-[the local setup page](../../local-setup.md).
+[the local setup page](../local-setup.md).
 
 If you want one command that tells you whether an instance can carry this whole
 chain before you invest in it, run [`d2w fhir doctor`](201-doctor.md) first - it

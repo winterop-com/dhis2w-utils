@@ -1990,7 +1990,7 @@ Each response goes through `dhis2w_fhir.conversion` all-or-nothing.
   toolchain does not build, and is therefore filed to `rejected/` with a
   sidecar naming the doctrine (`TERMINAL_REFUSAL_CATEGORIES`, one explicit set
   rather than a flag on a whim; see
-  [Corrections and withdrawals](fhir-data-lifecycle.md)) rather than translated
+  [Corrections and withdrawals](../fhir/design/data-lifecycle.md)) rather than translated
   again by every drain for ever. `d2w fhir requeue` is the way back for an
   operator who disagrees.
 - **Each receipt is filed the instant DHIS2 answers about it** - the sidecar
@@ -2063,7 +2063,7 @@ Each response goes through `dhis2w_fhir.conversion` all-or-nothing.
   still something to be done about it.
 - **Nothing is refused over it.** The drain reports and the operator decides;
   whether an unmarked overwrite should be refused outright is decision D8 in
-  [Corrections and withdrawals](fhir-data-lifecycle.md).
+  [Corrections and withdrawals](../fhir/design/data-lifecycle.md).
 - **The reading is built once per drain and only when the drain carries an
   aggregate payload**, so a tracker-only run reads nothing at all. It opens
   each forwarded receipt's import report once and nothing else, and it never
@@ -2079,7 +2079,7 @@ Each response goes through `dhis2w_fhir.conversion` all-or-nothing.
 
 The posture today, in one place, because "is this supported?" is the question
 this section exists to close. The full argument and the design that changes it
-are in [Corrections and withdrawals](fhir-data-lifecycle.md).
+are in [Corrections and withdrawals](../fhir/design/data-lifecycle.md).
 
 - **A second capture of an aggregate report overwrites the first in place.**
   The envelope names no `importStrategy`, so DHIS2 applies its own
@@ -2231,54 +2231,54 @@ over HTTP.
 ### Documentation
 
 The graded `d2w fhir` series lives under `docs/guides/fhir/`, routed from
-[the series index](../guides/fhir/index.md) - the "I am a..." router
+[the series index](../fhir/index.md) - the "I am a..." router
 (implementer / M&E configurer / integration developer / operator) and the full
 101/201/301/401 page map, which is also the FHIR top-level tab's Overview page.
 
 **101 - Understand**
 
-- [Glossary](../guides/fhir/glossary.md) - every DHIS2 and FHIR term the series
+- [Glossary](../fhir/glossary.md) - every DHIS2 and FHIR term the series
   uses, and what the toolchain does with it.
-- [What `d2w fhir` is and why](../guides/fhir/101-what-and-why.md) - why a
+- [What `d2w fhir` is and why](../fhir/101-what-and-why.md) - why a
   ministry publishes an IG, what each verb produces, what adopting the
   toolchain costs. No commands.
-- [FHIR for DHIS2 people](../guides/fhir/101-fhir-concepts.md) - every FHIR
+- [FHIR for DHIS2 people](../fhir/101-fhir-concepts.md) - every FHIR
   term the series uses, explained in DHIS2 terms.
-- [Quickstart: from nothing to a served IG](../guides/fhir/101-quickstart.md) -
+- [Quickstart: from nothing to a served IG](../fhir/101-quickstart.md) -
   scaffold, sync, profile, validate, generate, and compile, each command with
   captured real output.
 
 **201 - Operate a project**
 
-- [Check an instance with doctor](../guides/fhir/201-doctor.md) - the whole
+- [Check an instance with doctor](../fhir/201-doctor.md) - the whole
   chain against one instance, phase by phase.
-- [Set up an IG project](../guides/fhir/201-set-up-a-project.md) -
+- [Set up an IG project](../fhir/201-set-up-a-project.md) -
   `d2w fhir init` and its flags, the pinned `uv` toolchain, profile resolution
   order, `init --refresh` and `make update`.
-- [Validate the instance](../guides/fhir/201-validate.md) - the FHIR-safety
+- [Validate the instance](../fhir/201-validate.md) - the FHIR-safety
   check: severity as build impact, the scope column, the `--code-source` dial,
   report files, the CI exit-1 gate.
-- [Generate the IG source](../guides/fhir/201-generate.md) - the generate
+- [Generate the IG source](../fhir/201-generate.md) - the generate
   targets, directory ownership and sync, selection narrowing, notes and
   validate echoes, site pages.
-- [Build and publish the guide](../guides/fhir/201-build-and-publish.md) - the
+- [Build and publish the guide](../fhir/201-build-and-publish.md) - the
   scaffolded Makefile, the three build knobs, registry scale, the two caches,
   publishing `ig/output/`.
-- [Serve the guide](../guides/fhir/201-serve.md) - `d2w fhir serve` in both
+- [Serve the guide](../fhir/201-serve.md) - `d2w fhir serve` in both
   modes, `[serve]` in practice with the flag-beats-table-beats-default rule,
   receipts as the storage model, the strict/lenient dial across all four things
   it grades, the viewer posture, the spool on disk, and load sets.
-- [Capture in the browser](../guides/fhir/201-capture-ui.md) - the capture UI
+- [Capture in the browser](../fhir/201-capture-ui.md) - the capture UI
   page by page, with screenshots produced by a committed, skipped-by-default
   Playwright spec against the fixture suite server
   (`frontend/e2e/docs-screenshots.spec.ts`), including how to re-shoot them.
-- [Forward captures into DHIS2](../guides/fhir/201-forward.md) - the
+- [Forward captures into DHIS2](../fhir/201-forward.md) - the
   dry-run-first workflow on DHIS2's own validate-only modes, the six steps of a
   run, the three receipt states, refusal versus rejection, the drain lock,
   reading the queue with `fhir spool` and putting a refused receipt back with
   `fhir requeue`, correcting or withdrawing what was forwarded, the
   translated-payload field tables, and a worked run with the rejection rollup.
-- [Troubleshooting](../guides/fhir/201-troubleshooting.md) - every literal
+- [Troubleshooting](../fhir/201-troubleshooting.md) - every literal
   `d2w fhir` refusal plus the SUSHI / IG publisher failure modes, as symptom,
   cause, fix.
 
@@ -2288,20 +2288,20 @@ Every option gets the same per-option treatment: plain words, a concrete change
 scenario, an example, the default and leave-it-out behaviour, and the exact
 refusal text a mistake produces, captured from real misconfigured runs.
 
-- [The settings file: fhir.toml](../guides/fhir/301-fhir-toml.md) - what the
+- [The settings file: fhir.toml](../fhir/301-fhir-toml.md) - what the
   file is, how commands discover it, the `fhir.toml` / `fhir.toml.example`
   split, TOML editing rules, the unknown-key refusal and its `did you mean`
   suggestion, the two silent-unset values, and the three
   read-before-you-decide options.
-- [Who the guide is](../guides/fhir/301-identity.md) - `profile` and the
+- [Who the guide is](../fhir/301-identity.md) - `profile` and the
   `[ig]` table.
-- [How things are generated](../guides/fhir/301-generation.md) - the
+- [How things are generated](../fhir/301-generation.md) - the
   `[generate]` options, the `[generate.naming]` pieces and their shared token
   rule, and the `naming.source` re-identification warning.
-- [What goes in](../guides/fhir/301-what-goes-in.md) - the selection tables,
+- [What goes in](../fhir/301-what-goes-in.md) - the selection tables,
   `include_default`, `[generate.tracked_entity_types]`, `[generate.examples]`,
   and the organisation-unit scope with the `max_level` cost warning.
-- [Serving it](../guides/fhir/301-serving.md) - the `[serve]` options with the
+- [Serving it](../fhir/301-serving.md) - the `[serve]` options with the
   `host` exposure warning, the `capture` viewer posture, the `spool_dir`
   receipt tree and the `basemaps` outbound-call note; the
   `[serve.tracked_entities]` register block; and the `[forward]` section -
@@ -2309,25 +2309,25 @@ refusal text a mistake produces, captured from real misconfigured runs.
 
 **401 - Integrate and extend**
 
-- [The capture contract](../guides/fhir/401-capture-contract.md) - the five
+- [The capture contract](../fhir/401-capture-contract.md) - the five
   response profiles, the requirements CapabilityStatement, the logical
   tracked-entity subject, minted identifiers and what a server can honestly
   check about them, and the required-question and numeric-bound rules.
-- [Consume the FHIR API](../guides/fhir/401-consume-the-fhir-api.md) - the
+- [Consume the FHIR API](../fhir/401-consume-the-fhir-api.md) - the
   served read set and searches, `$translate` and `$generate` with real requests
   and responses, the capture POST with its validation phases, and the two
   non-FHIR endpoints `/spool` and `/uiconfig`.
-- [Identifiers and the D2 extensions](../guides/fhir/401-identifiers-and-extensions.md) -
+- [Identifiers and the D2 extensions](../fhir/401-identifiers-and-extensions.md) -
   the `D2Period` and `D2AttributeValue` extensions, the identifier families,
   NamingSystems, and the UID fall-back rules.
-- [Terminology and ConceptMaps](../guides/fhir/401-terminology-and-conceptmaps.md) -
+- [Terminology and ConceptMaps](../fhir/401-terminology-and-conceptmaps.md) -
   the option-set and category CodeSystem/ValueSet pairs, the per-object
   ConceptMaps, the two-group shape, and UID-versus-code target guidance.
-- [Custom subject types](../guides/fhir/401-custom-subject-types.md) -
+- [Custom subject types](../fhir/401-custom-subject-types.md) -
   `[generate.tracked_entity_types]` end to end: the admitted resource types,
   everything one mapping feeds, and the union rule the two tracker response
   profiles publish under.
-- [Regeneration and hand-authoring](../guides/fhir/401-regeneration-and-hand-authoring.md) -
+- [Regeneration and hand-authoring](../fhir/401-regeneration-and-hand-authoring.md) -
   the generated-header contract, the directories generation owns outright, what
   is scaffolded as yours, what to commit, and the duplicate-definition
   recovery.

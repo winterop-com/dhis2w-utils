@@ -3,7 +3,7 @@
 What FHIR resource a DHIS2 enrollment is, examined against R4 4.0.1, against what
 this project already publishes, and against what three adjacent projects did with the
 same question. This is the working paper behind roadmap decision
-[5.2](fhir-roadmap.md#52-the-tracker-shape); the decision itself stays with the owner,
+[5.2](roadmap.md#52-the-tracker-shape); the decision itself stays with the owner,
 and this page is the basis for making it.
 
 A reader who knows DHIS2 but not FHIR should be able to follow this end to end. Where a
@@ -478,16 +478,16 @@ DHIS2 events, no `EpisodeOfCare` on the capture leg, no `PlanDefinition`, no `$a
 - **Whether events become `Encounter` or `Observation`s.** That is the SDC `$extract` line,
   and it stays open under every option here.
 - **`PlanDefinition` for the program.** Recommended above to be kept open, not opened.
-- **The extraction mechanism** - decision [5.3](fhir-roadmap.md#53-the-extraction-mechanism),
+- **The extraction mechanism** - decision [5.3](roadmap.md#53-the-extraction-mechanism),
   which this page does not touch.
 
 ## See also
 
-- [FHIR roadmap and review guide](fhir-roadmap.md) - decision 5.2, which this page
+- [FHIR roadmap and review guide](roadmap.md) - decision 5.2, which this page
   narrows.
-- [DHIS2 fidelity audit](fhir-dhis2-fidelity.md) - the enrollment among every other DHIS2
+- [DHIS2 fidelity audit](dhis2-fidelity.md) - the enrollment among every other DHIS2
   concept, with a verdict.
-- [Consume the FHIR API](../guides/fhir/401-consume-the-fhir-api.md) - what a client can
+- [Consume the FHIR API](../401-consume-the-fhir-api.md) - what a client can
   read about an enrollment today.
-- [Glossary](../guides/fhir/glossary.md) - enrollment, the register, and the extensions
+- [Glossary](../glossary.md) - enrollment, the register, and the extensions
   that carry them.

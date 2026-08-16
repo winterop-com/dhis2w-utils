@@ -442,7 +442,7 @@ ValueSet, and data sets, event programs, and tracker program stages on their
 Questionnaire. Concept-level attribute values - those on individual data
 elements and options - are not emitted: a `CodeSystem.concept` has no carrier
 chosen for them yet, and that choice is its own decision, sized in
-[fhir roadmap section 9.2](../../project/fhir-roadmap.md#92-mid-term).
+[fhir roadmap section 9.2](design/roadmap.md#92-mid-term).
 
 **A value of a `unique` attribute is not here.** It is an identifier instead;
 see [the per-attribute namespaces](#a-unique-attributes-values-are-identifiers)

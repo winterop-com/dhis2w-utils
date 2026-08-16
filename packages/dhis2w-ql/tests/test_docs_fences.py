@@ -18,9 +18,9 @@ _DOC_PAGES = (
     "docs/query/cookbook.md",
     "docs/query/semantics.md",
     "docs/query/d2path-examples.md",
-    "docs/guides/d2ql-tutorial.md",
-    "docs/guides/d2ql.md",
-    "docs/guides/d2path.md",
+    "docs/query/d2ql-tutorial.md",
+    "docs/query/d2ql.md",
+    "docs/query/d2path.md",
 )
 
 

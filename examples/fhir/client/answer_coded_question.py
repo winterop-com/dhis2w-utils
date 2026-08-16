@@ -27,7 +27,7 @@ Usage:
 Reads whichever coded question the example fixture's forms publish first.
 
 How a consumer gets DHIS2 identifiers back from a concept is at
-docs/guides/fhir/401-terminology-and-conceptmaps.md.
+docs/fhir/401-terminology-and-conceptmaps.md.
 """
 
 from __future__ import annotations

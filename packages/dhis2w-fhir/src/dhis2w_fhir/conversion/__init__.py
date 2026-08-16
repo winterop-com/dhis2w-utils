@@ -3,7 +3,7 @@
 The generate targets take DHIS2 metadata and data to FHIR; this package takes a captured
 `QuestionnaireResponse` back to the DHIS2 import payload it reports. It is deliberately a typed
 Python translator rather than an executed mapping language, and it is deliberately the *first*
-of the two: `docs/project/fhir-conversion.md` makes this code the reference implementation the
+of the two: `docs/fhir/design/conversion.md` makes this code the reference implementation the
 later published StructureMaps are held against, so every rule here is written to be read.
 
 Four layers, each a module:

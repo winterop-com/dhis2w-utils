@@ -14,7 +14,7 @@ concept assignment plan, event status mapped, timestamps zoned. It is exercised 
 live instances and validated by the IG publisher on every build.
 
 **QR -> DHIS2** ships as `dhis2w_fhir.conversion` behind
-[`d2w fhir forward`](../guides/fhir/201-forward.md): `d2w fhir serve`
+[`d2w fhir forward`](../201-forward.md): `d2w fhir serve`
 stores validated responses as an outbox, and the forwarder drains it. It covers the three
 payload mappings (dataValueSets envelope; event; tracker event), the non-bijective status
 inverse, wire-value serialisation (TRUE_ONLY, MULTI_TEXT, decimal lexical preservation,
@@ -97,7 +97,7 @@ capture design specifies, draining the serve outbox. The translator is
 is `d2w fhir forward`, whose dry run - the default - posts every payload to the real
 endpoint under that endpoint's own validate-only mode and moves nothing, and whose
 `--import` commits and then files each receipt into `forwarded/` or `rejected/`. See
-[Forwarding captured responses](../guides/fhir/201-forward.md).
+[Forwarding captured responses](../201-forward.md).
 
 This code is the *reference implementation* the later contract is held against - the same
 role the FSH emitters played for the JSON builders, where golden parity kept two paths

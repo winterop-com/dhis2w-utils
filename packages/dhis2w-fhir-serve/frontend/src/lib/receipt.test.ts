@@ -304,7 +304,7 @@ describe('a rejection naming a program rule', () => {
     ]
 
     it('reads the rule uid out of the sentence DHIS2 writes it into', () => {
-        // The message shape is the live `E1300` repro in docs/project/fhir-dhis2-fidelity.md.
+        // The message shape is the live `E1300` repro in docs/fhir/design/dhis2-fidelity.md.
         const issue = {
             error_code: 'E1300',
             subject: null,

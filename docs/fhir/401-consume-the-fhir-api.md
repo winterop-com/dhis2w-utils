@@ -29,7 +29,7 @@ Every response body on this page is real output from a running facade. The
 compiled-store examples run against a project served on port 8389; the
 register and enrollment examples, which exist only under `--live`, against a
 `d2w fhir serve --live` on port 8391. The Python surface behind all of it is
-documented in [the `dhis2w_fhir_serve` API reference](../../api/fhir-serve.md).
+documented in [the `dhis2w_fhir_serve` API reference](api-dhis2w-fhir-serve.md).
 
 ## Discovery: `/metadata`
 
@@ -488,7 +488,7 @@ A capture client that has found a person still has to answer a stage form
 against one of that person's enrollments. This is the list it picks from, and
 it is typed JSON on a lowercase path rather than a FHIR resource: whether a
 DHIS2 enrollment is an `EpisodeOfCare` or a `CarePlan` is
-[still an open decision](../../project/fhir-roadmap.md), and settling it inside
+[still an open decision](design/roadmap.md), and settling it inside
 a picker's data feed would settle it by accident.
 
 ```console
@@ -957,5 +957,5 @@ shadow a FHIR resource type, which is PascalCase.
 Next: [Identifiers and the D2 extensions](401-identifiers-and-extensions.md)
 - the identifier families and extensions every resource this API serves
 carries. The
-[`dhis2w_fhir_serve` API reference](../../api/fhir-serve.md) covers the
+[`dhis2w_fhir_serve` API reference](api-dhis2w-fhir-serve.md) covers the
 store, the spool, and the capture path as importable Python.

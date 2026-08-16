@@ -28,7 +28,7 @@ Examples that need `DHIS2_OAUTH_*` env (the OIDC flow) say so in their docstring
 - `dhis2w_core.client_context.open_client(profile)` — profile-aware context manager. Most examples use this, and it needs no version pin at all.
 - `dhis2w_core.v42.plugins.<name>.service.*` — service-layer functions for operations that have a typed CLI/MCP surface (metadata import/diff/patch, user admin, …). See `metadata_export_import.py` / `metadata_diff.py` / `metadata_patch.py` for the pattern.
 
-See the [client library tutorial](../../docs/guides/client-tutorial.md) for a narrative walkthrough of the main entry points.
+See the [client library tutorial](../../docs/client/tutorial.md) for a narrative walkthrough of the main entry points.
 
 ## Which DHIS2 major an example is written against
 

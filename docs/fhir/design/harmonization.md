@@ -5,7 +5,7 @@ title: Harmonization across country guides
 # Harmonization across country guides
 
 One DHIS2 instance, one project, one guide. That is
-[decision 3.10](fhir-roadmap.md#310-a-project-is-one-dhis2-instances-fhir-home) and it
+[decision 3.10](roadmap.md#310-a-project-is-one-dhis2-instances-fhir-home) and it
 is settled. This page is about what happens when there are ten of them.
 
 The fleet the toolkit is being pointed at is roughly ten country instances - one real
@@ -63,7 +63,7 @@ UID and the DHIS2 option code, two identifier conventions for one object, every 
 `equivalence = #equal`. The shape and the plumbing of a cross-vocabulary map are the
 same; what changes is that `group.target` names something outside the instance and the
 equivalence stops being `#equal` on every row. See
-[Terminology and ConceptMaps](../guides/fhir/401-terminology-and-conceptmaps.md#conceptmaps-the-route-back-to-dhis2)
+[Terminology and ConceptMaps](../401-terminology-and-conceptmaps.md#conceptmaps-the-route-back-to-dhis2)
 for the shape that already ships.
 
 **The seeded-attribute pattern is the data source.** The cheapest way to get an
@@ -82,7 +82,7 @@ URI - the mechanism the category axes on a category-option-combo concept already
 for them - property or extension - and the choice has a volume cost worth measuring
 before it is made: the Lao data-element CodeSystem carries 45,880 concepts. That is
 roadmap entry
-[9.2 "Attribute values on CodeSystem concepts"](fhir-roadmap.md#92-mid-term), and it is
+[9.2 "Attribute values on CodeSystem concepts"](roadmap.md#92-mid-term), and it is
 the one repository-side prerequisite that tier 1's seeded route genuinely blocks on. A
 seeded `SNOMED_CODE` on a DHIS2 option is invisible to the generated guide until that
 carrier exists.
@@ -135,7 +135,7 @@ OperationDefinition, the capture-server CapabilityStatement. Their *content* is
 instance-independent by construction. Only their *addresses* are project-scoped, because
 each project bakes its own canonical and its own naming tokens into them. Add the
 canonical naming-token registry documented in the
-[naming configuration](../guides/fhir/301-generation.md#naming) and the four DHIS2
+[naming configuration](../301-generation.md#naming) and the four DHIS2
 identifier namespaces under `identifier_system_base`, and the shared layer is not a
 design exercise - it is a promotion.
 
@@ -182,7 +182,7 @@ definitions precisely enough that the disagreement is visible - which is valuabl
 is not the same as comparability.
 
 *The FHIR carrier is already parked, deliberately.*
-[Decision 3.3](fhir-roadmap.md#33-measurereport-is-not-a-capture-shape) places
+[Decision 3.3](roadmap.md#33-measurereport-is-not-a-capture-shape) places
 `MeasureReport` in the conversion layer as a lossy analytics projection over the same
 data, deferred until a consumer needs it, with a stated technical reason - R4's `mrp-1`
 invariant forbids a data-collection MeasureReport from carrying groups, which is exactly
@@ -192,7 +192,7 @@ no `MeasureReport` under it is a published definition and no numbers.
 
 *It needs the data leg the roadmap has as long-term.* Serving DHIS2 *data* through the
 facade - not just its metadata - is the open half of "full circle" in
-[roadmap 9.3](fhir-roadmap.md#93-long-term). Until a FHIR client can read one country's
+[roadmap 9.3](roadmap.md#93-long-term). Until a FHIR client can read one country's
 values through the guide, there is nothing to compute a cross-country measure over
 except the DHIS2 analytics API, which is a straight DHIS2 problem with no FHIR layer in
 it at all.
@@ -255,7 +255,7 @@ three with different standing:
 - **Code, as the primary key.** The only honest cross-instance key. It exists exactly
   where someone maintained it, which is why code coverage is the measurement this report
   also delivers, and why
-  [decision 3.8](fhir-roadmap.md#38-namingsource-and-concept_code_source-default-to-id)'s
+  [decision 3.8](roadmap.md#38-namingsource-and-concept_code_source-default-to-id)'s
   id-first-then-code workflow is the same workflow at fleet scale.
 - **UID, as a lineage key, reported separately.** Two instances sharing a UID for an
   option set share a metadata package lineage. That is strong evidence and a
@@ -303,7 +303,7 @@ should design them.
 
 ## 7. Decisions reserved for the owner
 
-Same shape as [roadmap section 5](fhir-roadmap.md#5-open-decisions): the question, the
+Same shape as [roadmap section 5](roadmap.md#5-open-decisions): the question, the
 options, what depends on it. None of these are a reviewer's to settle.
 
 **H1. Is there a reference vocabulary, and which one?** SNOMED CT, LOINC, ICD-11, the
@@ -353,7 +353,7 @@ writes, and `d2w fhir forward` makes a dry run the default.
 **H8. The vocabulary.** `harmonize`, `fleet`, `compare`, or something else, as the noun
 this whole line of work is spelled with in the CLI and the docs. Per the working
 convention that vocabulary decisions are the owner's - the same convention behind
-[decision 5.8](fhir-roadmap.md#58-fhir-build-versus-the-scaffolded-projects-make-build).
+[decision 5.8](roadmap.md#58-fhir-build-versus-the-scaffolded-projects-make-build).
 
 ## 8. Non-goals
 
@@ -361,7 +361,7 @@ Stated hard, because each one is something that gets proposed the moment the wor
 "harmonization" is used in a room.
 
 - **No mCSD, and no OpenHIE-derived facade.**
-  [Decision 3.4](fhir-roadmap.md#34-ihe-mcsd-is-rejected-outright) rejects mCSD outright
+  [Decision 3.4](roadmap.md#34-ihe-mcsd-is-rejected-outright) rejects mCSD outright
   and a multi-country registry is precisely the setting where it gets proposed again.
   The answer does not change with the number of countries. The registry stays plain R4
   `Organization` + `Location`.
@@ -382,7 +382,7 @@ Stated hard, because each one is something that gets proposed the moment the wor
   usable.
 - **No new mapping language.** Whatever the cross-instance mapping turns out to be, it
   is `ConceptMap` plus whatever
-  [the conversion layer](fhir-conversion.md) settles on for the structural half. This
+  [the conversion layer](conversion.md) settles on for the structural half. This
   page adds no third carrier.
 - **No IHE profile adoption of any kind**, on the same reasoning as the first item.
 
@@ -403,14 +403,14 @@ made.
 
 ## See also
 
-- [FHIR roadmap and review guide](fhir-roadmap.md) - what exists, the settled
+- [FHIR roadmap and review guide](roadmap.md) - what exists, the settled
   decisions, and the open ones this page adds to rather than reopens.
-- [The FHIR conversion layer](fhir-conversion.md) - the structural half of the
+- [The FHIR conversion layer](conversion.md) - the structural half of the
   contract question, and where the ConceptMap mechanism this page builds on is
   specified.
-- [Terminology and ConceptMaps](../guides/fhir/401-terminology-and-conceptmaps.md) -
+- [Terminology and ConceptMaps](../401-terminology-and-conceptmaps.md) -
   the maps and concept properties as they ship today.
-- [How things are generated](../guides/fhir/301-generation.md#naming) - the identity
+- [How things are generated](../301-generation.md#naming) - the identity
   stem, the naming tokens, and `identifier_system_base`.
-- [Check an instance with doctor](../guides/fhir/201-doctor.md) - the per-instance
+- [Check an instance with doctor](../201-doctor.md) - the per-instance
   verdict a fleet report would be assembled from.

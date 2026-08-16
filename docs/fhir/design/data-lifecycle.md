@@ -663,15 +663,15 @@ Ordered by how much of the design leans on the answer.
 
 ## See also
 
-- [FHIR roadmap and review guide](fhir-roadmap.md) - the settled and open decisions this
+- [FHIR roadmap and review guide](roadmap.md) - the settled and open decisions this
   page sits beside.
-- [The enrollment resource](fhir-enrollment-resource.md) - the same decision-document shape,
+- [The enrollment resource](enrollment-resource.md) - the same decision-document shape,
   ratified by merge.
-- [The FHIR conversion layer](fhir-conversion.md) - where `importStrategy` is chosen and the
+- [The FHIR conversion layer](conversion.md) - where `importStrategy` is chosen and the
   payloads this page corrects are built.
-- [Upstream DHIS2 quirks](upstream-quirks.md) - `BUGS.md` rendered, including entries #2,
+- [Upstream DHIS2 quirks](../../project/upstream-quirks.md) - `BUGS.md` rendered, including entries #2,
   #84, #85, #86, #87, #88, #89, #90, and #91, all of which this page cites.
-- [Forward captures into DHIS2](../guides/fhir/201-forward.md) - the operator-facing
+- [Forward captures into DHIS2](../201-forward.md) - the operator-facing
   version of the drain this page decides the semantics of.
-- [Glossary](../guides/fhir/glossary.md) - the spool, the receipt, and the sidecar in one
+- [Glossary](../glossary.md) - the spool, the receipt, and the sidecar in one
   sentence each.

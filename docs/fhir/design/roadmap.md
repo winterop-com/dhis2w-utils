@@ -6,9 +6,9 @@ title: FHIR roadmap and review guide
 
 The single source of truth for where `dhis2w-fhir` is going and what a reviewer
 should look at. Everything roadmap-shaped or review-shaped about the FHIR plugin
-lives here; the [FHIR plugin architecture](../architecture/fhir-plugin.md) page
+lives here; the [FHIR plugin architecture](../architecture.md) page
 describes how the package is built, and the
-[`d2w fhir` series](../guides/fhir/index.md) is the task-oriented manual. Nothing is
+[`d2w fhir` series](../index.md) is the task-oriented manual. Nothing is
 stated in two places.
 
 ## 1. How to use this document
@@ -221,16 +221,16 @@ codes FHIR-safe?" - is a read, so it is the one tool.
 The per-key catalog lives in the user guides, one page per table, each key with
 its default, its refusal text, and when to change it:
 
-- [The settings file](../guides/fhir/301-fhir-toml.md) - discovery, the
+- [The settings file](../301-fhir-toml.md) - discovery, the
   `fhir.toml` / `fhir.toml.example` split, editing rules, and the two
   silent-unset values (`root = ""`, `max_level = 0`).
-- [Who the guide is](../guides/fhir/301-identity.md) - `profile` and `[ig]`.
-- [How things are generated](../guides/fhir/301-generation.md) - `[generate]`
+- [Who the guide is](../301-identity.md) - `profile` and `[ig]`.
+- [How things are generated](../301-generation.md) - `[generate]`
   and `[generate.naming]`.
-- [What goes in](../guides/fhir/301-what-goes-in.md) - the selection tables,
+- [What goes in](../301-what-goes-in.md) - the selection tables,
   `[generate.tracked_entity_types]`, `[generate.examples]`, and
   `[generate.organisation_units]`.
-- [Serving it](../guides/fhir/301-serving.md) - `[serve]`.
+- [Serving it](../301-serving.md) - `[serve]`.
 
 `config.py` and the emitter selection schemas stay the source of truth; the
 scaffolded `fhir.toml.example` states every key with its default and points
@@ -621,7 +621,7 @@ Four consequences the design accepts:
 ## 4. Upstream DHIS2 and tooling quirks that shape the code
 
 Three DHIS2 quirks are catalogued in the repository-root `BUGS.md`, rendered on
-the [upstream quirks page](upstream-quirks.md). Two more are tooling, not DHIS2,
+the [upstream quirks page](../../project/upstream-quirks.md). Two more are tooling, not DHIS2,
 so they are not in `BUGS.md` at all - they are recorded here because the code
 carries workarounds for them.
 
@@ -728,7 +728,7 @@ them in a review.
 
 The decisions below are the ones this document opened. A second set - what the
 generated guide should carry of DHIS2's own distinctive semantics - is audited
-concept by concept in [the DHIS2 fidelity audit](fhir-dhis2-fidelity.md), which
+concept by concept in [the DHIS2 fidelity audit](dhis2-fidelity.md), which
 gives every one of them a verdict (carried, worth carrying with a named carrier,
 or deliberately not with the reason), ranks the worth-carrying ones by whether a
 consumer exists today, and closes with six further owner calls. Decisions 5.4 and
@@ -764,7 +764,7 @@ under either setting - that is ambiguity, not leniency.
 `EpisodeOfCare` or to `CarePlan`?
 
 The working paper behind this decision is
-[The enrollment resource](fhir-enrollment-resource.md): the requirement set, both
+[The enrollment resource](enrollment-resource.md): the requirement set, both
 candidates measured element by element against R4 4.0.1, what OpenMRS, the DHIS2 FHIR
 adapter, and the WHO Antenatal Care guide each did with the same question, and a
 recommendation with its first slice. The owner's call still lands here.
@@ -845,7 +845,7 @@ the generator, which every buildpack codegens from.
 
 **Depends on it.** This also decides what `d2w fhir build` codegens. It is the
 single largest open architectural question in the conversion layer, whose phased
-plan lives in [the FHIR conversion layer](fhir-conversion.md): that plan builds the
+plan lives in [the FHIR conversion layer](conversion.md): that plan builds the
 typed Python forwarder first and asks this question of the result. **Phase A has
 shipped** as `d2w fhir forward` over `dhis2w_fhir.conversion`, so the reference
 implementation exists and what is left to decide is the phase-B carrier -
@@ -1360,7 +1360,7 @@ reads the QA summary will find nothing in this class.
 
 The measured numbers, the root cause behind the largest one, and the levers that
 are and are not worth pulling. The full step-by-step table lives in the
-[Compile and publish page](../guides/fhir/201-build-and-publish.md#size-the-build); it is not
+[Compile and publish page](../201-build-and-publish.md#size-the-build); it is not
 repeated here.
 
 **Generation is not the cost.** On the Sierra Leone demo (171 option sets, 2,664
@@ -1432,7 +1432,7 @@ commitment.
   SKIPPED with that reason otherwise. Each phase reports PASS / WARN / FAIL /
   SKIPPED / BLOCKED, only a FAIL exits 1, and the run writes
   `reports/fhir-doctor-report.md` as the artifact a handover is read from. See
-  [Check an instance with doctor](../guides/fhir/201-doctor.md).
+  [Check an instance with doctor](../201-doctor.md).
 
     The two follow-ups the first live runs surfaced, neither blocking: a run
   without a compiler serves the live read-set, which publishes no example
@@ -2031,7 +2031,7 @@ commitment.
 ### 9.2 Mid-term
 
 - **Forward stored responses into DHIS2** - shipped as `d2w fhir forward`, which is
-  phase A of [the FHIR conversion layer](fhir-conversion.md). The spool is a queue of
+  phase A of [the FHIR conversion layer](conversion.md). The spool is a queue of
   receipts and this is what drains it: each `.serve/responses/received/*.json` is
   translated through `dhis2w_fhir.conversion` into its `/api/dataValueSets` envelope or
   its `/api/tracker` event and posted, one payload per response so each outcome is
@@ -2230,7 +2230,7 @@ commitment.
   master guide the country guides derive from, and comparable indicators - each
   with its own prerequisites and its own reasons not to start yet. The design,
   the staged plan, the owner decisions it reserves, and the non-goals it states
-  hard are in [harmonization across country guides](fhir-harmonization.md). Two
+  hard are in [harmonization across country guides](harmonization.md). Two
   things gate the whole line and are named there: no command in `d2w fhir` reads
   more than one profile in a run, and nobody has yet measured code coverage
   across the fleet.
@@ -2259,7 +2259,7 @@ terminology rather than as ad-hoc codings.
 
 The **canonical naming-token registry** - every token these draw from, with its
 DHIS2 object - stays in the
-[naming configuration page](../guides/fhir/301-generation.md#naming). It is
+[naming configuration page](../301-generation.md#naming). It is
 reference material a user needs while writing `[generate.naming]`, not roadmap
 material, so it belongs beside the configuration reference rather than here. The
 table above is the roadmap-shaped half: which chains are worth generating and in
@@ -2293,18 +2293,18 @@ what order.
 
 ## See also
 
-- [FHIR plugin architecture](../architecture/fhir-plugin.md) - how the package
+- [FHIR plugin architecture](../architecture.md) - how the package
   is laid out and why.
-- [`d2w fhir` series](../guides/fhir/index.md) - the task-oriented manual: the
+- [`d2w fhir` series](../index.md) - the task-oriented manual: the
   quickstart, the full `fhir.toml` reference, the capture contract, and the
   build-time table, as graded 101/201/301/401 pages.
-- [The FHIR conversion layer](fhir-conversion.md) - the phased plan behind open
+- [The FHIR conversion layer](conversion.md) - the phased plan behind open
   decision 5.3.
-- [Harmonization across country guides](fhir-harmonization.md) - the three tiers,
+- [Harmonization across country guides](harmonization.md) - the three tiers,
   the staged prerequisites, and the decisions a multi-country fleet reserves.
-- [Corrections and withdrawals](fhir-data-lifecycle.md) - what happens after a
+- [Corrections and withdrawals](data-lifecycle.md) - what happens after a
   receipt is forwarded, and the ten decisions that shape it.
-- [`dhis2w_fhir` API reference](../api/fhir.md) - the importable surface.
-- [Upstream DHIS2 quirks](upstream-quirks.md) - `BUGS.md` rendered, including
+- [`dhis2w_fhir` API reference](../api-dhis2w-fhir.md) - the importable surface.
+- [Upstream DHIS2 quirks](../../project/upstream-quirks.md) - `BUGS.md` rendered, including
   entries #62, #63, and #64.
-- [Repository roadmap](../roadmap.md) - everything that is not FHIR.
+- [Repository roadmap](../../roadmap.md) - everything that is not FHIR.

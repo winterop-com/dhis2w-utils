@@ -251,5 +251,5 @@ capture-then-reread pattern.
 - Ready-to-run programs for every pattern above: the
   [`examples/d2ql/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/d2ql) library —
   `d2w query run examples/d2ql/<name>.d2ql`.
-- More recipes (FHIR Bundle/CodeSystem/ValueSet/Questionnaire, GeoJSON): [Cookbook](../query/cookbook.md).
+- More recipes (FHIR Bundle/CodeSystem/ValueSet/Questionnaire, GeoJSON): [Cookbook](cookbook.md).
 - Programmatic use: [`dhis2w_ql` API](../api/query.md).

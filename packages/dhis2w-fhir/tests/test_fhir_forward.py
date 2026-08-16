@@ -2306,7 +2306,7 @@ async def test_an_entered_in_error_receipt_is_filed_once_and_is_gone_from_the_ne
 ) -> None:
     """The one refusal nothing can fix is filed rather than retried by every drain for ever.
 
-    Withdrawal is a deletion and this toolchain imports (docs/project/fhir-data-lifecycle.md), so no
+    Withdrawal is a deletion and this toolchain imports (docs/fhir/design/data-lifecycle.md), so no
     change to the guide and no change to the instance would make this receipt convert. It is filed to
     `rejected/` with a sidecar naming the doctrine, and the next drain never sees it again.
     """

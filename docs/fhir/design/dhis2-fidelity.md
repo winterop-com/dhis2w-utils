@@ -599,17 +599,17 @@ Absence is simpler; parity of shape is the argument for the other.
 
 ## Related
 
-- [The FHIR roadmap and review guide](fhir-roadmap.md) - the open decisions this page
+- [The FHIR roadmap and review guide](roadmap.md) - the open decisions this page
   restates rather than resolves, and the near-term slate several of these items join.
-- [The enrollment resource](fhir-enrollment-resource.md) - decision 5.2, which 6.3 above
+- [The enrollment resource](enrollment-resource.md) - decision 5.2, which 6.3 above
   is coupled to.
-- [The FHIR conversion layer](fhir-conversion.md) - the forward leg that is the consumer
+- [The FHIR conversion layer](conversion.md) - the forward leg that is the consumer
   of record for four of the five rank-1 items.
-- [FHIR harmonization](fhir-harmonization.md) - tier 3, where the analytics-tier
+- [FHIR harmonization](harmonization.md) - tier 3, where the analytics-tier
   concepts this page declines would land.
-- [The FHIR plugin architecture](../architecture/fhir-plugin.md) - the carriers as they
+- [The FHIR plugin architecture](../architecture.md) - the carriers as they
   exist today, in the emitter's own terms.
-- [Identifiers and the D2 extensions](../guides/fhir/401-identifiers-and-extensions.md) -
+- [Identifiers and the D2 extensions](../401-identifiers-and-extensions.md) -
   the carriers as a consumer of the published guide meets them.
-- [Glossary](../guides/fhir/glossary.md) - every DHIS2 concept this page grades, with
+- [Glossary](../glossary.md) - every DHIS2 concept this page grades, with
   what the toolkit does with it.

@@ -10,7 +10,7 @@ A Python toolkit for DHIS2 — pure client library, CLI, MCP server, Playwright 
 
 The repo lives at `winterop-com/dhis2w-utils`; PyPI ships the ten publishable members under the `dhis2w-*` prefix. Not affiliated with DHIS2.
 
-> **Learning path · step 1 of 8** — You are here. Quick install + profile + first CLI / Python call below. Next: the [contributor walkthrough](docs/walkthrough.md) for the local docker stack, or jump to a surface-specific tutorial — [CLI](docs/guides/cli-tutorial.md), [Python](docs/guides/client-tutorial.md), [MCP](docs/mcp/tutorial.md).
+> **Learning path · step 1 of 8** — You are here. Quick install + profile + first CLI / Python call below. Next: the [contributor walkthrough](docs/walkthrough.md) for the local docker stack, or jump to a surface-specific tutorial — [CLI](docs/cli/tutorial.md), [Python](docs/client/tutorial.md), [MCP](docs/mcp/tutorial.md).
 
 ## Why this toolkit?
 
@@ -273,7 +273,7 @@ d2w query eval 'dataElements | where domainType = "AGGREGATE" and name like "ANC
 d2w query repl
 ```
 
-The engine lives in the standalone [`dhis2w-ql`](packages/dhis2w-ql/) package (FHIRPath-compatible expression core, no DHIS2 runtime dependency) and backs the CLI, the MCP `query_*` tools, and the Python API. Start at the [query-language docs](docs/query/index.md); the full stage/source/sink reference is [`docs/guides/d2ql.md`](docs/guides/d2ql.md).
+The engine lives in the standalone [`dhis2w-ql`](packages/dhis2w-ql/) package (FHIRPath-compatible expression core, no DHIS2 runtime dependency) and backs the CLI, the MCP `query_*` tools, and the Python API. Start at the [query-language docs](docs/query/index.md); the full stage/source/sink reference is [`docs/query/d2ql.md`](docs/query/d2ql.md).
 
 ## Working on the workspace itself
 

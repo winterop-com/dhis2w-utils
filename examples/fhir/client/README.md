@@ -5,8 +5,8 @@ path that needs no dhis2w package at all. If you know DHIS2 data sets, programs,
 combinations, and you know no FHIR, start at the top of the first table and read down: every example
 states the DHIS2 fact first and the FHIR shape that carries it second.
 
-The narrative these sit under is the [`d2w fhir` guide series](../../../docs/guides/fhir/index.md),
-and [the capture contract](../../../docs/guides/fhir/401-capture-contract.md) is the document the
+The narrative these sit under is the [`d2w fhir` guide series](../../../docs/fhir/index.md),
+and [the capture contract](../../../docs/fhir/401-capture-contract.md) is the document the
 response-building examples meet.
 
 ## What every example here is
