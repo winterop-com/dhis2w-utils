@@ -394,6 +394,7 @@ from dhis2w_fhir.service import (
     read_spool_state,
     requeue_rejected_responses,
     resolve_attribute_code_index,
+    spool_layout,
 )
 from dhis2w_fhir.spool import (
     FORWARDED_RESPONSES_RELATIVE_PATH,
@@ -405,6 +406,7 @@ from dhis2w_fhir.spool import (
     SpoolContents,
     SpooledReceipt,
     SpooledResponse,
+    SpoolLayout,
     SpoolLockedError,
     SpoolReadError,
     SpoolReading,
@@ -416,6 +418,7 @@ from dhis2w_fhir.spool import (
     move_to_rejected,
     read_received_responses,
     read_spooled_receipts,
+    resolve_spool_root,
     sweep_orphan_temporary_files,
 )
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown, usable_code_stem
@@ -637,6 +640,7 @@ __all__ = [
     "RequeueReport",
     "RequeuedReceipt",
     "SpoolContents",
+    "SpoolLayout",
     "SpoolLockedError",
     "SpoolReadError",
     "SpoolReading",
@@ -810,6 +814,8 @@ __all__ = [
     "read_spool_state",
     "read_spooled_receipts",
     "requeue_rejected_responses",
+    "resolve_spool_root",
+    "spool_layout",
     "sweep_orphan_temporary_files",
     "recent_periods",
     "render_validation_csv",

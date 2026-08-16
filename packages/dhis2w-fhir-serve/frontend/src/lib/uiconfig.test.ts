@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+    capturesSubmissions,
     DEFAULT_UI_CONFIG,
     REGISTER_TITLE,
     registerSectionTitle,
@@ -169,5 +170,20 @@ describe('what the register is called on this run', () => {
             }),
         ).toBe(REGISTER_TITLE)
         expect(registerTitle({ enabled: false, listing: false, registers: [] })).toBe(REGISTER_TITLE)
+    })
+})
+
+describe('whether this server takes what a form was filled in with', () => {
+    it('receives when the server says so, and does not when it says not', () => {
+        expect(capturesSubmissions({ ...DEFAULT_UI_CONFIG, capture: true })).toBe(true)
+        expect(capturesSubmissions({ ...DEFAULT_UI_CONFIG, capture: false })).toBe(false)
+    })
+
+    it('reads an unstated setting as receiving, which is the opposite of the register default', () => {
+        // The opposite reading, on purpose: a page the register does not offer is a page nobody
+        // misses, while withholding Submit because a settings read did not answer would take away
+        // the one thing these screens exist to do - over a fact this app does not have.
+        expect(capturesSubmissions(DEFAULT_UI_CONFIG)).toBe(true)
+        expect(capturesSubmissions({ basemaps: [], dhis2_base_url: null })).toBe(true)
     })
 })

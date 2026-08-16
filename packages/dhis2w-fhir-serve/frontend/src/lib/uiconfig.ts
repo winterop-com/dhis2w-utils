@@ -83,6 +83,16 @@ export interface TrackedEntitiesSettings {
  * the server stated nothing about the instance's subjects at all, which is read as offering none.
  */
 export interface UiConfig {
+    /**
+     * Whether this server receives submissions, off `[serve] capture`.
+     *
+     * Absent is read as receiving, which is the opposite reading from `tracked_entities` and for the
+     * opposite reason: filling a form in and sending it is what these screens are, and hiding the
+     * one control that does it because a settings read did not answer would take the app away over a
+     * fact nobody has. A submission this server will not take is refused in FHIR's own terms and the
+     * screen already renders that refusal; a Submit that is not there explains nothing to anybody.
+     */
+    capture?: boolean
     basemaps: BasemapLayer[]
     dhis2_base_url: string | null
     tracked_entities?: TrackedEntitiesSettings | null
@@ -109,6 +119,22 @@ export const PEOPLE_RESOURCE_TYPE = 'Patient'
 export function trackedEntitySettings(config: UiConfig): TrackedEntitiesSettings {
     return config.tracked_entities ?? NO_REGISTER_OFFERED
 }
+
+/**
+ * Whether this server takes a filled-in form, with silence read as taking one.
+ *
+ * The one place that reading is made, so a form screen and anything that grows beside it later
+ * cannot disagree about what an unstated setting meant. False is a server publishing its guide and
+ * receiving nothing: the form still opens, still fills, and still says what it would send - a form
+ * is worth reading whether or not this process is the one it gets sent to - and the Submit is
+ * replaced by the fact that this server does not accept one.
+ */
+export function capturesSubmissions(config: UiConfig): boolean {
+    return config.capture ?? true
+}
+
+/** What the screens say where a Submit would be, on a server that receives nothing. */
+export const CAPTURE_OFF_NOTICE = 'This server does not accept submissions'
 
 /**
  * Whether every tracked entity type this run serves is published as a person.
@@ -162,5 +188,10 @@ export function registerSectionTitle(register: Register): string {
     return register.types.map((type) => type.name ?? type.uid).join(', ')
 }
 
-/** What this UI assumes before the settings have arrived, and if the read fails: no tiles, no links. */
+/**
+ * What this UI assumes before the settings have arrived, and if the read fails: no tiles, no links.
+ *
+ * It states no `capture` either, which `capturesSubmissions` reads as receiving - so a form opens
+ * with its Submit rather than flickering through a disabled one on every load.
+ */
 export const DEFAULT_UI_CONFIG: UiConfig = { basemaps: [], dhis2_base_url: null, tracked_entities: null }

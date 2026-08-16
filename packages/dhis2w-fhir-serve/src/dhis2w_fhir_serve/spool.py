@@ -1,6 +1,8 @@
 """The response spool: every QuestionnaireResponse the facade received, and which lifecycle state it is in.
 
-The spool is a directory tree under `.serve/responses`, one subdirectory per state:
+The spool is a directory tree under `.serve/responses` - or wherever `[serve] spool_dir` points this
+project's, resolved through `dhis2w_fhir.spool.resolve_spool_root` so the forwarder reads the same
+answer - with one subdirectory per state:
 
     `received/`   captured, not yet forwarded - the queue.
     `forwarded/`  translated, posted, and accepted by DHIS2.
@@ -53,13 +55,15 @@ from pathlib import Path
 from typing import Any
 
 from dhis2w_fhir.service import ForwardImportOutcome
-from dhis2w_fhir.spool import QUARANTINE_REASON_SUFFIX, QuarantinedFile
+from dhis2w_fhir.spool import QUARANTINE_REASON_SUFFIX, QuarantinedFile, resolve_spool_root
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from dhis2w_fhir_serve.errors import BadSearchError, ServeError
 from dhis2w_fhir_serve.log import LOGGER_NAME
 
-#: The spool root relative to the project root - regenerable working state, gitignored by the scaffold.
+#: The spool root a project holds unless `[serve] spool_dir` names another, relative to the project
+#: root - regenerable working state, gitignored by the scaffold. A spool the project points somewhere
+#: else is the operator's to keep out of version control and to back up.
 SPOOL_RELATIVE_PATH = ".serve/responses"
 
 #: Where a receipt waits for the forwarder to drain it.
@@ -246,14 +250,19 @@ class ResponseSpool(BaseModel):
     """The spool root - the directory holding `received/`, `forwarded/`, `rejected/`, and `malformed/`."""
 
     @classmethod
-    def at(cls, project_root: Path) -> ResponseSpool:
+    def at(cls, project_root: Path, spool_dir: str = SPOOL_RELATIVE_PATH) -> ResponseSpool:
         """The spool of one project, creating the receiving directory so a first capture has somewhere to land.
+
+        `spool_dir` is `[serve] spool_dir` - relative to the project root unless it is absolute - and
+        it is resolved through `dhis2w_fhir.spool.resolve_spool_root`, which is the same resolution
+        `d2w fhir forward` reads the key through. The layout under the root is stated in this module
+        and in `dhis2w_fhir.spool` alike, for the reason that module gives; where the root is, is not.
 
         The orphan sweep runs here rather than per write: an abandoned temporary file is what a
         killed process leaves behind, and process start is exactly when there is a new process to
         notice it.
         """
-        spool = cls(directory=project_root / SPOOL_RELATIVE_PATH)
+        spool = cls(directory=resolve_spool_root(project_root, spool_dir))
         spool.directory_for(ResponseLifecycle.RECEIVED).mkdir(parents=True, exist_ok=True)
         spool.sweep_orphan_temporary_files()
         return spool

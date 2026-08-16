@@ -82,6 +82,10 @@ def create_app(settings: ServeSettings) -> FastAPI:
     `settings.ui` adds the built capture UI as a static mount at `/`, after every FHIR route.
     A missing bundle raises here, while the app is being built, so `--ui` on a checkout that has
     never built the frontend fails as one line rather than as a white page on the first request.
+
+    `settings.capture` decides which router claims `POST /QuestionnaireResponse` - the create route,
+    or the refusal that names the key. It is settled here, at build time, because it is what this
+    server offers rather than something a request could be judged against.
     """
     app = FastAPI(
         title=APPLICATION_TITLE,
@@ -94,7 +98,7 @@ def create_app(settings: ServeSettings) -> FastAPI:
     app.state.settings = settings
     app.add_middleware(RequestLogMiddleware)
     register_error_handlers(app)
-    register_routes(app, serve_ui=settings.ui)
+    register_routes(app, serve_ui=settings.ui, capture=settings.capture)
     return app
 
 
@@ -127,7 +131,7 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
         client = await connections.enter_async_context(open_live_client(project, settings)) if settings.live else None
         app.state.live_client = client
         store = await build_store(settings, project, client)
-        spool = ResponseSpool.at(project.project_root)
+        spool = ResponseSpool.at(project.project_root, settings.spool_dir)
         summary = store.summary()
         register_surface = RegisterSurface.resolve(
             TrackedEntityIndex.from_store(project, store), settings.tracked_entities

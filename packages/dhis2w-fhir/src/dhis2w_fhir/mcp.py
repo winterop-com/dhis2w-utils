@@ -10,8 +10,9 @@ MCP tool.
 What is exposed is what an agent really asks. `fhir_validate` answers "are
 this instance's codes FHIR-safe?" and reads nothing but metadata.
 `fhir_forward` answers "would the captured responses import, and did they?" -
-it drains an existing spool rather than writing a tree, and it defaults to a
-dry run, so the tool an agent reaches for first cannot change the instance.
+it drains an existing spool rather than writing a tree, and it runs the
+posture the project states in `[forward]`, which is a dry run until a project
+says otherwise.
 """
 
 from __future__ import annotations
@@ -55,17 +56,18 @@ def register(mcp: Any) -> None:
     async def fhir_forward(
         profile: str | None = None,
         project_directory: str | None = None,
-        dry_run: bool = True,
+        dry_run: bool | None = None,
         strict_codes: bool | None = None,
-        register_completeness: bool = True,
+        register_completeness: bool | None = None,
     ) -> ForwardReport:
         """Drain a FHIR project's capture spool into DHIS2 - translate every received response and post it.
 
-        `dry_run` defaults to True and is the safe answer: every payload still goes to the real
-        endpoint under its own validate-only mode (`dryRun=true` for `/api/dataValueSets`,
-        `importMode=VALIDATE` for `/api/tracker`), so DHIS2's rules decide the outcome while nothing
-        is written and no receipt moves. Pass `dry_run=False` to commit, which also moves an accepted
-        receipt to `.serve/responses/forwarded/` and a rejected one to `rejected/` beside its report.
+        `dry_run` unstated is what the project says in `[forward] import`, which itself defaults to a
+        dry run - the safe answer: every payload still goes to the real endpoint under its own
+        validate-only mode (`dryRun=true` for `/api/dataValueSets`, `importMode=VALIDATE` for
+        `/api/tracker`), so DHIS2's rules decide the outcome while nothing is written and no receipt
+        moves. Pass `dry_run=False` to commit whatever the project says, which also moves an accepted
+        receipt to the spool's `forwarded/` and a rejected one to `rejected/` beside its report.
 
         A response the translator refuses never reaches DHIS2 and stays in the spool, so fixing the
         guide or the data and forwarding again is the retry.
@@ -78,8 +80,9 @@ def register(mcp: Any) -> None:
         An aggregate response whose status is `completed` also registers the data set complete for the
         tuple its values landed under, as a second write made only after DHIS2 has taken the values.
         An `in-progress` response imports its values and registers nothing, and
-        `register_completeness=False` turns the second write off for the whole run. A refused
-        registration does not un-import the values.
+        `register_completeness=False` turns the second write off for the whole run. Unstated, it is
+        what `[forward] register_completeness` says, which defaults to on. A refused registration
+        does not un-import the values.
 
         `strict_codes` overrides `[serve] strict_codes`: strict refuses a coded answer outside the
         served terminology, lenient resolves the DHIS2 option UID and code too and notes what it did.
@@ -90,7 +93,7 @@ def register(mcp: Any) -> None:
         return await service.forward_responses(
             generation.profile,
             project,
-            import_responses=not dry_run,
+            import_responses=None if dry_run is None else not dry_run,
             coded_answer_mode=mode,
             register_completeness=register_completeness,
         )

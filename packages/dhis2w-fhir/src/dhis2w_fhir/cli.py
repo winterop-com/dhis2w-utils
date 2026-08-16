@@ -1234,6 +1234,9 @@ def serve_command(
     `--basemap` offers another tile layer on the organisation-unit map, and `--basemap none` offers none.
 
     Host, port, strict codes, the UI, and the basemaps come from `\[serve]` in fhir.toml unless a flag overrides them.
+
+    Two more `\[serve]` keys have no flag: `capture = false` serves the guide and receives nothing, and
+    `spool_dir` says where the receipts live - the same directory `d2w fhir forward` drains.
     """
     try:
         from dhis2w_fhir_serve import (
@@ -1271,7 +1274,9 @@ def serve_command(
         live=live,
         profile=None,
         strict_codes=resolved_strict_codes,
+        capture=serve_config.capture,
         ui=resolved_ui,
+        spool_dir=serve_config.spool_dir,
         basemaps=resolved_basemaps,
         dhis2_base_url=None if generation is None else generation.profile.base_url,
         tracked_entities=serve_config.tracked_entities,
@@ -1281,7 +1286,7 @@ def serve_command(
     # The app is built before the banner so a missing UI bundle refuses as one line here, the way
     # a taken port does, rather than under a message saying the server is starting.
     application = create_app(settings)
-    surface = "FHIR endpoint + capture UI" if resolved_ui else "FHIR endpoint"
+    surface = _serve_surface(capture=serve_config.capture, ui=resolved_ui)
     _line(f"starting {project.project_root} on http://{resolved_host}:{resolved_port} as a {surface} (ctrl-c to stop)")
     if resolved_ui:
         _hint(
@@ -1292,6 +1297,16 @@ def serve_command(
             else "no profile resolved, so the screens link no identity to a DHIS2 instance",
         )
     _run_server(application, host=resolved_host, port=resolved_port)
+
+
+def _serve_surface(*, capture: bool, ui: bool) -> str:
+    """What one run is, as the starting line names it: what it serves, and whether it receives.
+
+    A run that receives nothing says so on the line that starts it, because every other sign of it
+    is a refusal somebody meets later - a 405 on a submission, a Submit the screens will not offer.
+    """
+    surface = ("FHIR endpoint + capture UI" if capture else "FHIR endpoint + screens") if ui else "FHIR endpoint"
+    return surface if capture else f"{surface}, receiving no submissions"
 
 
 def _run_server(application: Any, *, host: str, port: int) -> None:
@@ -1764,14 +1779,14 @@ def forward_command(
         Path, typer.Argument(file_okay=False, help="Project directory (default: current directory).")
     ] = Path("."),
     import_responses: Annotated[
-        bool,
+        bool | None,
         typer.Option(
             "--import/--dry-run",
-            help="Commit the payloads to DHIS2 and move the receipts. The default is a dry run: every "
-            "payload still goes to the real endpoint under its own validate-only mode, and nothing is "
-            "written and nothing moves.",
+            help="Commit the payloads to DHIS2 and move the receipts, overriding `\\[forward] import`. "
+            "The default is a dry run: every payload still goes to the real endpoint under its own "
+            "validate-only mode, and nothing is written and nothing moves.",
         ),
-    ] = False,
+    ] = None,
     strict_codes: Annotated[
         bool | None,
         typer.Option(
@@ -1781,25 +1796,30 @@ def forward_command(
         ),
     ] = None,
     register_completeness: Annotated[
-        bool,
+        bool | None,
         typer.Option(
             "--register-completeness/--no-register-completeness",
             help="Register the data set complete for every aggregate response whose status is `completed`, "
-            "once DHIS2 has taken its values. On by default - the response said it was finished.",
+            "once DHIS2 has taken its values, overriding `\\[forward] register_completeness`. On by "
+            "default - the response said it was finished.",
         ),
-    ] = True,
+    ] = None,
     details: Annotated[
         bool,
         typer.Option("--details", help="Print every response's outcome instead of writing them to the report."),
     ] = False,
     progress: ProgressOption = True,
 ) -> None:
-    """Drain the capture spool into DHIS2 - translate every received response and post it.
+    r"""Drain the capture spool into DHIS2 - translate every received response and post it.
 
     DRY RUN IS THE DEFAULT. Every payload is posted to the real instance under the endpoint's own
     validate-only mode, so DHIS2's rules decide the answer and nothing is written; `--import` commits.
 
-    An imported response moves from .serve/responses/received/ to forwarded/, a DHIS2-rejected one to
+    The posture comes from `\[forward]` in fhir.toml - `import` and `register_completeness` - unless
+    a flag here overrides it for this run, and from the defaults above when the file states neither.
+    Which spool is drained is `\[serve] spool_dir`, the same key the server writes receipts under.
+
+    An imported response moves from the spool's received/ to forwarded/, a DHIS2-rejected one to
     rejected/ beside a report, and a translator-refused one stays put - fix and forward again.
 
     Every payload names its own DHIS2 object - an event's UID is derived from the receipt's logical id -

@@ -147,10 +147,10 @@ from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.spool import (
     IMPORT_REPORT_SUFFIX,
-    REJECTED_RESPONSES_RELATIVE_PATH,
     QuarantinedFile,
     SpooledReceipt,
     SpooledResponse,
+    SpoolLayout,
     SpoolReadError,
     SpoolState,
     drain_lock,
@@ -4606,12 +4606,18 @@ async def forward_responses(
     profile: Profile,
     project: FhirProject,
     *,
-    import_responses: bool = False,
+    import_responses: bool | None = None,
     coded_answer_mode: CodedAnswerMode | None = None,
-    register_completeness: bool = True,
+    register_completeness: bool | None = None,
     reporter: ProgressReporter | None = None,
 ) -> ForwardReport:
     """Drain a project's capture spool into DHIS2: translate every receipt, post it, and file what it became.
+
+    THE THREE DIALS ARE RESOLVED HERE, so the CLI and the MCP tool cannot resolve them differently.
+    `import_responses`, `register_completeness`, and `coded_answer_mode` are each None for "the
+    caller stated nothing", and each falls to what `fhir.toml` says - `[forward] import`,
+    `[forward] register_completeness`, and `[serve] strict_codes` - which in turn fall to the
+    defaults those keys carry.
 
     A **dry run is the default**. Every payload still goes to the real endpoint against the real
     instance, under that endpoint's own validate-only mode - `dryRun=true` for `/api/dataValueSets`,
@@ -4660,6 +4666,10 @@ async def forward_responses(
     `coded_answer_mode` defaults to what `[serve] strict_codes` says, so a project that captures
     strictly forwards strictly without stating it twice.
 
+    The spool this drains is the one `[serve] spool_dir` names, read through the same resolution the
+    server writes it through - so a project that moved its receipt tree moved it for both halves of
+    the loop at once.
+
     ONE DRAIN AT A TIME, AND EACH RECEIPT FILED THE MOMENT ITS VERDICT IS KNOWN. The run holds an
     exclusive lock on the spool root for its whole length, so a second drain of the same project
     fails at once naming the process that holds it rather than posting every payload twice. Inside
@@ -4671,13 +4681,16 @@ async def forward_responses(
     beside it and named in the report; the drain proceeds with the rest.
     """
     mode = coded_answer_mode if coded_answer_mode is not None else _configured_coded_answer_mode(project)
-    with drain_lock(project.project_root):
+    forward_config = project.config.forward
+    importing = import_responses if import_responses is not None else forward_config.import_responses
+    registering = register_completeness if register_completeness is not None else forward_config.register_completeness
+    with drain_lock(spool_layout(project)):
         return await _drain_spool(
             profile,
             project,
             mode=mode,
-            import_responses=import_responses,
-            register_completeness=register_completeness,
+            import_responses=importing,
+            register_completeness=registering,
             reporter=reporter,
         )
 
@@ -4694,8 +4707,9 @@ async def _drain_spool(
     """Run one drain, with the spool lock already held - the body `forward_responses` documents."""
     progress = _StepAnnouncer(reporter, FORWARD_STEPS)
     progress.step("spool", "reading the capture spool")
-    sweep_orphan_temporary_files(project.project_root)
-    reading = read_received_responses(project.project_root)
+    layout = spool_layout(project)
+    sweep_orphan_temporary_files(layout)
+    reading = read_received_responses(layout)
     spooled = reading.responses
     quarantined_note = f", {len(reading.quarantined):,} moved to malformed/" if reading.quarantined else ""
     progress.complete(f"{len(spooled):,} pending response(s){quarantined_note}")
@@ -4802,6 +4816,11 @@ async def _drain_spool(
 def _configured_coded_answer_mode(project: FhirProject) -> CodedAnswerMode:
     """The coded-answer dial a project forwards under, which is the one it captures under."""
     return CodedAnswerMode.STRICT if project.config.serve.strict_codes else CodedAnswerMode.LENIENT
+
+
+def spool_layout(project: FhirProject) -> SpoolLayout:
+    """Where this project's receipts live, off the `[serve] spool_dir` the server writes them under."""
+    return SpoolLayout.resolve(project.project_root, project.config.serve.spool_dir)
 
 
 async def _fetch_value_types(
@@ -5499,7 +5518,7 @@ def read_spool_state(project: FhirProject) -> SpoolStateReport:
     Rows read oldest first, which is how a queue reads: the receipt that has been waiting longest is
     at the top.
     """
-    contents = read_spooled_receipts(project.project_root)
+    contents = read_spooled_receipts(spool_layout(project))
     rows = tuple(
         SpoolReceiptRow(
             response_id=receipt.response_id,
@@ -5538,20 +5557,21 @@ def requeue_rejected_responses(
     anything moves: a run that had already requeued three of five receipts before naming the fourth
     as unknown would leave the operator to work out which three.
     """
-    contents = read_spooled_receipts(project.project_root)
+    layout = spool_layout(project)
+    contents = read_spooled_receipts(layout)
     rejected = {receipt.response_id for receipt in contents.in_state(SpoolState.REJECTED)}
     wanted = sorted(rejected) if all_rejected else list(response_ids)
     unknown = [response_id for response_id in wanted if response_id not in rejected]
     if unknown:
         named = ", ".join(f"`{response_id}`" for response_id in unknown)
         raise SpoolReadError(
-            f"{named} is not in {REJECTED_RESPONSES_RELATIVE_PATH} of {project.project_root}; "
+            f"{named} is not in {layout.directory_for(SpoolState.REJECTED)}; "
             "`d2w fhir spool --details` lists what is there"
         )
     moved = [
         RequeuedReceipt(
             response_id=response_id,
-            spool_path=_relative_path(move_to_received(project.project_root, response_id), project.project_root),
+            spool_path=_relative_path(move_to_received(layout, response_id), project.project_root),
         )
         for response_id in wanted
     ]
