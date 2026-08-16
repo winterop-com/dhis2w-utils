@@ -147,7 +147,7 @@ class Visualization(BaseModel):
     rangeAxisMaxValue: float | None = None
     rangeAxisMinValue: float | None = None
     rangeAxisSteps: int | None = Field(default=None, description="Length/value max=2147483647.")
-    rawPeriods: list[Any] | None = Field(default=None, description="Collection of String. Length/value max=255.")
+    rawPeriods: list[Any] | None = Field(default=None, description="Collection of String. Length/value max=3650.")
     regression: bool | None = None
     regressionType: RegressionType | None = None
     relativePeriods: Any | None = Field(

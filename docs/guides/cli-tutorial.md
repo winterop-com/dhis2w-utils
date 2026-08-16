@@ -125,7 +125,7 @@ d2w metadata get dataElements fClA2Erf6IO
 d2w --json metadata get dataElements fClA2Erf6IO | jq '.valueType'
 ```
 
-For library-code use, see `examples/v42/client/list_data_elements.py` — same result through the Python typed accessor.
+For library-code use, see `examples/client/list_data_elements.py` — same result through the Python typed accessor.
 
 ## Changing metadata: patch vs import
 
@@ -185,7 +185,7 @@ d2w --profile prod metadata import anc-bundle.json
 
 `metadata diff` also works bundle-vs-bundle (both positional args) for comparing two exports without hitting DHIS2 at all.
 
-The full pipeline is in `examples/v42/cli/metadata_round_trip.sh` — the script applies a jq transformation between export and import, showing the story end-to-end.
+The full pipeline is in `examples/cli/metadata_round_trip.sh` — the script applies a jq transformation between export and import, showing the story end-to-end.
 
 ## Running analytics + watching jobs
 
@@ -333,7 +333,7 @@ d2w metadata programs add-attribute <program-uid> <tea-uid> --searchable --manda
 d2w metadata program-stages create --program <program-uid> --name "Initial visit"
 ```
 
-End-to-end demos: `examples/v42/cli/tracker_schema.sh` (TET + TEA wiring), `examples/v42/cli/tracker_programs.sh` (Program + PTEA), `examples/v42/cli/tracker_program_stages.sh` (ProgramStage + PSDE).
+End-to-end demos: `examples/cli/tracker_schema.sh` (TET + TEA wiring), `examples/cli/tracker_programs.sh` (Program + PTEA), `examples/cli/tracker_program_stages.sh` (ProgramStage + PSDE).
 
 ## A note on tutorial coverage
 

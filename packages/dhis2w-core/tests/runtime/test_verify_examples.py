@@ -22,7 +22,6 @@ from verify_examples import (  # noqa: E402 — path-prepend intentional
 
 def test_discover_examples_returns_cli_client_mcp() -> None:
     """Discovery yields files under every existing surface."""
-    # v42 is the canonical baseline tree and is always present in the checkout.
     paths = discover_examples("v42")
     assert paths, "expected at least one example in the repo"
     surfaces = {p.parent.name for p in paths}
@@ -34,16 +33,43 @@ def test_discover_examples_returns_cli_client_mcp() -> None:
     assert all(p.suffix in {".sh", ".py"} for p in paths)
 
 
+def test_discover_examples_includes_the_fhir_group_on_every_major() -> None:
+    """`examples/fhir/` is version-agnostic, so every major discovers it."""
+    for version_key in ("v41", "v42", "v43"):
+        discovered = {p.as_posix() for p in discover_examples(version_key)}
+        assert any(path.endswith("examples/fhir/cli/generate.sh") for path in discovered)
+        assert any(path.endswith("examples/fhir/client/consume_facade.py") for path in discovered)
+        assert any(path.endswith("examples/fhir/mcp/validate.py") for path in discovered)
+
+
+def test_discover_examples_takes_only_the_active_majors_variants() -> None:
+    """A `examples/{surface}/v{N}/` directory belongs to that major's run and to no other."""
+    v41 = {p.as_posix() for p in discover_examples("v41")}
+    v43 = {p.as_posix() for p in discover_examples("v43")}
+    assert any(path.endswith("examples/client/v41/oauth2_cid_field.py") for path in v41)
+    assert not any("examples/client/v43/" in path for path in v41)
+    assert any(path.endswith("examples/client/v43/removed_resources.py") for path in v43)
+    assert not any("examples/client/v41/" in path for path in v43)
+
+
 def test_skip_list_covers_known_interactive_flows() -> None:
     """The default skip list covers OIDC + browser + external-network examples.
 
-    Skip-list keys are relative to the active version dir (`examples/v{N}/`)
-    so the same set works uniformly across v41 / v42 / v43.
+    Skip-list keys are relative to `examples/`, so one set covers the common
+    surfaces, the FHIR group, and the per-major variant directories alike.
     """
     assert "cli/profile_oidc_login.sh" in SKIP_BY_DEFAULT
     assert "client/oidc_login.py" in SKIP_BY_DEFAULT
-    assert "cli/dev_pat.sh" in SKIP_BY_DEFAULT
+    assert "cli/map_screenshot.sh" in SKIP_BY_DEFAULT
     assert "cli/route_register_and_run.sh" in SKIP_BY_DEFAULT
+    assert "fhir/cli/serve.sh" in SKIP_BY_DEFAULT
+
+
+def test_skip_list_entries_name_files_that_exist() -> None:
+    """A skip entry naming a path that is gone would silently stop skipping anything."""
+    examples = Path(__file__).resolve().parents[4] / "examples"
+    missing = sorted(entry for entry in SKIP_BY_DEFAULT if not (examples / entry).exists())
+    assert not missing, f"skip entries with no file: {missing}"
 
 
 def test_render_summary_returns_zero_when_all_pass(capsys: pytest.CaptureFixture[str]) -> None:

@@ -237,6 +237,7 @@ class DimensionType(StrEnum):
     VALIDATION_RULE = "VALIDATION_RULE"
     STATIC = "STATIC"
     ORGANISATION_UNIT_LEVEL = "ORGANISATION_UNIT_LEVEL"
+    PROGRAM_STATUS = "PROGRAM_STATUS"
 
 
 class DisplayDensity(StrEnum):
@@ -795,6 +796,14 @@ class ThematicMapType(StrEnum):
 
     CHOROPLETH = "CHOROPLETH"
     BUBBLE = "BUBBLE"
+
+
+class TotalAggregationType(StrEnum):
+    """org.hisp.dhis.common.TotalAggregationType (DHIS2 v43)."""
+
+    NONE = "NONE"
+    SUM = "SUM"
+    AVERAGE = "AVERAGE"
 
 
 class UserOrgUnitType(StrEnum):

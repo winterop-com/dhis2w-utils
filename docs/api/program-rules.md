@@ -21,6 +21,6 @@ async with Dhis2Client(...) as client:
 
 CRUD on the rules themselves stays on the generic metadata surface (`client.resources.program_rules`). This accessor focuses on the read + analysis surface that downstream tooling (rule diffing, dependency analysis, expression validators) needs.
 
-Worked example: [`examples/v42/client/program_rules.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/program_rules.py).
+Worked example: [`examples/client/program_rules.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/program_rules.py).
 
 ::: dhis2w_client.v42.program_rules

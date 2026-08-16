@@ -92,7 +92,7 @@ from .schemas import (
 
 GENERATED = True
 VERSION_KEY = "v43"
-RAW_VERSION = "2.43.0.1"
+RAW_VERSION = "2.43.1"
 
 __all__ = [
     "GENERATED",

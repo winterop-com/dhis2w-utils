@@ -246,12 +246,12 @@ d2w metadata dashboards add-item TAMlzYkstb7 --viz VizNewClone1 --x 0 --y 95 --w
 
 Listing goes through the generic metadata surface — `d2w metadata list visualizations` (CLI) / `metadata_list(resource="visualizations")` (MCP). The typed authoring verbs each have a CLI command and a matching MCP tool: `get / create / clone / delete` on `metadata visualizations` (`metadata_visualization_*`), and `get / add-item / remove-item` on `metadata dashboards` (`metadata_dashboard_*`).
 
-## Worked examples in `examples/v42/client/`
+## Worked examples in `examples/client/`
 
-- `examples/v42/client/viz_create_basic.py` — simplest spec → create → show.
-- `examples/v42/client/viz_multiline_by_province.py` — multi-line time-series with one line per district, with an analytics-probe sanity check up front.
-- `examples/v42/client/viz_pivot_and_kpi.py` — pivot table + SINGLE_VALUE tile on the same data set, showing the two default placements side-by-side.
-- `examples/v42/client/viz_clone_and_modify.py` — clone an existing chart, rename, verify the clone survives deletion of the source.
-- `examples/v42/client/dashboard_compose.py` — build a dashboard from scratch with typed `DashboardSlot`s for side-by-side KPI tiles above a full-width line chart.
+- `examples/client/viz_create_basic.py` — simplest spec → create → show.
+- `examples/client/viz_multiline_by_province.py` — multi-line time-series with one line per district, with an analytics-probe sanity check up front.
+- `examples/client/viz_pivot_and_kpi.py` — pivot table + SINGLE_VALUE tile on the same data set, showing the two default placements side-by-side.
+- `examples/client/viz_clone_and_modify.py` — clone an existing chart, rename, verify the clone survives deletion of the source.
+- `examples/client/dashboard_compose.py` — build a dashboard from scratch with typed `DashboardSlot`s for side-by-side KPI tiles above a full-width line chart.
 
 Each example cleans up after itself so reruns stay idempotent.

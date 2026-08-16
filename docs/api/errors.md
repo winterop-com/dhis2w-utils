@@ -59,6 +59,6 @@ except UnsupportedVersionError as exc:
 
 Pass `allow_version_fallback=True` on the client constructor (or via `open_client(..., allow_version_fallback=True)`) to use the nearest-lower populated version instead of raising.
 
-Worked example: [`examples/v42/client/error_handling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/error_handling.py).
+Worked example: [`examples/client/error_handling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/error_handling.py).
 
 ::: dhis2w_client.errors

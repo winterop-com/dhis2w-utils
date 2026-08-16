@@ -51,6 +51,6 @@ async with open_client(profile_from_env()) as client:
 
 The two-step pattern is DHIS2-imposed: the upload happens once, then the owning metadata object (message, data value, document) carries the resource UID as a normal field.
 
-Worked end-to-end demo: [`examples/v42/client/files_documents.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/files_documents.py).
+Worked end-to-end demo: [`examples/client/files_documents.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/files_documents.py).
 
 ::: dhis2w_client.v42.files

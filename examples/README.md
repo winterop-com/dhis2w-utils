@@ -1,35 +1,88 @@
 # dhis2-utils examples
 
-Three per-version example trees, each with three parallel surfaces:
-
 ```
 examples/
-  v41/   cli/  client/  mcp/      # DHIS2 v41 stack
-  v42/   cli/  client/  mcp/      # DHIS2 v42 stack (canonical)
-  v43/   cli/  client/  mcp/      # DHIS2 v43 stack
+  fhir/    cli/  client/  mcp/      # d2w fhir - DHIS2 metadata as a FHIR Implementation Guide
+  cli/                              # d2w ... Typer CLI, one script per topic
+  client/                           # dhis2w-client Python library
+  mcp/                              # dhis2w-mcp FastMCP tools, called in-process
+  d2ql/                             # d2ql query files
+  plugin-external/                  # a third-party plugin registered via entry points
 ```
 
-- `cli/` — `d2w ...` Typer CLI shell scripts (profile-resolved)
-- `client/` — `dhis2w-client` Python library (low-level: you bring the auth)
-- `mcp/` — `dhis2w-mcp` FastMCP server, called in-process
+## FHIR ([`fhir/`](fhir/README.md))
 
-Every example targets the committed e2e fixture for that major — `make dhis2-run DHIS2_VERSION=v42` (or `=41` / `=43`) ships with it out of the box, seeds auth, streams logs. Source `infra/home/credentials/.env.auth` in your shell and the examples pick it up automatically.
+**`d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide**, serves the
+compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into
+DHIS2. It has its own group because it is its own product surface, with all three shapes of caller
+in it. Start at [`fhir/cli/generate.sh`](fhir/cli/generate.sh) to see the whole loop as commands, or
+[`fhir/client/consume_facade.py`](fhir/client/consume_facade.py) if you are integrating against a
+guide someone else published.
 
-Filenames describe what each example shows — no sequential numbering. Every domain has a script per surface where possible (e.g. `tracker_reads.*`, `analytics_query.*`, `user_administration.*`).
+| File | Shows |
+| --- | --- |
+| [`fhir/cli/generate.sh`](fhir/cli/generate.sh) | `d2w fhir init` + `generate` + `validate` - scaffold a SUSHI project and write the IG source from DHIS2 metadata |
+| [`fhir/cli/serve.sh`](fhir/cli/serve.sh) | `d2w fhir serve` - compile the guide, serve it, post a load set, read the receipts back |
+| [`fhir/cli/forward.sh`](fhir/cli/forward.sh) | `d2w fhir forward` - drain the capture spool into DHIS2, dry run first |
+| [`fhir/cli/doctor.sh`](fhir/cli/doctor.sh) | `d2w fhir doctor` - the whole chain against one instance, one verdict |
+| [`fhir/cli/spool.sh`](fhir/cli/spool.sh) | `d2w fhir spool` + `requeue` - read the capture queue and put a refused receipt back in it |
+| [`fhir/client/generate_ig.py`](fhir/client/generate_ig.py) | Generate a whole IG from Python and read the `GenerateFullReport` back as a model |
+| [`fhir/client/consume_facade.py`](fhir/client/consume_facade.py) | Plain httpx against a running facade - discover, fill, submit, read the receipt |
+| [`fhir/client/forward_spool.py`](fhir/client/forward_spool.py) | Dry-run a drain from Python and read the `ForwardReport` back as a model |
+| [`fhir/mcp/validate.py`](fhir/mcp/validate.py) | The `fhir_validate` tool - FHIR-safety of an instance's codes |
+| [`fhir/mcp/forward.py`](fhir/mcp/forward.py) | The `fhir_forward` tool - drain a spool from an agent |
 
-The three trees are kept at parity wherever the DHIS2 surface allows; intentional drift is documented at the bottom of this README.
+`dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages - the client detects the DHIS2
+major from `/api/system/info` - so this group is one copy that runs against v41, v42, and v43 alike.
 
-> **Canonical catalogue**: [`docs/examples.md`](../docs/examples.md) is the curated v42 example index — the headline examples per topic with links to the concept docs that explain each one. It's not exhaustive (some smaller examples ship without a catalogue entry); the source of truth for what's on disk is `ls examples/v{41,42,43}/{cli,client,mcp}/`. v41 and v43 mirror most v42 entries plus carry version-specific additions (see the drift section at the bottom).
+Serving needs the extra: `pip install 'dhis2w-cli[serve]'` or `uv add dhis2w-fhir-serve`.
+The [`d2w fhir` guide series](../docs/guides/fhir/index.md) is the narrative these scripts sit under.
 
-## Which surface should I use?
+## The three surfaces
 
 | Surface | Best for | Auth handling |
 | --- | --- | --- |
-| `dhis2w-client` (library) | Your own Python tooling; scripts in-process | You pass `AuthProvider` explicitly (Basic, PAT, OAuth2) — no profile layer |
-| `d2w <cmd>` (CLI) | Day-to-day dev, pipelines, human use | Reads `~/.config/dhis2/profiles.toml` + env; `d2w profile add/login` manages creds |
-| `dhis2w-mcp` (MCP) | Agents, automation over the MCP protocol | Same profile layer as the CLI; both reads and mutations are exposed (every CLI command has a matching MCP tool) |
+| [`client/`](client/) - `dhis2w-client` library | Your own Python tooling; scripts in-process | You pass `AuthProvider` explicitly (Basic, PAT, OAuth2) - no profile layer |
+| [`cli/`](cli/) - `d2w <cmd>` | Day-to-day dev, pipelines, human use | Reads `~/.config/dhis2/profiles.toml` + env; `d2w profile add/login` manages creds |
+| [`mcp/`](mcp/) - `dhis2w-mcp` | Agents, automation over the MCP protocol | Same profile layer as the CLI; every CLI command has a matching MCP tool |
 
-All three hit DHIS2 via `Dhis2Client` under the hood. Pick the shape that fits your caller. See [Workspace layout](../docs/architecture/workspace.md) for the dependency arrows.
+All three hit DHIS2 through `Dhis2Client`. Pick the shape that fits your caller. See
+[Workspace layout](../docs/architecture/workspace.md) for the dependency arrows.
+
+## What every example must be
+
+Two rules, and a new example meets both or it does not land:
+
+1. **Small, self-contained, and about one feature.** A reader opens a file to learn one thing.
+   A script that sets up a fixture, exercises four commands, and tears the fixture down teaches
+   nobody the second thing it does.
+2. **Verified by `make verify-examples`.** An example nobody runs is an example nobody knows still
+   works. `infra/scripts/verify_examples.py` executes the whole tree against a seeded stack; an
+   entry that genuinely cannot run in a batch pass goes in that script's `SKIP_BY_DEFAULT` with the
+   reason stated beside it - "needs a human", "blocks forever", "writes to the instance" - and that
+   reason is a gap to close, not a resting place.
+
+`make check-examples` is the static half: every `d2w` command an example invokes resolves in the
+Typer tree, every `call_tool("...")` names a registered tool, and every example path an example
+mentions exists.
+
+## DHIS2 majors
+
+**One copy of each example, and it runs on v41, v42, and v43.** The wire is the same for almost
+everything the examples touch, so a version-neutral file is the honest default.
+
+- CLI and MCP examples name no major at all.
+- Client examples that need a version-pinned import are written against **v42, the canonical
+  baseline**, and carry one comment saying to swap `.v42` for `.v41` / `.v43` to pin another major.
+  Most examples do not need the pin: `dhis2w_core.client_context.open_client(profile)` detects the
+  major from `/api/system/info` and dispatches accessors at runtime.
+- An example that exists **only** for one major lives under that major's subdirectory -
+  [`client/v41/`](client/v41/) for v41 wire quirks, [`client/v43/`](client/v43/) for v43 schema
+  changes and their workarounds. `make verify-examples` runs the active major's variants and
+  ignores the others.
+
+The per-resource schema differences are at
+[`docs/architecture/schema-diff-v41-v42-v43.md`](../docs/architecture/schema-diff-v41-v42-v43.md).
 
 ## Running
 
@@ -38,107 +91,24 @@ make dhis2-run DHIS2_VERSION=v42        # foreground DHIS2 + seeded auth (Ctrl+C
 # second terminal:
 set -a; source infra/home/credentials/.env.auth; set +a
 
-uv run python examples/v42/client/whoami.py
-bash examples/v42/cli/whoami.sh
-uv run python examples/v42/mcp/whoami.py
+uv run python examples/client/whoami.py
+bash examples/cli/whoami.sh
+uv run python examples/mcp/whoami.py
 ```
 
-Swap the `v42` segment for `v41` or `v43` to target the matching stack. `make refresh-and-verify DHIS2_VERSION=v43` runs every example in `examples/v43/{cli,client,mcp}/` against a seeded v43 instance.
+Swap `v42` for `v41` or `v43` to boot another stack; the same example files run against all three.
+`make refresh-and-verify DHIS2_VERSION=v43` reseeds a v43 instance and runs the whole suite over it.
 
-## v42 client examples ([`v42/client/`](v42/client/))
-
-| File | Shows | Auth |
-| --- | --- | --- |
-| `whoami.py` | minimal client lifecycle, `/api/me` + `/api/system/info` | PAT / Basic |
-| `list_data_elements.py` | paginated raw GET with `fields=...` | PAT / Basic |
-| `push_data_value.py` | bulk import to `/api/dataValueSets` | PAT / Basic |
-| `oidc_login.py` | OIDC login — PKCE, FastAPI redirect receiver, SQLite token store, auto-refresh. Auto-dispatches to Playwright when `DHIS2_USERNAME`+`DHIS2_PASSWORD` are set. | OAuth2 / OIDC |
-| `oidc_playwright_login.py` | Full end-to-end OIDC flow via Playwright | OAuth2 / OIDC |
-| `apps.py` | `client.apps.list_apps / hub_list` + a `keyAppHubUrl` read | PAT / Basic |
-| `org_unit_crud.py` | OU CRUD: create, read, JSON Patch update, delete | PAT / Basic |
-| `data_set_crud.py` | dataset CRUD with DE + OU assignments in one POST | PAT / Basic |
-| `analytics_query.py` | `/api/analytics` query + analytics-table refresh | PAT / Basic |
-| `analytics_events_enrollments.py` | `/api/analytics/events/query` + `/enrollments/query` (v42 + v41 only — see drift) | PAT / Basic |
-| `geojson_org_units.py` | `/api/organisationUnits.geojson`, validated with `geojson-pydantic` | PAT / Basic |
-| `bootstrap_zero_to_data.py` | zero-to-data: OU → user scope → DE → DS → sharing → dataValue → cleanup | PAT / Basic |
-| `metadata_bulk_import.py` | `/api/metadata` bulk import with `importStrategy` / `dryRun` | PAT / Basic |
-| `metadata_filter_order_paging.py` | metadata filter DSL: multi-filter OR/AND, multi-order, paging, `--all` | PAT / Basic |
-| `profile_resolver.py` | using `dhis2w-core`'s `open_client` to resolve a profile from Python | resolved via profile |
-| `profile_pat_pure_client.py` | building a `Profile` and calling `open_client` via **`dhis2w-client` alone** — no `dhis2w-core` install needed for PAT/Basic | PAT |
-| `tracker_lifecycle.py` | tracker `/api/tracker` — TE + enrollment + event in one atomic POST | PAT / Basic |
-| `tracker_clinic_intake.py` | `client.tracker.register` + `add_event` + `outstanding` | PAT / Basic |
-| `tracker_event_program.py` | event-only (WITHOUT_REGISTRATION) workflow | PAT / Basic |
-| `metadata_search.py` | cross-resource UID / code / name search | PAT / Basic |
-| `metadata_usage.py` | reverse lookup "what references this UID?" | PAT / Basic |
-| `error_handling.py` | `Dhis2ApiError` / `AuthenticationError`, WebMessage conflicts | PAT / Basic |
-| `indicator_crud.py` | typed `Indicator` with numerator/denominator | PAT / Basic |
-| `task_polling.py` | poll `/api/system/tasks/<type>/<uid>` | PAT / Basic |
-| `enum_round_trip.py` | generated `StrEnum`s | PAT / Basic |
-| `user_administration.py` | list/get users, `/api/me`, invite + reset-password | PAT / Basic |
-| `sharing.py` | typed `SharingBuilder` + `apply_sharing` | PAT / Basic |
-| `user_groups_and_roles.py` | user groups, user roles, authorities | PAT / Basic |
-
-## v42 CLI examples ([`v42/cli/`](v42/cli/))
-
-| File | Commands |
-| --- | --- |
-| `whoami.sh` | `d2w system whoami`, `d2w system info` |
-| `profile_list_verify.sh` | `d2w profile list / verify / show` |
-| `metadata_list_get.sh` | `d2w metadata type list`, `d2w metadata list / get`, `d2w dev uid` |
-| `aggregate_data_values.sh` | `d2w data aggregate get / set / delete / push` |
-| `analytics_query.sh` | `d2w analytics query [--shape table\|raw\|dvs] / refresh` |
-| `tracker_reads.sh` | `d2w data tracker type`, `list <TET>`, `get <uid>`, `{enrollment,event,relationship} list`, `push` |
-| `tracker_register_and_followup.sh` | `d2w data tracker register / event create / outstanding` |
-| `tracker_event_program.sh` | `d2w data tracker event create --program EVTsupVis01` |
-| `metadata_search.sh` | `d2w metadata search` |
-| `profile_oidc_login.sh` | `d2w profile add --auth oauth2 --from-env`, `d2w profile login` |
-| `apps.sh` | `d2w apps {list, hub-list, hub-url, update --dry-run, update --all, reload}` |
-| `map_screenshot.sh` | `d2w browser map screenshot` (requires `[browser]` extra) |
-| `visualization_screenshot.sh` | `d2w browser viz screenshot` (requires `[browser]` extra) |
-| `route_register_and_run.sh` | `d2w route list / add / get / run / delete` (all 5 auth types) |
-| `profile_pat.sh` | `d2w profile pat create` (`-q` for capture) |
-| `dev_sample.sh` | `d2w dev sample route / data-value / pat / oauth2-client / all` |
-| `dev_codegen.sh` | `d2w dev codegen generate / rebuild / oas-rebuild` |
-| `maintenance.sh` | `d2w maintenance task types/list/status/watch`, `cache`, `cleanup`, `dataintegrity list/run/result` |
-| `user_administration.sh` | `d2w user list / get / me / invite / reinvite / reset-password` |
-| `user_groups_and_roles.sh` | `d2w user group {...}`, `d2w user role {...}` |
-
-## v42 MCP examples ([`v42/mcp/`](v42/mcp/))
-
-| File | Tools |
-| --- | --- |
-| `whoami.py` | `system_whoami`, `system_info` |
-| `profile_tools.py` | `profile_list`, `profile_verify`, `profile_show` (read-only by design) |
-| `metadata.py` | `metadata_type_list`, `metadata_list`, `metadata_get` |
-| `analytics_query.py` | `analytics_query` |
-| `analytics_events_enrollments.py` | `analytics_events_query`, `analytics_enrollments_query` (v42 + v41 only — see drift) |
-| `maintenance.py` | `maintenance_task_type_list`, `maintenance_dataintegrity_*`, `maintenance_cache_clear` |
-| `aggregate_data_values.py` | `data_aggregate_get / set / delete` |
-| `tracker_reads.py` | `data_tracker_type_list`, `data_tracker_list`, `data_tracker_event_list` |
-| `tracker_workflow.py` | `data_tracker_register`, `data_tracker_event_create`, `data_tracker_outstanding` |
-| `metadata_search.py` | `metadata_search` |
-| `metadata_usage.py` | `metadata_usage` |
-| `route_register_and_run.py` | `route_list`, `route_create`, `route_run`, `route_delete` |
-| `user_administration.py` | `user_list / get / me / invite / reinvite / reset-password` |
-| `user_groups.py` | `user_group_list`, `user_group_sharing_get` |
-| `user_roles.py` | `user_role_list`, `user_role_authority_list` |
-| `user_role.py` | `user_role_*` (covers the per-resource verbs alongside `user_roles.py`) |
-| `apps.py` | `apps_list`, `apps_hub_list` (with `apps_install_from_{file,hub}`, etc.) |
-| `customize_login.py` | `customize_*` — branding + login-page settings |
-| `doctor.py` | `doctor_run`, `doctor_bugs`, `doctor_integrity`, `doctor_metadata` |
-
-## Per-version drift (intentional)
-
-| Tree | Difference | Why |
-| --- | --- | --- |
-| `examples/v43/client/dashboard_item_users.py`<br>`event_visualization_fix_headers.py`<br>`map_basemaps.py`<br>`program_set_labels.py`<br>`program_set_change_log.py`<br>`program_set_enrollment_category_combo.py`<br>`category_combo_coc_regen.py`<br>`removed_resources.py`<br>`section_user_removed.py`<br>`tracked_entity_attribute_favorites.py` | **v43-only** — demonstrate v43 schema changes + write-side setters that don't apply to v41 / v42 (renamed fields, removed resources, new typed attributes, the v43 Program label / change-log / enrollment-CC setters, the BUGS #33 CategoryCombo COC-regen workaround). | See [`docs/architecture/schema-diff-v41-v42-v43.md`](../docs/architecture/schema-diff-v41-v42-v43.md). |
-| `examples/v42/client/analytics_events_enrollments.py`<br>`examples/v41/client/analytics_events_enrollments.py`<br>`examples/v42/mcp/analytics_events_enrollments.py`<br>`examples/v41/mcp/analytics_events_enrollments.py` | **Absent on v43** | DHIS2 v43 server-side bug — event-analytics SQL emitter rejects 2024 event data (BUGS.md #36). Workaround: skip the program at trigger time; running the example end-to-end on v43 fails. v41 + v42 are unaffected. |
+> **Canonical catalogue**: [`docs/examples.md`](../docs/examples.md) is the curated index - the
+> headline examples per topic with links to the concept docs that explain each one. It is not
+> exhaustive; `ls examples/{cli,client,mcp,fhir/*}/` is the source of truth for what is on disk.
 
 ## Environment
 
-- `DHIS2_URL` — default `http://localhost:8080`
-- `DHIS2_PAT` — a Personal Access Token
-- `DHIS2_USERNAME`, `DHIS2_PASSWORD` — Basic auth fallback
-- `DHIS2_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` / `_SCOPES` — for the OIDC example
-- `DHIS2_PROFILE` — pick a named profile from `profiles.toml` without hardcoding creds
-- `DHIS2_VERSION` — `v41`, `v42`, or `v43` — picks which stack `make dhis2-run` boots and which example tree `verify_examples` walks
+- `DHIS2_URL` - default `http://localhost:8080`
+- `DHIS2_PAT` - a Personal Access Token
+- `DHIS2_USERNAME`, `DHIS2_PASSWORD` - Basic auth fallback
+- `DHIS2_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` / `_SCOPES` - for the OIDC examples
+- `DHIS2_PROFILE` - pick a named profile from `profiles.toml` without hardcoding credentials
+- `DHIS2_VERSION` - `v41`, `v42`, or `v43` - which stack `make dhis2-run` boots, and which major's
+  variant directory `verify_examples` adds to the common set

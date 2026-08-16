@@ -1,27 +1,32 @@
 """Run every non-interactive example + summarise PASS / FAIL / TIMEOUT / SKIP.
 
-Targets every script under `examples/v{N}/{cli,client,mcp}/` for the active
-DHIS2 major. The major is resolved exactly like the CLI / MCP runtime resolve
-their plugin tree — `dhis2w_core.plugin.resolve_startup_version()`: the active
+**Every example must be verified here.** Full execution coverage is the end
+state: an example that this suite does not run is an example nobody knows
+still works. An entry that genuinely cannot run in a batch pass earns a place
+in `SKIP_BY_DEFAULT` with a stated reason, and that reason is the contract —
+"needs a human", "blocks forever", "needs external network", not "it is slow
+to look at".
+
+Targets every script under:
+
+- `examples/{cli,client,mcp}/` — the version-neutral set, run on whichever
+  DHIS2 major the active profile points at.
+- `examples/fhir/{cli,client,mcp}/` — the FHIR surface. `dhis2w-fhir` and
+  `dhis2w-fhir-serve` are not per-version packages, so these run on every
+  major from one copy.
+- `examples/{cli,client,mcp}/v{N}/` — the variants that exist only for one
+  DHIS2 major, run only when that major is the active one.
+
+The active major is resolved exactly like the CLI / MCP runtime resolve their
+plugin tree — `dhis2w_core.plugin.resolve_startup_version()`: the active
 profile's `version` pin first, then the `DHIS2_VERSION` env var, then `v42`.
-This keeps the example tree in lock-step with the plugin tree the example
-subprocesses actually load, so a v41-pinned profile runs `examples/v41/...`.
+So a v41-pinned profile runs the common set plus `examples/client/v41/` and
+leaves `examples/client/v43/` alone.
+
 Files starting with `_` are skipped (helper modules like `_runner.py`).
 Each example runs via `bash <path>` for `.sh` and `uv run python <path>`
 for `.py`, inheriting the parent environment plus `DHIS2_PROFILE` so
 profile-driven examples pick the right stack.
-
-Known-interactive scripts (OIDC login flows, Playwright browser captures,
-external-network ones) are skipped by default because they block on human
-input or unreliable dependencies. `--include-browser` opts browser-driven
-entries back in.
-
-Per-version split: each major has its own example tree so DHIS2-version-
-specific imports (`from dhis2w_client.generated.v{N}.schemas import ...`)
-and per-version examples (`v43_*` for v43-only features, etc.) live next
-to the version they target. New examples land in the version dir(s) where
-they apply; cross-version examples are duplicated, accepted as a
-trade-off for in-tree discoverability.
 
 Usage:
     uv run python infra/scripts/verify_examples.py            # follows the active profile
@@ -43,12 +48,15 @@ from rich.table import Table
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
+SURFACES = ("cli", "client", "mcp")
+VERSION_KEYS = ("v41", "v42", "v43")
+
 # Examples that need Chromium (Playwright), a human-clicked OIDC login,
 # external network dependencies, or run slow server-side jobs unsuitable
 # for a batch pass. Skipped by default; `--include-browser` opts the full
-# UI-driven set back in.
-# Skip-list keys are paths relative to the active version dir
-# (`examples/v{N}/`), so the same set works across v41 / v42 / v43.
+# UI-driven set back in. Every entry states why it cannot be executed, and
+# closing one of these gaps is a fix, not a nicety.
+# Skip-list keys are paths relative to `examples/`.
 SKIP_BY_DEFAULT: frozenset[str] = frozenset(
     {
         # --- UI-driven (opt in via --include-browser) -------------------
@@ -62,7 +70,6 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # Keycloak / Auth0 / Google / etc. directly when needed.
         "cli/profile_oidc_config.sh",
         # Playwright browser workflows: open Chromium, drive UI.
-        "cli/dev_pat.sh",
         "cli/map_screenshot.sh",
         "cli/visualization_screenshot.sh",
         "client/oidc_playwright_login.py",
@@ -82,7 +89,23 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # `d2w fhir serve` as a background job and curls it. The compile
         # alone is minutes on a cold docker image, and the script binds a
         # port — neither belongs in a batch pass.
-        "cli/fhir_serve.sh",
+        "fhir/cli/serve.sh",
+        # The same compile and the same bound port, and its committing run
+        # (`d2w fhir forward --import`) writes data values to the instance.
+        "fhir/cli/forward.sh",
+        # `d2w fhir doctor` runs the whole chain — scaffold, generate,
+        # dockerized compile, serve, capture, forward — in one command.
+        # Minutes per run, for the same compile reason as its siblings.
+        "fhir/cli/doctor.sh",
+        # --- Needs a fixture this pass does not stand up ----------------
+        # Talks to a facade that is already listening. Nothing in a batch
+        # pass starts one; give it a `d2w fhir serve` and it runs.
+        "fhir/client/consume_facade.py",
+        # Drains the spool of the nearest FHIR project. The repository root
+        # holds no `fhir.toml`, so there is no spool to drain. Both take a
+        # project directory as their one argument and run green against one.
+        "fhir/client/forward_spool.py",
+        "fhir/mcp/forward.py",
         # --- Fixture gaps in the seed ----------------------------------
         # Outlier detection requires per-program data distributions the
         # 1-year Child Programme sample doesn't have enough volume for —
@@ -94,7 +117,7 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
 )
 
 # Per-version skip overrides for examples that only fail on one major.
-# Keyed by `v{N}` -> example paths relative to `examples/v{N}/`.
+# Keyed by `v{N}` -> example paths relative to `examples/`.
 SKIP_BY_VERSION: dict[str, frozenset[str]] = {
     "v43": frozenset(
         {
@@ -105,6 +128,11 @@ SKIP_BY_VERSION: dict[str, frozenset[str]] = {
             # ignored on v43. Analytics tables stay empty, so this example's
             # explicit "did analytics build?" probe correctly raises.
             "client/viz_multiline_by_province.py",
+            # Same BUGS.md #36 — v43's event-analytics SQL emitter rejects
+            # the 2024 event data the fixture carries. Both run green on
+            # v41 and v42, which is why they live in the common set.
+            "client/analytics_events_enrollments.py",
+            "mcp/analytics_events_enrollments.py",
         }
     ),
 }
@@ -154,36 +182,54 @@ def _resolve_version_key() -> tuple[str, str]:
     return version_key, "default"
 
 
-def _version_dir(version_key: str) -> Path:
-    """Return `examples/{version_key}/` for the given DHIS2 major."""
-    return REPO_ROOT / "examples" / version_key
+def _examples_root() -> Path:
+    """Return the `examples/` directory every example path is stated relative to."""
+    return REPO_ROOT / "examples"
+
+
+def _surface_directories(version_key: str) -> list[Path]:
+    """Every directory holding examples for this run: the common set, the FHIR set, this major's variants."""
+    root = _examples_root()
+    directories = [root / surface for surface in SURFACES]
+    directories += [root / "fhir" / surface for surface in SURFACES]
+    directories += [root / surface / version_key for surface in SURFACES]
+    return directories
 
 
 def discover_examples(version_key: str) -> list[Path]:
-    """Return every example file under `examples/{version_key}/{cli,client,mcp}/`, sorted by path.
+    """Return every example file this major runs, sorted by path.
 
-    Each major has its own discovery pass so version-specific imports + examples
-    stay isolated from each other.
+    The common `examples/{cli,client,mcp}/` set and the version-agnostic
+    `examples/fhir/` set run on every major. A `examples/{surface}/v{N}/`
+    directory holds the examples that exist only for one major, so only the
+    active one's variants are picked up — the other majors' variants are not
+    skipped, they are not this run's examples at all.
     """
     paths: list[Path] = []
-    base = _version_dir(version_key)
-    if not base.exists():
-        return paths
-    for subdir in ("cli", "client", "mcp"):
-        root = base / subdir
-        if not root.exists():
+    for directory in _surface_directories(version_key):
+        if not directory.exists():
             continue
-        for entry in sorted(root.iterdir()):
+        for entry in sorted(directory.iterdir()):
             if entry.name.startswith("_") or entry.name.startswith("."):
                 continue
             if entry.suffix in {".sh", ".py"}:
                 paths.append(entry)
-    return paths
+    return sorted(paths)
+
+
+def _surface_of(path: Path) -> str:
+    """Name the summary row an example belongs under: `cli`, `client`, `mcp`, or `fhir/<surface>`.
+
+    A version-variant directory reports under its surface rather than under the
+    major, because what a reader wants counted is how the CLI examples did.
+    """
+    parts = path.relative_to(_examples_root()).parts
+    return f"fhir/{parts[1]}" if parts[0] == "fhir" else parts[0]
 
 
 def _run_one(path: Path, *, profile: str, timeout_seconds: float) -> ExampleResult:
     """Invoke one example with the given profile + timeout; capture result."""
-    surface = path.parent.name
+    surface = _surface_of(path)
     rel = path.relative_to(REPO_ROOT).as_posix()
     env = {**os.environ, "DHIS2_PROFILE": profile}
     cmd: list[str] = ["bash", str(path)] if path.suffix == ".sh" else ["uv", "run", "python", str(path)]
@@ -231,16 +277,15 @@ def run_suite(
         f"profile=[cyan]{profile}[/cyan], timeout={int(timeout_seconds)}s, "
         f"skip-default={'on' if not include_browser else 'off'})",
     )
-    version_dir = _version_dir(version_key)
+    examples_root = _examples_root()
     results: list[ExampleResult] = []
     for path in examples:
         rel = path.relative_to(REPO_ROOT).as_posix()
-        # Skip-list entries are relative to the active version dir
-        # (e.g. `cli/profile_oidc_login.sh`) so the same set works
-        # uniformly across v41 / v42 / v43.
-        rel_to_version = path.relative_to(version_dir).as_posix()
-        if rel_to_version in skip:
-            result = ExampleResult(path=rel, surface=path.parent.name, status="SKIP", seconds=0.0)
+        # Skip-list entries are relative to `examples/` (e.g.
+        # `cli/profile_oidc_login.sh`, `fhir/cli/serve.sh`).
+        rel_to_examples = path.relative_to(examples_root).as_posix()
+        if rel_to_examples in skip:
+            result = ExampleResult(path=rel, surface=_surface_of(path), status="SKIP", seconds=0.0)
         else:
             result = _run_one(path, profile=profile, timeout_seconds=timeout_seconds)
         badge = {

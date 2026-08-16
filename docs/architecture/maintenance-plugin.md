@@ -123,7 +123,7 @@ async with open_client(profile_from_env()) as client:
             print(f"{row.check_name}: {row.issue.id}  {row.issue.name}")
 ```
 
-`iter_integrity_issues(checks=[...])` narrows to specific checks. DHIS2's `/api/dataIntegrity/details` returns the full `{check_name: {issues: [...]}}` map in one response; the iterator flattens + tags it so you don't have to walk the two-level shape manually. See `examples/v42/client/integrity_issues_stream.py` for a worked example (severity histogram + noisiest-checks table + early-break scan).
+`iter_integrity_issues(checks=[...])` narrows to specific checks. DHIS2's `/api/dataIntegrity/details` returns the full `{check_name: {issues: [...]}}` map in one response; the iterator flattens + tags it so you don't have to walk the two-level shape manually. See `examples/client/integrity_issues_stream.py` for a worked example (severity histogram + noisiest-checks table + early-break scan).
 
 Writes — kicking off a run, clearing cache — stay on `service.*` because they need the `Profile` for OAuth2 token-store keying.
 

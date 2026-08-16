@@ -2,7 +2,7 @@
 
 > **Learning path · step 4 of 8** — Python library tutorial. Prev: [CLI tutorial](cli-tutorial.md). Next: [Examples index](../examples.md). For the typed API surface see [API reference](../api/index.md); for the underlying design see [Client architecture](../architecture/client.md).
 
-End-to-end tutorial for the `dhis2w-client` Python library. Most blocks are runnable scripts you can paste into a file, set your env, and run; a handful — clearly marked — are fragments that show one specific pattern (the OAuth2 direct-client section toward the end is the main one). When in doubt, the matching script under `examples/v42/client/` (linked from each section) is the runnable form.
+End-to-end tutorial for the `dhis2w-client` Python library. Most blocks are runnable scripts you can paste into a file, set your env, and run; a handful — clearly marked — are fragments that show one specific pattern (the OAuth2 direct-client section toward the end is the main one). When in doubt, the matching script under `examples/client/` (linked from each section) is the runnable form.
 
 If you already use the `d2w` CLI or the MCP server, this library is what those layers sit on. Use it directly when you're writing Python scripts or your own tooling.
 
@@ -69,7 +69,7 @@ Profiles are the **preferred entry point** for every Python script. They're what
 - [`dhis2w-client`](../api/index.md) — HTTP client + `AuthProvider` implementations + `Profile` model + `open_client(profile)` for PAT/Basic/session. Standalone PyPI package.
 - [`dhis2w-core`](../architecture/overview.md) — TOML profile resolution + `open_client` overload that adds OAuth2 token persistence. Depends on `dhis2w-client`.
 
-Every code block in this guide uses `dhis2w-core.open_client(profile)` (with `profile_from_env()`'s full TOML+env precedence) as the happy path. Library users on PAT, Basic, or session can use `dhis2w_client.open_client(profile)` directly without installing `dhis2w-core` — see [`examples/v42/client/profile_pat_pure_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/profile_pat_pure_client.py). The "direct-client" form (`Dhis2Client(base_url, auth=...)`) is covered at the end for the cases that need the lowest level.
+Every code block in this guide uses `dhis2w-core.open_client(profile)` (with `profile_from_env()`'s full TOML+env precedence) as the happy path. Library users on PAT, Basic, or session can use `dhis2w_client.open_client(profile)` directly without installing `dhis2w-core` — see [`examples/client/profile_pat_pure_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/profile_pat_pure_client.py). The "direct-client" form (`Dhis2Client(base_url, auth=...)`) is covered at the end for the cases that need the lowest level.
 
 ## Your first call
 
@@ -113,7 +113,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Both paths return the same `Dhis2Client` — only the install footprint and the profile-resolution behaviour differ. OAuth2 needs the `dhis2w-core` path because the token store provides concurrent-refresh safety. See `examples/v{41,42,43}/client/profile_pat_pure_client.py` for a runnable, version-pinned form of the library-only path.
+Both paths return the same `Dhis2Client` — only the install footprint and the profile-resolution behaviour differ. OAuth2 needs the `dhis2w-core` path because the token store provides concurrent-refresh safety. See `examples/client/profile_pat_pure_client.py` for a runnable, version-pinned form of the library-only path.
 
 `profile_from_env()` (in the `dhis2w-core` path above) walks the full precedence chain (first match wins):
 
@@ -218,7 +218,7 @@ Every `d2w profile ...` CLI command maps 1:1 onto a function in `dhis2w_core.v42
 
 Pass a `start: Path` argument to scope the write to a specific project directory — `service.add_profile(..., scope="project", start=tmp_path)` writes to `<tmp_path>/.dhis2/profiles.toml` instead of the user's real `~/.config/dhis2/profiles.toml`. Handy for tests and isolation.
 
-`examples/v42/client/profile_crud.py` walks both paths — in-memory `Profile(...)` and on-disk `add / rename / set-default / remove` — against an isolated temp directory so it's safe to re-run.
+`examples/client/profile_crud.py` walks both paths — in-memory `Profile(...)` and on-disk `add / rename / set-default / remove` — against an isolated temp directory so it's safe to re-run.
 
 ## Auth providers in detail
 
@@ -277,7 +277,7 @@ async with open_client(profile, profile_name="my-oauth-profile") as client:
     ...
 ```
 
-For a complete standalone OAuth2 demo including PKCE, FastAPI redirect receiver, and SQLite token store, see `examples/v42/client/oidc_login.py`. Architecture details in [Pluggable auth](../architecture/auth.md).
+For a complete standalone OAuth2 demo including PKCE, FastAPI redirect receiver, and SQLite token store, see `examples/client/oidc_login.py`. Architecture details in [Pluggable auth](../architecture/auth.md).
 
 ### Session cookie (ride an existing browser login)
 
@@ -300,7 +300,7 @@ profile = Profile(
 )
 ```
 
-Session cookies expire server-side and there is nothing to refresh client-side (`refresh_if_needed` is a no-op). When calls start failing with 401, capture a fresh cookie from the browser and re-run `d2w profile add <name> --auth session` — the upsert replaces the stored value. `d2w profile verify <name>` is the cheap way to detect an expired binding. See `examples/v42/cli/profile_session.sh` for the end-to-end flow.
+Session cookies expire server-side and there is nothing to refresh client-side (`refresh_if_needed` is a no-op). When calls start failing with 401, capture a fresh cookie from the browser and re-run `d2w profile add <name> --auth session` — the upsert replaces the stored value. `d2w profile verify <name>` is the cheap way to detect an expired binding. See `examples/cli/profile_session.sh` for the end-to-end flow.
 
 ### Route API auth (for `/api/routes` objects, not for client auth)
 
@@ -601,7 +601,7 @@ async for notification in client.tasks.iter_notifications(ref, poll_interval=1.0
     print(f"  {level:<5} {marker} {notification.message}")
 ```
 
-See `examples/v42/client/task_await.py` for a runnable demo. The CLI `--watch` flag (`d2w maintenance refresh analytics --watch`, `d2w maintenance dataintegrity run --watch`) uses a Rich-progress wrapper on top of the same primitive.
+See `examples/client/task_await.py` for a runnable demo. The CLI `--watch` flag (`d2w maintenance refresh analytics --watch`, `d2w maintenance dataintegrity run --watch`) uses a Rich-progress wrapper on top of the same primitive.
 
 ### Streaming data-integrity issues
 
@@ -614,7 +614,7 @@ async with open_client(profile_from_env()) as client:
             print(f"{row.check_name:40}  {row.issue.id}  {row.issue.name}")
 ```
 
-Use `client.maintenance.get_integrity_report(details=True)` (or `details=False` for the cheaper summary endpoint) when you want the full typed report instead. See `examples/v42/client/integrity_issues_stream.py` for a runnable demo.
+Use `client.maintenance.get_integrity_report(details=True)` (or `details=False` for the cheaper summary endpoint) when you want the full typed report instead. See `examples/client/integrity_issues_stream.py` for a runnable demo.
 
 ### System cache
 
@@ -630,7 +630,7 @@ async with open_client(profile_from_env()) as client:
     # or: client.system.invalidate_cache(key="setting:applicationTitle")
 ```
 
-Tune via `open_client(profile, system_cache_ttl=600.0)` or pass `None` to disable. See `examples/v42/client/system_cache.py` for a timed demo.
+Tune via `open_client(profile, system_cache_ttl=600.0)` or pass `None` to disable. See `examples/client/system_cache.py` for a timed demo.
 
 ## UID generation
 
@@ -700,7 +700,7 @@ Retry scope:
 
 Backoff: `delay = min(max_delay, base_delay * backoff_factor ** (attempt - 1))` with a fractional jitter applied before sleeping.
 
-See `examples/v42/client/retry_policy.py` for a runnable demo across default / aggressive / non-idempotent-opt-in policies.
+See `examples/client/retry_policy.py` for a runnable demo across default / aggressive / non-idempotent-opt-in policies.
 
 ## Concurrency
 

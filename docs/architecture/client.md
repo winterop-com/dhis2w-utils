@@ -108,7 +108,7 @@ async with open_client(
     ...
 ```
 
-See `examples/v42/client/concurrent_bulk.py` for a runnable demo — sequential baseline vs naive `gather` vs bounded semaphore vs tuned pool + retries, with live timings against the seeded stack.
+See `examples/client/concurrent_bulk.py` for a runnable demo — sequential baseline vs naive `gather` vs bounded semaphore vs tuned pool + retries, with live timings against the seeded stack.
 
 ## Lifecycle
 

@@ -140,4 +140,4 @@ If the agent doesn't poll, it'll report "refresh started" but the analytics tabl
 
 - [Reference](../mcp-reference.md) — every tool with its parameter schema + description.
 - [Architecture](../architecture/mcp.md) — return-shape conventions, error handling, profile resolution.
-- [Examples](../examples.md) — Python scripts that drive the in-process MCP server end-to-end (useful for snapshot-testing agent flows). Each `examples/v{N}/mcp/*.py` invokes a real tool sequence — copy one as a template for your own scripted agent flow.
+- [Examples](../examples.md) — Python scripts that drive the in-process MCP server end-to-end (useful for snapshot-testing agent flows). Each `examples/mcp/*.py` invokes a real tool sequence — copy one as a template for your own scripted agent flow.

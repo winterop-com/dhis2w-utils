@@ -142,7 +142,7 @@ class EventReport(BaseModel):
     )
     programStage: Reference | None = Field(default=None, description="Reference to ProgramStage.")
     programStatus: EnrollmentStatus | None = None
-    rawPeriods: list[Any] | None = Field(default=None, description="Collection of String. Length/value max=255.")
+    rawPeriods: list[Any] | None = Field(default=None, description="Collection of String. Length/value max=3650.")
     regressionType: RegressionType | None = None
     relativePeriods: Any | None = Field(
         default=None, description="Reference to RelativePeriods. Read-only (inverse side)."

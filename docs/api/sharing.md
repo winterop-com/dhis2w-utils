@@ -67,6 +67,6 @@ await client.patch_raw(
 )
 ```
 
-The typed helper replaces that with one line, and `get_sharing` + builder composition makes additive edits (preserve everything, append one grant) straightforward. See `examples/v42/client/bootstrap_zero_to_data.py` step 5 for the before/after.
+The typed helper replaces that with one line, and `get_sharing` + builder composition makes additive edits (preserve everything, append one grant) straightforward. See `examples/client/bootstrap_zero_to_data.py` step 5 for the before/after.
 
 ::: dhis2w_client.v42.sharing

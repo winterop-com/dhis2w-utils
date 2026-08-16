@@ -54,7 +54,7 @@ async with open_client(profile_from_env()) as client:
     me = await client.system.me()
 ```
 
-That's the pattern every example under [`examples/v{N}/client/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples) uses.
+That's the pattern every example under [`examples/client/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/client) uses.
 
 ## Where next
 

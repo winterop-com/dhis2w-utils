@@ -20,7 +20,7 @@ cc = await client.category_combos.create(name="Sex x Age", category_uids=[...])
 await client.category_combos.wait_for_coc_generation(cc.id, expected_count=4)
 ```
 
-Worked example: [`examples/v43/client/category_combo_coc_regen.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v43/client/category_combo_coc_regen.py).
+Worked example: [`examples/client/v43/category_combo_coc_regen.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/v43/category_combo_coc_regen.py).
 
 For the higher-level "build everything in one call" helper see [Category combo builder](category-combo-builder.md).
 

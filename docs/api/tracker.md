@@ -76,8 +76,8 @@ async with open_client(profile_from_env()) as client:
 
 ## Related examples
 
-- [`examples/v42/client/tracker_lifecycle.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/tracker_lifecycle.py) — full register + enroll + add event lifecycle.
-- [`examples/v42/client/tracker_clinic_intake.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/tracker_clinic_intake.py) — canonical tracker-program intake via `client.tracker.register / add_event / outstanding`.
-- [`examples/v42/client/tracker_event_program.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/tracker_event_program.py) — WITHOUT_REGISTRATION event-only flow.
+- [`examples/client/tracker_lifecycle.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/tracker_lifecycle.py) — full register + enroll + add event lifecycle.
+- [`examples/client/tracker_clinic_intake.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/tracker_clinic_intake.py) — canonical tracker-program intake via `client.tracker.register / add_event / outstanding`.
+- [`examples/client/tracker_event_program.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/tracker_event_program.py) — WITHOUT_REGISTRATION event-only flow.
 
 ::: dhis2w_client.generated.v42.tracker
