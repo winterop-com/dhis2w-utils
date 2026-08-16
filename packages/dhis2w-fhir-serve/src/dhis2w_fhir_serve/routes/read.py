@@ -22,14 +22,18 @@ expire the id a client was handed at capture time on a schedule nothing told it 
 a receipt is in is not a QuestionnaireResponse element, so it is not stated here; `GET /spool`
 answers that, along with the rest of the receipt envelope.
 
-Search is lenient in FHIR's own sense: an unrecognised parameter is ignored rather than refused,
-and the Bundle's `self` link echoes only the parameters that were honored, so a client can see
-what the server actually applied.
+Search over the store is lenient in FHIR's own sense: an unrecognised parameter is ignored rather
+than refused, and the Bundle's `self` link echoes only the parameters that were honored, so a client
+can see what the server actually applied. The register searches this module dispatches to refuse
+instead, for the reason `dhis2w_fhir_serve.routes.register` gives: what an ignored parameter costs
+there is the whole register handed back as a match set.
 
 A QuestionnaireResponse search is paged, with the same `_count` and `page` pair the register listing
 uses: `Bundle.total` is the whole searchset on every page of one walk, and a client's whole job is to
 follow the `next` link. The store searches are not paged - what the guide published is a fixed set
-that a client asked for by name, and this facade serves one project's worth of it.
+that a client asked for by name, and this facade serves one project's worth of it - but they honor
+`_count` all the same, as the cap it is on those searches rather than as a page size. See
+`requested_entry_cap`.
 
 `alternatives`, `identifier_token`, `base_url`, and `bundle_response` are the parts of that
 grammar that are not about the store at all - how FHIR spells a token, and what a searchset Bundle
@@ -99,6 +103,32 @@ class ParsedResponseSearch(BaseModel):
     honored: tuple[HonoredParameter, ...] = ()
 
 
+def requested_entry_cap(stated: str | None) -> int | None:
+    """How many entries a client asked one searchset to carry, or None when it named no `_count`.
+
+    `_count` on a store search is a cap and not a pagination scheme, and deliberately so. The store
+    is one project's published artifacts, searched by name; a client asking for `Questionnaire`
+    holding an identifier wants the artifacts that identifier names, not the first page of them. So
+    a capped search states `Bundle.total` for every match and hands back the first `_count` of them
+    with an honest `self` link, and offers no `next` cursor to follow: there is no walk to continue,
+    only a result the client chose to see less of. The register's identifier search answers the same
+    way and for the same reason - what an identifier matched is a result set, not a listing.
+
+    `_count=0` is R4's request for the total alone: the Bundle states how many matched and carries
+    no entry at all. A `_count` that is not a whole number, or is negative, is a malformed query
+    rather than an ambitious one, and is refused as such.
+    """
+    if stated is None:
+        return None
+    try:
+        cap = int(stated)
+    except ValueError as error:
+        raise BadSearchError(f"`{COUNT_PARAMETER}` was given `{stated}`, which is not a number of rows") from error
+    if cap < 0:
+        raise BadSearchError(f"`{COUNT_PARAMETER}` was given `{stated}`: a result carries no negative number of rows")
+    return cap
+
+
 def parse_store_search(params: QueryParams) -> ParsedSearch:
     """Read `_id`, `url`, and `identifier` into a store query, ignoring every other parameter."""
     ids: list[str] = []
@@ -152,7 +182,13 @@ async def search_resource_type(request: Request, resource_type: str) -> Response
         _bundle_entry(service_base, entry.resource_type, entry.resource_id, entry.body)
         for entry in context.store.search(resource_type, parsed.query)
     ]
-    return bundle_response(service_base, resource_type, parsed.honored, entries)
+    return bundle_response(
+        service_base,
+        resource_type,
+        parsed.honored,
+        entries,
+        requested_entry_cap(request.query_params.get(COUNT_PARAMETER)),
+    )
 
 
 async def _search_receipts(request: Request, spool: ResponseSpool, service_base: str) -> Response:
@@ -163,9 +199,13 @@ async def _search_receipts(request: Request, spool: ResponseSpool, service_base:
     nobody asked for, so the searchset is paged with the same `page` cursor the register listing
     uses. A file that will not parse is quarantined by the read rather than failing the search: the
     client asked for the receipts that are readable, and it gets them.
+
+    `_count=0` is the one request that is not a page: it asks how many receipts matched, and is
+    answered with the total and no entries, on the same terms as every other searchset this facade
+    serves. It carries no `next` link either, because a page of nothing leads nowhere.
     """
     parsed = parse_response_search(request.query_params)
-    count = requested_page_size(request.query_params.get(COUNT_PARAMETER))
+    stated_count = request.query_params.get(COUNT_PARAMETER)
     cursor = requested_cursor(request.query_params.get(PAGE_PARAMETER))
     reading = await run_in_threadpool(spool.search, None, None, parsed.ids)
     matched = tuple(
@@ -173,6 +213,9 @@ async def _search_receipts(request: Request, spool: ResponseSpool, service_base:
         for receipt in reading.receipts
         if not parsed.questionnaires or receipt.questionnaire in parsed.questionnaires
     )
+    if requested_entry_cap(stated_count) == 0:
+        return total_only_response(service_base, QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE, parsed.honored, len(matched))
+    count = requested_page_size(stated_count)
     page = page_of(matched, cursor, count)
     entries = [
         _bundle_entry(service_base, QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE, receipt.response_id, receipt.response)
@@ -275,15 +318,52 @@ def bundle_response(
     resource_type: str,
     honored: tuple[HonoredParameter, ...],
     entries: list[BundleEntry],
+    cap: int | None = None,
 ) -> Response:
-    """Serialise the result set, with a `self` link naming only the parameters that were applied."""
-    query = urlencode([(parameter.name, parameter.value) for parameter in honored])
+    """Serialise the result set: `total` is every match, `entry` is what `_count` let through.
+
+    The `self` link names the parameters that were applied and the cap that was applied with them,
+    so a client reading it back sees both what selected the matches and how many of them it is
+    holding. `total` is the whole match set whether or not the cap cut it short - R4 defines it as
+    the number of resources that matched the search, not the number on this page.
+    """
+    parameters = [(parameter.name, parameter.value) for parameter in honored]
+    if cap is not None:
+        parameters.append((COUNT_PARAMETER, str(cap)))
+    query = urlencode(parameters)
     self_url = f"{base_url}/{resource_type}?{query}" if query else f"{base_url}/{resource_type}"
+    served = entries if cap is None else entries[:cap]
     bundle = Bundle(
         type="searchset",
         total=len(entries),
         link=[BundleLink(relation="self", url=self_url)],
-        entry=entries or None,
+        entry=served or None,
+    )
+    return Response(
+        content=bundle.model_dump_json(exclude_none=True, by_alias=True),
+        media_type=FHIR_JSON_MEDIA_TYPE,
+    )
+
+
+def total_only_response(
+    base_url: str,
+    resource_type: str,
+    honored: tuple[HonoredParameter, ...],
+    total: int | None,
+) -> Response:
+    """Answer `_count=0` on a paged search: how many matched, and none of them.
+
+    The paged searches cannot express this through `bundle_response`, because their total is a count
+    of the whole listing rather than of the entries they were handed. A total of None is the answer
+    a register listing gives when the instance stated no count for one of the types in it, and the
+    Bundle then states no total rather than a number nobody counted.
+    """
+    parameters = [(parameter.name, parameter.value) for parameter in honored]
+    parameters.append((COUNT_PARAMETER, "0"))
+    bundle = Bundle(
+        type="searchset",
+        total=total,
+        link=[BundleLink(relation="self", url=f"{base_url}/{resource_type}?{urlencode(parameters)}")],
     )
     return Response(
         content=bundle.model_dump_json(exclude_none=True, by_alias=True),

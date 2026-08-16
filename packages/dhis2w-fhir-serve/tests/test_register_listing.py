@@ -233,11 +233,53 @@ async def test_a_count_that_is_not_a_number_of_people_is_refused(listing_client:
     respx.get(_TRACKER_URL).mock(return_value=httpx.Response(200, json=_tracker_page(total=0)))
 
     words = await listing_client.get("/Patient?_count=lots")
-    none_at_all = await listing_client.get("/Patient?_count=0")
+    negative = await listing_client.get("/Patient?_count=-1")
 
     assert words.status_code == 400
     assert words.json()["issue"][0]["code"] == "invalid"
-    assert none_at_all.status_code == 400
+    assert negative.status_code == 400
+    assert negative.json()["issue"][0]["code"] == "invalid"
+
+
+async def test_a_count_of_zero_answers_how_large_the_register_is(listing_client: httpx.AsyncClient) -> None:
+    """`_count=0` asks how many people the instance holds, and is answered with that and nobody."""
+    counted = respx.get(_TRACKER_URL).mock(
+        return_value=httpx.Response(200, json=_tracker_page(_person("PerAaa00001"), page=1, page_size=1, total=137))
+    )
+
+    response = await listing_client.get("/Patient?_count=0")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["type"] == "searchset"
+    assert body["total"] == 137
+    assert "entry" not in body
+    assert _parameters(_link(body, "self") or "") == {"_count": "0"}
+    assert _link(body, "next") is None
+    assert counted.calls[0].request.url.params["pageSize"] == "1"
+
+
+async def test_a_listing_parameter_this_server_cannot_answer_is_refused(listing_client: httpx.AsyncClient) -> None:
+    """The listing takes `_count` and `page` and nothing else - a filter it cannot apply is refused."""
+    tracker = respx.get(_TRACKER_URL).mock(return_value=httpx.Response(200, json=_tracker_page(total=0)))
+
+    response = await listing_client.get("/Patient?family=Smith&_count=5")
+
+    assert response.status_code == 400
+    assert response.json()["issue"][0]["diagnostics"] == (
+        "`family` is not a search parameter this server answers `Patient` on: `identifier` is the one it supports"
+    )
+    assert not tracker.called
+
+
+async def test_a_bare_listing_is_untouched_by_the_refusal(listing_client: httpx.AsyncClient) -> None:
+    """A request naming no parameter at all is the listing, exactly as it was."""
+    respx.get(_TRACKER_URL).mock(return_value=httpx.Response(200, json=_tracker_page(_person("PerAaa00001"), total=1)))
+
+    response = await listing_client.get("/Patient")
+
+    assert response.status_code == 200
+    assert [entry["resource"]["id"] for entry in response.json()["entry"]] == ["PerAaa00001"]
 
 
 async def test_a_page_token_this_server_did_not_mint_is_refused(listing_client: httpx.AsyncClient) -> None:
@@ -490,6 +532,15 @@ def test_a_live_statement_says_the_listing_is_there_to_be_paged(capture_project:
     patient = next(resource for resource in capability.rest[0].resource or [] if resource.type == "Patient")
     assert "one page of the register" in (patient.documentation or "")
     assert "`page` parameter" in (patient.documentation or "")
+
+
+def test_a_live_statement_states_how_several_identifiers_combine(capture_project: FhirProject) -> None:
+    """The union semantics are the one thing a client cannot guess, so the entry writes them down."""
+    capability = _capability(capture_project, TrackedEntitiesConfig())
+
+    patient = next(resource for resource in capability.rest[0].resource or [] if resource.type == "Patient")
+    assert "Several identifiers are alternatives rather than conditions" in (patient.documentation or "")
+    assert "deduplicated by tracked entity" in (patient.documentation or "")
 
 
 def test_a_statement_over_a_search_only_surface_says_so(capture_project: FhirProject) -> None:

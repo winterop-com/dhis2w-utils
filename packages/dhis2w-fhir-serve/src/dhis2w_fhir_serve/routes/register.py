@@ -30,7 +30,17 @@ key that produced them, so an operator reading the outcome knows which line to c
 
 **A request naming no `identifier` is the listing**: a paged searchset over the tracked entity types
 that resource is served over, which `dhis2w_fhir_serve.register.listing` walks and links. `_count` is
-honoured up to `[serve.tracked_entities] page_size_limit` and clamped rather than refused above it.
+honoured up to `[serve.tracked_entities] page_size_limit` and clamped rather than refused above it,
+and `_count=0` asks how large the register is - answered by counting the instance rather than by
+building a page nobody wants.
+
+**A parameter this surface cannot apply is refused, and that is the whole reason `search_register`
+reads the query rather than filtering it.** The store searches ignore what they do not recognise,
+because the worst an ignored parameter costs there is a larger result set than a client expected.
+Here it costs the register itself: `family=Smith` answered with the listing is every registered
+person handed back as though each were a Smith. So the query is checked before anything is read, and
+anything but `identifier` (plus `_count`, and `page` on the listing) is a 400 naming what is
+answered. See `_require_answerable_parameters`.
 
 **`identifier` is the whole search surface** for naming one entity, in both of FHIR's token forms:
 
@@ -78,6 +88,7 @@ from dhis2w_fhir_serve.errors import (
     NotServedFromCompiledIgError,
     RegisterDisabledError,
     RegisterListingDisabledError,
+    UnsupportedSearchParameterError,
     UpstreamError,
 )
 from dhis2w_fhir_serve.register.listing import (
@@ -85,12 +96,21 @@ from dhis2w_fhir_serve.register.listing import (
     PAGE_PARAMETER,
     ListingCursor,
     RegisterListingPage,
+    count_listing_total,
     read_listing_page,
 )
 from dhis2w_fhir_serve.register.projection import registered_entity_for
 from dhis2w_fhir_serve.register.wire import fetch_tracked_entity, search_tracked_entities, upstream_refusal_text
 from dhis2w_fhir_serve.routes.context import live_client, serve_context
-from dhis2w_fhir_serve.routes.read import HonoredParameter, alternatives, base_url, bundle_response, identifier_token
+from dhis2w_fhir_serve.routes.read import (
+    HonoredParameter,
+    alternatives,
+    base_url,
+    bundle_response,
+    identifier_token,
+    requested_entry_cap,
+    total_only_response,
+)
 from dhis2w_fhir_serve.store import IdentifierToken
 
 if TYPE_CHECKING:
@@ -118,12 +138,36 @@ async def search_register(request: Request, resource_type: str) -> Response:
             continue
         tokens.extend(identifier_token(value) for value in alternatives(name, raw))
         honored.append(HonoredParameter(name=name, value=raw))
+    _require_answerable_parameters(request, resource_type, searching=bool(tokens))
     service_base = base_url(request)
     if not tokens:
         return await _listing_response(request, client, surface, resource_type, service_base)
     entities = await _matching_entities(client, surface, resource_type, tokens)
     entries = _entries(entities, surface, resource_type, service_base)
-    return bundle_response(service_base, resource_type, tuple(honored), entries)
+    cap = requested_entry_cap(request.query_params.get(COUNT_PARAMETER))
+    return bundle_response(service_base, resource_type, tuple(honored), entries, cap)
+
+
+def _require_answerable_parameters(request: Request, resource_type: str, searching: bool) -> None:
+    """Refuse a register request naming a parameter this server cannot apply to it.
+
+    A register search is `identifier` and nothing else, so `family=Smith` is a query this facade has
+    no way to run. Answering it with the listing would hand back the whole register as though every
+    row in it were a Smith, and the `self` link's silence about the parameter is not a signal any
+    client reads. `_count` shapes the answer on either path; `page` names a page of the listing, and
+    a search naming an identifier is answered whole rather than paged.
+    """
+    for name in request.query_params:
+        if name in {IDENTIFIER_SEARCH_PARAMETER, COUNT_PARAMETER}:
+            continue
+        if name == PAGE_PARAMETER:
+            if not searching:
+                continue
+            raise BadSearchError(
+                f"`{PAGE_PARAMETER}` names a page of the `{resource_type}` listing, and a search naming "
+                f"`{IDENTIFIER_SEARCH_PARAMETER}` is answered whole"
+            )
+        raise UnsupportedSearchParameterError(resource_type, name, IDENTIFIER_SEARCH_PARAMETER)
 
 
 async def read_registered_entity(request: Request, resource_type: str, tracked_entity_uid: str) -> Response:
@@ -176,6 +220,8 @@ async def _listing_response(
     """Answer one page of the register, or refuse the whole listing when the project serves none."""
     if not surface.serves_listing():
         raise RegisterListingDisabledError(resource_type)
+    if requested_entry_cap(request.query_params.get(COUNT_PARAMETER)) == 0:
+        return await _register_size_response(client, surface, resource_type, service_base)
     count = _requested_count(request, surface)
     cursor = _requested_cursor(request)
     try:
@@ -198,23 +244,40 @@ async def _listing_response(
     return Response(content=bundle.model_dump_json(exclude_none=True, by_alias=True), media_type=FHIR_JSON_MEDIA_TYPE)
 
 
+async def _register_size_response(
+    client: Dhis2Client, surface: RegisterSurface, resource_type: str, service_base: str
+) -> Response:
+    """Answer `_count=0` with how large the register is and nobody in it.
+
+    Nothing is paged to answer this, because there is no page to build: the count is asked of the
+    instance directly, one count-only request per tracked entity type in scope, which is the same
+    read a first page spends to state its total.
+    """
+    try:
+        total = await count_listing_total(
+            client, tracked_entity_type_uids=surface.tracked_entity_type_uids_for(resource_type)
+        )
+    except Dhis2ClientError as error:
+        raise UpstreamError(
+            f"the DHIS2 instance did not answer the tracked entity count: {upstream_refusal_text(error)}"
+        ) from error
+    return total_only_response(service_base, resource_type, (), total)
+
+
 def _requested_count(request: Request, surface: RegisterSurface) -> int:
     """How many entities this page carries: what the client asked for, bounded by what the project allows.
 
     A `_count` above the limit is served the limit rather than refused - R4 says a server may return
-    fewer resources than were asked for - while a `_count` that is not a positive number is a
-    malformed query rather than an ambitious one, and is refused as such.
+    fewer resources than were asked for - while a `_count` that is not a whole number, or is below
+    zero, is a malformed query rather than an ambitious one and is refused by `requested_entry_cap`
+    before this runs. Zero never reaches here either: it asks for the total alone, which is a count
+    rather than a page.
     """
     stated = request.query_params.get(COUNT_PARAMETER)
-    if stated is None:
+    cap = requested_entry_cap(stated)
+    if cap is None:
         return surface.tracked_entities.page_size
-    try:
-        count = int(stated)
-    except ValueError as error:
-        raise BadSearchError(f"`{COUNT_PARAMETER}` was given `{stated}`, which is not a number of rows") from error
-    if count < 1:
-        raise BadSearchError(f"`{COUNT_PARAMETER}` was given `{stated}`: a page carries at least one row")
-    return min(count, surface.tracked_entities.page_size_limit)
+    return min(cap, surface.tracked_entities.page_size_limit)
 
 
 def _requested_cursor(request: Request) -> ListingCursor:

@@ -87,6 +87,69 @@ async def test_empty_result_carries_no_entry_key(client: httpx.AsyncClient) -> N
     assert "entry" not in body
 
 
+async def test_a_store_search_carries_no_more_than_the_count_asked_for(client: httpx.AsyncClient) -> None:
+    """`_count` caps a store search rather than paging it: `total` is every match, `entry` is the cap."""
+    response = await client.get("/Questionnaire", params={"_count": "1"})
+
+    body = response.json()
+    assert body["total"] == 1
+    assert len(body["entry"]) == 1
+    assert body["link"][0]["url"] == "http://serve.test/Questionnaire?_count=1"
+    assert [link["relation"] for link in body["link"]] == ["self"]
+
+
+async def test_a_store_search_echoes_the_count_beside_the_parameters_it_applied(
+    client: httpx.AsyncClient,
+) -> None:
+    """The `self` link states what selected the matches and how many of them came back."""
+    response = await client.get("/Questionnaire", params={"_id": "d2-pr-anc-visit-q", "_count": "5"})
+
+    assert response.json()["link"][0]["url"] == "http://serve.test/Questionnaire?_id=d2-pr-anc-visit-q&_count=5"
+
+
+async def test_a_store_search_counting_zero_answers_the_total_alone(client: httpx.AsyncClient) -> None:
+    """R4's total-only request: how many matched, and not one of them."""
+    response = await client.get("/Questionnaire", params={"_count": "0"})
+
+    body = response.json()
+    assert body["total"] == 1
+    assert "entry" not in body
+    assert body["link"][0]["url"] == "http://serve.test/Questionnaire?_count=0"
+
+
+async def test_a_count_that_is_not_a_number_of_rows_is_refused(client: httpx.AsyncClient) -> None:
+    """A cap that is not a whole number, or is negative, is a malformed query rather than an ambitious one."""
+    words = await client.get("/Questionnaire", params={"_count": "lots"})
+    negative = await client.get("/Questionnaire", params={"_count": "-1"})
+
+    assert words.status_code == 400
+    assert words.json()["issue"][0]["code"] == "invalid"
+    assert negative.status_code == 400
+    assert negative.json()["issue"][0]["code"] == "invalid"
+
+
+async def test_a_receipt_search_counting_zero_answers_the_total_alone(
+    client: httpx.AsyncClient, stored_responses: tuple[StoredResponseEnvelope, ...]
+) -> None:
+    """The paged search answers `_count=0` the same way the unpaged ones do, and offers no page to follow."""
+    response = await client.get("/QuestionnaireResponse", params={"_count": "0"})
+
+    body = response.json()
+    assert body["total"] == len(stored_responses)
+    assert "entry" not in body
+    assert [link["relation"] for link in body["link"]] == ["self"]
+    assert body["link"][0]["url"] == "http://serve.test/QuestionnaireResponse?_count=0"
+
+
+async def test_a_receipt_search_refuses_a_count_it_cannot_read(client: httpx.AsyncClient) -> None:
+    """The paged search reads `_count` on the same terms as every other searchset here."""
+    words = await client.get("/QuestionnaireResponse", params={"_count": "lots"})
+    negative = await client.get("/QuestionnaireResponse", params={"_count": "-2"})
+
+    assert words.status_code == 400
+    assert negative.status_code == 400
+
+
 async def test_search_of_an_unserved_type_is_not_supported(client: httpx.AsyncClient) -> None:
     response = await client.get("/StructureDefinition")
 

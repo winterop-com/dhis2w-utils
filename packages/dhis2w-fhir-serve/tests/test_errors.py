@@ -85,6 +85,40 @@ async def test_a_method_the_path_does_not_take_is_not_supported(client: httpx.As
     assert "DELETE" in issue["diagnostics"]
 
 
+async def test_posting_to_the_service_base_says_batch_is_not_supported(client: httpx.AsyncClient) -> None:
+    """`POST [base]` is FHIR's batch endpoint, and a client that finds it deserves the reason it is not here."""
+    response = await client.post("/", json={"resourceType": "Bundle", "type": "batch"})
+
+    assert response.status_code == 405
+    assert response.headers["content-type"] == FHIR_JSON
+    issue = response.json()["issue"][0]
+    assert issue["code"] == "not-supported"
+    assert issue["diagnostics"] == (
+        "`POST /` is not served here: this server runs no batch and no transaction. Post one "
+        "QuestionnaireResponse per request to `/QuestionnaireResponse`."
+    )
+
+
+@pytest.mark.parametrize("method", ["PUT", "PATCH", "DELETE"])
+async def test_every_other_method_on_the_service_base_refuses_the_same_way(
+    client: httpx.AsyncClient, method: str
+) -> None:
+    """FHIR defines none of these at the base, so each is one fact stated about a different verb."""
+    response = await client.request(method, "/")
+
+    assert response.status_code == 405
+    assert response.json()["issue"][0]["code"] == "not-supported"
+    assert f"`{method} /`" in response.json()["issue"][0]["diagnostics"]
+
+
+async def test_reading_the_service_base_without_a_ui_is_still_not_an_endpoint(client: httpx.AsyncClient) -> None:
+    """Refusing the write does not invent a read: without `--ui` nothing serves the base."""
+    response = await client.get("/")
+
+    assert response.status_code == 404
+    assert response.json()["issue"][0]["diagnostics"] == "`/` is not an endpoint this server serves"
+
+
 async def test_an_unexpected_failure_leaks_nothing(
     tolerant_client: httpx.AsyncClient, caplog: pytest.LogCaptureFixture
 ) -> None:

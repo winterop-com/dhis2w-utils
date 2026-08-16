@@ -119,6 +119,21 @@ LISTING_OFF_DOCUMENTATION = (
     "A search naming no identifier is refused: this project serves the register by identifier only."
 )
 
+#: What a register entry states about several identifiers in one search, which widen rather than narrow.
+IDENTIFIER_UNION_DOCUMENTATION = (
+    "Several identifiers are alternatives rather than conditions: comma-separated values and the "
+    "parameter repeated both widen the search, and every match is folded into one result set "
+    "deduplicated by tracked entity."
+)
+
+#: What the `questionnaire` search parameter states about how it matches, which is not what a
+#: reference search parameter usually implies - no version stripping, no reference resolution.
+QUESTIONNAIRE_SEARCH_DOCUMENTATION = (
+    "The canonical of the Questionnaire the stored responses answered. Matching is exact canonical "
+    "equality: the value has to be the whole canonical the response carries, character for "
+    "character, and no version suffix is stripped and no partial canonical matches."
+)
+
 #: What the QuestionnaireResponse entry states about the resources it holds.
 RESPONSE_DOCUMENTATION = "One response per request; stored responses are receipts of what was submitted"
 
@@ -234,7 +249,7 @@ def _register_documentation(register_surface: RegisterSurface, register: ServedR
         published.uid if published.name is None else f"{published.name} ({published.uid})"
         for published in register.tracked_entity_types
     )
-    stated = register_documentation(register.resource_type, labels)
+    stated = f"{register_documentation(register.resource_type, labels)} {IDENTIFIER_UNION_DOCUMENTATION}"
     if not register_surface.serves_listing():
         return f"{stated} {LISTING_OFF_DOCUMENTATION}"
     return f"{stated} {LISTING_DOCUMENTATION}"
@@ -290,7 +305,7 @@ def _response_resource(project: FhirProject, canonical: str) -> CapabilityStatem
             CapabilityStatementSearchParam(
                 name="questionnaire",
                 type="reference",
-                documentation="The canonical of the Questionnaire the stored responses answered.",
+                documentation=QUESTIONNAIRE_SEARCH_DOCUMENTATION,
             ),
         ],
     )

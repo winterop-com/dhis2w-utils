@@ -83,6 +83,15 @@ async def test_root_serves_the_shell(ui_client: httpx.AsyncClient) -> None:
     assert 'id="root"' in response.text
 
 
+async def test_the_shell_takes_the_read_and_leaves_the_batch_refusal_alone(ui_client: httpx.AsyncClient) -> None:
+    """A mount at `/` answers GET and would answer POST with a bare 405, so the FHIR refusal mounts ahead of it."""
+    response = await ui_client.post("/", json={"resourceType": "Bundle", "type": "batch"})
+
+    assert response.status_code == 405
+    assert response.headers["content-type"] == "application/fhir+json"
+    assert "no batch and no transaction" in response.json()["issue"][0]["diagnostics"]
+
+
 async def test_metadata_still_wins(ui_client: httpx.AsyncClient) -> None:
     """The conformance endpoint answers FHIR, not the shell - the mount is registered after it."""
     response = await ui_client.get("/metadata")
