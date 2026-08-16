@@ -14,16 +14,21 @@
 - turn strict code checking on, serve the data-entry screens, and choose the
   map backgrounds the screens offer (or offer none, for an air-gapped
   deployment)
+- decide whether the server accepts filled-in forms at all, and where the ones
+  it accepts are kept
 - decide whether the server answers questions about people at all, who can be
   found, and how many of them one page holds
+- state the posture every `d2w fhir forward` in the project runs in
 
 `d2w fhir serve` (the `make serve` target runs exactly that) starts a small
 web server on your computer that serves the guide's content and accepts
 filled-in forms - the capture server. The `[serve]` section is how *this
 project* wants that server run, stated once in the file instead of retyped on
 every start. For most of these options a command-line flag wins over the file
-for a single run; the one table with no flag behind it is
-[`[serve.tracked_entities]`](#tracked_entities).
+for a single run. Three have no flag behind them, and each for the same reason -
+what they decide is what the server *is* rather than how one run of it went:
+[`capture`](#capture), [`spool_dir`](#spool_dir), and the whole
+[`[serve.tracked_entities]`](#tracked_entities) table.
 
 Two things to know before the options:
 
@@ -155,6 +160,60 @@ and flagged, never refused.
 **If you get it wrong:** TOML wants bare `true` or `false`; anything
 unrecognisable stops the run with a printout naming `serve.strict_codes`.
 
+### `capture`
+
+**In plain words.** Whether the server accepts filled-in forms at all. On -
+the default - it receives submissions, stores each as a receipt, and says so
+in the machine-readable description of itself it serves at `/metadata`. Off,
+it publishes the guide and receives nothing: a submission is refused, and the
+description no longer offers to take one.
+
+**What stays on when it is off.** Everything that reads. The forms, the code
+lists, the organisation unit registry, and the draft-a-response operation the
+screens fill a form from all answer exactly as before - and so do **the
+receipts this project already holds**. A form sent last month is still read
+back at the address the sender was given, still searchable, and still counted
+in the queue, because "this server stopped accepting new forms" is not a
+reason to stop answering for the ones it took. Only the sending is gone, and
+a receipt still in the queue is still forwarded by
+[`d2w fhir forward`](201-forward.md).
+
+**When you would change it.** Two situations. A project published for reading -
+a guide someone browses, a reference server a colleague points their software
+at to see what the forms look like - has no reason to accept data, and
+accepting it would mean somebody has to look after what arrives. And a second
+copy of a deployment, run so people can read the guide while one capturing
+server does the collecting, must not quietly become a second place data lands.
+
+**Example.**
+
+```toml
+[serve]
+capture = false
+```
+
+The guide is served and read; a submitted form is refused.
+
+**What a person using the screens sees.** The form opens, fills in, and reads
+exactly as it does anywhere else - a form is worth reading on a server that
+takes nothing - and where **Submit** would be there is the sentence *This
+server does not accept submissions*. Nothing is offered that would fail.
+
+**What a program sees.** The submission is refused with the FHIR error
+document every refusal here uses, saying `[serve] capture` is false in this
+project, and `/metadata` no longer lists `create` among the interactions it
+answers on QuestionnaireResponse - so a client that reads the description
+before sending never sends at all.
+
+**Default:** `true` - **If you leave it out:** the server receives
+submissions, which is what a capture server is.
+
+**If you get it wrong:** TOML wants bare `true` or `false`; anything
+unrecognisable stops the run with a printout naming `serve.capture`. There is
+no command-line flag for this one: it changes what the server tells every
+client it is, which is a decision the project makes rather than one
+invocation.
+
 ### `ui`
 
 **In plain words.** Whether the server also offers data-entry screens in the
@@ -181,6 +240,61 @@ screens.
 
 **If you get it wrong:** TOML wants bare `true` or `false`; anything
 unrecognisable stops the run with a printout naming `serve.ui`.
+
+### `spool_dir`
+
+**In plain words.** Which folder the received forms are kept in. Every
+submission the server accepts is written there as a file, and that folder is
+also the queue [`d2w fhir forward`](201-forward.md) drains into DHIS2.
+
+**One setting, both halves.** It sits in `[serve]` because the server is what
+writes the files, and the forwarder reads this very key rather than having one
+of its own - so moving the folder moves it for the whole loop at once. There is
+no way to point the two at different places, which is deliberate: a receipt
+written where nothing drains it is a form that was accepted and never arrived.
+
+**When you would change it.** When the receipts should not live inside the
+project folder. A deployment keeping data on a volume that is backed up says
+so with an absolute path; a project whose folder is copied around a lot keeps
+the data out of the copy the same way.
+
+**Example.**
+
+```toml
+[serve]
+spool_dir = "/srv/dhis2w/receipts"
+```
+
+The forms land in `/srv/dhis2w/receipts/received/`, and `d2w fhir forward`
+drains that folder.
+
+**Relative or absolute.** A path that does not start with `/` is read from the
+project folder, so `spool_dir = "receipts"` is the project's own `receipts/`.
+A path that does is used exactly as written.
+
+**Version control and backups are yours once it leaves the project.** The
+default folder is one the scaffold already tells git to ignore. A folder you
+name somewhere else is outside all of that: nothing here excludes it from a
+repository it happens to sit in, and nothing here backs it up. Received forms
+that have not been forwarded yet are the only copy of what someone typed, so a
+folder holding them is a folder worth backing up.
+
+**Default:** `".serve/responses"` - **If you leave it out:** the receipts live
+in `.serve/responses/` inside the project folder, which the scaffold's
+`.gitignore` already covers.
+
+**If you get it wrong:** an empty value (`spool_dir = ""`) is refused before
+the run starts, because it names no folder:
+
+```text
+pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
+serve.spool_dir
+  Value error, spool_dir is empty: name a directory the receipts live in, relative to the project root or absolute, or leave the key out for '.serve/responses'
+```
+
+A folder this machine will not let the server write to fails when a form
+arrives rather than at startup, with the system's own error in the log. A
+folder that simply does not exist yet is not a mistake: it is created.
 
 ### `basemaps`
 
@@ -579,8 +693,11 @@ symptom is a value you know a person holds finding nobody.
 ## Forwarding it: the `[forward]` section { #forward }
 
 `d2w fhir forward` is the other half of the loop the capture server opens - see
-[Forward captures into DHIS2](201-forward.md). One option in `fhir.toml`
-belongs to it.
+[Forward captures into DHIS2](201-forward.md). Three options in `fhir.toml`
+belong to it, and each has a command-line flag that outranks it for one run:
+**flag beats table beats default**, the same order the rest of `[serve]`
+follows. Which folder a drain reads is not here - it is
+[`[serve] spool_dir`](#spool_dir), because the server is what writes it.
 
 ### `live`
 
@@ -610,6 +727,75 @@ step says which happened.
 
 **If you get it wrong:** TOML wants bare `true` or `false`; anything
 unrecognisable stops the run with a printout naming `forward.live`.
+
+### `import`
+
+**In plain words.** Whether a plain `d2w fhir forward` in this project writes
+to DHIS2. Off - the default - a bare run is a **dry run**: every form is still
+sent to the real DHIS2 server, under the mode that server offers for checking
+without saving, so DHIS2's own rules decide whether it would be accepted while
+nothing is stored and no receipt moves. On, the bare run commits.
+
+**Why a project would say it.** Because typing `--import` on every run is how
+a team ends up with one person who forgot. A project whose drains are routine -
+a nightly job, a clerk running `make forward` at the end of the day - states
+`import = true` once, and a run that is meant to check rather than to write
+says `--dry-run` on the command line for that one run.
+
+**Example.**
+
+```toml
+[forward]
+import = true
+```
+
+`d2w fhir forward` writes to DHIS2; `d2w fhir forward --dry-run` still checks
+without writing.
+
+**Both flags still work, in both directions.** `--import` commits whatever the
+file says, and `--dry-run` checks whatever the file says. The flag is a
+statement rather than an absence, so it wins even when it agrees with the
+default and the file does not.
+
+**Default:** `false` - **If you leave it out:** a bare run is a dry run, and
+`--import` is what commits it. That is the safe way round, and it is the one to
+keep until the runs are boring.
+
+**If you get it wrong:** the key is spelled `import` - the word the command
+uses. `import_responses` is refused as a name the file does not declare, as is
+anything else close to it. TOML wants bare `true` or `false`; another kind of
+value stops the run with a printout naming `forward.import`.
+
+### `register_completeness`
+
+**In plain words.** Whether a forwarded aggregate form that says it is
+finished also marks its data set complete for the period, organisation unit,
+and reporting dimension its figures landed under. On by default, because the
+form said it was finished.
+
+**When you would change it.** When marking a data set complete is somebody
+else's decision - a supervisor signing off in DHIS2 after checking the figures,
+or a workflow where completeness means "approved" rather than "typed in".
+Turning it off leaves the figures imported exactly as before and marks nothing.
+
+**Example.**
+
+```toml
+[forward]
+register_completeness = false
+```
+
+The figures are imported; no data set is marked complete by the drain.
+
+**Default:** `true` - **If you leave it out:** a `completed` aggregate form
+marks its data set complete once DHIS2 has taken its figures - never before, so
+the mark is never a claim about data the server refused. A form that says it is
+still in progress imports its figures and marks nothing, whatever this key says.
+
+**If you get it wrong:** TOML wants bare `true` or `false`; anything
+unrecognisable stops the run with a printout naming
+`forward.register_completeness`. `--register-completeness` and
+`--no-register-completeness` override it either way for one run.
 
 Next: [The capture contract](401-capture-contract.md) - the integrate tier
 starts with what a valid submission carries. Or back to

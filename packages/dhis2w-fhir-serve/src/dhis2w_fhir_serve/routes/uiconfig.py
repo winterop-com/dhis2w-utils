@@ -3,7 +3,9 @@
 WHY THIS EXISTS AT ALL. Everything else the UI renders it reads out of FHIR: the forms are
 Questionnaires, the hierarchy is Locations, the server's own identity is the CapabilityStatement.
 This is the one class of fact that is none of those - not something the guide published, but
-something about *how this process was started*. Three things are that today. `[serve.basemaps]` names
+something about *how this process was started*. Four things are that today. `[serve] capture` says
+whether this server receives submissions at all, which is what lets a form screen say so rather than
+offer a Submit that answers 405. `[serve.basemaps]` names
 the raster layers the organisation-unit map may draw under the boundaries, which is a deployment
 decision made in fhir.toml or on the command line that a bundle compiled weeks earlier cannot know.
 The profile this run resolved names the DHIS2 instance the guide was generated from, which is what
@@ -146,6 +148,11 @@ class TrackedEntitiesUiConfig(BaseModel):
 class UiConfig(BaseModel):
     """What the capture UI may know about how this facade was started.
 
+    `capture` is whether this server receives submissions. It is here as well as in `/metadata`
+    for the reason `tracked_entities` is: the CapabilityStatement says the same thing, and reading
+    it means parsing a conformance document to decide whether to draw a button. A screen that reads
+    false states the fact and offers no Submit, rather than offering one that answers 405.
+
     `basemaps` is empty when this run offers no tiles, which is a state the UI renders rather than
     an absence it has to guess at: the map's layer control is then a control with `None` alone in
     it, and the boundary-only canvas is what it draws.
@@ -160,6 +167,7 @@ class UiConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    capture: bool = True
     basemaps: list[BasemapLayer] = Field(default_factory=list)
     dhis2_base_url: str | None = None
     tracked_entities: TrackedEntitiesUiConfig | None = None
@@ -171,6 +179,7 @@ async def read_ui_config(request: Request) -> UiConfig:
     context = serve_context(request)
     settings = context.settings
     return UiConfig(
+        capture=settings.capture,
         basemaps=basemap_layers(settings.basemaps),
         dhis2_base_url=public_instance_url(settings.dhis2_base_url),
         tracked_entities=tracked_entities_config(live=settings.live, surface=context.register_surface),

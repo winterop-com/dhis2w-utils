@@ -23,6 +23,8 @@ import { Label } from '@/components/ui/label'
 import { useEnrollmentOptions } from '@/hooks/use-enrollment-options'
 import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
 import { usePatientSearchSupport } from '@/hooks/use-patient-search-support'
+import { useUiConfig } from '@/hooks/use-ui-config'
+import { CAPTURE_OFF_NOTICE, capturesSubmissions } from '@/lib/uiconfig'
 import { FhirRequestError, generateResponse, postQuestionnaireResponse, readResource } from '@/lib/api'
 import { reloadedEnrollment, type EnrollmentOption } from '@/lib/enrollments'
 import {
@@ -197,6 +199,9 @@ export function FormFill() {
     const [incidentDate, setIncidentDate] = useState<string | null>(null)
     const [reportingPeriodIso, setReportingPeriodIso] = useState<string | null>(null)
     const [dictionary, setDictionary] = useState<QuestionDictionary>(NO_DICTIONARY)
+    // Whether this server takes what is filled in here. A form on a server that receives nothing is
+    // still worth opening and reading, so the page is the page it always was and only the Submit goes.
+    const receivesSubmissions = capturesSubmissions(useUiConfig().config)
     const orgUnitScope = useFormOrgUnitScope(questionnaire)
     const enrollmentOffer = useEnrollmentOptions(questionnaire)
     const patientSearchSupport = usePatientSearchSupport()
@@ -437,6 +442,7 @@ export function FormFill() {
 
     const submit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
+        if (!receivesSubmissions) return
         if (busy || missingAttributeOptionCombo || unfitReportingPeriod || breaches.length > 0) return
         setBusy(true)
         setIssues([])
@@ -631,7 +637,13 @@ export function FormFill() {
             <div className="bg-sidebar sticky bottom-0 z-10 mt-6 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 md:-mx-8 md:px-8">
                 <Button
                     type="submit"
-                    disabled={busy || missingAttributeOptionCombo || unfitReportingPeriod || breaches.length > 0}
+                    disabled={
+                        !receivesSubmissions ||
+                        busy ||
+                        missingAttributeOptionCombo ||
+                        unfitReportingPeriod ||
+                        breaches.length > 0
+                    }
                 >
                     <Send className="size-4" />
                     {busy ? 'Submitting' : 'Submit'}
@@ -662,7 +674,9 @@ export function FormFill() {
                 </Button>
                 <div className="flex-1" />
                 {/* The reason a disabled button always states, because a control that refuses
-                    without saying why is worse than one that posts and is refused. */}
+                    without saying why is worse than one that posts and is refused. This one is
+                    about the server rather than about the form, so it stands ahead of the rest. */}
+                {!receivesSubmissions && <p className="text-muted-foreground text-xs">{CAPTURE_OFF_NOTICE}</p>}
                 {missingAttributeOptionCombo && (
                     <p className="text-muted-foreground text-xs">
                         Choose what this submission reports for before submitting

@@ -136,10 +136,12 @@ invocation, so it is stated once:
 
 ```toml
 [serve]
-host = "127.0.0.1"      # loopback: the facade has no authentication
-port = 8080             # a local dev DHIS2 commonly owns 8080; 8090 is the usual way out
-strict_codes = false    # true refuses an answer whose code is outside the served terminology
-ui = false              # true also serves the capture UI at /
+host = "127.0.0.1"          # loopback: the facade has no authentication
+port = 8080                 # a local dev DHIS2 commonly owns 8080; 8090 is the usual way out
+strict_codes = false        # true refuses an answer whose code is outside the served terminology
+capture = true              # false serves the guide and receives nothing - the viewer posture
+ui = false                  # true also serves the capture UI at /
+spool_dir = ".serve/responses"   # where the receipts live, and what d2w fhir forward drains
 ```
 
 `make serve`, `make serve-live`, and `make serve-ui` read the table too,
@@ -166,6 +168,18 @@ loopback-only probe would call 8080 free, serve would start beside a local
 DHIS2 container, and the two would split the `localhost:8080` requests
 between them. Probing the wildcard collides with the wildcard listener, and
 the run is refused instead.
+
+Two of those keys have no flag beside them, because what they decide is what
+the server *is* rather than how one run of it went. `capture = false` is the
+**viewer posture**: the guide is served, read, searched, and drafted against,
+and a submitted form is refused - which is the shape of a reference server, or
+of a second copy run for reading while one capturing server does the
+collecting. Nothing about the receipts already on disk changes: they are still
+read back at the addresses their senders were given, still searched, still
+counted by `GET /spool`, and still drained by
+[`d2w fhir forward`](201-forward.md). `spool_dir` says which folder those
+receipts live in, and the forwarder reads the same key - so moving the folder
+moves it for both halves of the loop at once.
 
 A live run has one more table to state: `[serve.tracked_entities]`, which decides
 whether this server answers about people at all, whether the listing is offered
@@ -248,8 +262,13 @@ accepted capture and in `/metadata`'s `implementation.description` above.
 
 ## Posting a capture
 
-`POST /QuestionnaireResponse` is the only write. One response per request -
-a Bundle is refused with a message saying so. The easiest first capture is
+`POST /QuestionnaireResponse` is the only write, and a project can decline to
+offer it: `capture = false` refuses every submission and drops `create` from
+`/metadata`, leaving every read exactly where it was
+([`capture`](301-serving.md#capture)). What follows is a server that receives.
+
+One response per request - a Bundle is refused with a message saying so. The
+easiest first capture is
 the server's own `$generate` operation posted straight back: ask the server
 to fill in one of its own forms, then hand the answer back to it.
 
@@ -317,6 +336,10 @@ A receipt is a file, and the directory it is in is its state:
 ```
 demo-ig/.serve/responses/received/<id>.json
 ```
+
+`.serve/responses` is where receipts live unless the project says otherwise;
+[`spool_dir`](301-serving.md#spool_dir) moves the whole tree, and the
+forwarder follows it there.
 
 Each file holds the response as received plus the receipt metadata around it
 - when it was accepted, which form kind it declared, which questionnaire it

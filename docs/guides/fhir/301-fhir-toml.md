@@ -186,7 +186,7 @@ Four pages cover the file between them:
 | [Who the guide is](301-identity.md) | `profile`, `[ig]` - which DHIS2 server it reads, and the guide's own identity |
 | [What goes in](301-what-goes-in.md) | the six selection tables, `[generate.tracked_entity_types]`, `[generate.organisation_units]`, `[generate.examples]` - which of your DHIS2 metadata the guide covers |
 | [How things are generated](301-generation.md) | `[generate]`, `[generate.naming]` - identifier addresses, code choices, time zone, languages, and everything about naming |
-| [Serving it](301-serving.md) | `[serve]`, `[serve.tracked_entities]`, `[[serve.basemaps]]`, `[forward]` - how the local capture server runs and what it answers about people |
+| [Serving it](301-serving.md) | `[serve]`, `[serve.tracked_entities]`, `[[serve.basemaps]]`, `[forward]` - how the local capture server runs, what it answers about people, and how forwarding behaves |
 
 ### Every option, alphabetically within its section
 
@@ -229,8 +229,10 @@ the file refuses.
 | `[generate.organisation_units]` | [`terminology`](301-what-goes-in.md#terminology) | `false` | whether the organisation units are also published as a code list |
 | `[generate.examples]` | [`per_target`](301-what-goes-in.md#per_target) | `1` | how many example responses each form ships with |
 | `[generate.examples]` | [`source`](301-what-goes-in.md#examples-source) | `"synthetic"` | whether example values are invented or copied off the server |
+| `[serve]` | [`capture`](301-serving.md#capture) | `true` | whether the server accepts filled-in forms at all |
 | `[serve]` | [`host`](301-serving.md#host) | `"127.0.0.1"` | who can reach the capture server - the exposure switch |
 | `[serve]` | [`port`](301-serving.md#port) | `8080` | which port it listens on |
+| `[serve]` | [`spool_dir`](301-serving.md#spool_dir) | `".serve/responses"` | which folder the received forms are kept in |
 | `[serve]` | [`strict_codes`](301-serving.md#strict_codes) | `false` | whether an out-of-list code is refused or stored with a warning |
 | `[serve]` | [`ui`](301-serving.md#ui) | `false` | whether the data-entry screens are served too |
 | `[[serve.basemaps]]` | [`name`, `url`](301-serving.md#basemaps) | one OpenStreetMap layer | the map backgrounds the screens offer - the one outbound call |
@@ -240,7 +242,9 @@ the file refuses.
 | `[serve.tracked_entities]` | [`page_size_limit`](301-serving.md#tracked_entities-page_size_limit) | `100` | the largest page anybody may ask for |
 | `[serve.tracked_entities]` | [`search_attributes`](301-serving.md#tracked_entities-search_attributes) | the unique and searchable ones | which attributes a search keys on |
 | `[serve.tracked_entities]` | [`tracked_entity_types`](301-serving.md#tracked_entities-tracked_entity_types) | the types the published forms register | which types the register covers |
+| `[forward]` | [`import`](301-serving.md#import) | `false` | whether a plain forward writes to DHIS2 or only checks |
 | `[forward]` | [`live`](301-serving.md#live) | `true` | what a drain reads when the project holds no compiled guide |
+| `[forward]` | [`register_completeness`](301-serving.md#register_completeness) | `true` | whether a finished aggregate form also marks its data set complete |
 
 What the generated output itself looks like from the inside - the identifier
 families, the code-list structures - is the integrate-tier's territory:

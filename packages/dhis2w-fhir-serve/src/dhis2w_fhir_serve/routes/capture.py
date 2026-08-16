@@ -1,4 +1,10 @@
-"""`POST /QuestionnaireResponse`: the one write the facade accepts.
+"""`POST /QuestionnaireResponse`: the one write the facade accepts, and the refusal in its place.
+
+A project that sets `[serve] capture = false` mounts `refusal_router` instead of `router`, and the
+address answers 405 with an OperationOutcome naming the key. The refusal is a route rather than the
+405 Starlette would produce on its own from the read router's GET: both are the same status and the
+same shape, and only one of them says why. Nothing else about the resource type moves - the receipts
+already spooled are read, searched, and counted at the same paths.
 
 The interaction is FHIR's `create`, and it answers the way R4 says a create answers - 201, a
 `Location` header naming where the created resource is served from, and an OperationOutcome
@@ -30,7 +36,7 @@ from dhis2w_fhir_serve.capture.index import CaptureIndexCache
 from dhis2w_fhir_serve.capture.naming import CaptureNaming
 from dhis2w_fhir_serve.capture.outcome import CaptureIssue, CaptureRejection, rejection_outcome, success_outcome
 from dhis2w_fhir_serve.capture.validate import ValidatedCapture, validate_response
-from dhis2w_fhir_serve.errors import FHIR_JSON_MEDIA_TYPE, UnsupportedMediaTypeError
+from dhis2w_fhir_serve.errors import FHIR_JSON_MEDIA_TYPE, CaptureDisabledError, UnsupportedMediaTypeError
 from dhis2w_fhir_serve.routes.context import serve_context
 from dhis2w_fhir_serve.spool import StoredResponseEnvelope, current_instant, new_response_id
 
@@ -49,6 +55,15 @@ _JSON_MEDIA_TYPES = frozenset({FHIR_JSON_MEDIA_TYPE, "application/json"})
 _JSON_MEDIA_TYPE_SUFFIX = "+json"
 
 router = APIRouter()
+
+#: What a viewer-posture run mounts in the create route's place - the same path, answering why.
+refusal_router = APIRouter()
+
+
+@refusal_router.post(f"/{QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE}")
+async def refuse_questionnaire_response(request: Request) -> Response:
+    """Refuse a submission this project does not receive, naming the key that decided it."""
+    raise CaptureDisabledError(QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE)
 
 
 class CaptureState(BaseModel):

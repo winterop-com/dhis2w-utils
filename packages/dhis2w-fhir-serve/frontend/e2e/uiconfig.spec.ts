@@ -37,10 +37,13 @@ const INSTANCE = 'https://dhis2.test/instance'
 /** The map's own answer for which ground it is drawing, waited on rather than guessed at. */
 const MAP_READY_TIMEOUT = 15_000
 
+/** The form the capture-posture cases open, which is the aggregate one the fixture publishes. */
+const AGGREGATE_FORM = 'BfMAe6Itzgt'
+
 /** Serve one `/uiconfig` answer, and a pixel for any tile the layers in it ask for. */
 async function serveSettings(
     page: Page,
-    settings: { basemaps: typeof STREETS[]; dhis2_base_url: string | null },
+    settings: { basemaps: typeof STREETS[]; dhis2_base_url: string | null; capture?: boolean },
 ): Promise<void> {
     await page.route('**/uiconfig', (route) =>
         route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(settings) }),
@@ -154,4 +157,34 @@ test('a server that resolved no profile shows no link out at all', async ({ page
     await page.goto('/#/terminology/CodeSystem/d2-de-cs')
     await expect(page.getByRole('row').filter({ hasText: 'DeAncDanger' })).toBeVisible()
     await expect(page.getByTestId('maintenance-link')).toHaveCount(0)
+})
+
+/**
+ * The capture posture, which is the one setting here that decides whether a screen can do its job.
+ *
+ * Fulfilled for the reason the layers are: the suite drives one server, and that server is the
+ * capturing one every other spec posts to. What the real server answers under `[serve] capture =
+ * false` - the 405, the CapabilityStatement without `create`, the flag on this very route - is held
+ * by the pytest suite. What is proved here is the half only a browser can: the screen states the
+ * fact and offers no Submit, rather than offering one that is refused when it is pressed.
+ */
+test('a server that receives nothing offers no Submit, and says so where the button was', async ({ page }) => {
+    await serveSettings(page, { basemaps: [], dhis2_base_url: null, capture: false })
+
+    await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+
+    // The form is the form it always was - a guide worth reading is worth reading on a server that
+    // publishes it and takes nothing - and only the one control that would fail is withheld.
+    await expect(page.getByRole('button', { name: 'Fill with test data' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Submit' })).toBeDisabled()
+    await expect(page.getByText('This server does not accept submissions')).toBeVisible()
+})
+
+test('a server that states nothing about capture is read as receiving', async ({ page }) => {
+    await serveSettings(page, { basemaps: [], dhis2_base_url: null })
+
+    await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+
+    await expect(page.getByRole('button', { name: 'Submit' })).toBeEnabled()
+    await expect(page.getByText('This server does not accept submissions')).toHaveCount(0)
 })

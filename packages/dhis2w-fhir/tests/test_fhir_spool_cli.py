@@ -161,7 +161,9 @@ def test_requeue_refuses_an_id_that_is_not_rejected(
     stderr = _through_the_funnel(["fhir", "requeue", "queued-1"], monkeypatch, capsys)
 
     assert "queued-1" in stderr
-    assert "is not in .serve/responses/rejected" in stderr
+    # The directory as it is on this machine, since a project that moved its spool is exactly the
+    # one where a relative name would send the operator to a directory that holds nothing.
+    assert str(spooled_project / REJECTED_RESPONSES_RELATIVE_PATH) in stderr
     assert (spooled_project / RECEIVED_RESPONSES_RELATIVE_PATH / "queued-1.json").is_file()
 
 
