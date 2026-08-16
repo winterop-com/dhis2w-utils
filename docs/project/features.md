@@ -2230,7 +2230,7 @@ over HTTP.
 
 ### Documentation
 
-The graded `d2w fhir` series lives under `docs/guides/fhir/`, routed from
+The graded `d2w fhir` series lives under `docs/fhir/`, routed from
 [the series index](../fhir/index.md) - the "I am a..." router
 (implementer / M&E configurer / integration developer / operator) and the full
 101/201/301/401 page map, which is also the FHIR top-level tab's Overview page.

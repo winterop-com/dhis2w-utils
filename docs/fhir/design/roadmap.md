@@ -319,7 +319,36 @@ profile and per-wire-version system-info mocking.
 The per-file counts above are `def test_` / `async def test_` declarations; the
 collected total is higher because several files parametrise.
 
-### 2.8 The external surface
+### 2.8 What the spool guarantees
+
+The queue between a capture and a drain is a directory, and the guarantees it
+carries are the ones that stopped it losing work quietly.
+
+- **An acknowledgement means durable.** The receipt is fsynced before the 201,
+  and so is the directory entry; the same holds for a sidecar written beside a
+  receipt on its way out.
+- **A file that stops being a receipt costs one row.** It moves to `malformed/`
+  with the reason written beside it and is named in the listing and in the drain
+  report. Reads stay answerable and the drain finishes; only an unreadable
+  *directory* is fatal.
+- **One drain at a time.** A run holds an exclusive lock on the spool root, and
+  a second refuses at once naming the process that holds it.
+- **Each receipt is filed the moment its verdict is known**, not in a pass at
+  the end, so a drain killed halfway leaves every posted receipt filed with what
+  DHIS2 said and every unposted one still queued.
+- **A replaced value is named.** DHIS2 counts a first entry and an overwrite
+  identically, so before each aggregate post the drain reads what prior
+  forwarded receipts landed on and names every value this one replaces, the
+  receipt that sent it before, and when that receipt arrived - in a dry run too,
+  which is the moment it can still be acted on.
+- **The queue is operable.** `d2w fhir spool` reads it and `d2w fhir requeue`
+  puts a refused receipt back, both without a DHIS2 connection or a profile. An
+  `entered-in-error` response is filed once rather than retried forever, because
+  no change to the guide or the instance can ever make it convert.
+- **Reads are paged**, on the cursor idiom the register uses, and run off the
+  event loop.
+
+### 2.9 The external surface
 
 Everything generation and validation read off a DHIS2 instance. The client
 itself additionally calls `/api/system/info` on connect to bind the version tree.
@@ -1107,7 +1136,7 @@ sit one level down in `r4/primitives.py` - `FHIR_DATE_PATTERN`,
 them - which is what lets the capture path check a received value against exactly
 what the emitter would have written.
 
-*The prose contract.* `docs/guides/fhir/401-capture-contract.md` and the
+*The prose contract.* `docs/fhir/401-capture-contract.md` and the
 generated `capture.md` behind
 `resources/pages/__init__.py`'s `_capture_page`.
 
@@ -1240,7 +1269,7 @@ called by the service), `clean_generated_files`, `option_set_fsh_name`,
 `option_set_code_fallback`, `max_slug_length`, `domain_code`, `is_multi_valued`,
 `answer_element`, `zoned_date_time`, `SyntheticBuild`, `FshBuild`,
 `NamingSystemDeclaration`, `ResponseProfileDeclaration`. Some are genuinely
-public API for `docs/api/fhir.md`; some may be re-exports of internals. Note
+public API for `docs/fhir/api-dhis2w-fhir.md`; some may be re-exports of internals. Note
 also that `build_naming_system_declarations` is imported by
 `resources/pages/__init__.py` and re-exported from the package but is **not** in
 `foundation/__init__.py`'s own `__all__`.
@@ -1421,629 +1450,51 @@ commitment.
 
 ### 9.1 Near-term
 
-- **`d2w fhir doctor`, the instance conformance runner** - shipped. One command
-  that drives the whole chain against one instance in a throwaway workspace and
-  reports what the instance breaks: connect, scaffold, generate, compile,
-  validate, serve, capture, forward, and - on `--live` - the oracle, where the
-  DHIS2 instance judges the served resources object by object. It orchestrates
-  the existing service functions and reimplements none of them, so what it grades
-  is the shipped path. Serve and capture run in process over the ASGI app, no
-  port bound; compile runs a real FSH compiler when the machine offers one and is
-  SKIPPED with that reason otherwise. Each phase reports PASS / WARN / FAIL /
-  SKIPPED / BLOCKED, only a FAIL exits 1, and the run writes
-  `reports/fhir-doctor-report.md` as the artifact a handover is read from. See
-  [Check an instance with doctor](../201-doctor.md).
+Everything this section used to hold has shipped, and a roadmap states what is
+next rather than what happened - section 2 is where the built surface is
+described, and the git history is where it was built. What is left:
 
-    The two follow-ups the first live runs surfaced, neither blocking: a run
-  without a compiler serves the live read-set, which publishes no example
-  responses, so `$generate` cannot read the guide's own examples for the optional
-  elements it decides from - a registration form whose program collects an
-  incident date is generated without one and DHIS2 refuses that enrollment with
-  `E1023`. The phase states this as a warning rather than hiding it; the fix is a
-  JSON twin of the examples target beside the questionnaire and terminology
-  twins. And the oracle judges four families on the elements each one carries the
-  DHIS2 name and code on; extending it per family - a Questionnaire's item tree
-  against the data set's elements, a Location's position against the unit's
-  geometry - is the natural next depth.
+- **Decision D8, which is blocking.** A drain now names the values a previous
+  submission already sent, on the terminal, in the report, and in a dry run
+  before anything changes. Whether an *unmarked* aggregate overwrite should be
+  **refused** rather than only reported is the owner's call, and the corrections
+  and withdrawals slices follow from the answer either way. See
+  [Corrections and withdrawals](data-lifecycle.md), which carries the twelve
+  slices and their order.
 
-- **`d2w fhir serve`, phase 1** - shipped: read, receive, and spool, in the
-  `dhis2w-fhir-serve` member behind the `dhis2w-cli[serve]` extra.
+- **Authentication for the served facade.** There is none, and the
+  CapabilityStatement declares no `rest.security`, so a client cannot discover
+  that there is nothing to authenticate against. Loopback-by-default is the
+  current mitigation and it is a demo posture rather than a deployment one. The
+  scope decision comes first - a gate on the write path, or OAuth2 against the
+  same identity provider the client already speaks - because it decides whether
+  this is one slice or several.
 
-    The **default** serves the compiled `fsh-generated/resources` merged with the
-    predefined `input/resources/` tree SUSHI never re-emits: `/metadata` as a
-    `kind #instance` CapabilityStatement instantiating the IG's own
-    `D2CaptureServer`, per-type reads, and `?_id=` / `?url=` / `?identifier=`
-    search answered as searchset Bundles. A missing compiled tree fails loud
-    ("run generate + sushi first"), never an empty server. One structured line per
-    request is the observation layer - the log of what consumers actually ask for
-    is what prioritises the read-proxy work below.
+- **The example quality wave.** Every `d2w fhir` example runs in
+  `make verify-examples` against a shared fixture, which is the bar; three of
+  the CLI scripts still read as reference documentation rather than as one
+  feature apiece, and a served fixture the suite stands up once would let the
+  remaining skipped ones run.
 
-    **`--live`** builds the same read set off the instance at startup, through one
-    client opened in the lifespan and held open for the life of the process. Its real
-    work item was the **JSON builder path beside the FSH templates**, which
-    shipped with it: `build_questionnaire_documents` and
-    `build_data_dictionary_documents` are the twins of the FSH questionnaire
-    emitter, fed by the same `*In` projections and identity single-sources, and
-    `test_fhir_questionnaire_parity.py` gates each built document against SUSHI's
-    own output key for key. That layer is also the groundwork `fhir build`'s
-    conversion codegen stands on.
+- **The history surface, then the IPS document.** Both were deferred behind the
+  storage and compliance work and neither is blocked now. History is the
+  requirements list the capture comparison produced; the IPS document follows
+  it, because a summary of a person is only worth publishing once the record it
+  summarises can be read.
 
-    **Receive** is the half the original item did not name. `POST
-    /QuestionnaireResponse` validates a submission against the served IG in
-    phases and stores it as a receipt - the submission as it arrived, mirrored to
-    `.serve/responses/received/`. Reading one back says what was submitted, not
-    what DHIS2 holds. `d2w fhir generate load-set` writes the corpus to exercise it.
+- **Filed defects, none blocking.** `generate` has no gate on the
+  build-aborting names `validate` now grades as errors, so a guide can still be
+  emitted that the publisher will fail on. `generate_full` hands one note list
+  to several targets, so every consumer sees each note more than once. The
+  capture UI's register search is written to `Patient` alone, so a deployment
+  serving only `Specimen` is told no search is published when one is. A
+  translator-refused receipt reads in `/spool` exactly like one no drain has
+  touched. The conversion layer's public names are split across two import
+  paths for no reason a caller can see, and it offers no lookup of a form by
+  id and no accessor for whichever payload a translation produced.
 
-    Dimension A of section 6 de-risked this item; its outcomes are recorded there.
-
-- **Curated `Usage: #example` instances for the registry profiles** - shipped.
-  The registry ships as JSON SUSHI never compiles, so `D2Organization` and
-  `D2Location` had no worked example: the example target only covers what a
-  questionnaire is answered with. The `org-units` target now writes
-  `organization/registry-examples.fsh`, a `D2OrganizationExample` /
-  `D2LocationExample` pair drawn from the selection's own root unit, so the
-  publisher validates both profiles against real instance data on every build.
-  They sit beside the profiles rather than under `examples/`, whose sync deletes
-  every file it did not produce.
-
-- **ConceptMaps for categories** - shipped. The `categories` target now publishes the
-  same triple `option-sets` does: one ConceptMap beside each CodeSystem/ValueSet pair,
-  riding the category's own identity stem (`D2CAT_<segment>_CM`, `d2-cat-<stem>-cm`),
-  carrying the category UID under `{base}/id/category` as its business identifier, and
-  mapping every emitted concept onto `{base}/id/category-option` and
-  `{base}/id/category-option-code`. The builder is the option-set one with the category
-  source label and id stem, reading the same `concept_assignments` plan, so a mapping
-  can only ever name a concept the pair really holds. The two new namespaces joined
-  `IDENTIFIER_SYSTEM_SUBJECTS`, so `foundation` declares them as NamingSystems and
-  aliases them (`$DHIS2-CO`, `$DHIS2-CO-CODE`) alongside the option ones.
-
-    Both families write into `resources/concept-maps/`, which is the one shared JSON
-    directory in the project: the publisher needs a `path-resource` glob per directory
-    and one mechanism should not need two. Ownership moved from the directory to the
-    file name - `sync_json_artifacts` takes an `owned_prefix` and each target sweeps
-    `ConceptMap-<its id stem>` alone - so `d2w fhir generate option-sets` no longer
-    deletes what `d2w fhir generate categories` wrote, and both still converge when an
-    object leaves the selection.
-
-    `d2w fhir serve` needed nothing: the store reads `input/resources` recursively and
-    `$translate` scans every ConceptMap it holds, so category maps are answered the
-    moment the target writes them. The live store builds them from the same category
-    inputs. Byte parity with SUSHI is gated by a second golden,
-    `tests/data/r4/ConceptMap-d2-cat-sex-cm.json`.
-
-- **The default category stays home** - shipped. DHIS2's built-in `default` category
-  is the placeholder meaning "no disaggregation was entered" - it exists on every
-  instance and exchanges no information, yet the target published it as a CS/VS pair
-  titled `default`. `[generate.categories] include_default = false` now skips it on
-  every path that applies the selection (`generate categories`, `generate full`,
-  `serve --live`) and on `validate`'s scope resolution, so the ignored object grades
-  as instance hygiene. An `include_ids` entry naming its UID wins over the flag, and
-  `include_default = true` restores the previous output byte for byte. Detection is
-  the reserved, rename-protected name - `/api/categories` carries no `isDefault` -
-  matched case-sensitively. The default category option combo needed nothing: only
-  non-default combos contribute combos to `D2COC_CS`, so it never surfaces there.
-
-- **Naming source: the id -> code migration path** - shipped:
-  `[generate.naming] source = "id" | "code-or-id" | "code"`, default `"id"`. The
-  resolved segment - the **identity stem** - drives the FHIR resource id, the
-  canonical URL, the file name, and the FSH artifact name for every naming
-  surface: option sets (the CS/VS/ConceptMap triple shares one stem), categories,
-  organisation units (registry files, ids, `partOf`, `managingOrganization`),
-  questionnaires, examples, and pages. `resolve_identity_stems` in `names.py` is
-  the one resolver every surface runs through; under `"code-or-id"` a missing,
-  unusable, or colliding code falls back to the id with one aggregate note per
-  surface, and under `"code"` it refuses the run through `CodeStemError` before a
-  file is written. The point is to give an instance team a way to move toward
-  real codes incrementally and *see* the progress: under `code-or-id` the
-  filesystem itself shows which objects have earned a readable name and which
-  are still bare ids.
-
-    There is deliberately **no name mode**: DHIS2 names have no rules, are
-    unstable, and are localized (`displayName` translates), so a name is not an
-    identity source. Design notes carried into the work, all of which held:
-
-    - **The stem is not just a filename.** It becomes the resource `id` *and* the
-      canonical URL, so flipping the mode re-identifies the entire IG. That is
-      deliberate: a whole-project switch is exactly the migration semantics wanted,
-      not a per-object drift.
-    - **"Valid" means stem-safe**, not merely non-empty: a code used as a stem has
-      to satisfy the FHIR `id` constraints and the surface's stem budget - never
-      truncated, always fallen back or refused - which is a narrower bar than the
-      R4 `code` datatype. The build-aborting `<` rule applies a fortiori, and so
-      do underscores: DHIS2's own demo codes (`OU_525`, `DS_359711`) can never
-      serve as stems.
-    - **Mode `code` fails early** through the same refuse-at-generate-time machinery
-      the build-aborting code gate uses - one object without a usable code refuses the
-      run rather than silently falling back.
-    - **`d2w fhir validate` is the readiness probe.** The code-stem pass names
-      exactly the objects that fall back under code-or-id semantics
-      (`code-stem-fallback`, warning) and the ones `source = "code"` refuses on
-      (`code-stem-refusal`, error - parity-tested against the generate refusal),
-      and the **code coverage** line in the validate summary
-      (in-scope objects passing `usable_code_stem`, per surface in the report)
-      makes the migration measurable rather than anecdotal.
-    - **Distinct from `concept_code_source`**, which governs the concept codes *inside*
-      a CodeSystem and has nothing to do with artifact identity. The two dials will be
-      confused unless the docs say so on both sides.
-
-    Collisions are graded per **id namespace**, not per DHIS2 collection.
-    Option sets, categories, and organisation units each name their own
-    artifacts, so each is its own namespace; the questionnaire targets pool -
-    a data set, an event program, and a tracker program stage all become
-    `Questionnaire-<stem>` resources, so their codes collide across collections.
-    A tracker program's stem only names its stage directory, a namespace of its
-    own. Validate's code-stem pass groups the surfaces the same way
-    (`_stem_namespaces` mirrors `plan_questionnaire_stems`), so a code unique
-    within `dataSets` but shared with an event program is a fall-back or a
-    refusal in generate and a finding in validate alike.
-
-- **Typed note kinds** - shipped. A generate note is a `GenerateNote`: a `category`,
-  the `message` a run has always printed, and `echoes_validate` derived from the
-  category, so the terminal reasons about a note instead of counting prose. Thirteen
-  kinds cover every site the package raises - `selection-mismatch`,
-  `selection-closure`, `empty-selection`, `selection-gap`, `refused-form`,
-  `form-structure`, `skipped-question`, `answer-fallback`, `instance-data-gap`,
-  `build-cost`, `code-fallback`, `code-collision`, `stem-fallback` - and
-  `test_fhir_generate_notes.py` holds the inventory of which module raises which,
-  so a new note has to be classified rather than written as prose.
-
-  The question "are the notes covered by validate?" kept both its answers. The
-  **instance-defect** echoes - `code-fallback`, `code-collision`, `stem-fallback`,
-  which are generation's view of validate's `missing-code`, `invalid-code`,
-  `template-hostile-code`, `duplicate-code`, and `code-stem-fallback` on the very
-  same objects - come off the terminal count, because the validate report says it
-  better, with the scope and the severity attached. The **config and selection**
-  notes, and every emit-time decision validate cannot see, are the terminal-worthy
-  remainder. So a bare run reads
-  `note: 3 note(s) across 2 target(s) (+8 validate echoes); full list in ...`, and
-  `8 validate echo(es) across 2 target(s)` when echoes are all it raised.
-
-  Suppressed is not hidden: `reports/fhir-generate-notes.md` still carries every
-  note, a target's own first and its echoes under a trailing
-  `### Restatements of validate findings` heading per target. A **solo** target
-  prints all of its notes inline exactly as before - one target's notes are short and
-  it was asked for by name - `--details` prints everything, and `--json` carries the
-  whole model, kind included.
-
-- **Scope-aware validate severity** - shipped. Severity means build impact on
-  *this project's configured IG*: `validate` resolves the configured selection into
-  a `ValidationScope` through the same selection semantics `generate` uses (five
-  id-only reads, so the two can never disagree about what "in the IG" means), and
-  every finding carries the verdict as `scope` - `selection` or `instance`. An
-  **error** is a build-aborting `<` code on an in-scope identifier surface, the
-  same set the generate-time gate refuses, and the only findings that gate
-  `--fail`'s exit 1; a **warning** is an in-scope degradation the build survives;
-  an **info** is instance hygiene on out-of-scope objects, the code-migration
-  watchlist that shrinks as an instance moves toward real codes. The summary
-  carries the selection split and a **code coverage** fraction (in-scope objects
-  whose code meets the `usable_code_stem` bar), the rollup splits by (severity,
-  scope, category) with the instance rows dimmed, and the md/csv/pdf reports carry
-  the scope on every row.
-
-    The measurement that motivated it, on the Lao national instance: 4,062
-    findings, 35 graded `error` under instance-wide grading - of which exactly
-    **one** could actually abort a build (the `<` code on a selected option set).
-    The other 34 errors sat on dashboards, program indicators, legend sets, and
-    visualizations - resource types the generator never emits - and ~3,400 of the
-    warnings were `template-hostile-name` on objects (1,677 visualizations, 403
-    validation rules) that never reach an IG page. Under scope-aware grading the
-    same run reads: 1 error, ~60 warnings, ~4,000 infos. Open sub-question kept:
-    an optional strict dial failing on in-scope warnings too; the default stays
-    error-only, because warnings are survivable by construction.
-
-- **`Questionnaire/{id}/$generate` on serve** - shipped. A **custom** operation,
-  deliberately not SDC's `$populate`: `$populate` means fill-from-real-context, and using
-  it for synthetic data would mislead every client that knows what it means.
-  `GET|POST [base]/Questionnaire/{id}/$generate` returns a profile-declared
-  `QuestionnaireResponse` that is immediately POSTable to the same server, with an
-  optional `seed` parameter for determinism. `foundation` emits its `OperationDefinition`
-  as `d2-generate-operation.fsh` (`kind #operation`, `instance = true`,
-  `affectsState = false`, one `integer` `seed` input and a `QuestionnaireResponse`
-  `return`), and `/metadata` declares it on the `Questionnaire` resource entry - the entry
-  whose URL answers it, which is the same rule that puts `$translate` on the `ConceptMap`
-  entry. The IG's own `D2CaptureServer` stays silent about it on purpose: that
-  statement is `kind #requirements`, and a server that only receives captures is still
-  conformant.
-
-    The invariant it was built around is a test rather than a claim: **`$generate` output
-    POSTed back to the server's own `/QuestionnaireResponse` answers 201** - per form kind,
-    in both store modes, and under `--strict-codes`, whose exactness is what forces a
-    generated coding to be the concept code the contract asks for rather than one of the
-    lenient fall-back spellings.
-
-    **One route serves both modes.** The implementation sketch had `--live` riding
-    `build_synthetic_responses` and compiled mode synthesizing from the `CaptureIndex`; what
-    shipped is only the second, because a live store serves the same compiled-shape
-    Questionnaires and CodeSystems the compiled one does. `synthesize.py` reads the index the
-    validator checks against - the same `value[x]` element, the same bounds, the same
-    `repeats`, the same binding resolved through the same `CodingResolverSet` - so the two
-    directions cannot drift, and live mode holds no fetch alive past startup to feed a second
-    generator.
-
-    Both recorded gaps got documented rules. A compiled Questionnaire does not carry its
-    data set's `periodType`, so the period type is **read off a served example response
-    answering the same form** - a compiled IG ships its `Usage: #example` instances, and each
-    aggregate one states the real type on its `D2Period` - and falls back to **`Monthly`**
-    when the store holds none, which is every live store. The item type is lossy between
-    `TRUE_ONLY` and `BOOLEAN`, so both generate either value, and a generated `false` against
-    a `TRUE_ONLY` element is a value the form admits but the instance would not store.
-
-    The seed spelling is the response's own **business identifier** - `identifier.system =
-    {canonical}/id/generate-seed` - rather than a header or a contained `Parameters`. It is
-    the R4 element for exactly that, it needs no out-of-band channel, and it survives the
-    POST into the stored receipt, so a seedless call is as reproducible as a seeded one and a
-    corpus can be regenerated by reading the seeds off it.
-
-- **Organisation-unit assignment as a published artifact** - shipped. DHIS2 scopes
-  every data set and program to the organisation units it is assigned to, and the IG
-  published nothing that carried the scope - so a capture against an out-of-assignment
-  unit was only caught by DHIS2 at forward time (`E1029`), 202 times in the first live
-  drain. The owner's question "should we expose it as FHIR - an extension?" resolves to
-  **one collection of Location references per form**, named by the Questionnaire through
-  a single `D2OrganisationUnitAssignment` extension (`valueReference`), because the two
-  extension shapes fail - per-unit references on the Questionnaire put thousands of
-  extensions on every national form, and per-form canonicals on each Location make
-  "which units may report form X" a scan of the whole registry.
-
-    **The collection is a `List`, not a `Group`.** R4 binds `Group.member.entity` to
-    `Patient | Practitioner | PractitionerRole | Device | Medication | Substance | Group`
-    and `Group.type` to `person | animal | practitioner | device | medication |
-    substance`: a Location is neither a legal member nor a legal type, so a Group of
-    Locations is an artifact the validator rejects (R5 adds Location to both; this IG is
-    R4). `List.entry.item` is `Reference(Resource)` and `List.mode` says `snapshot`,
-    which is precisely what an assignment is. Everything else about the design stands
-    unchanged - one artifact per form, `mode = snapshot`, the DHIS2 container UID on
-    `List.identifier`, subset-only emission, per-program sharing.
-
-    The economy that makes it publishable: **the List is emitted only when the
-    assignment is a proper subset of the published registry.** "Assigned everywhere" -
-    the common national case - publishes nothing, and absence means the whole registry,
-    which is exactly the behaviour that preceded it. The assignment is intersected with
-    the published selection before it is judged, so a unit DHIS2 assigns but the registry
-    does not publish cannot make an assignment look narrower than it is; an empty
-    intersection publishes an empty List and one note. Tracker stages share their
-    program's List, because DHIS2 hangs the assignment on the program.
-
-    The artifacts land as predefined JSON in `ig/input/resources/assignments/`, one
-    `List-d2-{ds,pr}-<stem>-org-units.json` per container, behind the fifth
-    `path-resource` glob. Both Questionnaire emitters - FSH and the served documents -
-    stamp the extension from the one `AssignmentPlan` the emitter returns, and the one
-    id-only assignment read the load-set generator makes serves this too.
-
-    Three consumers, one artifact: `serve` grades the subject, the tracker
-    `D2OrganisationUnit` extension, and every `ORGANISATION_UNIT` answer against the List
-    at capture time on the lenient/strict dial (warning on the receipt by default, 422
-    under `--strict-codes`); `$generate` draws its Location from the List so a generated
-    response stays postable; and the capture UI can constrain its Location picker per
-    form by reading the List the form's extension names.
-
-- **`generate load-set` draws instance-valid references** - shipped. The first live
-  drain graded the stress corpus: DHIS2 accepted 84 of 286 and refused the rest for
-  reasons the generator can avoid - `E1029` (an organisation unit the program or data set is
-  not assigned to; the generator picked from the published registry, which
-  assignment does not filter) and `E8023` (an attribute option combo the data set
-  cannot take). Two id-only reads now precede the write - `dataSets` for
-  `organisationUnits[id]` and `categoryCombo[id,isDefault]`, `programs` for
-  `organisationUnits[id]`, each filtered to the UIDs the selection resolved to - and
-  every response is captured at a unit drawn from the **intersection** of the
-  published registry selection and its own target's assignment. A tracker stage is
-  placed by its program's assignment, because that is where DHIS2 hangs it. The pick
-  runs on a generator seeded off the target UID and the ordinal alone, so the corpus
-  stays reproducible from instance state and every other synthetic value stays on the
-  response's own stream unmoved.
-
-    **The AOC class is a pick too, now that the response can carry the choice.** A
-    data set on a non-default category combo draws one of the attribute option combos
-    it really holds, on a seeded stream of its own, and carries it as
-    `D2AttributeOptionCombo` - so the third key of the data value set is stated and
-    there is no `E8023` left to predict. A target the intersection of registry and
-    assignment leaves empty is still dropped, with a note naming it, and
-    `LoadSetReport.questionnaire_count` counts the targets the corpus covers rather
-    than the ones the selection holds. A load set is measured by what DHIS2 accepts,
-    and filling it with refusals we could predict corrupts the very number it exists
-    to produce.
-
-    The tracker remainder (`E1313` - an enrollment naming no real TrackedEntity) is
-    not the generator's to fix: a tracker event lands only against a real enrollment,
-    which is the registration form's milestone below.
-
-- **The tracker registration form** - shipped whole: published, captured, converted,
-  and forwarded.
-
-    A tracker program had every stage published and no way to reach any of them. That
-    is what `d2w fhir forward` was reporting when it refused every tracker event with
-    `E1313` / `E1079`: the enrollments those responses named did not exist on the
-    instance, and nothing the guide published created one. A stage is a *visit*, and
-    nothing is captured at a visit until somebody is enrolled - so the program itself
-    is a form, and answering it is what enrols them.
-
-    **The program is the form**, published at
-    `tracker-programs/<program stem>/registration.fsh` beside the stage files under a
-    fixed name rather than a stem, because the file already sits in the program's own
-    directory. Its identity is the program's own - the `PR` naming token,
-    `$DHIS2-PROGRAM` / `$DHIS2-PROGRAM-CODE`, the very pair a stage carries as its
-    grouping identifier - so one identifier search now returns a program's whole
-    capture surface rather than only its stages. A `$DHIS2-TET` slice names the tracked
-    entity type it enrols a person as, `trackedEntityType` joining
-    `IDENTIFIER_SYSTEM_SUBJECTS` for it. It shares its program's assignment `List`
-    (DHIS2 hangs the assignment on the program) and declares no attribute-option-combo
-    vocabulary (tracker capture has no third key).
-
-    **Its questions are tracked entity attributes, typed exactly as data elements are.**
-    `programTrackedEntityAttributes` is the same shape `programStageDataElements` is -
-    a join carrying `mandatory` and `sortOrder` around the object that carries the
-    question detail - so an attribute projects onto the very `QuestionnaireItemIn` a
-    data element does and every rule downstream applies unchanged. What differs is the
-    vocabulary its `code` points into: `D2TEA_CS` / `_VS`, mirroring `D2DE_CS` with
-    `dhis2-code` and `value-type`, plus `unique` - a boolean marking the attributes
-    DHIS2 declares business identifiers, which is also the groundwork for nominating
-    one as the subject identifier later. **The option-set closure grew to reach them**:
-    it was written over data elements, so a set only an attribute bound would have gone
-    unpublished with a published form still binding it. It is over questions now, on
-    the generate path and in `resolve_validation_scope` alike, so generate and validate
-    cannot disagree about what the run publishes. A tracked entity attribute joins the
-    closure without joining the `dataElements` scope surface, because it is not a data
-    element and that surface answers for what `d2w fhir validate` grades as one.
-
-    **The response profile mints what it names, which is the whole point.**
-    `D2TrackerRegistrationResponse` keys exactly as `D2TrackerEventResponse` does - a
-    logical `Patient` subject under `{base}/id/tracked-entity`, `D2TrackerEnrollment`
-    under `{base}/id/tracker-enrollment`, `D2OrganisationUnit` for the capture unit -
-    with one difference the profile states outright: nothing on the instance holds
-    either UID yet, because this response is what creates them, so the **client** mints
-    both as DHIS2 UIDs. That is what lets a client enrol a person and capture the
-    enrollment's first stage events in one submission run, naming the enrollment its
-    stage responses answer against before any of them is sent. Two new foundation
-    extensions date the enrollment: `D2EnrolledAt` 1..1, and `D2IncidentAt` 0..1 -
-    `0..1` rather than 1..1 because a DHIS2 program states whether it collects an incident
-    date at all, which the registration form publishes on a third extension,
-    `D2CollectsIncidentDate` 1..1, so a response to a form declaring false carries none.
-
-    **Identifier-keyed, deferring [5.2](#52-the-tracker-shape) by design.** The *guide*
-    publishes no `Patient`, `EpisodeOfCare`, or `CarePlan` instance. That is not a gap
-    waiting on the decision - it is the same contract the tracker-event kind has kept
-    since it shipped, applied to the form that creates the enrollment. A served facade
-    is a separate matter: under `--live` the register *projects* each tracked entity
-    onto the resource type the published map names, per request and off the instance,
-    without any such instance being published. What 5.2 now decides is purely the
-    resource layer on top.
-
-    **What kind of thing is enrolled is configurable.** `[generate.tracked_entity_types]`
-    maps a tracked entity type UID onto the FHIR resource type its registrations are
-    about, so a project tracking herds publishes `subjectType = #Group` on the
-    registration form and on every stage form of that program, and the response profiles
-    admit the union of `Patient` and whatever the project configured. An unmapped type is
-    a `Patient`, so a person-tracking project configures nothing.
-
-    **Capture checks the shape of what the client minted, and says what it cannot check.**
-    `CAPTURED_FORM_KINDS` holds every kind, which is the one switch serve's index,
-    the conversion gate, the `supportedProfile` declarations, `/metadata`, and the load
-    set all read. The envelope phase grades a DHIS2-UID shape on both minted identifiers,
-    one organisation unit, and an enrolment date that parses - and stops there on purpose.
-    Uniqueness of a `unique` attribute is global instance state DHIS2 enforces at import,
-    and whether an incident date belongs is a fact about the program the compiled
-    Questionnaire does not publish, so a carried one is graded on its primitive alone.
-    `$generate` follows the same rule from the other side: it always writes `D2EnrolledAt`
-    and writes `D2IncidentAt` only where a served example of the form carries one, exactly
-    as it reads a data set's period type off a served example.
-
-    **Conversion writes the tracked entity it creates.** One `/api/tracker`
-    `trackedEntities` entry - the minted UID, the tracked entity type off `$DHIS2-TET`
-    (refused by name when the form carries none, because a program without one cannot
-    register anybody), the owning unit, one `TrackerAttribute` per answered question
-    through the value-type and coded-answer machinery a data element's answer uses, and
-    the single `ACTIVE` enrollment with `enrolledAt` required and `occurredAt` written
-    only where an incident date was stated. The models are the generated OpenAPI
-    `TrackerTrackedEntity` / `TrackerEnrollment` / `TrackerAttribute`, reused rather than
-    hand-rolled.
-
-    **An answer states which of the two DHIS2 levels it belongs to.** DHIS2 collects a
-    registration answer either for the tracked entity - the attribute is one of the
-    tracked entity type's own `trackedEntityTypeAttributes` - or for the program alone,
-    and the import endpoint keeps them apart: the first belongs on
-    `trackedEntities[].attributes`, the second on `enrollments[].attributes`. The type's
-    join rides the program read the form was already built from
-    (`trackedEntityType[id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]]`), and
-    the guide publishes the answer per question as `D2EntityLevel`, a `boolean` extension
-    on `Questionnaire.item`. It is on the item and not a `D2TEA_CS` concept property
-    because membership is a fact about the attribute **and the tracked entity type**
-    together: one dictionary is shared by every registration form of the run, and two
-    programs on different types can disagree about one attribute. The conversion splits by
-    what the item states, and a question stating nothing is written on the tracked entity,
-    so a guide compiled before the extension translates exactly as it did.
-
-    **Registrations post before events**, which is what finally clears `E1313`: a drain
-    orders by payload kind rather than tracking dependencies, so the enrollment a stage
-    response of the same drain answers against exists by the time DHIS2 reads the event.
-    `generate load-set` covers registration targets for the same reason and threads the
-    minted pairs through the program's stage responses, so a corpus is internally
-    consistent and a single forward run lands both halves.
-
-- **The person-only registration form** - shipped. A DHIS2 tracked entity does not
-  need a programme to exist: a bare `trackedEntities` import under plain CREATE stands
-  one up, and the person it creates is findable without one. So a tracked entity type
-  is a form in its own right, published at `tracked-entity-types/<stem>.fsh` under the
-  `TET` naming token, form kind `tracked-entity`, asking the attributes the *type*
-  collects - the very set DHIS2 imports onto the tracked entity, which is why every
-  item carries `D2EntityLevel` true and the conversion has no enrollment to split
-  answers across. Its identity is the type's own (`$DHIS2-TET` / `$DHIS2-TET-CODE`),
-  its subject follows `[generate.tracked_entity_types]` like every other tracked-entity
-  form, and it publishes no organisation-unit assignment at all: DHIS2 hangs one on a
-  data set and on a programme, never on a type, so the whole published registry may
-  register a person and the load set places these responses over all of it.
-
-    `D2TrackedEntityResponse` is the capture contract: the registration profile without
-    its enrollment half - the minted tracked entity, the owning organisation unit,
-    `authored` 1..1, and no `D2TrackerEnrollment`, `D2EnrolledAt`, or `D2IncidentAt`
-    at all. `$generate` and the example corpus both draw one UID rather than two.
-
-    **Selection is its own table, and its default is not the whole instance.**
-    `[generate.tracked_entity_forms] include_ids` names types outright; left empty it is
-    the types the selected tracker programmes already register, read in one filtered
-    request and skipped entirely when a run selects no tracker programme. Overloading
-    `[generate.tracked_entity_types]` was the alternative and was refused: that table
-    says what a type *is*, and a table that also decided what is published would make
-    typing a herd as a `Group` publish a form nobody asked for.
-
-- **What identifies a person, per context** - shipped. `D2TEA_CS` carried `unique`,
-  which is a fact about the attribute alone, and said nothing about whether DHIS2 will
-  *find* a person by it. It does now, and the shape is per context because the fact is:
-  DHIS2 holds `searchable` on the join between an attribute and the form asking it, and
-  on the demo database Child Programme and Antenatal care disagree about the same
-  attribute. One boolean would have stated one of them and lied about the other. So the
-  dictionary publishes a `searchable` roll-up - true where any context this run
-  publishes declares it, which is the question a consumer actually asks - beside one
-  `searchable-<contextUid>` boolean per context that asked the attribute, declared once
-  each with the context named in words. It is a concept property rather than a
-  designation or an extension so `$lookup` answers it the way it answers `unique`, and
-  it follows the precedent `D2COC_CS` set with one property per category axis. Both
-  flags ride the `programTrackedEntityAttributes` and `trackedEntityTypeAttributes`
-  joins the forms already fetch, so the provenance costs no request.
-
-- **The attribute option combo, published as terminology** - shipped, and it is what
-  [decision 5.4](#54-where-attributeoptioncombo-and-data-set-completeness-live)
-  resolves for the AOC half.
-
-    A DHIS2 data value set is keyed by `(orgUnit, period, attributeOptionCombo)` and
-    the FHIR shape expressed only two of the three, so a data set on a non-default
-    category combo could not round-trip: DHIS2 refused every capture against one with
-    `E8023`, and `generate load-set` skipped those data sets outright rather than
-    write a corpus of known refusals.
-
-    The carrier is an extension, and the vocabulary behind it is what makes the guide
-    self-sufficient. `D2AttributeOptionCombo` sits on the response beside `D2Period`
-    with `valueCoding` 1..1; `D2AttributeOptionCombos` sits on the form with
-    `valueCanonical` to the ValueSet its responses draw from - a canonical because a
-    ValueSet is a definitional resource, where the assignment extension points at a
-    `List` instance and is a literal reference. One CodeSystem/ValueSet pair per
-    *distinct* non-default attribute category combo lands in
-    `ig/input/resources/attribute-option-combos/` under a naming token of its own
-    (`AOC`, not the data dictionary's `COC`: one codes a question's disaggregation
-    cells, the other codes the combo a whole response is filed under), shared by every
-    data set on that combo, with a ConceptMap per pair taking each concept back to
-    both DHIS2 identifiers. A default-combo data set publishes nothing, and absence
-    means the default combo - the assignment target's economy, applied again.
-
-    Both example paths carry it: the instance-sourced path already grouped by the full
-    data-value key, so the combo it read travels onto the response, and the synthetic
-    path draws one off a stream seeded by target UID and ordinal, which is what
-    un-skips a non-default data set in `generate load-set`. The metadata cost is zero
-    extra requests - the combo rides the data-set projection the forms already fetch,
-    so `--live` serves the pairs too.
-
-    **The capture and conversion halves land in the same wave.** Publishing the
-    vocabulary states the rule; the server and the forwarder are what hold anybody to
-    it. `d2w fhir serve` grades the third key in a phase of its own, right after the
-    organisation-unit assignment and on the same dial: a form declaring
-    `D2AttributeOptionCombos` whose response names no `D2AttributeOptionCombo`, and a
-    response naming a concept the served vocabulary does not hold, are warnings on the
-    receipt by default and 422s under `--strict-codes`, with `E8023` in the diagnostics
-    the way the assignment's carry `E1029`. The mirror grades too - a combo named against
-    a form declaring none would be stored and then silently not written - while a coding
-    from another system and a coding with no code are refused under either setting,
-    because those are malformed rather than drifted. `$generate` draws a real concept out
-    of the declared vocabulary in the concept-code spelling, which is what keeps the
-    post-back-201 invariant holding for a non-default data set with `--strict-codes` on.
-    And `d2w fhir forward` writes `DataValueSet.attributeOptionCombo`, resolving the
-    coding on the option-set tiers - the concept code, which under
-    `concept_code_source = "id"` is the DHIS2 UID itself, then the CodeSystem's
-    `dhis2-id` property and the combo's own ConceptMap group onto
-    `{base}/id/category-option-combo` - and refusing rather than posting a payload DHIS2
-    would answer `E8023` to, under two refusal kinds of its own
-    (`missing-attribute-option-combo`, `unresolvable-attribute-option-combo`).
-
-    The other half of 5.4 lands beside it: **data-set completeness**, carried by
-    `QuestionnaireResponse.status` and written to `/api/completeDataSetRegistrations`
-    after the values are in. `completed` registers the tuple the values landed under
-    and claims the `authored` day; `in-progress` imports and claims nothing. The
-    `completeDate` on the data value set is deliberately never written - on 2.42 it
-    registers completeness even when every value was refused, and even under
-    `dryRun=true` (BUGS.md 76, 77) - so the claim is a second call made only once
-    DHIS2 has taken the values, and a claim it refuses does not un-import them. The
-    dial is `--register-completeness/--no-register-completeness` (default on), a dry
-    run states the tuple it would register rather than posting one, and the outcomes
-    are typed and carried on the report, because a registration has no UID to name it
-    by - only its four keys.
-
-- **The organisation-unit browser, with a map** - shipped as the capture UI's **Org
-  units** page. The registry already carried everything a browser needs, in standard
-  spellings: every Location names its parent
-  (`partOf`, mirrored on the Organization side), its DHIS2 level (the
-  `D2OrganisationUnitLevel` coding), and - for the units DHIS2 holds geometry on -
-  its point (`position`) and its boundary polygon through the official HL7
-  `location-boundary-geojson` extension. The page is what that description implied: a
-  lazily-expanded tree folded from `partOf`, a detail panel per unit (identifiers,
-  parent chain, children, level, and the forms reportable there via the published
-  assignment Lists), and a map panel rendering boundaries and points with **MapLibre
-  GL JS** over raster basemap tiles. MapLibre is the frontend's first heavy
-  dependency, so the route lazy-loads - the engine lands in its own chunk (~933 kB,
-  243 kB gzipped) and the entry bundle grows by 20 kB. deck.gl-style data overlays
-  stay out until there is data worth overlaying.
-
-    **The basemap shipped as the default rather than as the later opt-in this entry
-    planned.** Boundary-only was the right first posture and the wrong resting one: a
-    polygon on a blank canvas answers what shape a district is and not where it is,
-    which is the question somebody opening a hierarchy has. `[serve.basemaps]` names the
-    `{z}/{x}/{y}` layers on offer (one OpenStreetMap entry by default, `[]` for the
-    self-contained canvas, repeatable `--basemap` per run), the UI reads them from a
-    typed `GET /uiconfig` on `/spool`'s pattern and offers them through a layer control
-    carrying `None` beside them, and the tiles are muted per theme so they read as
-    ground rather than glare. An empty offer keeps every property this entry originally
-    asked for - same-origin, offline, nothing told to a tile vendor - and is what the
-    browser suite runs under.
-
-    **Three rules the flat Bundle does not state, folded in `lib/orgunits.ts`.** A unit
-    whose `partOf` names a Location the project never published is a flagged root
-    rather than a dropped row - that is what a selection with a `root` or a `max_level`
-    looks like from below, not a broken registry. The level is read off the coding
-    rather than counted in `partOf` hops, because those are exactly the units whose
-    served depth is smaller than their DHIS2 depth. And the assignment join never
-    materialises a form-times-unit pair for the common case: absence of the extension
-    means assigned everywhere, so those forms stay one list and only a form with a
-    published List adds per-unit entries. The page says "assigned everywhere" and
-    "assigned to this unit", which is what a DHIS2 administrator already calls them.
-
-    **The extension is not a polygon slot, and reading it as one was the first live
-    bug.** `location-boundary-geojson` carries DHIS2's `geometry` field verbatim, and
-    DHIS2 keeps a district's catchment polygon and a facility's pin in that same field -
-    so a real registry's attachments are mostly Points, and a decoder that admitted only
-    the polygonal types reported most of itself as broken. Points and MultiPoints are
-    drawn as points, merged with `Location.position` (which wins the dedupe, being the
-    R4 element every other client reads), and the unreadable count names only payloads
-    that are genuinely neither.
-
-    **A fourth rule the flat Bundle does not state: one unit can arrive as two
-    Locations.** The IG publishes a curated exemplar of the registry profiles beside the
-    registry itself, built from the selection's root unit and carrying that unit's uid
-    with no `partOf`, so a `partOf` fold shows the root twice. Locations are grouped by
-    the organisation-unit identifier they claim and the instance the hierarchy hangs off
-    is kept - by identifier rather than by resource id, because the id is emitter-derived
-    and the claim is not.
-
-    **The degradations are the design.** A geometry attachment holding nothing drawable
-    is skipped with a count rather than thrown; a selected unit with no geometry frames
-    on the nearest ancestor that has some, and says so; a registry with no coordinates
-    hides the map panel behind one sentence; tiles that fail leave the painted ground.
-    The e2e fixture project publishes a registry carrying every one of those states, the
-    profile exemplar, and one form assigned to two of ten units, because none of these
-    rules can fail visibly against a registry of nothing.
 
 ### 9.2 Mid-term
-
-- **Forward stored responses into DHIS2** - shipped as `d2w fhir forward`, which is
-  phase A of [the FHIR conversion layer](conversion.md). The spool is a queue of
-  receipts and this is what drains it: each `.serve/responses/received/*.json` is
-  translated through `dhis2w_fhir.conversion` into its `/api/dataValueSets` envelope or
-  its `/api/tracker` event and posted, one payload per response so each outcome is
-  attributable. A **dry run is the default** and posts everything under the endpoint's
-  own validate-only mode (`dryRun=true`, `importMode=VALIDATE`), so DHIS2's own rules
-  grade the whole spool without a write. `--import` commits, and the spool becomes the
-  ledger the `received/` name was chosen for: accepted receipts move to `forwarded/`,
-  DHIS2-rejected ones to `rejected/` beside a `<id>.report.json` carrying the import
-  summary, and conversion-refused ones stay in `received/` because the fix for them is
-  local and the next run is the retry. The typed translator this is built on is the
-  reference implementation open decision 5.3 now gets ratified against; what remains
-  open is only the phase-B carrier.
 
 - **Read current DHIS2 data through the facade.** A stored response answers "what
   was submitted"; "what does DHIS2 hold right now" needs the facade to query the
@@ -2053,25 +1504,6 @@ commitment.
   *data* half - no `dataValueSets` or event read is proxied - and the request log
   is what says which reads are worth proxying first.
 
-- **Unique attribute values as identifiers** - shipped. DHIS2 marks an
-  `Attribute` `unique`, and that flag is the only trustworthy signal that a value
-  identifies its object: on play 2.43 exactly three of eleven attributes are
-  unique (`IRID`, `KE code`, `TZ code`), while `PEPFAR_ID` and `NGOID` read like
-  identifiers by name and are not. A unique value belongs in `identifier` under
-  a per-attribute system, where `Organization?identifier=<system>|<value>`
-  resolves it on any FHIR server - an extension needs a custom SearchParameter to
-  be searchable at all. The system keys on the attribute UID rather than its
-  code: DHIS2 codes carry spaces (`KE code`, `Collection method`), so they are
-  neither URL-safe nor valid FHIR codes. Non-unique values keep the extension.
-
-    The `/api/attributes` join reads `unique` alongside `code`, so it costs no extra
-    request; the identifier joins the resource's list **after** the UID and code
-    slices, so the order stays byte-stable across runs. The per-attribute namespaces
-    are declared by convention and not as NamingSystems: the foundation layer is
-    built from `fhir.toml` alone and never reads an instance, so it cannot know which
-    attributes exist, let alone which are unique, and a NamingSystem naming an
-    attribute the instance does not have would be worse than none. That is documented
-    in the guide's Identifiers section instead.
 - **Attribute values on CodeSystem concepts.** Data-element and option attribute
   values have no `identifier` element to land in and no obvious carrier:
   concepts already hold DHIS2 data as `CodeSystem.property`, which needs each
@@ -2085,9 +1517,8 @@ commitment.
   `tracker-programs/<program stem>/<stage stem>.fsh` **plus its own registration
   form** at `registration.fsh` in the same directory, and both capture contracts
   are published: `D2TrackerEventResponse` for an event of an enrollment, and
-  `D2TrackerRegistrationResponse` for the enrollment itself. See
-  the registration entry under [9.1](#91-near-term) for what
-  shipped and what has not. Which resource type the subject is follows the program's
+  `D2TrackerRegistrationResponse` for the enrollment itself, and both are captured,
+  converted, and forwarded. Which resource type the subject is follows the program's
   tracked entity type through `[generate.tracked_entity_types]`, so a project tracking
   herds or water points publishes forms that say so, and `D2TET_CM` publishes that map
   as terminology so a consumer can read which resource type each type is served as.
@@ -2205,13 +1636,6 @@ commitment.
   generates its conversion layer from that shared source, never hand-written per
   language. Open decision 5.3 is what picks the shared source; open decision 5.8
   is the naming collision with the scaffolded `make build`.
-- **The browser UI** - shipped, and not as a command. Phase 2 of the serve line
-  was drawn as a `d2w fhir ui` / `browser` verb; what shipped instead is the capture
-  UI on the serve port itself (`--ui`), in shadcn over the repo's existing component
-  base, with the facade as its backend - the same loaded resources, one server, the
-  read and search routes it already answers. Overview, Forms, Terminology,
-  Organisation units (with the map), Responses, Tracked entities, and Server are its
-  pages. No separate command is wanted.
 - **The semantic layer.** Terminology mappings as FHIR-native `ConceptMap` plus
   `$translate` are shipped for option sets, categories, attribute option combos, and
   tracked entity types; what waits is option-to-SNOMED/LOINC mappings, which need a
