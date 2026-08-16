@@ -20,7 +20,7 @@
   found, and how many of them one page holds
 - state the posture every `d2w fhir forward` in the project runs in
 
-`d2w fhir serve` (the `make serve` target runs exactly that) starts a small
+`d2w fhir serve` starts a small
 web server on your computer that serves the guide's content and accepts
 filled-in forms - the capture server. The `[serve]` section is how *this
 project* wants that server run, stated once in the file instead of retyped on
@@ -34,7 +34,7 @@ Two things to know before the options:
 
 - The server serves what was last generated and compiled. Starting it in a
   project that has never been built stops with the line below, which names the
-  two commands that produce one. (`make serve-live` skips the compile by
+  two commands that produce one. (`d2w fhir serve --live` skips the compile by
   reading straight from the DHIS2 server instead.)
 
     ```text
@@ -43,7 +43,7 @@ Two things to know before the options:
 
 - The server has **no login**. Anyone who can reach it can read everything it
   serves and submit forms to it. That is why `host` below is the option to
-  read most carefully. `make serve-live` widens what "everything" means: that
+  read most carefully. A `--live` run widens what "everything" means: that
   mode answers questions about people - it searches the DHIS2 instance for a
   person by identifier, returns the attribute values DHIS2 holds about them,
   and, until you say otherwise, lists the people the instance holds a page at a
@@ -95,7 +95,7 @@ at all, which is what the warning above is for.
 
 **When you would change it.** You run a local DHIS2 on the same machine - it
 usually owns 8080, so the project states `port = 8090` once and every
-`make serve` in it uses that.
+`d2w fhir serve` in it uses that.
 
 **Example.**
 
@@ -221,8 +221,8 @@ browser - open the server's address and you get clickable forms and an
 organisation unit map, not just machine-facing routes.
 
 **When you would change it.** Set it `true` in a project whose whole workflow
-is people filling in forms, so every `make serve` brings the screens up. For
-one demo run without editing the file, `make serve-ui` turns it on for that
+is people filling in forms, so every `d2w fhir serve` brings the screens up. For
+one demo run without editing the file, `d2w fhir serve --ui` turns it on for that
 run only.
 
 **Example.**
@@ -235,7 +235,7 @@ ui = true
 Opening `http://127.0.0.1:8080/` in a browser shows the data-entry screens.
 
 **Default:** `false` - **If you leave it out:** the server runs
-machine-facing only, and `make serve-ui` remains the one-off way to get the
+machine-facing only, and `d2w fhir serve --ui` remains the one-off way to get the
 screens.
 
 **If you get it wrong:** TOML wants bare `true` or `false`; anything
@@ -369,7 +369,7 @@ rather than guessed at.
     used, the more work the instance does. The six settings below are how a
     project decides how much of that it wants.
 
-A live run - `make serve-live`, or `d2w fhir serve --live` - answers three
+A live run - `d2w fhir serve --live` - answers three
 questions about the instance's tracked entities that no other run can answer:
 
 - *"Who holds this identifier?"* - the search, from a card number, a register
@@ -703,14 +703,14 @@ follows. Which folder a drain reads is not here - it is
 
 **In plain words.** What a drain does when the project holds no compiled guide.
 On (the default), it builds the guide it needs off the DHIS2 instance, using
-the same builders `make serve-live` reads through. Off, it refuses and names the
+the same builders a `--live` run reads through. Off, it refuses and names the
 two commands that produce a compiled guide.
 
 **When you would change it.** Turn it off when forwards must read a reviewed,
 published guide and nothing else - a production drain where "whatever the
 instance says today" is not an acceptable answer to "which form was this
 answered against". Leave it on for the live workflow, where nothing was ever
-built: `make serve-live` captures receipts a compiled guide would refuse to
+built: a `--live` run captures receipts a compiled guide would refuse to
 explain, and this is what lets those receipts reach DHIS2.
 
 **Example.**
@@ -738,7 +738,7 @@ nothing is stored and no receipt moves. On, the bare run commits.
 
 **Why a project would say it.** Because typing `--import` on every run is how
 a team ends up with one person who forgot. A project whose drains are routine -
-a nightly job, a clerk running `make forward` at the end of the day - states
+a nightly job, a clerk running `d2w fhir forward` at the end of the day - states
 `import = true` once, and a run that is meant to check rather than to write
 says `--dry-run` on the command line for that one run.
 

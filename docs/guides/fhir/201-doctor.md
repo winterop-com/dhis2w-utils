@@ -4,7 +4,7 @@ Somebody hands you a DHIS2 URL and a login. Before you spend a day on it, you
 want to know whether this instance's metadata actually survives the trip -
 whether its codes are usable, whether its forms can be turned into something
 another system reads, whether a filled-in form comes back and imports. This
-command answers that in about a minute, against that instance, in a
+command answers that in a single run, against that instance, in a
 throwaway directory it deletes afterwards. It never writes data to your
 instance.
 
@@ -32,8 +32,8 @@ d2w -p laos fhir doctor --live    # and let the instance judge the output
 Run doctor the first time you meet an instance, and again whenever the
 instance changes under you.
 
-- **A handover.** Someone gives you a URL and a token. Doctor tells you, in
-  about a minute, whether `generate`, `serve`, `capture`, and `forward` all
+- **A handover.** Someone gives you a URL and a token. Doctor tells you in one
+  run whether `generate`, `serve`, `capture`, and `forward` all
   work against it - before you invest a day in a project directory.
 - **An upgrade.** The instance moved from 2.41 to 2.42. Doctor's connect
   phase states the version and which plugin tree bound to it, and the rest
@@ -239,9 +239,9 @@ parent nobody selected. One finding is one row: several generate targets read
 the same source notes, and a note three of them raised is still one fact about
 the instance.
 
-Two things to expect on the timings. `compile` is the whole run: 152 seconds
-against 0.9 for everything else put together, because it is a real FSH
-compile in Docker. And a `--live` oracle costs almost nothing on top, because
+Two things to expect on the timings. `compile` is effectively the whole run -
+it dwarfs everything else put together, because it is a real FSH compile in
+Docker. And a `--live` oracle costs almost nothing on top, because
 it re-reads a seeded sample rather than the instance.
 
 ## Options

@@ -67,11 +67,12 @@ note: 4 note(s) across 3 target(s); full list in
 
 The bare run is the one to reach for: it reads the instance once and every
 target builds off that single result, where seven separate commands each
-open a client of their own. It is fast - the run above is under four seconds
-against a local instance, and the minutes in this chain are all in the
-[compile and publish](201-build-and-publish.md) that follows. `make generate`
-is the same command through the project's pinned toolchain, and the closing
-`info:` line names the profile it read and the project it wrote.
+open a client of their own. It is also the cheap half of the chain - against
+a local instance a run like the one above is quick, and the real wall clock
+is all in the [compile and publish](201-build-and-publish.md) that follows.
+`uv run d2w fhir generate` is the same command through the project's pinned
+toolchain, and the closing `info:` line names the profile it read and the
+project it wrote.
 
 Re-running against an unchanged instance converges to zero:
 
@@ -203,7 +204,7 @@ as given). Points worth knowing:
   Validate resolves scope the same way, so the two never disagree.
 - **Registry scale**: every organisation unit emits two instances, and the
   IG publisher renders a page per resource, so the registry sets the wall
-  clock of `make build`. `org-units` warns once a registry passes 10,000
+  clock of the publisher run. `org-units` warns once a registry passes 10,000
   instances, naming both dials (`max_level`, `root`). See
   [Build and publish the guide](201-build-and-publish.md).
 - **Examples**: `[generate.examples]` `per_target` sets responses per form

@@ -134,7 +134,7 @@ one answer each.
 ## A project with no compiled guide
 
 A drain translates each receipt against the published Questionnaires and
-terminology. A project that has run `d2w fhir generate` and `make sushi` has
+terminology. A project that has run `d2w fhir generate` and compiled it has
 them in `ig/fsh-generated/resources`, and the run reads them off disk.
 
 `d2w fhir serve --live` has no build step in front of it, so a project captured
@@ -753,8 +753,8 @@ The scaffold ships both, reading the same `fhir.toml` every other target
 does; an existing project gains them from `d2w fhir init . --refresh`:
 
 ```bash
-make forward          # the dry run
-make forward-import   # the committing run
+d2w fhir forward            # the dry run
+d2w fhir forward --import   # the committing run
 ```
 
 What the translator builds each payload from, field by field, is the

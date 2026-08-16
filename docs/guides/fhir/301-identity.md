@@ -97,7 +97,7 @@ The built guide identifies itself as the package `dhis2.fhir.sl`.
 below).
 
 **If you get it wrong:** nothing in `d2w fhir generate` checks the id's shape -
-you find out when the compile step (`make sushi`) refuses the package name.
+you find out when the compile step (SUSHI) refuses the package name.
 Stick to lowercase words separated by dots.
 
 ### `canonical`
@@ -158,7 +158,7 @@ name = "Dhis2FhirSl"
 `ig.name  Field required` (same shape as the `canonical` error above).
 
 **If you get it wrong:** nothing refuses a strange name here - you find out
-when the compile step (`make sushi`) complains about it. One word, starting
+when the compile step (SUSHI) complains about it. One word, starting
 with a capital letter, is always safe.
 
 ### `title`

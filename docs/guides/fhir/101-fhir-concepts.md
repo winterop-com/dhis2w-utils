@@ -450,13 +450,13 @@ Further reading: [FHIR Shorthand](https://hl7.org/fhir/uv/shorthand/),
 ### SUSHI and the IG Publisher
 
 Two tools turn that text into a guide, and the scaffolded project runs both through
-Docker. **SUSHI** compiles FSH to FHIR JSON; `make sushi` runs it standalone, which
-is the fast gate - it says whether the FSH is valid without publishing anything. The
+Docker. **SUSHI** compiles FSH to FHIR JSON, and running it on its own is the
+fast gate - it says whether the FSH is valid without publishing anything. The
 **HL7 IG Publisher** turns the JSON into the website, validating every resource,
-rendering a page per artifact, and building the downloadable package; `make build`
-runs it. The publisher runs **its own** SUSHI over the same FSH, so a chain that calls
-`make sushi` and then `make build` compiles everything twice - iterate on `make sushi`
-and run the publisher when you are ready to publish.
+rendering a page per artifact, and building the downloadable package. The
+publisher runs **its own** SUSHI over the same FSH, so a chain that calls SUSHI
+and then the publisher compiles everything twice - iterate on SUSHI alone and
+run the publisher when you are ready to publish.
 
 Further reading: [SUSHI](https://fshschool.org/docs/sushi/),
 [IG Publisher](https://confluence.hl7.org/display/FHIR/IG+Publisher+Documentation).

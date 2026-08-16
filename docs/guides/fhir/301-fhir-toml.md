@@ -3,7 +3,7 @@
 **Who this is for:** the person who looks after what the FHIR guide contains -
 an M&E officer, a data manager - and edits it through one text file. You do not
 need to program. You need a text editor, the project folder someone set up for
-you, and the command written down for you (usually `make generate`).
+you, and the command written down for you (`d2w fhir generate`).
 
 **Before you start:** know your DHIS2 - data sets, programs, organisation
 units, option sets. FHIR terms are explained where they appear, or glossed in
@@ -26,7 +26,7 @@ the generate command again. There is no database, no hidden state, and no app
 to click through - the file is the whole configuration.
 
 It sits at the top of the project folder, next to the `Makefile`. Commands find
-it on their own: run `d2w fhir generate` (or `make generate`) anywhere inside
+it on their own: run `d2w fhir generate` anywhere inside
 the project folder and it walks up until it finds `fhir.toml`. Run it somewhere
 with no project above it and it stops with:
 
