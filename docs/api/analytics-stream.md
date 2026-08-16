@@ -49,6 +49,6 @@ async with open_client(profile_from_env()) as client:
 
 ## Related examples
 
-- [`examples/v42/client/stream_analytics.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/stream_analytics.py) — JSON / CSV / rawData exports to disk with per-format timing.
+- [`examples/client/stream_analytics.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/stream_analytics.py) — JSON / CSV / rawData exports to disk with per-format timing.
 
 ::: dhis2w_client.v42.analytics_stream

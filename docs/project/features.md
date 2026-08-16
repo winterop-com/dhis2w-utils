@@ -2372,13 +2372,23 @@ checks, and BUGS.md workaround drift detection. Available via CLI and MCP.
 
 ### Examples
 
-Three parallel example trees (`examples/v41/`, `examples/v42/`, `examples/v43/`),
-each with three surfaces:
+One example tree, version-neutral: each example is a single copy that runs
+against DHIS2 v41, v42, and v43.
 
-- **`client/`**: 27+ Python examples (whoami, CRUD, analytics, OIDC, bulk
-  import, tracker lifecycle, sharing, error handling, ...)
-- **`cli/`**: 15+ shell scripts covering every CLI domain
-- **`mcp/`**: 14+ Python examples showing MCP tool usage
+- **`examples/fhir/`**: the `d2w fhir` surface in its own group, with all three
+  shapes of caller - 5 CLI scripts (init/generate/validate, serve, forward,
+  doctor, spool), 3 Python library examples (generate an IG and read the
+  `GenerateFullReport`; drive a running facade over plain httpx; dry-run a spool
+  drain and read the `ForwardReport`), and 2 MCP tool examples.
+- **`examples/client/`**: 80+ Python examples (whoami, CRUD, analytics, OIDC,
+  bulk import, tracker lifecycle, sharing, error handling, ...)
+- **`examples/cli/`**: 60+ shell scripts covering every CLI domain
+- **`examples/mcp/`**: 40+ Python examples showing MCP tool usage
+
+Examples that exist for one major only live under that major's subdirectory -
+`examples/client/v41/` (3 v41 wire quirks) and `examples/client/v43/`
+(10 v43 schema divergences). Every example is small, shows one feature, and is
+executed by `make verify-examples`.
 
 ---
 

@@ -32,6 +32,6 @@ print(result.category_combo_uid, result.category_option_combo_uids)
 
 Idempotent on name — if a category / option with the requested name already exists it's reused rather than duplicated. On v43 the helper waits for the COC matrix to materialise before returning (so callers can immediately start writing data values against it).
 
-Worked example: [`examples/v43/client/category_combo_build.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v43/client/category_combo_build.py).
+Worked example: [`examples/client/category_combo_build.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/category_combo_build.py).
 
 ::: dhis2w_client.v42.category_combo_builder

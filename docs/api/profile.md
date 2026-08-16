@@ -38,7 +38,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-See `examples/v{41,42,43}/client/profile_pat_pure_client.py` for the runnable, version-pinned form.
+See `examples/client/profile_pat_pure_client.py` for the runnable, version-pinned form.
 
 ## Profile model
 

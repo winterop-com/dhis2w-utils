@@ -40,7 +40,7 @@ class Dhis2OAuth2AuthorizationConsent(BaseModel):
     id: str | None = Field(default=None, description="Unique. Length/value min=11, max=11.")
     lastUpdated: datetime | None = None
     lastUpdatedBy: Reference | None = Field(default=None, description="Reference to User.")
-    name: str | None = Field(default=None, description="Length/value min=1, max=2147483647.")
+    name: str | None = Field(default=None, description="Length/value min=1, max=230.")
     principalName: str | None = Field(default=None, description="Length/value max=255.")
     registeredClientId: str | None = Field(default=None, description="Length/value max=255.")
     sharing: Any | None = Field(default=None, description="Reference to Sharing. Read-only (inverse side).")

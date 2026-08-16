@@ -64,7 +64,7 @@ Running list of architectural choices and the reasoning behind them. Each entry 
 
 **Cost / follow-up:** the typed lists carried resource-specific convenience filters (`--domain-type`, `--program-type`, `--period-type`, viz `--type`, `--program`, `--data-set`) and curated table columns the generic command lacks. For now those are expressed via the generic `--filter <prop>:<op>:<value>` DSL (e.g. `--filter domainType:eq:AGGREGATE`). Re-exposing type-specific filters/columns ergonomically on the canonical surface is tracked in `docs/roadmap.md` (Gaps → Metadata listing consolidation) — that design should land BEFORE the example scripts are rewritten to `--filter`, to avoid churning them twice.
 
-**Pending (split-PR checklist):** docs + examples still reference the removed typed lists — ~42 example scripts (`examples/v{41,42,43}/cli/*.sh`, gated by `make verify-examples`) and ~19 doc pages (incl. the MCP tutorial worked example and `architecture/conventions.md` naming examples). Migrate those as their own slice once the filter-exposure design is settled.
+**Pending (split-PR checklist):** docs + examples still reference the removed typed lists — ~42 example scripts (`examples/cli/*.sh`, gated by `make verify-examples`) and ~19 doc pages (incl. the MCP tutorial worked example and `architecture/conventions.md` naming examples). Migrate those as their own slice once the filter-exposure design is settled.
 
 ## 2026-05-13 — Lift `Profile` + PAT/Basic `open_client` into `dhis2w-client`
 

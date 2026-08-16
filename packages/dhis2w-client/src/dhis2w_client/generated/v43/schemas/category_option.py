@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..common import Reference
+from ..enums import DimensionItemType, TotalAggregationType
 
 
 class CategoryOption(BaseModel):
@@ -26,6 +27,7 @@ class CategoryOption(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     access: Any | None = Field(default=None, description="Reference to Access. Read-only (inverse side).")
+    aggregationType: bool | None = Field(default=None, description="Read-only.")
     attributeValues: Any | None = Field(default=None, description="Reference to AttributeValues. Length/value max=255.")
     categories: list[Any] | None = Field(default=None, description="Collection of Category. Read-only (inverse side).")
     categoryOptionCombos: list[Any] | None = Field(
@@ -38,6 +40,8 @@ class CategoryOption(BaseModel):
     created: datetime | None = None
     createdBy: Reference | None = Field(default=None, description="Reference to User.")
     description: str | None = Field(default=None, description="Length/value max=255.")
+    dimensionItem: str | None = Field(default=None, description="Read-only.")
+    dimensionItemType: DimensionItemType | None = Field(default=None, description="Read-only.")
     displayDescription: str | None = Field(default=None, description="Read-only.")
     displayFormName: str | None = Field(default=None, description="Read-only.")
     displayName: str | None = Field(default=None, description="Read-only.")
@@ -56,5 +60,6 @@ class CategoryOption(BaseModel):
     shortName: str | None = Field(default=None, description="Unique. Length/value max=50.")
     startDate: datetime | None = None
     style: Any | None = Field(default=None, description="Reference to ObjectStyle. Length/value max=255.")
+    totalAggregationType: TotalAggregationType | None = Field(default=None, description="Read-only.")
     translations: list[Any] | None = Field(default=None, description="Collection of Translation.")
     user: Reference | None = Field(default=None, description="Reference to User. Read-only (inverse side).")

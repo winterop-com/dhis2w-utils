@@ -72,6 +72,6 @@ async for notification in client.tasks.iter_notifications(ref, timeout=600):
 
 ## Related example
 
-- [`examples/v42/client/task_await.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/task_await.py) — end-to-end analytics-refresh kick-off + block.
+- [`examples/client/task_await.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/task_await.py) — end-to-end analytics-refresh kick-off + block.
 
 ::: dhis2w_client.v42.tasks

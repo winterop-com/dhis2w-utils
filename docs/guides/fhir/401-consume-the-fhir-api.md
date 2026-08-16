@@ -17,6 +17,14 @@ what a valid capture is ([The capture contract](401-capture-contract.md)).
 - post a capture and read every kind of answer the server gives
 - read the two non-FHIR endpoints, `/spool` and `/uiconfig`
 
+**The runnable version of this page** is
+[`examples/fhir/client/consume_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/consume_facade.py) -
+plain httpx against a served project, walking discovery, search, `$generate`, a
+capture, the receipt, and `/spool` end to end. Point it at your own facade with
+`uv run python examples/fhir/client/consume_facade.py http://localhost:8123`.
+The rest of that directory is the library path: `generate_ig.py` builds a guide
+from Python and `forward_spool.py` drains one.
+
 Every response body on this page is real output from a running facade. The
 compiled-store examples run against a project served on port 8389; the
 register and enrollment examples, which exist only under `--live`, against a

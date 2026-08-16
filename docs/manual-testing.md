@@ -290,7 +290,7 @@ uv run d2w maintenance dataintegrity result orgunits_invalid_geometry
 
 ## 9. MCP — every tool via `fastmcp.Client` in-process
 
-Run every `examples/v42/mcp/*.py` to cover the full surface (`python infra/scripts/verify_examples.py` does this for you plus the CLI + client sides). Or enumerate the tool list directly:
+Run every `examples/mcp/*.py` to cover the full surface (`python infra/scripts/verify_examples.py` does this for you plus the CLI + client sides). Or enumerate the tool list directly:
 
 ```bash
 uv run python - <<'PY'

@@ -99,5 +99,5 @@ Until that policy is formalised, CRUD write tests live in the unit tier (respx-m
 
 ## What we don't test (yet)
 
-- OAuth2 end-to-end against a real DHIS2 instance with the interactive browser flow — covered by unit tests (cached token + refresh paths) and by the Playwright-driven e2e in `examples/v42/client/oidc_playwright_login.py`, but not yet wired into `make test`.
+- OAuth2 end-to-end against a real DHIS2 instance with the interactive browser flow — covered by unit tests (cached token + refresh paths) and by the Playwright-driven e2e in `examples/client/oidc_playwright_login.py`, but not yet wired into `make test`.
 - Per-version `tests/v{41,43}/` accessor + plugin trees — v42 has full coverage; v41 + v43 have divergence + smoke tests only (`@upstream_bug` regressions, `test_v41_divergence.py`, `test_v43_divergence.py`). The hand-written client + plugin code in `dhis2w_client.v{41,43}` and `dhis2w_core.v{41,43}` is currently excluded from coverage (`tool.coverage.run.omit` in `pyproject.toml`) until those tests fill in.

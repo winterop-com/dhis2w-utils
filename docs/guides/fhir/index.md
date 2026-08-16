@@ -100,6 +100,11 @@ not a menu - the pages build on each other left to right.
 
 ## Reference
 
+- [Runnable examples](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/fhir) -
+  `examples/fhir/`, the whole surface as scripts you can run: `cli/` for the
+  commands each 201 page describes, `client/` for the Python library path
+  (generate a guide, consume a facade, drain a spool), `mcp/` for the two tools
+  an agent calls. One copy, runs on v41, v42 and v43 alike.
 - [Feature catalog: FHIR IG Toolchain](../../project/features.md#fhir-ig-toolchain) -
   every capability of the toolchain in one inventory, surface by surface.
 - [CLI reference](../../cli-reference.md) - every `d2w fhir` command and flag.

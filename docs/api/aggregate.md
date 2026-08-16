@@ -107,8 +107,8 @@ Registering a tuple DHIS2 already holds counts `updated` rather than conflicting
 
 ## Related examples
 
-- [`examples/v42/client/push_data_value.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/push_data_value.py) — minimal single-value push.
-- [`examples/v42/client/stream_data_values.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/stream_data_values.py) — streaming reads, four shapes (bytes, sync generator, Path/CSV, 1000-row file with timing).
-- [`examples/v42/client/aggregate_bulk_grouped.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/aggregate_bulk_grouped.py) — the grouped bulk path.
+- [`examples/client/push_data_value.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/push_data_value.py) — minimal single-value push.
+- [`examples/client/stream_data_values.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/stream_data_values.py) — streaming reads, four shapes (bytes, sync generator, Path/CSV, 1000-row file with timing).
+- [`examples/client/aggregate_bulk_grouped.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/aggregate_bulk_grouped.py) — the grouped bulk path.
 
 ::: dhis2w_client.v42.aggregate

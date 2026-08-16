@@ -45,7 +45,7 @@ async with open_client(profile_from_env()) as client:
     me = await client.system.me()
 ```
 
-The two paths return the same `Dhis2Client`; `open_client` just resolves the profile + chooses the matching `AuthProvider` for you. Every example under `examples/v42/client/` uses this form because the workspace has profiles configured.
+The two paths return the same `Dhis2Client`; `open_client` just resolves the profile + chooses the matching `AuthProvider` for you. Every example under `examples/client/` uses this form because the workspace has profiles configured.
 
 ## Raw HTTP escape hatches
 
@@ -70,7 +70,7 @@ The defaults (`verify=True`, full version probe on `connect()`, raise on 4xx/5xx
 - `verify: bool | str = True` — TLS certificate verification. Threaded through the main httpx pool plus the canonical-URL and DHIS2-shape probes. Pass `False` for self-signed staging boxes or a path to a custom CA bundle.
 - `skip_version_probe: bool = False` — when `True`, `connect()` opens the HTTP pool without the canonical-URL probe or the `/api/system/info` round-trip and returns. `version_key`, `raw_version`, and `resources` raise on access (the generated tree never binds), so only the raw-path methods (`get_raw`, `post_raw`, `get_response`, etc.) are usable. Suits health-checkers that want to *report* on those endpoints, very-low-privilege PATs that can't read `/api/system/info`, and tests injecting a mock transport.
 
-See `examples/v42/client/health_check.py` for the full health-checker pattern.
+See `examples/client/health_check.py` for the full health-checker pattern.
 
 ::: dhis2w_client.v42.client
     options:

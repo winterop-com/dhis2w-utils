@@ -49,11 +49,11 @@ The accessor doesn't expose a refresh trigger directly — refresh is a plugin-s
 
 1. **CLI**: `d2w maintenance refresh analytics --watch`.
 2. **MCP**: `maintenance_refresh_analytics` tool with `watch=true`.
-3. **Python via plugin service**: import `dhis2w_core.v42.plugins.maintenance.service.refresh_analytics(profile, ...)` directly — see [`examples/v42/client/task_polling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/task_polling.py) for the full kick-off + poll-with-`client.tasks.await_completion` pattern.
+3. **Python via plugin service**: import `dhis2w_core.v42.plugins.maintenance.service.refresh_analytics(profile, ...)` directly — see [`examples/client/task_polling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/task_polling.py) for the full kick-off + poll-with-`client.tasks.await_completion` pattern.
 
 ## Related examples
 
-- [`examples/v42/client/task_polling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/task_polling.py) — kick off an analytics refresh via raw `client.post_raw("/api/resourceTables/analytics", ...)` + block on it with `client.tasks.await_completion`.
-- [`examples/v42/client/integrity_issues_stream.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/integrity_issues_stream.py) — `iter_integrity_issues` + severity histogram + early-break scan.
+- [`examples/client/task_polling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/task_polling.py) — kick off an analytics refresh via raw `client.post_raw("/api/resourceTables/analytics", ...)` + block on it with `client.tasks.await_completion`.
+- [`examples/client/integrity_issues_stream.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/integrity_issues_stream.py) — `iter_integrity_issues` + severity histogram + early-break scan.
 
 ::: dhis2w_client.v42.maintenance

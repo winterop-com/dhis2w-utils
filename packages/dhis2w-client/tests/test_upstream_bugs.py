@@ -678,7 +678,7 @@ async def test_bug_2_live_verifier(local_url: str) -> None:
         f"(the bug — soft-delete row blocks parent deletion), got "
         f"{excinfo.value.status_code}. DHIS2 may have fixed the reference-check to skip "
         f"deleted=true rows — verify upstream + drop the 'orphan DE/OU' workaround note in "
-        f"`examples/v{{N}}/client/bootstrap_zero_to_data.py`."
+        f"`examples/client/bootstrap_zero_to_data.py`."
     )
     # No cleanup: the soft-delete row is the bug itself; there's no API path to remove it.
 

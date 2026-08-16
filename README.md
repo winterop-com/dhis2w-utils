@@ -234,7 +234,7 @@ async with open_client(profile_from_env()) as client:
     print(me.username)
 ```
 
-PyPI consumers who want the library without the profile layer can construct `Dhis2Client(url, auth=BasicAuth(...))` directly — see `examples/v42/client/library_only_auth.py`.
+PyPI consumers who want the library without the profile layer can construct `Dhis2Client(url, auth=BasicAuth(...))` directly — see `examples/client/library_only_auth.py`.
 
 ## CLI surface
 
@@ -304,6 +304,6 @@ See [`docs/guides/connecting-to-dhis2.md`](docs/guides/connecting-to-dhis2.md) f
 - Releasing: [`docs/releasing.md`](docs/releasing.md)
 - Roadmap: [`docs/roadmap.md`](docs/roadmap.md)
 - Upstream DHIS2 quirks we've tripped over: [`BUGS.md`](BUGS.md)
-- Runnable examples: three trees (`examples/v41/`, `examples/v42/`, `examples/v43/`), each with `cli/`, `client/`, and `mcp/` subfolders. `examples/v43/client/` carries seven divergence-focused examples that exist only on v43 (`removed_resources.py`, `section_user_removed.py`, `category_combo_coc_regen.py`, `event_visualization_fix_headers.py`, etc.) — see [`docs/architecture/schema-diff-v41-v42-v43.md`](docs/architecture/schema-diff-v41-v42-v43.md) for the underlying schema drift. `examples/v41/client/` carries v41-only quirks (`oauth2_cid_field.py`, `grid_rows_wire_shape.py`, `apps_display_name.py`).
+- Runnable examples: [`examples/`](examples/README.md) — [`examples/fhir/`](examples/fhir/) for the FHIR Implementation Guide surface (`cli/`, `client/`, `mcp/`), then [`examples/cli/`](examples/cli/), [`examples/client/`](examples/client/), and [`examples/mcp/`](examples/mcp/) for everything else. One copy of each example, running against v41, v42, and v43 alike; an example that exists for a single major lives under that major's subdirectory — [`examples/client/v43/`](examples/client/v43/) for the v43 schema divergences (`removed_resources.py`, `section_user_removed.py`, `category_combo_coc_regen.py`, …; see [`docs/architecture/schema-diff-v41-v42-v43.md`](docs/architecture/schema-diff-v41-v42-v43.md)) and [`examples/client/v41/`](examples/client/v41/) for the v41 wire quirks (`oauth2_cid_field.py`, `grid_rows_wire_shape.py`, `apps_display_name.py`).
 
 Hard requirements, conventions, and the plugin / auth / workspace model are documented in `CLAUDE.md` and the `docs/` site.

@@ -141,7 +141,7 @@ The plugin is a teaching-sized template. Adding a command — say
    whose fake client returns your model, then drive the command through
    `CliRunner`. Assert both the `--json` payload and one human-output line.
 
-6. **Examples** — add the invocation to `examples/v{41,42,43}/cli/security.sh` (all
+6. **Examples** — add the invocation to `examples/cli/security.sh` (all
    three; they can be identical when the command is version-agnostic).
 
 7. **Docs** — `make docs-cli` regenerates `docs/cli-reference.md` from the Typer app
