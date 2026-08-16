@@ -515,3 +515,7 @@ Next: [Consume the FHIR API](401-consume-the-fhir-api.md) - the running
 server that accepts what this contract describes - and
 [Custom subject types](401-custom-subject-types.md) when the things being
 tracked are not people.
+
+Every envelope this page describes is built in typed Python under
+`examples/fhir/client/`, one file per form kind, each printing the JSON it
+would send and checking it converts before it claims anything.

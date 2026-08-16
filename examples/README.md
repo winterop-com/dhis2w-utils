@@ -2,7 +2,7 @@
 
 ```
 examples/
-  fhir/    cli/  client/  mcp/      # d2w fhir - DHIS2 metadata as a FHIR Implementation Guide
+  fhir/    cli/  client/           # d2w fhir - DHIS2 metadata as a FHIR Implementation Guide
   cli/                              # d2w ... Typer CLI, one script per topic
   client/                           # dhis2w-client Python library
   mcp/                              # dhis2w-mcp FastMCP tools, called in-process
@@ -14,10 +14,11 @@ examples/
 
 **`d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide**, serves the
 compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into
-DHIS2. It has its own group because it is its own product surface, with all three shapes of caller
-in it. Start at [`fhir/cli/generate.sh`](fhir/cli/generate.sh) to see the whole loop as commands, or
-[`fhir/client/consume_facade.py`](fhir/client/consume_facade.py) if you are integrating against a
-guide someone else published.
+DHIS2. It has its own group because it is its own product surface, in two shapes of caller: the
+commands, and the Python library. Start at [`fhir/cli/generate.sh`](fhir/cli/generate.sh) to see the
+whole loop as commands, or at [`fhir/client/`](fhir/client/README.md) - twenty-five examples,
+grouped from "build a response from my own data" through to "drive the toolchain" - if you are
+integrating against a guide.
 
 | File | Shows |
 | --- | --- |
@@ -26,6 +27,8 @@ guide someone else published.
 | [`fhir/cli/forward.sh`](fhir/cli/forward.sh) | `d2w fhir forward` - drain the capture spool into DHIS2, dry run first |
 | [`fhir/cli/doctor.sh`](fhir/cli/doctor.sh) | `d2w fhir doctor` - the whole chain against one instance, one verdict |
 | [`fhir/cli/spool.sh`](fhir/cli/spool.sh) | `d2w fhir spool` + `requeue` - read the capture queue and put a refused receipt back in it |
+| [`fhir/client/build_aggregate_response.py`](fhir/client/build_aggregate_response.py) | The minimal aggregate capture - a data set's numbers for one period at one organisation unit |
+| [`fhir/client/build_registration_response.py`](fhir/client/build_registration_response.py) | Registering a person and enrolling them, minting both DHIS2 UIDs client-side |
 | [`fhir/client/generate_ig.py`](fhir/client/generate_ig.py) | Generate a whole IG from Python and read the `GenerateFullReport` back as a model |
 | [`fhir/client/consume_facade.py`](fhir/client/consume_facade.py) | Plain httpx against a running facade - discover, fill, submit, read the receipt |
 | [`fhir/client/forward_spool.py`](fhir/client/forward_spool.py) | Dry-run a drain from Python and read the `ForwardReport` back as a model |

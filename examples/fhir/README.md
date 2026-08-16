@@ -1,6 +1,6 @@
 # FHIR examples
 
-`d2w fhir` turns a DHIS2 instance's metadata into a [FHIR](https://hl7.org/fhir/R4/) Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. It has its own example group because it is its own product surface, with all three shapes of caller in it.
+`d2w fhir` turns a DHIS2 instance's metadata into a [FHIR](https://hl7.org/fhir/R4/) Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. It has its own example group because it is its own product surface, in two shapes of caller: the commands, and the Python library.
 
 `dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages — the client detects the DHIS2 major from `/api/system/info` — so this is one copy that runs against v41, v42, and v43 alike.
 
@@ -28,19 +28,18 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`forward.sh`](cli/forward.sh) | `d2w fhir forward` — drain the spool into DHIS2, dry run then `--import` | no: docker compile, binds a port, `--import` writes to the instance |
 | [`doctor.sh`](cli/doctor.sh) | `d2w fhir doctor` — the whole chain against one instance, one verdict | no: the chain includes the docker compile |
 
-## [`client/`](client/) — the Python library path
+## [`client/`](client/README.md) — the Python library path
 
-| File | Shows | Runs in `make verify-examples` |
-| --- | --- | --- |
-| [`generate_ig.py`](client/generate_ig.py) | `load_project` + `resolve_generation_profile` + `generate_full`, and the `GenerateFullReport` consumed as a model rather than parsed as text | yes |
-| [`consume_facade.py`](client/consume_facade.py) | Plain httpx against a running facade: `/metadata`, search, `$generate`, POST a capture, read the receipt, read `/spool`. No DHIS2 and no dhis2w package needed | no: needs a facade already listening |
-| [`forward_spool.py`](client/forward_spool.py) | `forward_responses` dry run, and the `ForwardReport` counts, per-receipt outcomes, and rejection reasons rolled up by cause | no: needs a project whose spool holds receipts |
+Twenty-five examples with [their own README](client/README.md), grouped into five readings:
 
-Give either of the last two what it needs and it runs green:
+| Group | What it answers |
+| --- | --- |
+| Build a response | I have a paper form's numbers, a visit, a new patient — what do I send? |
+| Read a form | What does a published `Questionnaire` tell me before I fill anything? |
+| Convert to DHIS2 | What does my response become on the DHIS2 wire, and why would that be refused? |
+| Send and verify | How do I post it, and what comes back? |
+| Drive the toolchain | Generating, serving, and draining from Python rather than the command line |
 
-```bash
-d2w fhir serve --live --port 8123 &                       # from inside a scaffolded project
-uv run python examples/fhir/client/consume_facade.py http://127.0.0.1:8123
-uv run python examples/fhir/client/forward_spool.py /path/to/project
-```
+**Every one runs in `make verify-examples`**, because [`client/_fixture.py`](client/_fixture.py) stands up what each needs: a scaffolded project, a translation context built live off the instance, and a `d2w fhir serve --live` facade on a port the operating system picks, stopped at exit. `D2W_FHIR_EXAMPLE_PROJECT` and `D2W_FHIR_EXAMPLE_FACADE` point the fixture at your own instead.
 
+There are no MCP examples because there are no MCP tools: this surface is driven from the command line and from Python, and what an agent drives is the served facade itself, over HTTP.

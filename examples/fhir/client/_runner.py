@@ -1,4 +1,4 @@
-"""Entry-point helper for `examples/client/*.py` — handles NoProfileError cleanly."""
+"""Entry-point helper for `examples/fhir/client/*.py` — handles NoProfileError and FixtureError cleanly."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import sys
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+from _fixture import FixtureError
 from dhis2w_client import NoProfileError, UnknownProfileError
 
 _PROFILE_HINT = (
@@ -26,6 +27,10 @@ def run_example(main: Callable[[], Coroutine[Any, Any, Any]]) -> None:
     """
     try:
         asyncio.run(main())
+    except FixtureError as exc:
+        # The fixture already says what is missing and how to supply it, in one sentence.
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
     except (NoProfileError, UnknownProfileError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         print(_PROFILE_HINT, file=sys.stderr)

@@ -129,6 +129,14 @@ mypy_path = ["infra/scripts", "examples/client"]
 module = ["seed_auth", "_seed_auth_oauth2", "_seed_auth_variations"]
 ignore_missing_imports = true
 
+# `examples/fhir/client/_fixture.py` is resolved the same way — by its own
+# directory being on sys.path at runtime. It cannot join `mypy_path`, because
+# that directory also holds a `_runner.py` and mypy refuses two modules of one
+# name. Pyright reaches it through `extraPaths` below.
+[[tool.mypy.overrides]]
+module = ["_fixture"]
+ignore_missing_imports = true
+
 [tool.pyright]
 include = ["packages", "infra", "examples"]
 exclude = ["**/.venv", "**/site", "**/build", "**/dist"]
