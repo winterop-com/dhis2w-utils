@@ -629,7 +629,7 @@ def test_an_organisation_unit_answer_outside_the_selection_is_left_unanswered_wi
     assert "Ou9aaaaaaaa" not in content
     assert "Dea1aaaaaaa" not in content
     assert notes == [
-        "1 example answers reference an organisation unit outside the org-unit selection, which the IG "
+        "1 example answer references an organisation unit outside the org-unit selection, which the IG "
         "publishes no Location for; left unanswered: Referred to (Dea1aaaaaaa) = Ou9aaaaaaaa"
     ]
 
@@ -738,7 +738,7 @@ def test_a_tracker_event_without_an_enrollment_declares_the_base_resource_with_a
     assert "* extension[D2OrganisationUnit].valueReference = Reference(Location/Ou1aaaaaaaa)" in content
     assert '* subject.identifier.value = "Te1aaaaaaaa"' in content
     assert [note.message for note in build.notes] == [
-        "1 examples lack the enrollment or tracked entity a tracker event carries; the base "
+        "1 example lacks the enrollment or tracked entity a tracker event carries; the base "
         "QuestionnaireResponse is declared instead of the tracker event response profile: Ev1aaaaaaaa"
     ]
 
@@ -857,7 +857,7 @@ def test_an_unmappable_option_value_falls_back_to_a_string_with_one_note() -> No
     )
     assert '* item[=].item[=].answer[+].valueString = "X"' in build.artifacts[0].content
     assert [note.message for note in build.notes] == [
-        "1 example answers could not be cast to their FHIR type; answered as strings: Gender (De3aaaaaaaa) = 'X'"
+        "1 example answer could not be cast to the declared FHIR type; answered as text: Gender (De3aaaaaaaa) = 'X'"
     ]
 
 
@@ -908,7 +908,7 @@ def test_a_value_for_a_data_element_outside_the_form_is_skipped_with_a_note() ->
     assert "Dexaaaaaaaa" not in build.artifacts[0].content
     assert '* item[=].item[=].answer[+].valueString = "kept"' in build.artifacts[0].content
     assert [note.message for note in build.notes] == [
-        "1 captured values reference data elements the questionnaire does not ask for; skipped: "
+        "1 captured value references a data element the questionnaire does not ask for; skipped: "
         "Dexaaaaaaaa in BfMAe6Itzgt-202606-Ou1aaaaaaaa"
     ]
 
@@ -1231,7 +1231,7 @@ async def test_a_stage_event_missing_its_enrollment_degrades_to_the_base_resourc
     assert report.example_count == 1
     assert [note.message for note in report.notes] == [
         "1 questionnaire targets hold no data on the instance; no examples emitted: Child Programme (IpHINAT79UW)",
-        "1 examples lack the enrollment or tracked entity a tracker event carries; the base "
+        "1 example lacks the enrollment or tracked entity a tracker event carries; the base "
         "QuestionnaireResponse is declared instead of the tracker event response profile: Ev2aaaaaaaa",
     ]
     content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "A03MvHHogjR-1.fsh").read_text(encoding="utf-8")

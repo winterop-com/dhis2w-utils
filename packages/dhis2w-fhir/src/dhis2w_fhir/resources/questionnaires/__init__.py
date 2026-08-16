@@ -66,7 +66,12 @@ from dhis2w_fhir.i18n import (
     text_translations,
 )
 from dhis2w_fhir.names import code_or_uid, page_text, quote, quote_verbatim
-from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
+from dhis2w_fhir.notes import (
+    GenerateNoteCategory,
+    aggregate_generate_note,
+    pluralize,
+    verb_for_count,
+)
 from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
 from dhis2w_fhir.resources.option_sets import code_system_canonical, option_set_identity_index
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
@@ -749,8 +754,9 @@ def build_questionnaire_artifacts(
         build.notes.append(
             aggregate_generate_note(
                 GenerateNoteCategory.SELECTION_GAP,
-                f"{len(index.unplanned_uids)} option sets a question binds are absent from the option-set "
-                "selection; their answerValueSet names are derived from the UID",
+                f"{pluralize(len(index.unplanned_uids), 'option set')} a question binds "
+                f"{verb_for_count(len(index.unplanned_uids), 'is', 'are')} absent from the option-set "
+                "selection; the answerValueSet names are derived from the UID",
                 index.unplanned_uids,
             )
         )

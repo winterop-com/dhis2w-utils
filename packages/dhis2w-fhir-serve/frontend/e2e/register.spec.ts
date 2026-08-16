@@ -701,6 +701,11 @@ test.describe('the people this DHIS2 instance holds', () => {
         // Headed by the value that names them, because there is no name to head it with.
         await expect(page.getByRole('heading', { name: NATIONAL_ID })).toBeVisible()
 
+        // The way back is labelled with the heading of the page it returns to - this instance's own
+        // name for the type it serves - rather than with the FHIR resource the projection uses.
+        await expect(page.getByRole('link', { name: 'Person' }).last()).toBeVisible()
+        await expect(page.getByRole('link', { name: /patients/i })).toHaveCount(0)
+
         const identifiers = page.getByRole('table').first()
         await expect(identifiers).toContainText('National identifier')
         await expect(identifiers).toContainText(NATIONAL_ID)
@@ -857,7 +862,9 @@ test.describe('the people this DHIS2 instance holds', () => {
         await page.goto(`/#/tracked-entities/Specimen/${SPECIMEN_UID}`)
 
         await expect(page.getByRole('heading', { name: LAB_REFERENCE, level: 2 })).toBeVisible()
-        await expect(page.getByRole('link', { name: 'All tracked entities' })).toBeVisible()
+        // Two types ride this run, so the listing is headed "Tracked entities" and the link back
+        // to it says the same thing. Never "patients": this row is a specimen batch.
+        await expect(page.getByRole('link', { name: 'Tracked entities' }).last()).toBeVisible()
         await expect(
             page.getByText('which are what name this tracked entity', { exact: false }),
         ).toBeVisible()

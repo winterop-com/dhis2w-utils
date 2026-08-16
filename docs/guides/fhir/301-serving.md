@@ -111,11 +111,13 @@ starts:
 error: port 8080 on 127.0.0.1 is already in use (usually the local DHIS2 instance; set [serve] port in fhir.toml or pass --port)
 ```
 
-The check tries to take the port on the same kind of network address `host`
-names, and an ordinary `127.0.0.1` is the older IPv4 kind. A program holding
-the port only on the newer IPv6 kind of address (Docker on macOS publishing
-`*:8080` is the common case) is therefore not caught, and the server starts
-beside it - two programs on one port number, answering different callers.
+The check tries to take the port on every address whose holder would contend
+for it: the one `host` names, the other IP stack's loopback, and the
+all-interfaces address of both stacks. A program published to all interfaces
+- Docker publishing `*:8080` is the common case - is caught by that last
+pair, which is the one that matters: a server can otherwise bind `127.0.0.1`
+underneath such a listener, leaving two programs on one port number answering
+different callers.
 
 A non-number stops the run earlier:
 

@@ -1,15 +1,16 @@
 /**
- * A person this DHIS2 instance already holds, read as the two things a capture screen needs.
+ * A tracked entity this DHIS2 instance already holds, read as the two things a capture screen needs.
  *
- * WHAT THIS MODULE IS. The person routes are the only ones on this facade whose answer comes from
- * the DHIS2 instance rather than from what the project published: `GET /Patient` pages through
- * everyone the instance holds, `GET /Patient?identifier=` finds the one whose card is in front of
- * you, `GET /Patient/{uid}` opens a person, and `GET /patients/{uid}/enrollments` states what they
- * are enrolled in. This module is the reading half of all four - the projection unpacked into rows,
+ * WHAT THIS MODULE IS. The register routes are the only ones on this facade whose answer comes from
+ * the DHIS2 instance rather than from what the project published, and they answer over every tracked
+ * entity type the project's forms register: `GET /{resourceType}` pages through what the instance
+ * holds, `GET /{resourceType}?identifier=` finds the one whose card is in front of you,
+ * `GET /{resourceType}/{uid}` opens one, and `GET /tracked-entities/{uid}/enrollments` states what it
+ * is enrolled in. This module is the reading half of all four - the projection unpacked into rows,
  * one page of the listing read off the Bundle's own links, the enrollment listing narrowed to one
  * program, and the joins that turn DHIS2 uids into the names the guide published for them - and it
  * is pure, like the rest of lib/. The reads live in hooks/use-patient-search.ts,
- * hooks/use-patient-listing.ts, and hooks/use-patient-enrollments.ts.
+ * hooks/use-register-listing.ts, and hooks/use-patient-enrollments.ts.
  *
  * WHY NOTHING HERE INVENTS A NAME. The projection carries no `name`, no `gender`, and no
  * `birthDate`, because DHIS2 has no attribute that means any of them and
@@ -174,7 +175,7 @@ export const MINIMUM_PATIENT_SEARCH_LENGTH = 2
 /**
  * How long the typing has to stop before the search is sent.
  *
- * Each keystroke of an identifier would otherwise be one `GET /Patient`, and every one of those is
+ * Each keystroke of an identifier would otherwise be one `GET /{resourceType}`, and every one of those is
  * a DHIS2 round trip per unique attribute the guide publishes - the one read in this app that costs
  * the instance rather than this server's memory.
  */
@@ -371,7 +372,7 @@ export function trackedEntityTypeLabel(
     return { text: trackedEntityTypeUid, isMachineSpelling: true }
 }
 
-/** One enrollment of one person, as `GET /patients/{uid}/enrollments` states it, field for field. */
+/** One enrollment of one tracked entity, as `GET /tracked-entities/{uid}/enrollments` states it, field for field. */
 export interface PatientEnrollment {
     enrollment_uid: string
     program_uid: string

@@ -1,4 +1,4 @@
-"""The DHIS2 reads behind a patient lookup, and the contract `/api/tracker/trackedEntities` actually holds to.
+"""The DHIS2 reads behind a register lookup, and the contract `/api/tracker/trackedEntities` actually holds to.
 
 Five facts decide every request here, the first four established against a running instance and
 recorded in the repository's `BUGS.md`:

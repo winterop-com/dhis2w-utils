@@ -861,9 +861,9 @@ def validate_command(
     from datetime import UTC, datetime
 
     from dhis2w_fhir import REPORTS_DIRECTORY, VALIDATE_CODES_STEPS, find_project_fhir_config, service
+    from dhis2w_fhir.notes import pluralize
     from dhis2w_fhir.validation.pdf import render_validation_pdf
     from dhis2w_fhir.validation.report import display_code, render_validation_csv, render_validation_markdown
-    from dhis2w_fhir.validation.schemas import pluralize
 
     selected_formats = _parse_report_formats(formats)
     requested_source = code_source.value if code_source is not None else None
@@ -1036,19 +1036,77 @@ class PortInUseError(LookupError):
         )
 
 
-def _bind_probe(host: str, port: int) -> None:
-    """Bind (host, port) once with SO_REUSEADDR - the option uvicorn sets - and release it."""
-    family = socket.AF_INET6 if ":" in host else socket.AF_INET
-    probe = socket.socket(family, socket.SOCK_STREAM)
+#: The wildcard of each IP stack, probed for every host. A server published to all interfaces -
+#: which is what a Docker port mapping does, and how the local DHIS2 stack holds 8080 - listens on
+#: one of these, and SO_REUSEADDR then lets a *loopback-specific* bind succeed underneath it. So a
+#: probe of `127.0.0.1` alone reports a held port as free, uvicorn binds it just as happily, and
+#: this server quietly takes the localhost traffic meant for the instance. Only the wildcard bind
+#: collides with the wildcard listener, which is what makes the port's real holder visible.
+_WILDCARD_ADDRESSES = (
+    (socket.AF_INET, "0.0.0.0"),  # noqa: S104 - probed and released, never an address this serves on
+    (socket.AF_INET6, "::"),
+)
+
+#: The other stack's loopback, for a host naming one. A listener can hold `::1` alone while nothing
+#: holds `127.0.0.1`, and a browser asking this machine for `localhost` may still be routed to it.
+_SIBLING_LOOPBACK_ADDRESSES = {
+    "127.0.0.1": (socket.AF_INET6, "::1"),
+    "::1": (socket.AF_INET, "127.0.0.1"),
+    "localhost": (socket.AF_INET6, "::1"),
+}
+
+#: Bind failures that say this machine cannot offer the address at all - no IPv6 stack, or an
+#: address belonging to some other host. Neither is the port being held by anything, so neither
+#: refuses a run.
+_ADDRESS_UNAVAILABLE_ERRNOS = frozenset({errno.EADDRNOTAVAIL, errno.EAFNOSUPPORT})
+
+
+def _probe_addresses(host: str, port: int) -> list[tuple[int, str]]:
+    """Every (family, address) whose holder would contend for `host:port`, deduped in probe order."""
+    candidates: list[tuple[int, str]] = []
     try:
-        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        probe.bind((host, port))
-    finally:
-        probe.close()
+        resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError:
+        # An unresolvable host is uvicorn's failure to report, not the preflight's: probe the
+        # literal it was given and let the bind say what is wrong with it.
+        resolved = []
+    for family, _type, _protocol, _canonical_name, address in resolved:
+        if family in (socket.AF_INET, socket.AF_INET6):
+            candidates.append((family, str(address[0])))
+    if not candidates:
+        candidates.append((socket.AF_INET6 if ":" in host else socket.AF_INET, host))
+    sibling = _SIBLING_LOOPBACK_ADDRESSES.get(host)
+    if sibling is not None:
+        candidates.append(sibling)
+    candidates.extend(_WILDCARD_ADDRESSES)
+    return list(dict.fromkeys(candidates))
+
+
+def _bind_probe(host: str, port: int) -> None:
+    """Bind the port on every address whose holder would contend for it, and release each one.
+
+    SO_REUSEADDR is set because uvicorn sets it, so the probe fails exactly where uvicorn's own
+    bind would - except for the case that option creates: a specific address binds happily under
+    a wildcard listener, so the wildcards are probed too and a port already spoken for on this
+    machine is refused rather than quietly shared. An address this machine cannot offer is
+    skipped rather than raised: a host with no IPv6 stack has no IPv6 listener either, so its
+    absence says nothing about whether the port is free.
+    """
+    for family, address in _probe_addresses(host, port):
+        probe = socket.socket(family, socket.SOCK_STREAM)
+        try:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            probe.bind((address, port))
+        except OSError as error:
+            if error.errno in _ADDRESS_UNAVAILABLE_ERRNOS:
+                continue
+            raise
+        finally:
+            probe.close()
 
 
 def _address_already_in_use(host: str, port: int) -> bool:
-    """Whether binding (host, port) fails with EADDRINUSE right now."""
+    """Whether binding (host, port) fails with EADDRINUSE on either stack right now."""
     try:
         _bind_probe(host, port)
     except OSError as error:
@@ -1059,11 +1117,13 @@ def _address_already_in_use(host: str, port: int) -> bool:
 def _preflight_bind(host: str, port: int) -> None:
     """Refuse a taken port before anything says the server is starting.
 
-    The probe claims the address once and releases it, so a port held by something else -
-    typically 8080, where a local DHIS2 stack lives - fails as one line before the banner
-    and before the app's lifespan loads a store. The port can still be taken between this
-    probe and uvicorn's own bind; that race is accepted, and `_run_server` renders the same
-    one-line refusal when it loses, so the window narrows without reopening the traceback.
+    The probe claims the address on every stack the host names and releases it, so a port held
+    by something else - typically 8080, where a local DHIS2 stack lives - fails as one line
+    before the banner and before the app's lifespan loads a store. A holder on either stack
+    refuses the run, because a browser asking this machine for that port may be routed to
+    either one. The port can still be taken between this probe and uvicorn's own bind; that
+    race is accepted, and `_run_server` renders the same one-line refusal when it loses, so
+    the window narrows without reopening the traceback.
     """
     try:
         _bind_probe(host, port)
@@ -1104,27 +1164,28 @@ def serve_command(
         typer.Option(
             "--live",
             help="Build the served resources from a DHIS2 instance at startup instead of reading the "
-            "compiled IG off disk. One client is opened during startup and closed before the first "
-            "request, so the store is a snapshot of the instance the server started against.",
+            "compiled IG off disk. The store is a snapshot of the instance the server started against, "
+            "and the one client that built it stays open for the life of the process, because the "
+            "register routes read the instance per request.",
         ),
     ] = False,
     host: Annotated[
         str | None,
         typer.Option(
             "--host",
-            help="Interface to bind, overriding `[serve] host`. The default is loopback: the facade has "
+            help="Interface to bind, overriding `\\[serve] host`. The default is loopback: the facade has "
             "no authentication, so reaching it from another host is a deliberate act.",
         ),
     ] = None,
     port: Annotated[
-        int | None, typer.Option("--port", help="Port to listen on, overriding `[serve] port` (default 8080).")
+        int | None, typer.Option("--port", help="Port to listen on, overriding `\\[serve] port` (default 8080).")
     ] = None,
     strict_codes: Annotated[
         bool | None,
         typer.Option(
             "--strict-codes/--no-strict-codes",
             help="Refuse a received answer whose code is outside the served terminology, overriding "
-            "`[serve] strict_codes`. The default records the drift as a warning and stores the "
+            "`\\[serve] strict_codes`. The default records the drift as a warning and stores the "
             "submission, because an option added to the instance since the IG was built is a fact about "
             "the instance, not a client mistake.",
         ),
@@ -1133,7 +1194,7 @@ def serve_command(
         bool | None,
         typer.Option(
             "--ui/--no-ui",
-            help="Serve the capture UI at `/` alongside the FHIR routes, overriding `[serve] ui`. "
+            help="Serve the capture UI at `/` alongside the FHIR routes, overriding `\\[serve] ui`. "
             "The bundle is mounted around them and shadows none of them; a checkout that has never "
             "run `make build-frontend` is refused rather than served blank.",
         ),
@@ -1152,7 +1213,7 @@ def serve_command(
         ),
     ] = None,
 ) -> None:
-    """Serve the project's IG as a FHIR read and capture facade over HTTP.
+    r"""Serve the project's IG as a FHIR read and capture facade over HTTP.
 
     Reads answer from what the IG publishes.
 
@@ -1164,7 +1225,7 @@ def serve_command(
 
     `--basemap` offers another tile layer on the organisation-unit map, and `--basemap none` offers none.
 
-    Host, port, strict codes, the UI, and the basemaps come from `[serve]` in fhir.toml unless a flag overrides them.
+    Host, port, strict codes, the UI, and the basemaps come from `\[serve]` in fhir.toml unless a flag overrides them.
     """
     try:
         from dhis2w_fhir_serve import (

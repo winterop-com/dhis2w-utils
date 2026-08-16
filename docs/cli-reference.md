@@ -7250,9 +7250,9 @@ $ d2w metadata tracked-entity-attributes create [OPTIONS]
 * `--option-set <str>`: Constraining OptionSet UID.
 * `--legend-set <str>`: LegendSet UID (repeatable).
 * `--unique / --no-unique`: Unique across the instance.  [default: no-unique]
-* `--generated / --no-generated`: Auto-generate via --pattern on TEI register.  [default: no-generated]
+* `--generated / --no-generated`: Auto-generate via --pattern on the tracked entity register.  [default: no-generated]
 * `--confidential / --no-confidential`: Sensitive.  [default: no-confidential]
-* `--inherit / --no-inherit`: Inherit on parent/child TEI link.  [default: no-inherit]
+* `--inherit / --no-inherit`: Inherit on the parent/child tracked entity link.  [default: no-inherit]
 * `--display-in-list-no-program / --no-display-in-list-no-program`: Show in the list when no program is selected.  [default: no-display-in-list-no-program]
 * `--orgunit-scope / --no-orgunit-scope`: Scope values to the capturing OU.  [default: no-orgunit-scope]
 * `--pattern <str>`: Generator pattern (with --generated).
@@ -7362,10 +7362,10 @@ $ d2w metadata tracked-entity-types create [OPTIONS]
 * `--description <str>`: Free text.
 * `--code <str>`: Business code.
 * `--form-name <str>`: Form-name override.
-* `--allow-audit-log / --no-allow-audit-log`: Enable the per-TEI audit trail.
-* `--feature-type <str>`: NONE / POINT / POLYGON — geometry captured per TEI.
-* `--min-attrs <int>`: Min attributes required to search TEIs.
-* `--max-tei <int>`: Max TEI count to return per search.
+* `--allow-audit-log / --no-allow-audit-log`: Enable the per-tracked-entity audit trail.
+* `--feature-type <str>`: NONE / POINT / POLYGON — geometry captured per tracked entity.
+* `--min-attrs <int>`: Min attributes required to search tracked entities.
+* `--max-tei <int>`: Max tracked entity count to return per search.
 * `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
 
@@ -7409,8 +7409,8 @@ $ d2w metadata tracked-entity-types add-attribute [OPTIONS] {tet_uid} {attribute
 **Options**:
 
 * `--mandatory / --no-mandatory`: Require on enrollment.  [default: no-mandatory]
-* `--searchable / --no-searchable`: Include in TEI search.  [default: no-searchable]
-* `--display-in-list / --no-display-in-list`: Show in the enrolled-TEI list.  [default: display-in-list]
+* `--searchable / --no-searchable`: Include in tracked entity search.  [default: no-searchable]
+* `--display-in-list / --no-display-in-list`: Show in the enrolled tracked entity list.  [default: display-in-list]
 * `--help`: Show this message and exit.
 
 #### `d2w metadata tracked-entity-types remove-attribute`
@@ -7434,7 +7434,7 @@ $ d2w metadata tracked-entity-types remove-attribute [OPTIONS] {tet_uid} {attrib
 
 #### `d2w metadata tracked-entity-types delete`
 
-Delete a TrackedEntityType — DHIS2 rejects deletes on TETs in use by enrolled TEIs.
+Delete a TrackedEntityType — DHIS2 rejects deletes on types in use by enrolled tracked entities.
 
 **Usage**:
 
@@ -7518,10 +7518,10 @@ $ d2w metadata programs create [OPTIONS]
 * `--enrollment-date-label <str>`: Custom enrollment-date label.
 * `--incident-date-label <str>`: Custom incident-date label.
 * `--feature-type <str>`: Geometry captured per enrollment (NONE / POINT / POLYGON).
-* `--only-enroll-once / --no-only-enroll-once`: Block re-enrollment of the same TEI.
+* `--only-enroll-once / --no-only-enroll-once`: Block re-enrollment of the same tracked entity.
 * `--expiry-days <int>`: Days after which enrollments expire for edit.
-* `--min-attrs <int>`: Min attributes required for TEI search.
-* `--max-tei <int>`: Max TEI count per search.
+* `--min-attrs <int>`: Min attributes required for tracked entity search.
+* `--max-tei <int>`: Max tracked entity count per search.
 * `--use-first-stage-during-registration / --no-use-first-stage-during-registration`: Run the first ProgramStage inside the enrollment flow.
 * `--uid <str>`: Explicit 11-char UID.
 * `--help`: Show this message and exit.
@@ -7567,7 +7567,7 @@ $ d2w metadata programs add-attribute [OPTIONS] {program_uid} {attribute_uid}
 
 * `--mandatory / --no-mandatory`: Require on enrollment.  [default: no-mandatory]
 * `--searchable / --no-searchable`: Include in search.  [default: no-searchable]
-* `--display-in-list / --no-display-in-list`: Show in enrolled-TEI list.  [default: display-in-list]
+* `--display-in-list / --no-display-in-list`: Show in the enrolled tracked entity list.  [default: display-in-list]
 * `--sort-order <int>`: Position on enrollment form.
 * `--allow-future-date / --no-allow-future-date`: Permit dates past today.  [default: no-allow-future-date]
 * `--render-options-as-radio / --no-render-options-as-radio`: Render option-set choices as radios instead of a dropdown.  [default: no-render-options-as-radio]
@@ -10017,7 +10017,7 @@ Received QuestionnaireResponses are stored as receipts, so reading one back says
 
 `--basemap` offers another tile layer on the organisation-unit map, and `--basemap none` offers none.
 
-Host, port, strict codes, the UI, and the basemaps come from `` in fhir.toml unless a flag overrides them.
+Host, port, strict codes, the UI, and the basemaps come from `[serve]` in fhir.toml unless a flag overrides them.
 
 **Usage**:
 
@@ -10031,11 +10031,11 @@ $ d2w fhir serve [OPTIONS] [directory]
 
 **Options**:
 
-* `--live`: Build the served resources from a DHIS2 instance at startup instead of reading the compiled IG off disk. One client is opened during startup and closed before the first request, so the store is a snapshot of the instance the server started against.
-* `--host <str>`: Interface to bind, overriding ` host`. The default is loopback: the facade has no authentication, so reaching it from another host is a deliberate act.
-* `--port <int>`: Port to listen on, overriding ` port` (default 8080).
-* `--strict-codes / --no-strict-codes`: Refuse a received answer whose code is outside the served terminology, overriding ` strict_codes`. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
-* `--ui / --no-ui`: Serve the capture UI at `/` alongside the FHIR routes, overriding ` ui`. The bundle is mounted around them and shadows none of them; a checkout that has never run `make build-frontend` is refused rather than served blank.
+* `--live`: Build the served resources from a DHIS2 instance at startup instead of reading the compiled IG off disk. The store is a snapshot of the instance the server started against, and the one client that built it stays open for the life of the process, because the register routes read the instance per request.
+* `--host <str>`: Interface to bind, overriding `[serve] host`. The default is loopback: the facade has no authentication, so reaching it from another host is a deliberate act.
+* `--port <int>`: Port to listen on, overriding `[serve] port` (default 8080).
+* `--strict-codes / --no-strict-codes`: Refuse a received answer whose code is outside the served terminology, overriding `[serve] strict_codes`. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
+* `--ui / --no-ui`: Serve the capture UI at `/` alongside the FHIR routes, overriding `[serve] ui`. The bundle is mounted around them and shadows none of them; a checkout that has never run `make build-frontend` is refused rather than served blank.
 * `--basemap <str>`: Raster tile layer the capture UI&#x27;s organisation-unit map offers under the boundaries, overriding `[serve.basemaps]` (default: OpenStreetMap&#x27;s standard tiles). Repeat it to offer several: `Name=https://.../{z}/{x}/{y}.png`, or a bare template named after its host. The map&#x27;s layer control always carries a None entry beside them, and `--basemap none` offers nothing else - which is what an air-gapped deployment wants, the tiles being the only thing in the UI that reaches an origin other than this server.
 * `--help`: Show this message and exit.
 

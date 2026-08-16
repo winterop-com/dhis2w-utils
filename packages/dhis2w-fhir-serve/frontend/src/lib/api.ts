@@ -21,10 +21,11 @@
  * the server.
  *
  * TWO OF THE GUARDED PREFIXES ANSWER FROM DHIS2 RATHER THAN FROM THE STORE.
- * `/Patient` and `/patients/{uid}/enrollments` are mounted only by a live
- * process, and a compiled one refuses both by saying so - which is a refusal a
- * caller reads and renders, not a path that escaped the guard. Everything else
- * on this surface is answered from a store loaded once at startup.
+ * The register's own resource types and `/tracked-entities/{uid}/enrollments`
+ * are mounted only by a live process, and a compiled one refuses both by saying
+ * so - which is a refusal a caller reads and renders, not a path that escaped
+ * the guard. Everything else on this surface is answered from a store loaded
+ * once at startup.
  *
  * THREE PATHS HERE ARE NOT FHIR. `/spool` answers plain JSON, not
  * `application/fhir+json`: it serves the receipt *envelopes* - when the facade
@@ -33,7 +34,7 @@
  * QuestionnaireResponse elements. `/uiconfig` is the second, and answers the
  * handful of run-time settings this UI has to act on - today the map's tile
  * template, which is a property of how the process was started rather than of
- * anything the guide published. `/patients/{uid}/enrollments` is the third, and
+ * anything the guide published. `/tracked-entities/{uid}/enrollments` is the third, and
  * lowercase for the same reason `/spool` is: whether a DHIS2 enrollment is an
  * `EpisodeOfCare` or a `CarePlan` is an open decision, and answering a picker's
  * feed as a FHIR resource would settle it by accident.

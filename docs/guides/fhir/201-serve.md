@@ -157,14 +157,15 @@ error: port 8391 on 127.0.0.1 is already in use (usually the local DHIS2 instanc
 set [serve] port in fhir.toml or pass --port)
 ```
 
-!!! warning "The probe does not see an IPv6-only listener"
-    It binds an IPv4 socket, so a process holding the port on IPv6 alone is
-    not caught and serve starts beside it. Docker Desktop on macOS is exactly
-    that case: a published `8080` shows up as `TCP *:8080 (LISTEN)` on IPv6,
-    so `d2w fhir serve --port 8080` beside a local DHIS2 container starts
-    cleanly and then answers some of the `localhost:8080` requests you meant
-    for DHIS2. Choose the port deliberately in `[serve]` rather than relying
-    on the probe to catch a clash.
+The probe claims the port on every address whose holder would contend for it:
+the host's own, the other IP stack's loopback, and both wildcards. That last
+pair is what catches the common case. A published Docker container listens on
+all interfaces, and the socket option a server sets to restart cleanly also
+lets a second server bind `127.0.0.1` *underneath* such a listener - so a
+loopback-only probe would call 8080 free, serve would start beside a local
+DHIS2 container, and the two would split the `localhost:8080` requests
+between them. Probing the wildcard collides with the wildcard listener, and
+the run is refused instead.
 
 A live run has one more table to state: `[serve.tracked_entities]`, which decides
 whether this server answers about people at all, whether the listing is offered

@@ -235,9 +235,9 @@ rule** on the instance refusing a synthetic value - a fact about that
 instance's configuration, which is exactly what a handover needs to surface
 before anyone builds on it. The `selection-gap` warning is the probe's own
 doing: it scoped the run to one subtree, so that subtree's own root has a
-parent nobody selected. A finding is reported once per target that raised
-it, so the same form-structure note appears on more than one row of a full
-table.
+parent nobody selected. One finding is one row: several generate targets read
+the same source notes, and a note three of them raised is still one fact about
+the instance.
 
 Two things to expect on the timings. `compile` is the whole run: 152 seconds
 against 0.9 for everything else put together, because it is a real FSH

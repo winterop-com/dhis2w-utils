@@ -454,6 +454,23 @@ def _occupied_port() -> tuple[socket.socket, int]:
     return blocker, blocker.getsockname()[1]
 
 
+def _occupied_ipv6_only_port() -> tuple[socket.socket, int]:
+    """Hold an ephemeral port on the IPv6 loopback alone, the way a v6-only container publishes one."""
+    blocker = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    blocker.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+    blocker.bind(("::1", 0))
+    blocker.listen(1)
+    return blocker, blocker.getsockname()[1]
+
+
+def _occupied_wildcard_port() -> tuple[socket.socket, int]:
+    """Hold an ephemeral port on all interfaces, the way a published Docker container holds one."""
+    blocker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    blocker.bind(("0.0.0.0", 0))  # noqa: S104 - a test blocker standing in for a published container
+    blocker.listen(1)
+    return blocker, blocker.getsockname()[1]
+
+
 def _free_port() -> int:
     """An ephemeral loopback port that was free a moment ago."""
     probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -489,6 +506,49 @@ def test_serve_refuses_a_taken_port_before_the_banner(workdir: Path, monkeypatch
     assert recorder.calls == 0
     assert "starting" not in result.stderr
     assert "Traceback" not in result.output
+
+
+def test_serve_refuses_a_port_held_on_the_other_ip_stack(workdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A port held on the IPv6 loopback alone refuses an IPv4 host: a browser reaches either one."""
+    project = _scaffold(workdir)
+    _compile(project)
+    recorder = _RecordedRun()
+    monkeypatch.setattr(uvicorn, "run", recorder)
+    try:
+        blocker, port = _occupied_ipv6_only_port()
+    except OSError as error:  # pragma: no cover - a machine with no IPv6 stack has no v6 listener
+        pytest.skip(f"this machine cannot bind the IPv6 loopback: {error}")
+    try:
+        result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", str(port)])
+    finally:
+        blocker.close()
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, fhir_cli.PortInUseError)
+    assert _port_in_use_line(port) in str(result.exception)
+    assert recorder.calls == 0
+
+
+def test_serve_refuses_a_port_a_wildcard_listener_holds(workdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The local DHIS2 stack's own shape: published to all interfaces, so loopback is not free for us.
+
+    SO_REUSEADDR would let this server bind the loopback underneath that listener and take the
+    localhost traffic meant for the instance, which is the failure this refusal exists to prevent.
+    """
+    project = _scaffold(workdir)
+    _compile(project)
+    recorder = _RecordedRun()
+    monkeypatch.setattr(uvicorn, "run", recorder)
+    blocker, port = _occupied_wildcard_port()
+    try:
+        result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--port", str(port)])
+    finally:
+        blocker.close()
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, fhir_cli.PortInUseError)
+    assert _port_in_use_line(port) in str(result.exception)
+    assert recorder.calls == 0
 
 
 def test_the_taken_port_renders_as_one_line_through_the_funnel(

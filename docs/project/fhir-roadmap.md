@@ -349,8 +349,9 @@ Three callers read the same endpoints through one client instead.
 and `d2w fhir serve --live`: option sets, categories, organisation units,
 questionnaire sources, the identity plan, and the attribute-code join, over a single
 connection - eight requests where the seven solo targets total twenty-five. For the
-server that connection is held for the whole startup fetch and closed before the first
-request. `generate_load_set` behind `d2w fhir generate load-set` reads the example
+server that connection is held for the whole startup fetch and stays open afterwards,
+because the register routes read the instance per request. `generate_load_set` behind
+`d2w fhir generate load-set` reads the example
 inputs the same way.
 
 ## 3. Settled decisions and why
@@ -1461,7 +1462,7 @@ commitment.
     is what prioritises the read-proxy work below.
 
     **`--live`** builds the same read set off the instance at startup, through one
-    client opened in the lifespan and closed before the first request. Its real
+    client opened in the lifespan and held open for the life of the process. Its real
     work item was the **JSON builder path beside the FSH templates**, which
     shipped with it: `build_questionnaire_documents` and
     `build_data_dictionary_documents` are the twins of the FSH questionnaire

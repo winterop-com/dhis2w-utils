@@ -85,6 +85,16 @@ class GenerateNote(BaseModel):
         return self.message
 
 
+def pluralize(count: int, noun: str) -> str:
+    """Render a count with its noun, singular at exactly one (`1 error`, `0 errors`)."""
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def verb_for_count(count: int, singular: str, plural: str) -> str:
+    """The verb form a count takes, so a counted sentence agrees with itself at one and at many."""
+    return singular if count == 1 else plural
+
+
 def aggregate_note(message: str, subjects: list[str], sample_size: int = 5) -> str:
     """One loud note for many subjects: message, a capped sample, and the remainder count."""
     sample = ", ".join(subjects[:sample_size])

@@ -44,26 +44,28 @@ wrote /home/you/demo-ig/reports/fhir-validate-report.pdf
 │option sets        │ 13                                                       │
 │options            │ 52                                                       │
 │attributes         │ 4                                                        │
-│errors             │ 0                                                        │
-│warnings           │ 8                                                        │
+│errors             │ 4                                                        │
+│warnings           │ 4                                                        │
 │infos              │ 33                                                       │
-│selection findings │ 0 errors, 8 warnings, 20 infos                           │
+│selection findings │ 4 errors, 4 warnings, 20 infos                           │
 │code coverage      │ 1/1433 (selection objects whose code can serve as an     │
 │                   │ identity stem)                                           │
 │code source        │ id                                                       │
 └───────────────────┴──────────────────────────────────────────────────────────┘
-               findings by category (5)
+               findings by category (6)
 ┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┓
 ┃Severity ┃ Scope     ┃ Category              ┃ Count┃
 ┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━┩
-│warning  │ selection │ template-hostile-name │ 8    │
+│error    │ selection │ template-hostile-name │ 4    │
+│warning  │ selection │ template-hostile-name │ 4    │
 │info     │ selection │ spaced-code           │ 20   │
 │info     │ instance  │ invalid-code          │ 1    │
 │info     │ instance  │ missing-code          │ 1    │
 │info     │ instance  │ template-hostile-name │ 11   │
 └─────────┴───────────┴───────────────────────┴──────┘
-ok: passed: 8 selection warning(s), 20 selection info(s), 13 instance finding(s);
-full findings in /home/you/demo-ig/reports/fhir-validate-report.md
+                                  findings (4)
+[one row per error - the object, its code, and the character it carries]
+error: 4 error(s) found; exiting 1 (--no-fail to suppress)
 ```
 
 That run is a 2.43.1 instance carrying the Sierra Leone demo database plus a
@@ -89,8 +91,8 @@ hygiene:
 
 | Severity | Meaning |
 | --- | --- |
-| error | Your build will abort. A build-aborting `<` code on an in-scope identifier surface - the very codes `d2w fhir generate` refuses through the same predicate. The only findings that gate exit 1. |
-| warning | An in-scope degradation the build survives - a code falling back to the UID, a name malforming its page. |
+| error | Your build will abort. An in-scope `<`, in a code on an identifier surface or in any object's name - both land in HTML the publisher writes unescaped and then strict-parses. The only findings that gate exit 1. |
+| warning | An in-scope degradation the build survives - a code falling back to the UID, a `>` or `&` malforming a page. |
 | info | Instance hygiene: the same defects on objects the build never reads - a code-migration watchlist, not build noise. |
 
 The summary's **code coverage** line counts how many in-scope objects carry
@@ -120,23 +122,22 @@ Inside a project, findings grade against that project's own selection.
 | Deep attribute pass | Every DHIS2 attribute the instance left uncoded - `info`, a coverage signal about how legible the `D2AttributeValue` extension is to a consumer without the instance. |
 
 Every pass also checks the object's **name** for one thing that has nothing
-to do with codes: `template-hostile-name`, a warning on any name carrying
-`<`, `>`, or `&`, which the IG publisher's template injects into HTML
-unescaped and then strict-parses - the page renders malformed until the name
-changes in DHIS2.
+to do with codes: `template-hostile-name`, raised on any name carrying `<`,
+`>`, or `&`, which the IG publisher's template injects into HTML unescaped
+and then strict-parses. A name containing `<` is an **error**: the publisher
+cannot read back the page it just wrote, and `make build` fails. `>` and `&`
+cost a malformed page the build survives, so they are warnings.
 
-Its sibling `template-hostile-code` is the one that aborts builds: an
-**error** on an in-scope code containing `<`, raised only on the collections
-whose codes become identifier values (`optionSets`, `categories`,
-`organisationUnits`, `dataSets`, `programs`, `programStages`). The publisher
-writes identifier values into a table cell unescaped, fails in its *last*
-pass - so on a large IG one hostile code costs the entire build before it
-says so. The same finding here takes seconds. `>` and `&` cost a malformed
-page rather than an aborted build, so they stay warnings. Generation does
-not escape its way around either finding: names and identifier values are
-what a consumer matches on, and an IG that disagrees with its instance is
-worse than a malformed page. The fix is in DHIS2, which is what the finding
-is for.
+Its sibling `template-hostile-code` grades the same three characters the same
+way, on the collections whose codes become identifier values (`optionSets`,
+`categories`, `organisationUnits`, `dataSets`, `programs`,
+`programStages`). The publisher writes identifier values into a table cell
+unescaped and fails in its *last* pass - so on a large IG one hostile code or
+name costs the entire build before it says so. The same finding here takes
+seconds. Generation does not escape its way around either finding: names and
+identifier values are what a consumer matches on, and an IG that disagrees
+with its instance is worse than a malformed page. The fix is in DHIS2, which
+is what the finding is for.
 
 ## Preview a code migration with `--code-source`
 
@@ -155,8 +156,10 @@ The code-stem pass works the same dial for naming: under
 `source = "code-or-id"` a missing, unusable, or colliding code is a
 `code-stem-fallback` warning (that object's ids fall back to the UID); under
 `source = "code"` the same object is a `code-stem-refusal` **error** -
-`d2w fhir generate` refuses the run through the same defect predicate, so a
-validate error equals a generate refusal. `spaced-code` is the info-grade
+`d2w fhir generate` refuses the run through the same defect predicate, so for
+codes a validate error is also a generate refusal. A build-aborting **name**
+is graded the same way and generate still emits it; the build is where it
+fails. `spaced-code` is the info-grade
 neighbour: a code with spaces is FHIR-valid but emits in the quoted
 `#"..."` FSH form.
 

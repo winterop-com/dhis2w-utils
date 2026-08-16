@@ -4619,6 +4619,22 @@ async def forward_responses(
 
     naming = ConversionNaming.from_config(project.config.generate, project.config.ig.canonical)
     dry_run = not import_responses
+    if not spooled:
+        # Nothing to translate ends the run here, before a client is opened. The reads past this
+        # point exist to translate receipts - the guide off the instance when this project holds no
+        # compiled one, then the value type of every question the forms bind - and against a large
+        # instance that is thousands of resources fetched to answer a report that says zero. The
+        # spool is read first and the compiled guide off disk, so a receipt this run cannot read
+        # still raises, and a project with no build still hears about it.
+        report = ForwardReport(
+            project_root=project.project_root,
+            dry_run=dry_run,
+            coded_answer_mode=mode,
+            register_completeness=register_completeness,
+            unreadable_artifacts=() if compiled is None else compiled.unreadable_resources,
+        )
+        progress.complete(report.counts_line)
+        return report
     async with open_client(profile) as client:
         if compiled is None:
             progress.step("guide", "building the guide off the instance, this project holding no compiled one")

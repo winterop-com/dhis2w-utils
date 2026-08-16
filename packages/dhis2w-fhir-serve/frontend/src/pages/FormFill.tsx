@@ -145,7 +145,7 @@ import { cn } from '@/lib/utils'
  * A FOURTH IS WHO A REGISTRATION IS ABOUT, AND IT IS THE ONLY ONE THAT REACHES THE DHIS2 INSTANCE.
  * A registration form mints a new person by default, which is the whole of what this screen could
  * do while the facade answered only from what a project published. A live facade also answers
- * `GET /Patient?identifier=`, so the person can be found instead - and a registration answering for
+ * `GET /{resourceType}?identifier=`, so the person can be found instead - and a registration answering for
  * someone the instance already holds is a different submission: its subject is a real
  * tracked-entity uid, it carries the `D2SubjectExists` marker, and it writes no entity-level
  * answer at all, because the instance holds those values and `d2w fhir forward` refuses a
