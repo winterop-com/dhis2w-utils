@@ -951,8 +951,11 @@ async def test_an_empty_spool_reads_nothing_from_the_instance(forward_project: P
 
 
 @respx.mock
-async def test_an_empty_spool_with_no_compiled_guide_never_builds_one(tmp_path: Path) -> None:
+async def test_an_empty_spool_with_no_compiled_guide_never_builds_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The unbounded live build is what receipts pay for; none of them means it is never opened."""
+    _write_probe_profile(tmp_path, monkeypatch)
     root = tmp_path / "uncompiled"
     root.mkdir()
     _write_project(root, compiled=False)
