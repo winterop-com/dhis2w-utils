@@ -28,7 +28,7 @@ Usage:
 
 Reads all five kinds of form the example fixture publishes, from the facade the fixture serves.
 
-The registry of every `D2*` extension is at docs/guides/fhir/401-identifiers-and-extensions.md.
+The registry of every `D2*` extension is at docs/fhir/401-identifiers-and-extensions.md.
 """
 
 from __future__ import annotations

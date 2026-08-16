@@ -17,7 +17,7 @@ Expressions inside `where`, `select`, `order`, and `transform` are written in
 [d2path](d2path.md), the embedded path/expression language.
 
 This page is the reference. New to d2ql? Start with the **[tutorial](d2ql-tutorial.md)**, then come
-back here to look things up; the **[cookbook](../query/cookbook.md)** has ready-to-run recipes.
+back here to look things up; the **[cookbook](cookbook.md)** has ready-to-run recipes.
 
 ## Running a program
 
@@ -308,5 +308,5 @@ empty collection, so `= null` matches nothing and is never pushed. Use `where fi
 
 - [d2ql tutorial](d2ql-tutorial.md) — learn the language step by step.
 - [d2path](d2path.md) — the expression language used inside every stage.
-- [Cookbook](../query/cookbook.md) — ready-to-run recipes (FHIR, GeoJSON, reports).
+- [Cookbook](cookbook.md) — ready-to-run recipes (FHIR, GeoJSON, reports).
 - API reference: [`dhis2w_ql`](../api/query.md).

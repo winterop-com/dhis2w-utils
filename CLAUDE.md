@@ -103,7 +103,7 @@ Every behaviour-changing PR must leave `docs/`, `examples/`, and `docs/project/f
   1. A Google-style docstring on every class / method / public function (one-liner is enough per the docstring standard above).
   2. A top-level re-export in `packages/dhis2w-client/src/dhis2w_client/__init__.py` + entry in `__all__`.
   3. An `::: dhis2w_client.<module>` reference in the matching `docs/api/<module>.md` page (or a new page under `docs/api/` linked from `docs/api/index.md` and the mkdocs nav). The `mkdocstrings[python]` plugin auto-renders the module; the docstring quality is what shows up on the site.
-  4. The step-by-step guide at `docs/guides/client-tutorial.md` should show the new symbol in a worked example if it's user-facing.
+  4. The step-by-step guide at `docs/client/tutorial.md` should show the new symbol in a worked example if it's user-facing.
 
 If a change legitimately doesn't need a doc or example update, say so in the PR description so the reviewer doesn't have to reconstruct that reasoning.
 

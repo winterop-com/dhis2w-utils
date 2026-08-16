@@ -411,7 +411,7 @@ and the data values under it.
 the `D2DataValueSet` logical model. It is a **contract, not an engine**: nothing
 in this toolkit executes it, and a third party writing their own bridge in
 another language reads it rather than reading the Python. See the [FHIR
-conversion layer](../../project/fhir-conversion.md).
+conversion layer](design/conversion.md).
 
 ### The toolchain
 

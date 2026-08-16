@@ -34,7 +34,7 @@ missing from the middle of one that imports.
 Usage:
     uv run python examples/fhir/client/answer_value_types.py
 
-The serialisation table is at docs/guides/fhir/401-capture-contract.md.
+The serialisation table is at docs/fhir/401-capture-contract.md.
 """
 
 from __future__ import annotations

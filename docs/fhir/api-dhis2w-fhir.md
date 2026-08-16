@@ -1,6 +1,6 @@
 # FHIR IG generation (`dhis2w_fhir`)
 
-`dhis2w_fhir` is the package behind [`d2w fhir`](../guides/fhir/index.md): the `fhir.toml`
+`dhis2w_fhir` is the package behind [`d2w fhir`](index.md): the `fhir.toml`
 document, the emitters that turn DHIS2 metadata into an Implementation Guide - FSH for the
 definitional artifacts, pre-built R4 JSON for the organisation-unit registry, the
 option-set terminology, and the category terminology - and the DHIS2 period grammar they
@@ -73,7 +73,7 @@ string, so the code is a lookup rather than part of the value.
 What a generate target has to say about a run, as a model rather than a sentence. A
 `GenerateNote` carries the kind of decision it records (`GenerateNoteCategory`) beside
 the human text, and `echoes_validate` says whether the kind only restates a finding
-[`d2w fhir validate`](../guides/fhir/201-validate.md) reports on the instance - which is
+[`d2w fhir validate`](201-validate.md) reports on the instance - which is
 what lets a bare run count those apart from what generation itself found.
 
 ::: dhis2w_fhir.notes
@@ -92,7 +92,7 @@ reproduces the input document key for key.
 ### Conversion: QuestionnaireResponse to DHIS2
 
 The inverse of the emitters, and the reference implementation
-[`docs/project/fhir-conversion.md`](../project/fhir-conversion.md) holds the later published
+[`docs/project/fhir-conversion.md`](design/conversion.md) holds the later published
 StructureMaps against. A caller assembles a `ConversionContext` once from the compiled IG
 artifacts - the served Questionnaires, the option-set CodeSystems and their ConceptMaps, the
 ValueSets binding the two, and the published Locations - and then translates each captured
@@ -120,7 +120,7 @@ from them plus the project's `[generate]` naming, identifier base, and timezone.
 
 ### The conformance runner
 
-What [`d2w fhir doctor`](../guides/fhir/201-doctor.md) concluded about one instance, as
+What [`d2w fhir doctor`](201-doctor.md) concluded about one instance, as
 models rather than as terminal output. A `DoctorReport` carries one `DoctorPhaseResult` per
 phase - the outcome, the one line it is read by, the reason a phase that did not run gives,
 and every `DoctorFinding` it raised with the field path a mismatch was found at. The graders
@@ -150,7 +150,7 @@ that write exactly as it counts a first entry, so the spool is where the answer 
 ### Package surface
 
 The names below re-export from `dhis2w_fhir` itself; the
-[generate page](../guides/fhir/201-generate.md) covers what each emitter
+[generate page](201-generate.md) covers what each emitter
 produces.
 
 ::: dhis2w_fhir

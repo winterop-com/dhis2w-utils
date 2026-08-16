@@ -38,7 +38,7 @@ Usage:
 
 Reads every form the example fixture publishes, from the facade the fixture serves.
 
-The tiering rules are at docs/guides/fhir/401-identifiers-and-extensions.md#program-rules.
+The tiering rules are at docs/fhir/401-identifiers-and-extensions.md#program-rules.
 """
 
 from __future__ import annotations

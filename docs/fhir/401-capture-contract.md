@@ -143,7 +143,7 @@ response later is how a correction is made; the spool keeps both receipts, and
 
 **The other four kinds take any R4 status**, and it is carried through to the
 receipt as sent. On an event or tracker-event response it maps onto the DHIS2
-event status - [Forward](../fhir/201-forward.md) has that table.
+event status - [Forward](201-forward.md) has that table.
 
 `authored` is the moment the capture was made. It is `1..1` on the event,
 registration, tracker-event, and person-only contracts and graded as an R4

@@ -4,8 +4,8 @@
 guide as a read-and-capture endpoint, and posts what it captured back into
 DHIS2. This page is the map: which packages exist, what each module owns, and
 which decisions are load-bearing. It links to depth rather than repeating it -
-the [`d2w fhir` series](../guides/fhir/index.md) is the task-oriented
-companion, and the [glossary](../guides/fhir/glossary.md) is the vocabulary
+the [`d2w fhir` series](index.md) is the task-oriented
+companion, and the [glossary](glossary.md) is the vocabulary
 either side of the boundary.
 
 ## Two packages
@@ -91,7 +91,7 @@ configuration, not a scaffold-managed file. `--force` and `--refresh` are
 opposite answers to the same question and are rejected together.
 
 The full settings reference is the series'
-[`fhir.toml` pages](../guides/fhir/301-fhir-toml.md).
+[`fhir.toml` pages](301-fhir-toml.md).
 
 ## Generation
 
@@ -183,7 +183,7 @@ Which FHIR resource a tracked entity type's subject is comes from
 programs tracking one type cannot disagree; an unmapped type is a `Patient`.
 That map is itself published, as the `D2TET_CM` ConceptMap onto
 `http://hl7.org/fhir/resource-types`, so a consumer can read it. See [Custom
-subject types](../guides/fhir/401-custom-subject-types.md).
+subject types](401-custom-subject-types.md).
 
 ### Disaggregation
 
@@ -247,7 +247,7 @@ every target that names a concept reads that one assignment, so an example
 cannot code an answer the CodeSystem has no concept for.
 
 The canonical token registry lives in [How things are
-generated](../guides/fhir/301-generation.md#naming).
+generated](301-generation.md#naming).
 
 ## The foundation
 
@@ -327,7 +327,7 @@ R4 makes `date` mandatory on `NamingSystem`, `CapabilityStatement`, and
 timestamp: a generated one would rewrite the file on every run.
 
 Every URL family and every extension in full is in [Identifiers and the D2
-extensions](../guides/fhir/401-identifiers-and-extensions.md).
+extensions](401-identifiers-and-extensions.md).
 
 ## The regeneration contract
 
@@ -395,7 +395,7 @@ Reports go to `reports/` in markdown, CSV, and PDF, all named
 `fhir-validate-report`. `--no-fail` keeps the exit code at 0, and no
 `fhir.toml` is required, because the sweep is a property of the instance rather
 than of a project. Detail is in [Validate the
-instance](../guides/fhir/201-validate.md).
+instance](201-validate.md).
 
 ## Serving
 
@@ -521,8 +521,8 @@ and a receipt stays readable through `GET /QuestionnaireResponse/{id}` in all
 three states.
 
 Configuration and the served contract are in [Serving
-it](../guides/fhir/301-serving.md) and [Consume the FHIR
-API](../guides/fhir/401-consume-the-fhir-api.md).
+it](301-serving.md) and [Consume the FHIR
+API](401-consume-the-fhir-api.md).
 
 ### The capture UI
 
@@ -544,7 +544,7 @@ forwarder agree about what an answer element is. `lib/api.ts` guards every path
 against the served resource types plus `metadata`, `spool`, `uiconfig`, and
 `tracked-entities`, so a typo reaches no network. The frontend make targets sit
 outside `make lint` and `make test`; see [The capture
-UI](../guides/fhir/201-capture-ui.md).
+UI](201-capture-ui.md).
 
 ## The conversion layer
 
@@ -588,7 +588,7 @@ map is a **contract, never an engine**: nothing here executes it, a CI gate
 holds the Python to it, and each rule whose meaning exceeds what a transform can
 state says so on its own documentation. The tracker logical model and the
 reverse maps are still owed. The staged plan is [the FHIR conversion
-layer](../project/fhir-conversion.md).
+layer](design/conversion.md).
 
 ## The conformance runner
 
@@ -616,7 +616,7 @@ does not break a pipeline. `doctor` reimplements nothing - it calls
 conformance runner rather than a second implementation. `--workspace` and
 `--keep` retain the throwaway project, `--all-targets` skips the probe, and the
 report lands at `reports/fhir-doctor-report.md`. See [Check an instance with
-doctor](../guides/fhir/201-doctor.md).
+doctor](201-doctor.md).
 
 ## Code layout
 
@@ -699,24 +699,24 @@ server cache and is left alone by both. `JAVA_HEAP` sizes the publisher JVM -
 too large for the docker VM and the kernel OOM-kills the build with exit 137.
 
 The upstream behaviours behind these are catalogued in [the roadmap's quirks
-section](../project/fhir-roadmap.md#4-upstream-dhis2-and-tooling-quirks-that-shape-the-code);
+section](design/roadmap.md#4-upstream-dhis2-and-tooling-quirks-that-shape-the-code);
 the operator-facing version is [Build and publish the
-guide](../guides/fhir/201-build-and-publish.md).
+guide](201-build-and-publish.md).
 
 ## Where the rest lives
 
 This page says what the packages are. Where they are going, and why each shape
 was chosen, is in the project record:
 
-- [FHIR roadmap and review guide](../project/fhir-roadmap.md) - the settled and
+- [FHIR roadmap and review guide](design/roadmap.md) - the settled and
   open decisions, the four review dimensions, and the build measurements.
-- [FHIR conversion layer](../project/fhir-conversion.md) - the staged plan,
+- [FHIR conversion layer](design/conversion.md) - the staged plan,
   phases A through C.
-- [Corrections and withdrawals](../project/fhir-data-lifecycle.md) - the data
+- [Corrections and withdrawals](design/data-lifecycle.md) - the data
   lifecycle the spool is the provenance record for.
-- [DHIS2 fidelity audit](../project/fhir-dhis2-fidelity.md) - every concept
+- [DHIS2 fidelity audit](design/dhis2-fidelity.md) - every concept
   that makes DHIS2 distinctively DHIS2, with a verdict.
-- [FHIR harmonization](../project/fhir-harmonization.md) - how several country
+- [FHIR harmonization](design/harmonization.md) - how several country
   guides relate.
-- [FHIR enrollment resource](../project/fhir-enrollment-resource.md) - the read
+- [FHIR enrollment resource](design/enrollment-resource.md) - the read
   side's enrollment shape.

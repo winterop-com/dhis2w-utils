@@ -479,7 +479,7 @@ small fraction of the time a single POST to DHIS2 takes.
 
 The question a DHIS2 person asks next is: somebody typed a number wrong, and
 it is in the instance now - what do I do? Read the answer in full at
-[Corrections and withdrawals](../../project/fhir-data-lifecycle.md). The short
+[Corrections and withdrawals](design/data-lifecycle.md). The short
 version, and it is a posture rather than a feature:
 
 | What you want | Where it stands today |
@@ -838,7 +838,7 @@ d2w fhir forward --import   # the committing run
 What the translator builds each payload from, field by field, is the
 integration developer's contract - see
 [The capture contract](401-capture-contract.md) for what a response must
-carry, and [the FHIR conversion layer](../../project/fhir-conversion.md) for
+carry, and [the FHIR conversion layer](design/conversion.md) for
 why the forwarder is a typed translator.
 
 Next: [Troubleshooting](201-troubleshooting.md) - the failure modes of the

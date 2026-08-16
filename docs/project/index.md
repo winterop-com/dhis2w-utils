@@ -38,7 +38,7 @@ reference.
     The `dhis2w-fhir` plan in one place: what exists, the settled and open
     decisions, four review dimensions, and the build measurements.
 
-    [Open the FHIR guide](fhir-roadmap.md)
+    [Open the FHIR guide](../fhir/design/roadmap.md)
 
 - **FHIR conversion layer**
 
@@ -47,7 +47,7 @@ reference.
     How data crosses between DHIS2 and FHIR in both directions, and where the
     mapping definition lives.
 
-    [Read the conversion plan](fhir-conversion.md)
+    [Read the conversion plan](../fhir/design/conversion.md)
 
 - **Corrections and withdrawals**
 
@@ -56,7 +56,7 @@ reference.
     How a submitter corrects a value that already reached DHIS2, how a
     submission is retracted, and why withdrawal is terminal.
 
-    [Read the lifecycle design](fhir-data-lifecycle.md)
+    [Read the lifecycle design](../fhir/design/data-lifecycle.md)
 
 - **DHIS2 fidelity audit**
 
@@ -65,7 +65,7 @@ reference.
     Every concept that makes DHIS2 distinctively DHIS2, with a verdict: carried,
     worth carrying with a named carrier, or deliberately not with the reason.
 
-    [Read the fidelity audit](fhir-dhis2-fidelity.md)
+    [Read the fidelity audit](../fhir/design/dhis2-fidelity.md)
 
 - **FHIR harmonization**
 
@@ -74,7 +74,7 @@ reference.
     How N country guides relate: terminology alignment, a master guide, and
     indicator comparability, with the prerequisites each tier waits on.
 
-    [Read the harmonization design](fhir-harmonization.md)
+    [Read the harmonization design](../fhir/design/harmonization.md)
 
 - **Upstream DHIS2 quirks**
 

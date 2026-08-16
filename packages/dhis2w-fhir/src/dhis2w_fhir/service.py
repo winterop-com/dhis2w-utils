@@ -4199,7 +4199,7 @@ class ForwardOutcomeKind(StrEnum):
 #: for the rest of the project's life. The discriminator is stated as a set rather than as a flag on
 #: a refusal, because membership is a doctrine about what this toolchain builds rather than a
 #: property of the response: `entered-in-error` asks for a withdrawal, withdrawal is a deletion, and
-#: this toolchain imports - see `docs/project/fhir-data-lifecycle.md`. Every other refusal has a fix
+#: this toolchain imports - see `docs/fhir/design/data-lifecycle.md`. Every other refusal has a fix
 #: somewhere, so every other refusal stays in the queue.
 TERMINAL_REFUSAL_CATEGORIES = frozenset({ConversionRefusalCategory.ENTERED_IN_ERROR_IS_A_DELETION})
 
@@ -4212,7 +4212,7 @@ _TERMINAL_REFUSAL_STATUS = "REFUSED"
 _TERMINAL_REFUSAL_MESSAGE = (
     "The translator will never convert this response, whatever changes in the guide or in the data, so it is "
     "filed here rather than retried by every drain. Withdrawing a submission is unbuilt in this toolchain - "
-    "see docs/project/fhir-data-lifecycle.md - and `d2w fhir requeue` puts the receipt back in the queue for "
+    "see docs/fhir/design/data-lifecycle.md - and `d2w fhir requeue` puts the receipt back in the queue for "
     "an operator who wants it tried again."
 )
 

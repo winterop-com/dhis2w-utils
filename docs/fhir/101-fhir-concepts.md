@@ -553,9 +553,9 @@ it on. Paths use the ids from a real run; `<uid>` is the DHIS2 UID.
 
 - [The `d2w fhir` series index](index.md) - the task-oriented pages this page
   prepares you for.
-- [FHIR plugin architecture](../../architecture/fhir-plugin.md) - how the package
+- [FHIR plugin architecture](architecture.md) - how the package
   is laid out and why.
-- [The FHIR conversion layer](../../project/fhir-conversion.md) - why the
+- [The FHIR conversion layer](design/conversion.md) - why the
   forwarder is a typed Python translator.
 
 Next: [Quickstart: six commands to a served IG](101-quickstart.md)

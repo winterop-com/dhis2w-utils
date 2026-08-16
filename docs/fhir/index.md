@@ -29,7 +29,7 @@ not a menu - the pages build on each other left to right.
 | Your situation | Read, in this order |
 | --- | --- |
 | **You run a DHIS2 instance and want its forms available as FHIR** | [What `d2w fhir` is and why](101-what-and-why.md), [Quickstart](101-quickstart.md), then the 201 pages from [Check an instance with doctor](201-doctor.md) onward |
-| **You are deciding whether your ministry should publish a guide at all** | [What `d2w fhir` is and why](101-what-and-why.md), then the project-level design records: the [FHIR roadmap and review guide](../../project/fhir-roadmap.md), the [DHIS2 fidelity audit](../../project/fhir-dhis2-fidelity.md), and the [harmonization design](../../project/fhir-harmonization.md) |
+| **You are deciding whether your ministry should publish a guide at all** | [What `d2w fhir` is and why](101-what-and-why.md), then the project-level design records: the [FHIR roadmap and review guide](design/roadmap.md), the [DHIS2 fidelity audit](design/dhis2-fidelity.md), and the [harmonization design](design/harmonization.md) |
 | **You integrate a system against a guide someone else published** | [Glossary](glossary.md), [FHIR for DHIS2 people](101-fhir-concepts.md), then the 401 pages from [The capture contract](401-capture-contract.md) |
 | **You configure what the guide contains** | [Quickstart](101-quickstart.md), [Validate the instance](201-validate.md), then the 301 pages from [The settings file](301-fhir-toml.md) |
 | **You operate a project that already exists** | [Check an instance with doctor](201-doctor.md), then the 201 pages in order |
@@ -105,13 +105,13 @@ not a menu - the pages build on each other left to right.
   commands each 201 page describes, `client/` for the Python library path
   (generate a guide, consume a facade, drain a spool), `mcp/` for the two tools
   an agent calls. One copy, runs on v41, v42 and v43 alike.
-- [Feature catalog: FHIR IG Toolchain](../../project/features.md#fhir-ig-toolchain) -
+- [Feature catalog: FHIR IG Toolchain](../project/features.md#fhir-ig-toolchain) -
   every capability of the toolchain in one inventory, surface by surface.
-- [CLI reference](../../cli-reference.md) - every `d2w fhir` command and flag.
-- [`dhis2w_fhir` API reference](../../api/fhir.md) - the importable surface.
-- [`dhis2w_fhir_serve` API reference](../../api/fhir-serve.md) - the facade
+- [CLI reference](../cli-reference.md) - every `d2w fhir` command and flag.
+- [`dhis2w_fhir` API reference](api-dhis2w-fhir.md) - the importable surface.
+- [`dhis2w_fhir_serve` API reference](api-dhis2w-fhir-serve.md) - the facade
   package.
-- [FHIR plugin architecture](../../architecture/fhir-plugin.md) - how the
+- [FHIR plugin architecture](architecture.md) - how the
   packages are laid out and why.
 
 ## The design record
@@ -119,15 +119,15 @@ not a menu - the pages build on each other left to right.
 The reasoning behind the shapes these pages describe lives under Project,
 not here. Read them when you want the *why* rather than the *how*:
 
-- [FHIR roadmap and review guide](../../project/fhir-roadmap.md) - what exists,
+- [FHIR roadmap and review guide](design/roadmap.md) - what exists,
   the settled and open decisions, the review dimensions.
-- [FHIR conversion layer](../../project/fhir-conversion.md) - how data crosses
+- [FHIR conversion layer](design/conversion.md) - how data crosses
   the boundary in both directions.
-- [Corrections and withdrawals](../../project/fhir-data-lifecycle.md) - how a
+- [Corrections and withdrawals](design/data-lifecycle.md) - how a
   submitted value is corrected or retracted.
-- [DHIS2 fidelity audit](../../project/fhir-dhis2-fidelity.md) - every concept
+- [DHIS2 fidelity audit](design/dhis2-fidelity.md) - every concept
   that makes DHIS2 distinctively DHIS2, and whether the guide carries it.
-- [FHIR harmonization](../../project/fhir-harmonization.md) - how several
+- [FHIR harmonization](design/harmonization.md) - how several
   country guides relate.
-- [FHIR enrollment resource](../../project/fhir-enrollment-resource.md) - why
+- [FHIR enrollment resource](design/enrollment-resource.md) - why
   the read side models an enrollment as it does.

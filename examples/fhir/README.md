@@ -4,7 +4,7 @@
 
 `dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages — the client detects the DHIS2 major from `/api/system/info` — so this is one copy that runs against v41, v42, and v43 alike.
 
-The narrative these scripts sit under is the [`d2w fhir` guide series](../../docs/guides/fhir/index.md); [`docs/examples.md`](../../docs/examples.md) is the curated catalogue.
+The narrative these scripts sit under is the [`d2w fhir` guide series](../../docs/fhir/index.md); [`docs/examples.md`](../../docs/examples.md) is the curated catalogue.
 
 ## Prerequisites
 

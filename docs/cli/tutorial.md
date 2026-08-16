@@ -1,6 +1,6 @@
 # `d2w` CLI: step-by-step tutorial
 
-> **Learning path · step 3 of 8** — Operator tutorial. Prev: [Walkthrough](../walkthrough.md). Next: [Python library tutorial](client-tutorial.md). For the full command catalogue see [CLI reference](../cli-reference.md); for runnable snippets per plugin see the [Examples index](../examples.md).
+> **Learning path · step 3 of 8** — Operator tutorial. Prev: [Walkthrough](../walkthrough.md). Next: [Python library tutorial](../client/tutorial.md). For the full command catalogue see [CLI reference](../cli-reference.md); for runnable snippets per plugin see the [Examples index](../examples.md).
 
 A narrative walkthrough of the `d2w` command-line interface aimed at day-to-day operators. The first sections (profile / metadata / analytics / users) take you through the most-used workflows; the later sections (maintenance / files / messaging / apps / tracker) round out coverage of every operator-facing plugin. Each block shows the exact command shape — replace placeholder UIDs (`<uid>`, `<group-uid>`, `ROLEuidHere`, `OUuidHere`, `abcdefghij`, etc.) with values from your DHIS2 instance.
 
@@ -380,7 +380,7 @@ Debug output lands on stderr so stdout stays pipe-friendly — you can still `d2
 
 - **Full command reference**: [CLI reference](../cli-reference.md) — every subcommand, every flag, auto-generated from the Typer app so it never drifts.
 - **Runnable examples**: [examples index](../examples.md) — the canonical v42 set (~55 CLI + ~73 client + ~40 MCP scripts). v41 and v43 mirror most of them.
-- **Library usage**: [`dhis2w-client` tutorial](client-tutorial.md) — when you want to drive DHIS2 from Python instead of the shell.
+- **Library usage**: [`dhis2w-client` tutorial](../client/tutorial.md) — when you want to drive DHIS2 from Python instead of the shell.
 - **Plugin architecture**: [overview](../architecture/overview.md) — how plugins, profiles, auth providers, and codegen fit together.
 
 The CLI is intentionally thin — every command ends up in a plugin's `service.py`, and the same service layer is what the FastMCP server exposes as tools. If you find the CLI missing a flag you expect, it's almost always a service-layer parameter that just needs wiring to a Typer option — see `packages/dhis2w-core/src/dhis2w_core/v42/plugins/<plugin>/cli.py` for the pattern.

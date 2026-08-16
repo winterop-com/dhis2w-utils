@@ -13,7 +13,7 @@ instance they have not used before - a new country profile, a fresh
 deployment, an upgrade they want to re-clear.
 
 **Before you start:** a DHIS2 profile that resolves
-([Profiles](../../architecture/profiles.md)). Nothing else. Doctor scaffolds
+([Profiles](../architecture/profiles.md)). Nothing else. Doctor scaffolds
 its own project, in its own throwaway directory, and cleans up after itself.
 
 **You will be able to:**
