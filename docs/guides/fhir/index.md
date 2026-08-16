@@ -100,6 +100,8 @@ not a menu - the pages build on each other left to right.
 
 ## Reference
 
+- [Feature catalog: FHIR IG Toolchain](../../project/features.md#fhir-ig-toolchain) -
+  every capability of the toolchain in one inventory, surface by surface.
 - [CLI reference](../../cli-reference.md) - every `d2w fhir` command and flag.
 - [`dhis2w_fhir` API reference](../../api/fhir.md) - the importable surface.
 - [`dhis2w_fhir_serve` API reference](../../api/fhir-serve.md) - the facade
