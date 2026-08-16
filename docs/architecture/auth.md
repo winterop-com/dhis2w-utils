@@ -191,8 +191,8 @@ The flag plumbs through `build_auth(..., open_browser=False)` in `dhis2w_core.cl
 
 `dhis2w_browser` ships two helpers for automating the full flow:
 
-- `drive_oauth2_login(profile_name, *, username, password)` — subprocess-driven. Spawns `d2w profile login <name> --no-browser`, reads the auth URL from its stderr, and drives Chromium through (1) the DHIS2 React login form, (2) the Spring AS "Consent required" screen, (3) the loopback redirect. Used by `examples/v42/client/oidc_playwright_login.py` + the `DHIS2_USERNAME`/`DHIS2_PASSWORD`-auto-dispatched `examples/v42/cli/profile_oidc_login.sh`.
-- `drive_login_form(auth_url, *, username, password)` — lower-level. Takes an authorize URL that an in-process flow already built and drives the same two screens. Used by `examples/v42/client/oidc_login.py`'s library-level `OAuth2Auth` path when `DHIS2_USERNAME`/`DHIS2_PASSWORD` are set.
+- `drive_oauth2_login(profile_name, *, username, password)` — subprocess-driven. Spawns `d2w profile login <name> --no-browser`, reads the auth URL from its stderr, and drives Chromium through (1) the DHIS2 React login form, (2) the Spring AS "Consent required" screen, (3) the loopback redirect. Used by `examples/client/oidc_playwright_login.py` + the `DHIS2_USERNAME`/`DHIS2_PASSWORD`-auto-dispatched `examples/cli/profile_oidc_login.sh`.
+- `drive_login_form(auth_url, *, username, password)` — lower-level. Takes an authorize URL that an in-process flow already built and drives the same two screens. Used by `examples/client/oidc_login.py`'s library-level `OAuth2Auth` path when `DHIS2_USERNAME`/`DHIS2_PASSWORD` are set.
 
 Both accept `headless=None` which honours the `DHIS2_HEADFUL=1` env fallback (matching every other `dhis2w-browser` helper). Both require the `[browser]` extra (`uv add 'dhis2w-cli[browser]' && playwright install chromium`).
 

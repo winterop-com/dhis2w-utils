@@ -73,7 +73,7 @@ except Dhis2ApiError as exc:
 
 ## Related examples
 
-- [`examples/v42/client/error_handling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/error_handling.py) — `Dhis2ApiError` + WebMessage conflict shape.
-- [`examples/v42/client/metadata_bulk_import.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/metadata_bulk_import.py) — typed dry-run + real import branching on the envelope.
+- [`examples/client/error_handling.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/error_handling.py) — `Dhis2ApiError` + WebMessage conflict shape.
+- [`examples/client/metadata_bulk_import.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/metadata_bulk_import.py) — typed dry-run + real import branching on the envelope.
 
 ::: dhis2w_client.v42.envelopes

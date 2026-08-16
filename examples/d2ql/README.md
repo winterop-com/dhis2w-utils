@@ -1,8 +1,8 @@
 # d2ql example programs
 
 Standalone, version-agnostic **d2ql** programs — one query each, with a `//` comment explaining it.
-A d2ql program is the same text regardless of the DHIS2 major, so these live here once (not under
-`examples/v41|v42|v43`), and the per-version `cli/query_run.sh` runners execute them.
+A d2ql program is the same text regardless of the DHIS2 major, and
+[`examples/cli/query_run.sh`](../cli/query_run.sh) is the runner that executes them.
 
 Files are grouped by a name prefix: `metadata-*`, `orgunits-*`, `analytics-*`, `datavalues-*`,
 `fhir-*`, `geojson-*`, `export-*`, `sink-*`, `library-*`, `read-*`, `date-*`, `string-*`, `subset-*`,

@@ -405,7 +405,7 @@ application/json`, no extension) returns `200 application/json`.
 
 ```bash
 # Setup — create a DE, an OU (under a writable parent), a DS that links them.
-# ... (see examples/v42/client/bootstrap_zero_to_data.py for the full setup). Let:
+# ... (see examples/client/bootstrap_zero_to_data.py for the full setup). Let:
 DE=H0HdkBJ0EYy
 OU=Q0WlKDIgZ34
 DS=FvsZyFz8cbq
@@ -456,7 +456,7 @@ dataelementid = ...`) which bypasses DHIS2 entirely.
   cycles (the whole point of a "zero-to-data" bootstrap example) require
   either DB access or a full stack reset.
 
-**Workaround in this repo:** `examples/v42/client/bootstrap_zero_to_data.py` executes the
+**Workaround in this repo:** `examples/client/bootstrap_zero_to_data.py` executes the
 soft-delete + DS delete, then documents that DE + OU are left behind, with
 a pointer here. Rerunning the bootstrap mints fresh UIDs so no collision.
 
@@ -774,7 +774,7 @@ silently invalidates every cached token.
 **Impact:**
 - Local dev: every `make dhis2-down && make dhis2-up` cycle forces
   re-authentication through every browser-based flow. Our
-  `examples/v{41,42,43}/cli/profile_list_verify.sh` now shows `local_oidc: HTTPStatusError:
+  `examples/cli/profile_list_verify.sh` now shows `local_oidc: HTTPStatusError:
   400` after any restart for exactly this reason.
 - Prod: any DHIS2 rolling restart (host maintenance, patch deploy)
   terminates every OAuth2 session across every client app integrated
@@ -848,7 +848,7 @@ The header value is `ApiToken observed-value`, not `Bearer observed-value`.
 - Integrators can't use off-the-shelf Bearer-auth endpoints without wrapping them in a shim that rewrites the Authorization header.
 - Cascading into our tooling: `d2w route run` then surfaces the 401 as "auth error at GET /api/routes/.../run", suggesting a DHIS2-side auth problem when the failure is actually on the upstream leg.
 
-**Workaround in this repo:** None. Our `examples/v{41,42,43}/cli/route_register_and_run.sh` targets httpbin.org/headers (which echoes whatever DHIS2 sends) instead of httpbin.org/bearer (which rejects the non-standard scheme).
+**Workaround in this repo:** None. Our `examples/cli/route_register_and_run.sh` targets httpbin.org/headers (which echoes whatever DHIS2 sends) instead of httpbin.org/bearer (which rejects the non-standard scheme).
 
 **How to know it's fixed:** The curl repro above shows `"Authorization": "Bearer observed-value"`.
 
@@ -1071,7 +1071,7 @@ OU structure hits this. The fix is to PATCH the admin user's
 `organisationUnits` to include the new ancestor(s) — but that requires
 knowing the semantics.
 
-**Workaround in this repo:** `examples/v42/client/bootstrap_zero_to_data.py` parents new
+**Workaround in this repo:** `examples/client/bootstrap_zero_to_data.py` parents new
 OUs under `NOROsloProv` (already in admin's scope via the seeded fixture)
 so they inherit descendant-of-scope. The "one-liner" PATCH pattern for
 when you must create sibling-of-scope OUs is documented inline as a
@@ -1334,7 +1334,7 @@ curl -s -u admin:district \
 
 **Actual:** OAS `OutlierDetectionAlgorithm` enum declares `{Z_SCORE, MIN_MAX, MOD_Z_SCORE, INVALID_NUMERIC}`. The server's actual accept-list is `{Z_SCORE, MIN_MAX, MODIFIED_Z_SCORE}`. The OAS name is truncated; the server name isn't. (A second enum `OutlierMethod` in the same OAS file has `MODIFIED_Z_SCORE` — so the symbol exists upstream, but it's wired to the wrong parameter type.)
 
-**Impact:** callers with IDE autocomplete or strict typing reach for `OutlierDetectionAlgorithm.MOD_Z_SCORE`, ship code, then get a 400 at runtime. Users who `grep` DHIS2 docs for "algorithm" values see inconsistent naming. Blocked the first run of `examples/v{41,42,43}/cli/analytics_outlier_tracked_entities.sh`.
+**Impact:** callers with IDE autocomplete or strict typing reach for `OutlierDetectionAlgorithm.MOD_Z_SCORE`, ship code, then get a 400 at runtime. Users who `grep` DHIS2 docs for "algorithm" values see inconsistent naming. Blocked the first run of `examples/cli/analytics_outlier_tracked_entities.sh`.
 
 **Workaround in this repo:** CLI + examples use the string `"MODIFIED_Z_SCORE"` directly; docstrings + BUGS.md entry call out the mismatch. A typed helper (`OutlierDetectionAlgorithm.MODIFIED_Z_SCORE` alias) isn't added because the enum member genuinely doesn't exist in the OAS emission — would need a post-emission patch step which is worse than the string.
 
@@ -3106,7 +3106,7 @@ curl -sf -u admin:district -X POST 'http://localhost:8080/api/tracker?async=fals
 
 **Impact:** Any v43 caller that mutates `Program.enrollmentCategoryCombo` (a deliberate v43-only feature) and then enrolls without an explicit non-default AOC. In this repo the failure surfaced as cascading test failures — `program_set_enrollment_category_combo.py` left the seeded Child Programme with `enrollmentCategoryCombo=non-default`, breaking every downstream verify-examples enrollment until the program was reset.
 
-**Workaround in this repo:** `examples/v43/client/program_set_enrollment_category_combo.py` now restores the original `enrollmentCategoryCombo` (or the program's default `categoryCombo` when no original was set) in a `finally` block, so the seeded program is left in its pre-mutation state. The misleading error message is documented here so future debugging hops directly to `enrollmentCategoryCombo` instead of chasing `categoryCombo`.
+**Workaround in this repo:** `examples/client/v43/program_set_enrollment_category_combo.py` now restores the original `enrollmentCategoryCombo` (or the program's default `categoryCombo` when no original was set) in a `finally` block, so the seeded program is left in its pre-mutation state. The misleading error message is documented here so future debugging hops directly to `enrollmentCategoryCombo` instead of chasing `categoryCombo`.
 
 **How to know it's fixed:** Either the `E1055` template is updated to mention `enrollmentCategoryCombo` when that's the field that triggered the check, or the check on `Program.enrollmentCategoryCombo` is removed / aligned with `Program.categoryCombo`.
 
@@ -3114,7 +3114,7 @@ curl -sf -u admin:district -X POST 'http://localhost:8080/api/tracker?async=fals
 
 ### 41. v43: `E8023` / `E8024` strict COC/AOC matching on `POST /api/dataValueSets` — `force=true` doesn't bypass
 
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub). Discovered while reshaping `examples/v{N}/client/aggregate_bulk_grouped.py` for v43 — the v42-compatible code hardcodes the default COC + AOC (`HllvX50cXC0`) and v43 rejects every write against a DataSet or DataElement whose `categoryCombo` is non-default, even with `force=true` or `strictCategoryOptionCombos=false`.
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub). Discovered while reshaping `examples/client/aggregate_bulk_grouped.py` for v43 — the v42-compatible code hardcodes the default COC + AOC (`HllvX50cXC0`) and v43 rejects every write against a DataSet or DataElement whose `categoryCombo` is non-default, even with `force=true` or `strictCategoryOptionCombos=false`.
 
 **Repro (against a v43 instance with the seeded Sierra Leone fixture):**
 
@@ -3154,11 +3154,11 @@ curl -sf -u admin:district -X POST 'http://localhost:8080/api/dataValueSets?forc
 
 **Impact:** Any v43 caller pushing aggregate data values against DEs or DataSets with non-default category combos. v41 + v42 callers that used the default COC/AOC as a convenience hit `E8023`/`E8024` immediately on v43.
 
-**Workaround in this repo:** `examples/v{41,42,43}/client/aggregate_bulk_grouped.py` now (a) filters DataSet selection to `categoryCombo.isDefault:eq:true` so the default AOC is valid, and (b) looks up the picked DE's `categoryCombo.categoryOptionCombos[0].id` and uses it as the COC instead of hardcoding `HllvX50cXC0`. This shape works on v41/v42 (any valid COC for the DE's CC is accepted) and v43 (matches the strict check). The same example also splits the three data-values across distinct periods (`210701/210702/210703`) because v43 additionally rejects multiple values targeting the same `(DE, OU, COC, AOC, period)` key in one batch with `E8128 Value #N all affect the same data value`.
+**Workaround in this repo:** `examples/client/aggregate_bulk_grouped.py` now (a) filters DataSet selection to `categoryCombo.isDefault:eq:true` so the default AOC is valid, and (b) looks up the picked DE's `categoryCombo.categoryOptionCombos[0].id` and uses it as the COC instead of hardcoding `HllvX50cXC0`. This shape works on v41/v42 (any valid COC for the DE's CC is accepted) and v43 (matches the strict check). The same example also splits the three data-values across distinct periods (`210701/210702/210703`) because v43 additionally rejects multiple values targeting the same `(DE, OU, COC, AOC, period)` key in one batch with `E8128 Value #N all affect the same data value`.
 
 **How to know it's fixed:** `POST /api/dataValueSets?force=true` (or with `strictCategoryOptionCombos=false`/`strictAttributeOptionCombos=false`) against a v43 stack accepts `HllvX50cXC0` for a DE whose CC is non-default — matching v41 + v42 behaviour.
 
-**Verifier:** None — covered indirectly by `examples/v{N}/client/aggregate_bulk_grouped.py` passing on `make verify-examples DHIS2_VERSION=v43`.
+**Verifier:** None — covered indirectly by `examples/client/aggregate_bulk_grouped.py` passing on `make verify-examples DHIS2_VERSION=v43`.
 
 ### 42. `GET /api/systemSettings` returns `keyAnalysisDisplayProperty: "name"` (lowercase) — generated `SystemSettings` enum rejects it
 

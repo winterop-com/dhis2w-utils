@@ -568,7 +568,7 @@ async with Dhis2Client(url, auth) as client:
 
 MCP tools: `metadata_export` + `metadata_import`. Both accept a
 `bundle_path` on disk so multi-megabyte bundles don't flow through the MCP
-channel. See `examples/v42/mcp/metadata_export_import.py` for the tool-call
+channel. See `examples/mcp/metadata_export_import.py` for the tool-call
 form.
 
 ## Diff — preview before importing
@@ -641,8 +641,8 @@ live_diff = await service.diff_bundle_against_instance(
 ```
 
 MCP tool: `metadata_diff` (pass `left_path` + `right_path`, or `left_path` +
-`live=True`). See `examples/v42/mcp/metadata_diff.py` and
-`examples/v42/client/metadata_diff.py` for worked calls.
+`live=True`). See `examples/mcp/metadata_diff.py` and
+`examples/client/metadata_diff.py` for worked calls.
 
 ## `diff-profiles` — staging-vs-prod drift
 
@@ -681,6 +681,6 @@ you compare is always apples-to-apples.
 MCP tool: `metadata_diff_profiles` (same shape; filters come in as
 `per_resource_filters: {"resource": ["filter_expr", ...]}`).
 
-The `examples/v42/client/profile_drift_check.py` cookbook shows the Python
+The `examples/client/profile_drift_check.py` cookbook shows the Python
 library path for the same pattern (useful when you want to post-process the
 typed `MetadataDiff` before deciding what counts as real drift).

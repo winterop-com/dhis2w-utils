@@ -162,7 +162,7 @@ class MapView(BaseModel):
     programStatus: EnrollmentStatus | None = None
     radiusHigh: int | None = Field(default=None, description="Length/value max=2147483647.")
     radiusLow: int | None = Field(default=None, description="Length/value max=2147483647.")
-    rawPeriods: list[Any] | None = Field(default=None, description="Collection of String. Length/value max=255.")
+    rawPeriods: list[Any] | None = Field(default=None, description="Collection of String. Length/value max=3650.")
     regressionType: RegressionType | None = None
     relativePeriods: Any | None = Field(
         default=None, description="Reference to RelativePeriods. Read-only (inverse side)."

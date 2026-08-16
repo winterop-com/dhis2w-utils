@@ -434,7 +434,7 @@ Note that `profile env` exports `DHIS2_SESSION_COOKIE` (and `DHIS2_SESSION_XSRF`
 
 Session profiles also drive the Playwright browser workflows (`d2w browser viz screenshot`, dashboard captures): the stored cookie is injected into the browser context directly — see [Browser automation](../architecture/browser.md).
 
-See `examples/v{41,42,43}/cli/profile_session.sh` for the end-to-end flow.
+See `examples/cli/profile_session.sh` for the end-to-end flow.
 
 ---
 

@@ -61,9 +61,9 @@ async with open_client(profile_from_env()) as client:
 
 ## Related examples
 
-- [`examples/v42/client/validation_rules.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/validation_rules.py) — expression validation + run analysis + persisted-result browse.
-- [`examples/v42/client/predictors.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/predictors.py) — `run_all` over a date range.
-- [`examples/v42/client/validation_rules_predictors.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/v42/client/validation_rules_predictors.py) — CRUD round-trip across both accessors + their groups.
+- [`examples/client/validation_rules.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/validation_rules.py) — expression validation + run analysis + persisted-result browse.
+- [`examples/client/predictors.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/predictors.py) — `run_all` over a date range.
+- [`examples/client/validation_rules_predictors.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/validation_rules_predictors.py) — CRUD round-trip across both accessors + their groups.
 
 ::: dhis2w_client.v42.validation
 

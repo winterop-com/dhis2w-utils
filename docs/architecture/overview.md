@@ -101,7 +101,7 @@ dhis2w_core/{v41,v42,v43}/plugins/  # plugin tree per major
 
 The three trees start as mechanical copies of v42 (today's canonical baseline) and diverge per-file as version-specific quirks land (CategoryCombo COC regeneration on v43, the `categorys` -> `categories` rename, v41's missing `OAuth2ClientCredentialsAuthScheme`, etc.). For files that don't yet diverge, all three trees still import from `dhis2w_client.generated.v42.*` to keep the symbol set consistent.
 
-**When you add, rename, or remove anything,** apply the change to all three trees. New plugin commands ship as three plugin files; new examples ship as three example files (`examples/v41/`, `examples/v42/`, `examples/v43/`); bug fixes that aren't version-specific land in all three. The CLAUDE.md hard requirements section spells this out at "Per-version subpackages" — the codebase enforces three-tree symmetry by convention, not by tooling, so the diff is the only check.
+**When you add, rename, or remove anything,** apply the change to all three trees. New plugin commands ship as three plugin files; bug fixes that aren't version-specific land in all three. Examples are the exception — they ship as **one** file under `examples/{cli,client,mcp}/`, because the wire is the same for almost everything they touch; only an example that exists for a single major lives under that major's subdirectory (`examples/client/v43/`). The CLAUDE.md hard requirements section spells this out at "Per-version subpackages" — the codebase enforces three-tree symmetry by convention, not by tooling, so the diff is the only check.
 
 ## Why this matters
 

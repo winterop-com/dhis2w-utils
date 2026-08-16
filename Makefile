@@ -93,8 +93,8 @@ lint:
 	@$(UV) run pyright
 
 check-examples:
-	@echo ">>> Checking per-version example sync (v42 baseline -> v41 + v43)"
-	@$(UV) run python -u infra/scripts/check_examples_sync.py
+	@echo ">>> Checking example paths resolve (no per-version tree, no dangling references)"
+	@$(UV) run python -u infra/scripts/check_example_paths.py
 	@echo ">>> Checking example CLI commands + MCP tool references resolve"
 	@$(UV) run python -u infra/scripts/check_example_refs.py
 

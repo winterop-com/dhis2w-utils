@@ -50,7 +50,7 @@ The file is written with `0600` perms when created by `d2w profile add`. Gitigno
 
 `version = "v41" | "v42" | "v43"` selects which **plugin tree** (`dhis2w_core.v{N}.plugins.*`) the CLI/MCP loads at startup. It's a hint, not a wire-client pin — the wire `Dhis2Client` always auto-detects the server's version on `connect()` and rebinds accessors via `_dispatch.py`. See `docs/architecture/versioning.md` for the full chain.
 
-When the field is omitted, the CLI consults the `DHIS2_VERSION` env var (the vXX key: `v41` / `v42` / `v43`); when that's also unset, it defaults to the canonical v42 tree. A `version` pin wins over `DHIS2_VERSION`. `make verify-examples` follows the same `resolve_startup_version()` chain, so a v41-pinned profile runs the `examples/v41/...` tree automatically; on an unpinned profile, `make verify-examples DHIS2_VERSION=v43` drives the v43 tree without editing the profile.
+When the field is omitted, the CLI consults the `DHIS2_VERSION` env var (the vXX key: `v41` / `v42` / `v43`); when that's also unset, it defaults to the canonical v42 tree. A `version` pin wins over `DHIS2_VERSION`. `make verify-examples` follows the same `resolve_startup_version()` chain: the version-neutral `examples/{cli,client,mcp}/` set runs whatever the major, and a v41-pinned profile adds `examples/client/v41/` on top of it. On an unpinned profile, `make verify-examples DHIS2_VERSION=v43` swaps in the v43 variants without editing the profile.
 
 ## Resolution precedence
 
