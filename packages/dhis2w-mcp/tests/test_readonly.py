@@ -153,7 +153,6 @@ _VERIFIED_READ_TOOLS: frozenset[str] = frozenset(
         "datastore_get",
         "datastore_list_keys",
         "datastore_list_namespaces",
-        "fhir_validate",
         "files_documents_get",
         "files_documents_list",
         "files_resources_get",

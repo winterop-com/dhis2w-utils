@@ -44,11 +44,3 @@ uv run python examples/fhir/client/consume_facade.py http://127.0.0.1:8123
 uv run python examples/fhir/client/forward_spool.py /path/to/project
 ```
 
-## [`mcp/`](mcp/) — the tools an agent calls
-
-| File | MCP tool | Runs in `make verify-examples` |
-| --- | --- | --- |
-| [`validate.py`](mcp/validate.py) | `fhir_validate` — FHIR-safety of an instance's codes | yes |
-| [`forward.py`](mcp/forward.py) | `fhir_forward` — drain a project's spool, dry run by default | no: needs a project directory argument |
-
-Scaffolding and generation have no MCP tools: they write a directory tree, which is work a person drives.

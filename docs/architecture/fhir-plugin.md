@@ -50,13 +50,16 @@ d2w fhir doctor                     Run the whole chain against one instance and
 `load-set` is the eighth `generate` subcommand and deliberately outside the
 full run: what it writes is a load corpus, not IG source.
 
-MCP exposes the two verbs that read an instance and write only to it:
-`fhir_validate` (`readOnlyHint`) and `fhir_forward` (dry run by default).
-`init`, every `generate` target, `serve`, and `doctor` are CLI-only by design -
-they write a file tree onto whatever machine the MCP server runs on, which is
-the wrong shape for an agent protocol (the same judgment the browser plugin and
-the security audit runner make). `serve` has one more reason: it binds a port
-and stays up, which is a process an operator starts, not a tool call.
+The whole surface is CLI-only, and the plugin registers nothing on the MCP
+server. Most of it could not be anything else: `init`, every `generate` target,
+and `doctor` write a file tree onto whatever machine the server runs on, which
+is the wrong shape for an agent protocol (the same judgment the browser plugin
+and the security audit runner make), and `serve` binds a port and stays up,
+which is a process an operator starts rather than a tool call. `validate` and
+`forward` could have been tools and were: they mirrored their commands closely
+enough to earn nothing, so the command is the one surface for both. What an
+agent drives instead is the facade - a served project answers FHIR over HTTP,
+which is a protocol of its own.
 
 ## The project on disk
 
@@ -391,7 +394,7 @@ the passes grade a migration you have not made yet.
 Reports go to `reports/` in markdown, CSV, and PDF, all named
 `fhir-validate-report`. `--no-fail` keeps the exit code at 0, and no
 `fhir.toml` is required, because the sweep is a property of the instance rather
-than of a project. The MCP twin writes no files. Detail is in [Validate the
+than of a project. Detail is in [Validate the
 instance](../guides/fhir/201-validate.md).
 
 ## Serving

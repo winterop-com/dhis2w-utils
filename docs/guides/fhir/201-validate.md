@@ -198,7 +198,6 @@ JSON on stdout in place of the tables; progress narration stays on stderr
 (one plain `[k/N] label: summary` line per step when stderr is redirected,
 which is the form a CI log wants; `--no-progress` silences it). The exit-1
 gate still applies, so CI reads the findings off stdout and the job still
-fails on errors. MCP exposes the same check as the read-only
-`fhir_validate` tool; file writing stays CLI-only.
+fails on errors.
 
 Next: [Generate the IG source](201-generate.md)

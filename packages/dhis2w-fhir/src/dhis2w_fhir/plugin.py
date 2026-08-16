@@ -1,4 +1,4 @@
-"""Plugin descriptor - mounts `d2w fhir` and the `fhir_*` MCP tools via the `dhis2.plugins` entry point.
+"""Plugin descriptor - mounts `d2w fhir` via the `dhis2.plugins` entry point.
 
 The package is version-neutral: the wire client auto-detects the DHIS2 major
 on connect, and FSH emission only consumes the reduced source models, so one
@@ -34,10 +34,7 @@ class _FhirPlugin(BaseModel):
         cli_module.register(app)
 
     def register_mcp(self, mcp: Any) -> None:
-        """Register the `fhir_*` tools on the MCP server."""
-        from dhis2w_fhir import mcp as mcp_module
-
-        mcp_module.register(mcp)
+        """Register nothing: the FHIR surface is driven from the command line and its own HTTP facade."""
 
 
 plugin = _FhirPlugin()

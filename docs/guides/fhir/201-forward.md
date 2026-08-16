@@ -83,9 +83,7 @@ the default**:
 A project whose drains are routine states `import = true` once and stops
 typing the flag; a run that means to check rather than to write says
 `--dry-run` and gets a check whatever the file says. Both keys are documented
-in full at [`[forward]`](301-serving.md#forward). The MCP tool `fhir_forward`
-resolves its `dry_run` and `register_completeness` through exactly the same
-order, because both edges call one service.
+in full at [`[forward]`](301-serving.md#forward).
 
 ## What one run does
 

@@ -2,7 +2,7 @@
 
 Examples that connect to the `d2w` FastMCP server in-process and call its tools. Useful both as a reference for integrating the MCP server into an agent framework and as a quick sanity-check of what tools each plugin registers.
 
-One copy of each script, and it runs against DHIS2 v41, v42, and v43 alike — the server resolves its plugin tree from the instance. The `fhir_*` tools live in their own group at [`examples/fhir/mcp/`](../fhir/mcp/).
+One copy of each script, and it runs against DHIS2 v41, v42, and v43 alike — the server resolves its plugin tree from the instance.
 
 > **Canonical catalogue**: [`docs/examples.md`](../../docs/examples.md) — curated example index — headline examples per topic across CLI / client / MCP with links to the concept docs that explain each one.
 

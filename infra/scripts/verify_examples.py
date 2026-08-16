@@ -105,7 +105,6 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # holds no `fhir.toml`, so there is no spool to drain. Both take a
         # project directory as their one argument and run green against one.
         "fhir/client/forward_spool.py",
-        "fhir/mcp/forward.py",
         # --- Fixture gaps in the seed ----------------------------------
         # Outlier detection requires per-program data distributions the
         # 1-year Child Programme sample doesn't have enough volume for —

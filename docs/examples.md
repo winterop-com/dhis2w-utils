@@ -29,8 +29,6 @@ Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.c
 | [`fhir/client/generate_ig.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/generate_ig.py) | Generate a whole IG from Python — `load_project` + `generate_full`, and the `GenerateFullReport` consumed as a model | [`dhis2w_fhir` API reference](api/fhir.md) |
 | [`fhir/client/consume_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/consume_facade.py) | Plain httpx against a running facade — `/metadata`, search, `$generate`, POST a capture, read the receipt and `/spool` | [Consume the FHIR API](guides/fhir/401-consume-the-fhir-api.md) |
 | [`fhir/client/forward_spool.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/forward_spool.py) | Dry-run a drain from Python — `forward_responses`, and the `ForwardReport` counts, outcomes, and rejection reasons | [Forward captures into DHIS2](guides/fhir/201-forward.md) |
-| [`fhir/mcp/validate.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/mcp/validate.py) | `fhir_validate` — check a DHIS2 instance's codes for FHIR-safety | [Validate the instance](guides/fhir/201-validate.md) |
-| [`fhir/mcp/forward.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/mcp/forward.py) | `fhir_forward` — drain a project's capture spool from an agent, dry run by default | [Forward captures into DHIS2](guides/fhir/201-forward.md) |
 
 ## CLI examples
 
