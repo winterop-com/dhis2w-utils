@@ -92,7 +92,7 @@ reproduces the input document key for key.
 ### Conversion: QuestionnaireResponse to DHIS2
 
 The inverse of the emitters, and the reference implementation
-[`docs/project/fhir-conversion.md`](design/conversion.md) holds the later published
+[`docs/fhir/design/conversion.md`](design/conversion.md) holds the later published
 StructureMaps against. A caller assembles a `ConversionContext` once from the compiled IG
 artifacts - the served Questionnaires, the option-set CodeSystems and their ConceptMaps, the
 ValueSets binding the two, and the published Locations - and then translates each captured

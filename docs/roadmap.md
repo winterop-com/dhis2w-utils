@@ -103,20 +103,21 @@ Public distribution is now active — every workspace member (except `dhis2w-cod
 ### Docs
 
 - Auto-generated **CLI reference** (`docs/cli-reference.md`, ~10,300 lines from the Typer app) + **MCP reference** (`docs/mcp-reference.md`, roughly 318 tools across 16 groups from the FastMCP server). Both regenerated on every `make docs-build`; the counts age with each release.
-- **Narrative tutorials**: `docs/guides/cli-tutorial.md`, `docs/guides/client-tutorial.md`, `docs/guides/visualizations.md` (step-by-step viz + dashboard composition).
-- **Examples index** (`docs/examples.md`) catalogues the canonical v42 example set spread across cli / client / mcp on the v42 tree; v41 + v43 mirror most of them. Per-version totals printed by `ls examples/{cli,client,mcp}/` (the source of truth). Tracker-schema authoring examples (steps 1 / 2 / 3 under `examples/cli/tracker_*.sh`) round-trip the full chain end-to-end.
+- **Narrative tutorials**: `docs/cli/tutorial.md`, `docs/client/tutorial.md`, `docs/guides/visualizations.md` (step-by-step viz + dashboard composition).
+- **Examples index** (`docs/examples.md`) catalogues one version-neutral example tree: `examples/{cli,client,mcp}/` hold a single copy of each example that runs against v41, v42, and v43 alike, with a variant under `examples/{surface}/v{N}/` only where one major genuinely has an example the others cannot run, and `examples/fhir/{cli,client}/` beside them. `make verify-examples` executes every one of them against a live instance; anything it cannot run states its reason in the skip list, its own header, and the README. Tracker-schema authoring examples (steps 1 / 2 / 3 under `examples/cli/tracker_*.sh`) round-trip the full chain end-to-end.
 - **Architecture docs** cover every plugin, the client, auth, profiles, codegen, typed schemas, plugins runtime, external plugins, MCP, versioning, browser automation.
-- **`BUGS.md`** — over 70 upstream DHIS2 quirks with live `curl` repros + v43 re-audit status (entry count drifts as new ones land; the file itself is the source of truth).
+- **One directory per feature surface**: `docs/{client,cli,mcp,fhir,query}/` each hold their own guides, reference, and design, and each has a navigation tab of its own. `docs/guides/` keeps only what is genuinely cross-cutting, and `docs/project/` is the catalog, the roadmap, the upstream quirks, and the maintainer-facing pages.
+- **`BUGS.md`** — nearly a hundred upstream DHIS2 quirks with live `curl` repros + v43 re-audit status (entry count drifts as new ones land; the file itself is the source of truth).
 
 ### Test coverage
 
-Roughly 4,500 tests collected (`uv run pytest --collect-only -q | tail -1` is the source of truth); the mocked tier runs in seconds via `make test`, and the slow-marked + contract tiers run in `make test-slow` / `make test-contract` against a live stack (Playwright PAT creation, dashboard screenshot capture, Playwright-driven OIDC login, contract tests against `play.im.dhis2.org/dev-2-{42,43}`). Unit + CliRunner + respx-mocked HTTP; integration paths use in-process FastMCP `Client` against the real plugin tree. `make coverage` runs branch-coverage locally + on every CI run (produces `coverage.xml` as an artifact); the per-PR floor is set at 70%.
+Over 7,000 tests collected (`uv run pytest --collect-only -q | tail -1` is the source of truth); the mocked tier runs in seconds via `make test`, and the slow-marked + contract tiers run in `make test-slow` / `make test-contract` against a live stack (Playwright PAT creation, dashboard screenshot capture, Playwright-driven OIDC login, contract tests against `play.im.dhis2.org/dev-2-{42,43}`). Unit + CliRunner + respx-mocked HTTP; integration paths use in-process FastMCP `Client` against the real plugin tree. `make coverage` runs branch-coverage locally + on every CI run (produces `coverage.xml` as an artifact); the per-PR floor is set at 70%.
 
 Detailed test gaps + the planned next moves are in [Testing roadmap](#testing-roadmap) below.
 
 ### Upstream quirks tracked
 
-Roughly seventy entries in the repo-root `BUGS.md` (the file is the source of truth — `grep -c '^- \[#' BUGS.md` prints the live count); the security-scanner cycle added the #50-#61 cluster. Recent additions cover the seed / workflow cycle: DataSet Hibernate flush ordering (#23), Person-TET built-in name collisions (#24), admin OU scope cached per session (#26), fresh-install flakiness on first metadata import (#27), `RelativePeriods` OAS schema shape (#28), `/api/metadata` ignoring `rootJunction` (#29 — the reason `metadata search` has to fan out N requests instead of one), App Hub `versions[*].created` returning epoch-millis ints instead of ISO-8601 strings (#30), and the predictor-expression parser rejecting uppercase aggregators (#31 — forces `avg()` / `sum()` lowercase even though DHIS2 docs use uppercase). The v43-specific cluster (#33–#38) plus the v41 OAuth2 wire-shape quirk (#39) round out the recent set.
+Nearly a hundred entries in the repo-root `BUGS.md` (the file is the source of truth — `grep -c '^- \[#' BUGS.md` prints the live count); the security-scanner cycle added the #50-#61 cluster. Recent additions cover the seed / workflow cycle: DataSet Hibernate flush ordering (#23), Person-TET built-in name collisions (#24), admin OU scope cached per session (#26), fresh-install flakiness on first metadata import (#27), `RelativePeriods` OAS schema shape (#28), `/api/metadata` ignoring `rootJunction` (#29 — the reason `metadata search` has to fan out N requests instead of one), App Hub `versions[*].created` returning epoch-millis ints instead of ISO-8601 strings (#30), and the predictor-expression parser rejecting uppercase aggregators (#31 — forces `avg()` / `sum()` lowercase even though DHIS2 docs use uppercase). The v43-specific cluster (#33–#38) plus the v41 OAuth2 wire-shape quirk (#39) round out the recent set.
 
 ## Gaps surfaced during use
 
@@ -270,15 +271,36 @@ Surfaced by the `dhis2w-mcp-bridge` gap probes (small local models driving the C
 
 ## Near-term plan (next 3–5 PRs)
 
-Latest cycle closed the **category-dimension strategic option** (Category #205, CategoryCombo + read-only CategoryOptionCombo #208, the one-pass `CategoryComboBuilder` create-or-reuse helper #209) plus the smaller `metadata merge-bundle` verb (#206). With every authoring path on the main workflow now covered, the codegen emitters fully regen-stable, and bulk verbs (rename / retag / share) shipped on top of `patch_bulk` / `apply_sharing_bulk`, the obvious tactical sweep is complete.
+The last cycle was FHIR-shaped: the capture spool was hardened until an acknowledged
+submission is durable, a corrupt file costs one row rather than the whole queue, and two
+drains cannot run over each other; the served facade stopped answering an unanswerable
+search with everything it holds; three deployment postures became `fhir.toml` keys; and a
+drain now names the values a previous submission already sent, which was the last way this
+toolchain could lose data without saying so. Alongside it the examples collapsed from three
+per-version trees into one version-neutral tree that `make verify-examples` executes, and
+the documentation gained a directory per feature surface.
 
-**The near-term slate is once again open.** The multi-version CI integration matrix (long-standing carry-over) and the `*Spec`-class audit are both resolved — the matrix runs `e2e.yml` across `dhis2_version: [41, 42, 43]` nightly; the spec audit settled on `VisualizationSpec` / `MapSpec` + `MapLayerSpec` / `LegendSetSpec` + `LegendSpec` (the rule for when a spec is justified is documented on `api/legend-sets.md`).
+**One decision is blocking, and it is the owner's**: whether an *unmarked* aggregate
+overwrite should be refused outright rather than only reported (decision D8 in the [FHIR
+roadmap](fhir/design/roadmap.md)). The corrections and withdrawals slices follow from the
+answer either way.
 
 The natural next direction is one of:
 
-- **Pick one of the two remaining strategic options** below and commit to a multi-PR body of work (data approval workflow, or audit log reader).
-- **Promote a medium-term tactical item** (client cold-open latency, the A4 filter-DSL / URL property tests) for a focused 1-PR cycle.
-- **Land the security-report follow-ups** (vendored React + fonts, `support.js` trim) — see the security plugin section above.
+- **Authentication for the served facade.** It has none, and its CapabilityStatement
+  declares no `rest.security`, so a client cannot discover that there is nothing to
+  authenticate against. Loopback-by-default is the current mitigation and it is a demo
+  posture, not a deployment one. Needs a scope decision first: a gate on the write path, or
+  OAuth2 against the same identity provider the client already speaks.
+- **The examples quality wave.** Eleven pre-existing examples show several features at once
+  where the rule is one apiece, a shared served fixture would let six currently-skipped
+  examples run, and eight failures are fixture or environment gaps rather than code.
+- **Pick one of the two remaining strategic options** below and commit to a multi-PR body of
+  work (data approval workflow, or audit log reader).
+- **Promote a medium-term tactical item** (client cold-open latency, the A4 filter-DSL / URL
+  property tests) for a focused 1-PR cycle.
+- **Land the security-report follow-ups** (vendored React + fonts, `support.js` trim) — see
+  the security plugin section above.
 - **Start A6** (plugin coverage gaps) — the main remaining Tier A testing item.
 
 Demoted / parked:

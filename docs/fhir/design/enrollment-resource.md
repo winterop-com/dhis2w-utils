@@ -441,7 +441,7 @@ Small, and entirely on the read side.
 1. **`EpisodeOfCare` in `dhis2w_fhir.r4`** - a hand-written model beside `Patient` and
    `Location`, carrying `identifier`, `status`, `type`, `patient`, `period`, and
    `extension`, and nothing this project does not fill. Re-exported from
-   `dhis2w_fhir/__init__.py` with an `::: ` entry in `docs/api/fhir.md`, per the repo's
+   `dhis2w_fhir/__init__.py` with an `::: ` entry in `docs/fhir/api-dhis2w-fhir.md`, per the repo's
    public-symbol rule.
 2. **`dhis2w_fhir_serve/enrollments/projection.py`** - one enrollment onto one
    `EpisodeOfCare`, modelled on `patients/projection.py` including its module docstring
