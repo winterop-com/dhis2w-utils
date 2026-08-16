@@ -136,7 +136,18 @@ Move the pin when you want the newer toolchain, not by accident:
 ```bash
 uv lock --upgrade
 uv sync
-make refresh        # regenerate and rebuild against the new pin
+```
+
+Then regenerate and rebuild against the new pin. `make refresh` is the one
+target worth using over the raw commands, because it is a chain no single
+command replaces: it drops both caches, rebuilds the docker image from
+scratch, then runs `d2w fhir generate`, `d2w fhir validate`, and the
+publisher in order - tolerating validate's exit 1 so a full rebuild still
+produces fresh reports, and skipping SUSHI because the publisher runs its
+own.
+
+```bash
+make refresh
 ```
 
 ## Point it at a DHIS2 instance

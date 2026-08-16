@@ -374,8 +374,8 @@ units it wrote - check that number after setting this.
     Organisation unit hierarchies fan out at the bottom: the deepest level (the
     facilities) is usually *most* of the tree, and every unit in scope becomes
     two published entries plus its map shape. On a national instance,
-    `max_level` is the difference between a guide that generates and builds in
-    minutes and one that takes the better part of an hour or fails the build's
+    `max_level` is the difference between a guide that generates and builds
+    comfortably and one that takes many times longer or fails the build's
     time limits. Start capped (the project may already have been created with
     `--max-level` for exactly this reason), confirm the build is comfortable,
     then deepen deliberately.

@@ -125,7 +125,7 @@ Every pass also checks the object's **name** for one thing that has nothing
 to do with codes: `template-hostile-name`, raised on any name carrying `<`,
 `>`, or `&`, which the IG publisher's template injects into HTML unescaped
 and then strict-parses. A name containing `<` is an **error**: the publisher
-cannot read back the page it just wrote, and `make build` fails. `>` and `&`
+cannot read back the page it just wrote, and the build fails. `>` and `&`
 cost a malformed page the build survives, so they are warnings.
 
 Its sibling `template-hostile-code` grades the same three characters the same

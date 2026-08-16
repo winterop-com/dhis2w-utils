@@ -83,11 +83,11 @@ after a metadata change is the point: the FSH tree is where a rename, a new
 form, or a changed option set becomes visible as a readable diff.
 `ig/input/resources/` stays out of git - the scaffolded `.gitignore` covers
 it, because a national registry plus its terminology is thousands of JSON
-files that `make generate` rebuilds from the instance in a few minutes.
+files that `d2w fhir generate` rebuilds from the instance in a few minutes.
 
 ## When SUSHI sees a file twice
 
-`Duplicate definition of ...` from `make sushi` means the same identity
+`Duplicate definition of ...` from the SUSHI compile means the same identity
 reached SUSHI twice, once compiled from FSH and once as a predefined
 resource. Generation sweeps the FSH it supersedes, so this points at
 generated FSH left behind by a version of the plugin that wrote a target in

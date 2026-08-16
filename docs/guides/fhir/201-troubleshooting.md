@@ -21,7 +21,7 @@ with exit 1 - one per thing that is wrong, and no traceback. The exception
 is a `fhir.toml` value the settings document rejects outright, which comes
 out as the technical printout
 [the settings file page reads for you](301-fhir-toml.md#editing-safely).
-Publisher and SUSHI failures come out of `make sushi` / `make build`
+Publisher and SUSHI failures come out of the docker runs that drive them
 instead, in Java's voice; those are the second half of this page.
 
 ## Project and configuration
@@ -56,7 +56,7 @@ instead of failing loudly:
 error: optionSets 'Bednet distribution' (csRsm0D7guY) has code
 'ENTO - IRS < 6 Months', which carries '<'. A DHIS2 code becomes an
 identifier value, which the IG publisher writes into a table cell unescaped
-and then strict-parses, so `make build` aborts with "Unable to Parse HTML -
+and then strict-parses, so the publisher aborts with "Unable to Parse HTML -
 node 'td' has unexpected content" in its last pass, once every resource has
 already been rendered. Change the code in DHIS2, then run `d2w fhir
 validate` for the full report.
@@ -101,7 +101,7 @@ sweep routes each program by its live type and never refuses.)
 | Symptom (literal text) | Cause | Fix |
 | --- | --- | --- |
 | `Sushi timeout exceeded: 1800 seconds` then `Process exited with an error: 143 (Exit value: 143)` | The publisher's internal SUSHI run overran the `ig/fsh.ini` timeout. | Raise it: `d2w fhir init --sushi-timeout <seconds>` (or edit `[FSH] timeout` in `ig/fsh.ini`). |
-| `make: *** [build] Error 137` with `ig/output` empty afterwards | `128 + 9` - SIGKILL from the kernel's OOM killer during the peak-memory phases. | Give the docker VM more memory (heap + ~2G), or `make build JAVA_HEAP=2g` to fit the box. Confirm with `docker inspect <container> --format '{{.State.OOMKilled}}'`. |
+| The publisher exits `137` with `ig/output` empty afterwards | `128 + 9` - SIGKILL from the kernel's OOM killer during the peak-memory phases. | Give the docker VM more memory (heap + ~2G), or drop the publisher's `-Xmx` (`-Xmx2g`, or `make build JAVA_HEAP=2g`) to fit the box. Confirm with `docker inspect <container> --format '{{.State.OOMKilled}}'`. |
 | `Publishing Content Failed: Process exited with an error: 4 (Exit value: 4)` | Not an exit code - SUSHI exits with the number of errors it counted, and the publisher reports it and stops. | Read the `Sushi: error` lines above it, not the number. |
 | `Failed to register resource at path: .../input/resources/...` | One predefined resource failed to load - malformed JSON *or* a failed read; a file written shortly before the container read it can come back truncated across a Docker bind mount. | Re-run first. A transient read registers cleanly the second time; a genuinely malformed resource fails every time on the same files. Cross-check `Loaded virtual package sushi-local#LOCAL with N resources` against the file count under `ig/input/resources/`. |
 | `Unable to process page .../CodeSystem-....html` with `Caused by: org.hl7.fhir.exceptions.FHIRFormatError: Unable to Parse HTML - node 'td' has unexpected content` | A DHIS2 code carrying `<` reached an identifier table cell - the publisher's final pass, so the whole build was spent first. | Change the code in DHIS2. `d2w fhir validate` reports the same object as `template-hostile-code` in seconds. |

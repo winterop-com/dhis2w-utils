@@ -6,7 +6,7 @@ source tree: a [SUSHI](https://fshschool.org/docs/sushi/) project whose FSH
 DHIS2 API and published as FHIR resources by the IG publisher. One plugin
 covers the whole loop: `init` scaffolds a dockerized project, `validate`
 grades the instance's codes by build impact, `generate` writes the IG source,
-the scaffolded `make build` compiles the browsable guide, `serve` runs the
+the IG publisher compiles the browsable guide, `serve` runs the
 compiled project as a read-and-capture FHIR endpoint, and `forward` posts what
 that endpoint captured back into DHIS2. `doctor` runs that whole chain against
 one instance and reports what the instance breaks.

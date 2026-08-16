@@ -14,7 +14,7 @@ running endpoint - something a capture client can read forms from and post
 captures back to.
 
 **Before you start:** a generated and compiled project - `d2w fhir generate`,
-then `make sushi` (see [Build and publish the guide](201-build-and-publish.md))
+then a SUSHI run (see [Build and publish the guide](201-build-and-publish.md))
 - or, for `--live`, a reachable DHIS2 instance and a resolvable profile.
 
 **You will be able to:**
@@ -50,11 +50,15 @@ cd demo-ig
 # 1. Generate the IG source and compile it. The facade serves what SUSHI
 #    wrote, so a project that has never been compiled has nothing to serve.
 d2w fhir generate
-make sushi
+docker run --rm -v $(pwd)/ig:/home/publisher/ig -v fhir-ig-cache:/home/publisher/.fhir \
+    fhir-ig sushi .
 
 # 2. Serve it. Loopback and port 8080 by default; ctrl-c stops it.
-d2w fhir serve       # or `make serve` in a scaffolded project
+d2w fhir serve
 ```
+
+(In a scaffolded project the Makefile wraps both: `make sushi` is the docker
+run above, `make serve` is `uv run d2w fhir serve`.)
 
 Then, from another shell, ask the server what it is:
 
@@ -144,8 +148,8 @@ ui = false                  # true also serves the capture UI at /
 spool_dir = ".serve/responses"   # where the receipts live, and what d2w fhir forward drains
 ```
 
-`make serve`, `make serve-live`, and `make serve-ui` read the table too,
-which is the point: a developer whose DHIS2 stack already holds 8080 states
+`--live` and `--ui` runs read the table too, as do the Makefile targets that
+wrap them - which is the point: a developer whose DHIS2 stack already holds 8080 states
 `port = 8390` here and every invocation in that project honours it.
 Precedence is **flag beats table beats default** - and `--strict-codes` has
 an explicit `--no-strict-codes` twin so all three levels are reachable from

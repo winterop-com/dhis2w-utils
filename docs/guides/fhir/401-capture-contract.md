@@ -431,7 +431,7 @@ examples cannot disagree about how a value is spelled.
 
 The examples are the contract check: every complete generated example
 declares itself `InstanceOf:` the matching profile rather than the bare
-resource, so `make sushi` and the IG publisher validate each one against the
+resource, so SUSHI and the IG publisher validate each one against the
 contract on every run. A profile that stops describing what generation
 produces fails the build instead of shipping.
 

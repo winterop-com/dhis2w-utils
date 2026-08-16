@@ -62,9 +62,9 @@ concrete thing:
 | `serve` | A running FHIR facade over the compiled IG: read and search every published artifact, answer `$translate` over the ConceptMaps, serve the instance's tracked entities as a register, accept `QuestionnaireResponse` captures, and - with `--ui` - offer a [browser capture UI](201-capture-ui.md) that fills those forms in. |
 | `forward` | DHIS2 imports built from captured responses: the serve spool drained, translated, and posted back into the instance. Dry run is the default, and `--import` commits. |
 
-Compiling the source into the browsable guide is the scaffolded project's
-`make build`, which runs SUSHI and the HL7 IG Publisher inside the Docker image
-`make setup` builds once. Nothing needs installing beyond `uv` and Docker.
+Compiling the source into the browsable guide is one `docker run` of the HL7
+IG Publisher, which compiles the FSH with its own SUSHI on the way, out of an
+image you build once. Nothing needs installing beyond `uv` and Docker.
 
 Together the verbs cover the whole loop: describe the instance (an IG a
 partner can build against), capture against it (a FHIR endpoint that accepts
@@ -114,7 +114,7 @@ Worth being blunt, because the FHIR word invites assumptions:
 - **Tooling:** `uv` and Docker on one machine. SUSHI, the IG publisher, and
   Java all live in the docker image; nothing else is installed on the host.
 - **Time:** generating IG source from a national-scale instance takes minutes.
-  The first `make build` is the slow one - the publisher downloads its
+  The first publisher run is the slow one - it downloads its
   packages and renders a page per artifact - and two caches make every later
   build much cheaper. A registry of a few thousand organisation units is the
   main driver of build time and site size.
