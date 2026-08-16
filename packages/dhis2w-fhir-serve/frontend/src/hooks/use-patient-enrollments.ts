@@ -21,7 +21,7 @@ export interface PatientEnrollmentsState {
  * read when a person is chosen and never before.
  *
  * An empty tracked-entity uid reads nothing, which is the state a control is in before anyone has
- * chosen: asking for `/patients//enrollments` would be a request whose answer is known to be
+ * chosen: asking for `/tracked-entities//enrollments` would be a request whose answer is known to be
  * useless.
  */
 export function usePatientEnrollments(trackedEntityUid: string | null): PatientEnrollmentsState {

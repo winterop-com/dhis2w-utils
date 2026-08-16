@@ -47,7 +47,13 @@ from dhis2w_fhir.i18n import (
     translated_element,
 )
 from dhis2w_fhir.names import code_or_uid, flatten_whitespace
-from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note
+from dhis2w_fhir.notes import (
+    GenerateNote,
+    GenerateNoteCategory,
+    aggregate_generate_note,
+    pluralize,
+    verb_for_count,
+)
 from dhis2w_fhir.r4 import (
     CodeableConcept,
     CodeSystem,
@@ -377,8 +383,9 @@ def build_questionnaire_documents(
         notes.append(
             aggregate_generate_note(
                 GenerateNoteCategory.SELECTION_GAP,
-                f"{len(index.unplanned_uids)} option sets a question binds are absent from the option-set "
-                "selection; their answerValueSet names are derived from the UID",
+                f"{pluralize(len(index.unplanned_uids), 'option set')} a question binds "
+                f"{verb_for_count(len(index.unplanned_uids), 'is', 'are')} absent from the option-set "
+                "selection; the answerValueSet names are derived from the UID",
                 index.unplanned_uids,
             )
         )

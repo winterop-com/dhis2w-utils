@@ -307,6 +307,12 @@ def generate_findings(notes: Sequence[GenerateNote]) -> list[DoctorFinding]:
     code fallen back to a UID, several tracked entity types left to the default resource - so the
     phase reports all of them and none of them breaks the run. The projection lives here rather
     than inline so a note's wording is what a test of the finding reads.
+
+    One note is one finding, however many targets raised it. Several targets read the same source
+    notes - a form-structure note reaches the questionnaires, the examples, and the pages alike -
+    and a table stating one fact about the instance three times says nothing the first row did not,
+    while pushing other findings behind the cap that keeps it readable. `GenerateNote` is frozen,
+    so this dedupes by value and keeps the order the targets raised them in.
     """
     return [
         DoctorFinding(
@@ -315,7 +321,7 @@ def generate_findings(notes: Sequence[GenerateNote]) -> list[DoctorFinding]:
             subject=note.category.value,
             detail=note.message,
         )
-        for note in notes
+        for note in dict.fromkeys(notes)
     ]
 
 
@@ -771,7 +777,8 @@ class _DoctorRun:
         written = sum(len(outcome.written_files) for outcome in outcomes)
         notes = [note for outcome in outcomes for note in outcome.notes]
         findings = generate_findings(notes)
-        evidence = f"{written:,} file(s) across {len(outcomes)} target(s), {len(notes):,} note(s)"
+        # Counted off the findings, so the evidence line and the table below it state one number.
+        evidence = f"{written:,} file(s) across {len(outcomes)} target(s), {len(findings):,} note(s)"
         self._record_graded(DoctorPhase.GENERATE, grade(DoctorPhase.GENERATE, evidence, findings), started)
         return True
 

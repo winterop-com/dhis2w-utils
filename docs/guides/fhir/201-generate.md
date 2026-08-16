@@ -252,7 +252,7 @@ $ cat reports/fhir-generate-notes.md
 ## examples
 
 - data set 'Child Health' (BfMAe6Itzgt) greys out 8 disaggregated cells, which are not published; a response answering one would not be of the form: DUSpd8Jq3M7.hEFKSsPV5et, DUSpd8Jq3M7.psbwp3CQEhs, ca8lfO062zg.Prlt0C1RF0s, ca8lfO062zg.V6L425pT3A0, d5xTg3WR3DP.Prlt0C1RF0s and 3 more
-- 1 questions take an attachment, a geometry document, or a reference to a DHIS2 object the IG does not publish; left unanswered in the synthetic examples: Birth certificate (uf3svrmp8Oj)
+- 1 question takes an attachment, a geometry document, or a reference to a DHIS2 object the IG does not publish; left unanswered in the synthetic examples: Birth certificate (uf3svrmp8Oj)
 
 ## pages
 

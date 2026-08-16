@@ -52,6 +52,7 @@ from dhis2w_fhir.doctor import (
     _sample_uids,
     _ServedResource,
     _sushi_command,
+    generate_findings,
     grade_capture,
     grade_forward,
     grade_oracle,
@@ -59,6 +60,7 @@ from dhis2w_fhir.doctor import (
     render_doctor_markdown,
     run_doctor,
 )
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory
 from dhis2w_fhir.service import (
     ForwardImportIssue,
     ForwardImportOutcome,
@@ -614,6 +616,34 @@ async def test_capture_fails_when_the_endpoint_refuses_its_own_output() -> None:
     graded = grade_capture([outcome])
     assert graded.outcome is DoctorOutcome.FAILED
     assert graded.evidence == "1 form(s), 1 generated, 0 accepted as 201"
+
+
+def test_one_note_is_one_finding_however_many_targets_raised_it() -> None:
+    """Targets share their source notes, so the same note reaching three of them is still one row."""
+    greyed_cells = GenerateNote(
+        category=GenerateNoteCategory.FORM_STRUCTURE,
+        message="data set 'Child Health' (BfMAe6Itzgt) greys out 8 disaggregated cells",
+    )
+    gap = GenerateNote(
+        category=GenerateNoteCategory.SELECTION_GAP,
+        message="1 organisation units have a parent outside the selection",
+    )
+
+    findings = generate_findings([greyed_cells, gap, greyed_cells, greyed_cells])
+
+    assert [finding.detail for finding in findings] == [greyed_cells.message, gap.message]
+
+
+def test_a_note_two_targets_word_differently_stays_two_findings() -> None:
+    """Dedup is by value, so two genuinely different notes of one category both keep their row."""
+    findings = generate_findings(
+        [
+            GenerateNote(category=GenerateNoteCategory.FORM_STRUCTURE, message="data set 'A' greys out 8 cells"),
+            GenerateNote(category=GenerateNoteCategory.FORM_STRUCTURE, message="data set 'B' greys out 2 cells"),
+        ]
+    )
+
+    assert len(findings) == 2
 
 
 def test_capture_order_puts_a_registration_before_its_stages() -> None:

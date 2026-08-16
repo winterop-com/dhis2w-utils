@@ -23,8 +23,10 @@ publisher's template injects unescaped (`template-hostile-name`). That check is 
 the published pages rather than about codes, so its severity ignores the code source.
 Its sibling `template-hostile-code` checks the object's CODE for the same characters,
 because a code reaches the identifier table the publisher writes raw and then
-strict-parses: an in-scope `<` there aborts the build rather than rendering a
-malformed page, which is how it becomes the one error this module grades.
+strict-parses. Both grade `<` as an error and the other two characters as warnings,
+for the same reason: `<` opens a tag, so the publisher's re-parse of the page it just
+wrote fails and `make build` exits non-zero, while `>` and `&` cost a malformed page
+the build survives.
 
 ## What the deep passes do not repeat, and why
 
@@ -63,11 +65,12 @@ already treats a missing code as a finding.
 Every pass grades against a `ValidationScope` - the UID sets the configured selection
 emits, resolved with the same semantics `generate` uses:
 
-- **error**: would abort the configured build - a build-aborting `<` code (the
-  `build_aborting_code` predicate the generate gate shares) on an in-scope object of a
-  code-identifier collection. Nothing else is an error.
+- **error**: would abort the configured build - an in-scope `<`, either in the code of a
+  code-identifier collection (the `build_aborting_code` predicate the generate gate shares)
+  or in any swept object's name. Both reach a page surface the publisher writes unescaped
+  and then strict-parses, and both take the build down with them.
 - **warning**: degrades the IG but the build survives - an in-scope code falling back to
-  the UID, an in-scope duplicate, an in-scope name or code malforming its page.
+  the UID, an in-scope duplicate, an in-scope `>` or `&` malforming a page.
 - **info**: the same defect on an out-of-scope object (instance hygiene - the
   code-migration watchlist), plus everything that was informational already.
 
@@ -319,11 +322,26 @@ def _template_hostile_character(name: str) -> str | None:
 
 
 def _template_hostile_message(name: str, character: str) -> str:
-    """Say which character breaks the published pages, and what breaks, in the caller's own words."""
+    """Say which character breaks the build or the published pages, and what breaks, in the caller's own words."""
+    consequence = (
+        "so `make build` fails: the publisher strict-parses the page it just wrote and cannot read it back"
+        if character == _BUILD_ABORTING_CHARACTER
+        else "so pages for this resource render malformed"
+    )
     return (
         f"name {display_code(name)} contains {character!r} which the IG publisher template injects into HTML "
-        "unescaped; pages for this resource render malformed until the name is changed"
+        f"unescaped, {consequence}; change the name in DHIS2"
     )
+
+
+def _template_hostile_severity(character: str) -> Literal["error", "warning"]:
+    """The grade a hostile character carries in a name: build-blocking for '<', degrading for the rest.
+
+    '<' opens a tag, so the publisher's re-parse of its own output fails and the build exits non-zero -
+    which is what `error` means here. '>' is text to an HTML parser and a bare '&' is widely tolerated,
+    so those cost a malformed page and the build survives them.
+    """
+    return "error" if character == _BUILD_ABORTING_CHARACTER else "warning"
 
 
 def _template_hostile_finding(resource_type: str, uid: str, name: str, code: str | None) -> ValidationFinding | None:
@@ -332,7 +350,7 @@ def _template_hostile_finding(resource_type: str, uid: str, name: str, code: str
     if character is None:
         return None
     return ValidationFinding(
-        severity="warning",
+        severity=_template_hostile_severity(character),
         category="template-hostile-name",
         resource_type=resource_type,
         uid=uid,
@@ -397,7 +415,7 @@ def _template_hostile_option_findings(option_set: OptionSetIn, locales: list[str
             _option_finding(
                 option_set,
                 option,
-                "warning",
+                _template_hostile_severity(character),
                 "template-hostile-name",
                 _template_hostile_message(option.name, character),
                 locales,

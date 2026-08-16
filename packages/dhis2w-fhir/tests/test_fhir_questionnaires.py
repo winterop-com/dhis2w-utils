@@ -1972,7 +1972,7 @@ def test_an_option_set_the_plan_omits_falls_back_to_the_uid_name_with_one_note()
     )
     assert "* item[=].item[=].answerValueSet = Canonical(D2OS_Os1aaaaaaaa_VS)" in content
     assert [note.message for note in build.notes] == [
-        "1 option sets a question binds are absent from the option-set selection; their answerValueSet "
+        "1 option set a question binds is absent from the option-set selection; the answerValueSet "
         "names are derived from the UID: Os1aaaaaaaa"
     ]
 

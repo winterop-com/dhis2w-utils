@@ -6751,10 +6751,12 @@ def tracked_entity_attributes_create_command(
     unique: Annotated[bool, typer.Option("--unique/--no-unique", help="Unique across the instance.")] = False,
     generated: Annotated[
         bool,
-        typer.Option("--generated/--no-generated", help="Auto-generate via --pattern on TEI register."),
+        typer.Option("--generated/--no-generated", help="Auto-generate via --pattern on the tracked entity register."),
     ] = False,
     confidential: Annotated[bool, typer.Option("--confidential/--no-confidential", help="Sensitive.")] = False,
-    inherit: Annotated[bool, typer.Option("--inherit/--no-inherit", help="Inherit on parent/child TEI link.")] = False,
+    inherit: Annotated[
+        bool, typer.Option("--inherit/--no-inherit", help="Inherit on the parent/child tracked entity link.")
+    ] = False,
     display_in_list_no_program: Annotated[
         bool,
         typer.Option(
@@ -6880,19 +6882,19 @@ def tracked_entity_types_create_command(
     form_name: Annotated[str | None, typer.Option("--form-name", help="Form-name override.")] = None,
     allow_audit_log: Annotated[
         bool | None,
-        typer.Option("--allow-audit-log/--no-allow-audit-log", help="Enable the per-TEI audit trail."),
+        typer.Option("--allow-audit-log/--no-allow-audit-log", help="Enable the per-tracked-entity audit trail."),
     ] = None,
     feature_type: Annotated[
         str | None,
-        typer.Option("--feature-type", help="NONE / POINT / POLYGON — geometry captured per TEI."),
+        typer.Option("--feature-type", help="NONE / POINT / POLYGON — geometry captured per tracked entity."),
     ] = None,
     min_attrs: Annotated[
         int | None,
-        typer.Option("--min-attrs", help="Min attributes required to search TEIs."),
+        typer.Option("--min-attrs", help="Min attributes required to search tracked entities."),
     ] = None,
     max_tei: Annotated[
         int | None,
-        typer.Option("--max-tei", help="Max TEI count to return per search."),
+        typer.Option("--max-tei", help="Max tracked entity count to return per search."),
     ] = None,
     uid: Annotated[str | None, typer.Option("--uid", help="Explicit 11-char UID.")] = None,
 ) -> None:
@@ -6952,10 +6954,12 @@ def tracked_entity_types_add_attribute_command(
     tet_uid: Annotated[str, typer.Argument(help="TrackedEntityType UID.")],
     attribute_uid: Annotated[str, typer.Argument(help="TrackedEntityAttribute UID to wire in.")],
     mandatory: Annotated[bool, typer.Option("--mandatory/--no-mandatory", help="Require on enrollment.")] = False,
-    searchable: Annotated[bool, typer.Option("--searchable/--no-searchable", help="Include in TEI search.")] = False,
+    searchable: Annotated[
+        bool, typer.Option("--searchable/--no-searchable", help="Include in tracked entity search.")
+    ] = False,
     display_in_list: Annotated[
         bool,
-        typer.Option("--display-in-list/--no-display-in-list", help="Show in the enrolled-TEI list."),
+        typer.Option("--display-in-list/--no-display-in-list", help="Show in the enrolled tracked entity list."),
     ] = True,
 ) -> None:
     """Attach a TrackedEntityAttribute to a TrackedEntityType."""
@@ -7003,7 +7007,7 @@ def tracked_entity_types_delete_command(
     uid: Annotated[str, typer.Argument(help="TrackedEntityType UID.")],
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation.")] = False,
 ) -> None:
-    """Delete a TrackedEntityType — DHIS2 rejects deletes on TETs in use by enrolled TEIs."""
+    """Delete a TrackedEntityType — DHIS2 rejects deletes on types in use by enrolled tracked entities."""
     from dhis2w_core.v43.plugins.metadata import service
 
     if not yes:
@@ -7075,7 +7079,9 @@ def programs_create_command(
     ] = None,
     only_enroll_once: Annotated[
         bool | None,
-        typer.Option("--only-enroll-once/--no-only-enroll-once", help="Block re-enrollment of the same TEI."),
+        typer.Option(
+            "--only-enroll-once/--no-only-enroll-once", help="Block re-enrollment of the same tracked entity."
+        ),
     ] = None,
     expiry_days: Annotated[
         int | None,
@@ -7083,11 +7089,11 @@ def programs_create_command(
     ] = None,
     min_attrs: Annotated[
         int | None,
-        typer.Option("--min-attrs", help="Min attributes required for TEI search."),
+        typer.Option("--min-attrs", help="Min attributes required for tracked entity search."),
     ] = None,
     max_tei: Annotated[
         int | None,
-        typer.Option("--max-tei", help="Max TEI count per search."),
+        typer.Option("--max-tei", help="Max tracked entity count per search."),
     ] = None,
     use_first_stage_during_registration: Annotated[
         bool | None,
@@ -7257,7 +7263,7 @@ def programs_add_attribute_command(
     searchable: Annotated[bool, typer.Option("--searchable/--no-searchable", help="Include in search.")] = False,
     display_in_list: Annotated[
         bool,
-        typer.Option("--display-in-list/--no-display-in-list", help="Show in enrolled-TEI list."),
+        typer.Option("--display-in-list/--no-display-in-list", help="Show in the enrolled tracked entity list."),
     ] = True,
     sort_order: Annotated[int | None, typer.Option("--sort-order", help="Position on enrollment form.")] = None,
     allow_future_date: Annotated[

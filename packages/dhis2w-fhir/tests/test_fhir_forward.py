@@ -935,6 +935,50 @@ async def test_an_empty_spool_is_a_run_with_nothing_to_do(forward_project: Path)
 
 
 @respx.mock
+async def test_an_empty_spool_reads_nothing_from_the_instance(forward_project: Path) -> None:
+    """Zero receipts is answered off disk: no client opened, no metadata read, no request at all."""
+    routes = _mock_instance()
+    for path in (forward_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"):
+        path.unlink()
+
+    report = await _forward(forward_project)
+
+    assert (report.spooled, report.posted_count, report.outcomes) == (0, 0, ())
+    # The reads past the spool exist to translate receipts, so a run with none pays for none -
+    # not even the version probe every opened client makes.
+    assert list(respx.calls) == []
+    assert [route.call_count for route in routes.values()] == [0] * len(routes)
+
+
+@respx.mock
+async def test_an_empty_spool_with_no_compiled_guide_never_builds_one(tmp_path: Path) -> None:
+    """The unbounded live build is what receipts pay for; none of them means it is never opened."""
+    root = tmp_path / "uncompiled"
+    root.mkdir()
+    _write_project(root, compiled=False)
+    routes = _mock_instance()
+
+    report = await _forward(root)
+
+    assert (report.spooled, report.outcomes) == (0, ())
+    assert list(respx.calls) == []
+    assert [route.call_count for route in routes.values()] == [0] * len(routes)
+
+
+@respx.mock
+async def test_an_unreadable_receipt_still_fails_on_an_otherwise_empty_spool(forward_project: Path) -> None:
+    """The spool is read before the run short-circuits, so an unreadable receipt is never skipped past."""
+    _mock_instance()
+    for path in (forward_project / RECEIVED_RESPONSES_RELATIVE_PATH).glob("*.json"):
+        path.unlink()
+    broken = forward_project / RECEIVED_RESPONSES_RELATIVE_PATH / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(SpoolReadError, match="broken.json"):
+        await _forward(forward_project)
+
+
+@respx.mock
 async def test_an_unreadable_receipt_fails_the_run_naming_the_file(forward_project: Path) -> None:
     """A receipt silently skipped would look to its sender exactly like one that never arrived."""
     _mock_instance()

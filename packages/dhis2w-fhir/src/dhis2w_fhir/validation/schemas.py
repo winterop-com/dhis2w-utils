@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from dhis2w_fhir.notes import pluralize
+
 #: The sweep collection each `ValidationScope` surface answers for - every other collection is never in scope.
 SCOPE_SURFACE_FIELDS: dict[str, str] = {
     "optionSets": "option_sets",
@@ -126,11 +128,6 @@ class ValidationFinding(BaseModel):
     name: str
     code: str | None = None
     message: str
-
-
-def pluralize(count: int, noun: str) -> str:
-    """Render a count with its noun, singular at exactly one (`1 error`, `0 errors`)."""
-    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
 
 class SeverityBreakdown(BaseModel):

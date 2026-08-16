@@ -7,7 +7,7 @@ dependency so nothing about it leaks into the route signatures, which are FHIR's
 The DHIS2 client is state of the same shape and lives beside it rather than on it: `ServeContext`
 is a Pydantic model of what the facade serves, and a live HTTP client is not a value that model can
 hold without opening itself to arbitrary types. It is None in the default mode, which is the whole
-of what makes the patient routes live-only.
+of what makes the register routes live-only.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 
 def serve_context(request: Request) -> ServeContext:
-    """The project, store, spool, patient index, and settings this process serves."""
+    """The project, store, spool, register surface, and settings this process serves."""
     context: ServeContext = request.app.state.context
     return context
 

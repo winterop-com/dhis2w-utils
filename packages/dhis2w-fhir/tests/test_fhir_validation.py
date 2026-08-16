@@ -410,8 +410,8 @@ def _hostile(report: FhirValidationReport) -> list[ValidationFinding]:
     return [finding for finding in report.findings if finding.category == "template-hostile-name"]
 
 
-def test_a_template_hostile_name_is_one_warning_naming_the_character_and_the_consequence() -> None:
-    """The real play 2.42 data set name yields exactly one warning saying what breaks and why."""
+def test_a_template_hostile_name_is_one_error_naming_the_character_and_the_consequence() -> None:
+    """The real play 2.42 data set name yields exactly one error saying the build fails, and why."""
     report = _validate(
         [],
         [
@@ -423,14 +423,32 @@ def test_a_template_hostile_name_is_one_warning_naming_the_character_and_the_con
     )
     findings = _hostile(report)
     assert len(findings) == 1
-    assert findings[0].severity == "warning"
+    assert findings[0].severity == "error"
     assert findings[0].resource_type == "dataSets"
     assert findings[0].uid == "YFTk3VdO9av"
     assert findings[0].name == _MORTALITY_NAME
     assert findings[0].message == (
         f"name {_MORTALITY_NAME} contains '<' which the IG publisher template injects into HTML "
-        "unescaped; pages for this resource render malformed until the name is changed"
+        "unescaped, so `make build` fails: the publisher strict-parses the page it just wrote and "
+        "cannot read it back; change the name in DHIS2"
     )
+
+
+def test_a_name_carrying_only_the_survivable_characters_stays_a_warning() -> None:
+    """'>' and '&' cost a malformed page and the build lives, so they are graded below an aborted one."""
+    report = _validate(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="dataSets",
+                items=[MetadataItemIn(uid="YFTk3VdO9aw", name="Mortality > 5 years & over", code="DS_OVER")],
+            )
+        ],
+    )
+    findings = _hostile(report)
+    assert len(findings) == 1
+    assert findings[0].severity == "warning"
+    assert "render malformed" in findings[0].message
 
 
 def test_a_clean_name_raises_no_template_finding() -> None:
@@ -502,7 +520,7 @@ def test_an_option_set_name_is_flagged_once_by_the_sweep_alone() -> None:
 
 
 @pytest.mark.parametrize("code_source", ["id", "code"])
-def test_the_template_warning_is_independent_of_the_code_source(code_source: str) -> None:
+def test_the_template_finding_is_independent_of_the_code_source(code_source: str) -> None:
     """The finding is about published pages, not about codes, so id mode does not downgrade it."""
     report = build_code_validation(
         [_set("Os1aaaaaaaa", "Age band", [OptionIn(uid="Op1aaaaaaaa", code="LT5", name="< 5 years")])],
@@ -511,7 +529,9 @@ def test_the_template_warning_is_independent_of_the_code_source(code_source: str
         code_source,  # type: ignore[arg-type]
     )
     findings = _hostile(report)
-    assert [finding.severity for finding in findings] == ["warning", "warning"]
+    # An option name and a data set name, both carrying '<': one grade for one sentence, whichever
+    # surface the name sits on, because the publisher writes both into the same unescaped HTML.
+    assert [finding.severity for finding in findings] == ["error", "error"]
     assert not any("informational in id mode" in finding.message for finding in findings)
 
 
@@ -648,7 +668,7 @@ def test_a_clean_code_and_an_absent_code_raise_no_template_finding() -> None:
 
 
 def test_a_hostile_name_and_a_hostile_code_on_one_object_are_two_findings() -> None:
-    """They describe different failures - a malformed page and an aborted build - so neither absorbs the other."""
+    """Two surfaces the publisher writes unescaped, two fixes in DHIS2, so neither absorbs the other."""
     report = _validate(
         [],
         [
@@ -658,7 +678,7 @@ def test_a_hostile_name_and_a_hostile_code_on_one_object_are_two_findings() -> N
             )
         ],
     )
-    assert [finding.severity for finding in _hostile(report)] == ["warning"]
+    assert [finding.severity for finding in _hostile(report)] == ["error"]
     assert [finding.severity for finding in _hostile_code(report)] == ["error"]
 
 

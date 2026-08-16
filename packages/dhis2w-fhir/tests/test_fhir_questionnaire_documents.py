@@ -318,8 +318,8 @@ def test_an_option_set_the_plan_omits_falls_back_to_the_uid_name_with_one_note()
     item = _emitted(_items(questionnaires["A03MvHHogjR"])[0])
     assert item["answerValueSet"] == f"{_CANONICAL}/ValueSet/d2-os-Os1aaaaaaaa-vs"
     assert notes == [
-        "1 option sets a question binds are absent from the option-set selection; "
-        "their answerValueSet names are derived from the UID: Os1aaaaaaaa"
+        "1 option set a question binds is absent from the option-set selection; "
+        "the answerValueSet names are derived from the UID: Os1aaaaaaaa"
     ]
 
 

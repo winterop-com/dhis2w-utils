@@ -83,6 +83,13 @@ Seven steps, each narrated on stderr:
    claimed, and only once DHIS2 has taken its values.
 7. **File** - each receipt into what it became (import runs only).
 
+An empty spool stops after step 1, or after step 2 when the project holds a
+compiled guide to read off disk. Every step past that exists to translate
+receipts, so a run with none opens no client and reads nothing from the
+instance - which on a large instance is the difference between a report that
+says zero in a moment and one that reads the whole metadata surface to say it.
+An unreadable receipt still fails the run, because the spool is read first.
+
 The posting order is what one drain's own creations depend on: a person-only
 capture creates the person a registration of the same drain enrols, and a
 registration creates the enrollment a stage event names - DHIS2 refuses an

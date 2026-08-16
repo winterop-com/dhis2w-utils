@@ -173,7 +173,8 @@ def test_a_template_hostile_name_on_a_never_emitted_collection_is_info() -> None
     )
     by_uid = {finding.uid: finding for finding in report.findings}
     assert (by_uid["Vi1aaaaaaaa"].severity, by_uid["Vi1aaaaaaaa"].scope) == ("info", "instance")
-    assert (by_uid["Ds1aaaaaaaa"].severity, by_uid["Ds1aaaaaaaa"].scope) == ("warning", "selection")
+    # In scope the same '<' is what takes the build down, so it grades as the build-blocker it is.
+    assert (by_uid["Ds1aaaaaaaa"].severity, by_uid["Ds1aaaaaaaa"].scope) == ("error", "selection")
 
 
 def test_option_findings_inherit_their_option_sets_scope() -> None:

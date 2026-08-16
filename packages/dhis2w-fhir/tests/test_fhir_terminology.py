@@ -660,7 +660,7 @@ def test_an_answer_selecting_an_option_with_no_concept_code_is_left_unanswered()
     assert _ANSWER_CODING_PATTERN.findall(content) == []
     assert "answer[" not in content
     assert [note.message for note in build.notes] == [
-        "1 example answers select an option the CodeSystem holds no concept for; left unanswered: "
+        "1 example answer selects an option the CodeSystem holds no concept for; left unanswered: "
         "Op3aaaaaaaa in Referral (Ee5eeeeeeee)"
     ]
     code_system = _code_systems(_build([_UNCODABLE], _CODE_SOURCE))[0]

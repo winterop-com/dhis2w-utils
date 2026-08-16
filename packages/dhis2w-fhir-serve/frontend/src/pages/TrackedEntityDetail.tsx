@@ -25,7 +25,7 @@ import {
     trackedEntityTypeLabel,
     type PatientProjection,
 } from '@/lib/patients'
-import { PEOPLE_RESOURCE_TYPE, trackedEntitySettings } from '@/lib/uiconfig'
+import { PEOPLE_RESOURCE_TYPE, registerTitle, trackedEntitySettings } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
 /**
@@ -68,6 +68,7 @@ export function TrackedEntityDetail() {
             resourceType={resourceType}
             trackedEntityUid={trackedEntityUid}
             dhis2BaseUrl={config.dhis2_base_url}
+            listingTitle={registerTitle(trackedEntitySettings(config))}
         />
     )
 }
@@ -77,10 +78,12 @@ function TrackedEntityRecord({
     resourceType,
     trackedEntityUid,
     dhis2BaseUrl,
+    listingTitle,
 }: {
     resourceType: string
     trackedEntityUid: string
     dhis2BaseUrl: string | null
+    listingTitle: string
 }) {
     const { resource, loading, error } = useFhirResource<Patient>(resourceType, trackedEntityUid)
     const enrollments = usePatientEnrollments(trackedEntityUid)
@@ -97,9 +100,13 @@ function TrackedEntityRecord({
         <>
             <div className="mb-6 space-y-2">
                 <Button asChild variant="ghost" size="sm" className="text-muted-foreground -ml-2">
+                    {/* The link is labelled with the heading of the page it returns to, whatever
+                        the instance calls the type this run serves. Naming the destination any
+                        other way puts two names on one journey, and "patients" would name the
+                        FHIR projection rather than the subject - see lib/uiconfig registerTitle. */}
                     <Link to="/tracked-entities">
                         <ArrowLeft className="size-4" />
-                        {people ? 'All patients' : 'All tracked entities'}
+                        {listingTitle}
                     </Link>
                 </Button>
                 <h2 className="font-mono text-xl font-semibold tracking-tight">{heading}</h2>
