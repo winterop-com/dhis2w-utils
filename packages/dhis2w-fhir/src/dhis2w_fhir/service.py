@@ -52,6 +52,15 @@ from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.names import StemResolution, StemSubject, code_or_uid
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note
+from dhis2w_fhir.overwrite import (
+    AggregateCell,
+    ForwardedCellIndex,
+    ForwardedSubmission,
+    ForwardOverwrite,
+    OverwrittenValue,
+    aggregate_cells,
+    build_forwarded_cell_index,
+)
 from dhis2w_fhir.period import parse_period, recent_periods
 from dhis2w_fhir.r4 import QuestionnaireResponse
 from dhis2w_fhir.resources.attribute_combos import (
@@ -4336,9 +4345,18 @@ class ForwardImportRecord(ForwardImportOutcome):
     The target kind is what tells an operator reading either file cold which of the tracker shapes
     DHIS2 was given - a person and their enrollment, or the enrollment alone for a person the instance
     already held - without opening the receipt beside it and reading its extensions back.
+
+    An aggregate payload also records the cells it landed on and the day its receipt arrived, which is
+    what makes `forwarded/` answerable about a value a later drain sends again. Identity only, never
+    the numbers: what a payload landed on is the spool's business and what it landed is the receipt's.
     """
 
     target_kind: ConversionTargetKind | None = None
+    received_at: str | None = None
+    """When the receipt this payload came off was captured, so a later drain can say when it was sent."""
+
+    cells: tuple[AggregateCell, ...] = ()
+    """Every aggregate value this payload named, by identity; empty for every tracker payload."""
 
 
 class ForwardRejectionReason(BaseModel):
@@ -4423,6 +4441,14 @@ class ForwardOutcome(BaseModel):
     completeness: ForwardCompletenessOutcome | None = None
     """What became of an aggregate response's completeness claim; unset for every other payload kind."""
 
+    overwritten_values: tuple[OverwrittenValue, ...] = ()
+    """Every value this response sent that a forwarded receipt had already sent, and which receipt sent it.
+
+    Carried only where DHIS2 took the payload, because a payload the instance refused replaced
+    nothing. A dry run carries them as the prediction they are: what an import of this spool would
+    replace, stated while there is still something to be done about it.
+    """
+
     spool_path: str
     """Where the receipt sits now, relative to the project root - unmoved on a dry run and on a refusal."""
 
@@ -4462,6 +4488,14 @@ class ForwardReport(BaseModel):
 
     program_rule_names: ProgramRuleNames = Field(default_factory=ProgramRuleNames)
     """The rules the guide publishes, which is what lets a refusal name the rule rather than a UID."""
+
+    forwarded_without_values: int = 0
+    """Receipts DHIS2 accepted whose sidecar records no values, so this run cannot say what they sent.
+
+    Zero for every spool this toolchain filled, since a drain records an aggregate payload's cells as
+    it files the receipt. A count above zero is a spool something else wrote into, and it is stated
+    rather than swallowed: those receipts are the ones an overwrite could hide behind.
+    """
 
     @property
     def refused(self) -> tuple[ForwardOutcome, ...]:
@@ -4530,6 +4564,28 @@ class ForwardReport(BaseModel):
             return ""
         counted = Counter(outcome.kind for outcome in outcomes)
         return ", ".join(f"{counted[kind]:,} {kind}" for kind in ForwardCompletenessKind if counted[kind])
+
+    @property
+    def overwrites(self) -> tuple[ForwardOverwrite, ...]:
+        """Every response of the run that sent a value an earlier submission had already sent, in spool order."""
+        return tuple(
+            ForwardOverwrite(response_id=outcome.response_id, values=outcome.overwritten_values)
+            for outcome in self.outcomes
+            if outcome.overwritten_values
+        )
+
+    @property
+    def overwritten_value_count(self) -> int:
+        """How many values of the run an earlier submission had already sent."""
+        return sum(len(outcome.overwritten_values) for outcome in self.outcomes)
+
+    @property
+    def overwrite_line(self) -> str:
+        """The run's replaced values in one line, or nothing at all when it sent none a receipt had sent."""
+        overwrites = self.overwrites
+        if not overwrites:
+            return ""
+        return f"{self.overwritten_value_count:,} value(s) across {len(overwrites):,} response(s)"
 
     @property
     def completeness_dry_run_reason(self) -> str:
@@ -4663,6 +4719,13 @@ async def forward_responses(
     un-import the values - they stay imported, and the response is still `accepted` - so the refusal
     is carried on the outcome and stated in the report rather than folded into the import answer.
 
+    AN AGGREGATE VALUE A FORWARDED RECEIPT ALREADY SENT IS NAMED IN THE REPORT. DHIS2 replaces such a
+    value in place and counts the write exactly as it counts a first entry, so no import summary can
+    separate the two - and this run therefore says which is which, off the spool's own record of what
+    each forwarded receipt landed. The run names the value, the receipt that sent it before, and when
+    that receipt arrived, and it says the same thing on a dry run, where it is a prediction there is
+    still time to act on. Nothing is refused over it: the run reports, and the operator decides.
+
     `coded_answer_mode` defaults to what `[serve] strict_codes` says, so a project that captures
     strictly forwards strictly without stating it twice.
 
@@ -4762,10 +4825,17 @@ async def _drain_spool(
         progress.complete(f"{len(conversion.translated):,} translated, {len(conversion.refused):,} refused")
 
         terminal = _file_terminal_refusals(spooled, conversion, moving=import_responses)
+        overwrite_index = _forwarded_cell_index(layout, conversion)
 
         progress.step("post", _post_caption(0, len(conversion.translated), dry_run=dry_run))
         posted = await _post_translations(
-            client, spooled, conversion, dry_run=dry_run, moving=import_responses, progress=progress
+            client,
+            spooled,
+            conversion,
+            dry_run=dry_run,
+            moving=import_responses,
+            overwrite_index=overwrite_index,
+            progress=progress,
         )
         stopped_note = f", stopped: {posted.stopped.reason}" if posted.stopped is not None else ""
         progress.complete(
@@ -4795,6 +4865,7 @@ async def _drain_spool(
         project.project_root,
         filed=filed,
         minted_enrollments=minted_enrollments,
+        overwritten=posted.overwritten,
     )
     report = ForwardReport(
         project_root=project.project_root,
@@ -4808,9 +4879,22 @@ async def _drain_spool(
         quarantined=reading.quarantined,
         filing_issues=(*terminal.issues, *posted.filing_issues),
         program_rule_names=program_rule_names(artifacts, naming),
+        forwarded_without_values=overwrite_index.receipts_without_values,
     )
     progress.complete(report.counts_line)
     return report
+
+
+def _forwarded_cell_index(layout: SpoolLayout, conversion: ConversionReport) -> ForwardedCellIndex:
+    """Read what this spool has already landed in DHIS2, and only when this drain could land on it again.
+
+    A drain carrying no aggregate payload cannot replace an aggregate value, so it reads nothing at
+    all - `forwarded/` is unbounded, and a tracker run has no reason to pay for a directory it cannot
+    collide with. A drain that does carry one pays a single pass: see `dhis2w_fhir.overwrite`.
+    """
+    if not any(result.data_value_set is not None for result in conversion.translated):
+        return ForwardedCellIndex()
+    return build_forwarded_cell_index(layout)
 
 
 def _configured_coded_answer_mode(project: FhirProject) -> CodedAnswerMode:
@@ -4894,6 +4978,9 @@ class _PostedPayloads(BaseModel):
     filed: dict[str, Path] = Field(default_factory=dict)
     """Where each posted receipt was filed as its verdict arrived; empty on a dry run, which moves nothing."""
 
+    overwritten: dict[str, tuple[OverwrittenValue, ...]] = Field(default_factory=dict)
+    """Per receipt, the values it sent that an earlier submission had already sent; absent where it sent none."""
+
     filing_issues: tuple[ForwardFilingIssue, ...] = ()
     stopped: ForwardStop | None = None
 
@@ -4905,6 +4992,7 @@ async def _post_translations(
     *,
     dry_run: bool,
     moving: bool,
+    overwrite_index: ForwardedCellIndex,
     progress: _StepAnnouncer,
 ) -> _PostedPayloads:
     """Post every translated payload one at a time, filing each receipt as soon as DHIS2 answers about it.
@@ -4932,6 +5020,13 @@ async def _post_translations(
     receipt that met it as though DHIS2 had refused it. So the pass stops where it is and answers
     with the outcomes it did get; the receipts already filed stay filed, everything from the failure
     onwards is untouched in `received/`, and the report names what stopped it.
+
+    **An aggregate payload is read against what this spool has already landed, before it is sent.**
+    DHIS2 replaces a value it already holds without saying so, so the index answers the question the
+    import summary cannot: which of these values a forwarded receipt already sent, and which one. The
+    reading is taken before the post and kept only where DHIS2 took the payload - a refused payload
+    replaced nothing - and each taken payload then joins the index, so two captures of one value
+    inside a single drain are the same finding as two captures a week apart.
     """
     translated = sorted(
         ((entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused),
@@ -4939,26 +5034,40 @@ async def _post_translations(
     )
     imports: dict[str, ForwardImportOutcome] = {}
     filed: dict[str, Path] = {}
+    overwritten: dict[str, tuple[OverwrittenValue, ...]] = {}
     issues: list[ForwardFilingIssue] = []
     for posted, (entry, result) in enumerate(translated, start=1):
+        cells = aggregate_cells(result.data_value_set) if result.data_value_set is not None else ()
+        already_sent = overwrite_index.already_sent(cells)
         try:
             imported = await _post_result(client, result, dry_run=dry_run)
         except (Dhis2ApiError, httpx.HTTPError) as error:
             return _PostedPayloads(
-                imports=imports, filed=filed, filing_issues=tuple(issues), stopped=_forward_stop(entry, error)
+                imports=imports,
+                filed=filed,
+                overwritten=overwritten,
+                filing_issues=tuple(issues),
+                stopped=_forward_stop(entry, error),
             )
         imports[entry.response_id] = imported
+        if cells and not imported.is_rejected:
+            if already_sent:
+                overwritten[entry.response_id] = already_sent
+            overwrite_index.record(
+                cells, ForwardedSubmission(response_id=entry.response_id, received_at=entry.received_at)
+            )
         if moving:
-            _file_now(entry, imported, result.target_kind, filed, issues)
+            _file_now(entry, imported, result.target_kind, cells, filed, issues)
         if posted % _POST_TICK_INTERVAL == 0 or posted == len(translated):
             progress.tick(_post_caption(posted, len(translated), dry_run=dry_run))
-    return _PostedPayloads(imports=imports, filed=filed, filing_issues=tuple(issues))
+    return _PostedPayloads(imports=imports, filed=filed, overwritten=overwritten, filing_issues=tuple(issues))
 
 
 def _file_now(
     entry: SpooledResponse,
     imported: ForwardImportOutcome,
     target_kind: ConversionTargetKind | None,
+    cells: tuple[AggregateCell, ...],
     filed: dict[str, Path],
     issues: list[ForwardFilingIssue],
 ) -> None:
@@ -4967,8 +5076,13 @@ def _file_now(
     A receipt whose file has already gone is graded rather than raised: DHIS2 has answered about the
     payload, and losing the rest of the drain over a rename that lost a race would throw that answer
     away along with every receipt still queued behind it.
+
+    The report carries the cells an aggregate payload named and the day the receipt arrived, which is
+    what lets the next drain say that a value it is about to send is one this receipt already sent.
     """
-    record = ForwardImportRecord(**dict(imported), target_kind=target_kind)
+    record = ForwardImportRecord(
+        **dict(imported), target_kind=target_kind, received_at=entry.received_at or None, cells=cells
+    )
     try:
         filed[entry.response_id] = (
             move_to_rejected(entry, record) if imported.is_rejected else move_to_forwarded(entry, record)
@@ -5335,6 +5449,7 @@ def _collect_outcomes(
     *,
     filed: dict[str, Path],
     minted_enrollments: frozenset[str],
+    overwritten: dict[str, tuple[OverwrittenValue, ...]],
 ) -> tuple[ForwardOutcome, ...]:
     """Pair every receipt with what DHIS2 said about it, and with where the run left its file.
 
@@ -5360,6 +5475,7 @@ def _collect_outcomes(
                 refusals=result.refusals,
                 import_outcome=imported,
                 completeness=completeness.get(entry.response_id),
+                overwritten_values=overwritten.get(entry.response_id, ()),
                 spool_path=_relative_path(path, project_root),
             )
         )

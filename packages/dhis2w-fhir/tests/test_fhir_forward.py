@@ -34,6 +34,7 @@ from dhis2w_fhir import (
     build_attribute_combo_artifacts,
     build_attribute_combo_concept_maps,
     build_example_documents,
+    build_forwarded_cell_index,
     build_questionnaire_documents,
     build_synthetic_responses,
     load_project,
@@ -197,20 +198,29 @@ def _form_kind(document: QuestionnaireResponse) -> str:
     return "event"
 
 
-def _fill_spool(root: Path, documents: list[QuestionnaireResponse]) -> None:
+#: When the fixture's receipts were captured, which is what a later drain reads back off a sidecar.
+_RECEIVED_AT = "2026-08-08T09:00:00Z"
+
+
+def _fill_spool(root: Path, documents: list[QuestionnaireResponse], *, received_at: str = _RECEIVED_AT) -> None:
     """Write the receipt envelopes `d2w fhir serve` would have left for these responses."""
+    for document in documents:
+        _write_receipt(root, document, received_at=received_at)
+
+
+def _write_receipt(root: Path, document: QuestionnaireResponse, *, received_at: str = _RECEIVED_AT) -> None:
+    """Write one receipt envelope into the queue, arriving when the caller says it did."""
     directory = root / RECEIVED_RESPONSES_RELATIVE_PATH
     directory.mkdir(parents=True, exist_ok=True)
-    for document in documents:
-        envelope = {
-            "response_id": document.id,
-            "received_at": "2026-08-08T09:00:00Z",
-            "form_kind": _form_kind(document),
-            "questionnaire": document.questionnaire or "",
-            "warnings": [],
-            "response": json.loads(document.model_dump_json(exclude_none=True, by_alias=True)),
-        }
-        (directory / f"{document.id}.json").write_text(json.dumps(envelope, indent=2), encoding="utf-8")
+    envelope = {
+        "response_id": document.id,
+        "received_at": received_at,
+        "form_kind": _form_kind(document),
+        "questionnaire": document.questionnaire or "",
+        "warnings": [],
+        "response": json.loads(document.model_dump_json(exclude_none=True, by_alias=True)),
+    }
+    (directory / f"{document.id}.json").write_text(json.dumps(envelope, indent=2), encoding="utf-8")
 
 
 #: Where the 409 bodies harvested off the live play instances are kept, one file per DHIS2 major.
@@ -2419,3 +2429,291 @@ async def test_the_spool_listing_reads_the_directory_and_nothing_else(three_even
     assert {row.state for row in report.receipts} == {SpoolState.REJECTED}
     # A rejected row states the short reason off the report the forwarder left beside it.
     assert all(row.reason for row in report.receipts)
+
+
+#: The organisation unit a re-capture is moved to, so the cell it names is a different cell entirely.
+_OTHER_ORG_UNIT = "DiszpKrYNg8"
+
+
+def _aggregate_document() -> QuestionnaireResponse:
+    """The published aggregate example response - the one receipt of the fixture that carries cells."""
+    return next(document for document in _documents(GenerateConfig()) if _form_kind(document) == "aggregate")
+
+
+def _recaptured(
+    document: QuestionnaireResponse,
+    response_id: str,
+    *,
+    period: str | None = None,
+    organisation_unit: str | None = None,
+    attribute_option_combo: str | None = None,
+    keep_link_ids: set[str] | None = None,
+) -> QuestionnaireResponse:
+    """A second capture of one aggregate response, optionally moved off one of the keys naming its cells.
+
+    A re-capture is a fresh submission of the same form, so it is the same document under a new
+    receipt id - which is exactly what a person filling the form in again produces.
+    """
+    raw: dict[str, Any] = json.loads(document.model_dump_json(exclude_none=True, by_alias=True))
+    raw["id"] = response_id
+    for extension in raw["extension"]:
+        for part in extension.get("extension", []):
+            if part["url"] == "iso" and period is not None:
+                part["valueString"] = period
+        if attribute_option_combo is not None and extension["url"].endswith("d2-attribute-option-combo"):
+            extension["valueCoding"]["code"] = attribute_option_combo
+    if organisation_unit is not None:
+        raw["subject"]["reference"] = f"Location/{organisation_unit}"
+    if keep_link_ids is not None:
+        for section in raw["item"]:
+            section["item"] = [item for item in section["item"] if item["linkId"] in keep_link_ids]
+    return QuestionnaireResponse.model_validate(raw)
+
+
+def _publish_location(root: Path, organisation_unit: str) -> None:
+    """Publish one more Location, so a re-capture can name an organisation unit the guide resolves."""
+    naming = ConversionNaming.from_config(GenerateConfig(), _CANONICAL)
+    _write_resource(
+        root / "ig" / "input" / "resources" / f"Location-{organisation_unit}.json",
+        Location(
+            id=organisation_unit,
+            identifier=[Identifier(system=naming.organisation_unit_system, value=organisation_unit)],
+        ),
+    )
+
+
+def _sent_values(report: Any) -> set[tuple[str, str | None, str | None, str | None, str | None]]:
+    """Every value one run reported as already sent, as the five keys that name each of them."""
+    return {
+        (
+            value.cell.data_element,
+            value.cell.category_option_combo,
+            value.cell.period,
+            value.cell.organisation_unit,
+            value.cell.attribute_option_combo,
+        )
+        for overwrite in report.overwrites
+        for value in overwrite.values
+    }
+
+
+@respx.mock
+async def test_a_forwarded_receipt_records_the_values_its_payload_landed(forward_project: Path) -> None:
+    """The sidecar is what makes `forwarded/` answerable later, so it names the cells and the arrival."""
+    _mock_instance()
+    report = await _forward(forward_project, import_responses=True)
+    aggregate = next(outcome for outcome in report.accepted if outcome.target_kind == "data-value-set")
+
+    sidecar = forward_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{aggregate.response_id}{IMPORT_REPORT_SUFFIX}"
+    written = json.loads(sidecar.read_text(encoding="utf-8"))
+
+    assert written["received_at"] == _RECEIVED_AT
+    assert {cell["data_element"] for cell in written["cells"]} == {"De2aaaaaaaa", "De3aaaaaaaa"}
+    assert {cell["period"] for cell in written["cells"]} == {"202607"}
+    assert {cell["organisation_unit"] for cell in written["cells"]} == {_ROOT_ORG_UNIT}
+    # A tracker payload lands on no cell, so its sidecar records none.
+    event = next(outcome for outcome in report.accepted if outcome.target_kind == "event")
+    event_sidecar = forward_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{event.response_id}{IMPORT_REPORT_SUFFIX}"
+    assert json.loads(event_sidecar.read_text(encoding="utf-8"))["cells"] == []
+
+
+@respx.mock
+async def test_a_second_capture_of_one_value_names_the_receipt_that_sent_it_first(forward_project: Path) -> None:
+    """DHIS2 replaces the value and says nothing about it, so the run names the value and the sender."""
+    _mock_instance()
+    first = await _forward(forward_project, import_responses=True)
+    assert first.overwrites == ()
+    original = _aggregate_document()
+    _write_receipt(forward_project, _recaptured(original, "recapture1"), received_at="2026-08-09T10:00:00Z")
+
+    report = await _forward(forward_project, import_responses=True)
+
+    assert [overwrite.response_id for overwrite in report.overwrites] == ["recapture1"]
+    values = report.overwrites[0].values
+    assert {value.cell.data_element for value in values} == {"De2aaaaaaaa", "De3aaaaaaaa"}
+    assert {value.previous_response_id for value in values} == {original.id}
+    assert {value.previous_received_at for value in values} == {_RECEIVED_AT}
+    assert {(value.cell.period, value.cell.organisation_unit) for value in values} == {("202607", _ROOT_ORG_UNIT)}
+    assert report.overwritten_value_count == 2
+    assert report.overwrite_line == "2 value(s) across 1 response(s)"
+    assert report.forwarded_without_values == 0
+
+
+@respx.mock
+async def test_a_re_capture_for_another_period_is_another_value_entirely(forward_project: Path) -> None:
+    """The period is one of the five keys DHIS2 stores a value under, so a new one collides with nothing."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1", period="202608"))
+
+    report = await _forward(forward_project, import_responses=True)
+
+    assert report.overwrites == ()
+    assert report.overwrite_line == ""
+
+
+@respx.mock
+async def test_a_re_capture_for_another_organisation_unit_is_another_value_entirely(forward_project: Path) -> None:
+    """Two organisation units reporting the same form for the same month are two cells, not one."""
+    _mock_instance()
+    _publish_location(forward_project, _OTHER_ORG_UNIT)
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1", organisation_unit=_OTHER_ORG_UNIT))
+
+    report = await _forward(forward_project, import_responses=True)
+
+    assert report.overwrites == ()
+
+
+@respx.mock
+async def test_a_re_capture_under_another_attribute_option_combo_is_another_value_entirely(
+    combo_forward_project: Path,
+) -> None:
+    """The attribute option combo is the third key of the envelope, so it separates two cells as surely."""
+    _mock_instance()
+    original = _combo_documents(GenerateConfig())[0]
+    await _forward(combo_forward_project, import_responses=True)
+    _write_receipt(combo_forward_project, _recaptured(original, "recapture1", attribute_option_combo="Aoc1aaaaaaa"))
+
+    report = await _forward(combo_forward_project, import_responses=True)
+
+    assert report.overwrites == ()
+
+    _write_receipt(combo_forward_project, _recaptured(original, "recapture2"))
+    same_combo = await _forward(combo_forward_project, import_responses=True)
+
+    assert [overwrite.response_id for overwrite in same_combo.overwrites] == ["recapture2"]
+
+
+@respx.mock
+async def test_a_partial_re_capture_names_only_the_values_it_sends_again(forward_project: Path) -> None:
+    """A response answering one of two questions replaces one of two values, and the run says which."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1", keep_link_ids={"De2aaaaaaaa"}))
+
+    report = await _forward(forward_project, import_responses=True)
+
+    assert report.overwritten_value_count == 1
+    assert _sent_values(report) == {("De2aaaaaaaa", None, "202607", _ROOT_ORG_UNIT, None)}
+
+
+@respx.mock
+async def test_two_captures_of_one_value_in_a_single_drain_replace_each_other(forward_project: Path) -> None:
+    """A receipt filed mid-drain has landed its values, so the next one of the same run replaces them."""
+    _mock_instance()
+    original = _aggregate_document()
+    # The queue is drained in file-name order, so `recapture1` is the second of the two to be posted.
+    _write_receipt(forward_project, _recaptured(original, "recapture1"), received_at="2026-08-09T10:00:00Z")
+
+    report = await _forward(forward_project, import_responses=True)
+
+    assert [overwrite.response_id for overwrite in report.overwrites] == ["recapture1"]
+    values = report.overwrites[0].values
+    assert {value.previous_response_id for value in values} == {original.id}
+    assert {value.previous_received_at for value in values} == {_RECEIVED_AT}
+
+
+@respx.mock
+async def test_a_dry_run_states_the_values_an_import_would_replace_and_moves_nothing(forward_project: Path) -> None:
+    """The prediction is the most useful moment to say it, because there is still something to do about it."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+
+    report = await _forward(forward_project)
+
+    assert report.dry_run is True
+    assert [overwrite.response_id for overwrite in report.overwrites] == ["recapture1"]
+    assert (forward_project / RECEIVED_RESPONSES_RELATIVE_PATH / "recapture1.json").is_file()
+    assert not (forward_project / FORWARDED_RESPONSES_RELATIVE_PATH / "recapture1.json").exists()
+
+
+@respx.mock
+async def test_a_dry_run_predicts_two_captures_of_one_value_inside_itself(forward_project: Path) -> None:
+    """A dry run files nothing, so the prediction has to be carried in the run rather than read off disk."""
+    _mock_instance()
+    original = _aggregate_document()
+    # The queue is drained in file-name order, so `recapture1` is the second of the two to be posted.
+    _write_receipt(forward_project, _recaptured(original, "recapture1"), received_at="2026-08-09T10:00:00Z")
+
+    report = await _forward(forward_project)
+
+    assert [overwrite.response_id for overwrite in report.overwrites] == ["recapture1"]
+
+
+@respx.mock
+async def test_a_receipt_dhis2_refused_sent_nothing_and_covers_nothing(forward_project: Path) -> None:
+    """`rejected/` is a receipt that never landed, so a later capture of its values replaces nothing."""
+    _mock_instance(aggregate_response=_rejected_aggregate())
+    first = await _forward(forward_project, import_responses=True)
+    assert [outcome.target_kind for outcome in first.rejected] == ["data-value-set"]
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+
+    _mock_instance()
+    report = await _forward(forward_project, import_responses=True)
+
+    assert report.overwrites == ()
+
+
+@respx.mock
+async def test_a_tracker_only_drain_reads_no_forwarded_receipt(
+    three_event_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`forwarded/` is unbounded, and a drain that cannot land on an aggregate value has no cause to read it."""
+    _mock_instance()
+    await _forward(three_event_project, import_responses=True)
+    layout = service.spool_layout(load_project(three_event_project))
+    # The three receipts are there to be read, and a drain carrying an aggregate payload would read them.
+    assert build_forwarded_cell_index(layout).receipts_read == 3
+
+    reads: list[Path] = []
+
+    def _record_and_refuse(read_layout: Any) -> None:
+        reads.append(read_layout.root)
+        raise AssertionError("a tracker-only drain must not read the forwarded receipts")
+
+    monkeypatch.setattr(service, "build_forwarded_cell_index", _record_and_refuse)
+    _fill_spool(three_event_project, _event_documents(1))
+
+    report = await _forward(three_event_project, import_responses=True)
+
+    assert reads == []
+    assert report.overwrites == ()
+    assert report.forwarded_without_values == 0
+
+
+@respx.mock
+async def test_a_forwarded_receipt_recording_no_values_is_counted_rather_than_ignored(
+    forward_project: Path,
+) -> None:
+    """A receipt that landed values nothing wrote down is where an overwrite could hide, so the run says so."""
+    _mock_instance()
+    report = await _forward(forward_project, import_responses=True)
+    aggregate = next(outcome for outcome in report.accepted if outcome.target_kind == "data-value-set")
+    sidecar = forward_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{aggregate.response_id}{IMPORT_REPORT_SUFFIX}"
+    written = json.loads(sidecar.read_text(encoding="utf-8"))
+    written["cells"] = []
+    sidecar.write_text(json.dumps(written, indent=2), encoding="utf-8")
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+
+    second = await _forward(forward_project, import_responses=True)
+
+    assert second.overwrites == ()
+    assert second.forwarded_without_values == 1
+
+
+@respx.mock
+async def test_the_run_names_the_last_receipt_to_have_sent_a_value(forward_project: Path) -> None:
+    """Three captures of one value name the second, because the second is the number the instance holds."""
+    _mock_instance()
+    original = _aggregate_document()
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(original, "recapture1"), received_at="2026-08-09T10:00:00Z")
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(original, "recapture2"), received_at="2026-08-10T10:00:00Z")
+
+    report = await _forward(forward_project, import_responses=True)
+
+    assert {value.previous_response_id for value in report.overwrites[0].values} == {"recapture1"}
+    assert {value.previous_received_at for value in report.overwrites[0].values} == {"2026-08-09T10:00:00Z"}

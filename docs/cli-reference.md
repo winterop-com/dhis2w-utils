@@ -10066,6 +10066,11 @@ period, organisation unit, and attribute option combo its values landed under - 
 made only after DHIS2 has taken the values. `in-progress` imports the values and registers
 nothing, and `--no-register-completeness` turns the second write off for the whole run.
 
+A value an earlier submission already sent is named in the run, with the receipt that sent it and
+when that receipt arrived. DHIS2 replaces such a value in place and counts the write exactly as it
+counts a first entry, so no import summary can say it happened; a dry run says it too, while there
+is still time to act on it. Nothing is refused over it.
+
 A DHIS2 rejection exits 1. A dry run counts a stage event whose enrollment a registration of the
 same run creates as unverifiable rather than rejected - a dry run writes nothing, so there is no
 enrollment to check it against - and a run whose only failures are those exits 0.

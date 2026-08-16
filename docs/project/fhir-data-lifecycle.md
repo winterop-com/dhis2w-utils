@@ -299,9 +299,18 @@ serialization, and params against the live instance produced identical wire byte
 expected outcome: receipt A wrote `11`, receipt B wrote `22`, final stored value `22`, both
 receipts filed `forwarded/`.
 
-So a second capture of the same `(dataSet, period, orgUnit)` silently overwrites the first.
-It works, it is undocumented, and because `importCount` reports `updated:1` for creates and
-corrections alike (section 1.1, fact 3), **nothing in the run can tell that it happened.**
+So a second capture of the same `(dataSet, period, orgUnit)` overwrites the first.
+It works, and because `importCount` reports `updated:1` for creates and corrections alike
+(section 1.1, fact 3), **nothing DHIS2 answers can tell that it happened.**
+
+> **Status note.** Slices 1 and 2 are built, and neither changes a byte on the wire. DHIS2 still
+> cannot say an overwrite happened; the spool says it. Every forwarded receipt's import report
+> records the identity of each cell its payload landed on and the day the receipt arrived, and a
+> drain carrying an aggregate payload reads those records back before it posts anything. A run that
+> sends a value a forwarded receipt already sent names the value, the receipt that sent it first,
+> and when that receipt arrived - on the terminal, under `--details`, in its own section of the
+> written report, and in `--json`. A dry run states it as the prediction it is, which is the most
+> useful moment for it. Nothing is refused over it: D8 is still the owner's to answer.
 
 ### 2.3 What silently duplicates
 
@@ -375,7 +384,7 @@ toggle. No amend, revise, resubmit, retract, void, or prefill-from-receipt.
 
 | Path | A second receipt for the same real-world fact | Result today |
 | --- | --- | --- |
-| aggregate values | same `(dataSet, period, orgUnit, dataElement, categoryOptionCombo)` | **silently corrected in place**, undetectable |
+| aggregate values | same `(dataSet, period, orgUnit, dataElement, categoryOptionCombo)` | **corrected in place**; DHIS2 says nothing about it, and the run names every value it replaced |
 | aggregate completeness | same tuple | re-registered as `updated`; documented as safe |
 | tracker event | new receipt, so a new derived UID | **a duplicate event is created** |
 | registration | `$generate` mints fresh UIDs | **a duplicate person and enrollment** |
@@ -383,8 +392,8 @@ toggle. No amend, revise, resubmit, retract, void, or prefill-from-receipt.
 | `status: "amended"` | - | collapses to `COMPLETED`, forwarded as a brand-new event |
 | `status: "entered-in-error"` | - | refused as terminal and filed to `rejected/`; nothing is withdrawn from DHIS2 |
 
-Aggregate corrections work but are invisible. Tracker corrections are impossible. Withdrawal
-does not exist. None of it is written down.
+Aggregate corrections work, and every one of them is now named in the run that makes it. Tracker
+corrections are impossible. Withdrawal does not exist.
 
 ---
 
@@ -540,8 +549,10 @@ config key**, rather than accepting a submission the forwarder will never act on
 One honesty note about the corrections dial. It governs *marked* corrections. It does not,
 on its own, stop the accidental aggregate overwrite described in section 2.2, because that
 path carries no marker at all - a plain second capture of the same tuple. Making that path
-visible is a separate slice, and whether an unmarked overwrite should be refused outright
-while `corrections = "off"` is a question for the owner (decision D8).
+visible is slice 2, which is built: a drain names every aggregate value it sends that a
+forwarded receipt already sent, and the receipt that sent it. Whether an unmarked overwrite
+should also be *refused* outright while `corrections = "off"` remains a question for the
+owner (decision D8).
 
 ---
 
@@ -555,8 +566,8 @@ event leg does not. Registrations come after both, and the cascade comes last.
 
 | # | Slice | Depends on | Why here |
 | --- | --- | --- | --- |
-| 1 | **Name the current behaviour.** Docs and `features.md`: aggregate re-capture overwrites in place, tracker re-capture duplicates, a receipt cannot be withdrawn, and `d2w data tracker delete` is the raw escape hatch. No code. | - | The worst problem is that none of this is written down. |
-| 2 | **Report aggregate overwrites.** When a drain posts an aggregate cell a prior forwarded receipt already covered, say so in the run report. Spool-local; no wire change, no config. | 1 | Turns a silent clobber into a visible one. DHIS2 cannot tell us, so the spool must. |
+| 1 | **[SHIPPED] Name the current behaviour.** Docs and `features.md`: aggregate re-capture overwrites in place, tracker re-capture duplicates, a receipt cannot be withdrawn, and `d2w data tracker delete` is the raw escape hatch. No code. | - | The worst problem is that none of this is written down. |
+| 2 | **[SHIPPED] Report aggregate overwrites.** When a drain posts an aggregate cell a prior forwarded receipt already covered, say so in the run report. Spool-local; no wire change, no config. | 1 | Turns a silent clobber into a visible one. DHIS2 cannot tell us, so the spool must. |
 | 3 | **Both dials, defaulting off.** `[forward] corrections` and `[forward] withdrawals` on `ForwardConfig`, matching CLI flags, and capture-time 422 refusals naming the key. | - | Control ships before capability. |
 | 4 | **Withdraw an event, CLI only.** `d2w fhir withdraw <response-id>`: read the receipt, recompute `receipt_event_uid`, post `importStrategy=DELETE`, write the sidecar, move the receipt to `withdrawn/`. | 3 | The smallest slice that delivers real capability - one object, no cascade, no wire-contract change. Introduces the fourth state. |
 | 5 | **`basedOn` on the wire.** Parse it, resolve the chain to its root, refuse an `amended` or `entered-in-error` receipt whose `basedOn` names nothing this spool forwarded. No strategy change yet. | 3 | The correction is recorded and validated before it is applied. |
@@ -603,7 +614,9 @@ contains, listed so that disagreeing with one is easy.
 - **D7 - The spool is documented as the provenance guarantee**, in place of DHIS2's audit
   trail, which the toolkit does not rely on.
 - **D8 - What happens to an unmarked aggregate overwrite while `corrections = "off"`.** Slice
-  2 makes it visible either way. The open question is whether a drain should also *refuse* to
+  2 is built, so the visibility half is settled: every such cell is named, with the receipt
+  that covered it and when that receipt arrived, on a dry run as well as on an import. The
+  open question is unchanged and still the owner's - whether a drain should also *refuse* to
   post an aggregate cell a prior forwarded receipt already covered, or continue to let it
   through as it does today.
 - **D9 - Whether slice 12 is ever built.** Enrollment and tracked-entity withdrawal is
