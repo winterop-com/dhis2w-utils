@@ -107,7 +107,11 @@ terminology = false
 host = "127.0.0.1"                  # this computer only; changing it opens the server up -> 301-serving#host
 port = 8080                         # a local dev DHIS2 commonly owns 8080; port = 8090 avoids the clash -> 301-serving#port
 strict_codes = false                # true refuses an out-of-list answer instead of warning -> 301-serving#strict_codes
+capture = true                      # false publishes the guide and receives nothing - the viewer posture -> 301-serving#capture
 ui = false                          # true also serves the data-entry screens at / -> 301-serving#ui
+# Where the received forms are kept, relative to this folder unless it starts with "/". The
+# forwarder drains this same directory. -> 301-serving#spool_dir
+spool_dir = ".serve/responses"
 
 [serve.tracked_entities]
 # What a live run answers about the instance's tracked entities; a compiled guide answers none
@@ -140,5 +144,7 @@ url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 # url = "https://tiles.example.org/satellite/{z}/{x}/{y}.jpg?api_key=YOUR_KEY"
 
 [forward]
-# What `d2w fhir forward` reads when this project holds no compiled guide. -> 301-serving#forward
+# How `d2w fhir forward` drains this project; a flag on the command line wins over these. -> 301-serving#forward
 live = true                         # false refuses instead, naming generate and sushi -> 301-serving#live
+import = false                      # true makes a bare forward commit; false is the dry run -> 301-serving#import
+register_completeness = true        # false imports the values and marks no data set complete -> 301-serving#register_completeness

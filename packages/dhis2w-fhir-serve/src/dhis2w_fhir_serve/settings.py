@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from dhis2w_fhir.config import DEFAULT_BASEMAPS, BasemapSource, TrackedEntitiesConfig
+from dhis2w_fhir.spool import SPOOL_RELATIVE_PATH
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir_serve.capture.validate import DEFAULT_STRICT_CODES
@@ -22,9 +23,21 @@ class ServeSettings(BaseModel):
     `strict_codes` is the runtime source every capture is validated against; the default it
     starts from lives with the capture path, in `capture.validate.DEFAULT_STRICT_CODES`.
 
+    `capture` is whether this process receives submissions. It comes off `[serve] capture` and no
+    flag overrides it, for the reason `tracked_entities` states below: it changes what `/metadata`
+    declares, which is this server's contract rather than a property of one invocation. False mounts
+    a refusal in place of the create route, drops `create` from the QuestionnaireResponse entry, and
+    tells the screens not to offer a Submit. Everything else about that resource type stays: the
+    receipts already on disk are read, searched, and counted exactly as they were.
+
     `ui` serves the built capture UI at `/`, same-origin with the FHIR routes it talks to. It is
     off by default: a facade is an endpoint first, and a process answering `/metadata` for a
     scripted client has no reason to also hold a React bundle open.
+
+    `spool_dir` is where the receipt tree lives, off `[serve] spool_dir` - relative to the project
+    root unless it is absolute. It is resolved through `dhis2w_fhir.spool.resolve_spool_root`, the
+    same function `d2w fhir forward` resolves it through, because the writer and the drainer landing
+    on two different directories would be a receipt nothing ever forwards.
 
     `basemaps` are the raster tile layers the UI's organisation-unit map offers under the
     boundaries, first one first, and an empty list offers none. They live here rather than being
@@ -52,7 +65,9 @@ class ServeSettings(BaseModel):
     live: bool = False
     profile: str | None = None
     strict_codes: bool = DEFAULT_STRICT_CODES
+    capture: bool = True
     ui: bool = False
+    spool_dir: str = SPOOL_RELATIVE_PATH
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
     dhis2_base_url: str | None = None
     tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)

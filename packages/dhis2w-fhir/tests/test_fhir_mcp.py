@@ -61,8 +61,8 @@ async def test_registers_the_two_data_shaped_tools() -> None:
     assert forward is not None and forward.readOnlyHint is False and forward.destructiveHint is False
 
 
-async def test_forward_defaults_to_a_dry_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """The tool an agent reaches for first cannot change the instance: `dry_run` defaults to True."""
+async def test_forward_states_no_posture_of_its_own(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """An unstated dial reaches the service as unstated, so `[forward]` decides it - and it decides dry."""
     project = _project(tmp_path, monkeypatch)
     report = ForwardReport(project_root=project, dry_run=True, coded_answer_mode=CodedAnswerMode.LENIENT, spooled=0)
     mock = AsyncMock(return_value=report)
@@ -71,9 +71,9 @@ async def test_forward_defaults_to_a_dry_run(monkeypatch: pytest.MonkeyPatch, tm
             result = await client.call_tool("fhir_forward", {})
     assert mock.await_args is not None
     assert mock.await_args.kwargs == {
-        "import_responses": False,
+        "import_responses": None,
         "coded_answer_mode": None,
-        "register_completeness": True,
+        "register_completeness": None,
     }
     structured = result.structured_content or {}
     assert structured.get("dry_run") is True
@@ -94,7 +94,7 @@ async def test_forward_commits_and_takes_the_code_dial(monkeypatch: pytest.Monke
     assert mock.await_args.kwargs == {
         "import_responses": True,
         "coded_answer_mode": CodedAnswerMode.STRICT,
-        "register_completeness": True,
+        "register_completeness": None,
     }
 
 

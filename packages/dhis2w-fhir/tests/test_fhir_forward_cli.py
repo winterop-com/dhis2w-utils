@@ -147,12 +147,15 @@ def _invoke(arguments: list[str], report: ForwardReport) -> tuple[Any, AsyncMock
 def test_a_bare_run_is_a_dry_run_and_says_so_twice(forward_project: Path) -> None:
     """The mode opens and closes the output, and the table names it too - nothing reads as an import.
 
+    A bare run states no posture at all - the flag is absent, so `[forward] import` decides, which
+    is `False` until a project says otherwise - and what the run renders is the report it got back.
+
     The run holds a rejection DHIS2 named, which is what makes it exit 1.
     """
     result, mock = _invoke(["--no-progress"], _report(forward_project))
     assert result.exit_code == 1, result.output
     assert mock.await_args is not None
-    assert mock.await_args.kwargs["import_responses"] is False
+    assert mock.await_args.kwargs["import_responses"] is None
     assert result.output.count("DRY RUN") >= 3
     assert "validate-only" in result.output
     assert "--import to commit" in result.output
@@ -288,11 +291,31 @@ def test_the_completeness_flag_reaches_the_service(forward_project: Path, flag: 
     assert mock.await_args.kwargs["register_completeness"] is expected
 
 
-def test_completeness_is_registered_by_default(forward_project: Path) -> None:
-    """A bare run registers what the responses claim, because claiming it is what `completed` means."""
+def test_completeness_is_left_to_the_project_when_no_flag_states_it(forward_project: Path) -> None:
+    """A bare run states nothing, so `[forward] register_completeness` decides - and it registers by default."""
     _, mock = _invoke(["--no-progress"], _report(forward_project))
     assert mock.await_args is not None
-    assert mock.await_args.kwargs["register_completeness"] is True
+    assert mock.await_args.kwargs["register_completeness"] is None
+
+
+def test_the_completeness_flag_reaches_the_service_both_ways(forward_project: Path) -> None:
+    """A stated flag is the one thing that outranks the project, and it has to carry `False` as a value."""
+    _, off = _invoke(["--no-progress", "--no-register-completeness"], _report(forward_project))
+    _, on = _invoke(["--no-progress", "--register-completeness"], _report(forward_project))
+    assert off.await_args is not None
+    assert on.await_args is not None
+    assert off.await_args.kwargs["register_completeness"] is False
+    assert on.await_args.kwargs["register_completeness"] is True
+
+
+def test_the_import_flag_reaches_the_service_both_ways(forward_project: Path) -> None:
+    """`--import` and `--dry-run` are both statements, and the run has to tell them from silence."""
+    _, importing = _invoke(["--no-progress", "--import"], _report(forward_project, dry_run=False))
+    _, dry = _invoke(["--no-progress", "--dry-run"], _report(forward_project))
+    assert importing.await_args is not None
+    assert dry.await_args is not None
+    assert importing.await_args.kwargs["import_responses"] is True
+    assert dry.await_args.kwargs["import_responses"] is False
 
 
 def test_the_summary_states_what_became_of_the_completeness_claims(forward_project: Path) -> None:

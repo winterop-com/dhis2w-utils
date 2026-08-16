@@ -199,6 +199,26 @@ class NotAnEndpointError(ServeError):
         self.path = path
 
 
+class CaptureDisabledError(ServeError):
+    """This server publishes its guide and receives nothing: `[serve] capture` is false.
+
+    405 rather than 404, because the path is served - a client may read and search the receipts this
+    project already holds at the very address it may not post to - and the create interaction is the
+    one thing gone. The config key is named for the reason `RegisterDisabledError` names its own: an
+    operator reading it should see a decision this project wrote down, not a missing feature.
+    """
+
+    status_code = 405
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str) -> None:
+        super().__init__(
+            f"this server receives no {resource_type}: this project sets `[serve] capture` to false, so it "
+            "serves its guide and stores nothing new; set it true in fhir.toml and serve again to capture"
+        )
+        self.resource_type = resource_type
+
+
 class MethodNotAllowedError(ServeError):
     """The path is served, but not for that HTTP method."""
 

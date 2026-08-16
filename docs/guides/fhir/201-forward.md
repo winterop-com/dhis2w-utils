@@ -65,11 +65,35 @@ whole spool. A dry run **moves nothing**: the queue after it is the queue
 before it, so the natural workflow is to run it until it is clean and then
 run the same command with `--import`.
 
+### Where a run's posture comes from
+
+Two things decide how a drain behaves before you type anything: whether it
+writes, and whether a finished aggregate form also marks its data set
+complete. Each is settled the same way - **the flag, then the project, then
+the default**:
+
+| Stated where | Writes to DHIS2 | Marks data sets complete |
+| --- | --- | --- |
+| `--import` / `--dry-run` on the command line | that, for this run | - |
+| `--register-completeness` / `--no-register-completeness` | - | that, for this run |
+| `[forward] import` in `fhir.toml` | that, for every bare run | - |
+| `[forward] register_completeness` | - | that, for every bare run |
+| nothing at all | dry run | marks them |
+
+A project whose drains are routine states `import = true` once and stops
+typing the flag; a run that means to check rather than to write says
+`--dry-run` and gets a check whatever the file says. Both keys are documented
+in full at [`[forward]`](301-serving.md#forward). The MCP tool `fhir_forward`
+resolves its `dry_run` and `register_completeness` through exactly the same
+order, because both edges call one service.
+
 ## What one run does
 
 Seven steps, each narrated on stderr:
 
-1. **Read the spool** - every `.serve/responses/received/*.json`, in
+1. **Read the spool** - every `received/*.json` under the folder the project
+   keeps its receipts in (`.serve/responses` unless
+   [`[serve] spool_dir`](301-serving.md#spool_dir) says otherwise), in
    file-name order.
 2. **Read the guide** - the same two trees `d2w fhir serve` loads. A project
    holding no compiled guide has one built off the instance instead, by the
@@ -193,7 +217,10 @@ The registration is a **second write, made only after DHIS2 has taken the
 values**. A completeness claim about data the instance refused would be a lie,
 so a rejected import registers nothing at all. `--no-register-completeness`
 turns the second write off for a whole run, and the report says
-`not-registered` for every response that would have made one.
+`not-registered` for every response that would have made one. A deployment
+where marking a data set complete is somebody else's decision states
+`register_completeness = false` in `[forward]` once instead
+([`register_completeness`](301-serving.md#register_completeness)).
 
 The `Data set completeness` row of the summary counts the run, and step six
 of the narration says which of three things happened - `5 report(s) would be
@@ -207,7 +234,7 @@ each response claimed.
 | `registered` | DHIS2 took the registration; the data set is complete for that tuple |
 | `would-register` | a dry run: the tuple a `completed` response would register |
 | `not-claimed` | the response reports itself `in-progress` |
-| `not-registered` | the run ran under `--no-register-completeness` |
+| `not-registered` | the run registered nothing - `--no-register-completeness`, or `[forward] register_completeness = false` |
 | `refused` | the values imported and DHIS2 refused the registration |
 
 **A refused registration does not un-import the values.** They are imported and
@@ -294,8 +321,10 @@ holds a payload the spool still calls pending.
 
 ## One drain at a time
 
-A drain holds an exclusive lock on `.serve/responses/.drain.lock` for its
-whole run, and writes its own process id into the file. A second drain of the
+A drain holds an exclusive lock on `.drain.lock` in the receipts folder -
+`.serve/responses/.drain.lock` unless
+[`[serve] spool_dir`](301-serving.md#spool_dir) moved it - for its whole run,
+and writes its own process id into the file. A second drain of the
 same project fails immediately rather than waiting:
 
 ```console

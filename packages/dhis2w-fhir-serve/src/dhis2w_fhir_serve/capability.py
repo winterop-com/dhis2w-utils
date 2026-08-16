@@ -10,6 +10,11 @@ The QuestionnaireResponse entry is the one that says what the facade is: respons
 and stored as receipts. Reading one back returns the submission as it arrived, never a live view
 of what DHIS2 now holds.
 
+A process serving `[serve] capture = false` declares that entry without `create`, and with nothing
+else about it changed. The receipts it already holds are read and searched at the same address, so
+dropping their interactions would be this statement claiming less than the server does. `$generate`
+stays for the same reason: it reads a published form and answers with a draft, and writes nothing.
+
 The read set is the capture contract's read types plus ConceptMap. The IG's `kind #requirements`
 statement names the resources a capture *client* resolves a form from, and ConceptMap is not one of
 them - it is what a forwarder reads a concept back into DHIS2 identifiers with. This installation
@@ -137,9 +142,18 @@ QUESTIONNAIRE_SEARCH_DOCUMENTATION = (
 #: What the QuestionnaireResponse entry states about the resources it holds.
 RESPONSE_DOCUMENTATION = "One response per request; stored responses are receipts of what was submitted"
 
+#: What that entry states instead on a server that receives nothing, since "one per request" would
+#: describe an interaction this process refuses.
+RESPONSE_VIEWER_DOCUMENTATION = "Stored responses are receipts of what was submitted; this server receives no new ones"
+
 _REST_DOCUMENTATION = (
     "One QuestionnaireResponse per request on create; every other interaction is a read over the "
     "resources this project publishes."
+)
+
+_VIEWER_REST_DOCUMENTATION = (
+    "Every interaction is a read - over the resources this project publishes, and over the responses "
+    "it has already received."
 )
 
 
@@ -155,7 +169,7 @@ def build_server_capability(
     names = FoundationNaming.from_naming(project.config.generate.naming)
     store_mode = "live" if settings.live else "compiled"
     resources = [
-        _response_resource(project, canonical),
+        _response_resource(project, canonical, capture=settings.capture),
         *(
             _read_resource(resource_type, project.config.generate.identifier_system_base, canonical, names)
             for resource_type in SERVED_READ_RESOURCE_TYPES
@@ -185,7 +199,7 @@ def build_server_capability(
         rest=[
             CapabilityStatementRest(
                 mode="server",
-                documentation=_REST_DOCUMENTATION,
+                documentation=_REST_DOCUMENTATION if settings.capture else _VIEWER_REST_DOCUMENTATION,
                 resource=resources,
             )
         ],
@@ -283,20 +297,21 @@ def _operations(
     return None
 
 
-def _response_resource(project: FhirProject, canonical: str) -> CapabilityStatementResource:
-    """Declare the capture type: create, read, search, and the response profiles this server captures.
+def _response_resource(project: FhirProject, canonical: str, *, capture: bool) -> CapabilityStatementResource:
+    """Declare the capture type: create where this server receives, read and search either way.
 
     The profiles are `CAPTURED_FORM_KINDS` resolved through the project's own naming, which is the
     same list `d2-capture-server.fsh` declares - a statement of what this facade both validates on
-    receipt and translates into a DHIS2 payload on forward.
+    receipt and translates into a DHIS2 payload on forward. They stay declared with capture off,
+    because they are what the receipts on disk conform to and a client reading one still resolves them.
     """
     declarations = build_captured_response_profile_declarations(project.config.generate)
     return CapabilityStatementResource(
         type=QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE,
         supportedProfile=[f"{canonical}/StructureDefinition/{declaration.profile_id}" for declaration in declarations],
-        documentation=RESPONSE_DOCUMENTATION,
+        documentation=RESPONSE_DOCUMENTATION if capture else RESPONSE_VIEWER_DOCUMENTATION,
         interaction=[
-            CapabilityStatementInteraction(code="create"),
+            *([CapabilityStatementInteraction(code="create")] if capture else []),
             CapabilityStatementInteraction(code="read"),
             CapabilityStatementInteraction(code="search-type"),
         ],

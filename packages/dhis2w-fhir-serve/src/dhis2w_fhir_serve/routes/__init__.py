@@ -12,6 +12,10 @@ is a property of the guide this process loaded, so the read router dispatches to
 `dhis2w_fhir_serve.routes.register` at request time instead of a router claiming paths that could
 only be named once the store was open.
 
+`capture` picks which router claims `POST /QuestionnaireResponse`: the create route, or the refusal
+that names `[serve] capture = false`. One of the two is always mounted, so the address never falls
+through to the read catch-all - which would answer the same 405 without saying why.
+
 The capture UI sits on both sides of that line, which is why `serve_ui` is an argument here rather
 than something the UI module could arrange for itself. Its asset tree is a fixed path and mounts
 with the other fixed paths, ahead of the catch-alls that would otherwise claim
@@ -36,7 +40,7 @@ from fastapi.routing import APIRoute
 __all__ = ["register_routes"]
 
 
-def register_routes(app: FastAPI, serve_ui: bool = False) -> None:
+def register_routes(app: FastAPI, serve_ui: bool = False, capture: bool = True) -> None:
     """Mount the facade's routes: fixed paths first, the read catch-alls next, the UI shell last.
 
     The routers are imported here rather than at module scope: a route module reaches the serve
@@ -44,6 +48,7 @@ def register_routes(app: FastAPI, serve_ui: bool = False) -> None:
     the route modules from this package's body would close the cycle.
     """
     from dhis2w_fhir_serve.metadata import router as metadata_router
+    from dhis2w_fhir_serve.routes.capture import refusal_router as capture_refusal_router
     from dhis2w_fhir_serve.routes.capture import router as capture_router
     from dhis2w_fhir_serve.routes.enrollments import router as enrollments_router
     from dhis2w_fhir_serve.routes.generate import router as generate_router
@@ -59,7 +64,7 @@ def register_routes(app: FastAPI, serve_ui: bool = False) -> None:
         mount_ui_assets(app)
     fhir_routers: tuple[APIRouter, ...] = (
         metadata_router,
-        capture_router,
+        capture_router if capture else capture_refusal_router,
         build_root_router(serve_ui),
         translate_router,
         generate_router,

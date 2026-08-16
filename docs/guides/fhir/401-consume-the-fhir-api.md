@@ -713,7 +713,26 @@ generated against: ``` followed by what stopped it.
 
 ## Posting a capture
 
-`POST /QuestionnaireResponse` is the only write. The body has to be JSON - a
+`POST /QuestionnaireResponse` is the only write, and a server may decline to
+offer it. A project serving `[serve] capture = false`
+([`capture`](301-serving.md#capture)) refuses every submission with **405** and
+names the key that decided it, while every read on the same resource type keeps
+answering:
+
+```console
+$ curl -s -X POST localhost:8389/QuestionnaireResponse \
+    -H 'Content-Type: application/fhir+json' --data-binary @response.json
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this server receives no QuestionnaireResponse: this project sets `[serve] capture` to false, so it serves its guide and stores nothing new; set it true in fhir.toml and serve again to capture"}]}
+```
+
+Such a server says so before it is asked: its `/metadata` declares `read` and
+`search-type` on QuestionnaireResponse and no `create`, so a client that reads
+the statement first never posts. `$generate` is unaffected - it reads a
+published form and answers with a draft - and so are the receipts already
+stored, which are read, searched, and counted exactly as below. Everything that
+follows is a server that receives.
+
+The body has to be JSON - a
 `Content-Type` that is not `application/fhir+json`, `application/json`, or
 something ending `+json` is a **415** before the body is read at all:
 
@@ -852,10 +871,11 @@ between - see [Forward captures into DHIS2](201-forward.md).
 
 ## `/uiconfig`: what the UI is allowed to know
 
-The handful of run-time settings the capture UI has to act on - today, the
-basemap layers this run offers with the attribution the server can honestly
-state for each, the address of the DHIS2 instance it resolved a profile for,
-which is what an identity on a page links back to, and whether this run answers
+The handful of run-time settings the capture UI has to act on - today, whether
+this run receives submissions at all, the basemap layers it offers with the
+attribution the server can honestly state for each, the address of the DHIS2
+instance it resolved a profile for, which is what an identity on a page links
+back to, and whether this run answers
 about the instance's tracked entities at all. Deliberately not the profile's
 name, its credentials, the
 host this process listens on, or the strictness dial: those describe the process
@@ -865,6 +885,7 @@ leaks them.
 ```console
 $ curl -s localhost:8389/uiconfig | jq .
 {
+  "capture": true,
   "basemaps": [
     {
       "name": "OpenStreetMap",
@@ -883,6 +904,16 @@ $ curl -s localhost:8389/uiconfig | jq .
   }
 }
 ```
+
+`capture` is `[serve] capture` as this run resolved it, and the screens gate
+their **Submit** on it: false, and a form still opens and fills and reads, with
+the sentence *This server does not accept submissions* where the button was.
+The CapabilityStatement says the same thing in its own terms; this field is
+here so a screen decides what to draw without parsing a conformance document.
+A server that states nothing is read as receiving, which is the opposite of how
+`tracked_entities` reads silence - a page nobody is offered is a page nobody
+misses, while withholding the one control these screens exist for, over a
+setting the browser could not read, would take the app away.
 
 `basemaps` is `[]` when this run offers no tiles, and `dhis2_base_url` is
 `null` when it resolved no profile. Both are states the UI renders rather than

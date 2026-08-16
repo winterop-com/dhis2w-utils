@@ -10021,6 +10021,9 @@ Received QuestionnaireResponses are stored as receipts, so reading one back says
 
 Host, port, strict codes, the UI, and the basemaps come from `[serve]` in fhir.toml unless a flag overrides them.
 
+Two more `[serve]` keys have no flag: `capture = false` serves the guide and receives nothing, and
+`spool_dir` says where the receipts live - the same directory `d2w fhir forward` drains.
+
 **Usage**:
 
 ```console
@@ -10048,7 +10051,11 @@ Drain the capture spool into DHIS2 - translate every received response and post 
 DRY RUN IS THE DEFAULT. Every payload is posted to the real instance under the endpoint&#x27;s own
 validate-only mode, so DHIS2&#x27;s rules decide the answer and nothing is written; `--import` commits.
 
-An imported response moves from .serve/responses/received/ to forwarded/, a DHIS2-rejected one to
+The posture comes from `[forward]` in fhir.toml - `import` and `register_completeness` - unless
+a flag here overrides it for this run, and from the defaults above when the file states neither.
+Which spool is drained is `[serve] spool_dir`, the same key the server writes receipts under.
+
+An imported response moves from the spool&#x27;s received/ to forwarded/, a DHIS2-rejected one to
 rejected/ beside a report, and a translator-refused one stays put - fix and forward again.
 
 Every payload names its own DHIS2 object - an event&#x27;s UID is derived from the receipt&#x27;s logical id -
@@ -10077,9 +10084,9 @@ $ d2w fhir forward [OPTIONS] [directory]
 
 **Options**:
 
-* `--import / --dry-run`: Commit the payloads to DHIS2 and move the receipts. The default is a dry run: every payload still goes to the real endpoint under its own validate-only mode, and nothing is written and nothing moves.  [default: dry-run]
+* `--import / --dry-run`: Commit the payloads to DHIS2 and move the receipts, overriding `[forward] import`. The default is a dry run: every payload still goes to the real endpoint under its own validate-only mode, and nothing is written and nothing moves.
 * `--strict-codes / --no-strict-codes`: Refuse a coded answer whose code is outside the served terminology, overriding `[serve] strict_codes`. Lenient resolves the DHIS2 option UID and code too, and notes it.
-* `--register-completeness / --no-register-completeness`: Register the data set complete for every aggregate response whose status is `completed`, once DHIS2 has taken its values. On by default - the response said it was finished.  [default: register-completeness]
+* `--register-completeness / --no-register-completeness`: Register the data set complete for every aggregate response whose status is `completed`, once DHIS2 has taken its values, overriding `[forward] register_completeness`. On by default - the response said it was finished.
 * `--details`: Print every response&#x27;s outcome instead of writing them to the report.
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.

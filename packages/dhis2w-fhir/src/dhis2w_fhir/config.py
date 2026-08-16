@@ -31,6 +31,7 @@ from dhis2w_fhir.resources.examples.schemas import ExampleSelection
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetSelection
 from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitSelection
 from dhis2w_fhir.resources.questionnaires.schemas import TargetSelection
+from dhis2w_fhir.spool import SPOOL_RELATIVE_PATH
 from dhis2w_fhir.status import IgStatus
 
 FHIR_CONFIG_FILENAME = "fhir.toml"
@@ -339,6 +340,24 @@ class ServeConfig(BaseModel):
     table that makes the browser talk to anybody else, which is why it is stated rather than
     inferred.
 
+    `capture` is whether this server receives submissions at all. True - the default - mounts the
+    create route, declares `create` on QuestionnaireResponse in `/metadata`, and lets the capture
+    screens submit. False is the viewer posture: the guide is published, read, searched, and
+    `$generate`d against, and nothing is received. `$generate` stays because it is a read of a
+    published form that happens to answer with a draft, and writes nothing here.
+
+    THE RECEIPTS STAY READABLE WITH CAPTURE OFF. `read` and `search-type` on QuestionnaireResponse
+    are untouched by this dial, and so is `GET /spool`. The receipts a project already holds are as
+    true as they were, and a server that stopped answering for them would make every id it handed
+    out at capture time expire on the day somebody edited one line of this file. Only `create` goes.
+
+    `spool_dir` is where the receipt tree lives - `received/`, `forwarded/`, `rejected/`, and the
+    `malformed/` holding pen beside them. A relative path is resolved against the project root; an
+    absolute one is taken as written. It is a `[serve]` key because the spool belongs to the serve
+    surface - this server is what writes it - and `d2w fhir forward` reads the same key rather than
+    carrying a spool location of its own, so the process that writes a receipt and the process that
+    drains it can never disagree about where it is.
+
     `[serve.tracked_entities]` is the register: whether the instance's tracked entities are served at
     all, whether they can be listed rather than only searched for, and how a listing is paged. It is
     the one part of this table that says what a live run will tell a client about the instance behind
@@ -350,9 +369,22 @@ class ServeConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8080
     strict_codes: bool = False
+    capture: bool = True
     ui: bool = False
+    spool_dir: str = SPOOL_RELATIVE_PATH
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
     tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)
+
+    @field_validator("spool_dir")
+    @classmethod
+    def _names_a_directory(cls, value: str) -> str:
+        """An empty spool directory names nothing, and a project that states one has to mean it."""
+        if value.strip() == "":
+            raise ValueError(
+                "spool_dir is empty: name a directory the receipts live in, relative to the project "
+                f"root or absolute, or leave the key out for {SPOOL_RELATIVE_PATH!r}"
+            )
+        return value
 
 
 def basemaps_from_options(values: list[str]) -> list[BasemapSource]:
@@ -391,11 +423,30 @@ class ForwardConfig(BaseModel):
     builds its IG never pays it. Turned off, a drain against a project with no compiled guide is
     refused and says which two commands produce one - which is the posture for a deployment that
     wants its forwards reading a reviewed, published guide and nothing else.
+
+    `import` is the posture every drain of this project runs in when the command line says nothing.
+    False - the default - is a dry run: every payload still goes to the real endpoint under that
+    endpoint's own validate-only mode, so DHIS2 decides the answer while nothing is written and no
+    receipt moves. True makes the bare `d2w fhir forward` of this project commit, which is what a
+    project whose drains are routine states once rather than remembering `--import` every time. The
+    field is `import_responses` in Python because `import` is a Python keyword; the key in the file
+    is `import`, and the file accepts no other spelling of it.
+
+    `register_completeness` is the second write an aggregate response asks for. An aggregate
+    submission reporting itself `completed` marks its data set complete for the very tuple its
+    values landed under, once DHIS2 has taken them. True - the default - honours that; false leaves
+    the values imported and registers nothing, which is the posture for a deployment where
+    completeness is somebody else's decision to record.
+
+    A flag on the command line wins over both keys for one run, and either key wins over these
+    defaults - the same order `[serve]` states for its own dials.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     live: bool = True
+    import_responses: bool = Field(default=False, alias="import")
+    register_completeness: bool = True
 
 
 class FhirProjectConfig(BaseModel):
@@ -485,7 +536,10 @@ def _unknown_key_diagnostic(location: tuple[int | str, ...]) -> str:
     model = _config_table_at(location[:-1])
     if model is None:
         return diagnostic
-    matches = difflib.get_close_matches(key, list(model.model_fields), n=1, cutoff=_SUGGESTION_CUTOFF)
+    # The names the file declares, which is the alias wherever a table has one: suggesting the
+    # Python field name would answer a misspelling with a second name the file also refuses.
+    declared = [field.alias or name for name, field in model.model_fields.items()]
+    matches = difflib.get_close_matches(key, declared, n=1, cutoff=_SUGGESTION_CUTOFF)
     if not matches:
         return diagnostic
     return f"{diagnostic}\n  did you mean {matches[0]!r}?"
@@ -513,9 +567,14 @@ def load_fhir_config(path: Path) -> FhirProjectConfig:
 
 
 def write_fhir_config(path: Path, config: FhirProjectConfig) -> None:
-    """Write a `fhir.toml` with default permissions - it is committed project config, not a credential store."""
+    """Write a `fhir.toml` with default permissions - it is committed project config, not a credential store.
+
+    Written under the keys the file declares rather than the Python field names, so what is written
+    is what `load_fhir_config` reads back: `[forward] import` is `import_responses` in Python only
+    because the file's own name for it is a keyword there.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(tomli_w.dumps(config.model_dump(exclude_none=True)), encoding="utf-8")
+    path.write_text(tomli_w.dumps(config.model_dump(exclude_none=True, by_alias=True)), encoding="utf-8")
 
 
 def _basemap_from_option(value: str) -> BasemapSource:

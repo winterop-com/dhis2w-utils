@@ -151,6 +151,21 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     assert config.serve.host == "127.0.0.1"
     assert config.serve.port == 8080
     assert config.serve.strict_codes is False
+    assert config.serve.capture is True
+    assert config.serve.spool_dir == ".serve/responses"
+    assert config.forward.live is True
+    assert config.forward.import_responses is False
+    assert config.forward.register_completeness is True
+
+
+def test_fhir_toml_example_catalogues_the_posture_dials_under_their_own_names() -> None:
+    """Each dial is one copyable line carrying its default, and `import` is spelled as the file takes it."""
+    example = _by_path()["fhir.toml.example"]
+    assert "capture = true" in example
+    assert 'spool_dir = ".serve/responses"' in example
+    assert "import = false" in example
+    assert "import_responses" not in example
+    assert "register_completeness = true" in example
 
 
 #: A commented-out option line of the example file: `# key = value`, or `# "UID" = "Type"` in the
