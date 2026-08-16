@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from _fixture import aggregate_form_id, example_project
+from _fixture import aggregate_form_id, capture_store, example_project
 from dhis2w_fhir import load_project
 from dhis2w_fhir.r4 import Extension, Period, QuestionnaireResponse, Reference
 from dhis2w_fhir_serve.capture import (
@@ -41,7 +41,7 @@ from dhis2w_fhir_serve.capture import (
     ValidatedCapture,
     validate_response,
 )
-from dhis2w_fhir_serve.store import ResourceStore, SearchQuery, load_compiled_store
+from dhis2w_fhir_serve.store import ResourceStore, SearchQuery
 
 ReportStatus = Literal["completed", "in-progress"]
 """The two states this example submits a data set report in: finished, and still being filled in."""
@@ -102,7 +102,7 @@ def main() -> None:
     """Check one report that clears the contract and one that does not, without sending either."""
     project = load_project(example_project())
     naming = CaptureNaming.from_project(project)
-    store = load_compiled_store(project)
+    store = capture_store()
     indexes = CaptureIndexCache()
 
     form = store.by_type_and_id("Questionnaire", aggregate_form_id())

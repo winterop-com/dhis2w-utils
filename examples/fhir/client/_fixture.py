@@ -172,6 +172,29 @@ def conversion_context() -> ConversionContext:
         return context
 
 
+def capture_store() -> Any:
+    """The served resource store, built off the instance - what the capture contract is checked against.
+
+    The same store a `--live` facade holds, built here in-process so an example can run the check
+    without a server and without a SUSHI compile. `load_compiled_store` reads
+    `ig/fsh-generated/resources`, which this fixture deliberately never writes.
+    """
+    from dhis2w_fhir import load_project
+    from dhis2w_fhir_serve.live import build_live_store, open_live_client
+    from dhis2w_fhir_serve.settings import ServeSettings
+
+    project_root = example_project()
+
+    async def build() -> Any:
+        project = load_project(project_root)
+        settings = ServeSettings(project_dir=project_root, live=True)
+        async with open_live_client(project, settings) as client:
+            return await build_live_store(project, settings, client)
+
+    with _BUILD_LOCK:
+        return _run_coroutine(build())
+
+
 def served_facade() -> str:
     """Base URL of a facade serving that project, started on first use and stopped at exit."""
     global _facade_base_url

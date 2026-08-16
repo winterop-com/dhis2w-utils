@@ -1,9 +1,13 @@
 """Capture against a facade from a stack that has never heard of DHIS2 tooling - httpx and a JSON body.
 
-Nothing in this file imports anything of this project's. That is the point: a facade is an ordinary
-HTTP endpoint taking an ordinary JSON document, and the document below is short enough to rewrite in
-Kotlin, C#, Go, or a shell script in an afternoon. Every DHIS2 concept a submission carries is
-annotated where it sits.
+Nothing that reads the form, builds the document, or posts it imports anything of this project's.
+That is the point: a facade is an ordinary HTTP endpoint taking an ordinary JSON document, and the
+document below is short enough to rewrite in Kotlin, C#, Go, or a shell script in an afternoon.
+Every DHIS2 concept a submission carries is annotated where it sits.
+
+The one exception is finding a server to talk to. Name `D2W_FHIR_EXAMPLE_FACADE` and this file
+imports nothing at all; leave it unset and it asks the fixture beside it for the address of the one
+that runs with these examples. That is a question about where a server is, not about how to use it.
 
 The two reads a client cannot skip, and why:
 
@@ -36,8 +40,12 @@ CREATED = 201
 DATA_SET = "BfMAe6Itzgt"
 """The DHIS2 data set being reported. A form is served under the UID of the object it came from."""
 
-ORGANISATION_UNIT = "ImspTQPwCqd"
-"""The DHIS2 organisation unit the report is for. Published as a Location, named as `Location/<uid>`."""
+ORGANISATION_UNIT = "y77LiPqLMoq"
+"""The DHIS2 organisation unit the report is for. Published as a Location, named as `Location/<uid>`.
+
+It has to be a unit the data set is actually assigned to: the facade accepts a capture reported
+anywhere the guide publishes, but DHIS2 refuses one outside the assignment with E1029 when the
+receipt is forwarded, and the facade says so in a warning on the 201."""
 
 
 def capture_body(guide: str, form_url: str, link_id: str) -> dict[str, Any]:
@@ -83,9 +91,26 @@ def first_question(items: list[dict[str, Any]]) -> dict[str, Any] | None:
     return None
 
 
+def facade_base_url() -> str:
+    """The facade to post to: the one an operator names, or the one the fixture stands up.
+
+    This is the only line of this file that knows the fixture exists, and it is about finding a
+    server rather than about talking to one - everything below is plain HTTP against an address,
+    which is the point of the file. Name `D2W_FHIR_EXAMPLE_FACADE` and nothing here imports
+    anything at all.
+    """
+    named = os.environ.get("D2W_FHIR_EXAMPLE_FACADE", "").strip()
+    if named:
+        return named.rstrip("/")
+    from _fixture import served_facade
+
+    started: str = served_facade()
+    return started.rstrip("/")
+
+
 async def main() -> None:
     """Read the form, post one filled copy of it, and print what the facade answered."""
-    base_url = os.environ.get("D2W_FHIR_EXAMPLE_FACADE", "http://127.0.0.1:8123").rstrip("/")
+    base_url = facade_base_url()
     async with httpx.AsyncClient(base_url=base_url, headers={"Accept": FHIR_JSON}, timeout=30.0) as client:
         form = await client.get(f"/Questionnaire/{DATA_SET}")
         if form.status_code != OK:
