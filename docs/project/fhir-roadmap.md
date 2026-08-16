@@ -55,9 +55,8 @@ models and ship no templates.
 | Module | Purpose |
 | --- | --- |
 | `__init__.py` | The one stable import surface: re-exports every component symbol with an explicit `__all__`. |
-| `plugin.py` | The `dhis2.plugins` entry-point descriptor - `register_cli` mounts `d2w fhir`, `register_mcp` registers `fhir_*`. |
+| `plugin.py` | The `dhis2.plugins` entry-point descriptor - `register_cli` mounts `d2w fhir`; the surface is CLI-only, so `register_mcp` registers nothing. |
 | `cli.py` | The Typer sub-app: `init` (including its `--refresh` mode), the bare `generate` and its seven named targets plus `generate load-set`, `validate`, and `serve` - the last guarding its `dhis2w_fhir_serve` import so an install without the `serve` extra gets an install instruction rather than an `ImportError`. |
-| `mcp.py` | The FastMCP registration - one tool, `fhir_validate`, annotated `readOnlyHint`. |
 | `service.py` | Orchestration: profile resolution, every DHIS2 fetch, the wire-to-projection mapping, geometry, and `GenerateReport` / `GenerateFullReport` / `LoadSetReport`. `fetch_live_ig_inputs` is the one cohesive fetch both `generate_full` and a live server run, and `generate_load_set` the volume twin of `generate_examples`. |
 | `config.py` | The `fhir.toml` document (`IgConfig`, `NamingConfig`, `GenerateConfig`, `FhirProjectConfig`, `FhirProject`) plus discovery, load, and save. |
 | `writer.py` | The generated-artifact contracts (`FshArtifact`, `FshBuild`, `JsonArtifact`, `JsonBuild`, `SyncReport`), the header-aware sync behind the FSH one, and the directory-owning `sync_json_artifacts` behind the JSON one. |
@@ -197,23 +196,22 @@ owns. `KeyboardInterrupt` exits 0: ctrl-c is how a server is stopped.
 `NoFhirProjectError` and falls back to the environment or the default profile
 with a default `GenerateConfig()`. The instance is the target, not the project.
 
-### 2.3 The MCP surface
+### 2.3 There is no MCP surface
 
-`mcp.py` registers exactly one tool.
+The plugin registers nothing on the MCP server: `register_mcp` is the method a
+CLI-only plugin has to carry, and it registers no tools.
 
-```
-fhir_validate(profile: str | None, project_directory: str | None, code_source: str | None) -> FhirValidationReport
-```
+Most of the surface could never have been tools. Every generate target, `init`,
+and `doctor` write a file tree onto whatever machine the MCP server happens to
+run on, which is the wrong shape for an agent protocol - the same judgment
+already applied to the browser plugin and the security audit runner - and
+`serve` binds a port and stays up, which is a process an operator starts.
 
-Annotated `ToolAnnotations(readOnlyHint=True)`. When `project_directory` is
-given it loads that project and resolves the profile against it; otherwise it
-goes through `resolve_validation_context`, the same project-optional path the
-CLI uses.
-
-Generation is CLI-only by design, and the module docstring states why: every
-generate target writes a file tree onto whatever machine the MCP server happens
-to run on, which is the wrong shape for an agent protocol - the same judgment
-already applied to the browser plugin and the security audit runner.
+`validate` and `forward` were the two that qualified, and they are gone for a
+different reason: each mirrored its command closely enough to add nothing an
+agent could not get by running the command. What an agent drives instead is the
+served facade, which answers FHIR over HTTP - a protocol of its own, and the
+one this toolchain is actually for.
 `generate pages` is explicitly no exception, because it writes markdown into
 `ig/input/pagecontent/`. The one data-shaped question - "are this instance's
 codes FHIR-safe?" - is a read, so it is the one tool.
@@ -304,7 +302,6 @@ profile and per-wire-version system-info mocking.
 | `test_fhir_generate_cli.py` | `CliRunner` over `d2w fhir generate`, service mocked. | 15 |
 | `test_fhir_geometry.py` | Geometry to position and boundary payload. | 7 |
 | `test_fhir_init_cli.py` | `CliRunner` over `d2w fhir init`, the `--refresh` mode included. | 18 |
-| `test_fhir_mcp.py` | The FastMCP `fhir_validate` surface. | 2 |
 | `test_fhir_names.py` | `names.py` helpers and the cnl-0 shape of every emitted FSH name. | 18 |
 | `test_fhir_organization.py` | Org-unit profile, terminology, and registry JSON emission, plus the registry-scale note. | 27 |
 | `test_fhir_pages.py` | The six site pages, the intros, markdown escaping. | 28 |
@@ -520,13 +517,14 @@ line; the build completes and QA reports zero errors. `d2w fhir validate` raises
 `template-hostile-name` on the name instead, which puts the fix where it
 belongs - in DHIS2.
 
-### 3.13 Generation is CLI-only; MCP exposes `fhir_validate` and `fhir_forward`
+### 3.13 The FHIR surface is CLI-only
 
-See section 2.3. The rule is that a tool which writes a file tree onto the MCP
-server's host is the wrong shape for an agent protocol - which is what keeps
-`init`, every `generate` target, `serve`, and `doctor` off MCP. The two tools that
-qualify are the two that read an instance and write only to it: `fhir_validate`
-(`readOnlyHint`) and `fhir_forward`, whose dry run is the default.
+See section 2.3. Two rules land in the same place. A tool that writes a file
+tree onto the MCP server's host is the wrong shape for an agent protocol, which
+rules out `init`, every `generate` target, and `doctor`, and `serve` binds a
+port besides. `validate` and `forward` break neither rule and are still not
+tools: a tool that mirrors its command earns nothing, and the agent-shaped
+surface this toolchain publishes is the served facade itself.
 
 ### 3.14 The scaffolded project is a uv project with a committed `uv.lock`
 
@@ -1264,8 +1262,7 @@ are constants. A rename of one of the two literal directories has to be found by
 grep.
 
 *Test blind spots.* Compare the 739 collected tests against the surface. Known
-thin spots to verify: `test_fhir_mcp.py` has 2 tests for the only MCP tool;
-`test_fhir_period.py` has 8 declarations covering 23 period types (parametrised,
+thin spots to verify: `test_fhir_period.py` has 8 declarations covering 23 period types (parametrised,
 so check what the parametrisation actually spans); there is no test file named
 for `service.py` itself - the service is exercised through
 `test_fhir_service_parity.py`, `test_fhir_questionnaires.py`, and
