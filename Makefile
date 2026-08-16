@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev build-frontend lint-frontend test-frontend e2e-frontend docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-client deps-upgrade clean dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev build-frontend lint-frontend test-frontend e2e-frontend docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-client deps-upgrade clean clean-artifacts dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -29,7 +29,8 @@ help:
 	@echo "  build            Build all workspace wheels (run build-frontend first, or the wheel ships no UI)"
 	@echo "  publish-client   Upload dhis2w-client wheel to PyPI (requires UV_PUBLISH_TOKEN env)"
 	@echo "  deps-upgrade     Re-resolve uv.lock to pick up newer versions"
-	@echo "  clean            Remove caches, build artifacts, coverage output"
+	@echo "  clean            Remove caches, build artifacts, coverage output, and run artifacts"
+	@echo "  clean-artifacts  Remove run artifacts alone: reports, screenshots, browser state"
 	@echo ""
 	@echo "Capture UI (needs node + pnpm; not part of lint/test):"
 	@echo "  frontend-dev     Vite dev server, proxying FHIR calls to \$$(SERVE_TARGET) (default :8080)"
@@ -372,7 +373,7 @@ refresh-and-verify:
 	@set -a; . infra/home/credentials/.env.auth; set +a; \
 		DHIS2_VERSION=$(or $(DHIS2_VERSION),v42) $(UV) run python -u infra/scripts/verify_examples.py
 
-clean:
+clean: clean-artifacts
 	@echo ">>> Cleaning"
 	@find . -type f -name "*.pyc" -delete
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
@@ -382,5 +383,14 @@ clean:
 	@rm -rf .coverage htmlcov coverage.xml
 	@rm -rf .pyright
 	@rm -rf dist build site
+
+clean-artifacts:
+	@echo ">>> Removing run artifacts (reports, screenshots, browser and property-test state)"
+	@rm -rf dhis2-security-*/ reports/dhis2-security-*/
+	@rm -rf .hypothesis .playwright-mcp
+	@rm -rf packages/dhis2w-fhir-serve/frontend/test-results
+	@rm -rf packages/dhis2w-fhir-serve/frontend/playwright-report
+	@find . -maxdepth 1 -type f -name "*.png" -delete
+	@echo "    the working tree holds no run output; regenerate any of it by re-running its command"
 
 .DEFAULT_GOAL := help

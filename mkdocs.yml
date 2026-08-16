@@ -227,7 +227,6 @@ nav:
   - Project:
       - Overview: project/index.md
       - Feature catalog: project/features.md
-      - Changelog: project/changelog.md
       - Upstream DHIS2 quirks: project/upstream-quirks.md
       - Roadmap: roadmap.md
       - FHIR roadmap + review guide: project/fhir-roadmap.md
@@ -259,9 +258,9 @@ markdown_extensions:
   - pymdownx.mark
   - pymdownx.smartsymbols
   - pymdownx.snippets:
-      # Lets docs pages embed repository-root files (CHANGELOG.md, BUGS.md, the
-      # planning docs) via `--8<-- "FILE"` so the site renders them without a
-      # second copy. base_path is the repo root (where mkdocs runs).
+      # Lets docs pages embed repository-root files (BUGS.md, the planning
+      # docs) via `--8<-- "FILE"` so the site renders them without a second
+      # copy. base_path is the repo root (where mkdocs runs).
       base_path:
         - .
       check_paths: true

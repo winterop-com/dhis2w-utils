@@ -98,7 +98,7 @@ The committed e2e dump (`infra/v42/dump.sql.gz`) mirrors DHIS2 Play's Sierra Leo
 - `.github/workflows/ci.yml` runs `make lint && make test && make docs-build` on every PR
 - `.github/workflows/e2e.yml` nightly — full DHIS2 stack + seeded fixtures + slow integration tests
 
-Public distribution is now active — every workspace member (except `dhis2w-codegen`) publishes to PyPI under its own name. Tags use the `vX.Y.Z` scheme + a `CHANGELOG.md` lives at the repo root. See [Releasing to PyPI](releasing.md) for the cut workflow.
+Public distribution is now active — every workspace member (except `dhis2w-codegen`) publishes to PyPI under its own name. Tags use the `vX.Y.Z` scheme. See [Releasing to PyPI](releasing.md) for the cut workflow.
 
 ### Docs
 
@@ -177,7 +177,7 @@ Follow-ups deferred from the PR #452 review, in priority order:
   and the escaping path. While in there, reword the file header to state provenance
   honestly (adopted transpiler output as source; no build step exists).
 - **Sync the feature catalog with the review-round severity changes.**
-  `docs/project/features.md` and the CHANGELOG tokens entry still describe the
+  `docs/project/features.md` still describes the
   pre-review verdicts (expired-but-undeleted PAT as HIGH under the non-expiring
   finding, a MEDIUM token inventory, zero-protection HSTS as WARN) and omit the
   `tokens-expired-not-deleted` control.

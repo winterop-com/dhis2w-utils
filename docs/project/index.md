@@ -22,13 +22,6 @@ reference.
 
 - **Changelog**
 
-    ---
-
-    Release-by-release history, newest first. Rendered from the repository-root
-    `CHANGELOG.md`.
-
-    [Read the changelog](changelog.md)
-
 - **Roadmap**
 
     ---
@@ -107,8 +100,8 @@ reference.
 - **Feature catalog** is hand-maintained; the auto-generated
   [CLI reference](../cli-reference.md) and [MCP reference](../mcp-reference.md)
   are the source of truth when a count drifts.
-- **Changelog**, **upstream quirks**, and the **planning** pages render their
-  repository-root source files (`CHANGELOG.md`, `BUGS.md`, the migration plan)
-  directly, so editing the root file updates the site on the next build.
+- **Upstream quirks** and the **planning** pages render their repository-root
+  source files (`BUGS.md`, the migration plan) directly, so editing the root
+  file updates the site on the next build.
 - **Roadmap** describes what is next, never what shipped; finished items are
   deleted from it rather than rewritten into history.

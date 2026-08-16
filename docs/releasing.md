@@ -50,7 +50,7 @@ The ten publishable workspace members ship to PyPI in lockstep — every release
 7. **Create the GitHub release** (the tag alone does not — the Releases page stays on the previous version otherwise):
 
    ```bash
-   gh release create v0.6.0 --verify-tag --title v0.6.0 --notes-file <(sed -n '/^## 0.6.0/,/^## /p' CHANGELOG.md | sed '1d;$d') --latest
+   gh release create v0.6.0 --verify-tag --title v0.6.0 --generate-notes --latest
    ```
 
 8. **Verify**:
