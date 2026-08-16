@@ -267,11 +267,18 @@ test('a long form label in the receipts is shown in full, not truncated', async 
 test('a unit with no captures says so instead of showing a zero', async ({ page, request }) => {
     // Earlier files in the run spool captures at units of the generator's choosing, so the spec
     // asks the listing which published unit is still bare rather than assuming one. Workers run
-    // one at a time, so nothing posts between the read and the assertion.
-    const listing = await (await request.get('/spool')).json()
-    const used = new Set(
-        listing.responses.map((candidate: { organisation_unit?: string | null }) => candidate.organisation_unit),
-    )
+    // one at a time, so nothing posts between the read and the assertion. The listing pages, and
+    // bareness is a claim about the whole spool, so every page is read before a unit is called bare.
+    const used = new Set<string | null | undefined>()
+    let spoolUrl: string | null = '/spool?_count=500'
+    while (spoolUrl) {
+        const listing: {
+            responses: { organisation_unit?: string | null }[]
+            next_url?: string | null
+        } = await (await request.get(spoolUrl)).json()
+        for (const candidate of listing.responses) used.add(candidate.organisation_unit)
+        spoolUrl = listing.next_url ?? null
+    }
     const bare = ['Rp268JB6Ne4', 'EJoI3HuIUEV', 'MgFYJDBqSSs', 'vWbkYPRmKyS', 'lc3eMKXaEfw', 'YuQRtpLP10I'].find(
         (uid) => !used.has(uid),
     )
