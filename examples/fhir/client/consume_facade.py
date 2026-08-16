@@ -19,7 +19,10 @@ Usage:
     d2w fhir serve --port 8123          # in the project directory, in another shell
     uv run python examples/fhir/client/consume_facade.py [BASE_URL]
 
-BASE_URL defaults to $FHIR_SERVE_URL, then http://127.0.0.1:8123.
+BASE_URL defaults to $FHIR_SERVE_URL. With neither, the shared fixture starts a facade on
+the example project and stops it at exit - which is what lets this run unattended. That
+import is the only line here that needs this repository; everything below it is httpx
+against a URL, which is the whole point.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ import os
 import sys
 
 import httpx
+from _fixture import served_facade
 
 FHIR_JSON = "application/fhir+json"
 CREATED = 201
@@ -37,7 +41,7 @@ CREATED = 201
 
 async def main() -> None:
     """Walk the whole read-and-capture loop against one served project."""
-    base_url = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("FHIR_SERVE_URL")) or "http://127.0.0.1:8123"
+    base_url = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("FHIR_SERVE_URL")) or served_facade()
     async with httpx.AsyncClient(base_url=base_url, headers={"Accept": FHIR_JSON}, timeout=30.0) as client:
         capability = (await client.get("/metadata")).raise_for_status().json()
         served = [entry.get("type") for entry in capability["rest"][0].get("resource", [])]

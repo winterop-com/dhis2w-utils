@@ -2430,11 +2430,14 @@ checks, and BUGS.md workaround drift detection. Available via CLI and MCP.
 One example tree, version-neutral: each example is a single copy that runs
 against DHIS2 v41, v42, and v43.
 
-- **`examples/fhir/`**: the `d2w fhir` surface in its own group, with all three
-  shapes of caller - 5 CLI scripts (init/generate/validate, serve, forward,
-  doctor, spool), 3 Python library examples (generate an IG and read the
-  `GenerateFullReport`; drive a running facade over plain httpx; dry-run a spool
-  drain and read the `ForwardReport`), and 2 MCP tool examples.
+- **`examples/fhir/`**: the `d2w fhir` surface in its own group - 5 CLI scripts
+  (init/generate/validate, serve, forward, doctor, spool) and 25 Python library
+  examples grouped as build a response, read a form, convert to DHIS2, send and
+  verify, and drive the toolchain. Every one runs in `make verify-examples`
+  against a shared `_fixture.py` that scaffolds a project, builds a translation
+  context off the instance, and starts a live facade on a port the operating
+  system picks. There are no MCP examples because there are no MCP tools: what
+  an agent drives is the served facade, over HTTP.
 - **`examples/client/`**: 80+ Python examples (whoami, CRUD, analytics, OIDC,
   bulk import, tracker lifecycle, sharing, error handling, ...)
 - **`examples/cli/`**: 60+ shell scripts covering every CLI domain

@@ -6,18 +6,20 @@ One copy of each example, running against DHIS2 v41, v42, and v43 alike. An exam
 
 Each entry below: **file path → what it demonstrates → which concept doc explains it**. This page is curated — it covers the headline examples per topic; not every single file shows up here. `ls examples/{cli,client,mcp}/` is the source of truth, and each surface directory has a README of its own.
 
-Examples come in four groups — the three surfaces, plus [FHIR](#fhir-examples), which carries all three of its own:
+Examples come in four groups — the three surfaces, plus [FHIR](#fhir-examples), which carries two of its own:
 
 - **CLI** (`examples/cli/*.sh`) — bash invocations of the `d2w` Typer CLI. Run with `bash examples/cli/<name>.sh` with the venv on `PATH` (via `source .venv/bin/activate` or `uv run -- bash ...`).
 - **Client** (`examples/client/*.py`) — Python library usage. Run with `uv run python examples/client/<name>.py`.
 - **MCP** (`examples/mcp/*.py`) — FastMCP tool calls through an in-process client. Run with `uv run python examples/mcp/<name>.py`.
-- **FHIR** (`examples/fhir/{cli,client,mcp}/`) — the `d2w fhir` surface, grouped on its own because it is its own product with all three shapes of caller in it.
+- **FHIR** (`examples/fhir/{cli,client}/`) — the `d2w fhir` surface, grouped on its own because it is its own product, in two shapes of caller: the commands, and the Python library.
 
 Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.config/dhis2/profiles.toml` / `DHIS2_PROFILE` env (see [profiles](architecture/profiles.md)). Assume a seeded local stack (`make dhis2-run`) unless stated otherwise.
 
 ## FHIR examples
 
 `d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. `dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages, so this group is one copy that runs on every major. The narrative these sit under is the [`d2w fhir` guide series](guides/fhir/index.md).
+
+The headline rows are below. The Python library path has twenty-five examples in all — grouped from "build a response from my own data" through reading a form, converting to DHIS2, sending, and driving the toolchain — catalogued in [`examples/fhir/client/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/README.md).
 
 | Example | What it demonstrates | Related docs |
 | --- | --- | --- |
@@ -29,6 +31,8 @@ Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.c
 | [`fhir/client/generate_ig.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/generate_ig.py) | Generate a whole IG from Python — `load_project` + `generate_full`, and the `GenerateFullReport` consumed as a model | [`dhis2w_fhir` API reference](api/fhir.md) |
 | [`fhir/client/consume_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/consume_facade.py) | Plain httpx against a running facade — `/metadata`, search, `$generate`, POST a capture, read the receipt and `/spool` | [Consume the FHIR API](guides/fhir/401-consume-the-fhir-api.md) |
 | [`fhir/client/forward_spool.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/forward_spool.py) | Dry-run a drain from Python — `forward_responses`, and the `ForwardReport` counts, outcomes, and rejection reasons | [Forward captures into DHIS2](guides/fhir/201-forward.md) |
+| [`fhir/client/build_aggregate_response.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/build_aggregate_response.py) | The minimal aggregate capture — a data set's numbers for one period at one organisation unit, built in typed Python | [The capture contract](guides/fhir/401-capture-contract.md) |
+| [`fhir/client/build_registration_response.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/build_registration_response.py) | Registering a person and enrolling them, minting both DHIS2 UIDs client-side | [The capture contract](guides/fhir/401-capture-contract.md) |
 
 ## CLI examples
 

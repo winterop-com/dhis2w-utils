@@ -11,7 +11,7 @@ Targets every script under:
 
 - `examples/{cli,client,mcp}/` — the version-neutral set, run on whichever
   DHIS2 major the active profile points at.
-- `examples/fhir/{cli,client,mcp}/` — the FHIR surface. `dhis2w-fhir` and
+- `examples/fhir/{cli,client}/` — the FHIR surface. `dhis2w-fhir` and
   `dhis2w-fhir-serve` are not per-version packages, so these run on every
   major from one copy.
 - `examples/{cli,client,mcp}/v{N}/` — the variants that exist only for one
@@ -50,6 +50,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 SURFACES = ("cli", "client", "mcp")
 VERSION_KEYS = ("v41", "v42", "v43")
+
+# The FHIR group is driven from the command line and from Python, and has no MCP
+# examples — so it is two surfaces where the common set is three.
+FHIR_SURFACES = ("cli", "client")
 
 # Examples that need Chromium (Playwright), a human-clicked OIDC login,
 # external network dependencies, or run slow server-side jobs unsuitable
@@ -97,14 +101,11 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # dockerized compile, serve, capture, forward — in one command.
         # Minutes per run, for the same compile reason as its siblings.
         "fhir/cli/doctor.sh",
-        # --- Needs a fixture this pass does not stand up ----------------
-        # Talks to a facade that is already listening. Nothing in a batch
-        # pass starts one; give it a `d2w fhir serve` and it runs.
-        "fhir/client/consume_facade.py",
-        # Drains the spool of the nearest FHIR project. The repository root
-        # holds no `fhir.toml`, so there is no spool to drain. Both take a
-        # project directory as their one argument and run green against one.
-        "fhir/client/forward_spool.py",
+        # Every `examples/fhir/client/` example stands its own fixture up —
+        # `_fixture.py` scaffolds a project, builds the translation context off
+        # the instance, and starts a `d2w fhir serve --live` facade it stops at
+        # exit. So none of them is skipped: what used to need "a facade already
+        # listening" or "a project with a spool" now brings its own.
         # --- Fixture gaps in the seed ----------------------------------
         # Outlier detection requires per-program data distributions the
         # 1-year Child Programme sample doesn't have enough volume for —
@@ -190,7 +191,7 @@ def _surface_directories(version_key: str) -> list[Path]:
     """Every directory holding examples for this run: the common set, the FHIR set, this major's variants."""
     root = _examples_root()
     directories = [root / surface for surface in SURFACES]
-    directories += [root / "fhir" / surface for surface in SURFACES]
+    directories += [root / "fhir" / surface for surface in FHIR_SURFACES]
     directories += [root / surface / version_key for surface in SURFACES]
     return directories
 

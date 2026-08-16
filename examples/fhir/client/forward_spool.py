@@ -15,9 +15,10 @@ as the three things that are actually wrong.
 Usage:
     uv run python examples/fhir/client/forward_spool.py [PROJECT_DIRECTORY]
 
-Fill the spool first - see examples/fhir/cli/serve.sh, or any `d2w fhir serve` that has
-been POSTed a QuestionnaireResponse. An empty spool reports a run of zero, which is a
-valid answer rather than an error.
+With no argument it drains the shared example project's spool (see `_fixture.py`). Fill a
+spool first - see examples/fhir/cli/serve.sh, or any `d2w fhir serve` that has been POSTed
+a QuestionnaireResponse. An empty spool reports a run of zero, which is a valid answer
+rather than an error.
 """
 
 from __future__ import annotations
@@ -25,13 +26,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from _fixture import example_project
 from _runner import run_example
 from dhis2w_fhir import load_project, service
 
 
 async def main() -> None:
-    """Dry-run the nearest project's spool and print what each receipt became."""
-    directory = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None
+    """Dry-run a project's spool and print what each receipt became."""
+    directory = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else example_project()
     project = load_project(directory)
     generation = service.resolve_generation_profile(project)
     print(f"project: {project.project_root}")
