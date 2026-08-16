@@ -2275,8 +2275,6 @@ what order.
   verifier test and any dangling references. A partially or possibly resolved
   entry stays live with the evidence folded into it. Numbering keeps its gaps
   forever - #62, #63, and #64 are the FHIR ones today.
-- **`CHANGELOG.md` is not maintained.** Do not add or edit entries in a FHIR
-  batch. If a rebase surfaces a changelog conflict, take main's side.
 - **The demo project lives at `~/dev/dhis2-fhir-demo`**, pointed at play 2.42
   with its build output gitignored. It pins the toolchain through its committed
   `uv.lock`, so it moves deliberately with `uv lock --upgrade` rather than
