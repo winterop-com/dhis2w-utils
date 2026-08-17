@@ -254,6 +254,46 @@ def _run_one(path: Path, *, profile: str, timeout_seconds: float) -> ExampleResu
     return ExampleResult(path=rel, surface=surface, status="FAIL", seconds=elapsed, stderr_tail=tail)
 
 
+def _stand_up_shared_fhir_fixture(examples: list[Path], skip: frozenset[str], console: Console) -> None:
+    """Stand the FHIR client examples' shared project and facade up once, for the whole suite.
+
+    Every `examples/fhir/client/` example builds its own fixture when the two seams
+    (`D2W_FHIR_EXAMPLE_PROJECT`, `D2W_FHIR_EXAMPLE_FACADE`) are unset - which in a batch pass
+    means twelve examples each booting a `d2w fhir serve --live` of their own. This stands one
+    up in this process and exports the seams, so every example reuses it; the facade stops at
+    exit through the fixture's own `atexit` hook. Seams already set are an operator's own fixture
+    and are left alone, and a fixture that cannot build is reported plainly - each example then
+    builds its own, which is the behaviour with no shared fixture at all.
+    """
+    examples_root = _examples_root()
+    wanted = any(
+        path.relative_to(examples_root).as_posix().startswith("fhir/client/")
+        and path.relative_to(examples_root).as_posix() not in skip
+        for path in examples
+    )
+    if not wanted:
+        return
+    fixture_directory = examples_root / "fhir" / "client"
+    sys.path.insert(0, str(fixture_directory))
+    try:
+        import _fixture  # noqa: PLC0415
+
+        if os.environ.get(_fixture.PROJECT_ENVIRONMENT_VARIABLE) or os.environ.get(
+            _fixture.FACADE_ENVIRONMENT_VARIABLE
+        ):
+            return
+        project_root = _fixture.example_project()
+        _fixture.conversion_context()
+        facade = _fixture.served_facade()
+        os.environ[_fixture.PROJECT_ENVIRONMENT_VARIABLE] = str(project_root)
+        os.environ[_fixture.FACADE_ENVIRONMENT_VARIABLE] = facade
+        console.print(f"shared FHIR fixture: project [cyan]{project_root}[/cyan], facade [cyan]{facade}[/cyan]")
+    except Exception as error:  # noqa: BLE001 - the fallback is the point: each example builds its own
+        console.print(f"[yellow]shared FHIR fixture unavailable ({error}); each example builds its own[/yellow]")
+    finally:
+        sys.path.remove(str(fixture_directory))
+
+
 def run_suite(
     *,
     profile: str = DEFAULT_PROFILE,
@@ -277,6 +317,7 @@ def run_suite(
         f"profile=[cyan]{profile}[/cyan], timeout={int(timeout_seconds)}s, "
         f"skip-default={'on' if not include_browser else 'off'})",
     )
+    _stand_up_shared_fhir_fixture(examples, skip, console)
     examples_root = _examples_root()
     results: list[ExampleResult] = []
     for path in examples:
