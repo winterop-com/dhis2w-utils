@@ -1489,9 +1489,7 @@ described, and the git history is where it was built. What is left:
   capture UI's register search is written to `Patient` alone, so a deployment
   serving only `Specimen` is told no search is published when one is. A
   translator-refused receipt reads in `/spool` exactly like one no drain has
-  touched. The conversion layer's public names are split across two import
-  paths for no reason a caller can see, and it offers no lookup of a form by
-  id and no accessor for whichever payload a translation produced.
+  touched.
 
 
 ### 9.2 Mid-term

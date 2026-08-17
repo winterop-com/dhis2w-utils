@@ -106,6 +106,9 @@ compiled `ig/fsh-generated/resources` merged with the predefined `ig/input/resou
 the same two trees `d2w fhir serve` serves - and `build_project_context` assembles the context
 from them plus the project's `[generate]` naming, identifier base, and timezone.
 
+Every public name below is importable from `dhis2w_fhir` itself, which is the package's one
+stable import surface; the `dhis2w_fhir.conversion` path answers the same objects.
+
 ::: dhis2w_fhir.conversion.schemas
 
 ::: dhis2w_fhir.conversion.context

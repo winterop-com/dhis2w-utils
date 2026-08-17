@@ -45,6 +45,10 @@ from dhis2w_fhir.conversion.schemas import (
     WireValueKind,
 )
 
+# The one spelling of DHIS2's MULTI_TEXT separator: the emitter that writes a multi-select value
+# and this reader that splits one have to agree on it, so both read the same constant.
+from dhis2w_fhir.resources.examples import MULTI_VALUE_SEPARATOR
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -65,9 +69,6 @@ __all__ = [
     "wall_clock_reading",
     "wall_clock_notes",
 ]
-
-#: The separator DHIS2 joins a MULTI_TEXT value's option codes with.
-MULTI_VALUE_SEPARATOR = ","
 
 #: The prefix an organisation-unit answer references its published Location under.
 LOCATION_REFERENCE_PREFIX = "Location/"

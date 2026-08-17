@@ -5281,12 +5281,12 @@ async def _post_result(client: Dhis2Client, result: ConversionResult, *, dry_run
         enrolment = result.enrollment.model_dump(by_alias=True, exclude_none=True, mode="json")
         body = {_TRACKER_ENROLLMENTS_KEY: [enrolment]}
         return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
-    if result.event is None:
-        raise ValueError(
-            "a translated result carries no data value set, no tracked entity, no enrollment, and no event"
-        )
-    body = {_TRACKER_EVENTS_KEY: [result.event.model_dump(by_alias=True, exclude_none=True, mode="json")]}
-    return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
+    if result.event is not None:
+        body = {_TRACKER_EVENTS_KEY: [result.event.model_dump(by_alias=True, exclude_none=True, mode="json")]}
+        return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
+    # The branches above cover every shape `ConversionResult.payload` can hold, so reaching here
+    # means the result carries no payload at all - the case the type system cannot exclude.
+    raise ValueError("a translated result carries no payload at all")
 
 
 async def _post_body(
