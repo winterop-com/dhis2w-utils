@@ -1058,31 +1058,31 @@ export function operationNames(capability: CapabilityStatement | null): string[]
     return [...seen]
 }
 
-/** The resource type a live facade answers from the DHIS2 instance rather than from its store. */
-export const PATIENT_RESOURCE_TYPE = 'Patient'
-
-/** The one search parameter that facade answers a patient lookup on. */
-export const PATIENT_IDENTIFIER_SEARCH_PARAMETER = 'identifier'
+/** The one search parameter a live facade answers a register lookup on. */
+export const REGISTER_IDENTIFIER_SEARCH_PARAMETER = 'identifier'
 
 /**
- * Whether this server publishes patient search - the one capability a UI must ask before offering it.
+ * Whether this server publishes an identifier search over one register resource type.
  *
  * `/metadata` is the whole of the answer and it is stated ahead of any request: a live process over
- * a project that publishes a registration form declares a `Patient` entry with a `search-type`
- * interaction and an `identifier` search parameter, and a compiled process declares no `Patient` at
- * all. So a control that finds a person in the instance is offered exactly when the conformance
- * document says a search would be answered, rather than offered and then refused.
+ * a project that publishes a registration form declares one entry per served register - `Patient`
+ * by default, `Specimen` or `Device` where the guide maps a tracked entity type onto it - each with
+ * a `search-type` interaction and an `identifier` search parameter, and a compiled process declares
+ * none of them. So a control that finds a record in the instance is offered exactly when the
+ * conformance document says a search over that register would be answered, rather than offered and
+ * then refused. The caller names the register, because which one a form registers into is the
+ * form's own `subjectType`.
  *
- * Both halves are checked, not only the resource type. A statement that named `Patient` with a read
- * interaction alone would be a server that resolves a person by uid and cannot look one up, which
- * is not a search control a person can use.
+ * Both halves are checked, not only the resource type. A statement that named the register with a
+ * read interaction alone would be a server that resolves a record by uid and cannot look one up,
+ * which is not a search control a person can use.
  */
-export function declaresPatientSearch(capability: CapabilityStatement | null): boolean {
-    const entry = capability?.rest?.[0]?.resource?.find((resource) => resource.type === PATIENT_RESOURCE_TYPE)
+export function declaresRegisterSearch(capability: CapabilityStatement | null, resourceType: string): boolean {
+    const entry = capability?.rest?.[0]?.resource?.find((resource) => resource.type === resourceType)
     if (entry === undefined) return false
     const searchable = entry.interaction?.some((interaction) => interaction.code === 'search-type') === true
     const byIdentifier =
-        entry.searchParam?.some((parameter) => parameter.name === PATIENT_IDENTIFIER_SEARCH_PARAMETER) === true
+        entry.searchParam?.some((parameter) => parameter.name === REGISTER_IDENTIFIER_SEARCH_PARAMETER) === true
     return searchable && byIdentifier
 }
 

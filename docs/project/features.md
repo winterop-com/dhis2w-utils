@@ -1599,8 +1599,9 @@ control per R4 item type.
   about. **New person** by default - the minted identity, and the only option a
   compiled run offers, which says so rather than offering a search it cannot
   answer. **Find in this DHIS2 instance** is offered exactly when `/metadata`
-  declares `Patient` with a `search-type` interaction on `identifier`,
-  searching `GET /Patient?identifier=` in its bare-value form once the typing
+  declares the form's own register - its `subjectType`, `Patient` only by
+  default - with a `search-type` interaction on `identifier`, searching
+  `GET /{RegisterType}?identifier=` in its bare-value form once the typing
   stops and listing each match as what the projection carries: the value of a
   unique attribute leading, the other attribute values beside it, the tracked
   entity uid last, and never an invented name, since DHIS2 states no attribute

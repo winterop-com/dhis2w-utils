@@ -1485,9 +1485,7 @@ described, and the git history is where it was built. What is left:
 - **Filed defects, none blocking.** `generate` has no gate on the
   build-aborting names `validate` now grades as errors, so a guide can still be
   emitted that the publisher will fail on. `generate_full` hands one note list
-  to several targets, so every consumer sees each note more than once. The
-  capture UI's register search is written to `Patient` alone, so a deployment
-  serving only `Specimen` is told no search is published when one is. A
+  to several targets, so every consumer sees each note more than once. A
   translator-refused receipt reads in `/spool` exactly like one no drain has
   touched. The conversion layer's public names are split across two import
   paths for no reason a caller can see, and it offers no lookup of a form by

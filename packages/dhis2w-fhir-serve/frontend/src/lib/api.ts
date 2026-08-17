@@ -52,7 +52,7 @@
  */
 
 import {
-    PATIENT_IDENTIFIER_SEARCH_PARAMETER,
+    REGISTER_IDENTIFIER_SEARCH_PARAMETER,
     type Bundle,
     type CapabilityStatement,
     type OperationOutcome,
@@ -285,7 +285,7 @@ export async function postQuestionnaireResponse(
  * the control at all in that case; the refusal is what a race against a restart reads as.
  */
 export async function searchRegister(resource: string, identifier: string): Promise<Bundle<Patient>> {
-    return searchResources<Patient>(resource, { [PATIENT_IDENTIFIER_SEARCH_PARAMETER]: identifier })
+    return searchResources<Patient>(resource, { [REGISTER_IDENTIFIER_SEARCH_PARAMETER]: identifier })
 }
 
 /**
