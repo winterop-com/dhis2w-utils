@@ -18,9 +18,10 @@ import httpx
 import pytest
 from dhis2w_fhir.config import FhirProject
 from dhis2w_fhir.service import ForwardImportIssue, ForwardImportOutcome
+from dhis2w_fhir.spool import ForwardRefusalRecord, RefusalReason
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.settings import ServeSettings
-from dhis2w_fhir_serve.spool import IMPORT_REPORT_SUFFIX, ResponseLifecycle, ResponseSpool
+from dhis2w_fhir_serve.spool import IMPORT_REPORT_SUFFIX, REFUSAL_RECORD_SUFFIX, ResponseLifecycle, ResponseSpool
 from fastapi import FastAPI
 
 #: The service base the in-process client uses, matching every other serve test.
@@ -142,6 +143,46 @@ async def test_a_received_receipt_carries_no_rejection(client: httpx.AsyncClient
     body = (await client.get("/spool")).json()
 
     assert all(row["rejection"] is None for row in body["responses"])
+
+
+def write_refusal(project: FhirProject, response_id: str, record: ForwardRefusalRecord) -> None:
+    """Leave the refusal record beside a queued receipt, as a committing `d2w fhir forward` does."""
+    directory = ResponseSpool.at(project.project_root).directory_for(ResponseLifecycle.RECEIVED)
+    (directory / f"{response_id}{REFUSAL_RECORD_SUFFIX}").write_text(
+        record.model_dump_json(indent=2, exclude_none=True) + "\n", encoding="utf-8"
+    )
+
+
+async def test_a_translator_refused_receipt_says_so(client: httpx.AsyncClient, compiled_project: FhirProject) -> None:
+    """A refused-but-queued row no longer reads like one no drain has touched."""
+    write_refusal(
+        compiled_project,
+        "receipt-newest",
+        ForwardRefusalRecord(
+            refused_at="2026-08-17T12:00:00Z",
+            attempt_count=2,
+            reasons=(RefusalReason(category="no-form-type", reason="the form declares no kind"),),
+        ),
+    )
+
+    body = (await client.get("/spool")).json()
+
+    row = next(row for row in body["responses"] if row["response_id"] == "receipt-newest")
+    assert row["lifecycle"] == "received"
+    assert row["refusal"]["refused_at"] == "2026-08-17T12:00:00Z"
+    assert row["refusal"]["attempt_count"] == 2
+    assert row["refusal"]["reasons"][0]["error_code"] == "no-form-type"
+    assert row["refusal"]["reasons"][0]["message"] == "the form declares no kind"
+    # The marker is a sidecar, never a receipt: the three seeded receipts stay three.
+    assert body["counts"]["received"] == 3
+    assert all(entry["refusal"] is None for entry in body["responses"] if entry["response_id"] != "receipt-newest")
+
+
+async def test_a_receipt_no_drain_has_refused_states_no_refusal(client: httpx.AsyncClient) -> None:
+    """Nothing beside the receipt means nothing stated - absence stays distinguishable from refusal."""
+    body = (await client.get("/spool")).json()
+
+    assert all(row["refusal"] is None for row in body["responses"])
 
 
 async def test_a_rejection_with_an_unreadable_report_is_still_listed(

@@ -51,7 +51,7 @@ from dhis2w_fhir.conversion.translator import translate_responses
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.names import StemResolution, StemSubject, code_or_uid
-from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note, pluralize
 from dhis2w_fhir.overwrite import (
     AggregateCell,
     ForwardedCellIndex,
@@ -156,7 +156,9 @@ from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.spool import (
     IMPORT_REPORT_SUFFIX,
+    ForwardRefusalRecord,
     QuarantinedFile,
+    RefusalReason,
     SpooledReceipt,
     SpooledResponse,
     SpoolLayout,
@@ -167,7 +169,9 @@ from dhis2w_fhir.spool import (
     move_to_received,
     move_to_rejected,
     read_received_responses,
+    read_refusal_record,
     read_spooled_receipts,
+    record_refusal,
     sweep_orphan_temporary_files,
 )
 from dhis2w_fhir.validation import build_aborting_code, build_code_validation
@@ -4177,7 +4181,8 @@ class ForwardOutcomeKind(StrEnum):
     """What became of one spooled response in a forward run."""
 
     #: The translator would not read the response whole, so it never reached DHIS2. The receipt stays
-    #: in `received/` for the next drain to retry, unless the refusal is one nothing can fix - see
+    #: in `received/` for the next drain to retry - a committing drain writes its refusal record
+    #: beside it so the listing can say so - unless the refusal is one nothing can fix - see
     #: `TERMINAL_REFUSAL_CATEGORIES` - in which case an import files it to `rejected/`.
     REFUSED = "refused"
 
@@ -4825,6 +4830,7 @@ async def _drain_spool(
         progress.complete(f"{len(conversion.translated):,} translated, {len(conversion.refused):,} refused")
 
         terminal = _file_terminal_refusals(spooled, conversion, moving=import_responses)
+        _record_refusals(spooled, conversion, moving=import_responses)
         overwrite_index = _forwarded_cell_index(layout, conversion)
 
         progress.step("post", _post_caption(0, len(conversion.translated), dry_run=dry_run))
@@ -5137,6 +5143,40 @@ def _file_terminal_refusals(
 def _is_terminally_refused(result: ConversionResult) -> bool:
     """Whether a refusal is one no change to the guide and no change to the data could ever resolve."""
     return any(refusal.category in TERMINAL_REFUSAL_CATEGORIES for refusal in result.refusals)
+
+
+def _record_refusals(spooled: Sequence[SpooledResponse], conversion: ConversionReport, *, moving: bool) -> None:
+    """Write the refusal record beside every receipt this committing drain refused and left queued.
+
+    The receipt stays in `received/` for the next drain to retry, and until now it read in a
+    listing exactly like one no drain had touched. The record beside it - the drain's instant, how
+    many drains have refused it so far, and why - is what lets `/spool` and `d2w fhir spool` say
+    the difference. A dry run writes nothing, exactly as it moves nothing; a terminal refusal is
+    filed to `rejected/` instead - see `_file_terminal_refusals`.
+    """
+    if not moving:
+        return
+    refused_at = _utc_instant()
+    for entry, result in zip(spooled, conversion.results, strict=True):
+        if not result.is_refused or _is_terminally_refused(result):
+            continue
+        previous = read_refusal_record(entry.path.parent, entry.response_id)
+        record_refusal(
+            entry,
+            ForwardRefusalRecord(
+                refused_at=refused_at,
+                attempt_count=1 if previous is None else previous.attempt_count + 1,
+                reasons=tuple(
+                    RefusalReason(category=refusal.category.value, element=refusal.element, reason=refusal.reason)
+                    for refusal in result.refusals
+                ),
+            ),
+        )
+
+
+def _utc_instant() -> str:
+    """The current instant as a FHIR `instant` - UTC, seconds precision, `Z`-suffixed."""
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _forward_stop(entry: SpooledResponse, error: Dhis2ApiError | httpx.HTTPError) -> ForwardStop:
@@ -5557,6 +5597,9 @@ class SpoolStateCounts(BaseModel):
     malformed: int = 0
     """Files in `malformed/`, which are not receipts - they are bytes that would not read as one."""
 
+    refused_in_queue: int = 0
+    """Of the received receipts, how many the last committing drain refused to translate."""
+
     @property
     def total(self) -> int:
         """How many receipts the spool holds, which counts the three states and not the holding pen."""
@@ -5593,6 +5636,8 @@ class SpoolStateReport(BaseModel):
         line = (
             f"{self.counts.received:,} received, {self.counts.forwarded:,} forwarded, {self.counts.rejected:,} rejected"
         )
+        if self.counts.refused_in_queue:
+            line = f"{line} ({self.counts.refused_in_queue:,} of the received refused by the translator)"
         return f"{line}, {self.counts.malformed:,} malformed" if self.counts.malformed else line
 
 
@@ -5651,6 +5696,7 @@ def read_spool_state(project: FhirProject) -> SpoolStateReport:
         forwarded=len(contents.in_state(SpoolState.FORWARDED)),
         rejected=len(contents.in_state(SpoolState.REJECTED)),
         malformed=len(contents.quarantined),
+        refused_in_queue=sum(1 for receipt in contents.in_state(SpoolState.RECEIVED) if receipt.refusal is not None),
     )
     return SpoolStateReport(
         project_root=project.project_root,
@@ -5695,13 +5741,17 @@ def requeue_rejected_responses(
 
 
 def _receipt_reason(receipt: SpooledReceipt) -> str | None:
-    """What the report beside one drained receipt says, as the one line a listing row shows.
+    """What the sidecar beside one receipt says, as the one line a listing row shows.
 
-    Only a drained receipt has one: a receipt still in `received/` has been asked about by nobody, so
-    there is nothing on disk to read and the row states no reason rather than inventing one.
+    A drained receipt reads its import report. A queued receipt reads the refusal record a
+    committing drain left beside it, when one has - a receipt no drain has touched has nothing on
+    disk to read, and the row states no reason rather than inventing one.
     """
     if receipt.state is SpoolState.RECEIVED:
-        return None
+        if receipt.refusal is None:
+            return None
+        drains = pluralize(receipt.refusal.attempt_count, "drain")
+        return f"{receipt.refusal.line} (refused by {drains}, last at {receipt.refusal.refused_at})"
     path = receipt.path.with_name(f"{receipt.response_id}{IMPORT_REPORT_SUFFIX}")
     if not path.is_file():
         return None

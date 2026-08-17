@@ -89,6 +89,22 @@ export interface SpoolRejection {
 }
 
 /**
+ * The last committing drain's translator refusal of one still-queued receipt.
+ *
+ * Not a DHIS2 answer: the receipt never reached the instance. The forward run that posts receipts
+ * writes this beside a receipt it could not convert and left queued, so a reader can tell it from
+ * a receipt no drain has looked at. The reasons reuse the rejection-issue row shape - which rule,
+ * which object, what it said - because that is what a reader wants of either.
+ */
+export interface SpoolRefusal {
+    /** The instant the last committing forward run refused the receipt. */
+    refused_at: string
+    /** How many committing forward runs have refused it so far. */
+    attempt_count: number
+    reasons: SpoolRejectionIssue[]
+}
+
+/**
  * What DHIS2 counted when it took one receipt, off its stored import report.
  *
  * No issue rows, unlike a rejection: an import DHIS2 accepted named nothing against the payload, so
@@ -129,6 +145,8 @@ export interface SpoolResponseSummary {
     rejection?: SpoolRejection | null
     /** What DHIS2 counted for this receipt, on a forwarded row whose report reads. */
     imported?: SpoolImport | null
+    /** The last forward run's translator refusal, on a received row that has a record beside it. */
+    refusal?: SpoolRefusal | null
 }
 
 /** How many receipts sit in each state - the queue depth, and what became of the rest. */

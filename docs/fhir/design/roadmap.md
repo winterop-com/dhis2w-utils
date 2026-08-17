@@ -345,6 +345,12 @@ carries are the ones that stopped it losing work quietly.
   puts a refused receipt back, both without a DHIS2 connection or a profile. An
   `entered-in-error` response is filed once rather than retried forever, because
   no change to the guide or the instance can ever make it convert.
+- **A translator refusal is visible in the queue.** A committing drain writes
+  `<id>.refusal.json` beside a receipt it refused and left queued - the drain's
+  instant, an attempt count, and the reasons - so the listing and the Responses
+  page tell a receipt every drain refuses from one no drain has touched. The
+  move that finally drains the receipt deletes the marker; a dry run writes
+  none.
 - **Reads are paged**, on the cursor idiom the register uses, and run off the
   event loop.
 
@@ -1487,9 +1493,8 @@ described, and the git history is where it was built. What is left:
   emitted that the publisher will fail on. `generate_full` hands one note list
   to several targets, so every consumer sees each note more than once. The
   capture UI's register search is written to `Patient` alone, so a deployment
-  serving only `Specimen` is told no search is published when one is. A
-  translator-refused receipt reads in `/spool` exactly like one no drain has
-  touched. The conversion layer's public names are split across two import
+  serving only `Specimen` is told no search is published when one is. The
+  conversion layer's public names are split across two import
   paths for no reason a caller can see, and it offers no lookup of a form by
   id and no accessor for whichever payload a translation produced.
 
