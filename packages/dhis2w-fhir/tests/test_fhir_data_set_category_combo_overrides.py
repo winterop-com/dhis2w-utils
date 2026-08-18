@@ -131,8 +131,10 @@ def _data_sets_payload(
     return {
         "dataSets": [
             {
+                # The real data set's name carries '<', which the generate gate now refuses outright;
+                # these tests are about the combo override join, so the fixture keeps a survivable name.
                 "id": "ce7DSxx5H2I",
-                "name": "Mortality < 5 years by age group",
+                "name": "Mortality under 5 years by age group",
                 "periodType": "Monthly",
                 "organisationUnits": [{"id": _REPORTING_UNIT}],
                 "sections": [],

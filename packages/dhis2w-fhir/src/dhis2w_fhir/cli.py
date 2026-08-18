@@ -462,9 +462,10 @@ def _write_generate_notes(
 ) -> Path:
     """Write every note of one full run to `reports/fhir-generate-notes.md`, grouped by target.
 
-    A target's own notes come first; the ones that only restate a `d2w fhir validate` finding follow
-    in a trailing subsection, so the file still holds everything the run raised while reading as what
-    generation alone has to say.
+    Each note appears once, under the first target that raised it - the outcomes arrive on the
+    run's distinct-notes view. A target's own notes come first; the ones that only restate a
+    `d2w fhir validate` finding follow in a trailing subsection, so the file still holds
+    everything the run raised while reading as what generation alone has to say.
     """
     from datetime import UTC, datetime
 
@@ -534,8 +535,13 @@ def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationPro
 
 
 def _render_full_report(report: GenerateFullReport, generation: GenerationProfile, *, details: bool = False) -> None:
-    """Render a full run as one row per target, then say where the notes each target raised are."""
-    outcomes = _full_outcomes(report)
+    """Render a full run as one row per target, then say where the notes the run raised are.
+
+    Rendering reads the distinct-notes view of the run, so a note several targets share is
+    counted and printed once, on the first target that raised it; the `--json` dump keeps the
+    full per-target lists, which read exactly as the solo commands' do.
+    """
+    outcomes = _full_outcomes(report.with_distinct_notes())
     _hint("info", f"{generation.name} ({generation.origin}) -> {report.foundation.project_root}")
     render_list(
         "fhir generate",

@@ -100,6 +100,7 @@ from dhis2w_fhir.resources.option_sets import (
     option_set_identities,
 )
 from dhis2w_fhir.resources.option_sets.schemas import (
+    ConceptSourceIn,
     OptionIn,
     OptionSetIdentityPlan,
     OptionSetIn,
@@ -174,7 +175,7 @@ from dhis2w_fhir.spool import (
     record_refusal,
     sweep_orphan_temporary_files,
 )
-from dhis2w_fhir.validation import build_aborting_code, build_code_validation
+from dhis2w_fhir.validation import build_aborting_code, build_aborting_name, build_code_validation
 from dhis2w_fhir.validation.schemas import (
     FhirValidationReport,
     MetadataCollectionIn,
@@ -467,6 +468,24 @@ class GenerateFullReport(BaseModel):
     organisation_units: GenerateReport
     pages: GenerateReport
 
+    def with_distinct_notes(self) -> GenerateFullReport:
+        """This run with each note kept only on the first target that raised it.
+
+        A full run hands one fetch's notes to every target that reads the same input, so the
+        per-target reports repeat what solo runs of those targets would each say. A consumer
+        reading the whole run - the notes file, the terminal count, the doctor findings - reads
+        this view instead, so one decision is reported once. The fields are declared in run
+        order, which is what makes "first target" well defined.
+        """
+        seen: set[GenerateNote] = set()
+        reports: dict[str, GenerateReport] = {}
+        for field_name in type(self).model_fields:
+            report: GenerateReport = getattr(self, field_name)
+            novel = [note for note in report.notes if note not in seen]
+            seen.update(novel)
+            reports[field_name] = report.model_copy(update={"notes": novel})
+        return GenerateFullReport(**reports)
+
 
 class UnsupportedProgramError(LookupError):
     """Raised when a configured event program is a shape the questionnaire target does not map.
@@ -494,6 +513,24 @@ class BuildAbortingCodeError(LookupError):
     """
 
 
+class BuildAbortingNameError(LookupError):
+    """Raised when a selected object's DHIS2 name would abort the IG publisher's own build.
+
+    A DHIS2 name stays byte-true on the emitted resource's `title` / `name` elements - escaping it
+    would make the IG disagree with the instance about what the object is called - and the IG
+    publisher writes those elements into pages it strict-parses after writing. A `<` opens a tag
+    there, and the publisher dies on the malformed page in its final pass, after every resource has
+    already been rendered.
+
+    The whole run is refused rather than the one object skipped, for the same reason a
+    build-aborting code refuses it: a build that fails loudly now beats one that fails an hour in,
+    and a quietly skipped object leaves a guide that disagrees with its selection.
+
+    A `LookupError` so the CLI's error funnel renders it as a one-liner naming the object and the
+    name, rather than as a traceback.
+    """
+
+
 class _CodedObject(BaseModel):
     """One selected DHIS2 object as the code gate reads it, before any of it is emitted."""
 
@@ -510,18 +547,44 @@ class _CodedObject(BaseModel):
         return code_or_uid(self.code, self.uid)
 
 
-def _refuse_build_aborting_codes(objects: list[_CodedObject]) -> None:
-    """Refuse the run before a single file is written when an emitted code aborts the publisher's build."""
+def _refuse_build_aborting_objects(objects: list[_CodedObject]) -> None:
+    """Refuse the run before a single file is written when an emitted code or name aborts the publisher's build."""
     for coded in objects:
-        if not build_aborting_code(coded.emitted_code):
-            continue
-        raise BuildAbortingCodeError(
-            f"{coded.resource_type} {coded.name!r} ({coded.uid}) has code {coded.emitted_code!r}, which carries "
-            "'<'. A DHIS2 code becomes an identifier value, which the IG publisher writes into a table cell "
-            "unescaped and then strict-parses, so `make build` aborts with \"Unable to Parse HTML - node 'td' "
-            'has unexpected content" in its last pass, once every resource has already been rendered. '
-            "Change the code in DHIS2, then run `d2w fhir validate` for the full report."
-        )
+        if build_aborting_code(coded.emitted_code):
+            raise BuildAbortingCodeError(
+                f"{coded.resource_type} {coded.name!r} ({coded.uid}) has code {coded.emitted_code!r}, which carries "
+                "'<'. A DHIS2 code becomes an identifier value, which the IG publisher writes into a table cell "
+                "unescaped and then strict-parses, so `make build` aborts with \"Unable to Parse HTML - node 'td' "
+                'has unexpected content" in its last pass, once every resource has already been rendered. '
+                "Change the code in DHIS2, then run `d2w fhir validate` for the full report."
+            )
+        if build_aborting_name(coded.name):
+            raise BuildAbortingNameError(
+                f"{coded.resource_type} {coded.name!r} ({coded.uid}) has a name carrying '<'. A DHIS2 name stays "
+                "byte-true on the emitted resource's title, which the IG publisher writes into pages it "
+                "strict-parses after writing, so `make build` aborts in its last pass, once every resource has "
+                "already been rendered. Change the name in DHIS2, then run `d2w fhir validate` for the full report."
+            )
+
+
+def _refuse_build_aborting_member_names(sources: Sequence[ConceptSourceIn]) -> None:
+    """Refuse the run when a concept source's member name aborts the publisher's build.
+
+    Options and category options land in page tables and concept displays the instance sweep
+    cannot see, which is why `d2w fhir validate` flags them through its own option pass - this is
+    the generate-time half of the same finding.
+    """
+    for source in sources:
+        for member in source.options:
+            if not build_aborting_name(member.name):
+                continue
+            raise BuildAbortingNameError(
+                f"{source.source_label} {source.name!r} ({source.uid}) has {source.member_label} "
+                f"{member.name!r} ({member.uid}) whose name carries '<'. The IG publisher writes it into pages "
+                "it strict-parses after writing, so `make build` aborts in its last pass, once every resource "
+                "has already been rendered. Change the name in DHIS2, then run `d2w fhir validate` for the "
+                "full report."
+            )
 
 
 #: How many steps `validate_codes` announces: connect, resolve the selection, sweep, read the
@@ -960,12 +1023,13 @@ def _emit_option_sets(
         "option sets",
         f"writing ig/input/resources/{TERMINOLOGY_DIRECTORY} and ig/input/resources/{CONCEPT_MAP_DIRECTORY}",
     )
-    _refuse_build_aborting_codes(
+    _refuse_build_aborting_objects(
         [
             _CodedObject(resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.code)
             for option_set in option_sets
         ]
     )
+    _refuse_build_aborting_member_names(option_sets)
     build = build_option_set_artifacts(
         option_sets,
         project.config.generate,
@@ -1033,12 +1097,13 @@ def _emit_categories(
         "categories",
         f"writing ig/input/resources/{CATEGORY_DIRECTORY} and ig/input/resources/{CONCEPT_MAP_DIRECTORY}",
     )
-    _refuse_build_aborting_codes(
+    _refuse_build_aborting_objects(
         [
             _CodedObject(resource_type="categories", uid=category.uid, name=category.name, code=category.code)
             for category in categories
         ]
     )
+    _refuse_build_aborting_member_names(categories)
     build = build_category_artifacts(
         categories,
         project.config.generate,
@@ -1242,7 +1307,7 @@ def _emit_questionnaires(
         f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}} and "
         f"ig/input/resources/{{{ASSIGNMENT_DIRECTORY},{ATTRIBUTE_COMBO_DIRECTORY}}}",
     )
-    _refuse_build_aborting_codes([_coded_source(source) for source in sources])
+    _refuse_build_aborting_objects([_coded_source(source) for source in sources])
     assignment_build = build_assignment_artifacts(
         sources,
         assignments,
@@ -2197,7 +2262,7 @@ def _emit_organisation_units(
     progress.step(
         "organisation units", f"writing ig/input/fsh/organization and ig/input/resources/{REGISTRY_DIRECTORY}"
     )
-    _refuse_build_aborting_codes(
+    _refuse_build_aborting_objects(
         [
             _CodedObject(
                 resource_type="organisationUnits",
@@ -2352,8 +2417,9 @@ async def generate_full(
     and each target then builds and syncs off that one result, so nothing is fetched a second
     time the way seven separate commands would fetch it. The foundation runs first because it
     reads nothing at all, and the pages run last because they narrate what the other targets
-    wrote. Each target keeps the notes it alone owns, so its report reads exactly as the solo
-    command's does.
+    wrote. Each target keeps every note its solo command would raise, so its report reads
+    exactly as the solo command's does; a consumer reading the whole run takes
+    `with_distinct_notes()` so a note shared across targets is reported once.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_FULL_STEPS)

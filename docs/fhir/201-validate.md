@@ -156,10 +156,11 @@ The code-stem pass works the same dial for naming: under
 `source = "code-or-id"` a missing, unusable, or colliding code is a
 `code-stem-fallback` warning (that object's ids fall back to the UID); under
 `source = "code"` the same object is a `code-stem-refusal` **error** -
-`d2w fhir generate` refuses the run through the same defect predicate, so for
-codes a validate error is also a generate refusal. A build-aborting **name**
-is graded the same way and generate still emits it; the build is where it
-fails. `spaced-code` is the info-grade
+`d2w fhir generate` refuses the run through the same defect predicate, so a
+validate error is also a generate refusal. A build-aborting **name** refuses
+the same way, options included, through the predicate the
+`template-hostile-name` error grade shares with the gate.
+`spaced-code` is the info-grade
 neighbour: a code with spaces is FHIR-valid but emits in the quoted
 `#"..."` FSH form.
 

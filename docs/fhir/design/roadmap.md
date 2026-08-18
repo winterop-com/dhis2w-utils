@@ -545,12 +545,14 @@ DHIS2 text verbatim, because those are data rather than page furniture: escaping
 them would fix a page by making the IG disagree with the instance about what a
 data set is called.
 
-The consequence is accepted rather than worked around. A data set named
-`Mortality < 5 years by gender` still yields a malformed
-`Questionnaire-<uid>.change.history.html` and one cosmetic `Build Errors : 1`
-line; the build completes and QA reports zero errors. `d2w fhir validate` raises
-`template-hostile-name` on the name instead, which puts the fix where it
-belongs - in DHIS2.
+The consequence is refused rather than escaped away. A `<` in a name opens a
+tag on the pages the publisher strict-parses after writing, so
+`d2w fhir validate` grades it a `template-hostile-name` error and
+`d2w fhir generate` refuses the run through the same predicate
+(`build_aborting_name`), options included - which puts the fix where it
+belongs, in DHIS2, before an hour of build input is written. `>` and `&` cost
+a malformed page and the build survives them, so they stay warnings and
+generation proceeds.
 
 ### 3.13 The FHIR surface is CLI-only
 
@@ -716,11 +718,13 @@ the result. A resource whose FSH `Title:` holds a `<` aborts the build with
 
 **Workaround:** `names.page_text` HTML-escapes `&`, `<`, and `>` on the
 page-facing `Title:` / `Description:` lines of every generated instance, while
-the element-level `* title` / `* name` stay byte-true. The residual is
-**accepted**: `Questionnaire-<uid>.change.history.html` builds its `<h2>` from
-`Questionnaire.title`, so the same name still yields one malformed page and one
-cosmetic `Build Errors : 1` line. The build completes, QA reports zero errors,
-and `validate` raises `template-hostile-name` so the fix lands in DHIS2 instead.
+the element-level `* title` / `* name` stay byte-true. The residual surface -
+`Questionnaire-<uid>.change.history.html` builds its `<h2>` from
+`Questionnaire.title`, which stays unescaped - is why a `<` in a name is
+**refused**: `validate` grades it a `template-hostile-name` error and
+`generate` refuses the run through the shared `build_aborting_name` predicate,
+so the fix lands in DHIS2. `>` and `&` cost one malformed page, the build
+survives them, and they stay warnings.
 Worth reporting upstream to the template maintainers.
 
 ### 4.5 Tooling: the publisher's embedded SUSHI stalls in its export phase
@@ -1488,10 +1492,7 @@ described, and the git history is where it was built. What is left:
   it, because a summary of a person is only worth publishing once the record it
   summarises can be read.
 
-- **Filed defects, none blocking.** `generate` has no gate on the
-  build-aborting names `validate` now grades as errors, so a guide can still be
-  emitted that the publisher will fail on. `generate_full` hands one note list
-  to several targets, so every consumer sees each note more than once. The
+- **Filed defects, none blocking.** The
   capture UI's register search is written to `Patient` alone, so a deployment
   serving only `Specimen` is told no search is published when one is. The
   conversion layer's public names are split across two import

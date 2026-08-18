@@ -43,7 +43,7 @@ instead, in Java's voice; those are the second half of this page.
 ## Validate and generate refusals
 
 `error: N error(s) found; exiting 1 (--no-fail to suppress)` is validate
-doing its job: the instance carries build-aborting codes, listed
+doing its job: the instance carries build-aborting codes or names, listed
 individually above the line. Fix them in DHIS2, or `--no-fail` if the run
 must pass anyway. [Validate the instance](201-validate.md) explains the
 grading.
@@ -64,6 +64,13 @@ validate` for the full report.
 
 Cause: an in-scope code on an identifier surface carries `<`. Fix: change
 the code in DHIS2. Only `<` refuses; `>` and `&` stay warnings.
+
+A name refuses the same way, through its own message: a DHIS2 name stays
+byte-true on the emitted resource's title, which the publisher writes into
+pages it strict-parses after writing. The refusal names the object - or the
+option, whose name lands in page tables - and ends with the same
+instruction: change the name in DHIS2, then run `d2w fhir validate` for the
+full report.
 
 **A code-sourced naming run refuses on unusable stems:**
 
