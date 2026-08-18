@@ -119,6 +119,7 @@ if TYPE_CHECKING:
 __all__ = [
     "ValidationScope",
     "build_aborting_code",
+    "build_aborting_name",
     "build_code_validation",
     "render_validation_markdown",
     "usable_code_stem",
@@ -182,6 +183,16 @@ def build_aborting_code(code: str | None) -> bool:
     two can never disagree about which code the publisher cannot survive.
     """
     return _BUILD_ABORTING_CHARACTER in (code or "")
+
+
+def build_aborting_name(name: str | None) -> bool:
+    """Whether one DHIS2 name, kept byte-true on the emitted resource, aborts the IG publisher's build.
+
+    A name lands on the resource's own `title` / `name` elements, which generation deliberately does
+    not escape, and the publisher writes them into pages it strict-parses after writing. The single
+    source of truth shared by the `template-hostile-name` error grade and the generate-time refusal.
+    """
+    return _BUILD_ABORTING_CHARACTER in (name or "")
 
 
 def build_code_validation(

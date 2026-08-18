@@ -69,8 +69,10 @@ from dhis2w_fhir.spool import (
     MALFORMED_RESPONSES_RELATIVE_PATH,
     ORPHAN_TEMPORARY_FILE_AGE_SECONDS,
     RECEIVED_RESPONSES_RELATIVE_PATH,
+    REFUSAL_RECORD_SUFFIX,
     REJECTED_RESPONSES_RELATIVE_PATH,
     SPOOL_RELATIVE_PATH,
+    ForwardRefusalRecord,
     SpoolLockedError,
     SpoolReadError,
     SpoolState,
@@ -928,6 +930,63 @@ async def test_a_refused_response_never_reaches_dhis2_and_stays_in_the_queue(for
     assert refused[0].refusals[0].category == "no-form-type"
     assert orphan.is_file()
     assert refused[0].spool_path == f"{RECEIVED_RESPONSES_RELATIVE_PATH}/orphan.json"
+
+
+def _orphan_receipt(project_root: Path) -> Path:
+    """One queued receipt naming a Questionnaire the compiled guide does not hold, which every drain refuses."""
+    orphan = project_root / RECEIVED_RESPONSES_RELATIVE_PATH / "orphan.json"
+    orphan.write_text(
+        json.dumps(
+            {
+                "response_id": "orphan",
+                "received_at": "2026-08-08T09:00:00Z",
+                "form_kind": "aggregate",
+                "questionnaire": f"{_CANONICAL}/Questionnaire/nothing-published",
+                "response": {
+                    "resourceType": "QuestionnaireResponse",
+                    "id": "orphan",
+                    "questionnaire": f"{_CANONICAL}/Questionnaire/nothing-published",
+                    "status": "completed",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return orphan
+
+
+@respx.mock
+async def test_a_committing_drain_writes_the_refusal_record_and_the_next_one_counts_up(
+    forward_project: Path,
+) -> None:
+    """The queue keeps the drain's mark: when it refused, how often it has, and why - and a retry counts up."""
+    _mock_instance()
+    orphan = _orphan_receipt(forward_project)
+    marker = orphan.with_name(f"orphan{REFUSAL_RECORD_SUFFIX}")
+
+    await _forward(forward_project, import_responses=True)
+
+    record = ForwardRefusalRecord.model_validate_json(marker.read_text(encoding="utf-8"))
+    assert record.attempt_count == 1
+    assert record.reasons[0].category == "no-form-type"
+    assert record.refused_at.endswith("Z")
+
+    await _forward(forward_project, import_responses=True)
+
+    record = ForwardRefusalRecord.model_validate_json(marker.read_text(encoding="utf-8"))
+    assert record.attempt_count == 2
+    assert orphan.is_file()
+
+
+@respx.mock
+async def test_a_dry_run_writes_no_refusal_record(forward_project: Path) -> None:
+    """A dry run files nothing and marks nothing, exactly as it moves nothing."""
+    _mock_instance()
+    orphan = _orphan_receipt(forward_project)
+
+    await _forward(forward_project)
+
+    assert not orphan.with_name(f"orphan{REFUSAL_RECORD_SUFFIX}").exists()
 
 
 @respx.mock

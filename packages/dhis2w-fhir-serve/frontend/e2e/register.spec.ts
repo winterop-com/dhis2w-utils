@@ -379,7 +379,7 @@ async function newestReceipt(request: APIRequestContext, questionnaireId: string
  * The compiled case, against the real server: the instance option is not offered at all.
  *
  * Not a disabled control and not a control that appears and then fails - nothing, with the reason
- * stated. A compiled facade holds no connection to a DHIS2 instance, `/metadata` says so ahead of
+ * stated. A compiled facade publishes no search over any register, `/metadata` says so ahead of
  * any request, and the picker is built on that statement rather than on a refusal.
  */
 test.describe('a server that serves a compiled guide', () => {
@@ -391,9 +391,7 @@ test.describe('a server that serves a compiled guide', () => {
         await expect(page.getByRole('radio', { name: 'New person' })).toBeChecked()
         await expect(page.getByRole('radio', { name: 'Find in this DHIS2 instance' })).toHaveCount(0)
         await expect(
-            page.getByText(
-                'This server answers from a compiled guide, so it holds no connection to a DHIS2 instance',
-            ),
+            page.getByText("This server publishes no search over this form's register"),
         ).toBeVisible()
 
         // And every question is asked, because no person has been chosen.
