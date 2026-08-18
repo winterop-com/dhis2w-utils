@@ -18,7 +18,10 @@ from dhis2w_fhir.spool import (
     IMPORT_REPORT_SUFFIX,
     MALFORMED_RESPONSES_RELATIVE_PATH,
     RECEIVED_RESPONSES_RELATIVE_PATH,
+    REFUSAL_RECORD_SUFFIX,
     REJECTED_RESPONSES_RELATIVE_PATH,
+    ForwardRefusalRecord,
+    RefusalReason,
 )
 from typer.testing import CliRunner
 
@@ -96,13 +99,43 @@ def test_the_spool_listing_names_every_receipt_under_details(spooled_project: Pa
     assert "broken.json" in result.output
 
 
+def _write_refusal_record(project_root: Path, response_id: str) -> None:
+    """The marker a committing drain leaves beside a receipt it refused to translate."""
+    record = ForwardRefusalRecord(
+        refused_at="2026-08-17T12:00:00Z",
+        attempt_count=3,
+        reasons=(RefusalReason(category="no-form-type", reason="the form declares no kind"),),
+    )
+    destination = project_root / RECEIVED_RESPONSES_RELATIVE_PATH / f"{response_id}{REFUSAL_RECORD_SUFFIX}"
+    destination.write_text(record.model_dump_json(indent=2, exclude_none=True), encoding="utf-8")
+
+
+def test_the_spool_listing_states_a_translator_refused_receipt(spooled_project: Path) -> None:
+    """A refused-but-queued receipt no longer reads like one no drain has touched."""
+    _write_refusal_record(spooled_project, "queued-1")
+
+    result = _runner.invoke(build_app(), ["fhir", "spool", "--details"])
+
+    assert result.exit_code == 0, result.output
+    assert "refused by the translator, still queued" in result.output
+    assert "the form declares no kind" in result.output
+    assert "3 drains" in result.output
+    assert "queued receipt(s) were refused by the translator" in result.output
+
+
 def test_the_spool_listing_answers_json_on_stdout(spooled_project: Path) -> None:
     """The `--json` payload is stdout alone, so a caller pipes it into `jq` without filtering."""
     result = _runner.invoke(build_app(), ["--json", "fhir", "spool"])
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
-    assert payload["counts"] == {"received": 1, "forwarded": 0, "rejected": 1, "malformed": 1}
+    assert payload["counts"] == {
+        "received": 1,
+        "forwarded": 0,
+        "rejected": 1,
+        "malformed": 1,
+        "refused_in_queue": 0,
+    }
     assert [entry["file_name"] for entry in payload["quarantined"]] == ["broken.json"]
 
 

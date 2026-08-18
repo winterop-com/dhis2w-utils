@@ -23,7 +23,11 @@ A directory that cannot be read at all is a different failure and is still raise
 A conversion-refused response never moves, unless what refused it can never be fixed: `entered-in-error`
 is a withdrawal, which this toolchain does not build, so that one is filed to `rejected/` rather than
 retried by every drain forever. Every other refusal has a fix in the guide or in the data, so leaving it
-in `received/` makes the next `d2w fhir forward` a retry with no bookkeeping at all.
+in `received/` makes the next `d2w fhir forward` a retry with no bookkeeping at all. What a committing
+drain does leave behind is an `<id>.refusal.json` beside the receipt - when the drain saw it, how many
+drains have refused it, and why - so a listing can tell a receipt the translator keeps refusing from one
+no drain has touched. The marker is about the queue, so the move that finally drains the receipt deletes
+it: the import report supersedes it.
 
 The layout is duplicated rather than imported: `dhis2w-fhir` is a dependency of `dhis2w-fhir-serve`, so
 the arrow only points one way and the forwarder reads the files directly under the same conventions.
@@ -66,9 +70,12 @@ __all__ = [
     "ORPHAN_TEMPORARY_FILE_AGE_SECONDS",
     "QUARANTINE_REASON_SUFFIX",
     "RECEIVED_RESPONSES_RELATIVE_PATH",
+    "REFUSAL_RECORD_SUFFIX",
     "REJECTED_RESPONSES_RELATIVE_PATH",
     "SPOOL_RELATIVE_PATH",
+    "ForwardRefusalRecord",
     "QuarantinedFile",
+    "RefusalReason",
     "SpoolContents",
     "SpoolLayout",
     "SpoolLockedError",
@@ -83,7 +90,9 @@ __all__ = [
     "move_to_received",
     "move_to_rejected",
     "read_received_responses",
+    "read_refusal_record",
     "read_spooled_receipts",
+    "record_refusal",
     "resolve_spool_root",
     "sweep_orphan_temporary_files",
 ]
@@ -111,6 +120,12 @@ MALFORMED_RESPONSES_RELATIVE_PATH = ".serve/responses/malformed"
 #: what DHIS2 answered - and a reader that had to know the state to know the filename would be one
 #: more convention for no gain.
 IMPORT_REPORT_SUFFIX = ".report.json"
+
+#: What the sibling file carrying a still-queued receipt's translator refusal is named, after the
+#: response id. Written only by a committing drain, only in `received/`, and deleted by the move
+#: that finally drains the receipt - it records the queue's own history, which an import report
+#: supersedes. A dry run writes none, exactly as it moves nothing.
+REFUSAL_RECORD_SUFFIX = ".refusal.json"
 
 #: What the sibling file carrying a quarantined file's reason is named, after the file itself. The
 #: reason is only known at the moment the file is moved aside, so it is written down there and then;
@@ -248,6 +263,42 @@ class SpoolReading(BaseModel):
     quarantined: tuple[QuarantinedFile, ...] = ()
 
 
+class RefusalReason(BaseModel):
+    """One reason a translator refused a spooled response, as the refusal record states it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    category: str
+    element: str | None = None
+    reason: str
+
+
+class ForwardRefusalRecord(BaseModel):
+    """What the last committing drain wrote beside a receipt it refused to translate.
+
+    The receipt itself never moves and is never rewritten - see the module docstring - so this
+    sidecar is the whole of the drain's mark on the queue: when it last looked, how many drains
+    have refused the receipt, and why. Deleted by the move that finally drains the receipt.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    refused_at: str
+    """The instant the last committing drain refused the receipt, as a FHIR `instant` (UTC)."""
+
+    attempt_count: int = 1
+    """How many committing drains have refused this receipt so far."""
+
+    reasons: tuple[RefusalReason, ...] = ()
+
+    @property
+    def line(self) -> str:
+        """The record as the one line a listing row shows: the first reason, or the bare fact."""
+        if self.reasons:
+            return self.reasons[0].reason
+        return "the translator refused this response"
+
+
 class SpooledReceipt(BaseModel):
     """One receipt's envelope as a listing reads it, without translating the resource it carries.
 
@@ -264,6 +315,9 @@ class SpooledReceipt(BaseModel):
     questionnaire: str
     state: SpoolState
     path: Path
+
+    refusal: ForwardRefusalRecord | None = None
+    """The last committing drain's refusal of this still-queued receipt, when one is on disk."""
 
 
 class SpoolContents(BaseModel):
@@ -315,9 +369,13 @@ def read_spooled_receipts(layout: SpoolLayout) -> SpoolContents:
             continue
         for path in _receipt_paths(directory):
             try:
-                receipts.append(_read_envelope(path, state))
+                receipt = _read_envelope(path, state)
             except _MalformedReceiptError as error:
                 quarantined.append(_quarantine(path, layout, str(error)))
+                continue
+            if state is SpoolState.RECEIVED:
+                receipt = receipt.model_copy(update={"refusal": read_refusal_record(directory, receipt.response_id)})
+            receipts.append(receipt)
     return SpoolContents(receipts=tuple(receipts), quarantined=malformed_files(layout))
 
 
@@ -331,6 +389,34 @@ def malformed_files(layout: SpoolLayout) -> tuple[QuarantinedFile, ...]:
         for path in sorted(_scan(directory))
         if not path.name.endswith(QUARANTINE_REASON_SUFFIX)
     )
+
+
+def record_refusal(spooled: SpooledResponse, record: ForwardRefusalRecord) -> Path:
+    """Write one still-queued receipt's refusal record beside it, durably, and answer with where it sits.
+
+    The receipt itself is never rewritten; the record is a sibling file the next listing reads and
+    the move that finally drains the receipt deletes. Written atomically and fsynced the way a
+    receipt is, because a marker that vanishes with the power is a drain that never happened.
+    """
+    destination = spooled.path.with_name(f"{spooled.response_id}{REFUSAL_RECORD_SUFFIX}")
+    _write_atomically(destination, record.model_dump_json(indent=2, exclude_none=True) + "\n")
+    return destination
+
+
+def read_refusal_record(directory: Path, response_id: str) -> ForwardRefusalRecord | None:
+    """The refusal record beside one queued receipt, or None when no committing drain has refused it.
+
+    A record that will not parse answers None rather than raising: it is the marker that got
+    corrupted, not the receipt that got lost, so a listing still names the receipt and simply says
+    nothing about the drain that refused it.
+    """
+    path = directory / f"{response_id}{REFUSAL_RECORD_SUFFIX}"
+    if not path.is_file():
+        return None
+    try:
+        return ForwardRefusalRecord.model_validate_json(path.read_text(encoding="utf-8"))
+    except (OSError, ValidationError, ValueError):
+        return None
 
 
 def move_to_forwarded(spooled: SpooledResponse, report: BaseModel) -> Path:
@@ -433,7 +519,11 @@ class _MalformedReceiptError(Exception):
 def _receipt_paths(directory: Path) -> list[Path]:
     """Every receipt file of one state directory, in file-name order, with the sidecars left out."""
     return sorted(
-        path for path in _scan(directory) if path.suffix == ".json" and not path.name.endswith(IMPORT_REPORT_SUFFIX)
+        path
+        for path in _scan(directory)
+        if path.suffix == ".json"
+        and not path.name.endswith(IMPORT_REPORT_SUFFIX)
+        and not path.name.endswith(REFUSAL_RECORD_SUFFIX)
     )
 
 
@@ -498,7 +588,9 @@ def _file_beside_report(spooled: SpooledResponse, report: BaseModel, state: Spoo
     """Land one receipt's import report in its destination, then move the receipt in after it.
 
     The report lands first, so a process that dies mid-move leaves a report with no receipt - a
-    stale file the next run overwrites - rather than a drained receipt nothing explains.
+    stale file the next run overwrites - rather than a drained receipt nothing explains. A refusal
+    record an earlier drain left beside the receipt goes with the move: it recorded the queue, the
+    receipt is leaving the queue, and the import report is now the answer about it.
     """
     directory = spooled.layout.directory_for(state)
     directory.mkdir(parents=True, exist_ok=True)
@@ -506,7 +598,12 @@ def _file_beside_report(spooled: SpooledResponse, report: BaseModel, state: Spoo
         directory / f"{spooled.response_id}{IMPORT_REPORT_SUFFIX}",
         report.model_dump_json(indent=2, exclude_none=True) + "\n",
     )
-    return _move(spooled, state)
+    destination = _move(spooled, state)
+    marker = spooled.path.with_name(f"{spooled.response_id}{REFUSAL_RECORD_SUFFIX}")
+    if marker.is_file():
+        marker.unlink(missing_ok=True)
+        _fsync_directory(marker.parent)
+    return destination
 
 
 def _move(spooled: SpooledResponse, state: SpoolState) -> Path:

@@ -247,6 +247,39 @@ def test_a_run_of_nothing_but_echoes_says_so_rather_than_counting_zero(fhir_proj
     assert "note: 2 validate echo(es) across 2 target(s); full list in " in result.stderr
 
 
+def _shared_note_report(project_root: Path) -> GenerateFullReport:
+    """The seven-target report where questionnaires, examples, and pages carry the same note."""
+    report = _noted_report(project_root)
+    shared = _note("a note three targets share")
+    report.questionnaires.notes.append(shared)
+    report.examples.notes.append(shared)
+    report.pages.notes.append(shared)
+    return report
+
+
+def test_bare_generate_counts_and_files_a_shared_note_once(fhir_project: Path) -> None:
+    """A note handed to three targets is one note: counted once, filed under the first target."""
+    mock = AsyncMock(return_value=_shared_note_report(fhir_project))
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    assert "2 note(s) across 2 target(s)" in result.stderr
+    body = (fhir_project / "reports" / "fhir-generate-notes.md").read_text(encoding="utf-8")
+    assert body.count("a note three targets share") == 1
+    assert body.index("## questionnaires") < body.index("a note three targets share") < body.index("## examples")
+    assert "## pages" not in body
+
+
+def test_bare_generate_details_prints_a_shared_note_once(fhir_project: Path) -> None:
+    """`--details` names the first target that raised a shared note and prints it once."""
+    mock = AsyncMock(return_value=_shared_note_report(fhir_project))
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "--details"])
+    assert result.exit_code == 0, result.output
+    assert result.stderr.count("a note three targets share") == 1
+    assert "note: questionnaires: a note three targets share" in result.stderr
+
+
 def test_bare_generate_details_prints_every_note_with_its_target(fhir_project: Path) -> None:
     """`--details` is the firehose, and one table for seven targets means a note names the target."""
     mock = AsyncMock(return_value=_echoing_report(fhir_project))

@@ -12,7 +12,8 @@ from pathlib import Path
 import httpx
 import respx
 from dhis2w_core.profile import resolve_profile
-from dhis2w_fhir import InitOptions, UnsupportedProgramError, load_project, service
+from dhis2w_fhir import GenerateFullReport, GenerateReport, InitOptions, UnsupportedProgramError, load_project, service
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory
 
 _HOST = "https://dhis2.example"
 
@@ -348,3 +349,45 @@ def test_an_unsupported_program_is_a_lookup_error() -> None:
 
     assert isinstance(error, LookupError)
     assert issubclass(UnsupportedProgramError, LookupError)
+
+
+def _target_report(*notes: GenerateNote) -> GenerateReport:
+    """One per-target report carrying the given notes, everything else at its defaults."""
+    return GenerateReport(project_root=Path("/project"), target_directory="somewhere", notes=list(notes))
+
+
+def _shared_note_report() -> GenerateFullReport:
+    """A full run whose questionnaires, examples, and pages all carry the same source note."""
+    shared = GenerateNote(category=GenerateNoteCategory.SELECTION_MISMATCH, message="a note three targets share")
+    own = GenerateNote(category=GenerateNoteCategory.SKIPPED_QUESTION, message="a note examples alone raised")
+    return GenerateFullReport(
+        foundation=_target_report(),
+        option_sets=_target_report(),
+        categories=_target_report(),
+        questionnaires=_target_report(shared),
+        examples=_target_report(shared, own),
+        organisation_units=_target_report(),
+        pages=_target_report(shared),
+    )
+
+
+def test_with_distinct_notes_keeps_a_shared_note_on_its_first_target() -> None:
+    """A note handed to several targets survives once, on the first target that raised it."""
+    report = _shared_note_report()
+
+    distinct = report.with_distinct_notes()
+
+    assert [note.message for note in distinct.questionnaires.notes] == ["a note three targets share"]
+    assert [note.message for note in distinct.examples.notes] == ["a note examples alone raised"]
+    assert distinct.pages.notes == []
+
+
+def test_with_distinct_notes_leaves_the_per_target_reports_alone() -> None:
+    """The distinct view is a copy: the run's own per-target lists still read as the solo commands' do."""
+    report = _shared_note_report()
+
+    report.with_distinct_notes()
+
+    assert len(report.questionnaires.notes) == 1
+    assert len(report.examples.notes) == 2
+    assert len(report.pages.notes) == 1
