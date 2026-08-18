@@ -14,6 +14,7 @@ if str(_SCRIPTS) not in sys.path:
 
 from verify_examples import (  # noqa: E402 — path-prepend intentional
     SKIP_BY_DEFAULT,
+    SKIP_WHEN_ENVIRONMENT_MISSING,
     ExampleResult,
     discover_examples,
     render_summary,
@@ -124,3 +125,11 @@ def test_example_result_is_frozen() -> None:
     result = ExampleResult(path="x", surface="cli", status="PASS", seconds=1.0)
     with pytest.raises(ValidationError):
         result.status = "FAIL"
+
+
+def test_environment_skip_entries_name_files_that_exist() -> None:
+    """An env-conditional entry naming a path that is gone would silently stop guarding anything."""
+    examples = Path(__file__).resolve().parents[4] / "examples"
+    missing = sorted(entry for entry in SKIP_WHEN_ENVIRONMENT_MISSING if not (examples / entry).exists())
+    assert not missing, f"environment-skip entries with no file: {missing}"
+    assert all(SKIP_WHEN_ENVIRONMENT_MISSING[entry] for entry in SKIP_WHEN_ENVIRONMENT_MISSING)

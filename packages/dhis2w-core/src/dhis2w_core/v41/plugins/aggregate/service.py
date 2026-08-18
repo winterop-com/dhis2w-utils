@@ -6,6 +6,7 @@ return a typed `WebMessageResponse` envelope.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from dhis2w_client.v41 import DataValue, DataValueSet, WebMessageResponse
@@ -13,6 +14,9 @@ from dhis2w_client.v41 import DataValue, DataValueSet, WebMessageResponse
 from dhis2w_core.profile import Profile
 from dhis2w_core.v41.client_context import open_client
 from dhis2w_core.v41.plugins.aggregate.models import FollowUpResult
+
+#: The DHIS2 duration shape (`7d`, `12h`, `30m`, `45s`, `4w`), which is not a date.
+_DURATION_PATTERN = re.compile(r"\d+[smhdw]")
 
 
 async def get_data_values(
@@ -35,7 +39,9 @@ async def get_data_values(
     DHIS2 requires a coherent combination of params — typically `dataSet`,
     `period` (or `startDate`+`endDate`), and `orgUnit` (or `orgUnitGroup`).
     `include_deleted` returns soft-deleted values; `last_updated` filters to
-    values modified since a date/duration (e.g. `2024-01-01` or `7d`); `limit`
+    values modified since a date/duration (e.g. `2024-01-01` or `7d`) - DHIS2
+    takes the two spellings on two different parameters, so a duration goes to
+    `lastUpdatedDuration` and anything else to `lastUpdated`; `limit`
     truncates the `dataValues` list client-side after the response is parsed.
     """
     params: dict[str, Any] = {}
@@ -58,7 +64,7 @@ async def get_data_values(
     if include_deleted:
         params["includeDeleted"] = "true"
     if last_updated is not None:
-        params["lastUpdated"] = last_updated
+        params[_last_updated_parameter(last_updated)] = last_updated
 
     async with open_client(profile) as client:
         raw = await client.get_raw("/api/dataValueSets", params=params)
@@ -66,6 +72,16 @@ async def get_data_values(
     if limit is not None:
         envelope.dataValues = (envelope.dataValues or [])[:limit]
     return envelope
+
+
+def _last_updated_parameter(value: str) -> str:
+    """Which wire parameter one `last_updated` value belongs on: duration or date.
+
+    `/api/dataValueSets` takes `lastUpdatedDuration` for the `7d` / `12h` shape and
+    `lastUpdated` for a date, and refuses a duration on the date parameter with a 400 -
+    so the split the CLI help promises is decided here rather than left to the caller.
+    """
+    return "lastUpdatedDuration" if _DURATION_PATTERN.fullmatch(value) else "lastUpdated"
 
 
 async def push_data_values(

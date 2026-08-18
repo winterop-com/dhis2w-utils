@@ -141,8 +141,24 @@ SKIP_BY_VERSION: dict[str, frozenset[str]] = {
             # v41 and v42, which is why they live in the common set.
             "client/analytics_events_enrollments.py",
             "mcp/analytics_events_enrollments.py",
+            # Same BUGS.md #36 one step downstream: the aborted analytics job
+            # leaves the tables empty, so every analytics query answers
+            # 409 "Dimension is present in query without any valid dimension
+            # options: dx". Green on v41 and v42, where the refresh completes.
+            "cli/query_eval.sh",
+            "cli/query_run.sh",
         }
     ),
+}
+
+# Examples that read real secrets or endpoints from the environment. Each entry runs when
+# every named variable is set and skips with the missing names stated otherwise, because an
+# unprovisioned environment is a fact about the machine rather than a defect in the example.
+# `make verify-examples` sources infra/home/credentials/.env.auth first, so a seeded checkout
+# provides them all and nothing here is skipped.
+SKIP_WHEN_ENVIRONMENT_MISSING: dict[str, tuple[str, ...]] = {
+    "client/profile_pat_pure_client.py": ("DHIS2_URL", "DHIS2_PAT"),
+    "client/profile_crud.py": ("DHIS2_PAT",),
 }
 
 DEFAULT_PROFILE = "local_basic"
@@ -333,8 +349,19 @@ def run_suite(
         # Skip-list entries are relative to `examples/` (e.g.
         # `cli/profile_oidc_login.sh`, `fhir/cli/serve.sh`).
         rel_to_examples = path.relative_to(examples_root).as_posix()
+        missing_environment = [
+            name for name in SKIP_WHEN_ENVIRONMENT_MISSING.get(rel_to_examples, ()) if not os.environ.get(name)
+        ]
         if rel_to_examples in skip:
             result = ExampleResult(path=rel, surface=_surface_of(path), status="SKIP", seconds=0.0)
+        elif missing_environment:
+            result = ExampleResult(
+                path=rel,
+                surface=_surface_of(path),
+                status="SKIP",
+                seconds=0.0,
+                stderr_tail=f"environment not set: {', '.join(missing_environment)}",
+            )
         else:
             result = _run_one(path, profile=profile, timeout_seconds=timeout_seconds)
         badge = {
@@ -343,7 +370,8 @@ def run_suite(
             "TIMEOUT": "yellow",
             "SKIP": "dim",
         }[result.status]
-        console.print(f"  [{badge}]{result.status:8s}[/{badge}] {result.seconds:6.2f}s  {result.path}")
+        reason = f"  [dim]({result.stderr_tail})[/dim]" if result.status == "SKIP" and result.stderr_tail else ""
+        console.print(f"  [{badge}]{result.status:8s}[/{badge}] {result.seconds:6.2f}s  {result.path}{reason}")
         results.append(result)
     return results
 

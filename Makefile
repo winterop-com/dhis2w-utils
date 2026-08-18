@@ -57,7 +57,7 @@ help:
 	@echo "  dhis2-versions-bump   Rewrite versions.env to the latest patch for each non-held minor (then regenerate codegen)"
 	@echo "  dhis2-build-e2e-dump  Wipe + populate a fresh DHIS2 with test data, regenerate infra/\$$(DHIS2_VERSION)/dump.sql.gz"
 	@echo "  refresh-setup         Wipe + rebuild e2e dump + seed (no example verify — fast iteration on setup)"
-	@echo "  refresh-and-verify    Rebuild dump + seed + run every example (turns the PR #125 ritual into one command)"
+	@echo "  refresh-and-verify    Rebuild dump + seed + refresh analytics + run every example"
 	@echo ""
 	@echo "Code generation + examples:"
 	@echo "  dhis2-codegen-all     Spin up DHIS2 v41/v42/v43 in turn and regenerate each v{N}/ (~40 min; pass VERSIONS=\"v41 v42 v43\" to narrow)"
@@ -365,13 +365,15 @@ refresh-setup:
 	@echo ">>> Setup complete — run 'make verify-examples' to exercise the example suite"
 
 refresh-and-verify:
-	@echo ">>> [1/3] Rebuilding e2e dump (wipes + reseeds the stack)"
+	@echo ">>> [1/4] Rebuilding e2e dump (wipes + reseeds the stack)"
 	@$(MAKE) dhis2-build-e2e-dump
-	@echo ">>> [2/3] Seeding PATs + OAuth2 client (writes .env.auth)"
+	@echo ">>> [2/4] Seeding PATs + OAuth2 client (writes .env.auth)"
 	@$(MAKE) -C infra seed
-	@echo ">>> [3/3] Verifying every non-interactive example (DHIS2 $(or $(DHIS2_VERSION),v42))"
+	@echo ">>> [3/4] Refreshing analytics tables (the analytics examples read them)"
+	@$(MAKE) refresh-analytics
+	@echo ">>> [4/4] Verifying every non-interactive example (DHIS2 $(or $(DHIS2_VERSION),v43))"
 	@set -a; . infra/home/credentials/.env.auth; set +a; \
-		DHIS2_VERSION=$(or $(DHIS2_VERSION),v42) $(UV) run python -u infra/scripts/verify_examples.py
+		DHIS2_VERSION=$(or $(DHIS2_VERSION),v43) $(UV) run python -u infra/scripts/verify_examples.py
 
 clean: clean-artifacts
 	@echo ">>> Cleaning"
