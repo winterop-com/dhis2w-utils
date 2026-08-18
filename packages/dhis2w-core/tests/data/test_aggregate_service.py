@@ -97,6 +97,21 @@ async def test_get_data_values_threads_filters(profile: Profile) -> None:
 
 
 @respx.mock
+async def test_get_data_values_sends_a_duration_on_its_own_parameter(profile: Profile) -> None:
+    """A `7d`-shaped `last_updated` goes to `lastUpdatedDuration` - the date parameter refuses it with a 400."""
+    _mock_preamble()
+    route = respx.get("https://dhis2.example/api/dataValueSets").mock(
+        return_value=httpx.Response(200, json={"dataValues": []})
+    )
+
+    await service.get_data_values(profile, data_set="lyLU2wR22tC", org_unit="ou1", last_updated="7d")
+
+    params = route.calls.last.request.url.params
+    assert params["lastUpdatedDuration"] == "7d"
+    assert "lastUpdated" not in params
+
+
+@respx.mock
 async def test_get_data_values_truncates_with_limit(profile: Profile) -> None:
     """`limit=N` truncates the parsed `dataValues` list client-side."""
     _mock_preamble()

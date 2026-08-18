@@ -37,4 +37,4 @@ d2w profile verify browser || echo "session expired; re-add with a fresh cookie"
 #   xsrf_token = "a1b2c3d4-xsrf"
 
 # Unbind by removing the profile.
-d2w profile remove browser --local
+d2w profile remove browser --local --yes
