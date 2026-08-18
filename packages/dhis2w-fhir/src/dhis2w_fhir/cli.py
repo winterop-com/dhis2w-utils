@@ -462,9 +462,10 @@ def _write_generate_notes(
 ) -> Path:
     """Write every note of one full run to `reports/fhir-generate-notes.md`, grouped by target.
 
-    A target's own notes come first; the ones that only restate a `d2w fhir validate` finding follow
-    in a trailing subsection, so the file still holds everything the run raised while reading as what
-    generation alone has to say.
+    Each note appears once, under the first target that raised it - the outcomes arrive on the
+    run's distinct-notes view. A target's own notes come first; the ones that only restate a
+    `d2w fhir validate` finding follow in a trailing subsection, so the file still holds
+    everything the run raised while reading as what generation alone has to say.
     """
     from datetime import UTC, datetime
 
@@ -534,8 +535,13 @@ def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationPro
 
 
 def _render_full_report(report: GenerateFullReport, generation: GenerationProfile, *, details: bool = False) -> None:
-    """Render a full run as one row per target, then say where the notes each target raised are."""
-    outcomes = _full_outcomes(report)
+    """Render a full run as one row per target, then say where the notes the run raised are.
+
+    Rendering reads the distinct-notes view of the run, so a note several targets share is
+    counted and printed once, on the first target that raised it; the `--json` dump keeps the
+    full per-target lists, which read exactly as the solo commands' do.
+    """
+    outcomes = _full_outcomes(report.with_distinct_notes())
     _hint("info", f"{generation.name} ({generation.origin}) -> {report.foundation.project_root}")
     render_list(
         "fhir generate",
@@ -2005,6 +2011,7 @@ def _render_spool_state(report: SpoolStateReport, *, details: bool) -> None:
         [
             DetailRow("project", str(report.project_root)),
             DetailRow("not yet sent to DHIS2", str(report.counts.received)),
+            DetailRow("refused by the translator, still queued", str(report.counts.refused_in_queue)),
             DetailRow("accepted by DHIS2", str(report.counts.forwarded)),
             DetailRow("refused by DHIS2", str(report.counts.rejected)),
             DetailRow("unreadable files", str(report.counts.malformed)),
@@ -2054,6 +2061,12 @@ def _render_spool_state(report: SpoolStateReport, *, details: bool) -> None:
             "note",
             f"{report.counts.rejected} receipt(s) were refused by DHIS2; fix the instance or the data and "
             "`d2w fhir requeue` puts them back in the queue",
+        )
+    if report.counts.refused_in_queue:
+        _hint(
+            "note",
+            f"{report.counts.refused_in_queue} queued receipt(s) were refused by the translator on the last "
+            "run that posted; the reason sits beside each receipt and the next `d2w fhir forward` retries them",
         )
     if not details:
         _hint("note", "--details lists every receipt")

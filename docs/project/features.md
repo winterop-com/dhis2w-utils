@@ -319,8 +319,11 @@ d2w fhir            FHIR IG generation (SUSHI/FSH + pre-built JSON, package dhis
                         (--details prints them inline, with a Why column
                         carrying each response's first reason)
   spool                 What waits in the capture spool and what became of the
-                        rest, per state (--details lists every receipt with its
-                        reason); no DHIS2 connection and no profile
+                        rest, per state, counting the queued receipts the last
+                        committing drain refused to translate (--details lists
+                        every receipt with its reason, off the import report or
+                        the refusal record beside it); no DHIS2 connection and
+                        no profile
   requeue               Move receipts DHIS2 refused back into the queue for the
                         next drain (<id>... or --all-rejected), leaving the
                         import report behind as the record of what DHIS2 last
@@ -547,13 +550,16 @@ chain in one command.
   per resource and the registry therefore sets the wall clock of `make build`.
   The warning names the `[generate.organisation_units]` `max_level` / `root`
   dials.
-- **A code carrying `<` refuses the run.** `d2w fhir generate` refuses a run
-  whose emitted code carries `<`, through the same predicate `fhir validate`
-  grades with, naming the resource type, UID, name, and code - because the IG
-  publisher writes an identifier value into a table cell unescaped and aborts
-  its final pass on the malformed page after every resource has been rendered.
-  The whole run is refused rather than the object skipped, since skipping
-  leaves every Questionnaire binding it pointing at a ValueSet nobody wrote.
+- **A code or name carrying `<` refuses the run.** `d2w fhir generate` refuses
+  a run whose emitted code or byte-true name carries `<`, through the same
+  predicates `fhir validate` grades with, naming the resource type, UID, name,
+  and code - because the IG publisher writes identifier values and titles into
+  pages it strict-parses after writing, and aborts its final pass on the
+  malformed page after every resource has been rendered. Option and category
+  option names are gated too, since they land in page tables the instance
+  sweep cannot see. The whole run is refused rather than the object skipped,
+  since skipping leaves every Questionnaire binding it pointing at a ValueSet
+  nobody wrote.
 
 ### Generate the IG source
 
@@ -1116,7 +1122,9 @@ DHIS2 translations are carried through across the whole surface, filtered by
   finding apart** from what generation itself found
   (`note: 3 note(s) across 2 target(s) (+8 validate echoes); full list in ...`),
   while the notes file still carries every one, echoes under a trailing
-  per-target `Restatements of validate findings` heading.
+  per-target `Restatements of validate findings` heading. A note several
+  targets share is counted and filed once, on the first target that raised
+  it; `--json` keeps the full per-target lists.
 - **A solo target prints all of its notes inline**, and `--json` carries the
   whole model.
 
@@ -1189,7 +1197,9 @@ semantics `generate` uses.
   and an identifier value alike land in HTML the publisher writes unescaped and
   then strict-parses, so an aborted build is what a `<` costs on either surface
   and a malformed page is what the other two cost, and the build aborts only
-  after every resource has been rendered.
+  after every resource has been rendered. Both errors are also generate
+  refusals, through the shared `build_aborting_code` / `build_aborting_name`
+  predicates.
 - **The scope and both restrictions keep the error meaning "this build will
   fail"**: a dashboard is never generated and a data element carries its code
   through an escaped surface, so neither is a finding; `<` is the only
@@ -1459,6 +1469,12 @@ in phases that stop at the first level to find an error.
   renames receipts between them from another process while the server is up,
   and a receipt keeps reading back after a drain rather than expiring the id
   its sender was handed. `[serve] spool_dir` is where that tree lives.
+- **A translator-refused receipt says so in the listing**: a committing drain
+  writes `<id>.refusal.json` beside a receipt it refused and left queued - the
+  drain's instant, an attempt count, and the reasons - and `/spool` rows and
+  the Responses page state it, so a receipt every drain refuses reads
+  differently from one no drain has touched. The move that finally drains the
+  receipt deletes the marker.
 - **A capture is durable before it is acknowledged**: the temporary file is
   `fsync`ed, renamed, and the directory entry `fsync`ed too, so the 201
   promises a receipt that survives power loss rather than one that reached the

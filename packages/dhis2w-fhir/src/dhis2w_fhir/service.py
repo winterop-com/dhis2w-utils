@@ -51,7 +51,7 @@ from dhis2w_fhir.conversion.translator import translate_responses
 from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.names import StemResolution, StemSubject, code_or_uid
-from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note, pluralize
 from dhis2w_fhir.overwrite import (
     AggregateCell,
     ForwardedCellIndex,
@@ -100,6 +100,7 @@ from dhis2w_fhir.resources.option_sets import (
     option_set_identities,
 )
 from dhis2w_fhir.resources.option_sets.schemas import (
+    ConceptSourceIn,
     OptionIn,
     OptionSetIdentityPlan,
     OptionSetIn,
@@ -156,7 +157,9 @@ from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.spool import (
     IMPORT_REPORT_SUFFIX,
+    ForwardRefusalRecord,
     QuarantinedFile,
+    RefusalReason,
     SpooledReceipt,
     SpooledResponse,
     SpoolLayout,
@@ -167,10 +170,12 @@ from dhis2w_fhir.spool import (
     move_to_received,
     move_to_rejected,
     read_received_responses,
+    read_refusal_record,
     read_spooled_receipts,
+    record_refusal,
     sweep_orphan_temporary_files,
 )
-from dhis2w_fhir.validation import build_aborting_code, build_code_validation
+from dhis2w_fhir.validation import build_aborting_code, build_aborting_name, build_code_validation
 from dhis2w_fhir.validation.schemas import (
     FhirValidationReport,
     MetadataCollectionIn,
@@ -463,6 +468,24 @@ class GenerateFullReport(BaseModel):
     organisation_units: GenerateReport
     pages: GenerateReport
 
+    def with_distinct_notes(self) -> GenerateFullReport:
+        """This run with each note kept only on the first target that raised it.
+
+        A full run hands one fetch's notes to every target that reads the same input, so the
+        per-target reports repeat what solo runs of those targets would each say. A consumer
+        reading the whole run - the notes file, the terminal count, the doctor findings - reads
+        this view instead, so one decision is reported once. The fields are declared in run
+        order, which is what makes "first target" well defined.
+        """
+        seen: set[GenerateNote] = set()
+        reports: dict[str, GenerateReport] = {}
+        for field_name in type(self).model_fields:
+            report: GenerateReport = getattr(self, field_name)
+            novel = [note for note in report.notes if note not in seen]
+            seen.update(novel)
+            reports[field_name] = report.model_copy(update={"notes": novel})
+        return GenerateFullReport(**reports)
+
 
 class UnsupportedProgramError(LookupError):
     """Raised when a configured event program is a shape the questionnaire target does not map.
@@ -490,6 +513,24 @@ class BuildAbortingCodeError(LookupError):
     """
 
 
+class BuildAbortingNameError(LookupError):
+    """Raised when a selected object's DHIS2 name would abort the IG publisher's own build.
+
+    A DHIS2 name stays byte-true on the emitted resource's `title` / `name` elements - escaping it
+    would make the IG disagree with the instance about what the object is called - and the IG
+    publisher writes those elements into pages it strict-parses after writing. A `<` opens a tag
+    there, and the publisher dies on the malformed page in its final pass, after every resource has
+    already been rendered.
+
+    The whole run is refused rather than the one object skipped, for the same reason a
+    build-aborting code refuses it: a build that fails loudly now beats one that fails an hour in,
+    and a quietly skipped object leaves a guide that disagrees with its selection.
+
+    A `LookupError` so the CLI's error funnel renders it as a one-liner naming the object and the
+    name, rather than as a traceback.
+    """
+
+
 class _CodedObject(BaseModel):
     """One selected DHIS2 object as the code gate reads it, before any of it is emitted."""
 
@@ -506,18 +547,44 @@ class _CodedObject(BaseModel):
         return code_or_uid(self.code, self.uid)
 
 
-def _refuse_build_aborting_codes(objects: list[_CodedObject]) -> None:
-    """Refuse the run before a single file is written when an emitted code aborts the publisher's build."""
+def _refuse_build_aborting_objects(objects: list[_CodedObject]) -> None:
+    """Refuse the run before a single file is written when an emitted code or name aborts the publisher's build."""
     for coded in objects:
-        if not build_aborting_code(coded.emitted_code):
-            continue
-        raise BuildAbortingCodeError(
-            f"{coded.resource_type} {coded.name!r} ({coded.uid}) has code {coded.emitted_code!r}, which carries "
-            "'<'. A DHIS2 code becomes an identifier value, which the IG publisher writes into a table cell "
-            "unescaped and then strict-parses, so `make build` aborts with \"Unable to Parse HTML - node 'td' "
-            'has unexpected content" in its last pass, once every resource has already been rendered. '
-            "Change the code in DHIS2, then run `d2w fhir validate` for the full report."
-        )
+        if build_aborting_code(coded.emitted_code):
+            raise BuildAbortingCodeError(
+                f"{coded.resource_type} {coded.name!r} ({coded.uid}) has code {coded.emitted_code!r}, which carries "
+                "'<'. A DHIS2 code becomes an identifier value, which the IG publisher writes into a table cell "
+                "unescaped and then strict-parses, so `make build` aborts with \"Unable to Parse HTML - node 'td' "
+                'has unexpected content" in its last pass, once every resource has already been rendered. '
+                "Change the code in DHIS2, then run `d2w fhir validate` for the full report."
+            )
+        if build_aborting_name(coded.name):
+            raise BuildAbortingNameError(
+                f"{coded.resource_type} {coded.name!r} ({coded.uid}) has a name carrying '<'. A DHIS2 name stays "
+                "byte-true on the emitted resource's title, which the IG publisher writes into pages it "
+                "strict-parses after writing, so `make build` aborts in its last pass, once every resource has "
+                "already been rendered. Change the name in DHIS2, then run `d2w fhir validate` for the full report."
+            )
+
+
+def _refuse_build_aborting_member_names(sources: Sequence[ConceptSourceIn]) -> None:
+    """Refuse the run when a concept source's member name aborts the publisher's build.
+
+    Options and category options land in page tables and concept displays the instance sweep
+    cannot see, which is why `d2w fhir validate` flags them through its own option pass - this is
+    the generate-time half of the same finding.
+    """
+    for source in sources:
+        for member in source.options:
+            if not build_aborting_name(member.name):
+                continue
+            raise BuildAbortingNameError(
+                f"{source.source_label} {source.name!r} ({source.uid}) has {source.member_label} "
+                f"{member.name!r} ({member.uid}) whose name carries '<'. The IG publisher writes it into pages "
+                "it strict-parses after writing, so `make build` aborts in its last pass, once every resource "
+                "has already been rendered. Change the name in DHIS2, then run `d2w fhir validate` for the "
+                "full report."
+            )
 
 
 #: How many steps `validate_codes` announces: connect, resolve the selection, sweep, read the
@@ -956,12 +1023,13 @@ def _emit_option_sets(
         "option sets",
         f"writing ig/input/resources/{TERMINOLOGY_DIRECTORY} and ig/input/resources/{CONCEPT_MAP_DIRECTORY}",
     )
-    _refuse_build_aborting_codes(
+    _refuse_build_aborting_objects(
         [
             _CodedObject(resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.code)
             for option_set in option_sets
         ]
     )
+    _refuse_build_aborting_member_names(option_sets)
     build = build_option_set_artifacts(
         option_sets,
         project.config.generate,
@@ -1029,12 +1097,13 @@ def _emit_categories(
         "categories",
         f"writing ig/input/resources/{CATEGORY_DIRECTORY} and ig/input/resources/{CONCEPT_MAP_DIRECTORY}",
     )
-    _refuse_build_aborting_codes(
+    _refuse_build_aborting_objects(
         [
             _CodedObject(resource_type="categories", uid=category.uid, name=category.name, code=category.code)
             for category in categories
         ]
     )
+    _refuse_build_aborting_member_names(categories)
     build = build_category_artifacts(
         categories,
         project.config.generate,
@@ -1238,7 +1307,7 @@ def _emit_questionnaires(
         f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}} and "
         f"ig/input/resources/{{{ASSIGNMENT_DIRECTORY},{ATTRIBUTE_COMBO_DIRECTORY}}}",
     )
-    _refuse_build_aborting_codes([_coded_source(source) for source in sources])
+    _refuse_build_aborting_objects([_coded_source(source) for source in sources])
     assignment_build = build_assignment_artifacts(
         sources,
         assignments,
@@ -2193,7 +2262,7 @@ def _emit_organisation_units(
     progress.step(
         "organisation units", f"writing ig/input/fsh/organization and ig/input/resources/{REGISTRY_DIRECTORY}"
     )
-    _refuse_build_aborting_codes(
+    _refuse_build_aborting_objects(
         [
             _CodedObject(
                 resource_type="organisationUnits",
@@ -2348,8 +2417,9 @@ async def generate_full(
     and each target then builds and syncs off that one result, so nothing is fetched a second
     time the way seven separate commands would fetch it. The foundation runs first because it
     reads nothing at all, and the pages run last because they narrate what the other targets
-    wrote. Each target keeps the notes it alone owns, so its report reads exactly as the solo
-    command's does.
+    wrote. Each target keeps every note its solo command would raise, so its report reads
+    exactly as the solo command's does; a consumer reading the whole run takes
+    `with_distinct_notes()` so a note shared across targets is reported once.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_FULL_STEPS)
@@ -4177,7 +4247,8 @@ class ForwardOutcomeKind(StrEnum):
     """What became of one spooled response in a forward run."""
 
     #: The translator would not read the response whole, so it never reached DHIS2. The receipt stays
-    #: in `received/` for the next drain to retry, unless the refusal is one nothing can fix - see
+    #: in `received/` for the next drain to retry - a committing drain writes its refusal record
+    #: beside it so the listing can say so - unless the refusal is one nothing can fix - see
     #: `TERMINAL_REFUSAL_CATEGORIES` - in which case an import files it to `rejected/`.
     REFUSED = "refused"
 
@@ -4825,6 +4896,7 @@ async def _drain_spool(
         progress.complete(f"{len(conversion.translated):,} translated, {len(conversion.refused):,} refused")
 
         terminal = _file_terminal_refusals(spooled, conversion, moving=import_responses)
+        _record_refusals(spooled, conversion, moving=import_responses)
         overwrite_index = _forwarded_cell_index(layout, conversion)
 
         progress.step("post", _post_caption(0, len(conversion.translated), dry_run=dry_run))
@@ -5137,6 +5209,40 @@ def _file_terminal_refusals(
 def _is_terminally_refused(result: ConversionResult) -> bool:
     """Whether a refusal is one no change to the guide and no change to the data could ever resolve."""
     return any(refusal.category in TERMINAL_REFUSAL_CATEGORIES for refusal in result.refusals)
+
+
+def _record_refusals(spooled: Sequence[SpooledResponse], conversion: ConversionReport, *, moving: bool) -> None:
+    """Write the refusal record beside every receipt this committing drain refused and left queued.
+
+    The receipt stays in `received/` for the next drain to retry, and until now it read in a
+    listing exactly like one no drain had touched. The record beside it - the drain's instant, how
+    many drains have refused it so far, and why - is what lets `/spool` and `d2w fhir spool` say
+    the difference. A dry run writes nothing, exactly as it moves nothing; a terminal refusal is
+    filed to `rejected/` instead - see `_file_terminal_refusals`.
+    """
+    if not moving:
+        return
+    refused_at = _utc_instant()
+    for entry, result in zip(spooled, conversion.results, strict=True):
+        if not result.is_refused or _is_terminally_refused(result):
+            continue
+        previous = read_refusal_record(entry.path.parent, entry.response_id)
+        record_refusal(
+            entry,
+            ForwardRefusalRecord(
+                refused_at=refused_at,
+                attempt_count=1 if previous is None else previous.attempt_count + 1,
+                reasons=tuple(
+                    RefusalReason(category=refusal.category.value, element=refusal.element, reason=refusal.reason)
+                    for refusal in result.refusals
+                ),
+            ),
+        )
+
+
+def _utc_instant() -> str:
+    """The current instant as a FHIR `instant` - UTC, seconds precision, `Z`-suffixed."""
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _forward_stop(entry: SpooledResponse, error: Dhis2ApiError | httpx.HTTPError) -> ForwardStop:
@@ -5557,6 +5663,9 @@ class SpoolStateCounts(BaseModel):
     malformed: int = 0
     """Files in `malformed/`, which are not receipts - they are bytes that would not read as one."""
 
+    refused_in_queue: int = 0
+    """Of the received receipts, how many the last committing drain refused to translate."""
+
     @property
     def total(self) -> int:
         """How many receipts the spool holds, which counts the three states and not the holding pen."""
@@ -5593,6 +5702,8 @@ class SpoolStateReport(BaseModel):
         line = (
             f"{self.counts.received:,} received, {self.counts.forwarded:,} forwarded, {self.counts.rejected:,} rejected"
         )
+        if self.counts.refused_in_queue:
+            line = f"{line} ({self.counts.refused_in_queue:,} of the received refused by the translator)"
         return f"{line}, {self.counts.malformed:,} malformed" if self.counts.malformed else line
 
 
@@ -5651,6 +5762,7 @@ def read_spool_state(project: FhirProject) -> SpoolStateReport:
         forwarded=len(contents.in_state(SpoolState.FORWARDED)),
         rejected=len(contents.in_state(SpoolState.REJECTED)),
         malformed=len(contents.quarantined),
+        refused_in_queue=sum(1 for receipt in contents.in_state(SpoolState.RECEIVED) if receipt.refusal is not None),
     )
     return SpoolStateReport(
         project_root=project.project_root,
@@ -5695,13 +5807,17 @@ def requeue_rejected_responses(
 
 
 def _receipt_reason(receipt: SpooledReceipt) -> str | None:
-    """What the report beside one drained receipt says, as the one line a listing row shows.
+    """What the sidecar beside one receipt says, as the one line a listing row shows.
 
-    Only a drained receipt has one: a receipt still in `received/` has been asked about by nobody, so
-    there is nothing on disk to read and the row states no reason rather than inventing one.
+    A drained receipt reads its import report. A queued receipt reads the refusal record a
+    committing drain left beside it, when one has - a receipt no drain has touched has nothing on
+    disk to read, and the row states no reason rather than inventing one.
     """
     if receipt.state is SpoolState.RECEIVED:
-        return None
+        if receipt.refusal is None:
+            return None
+        drains = pluralize(receipt.refusal.attempt_count, "drain")
+        return f"{receipt.refusal.line} (refused by {drains}, last at {receipt.refusal.refused_at})"
     path = receipt.path.with_name(f"{receipt.response_id}{IMPORT_REPORT_SUFFIX}")
     if not path.is_file():
         return None

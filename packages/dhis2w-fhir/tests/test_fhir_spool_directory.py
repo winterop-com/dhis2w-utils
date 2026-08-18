@@ -13,13 +13,20 @@ from pathlib import Path
 
 import pytest
 from dhis2w_fhir.config import FHIR_CONFIG_FILENAME, ServeConfig, load_fhir_config, load_project
-from dhis2w_fhir.service import read_spool_state, spool_layout
+from dhis2w_fhir.service import ForwardImportRecord, read_spool_state, spool_layout
 from dhis2w_fhir.spool import (
+    REFUSAL_RECORD_SUFFIX,
     SPOOL_RELATIVE_PATH,
+    ForwardRefusalRecord,
+    RefusalReason,
     SpoolLayout,
     SpoolState,
     drain_lock,
+    move_to_forwarded,
     read_received_responses,
+    read_refusal_record,
+    read_spooled_receipts,
+    record_refusal,
     resolve_spool_root,
 )
 from pydantic import ValidationError
@@ -169,3 +176,86 @@ def test_the_layout_carries_the_project_a_report_names_paths_against(tmp_path: P
 
     assert layout.project_root == tmp_path / "project"
     assert layout.root == Path("/srv/receipts")
+
+
+def _queued_with_refusal(tmp_path: Path, record: ForwardRefusalRecord | None = None) -> SpoolLayout:
+    """One project holding a queued receipt `stuck-1`, with a refusal record beside it when given."""
+    project = load_project(_write_project(tmp_path / "project"))
+    layout = spool_layout(project)
+    _write_receipt(layout.directory_for(SpoolState.RECEIVED), "stuck-1")
+    if record is not None:
+        record_refusal(read_received_responses(layout).responses[0], record)
+    return layout
+
+
+def _refusal() -> ForwardRefusalRecord:
+    """The record a committing drain writes when it refuses a receipt for the second time."""
+    return ForwardRefusalRecord(
+        refused_at="2026-08-17T12:00:00Z",
+        attempt_count=2,
+        reasons=(RefusalReason(category="no-form-type", reason="the form declares no kind"),),
+    )
+
+
+def test_a_refusal_record_rides_the_listing_and_never_reads_as_a_receipt(tmp_path: Path) -> None:
+    """The marker is a sidecar: the listing states it on the receipt's row, and no read mistakes it for one."""
+    layout = _queued_with_refusal(tmp_path, _refusal())
+
+    contents = read_spooled_receipts(layout)
+
+    assert [receipt.response_id for receipt in contents.receipts] == ["stuck-1"]
+    refusal = contents.receipts[0].refusal
+    assert refusal is not None
+    assert refusal.attempt_count == 2
+    assert refusal.line == "the form declares no kind"
+    assert [response.response_id for response in read_received_responses(layout).responses] == ["stuck-1"]
+
+
+def test_a_receipt_no_drain_has_refused_carries_no_refusal(tmp_path: Path) -> None:
+    """Nothing on disk means nothing stated: the row reads exactly as it did before any drain ran."""
+    layout = _queued_with_refusal(tmp_path)
+
+    contents = read_spooled_receipts(layout)
+
+    assert contents.receipts[0].refusal is None
+
+
+def test_a_corrupt_refusal_record_answers_none_and_the_receipt_still_lists(tmp_path: Path) -> None:
+    """It is the marker that got corrupted, not the receipt that got lost."""
+    layout = _queued_with_refusal(tmp_path)
+    directory = layout.directory_for(SpoolState.RECEIVED)
+    (directory / f"stuck-1{REFUSAL_RECORD_SUFFIX}").write_text("{not json", encoding="utf-8")
+
+    contents = read_spooled_receipts(layout)
+
+    assert [receipt.response_id for receipt in contents.receipts] == ["stuck-1"]
+    assert contents.receipts[0].refusal is None
+    assert read_refusal_record(directory, "stuck-1") is None
+
+
+def test_the_move_that_drains_a_receipt_deletes_its_refusal_record(tmp_path: Path) -> None:
+    """The marker records the queue; a receipt leaving the queue leaves nothing stale behind it."""
+    layout = _queued_with_refusal(tmp_path, _refusal())
+    spooled = read_received_responses(layout).responses[0]
+
+    move_to_forwarded(spooled, ForwardImportRecord(status="OK"))
+
+    received = layout.directory_for(SpoolState.RECEIVED)
+    assert not (received / f"stuck-1{REFUSAL_RECORD_SUFFIX}").exists()
+    assert (layout.directory_for(SpoolState.FORWARDED) / "stuck-1.json").is_file()
+
+
+def test_the_spool_state_report_counts_the_refused_still_queued(tmp_path: Path) -> None:
+    """`d2w fhir spool` states the fact on the receipt's own row and in the counts."""
+    layout = _queued_with_refusal(tmp_path, _refusal())
+    project = load_project(layout.project_root)
+
+    report = read_spool_state(project)
+
+    assert report.counts.refused_in_queue == 1
+    row = report.receipts[0]
+    assert row.reason is not None
+    assert "the form declares no kind" in row.reason
+    assert "2 drains" in row.reason
+    assert "2026-08-17T12:00:00Z" in row.reason
+    assert "refused by the translator" in report.counts_line
