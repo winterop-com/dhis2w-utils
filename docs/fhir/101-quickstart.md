@@ -16,6 +16,16 @@ instance - and a detour through
 Seven steps. The first five are quick; the sixth is where the wall clock goes -
 the first compile is much the longest thing on this page.
 
+**Know what costs what before you start.** Step 6 - the full IG publisher build -
+is the *publish* step: it renders the guide's website, a page per resource, and
+the organisation-unit registry is almost always most of those pages
+(`[generate.organisation_units] max_level` and `root` are the dials). Serving
+never needs it: `d2w fhir serve --live` needs nothing compiled at all and shows
+you a working endpoint straight after step 5, and the compiled posture of
+`serve` needs only the SUSHI compile (`make sushi`, minutes), not the build.
+Run step 6 when you want the website in a browser; skip to step 7 when you want
+the endpoint.
+
 Command output below was captured on a real run against a local DHIS2 2.43.1
 carrying the Sierra Leone demo database. Your paths, counts, and timings will
 differ, and long absolute paths are shortened to `/home/you/my-ig`. To run it
@@ -187,7 +197,7 @@ running 8 step(s)
 [8/8] pages: 20 written, 0 unchanged, 1 note
 full pipeline: 2,813 file(s) written across 7 target(s)
 ...
-note: 4 note(s) across 3 target(s); full list in /home/you/my-ig/reports/fhir-generate-notes.md (--details to print)
+note: 2 note(s) across 2 target(s); full list in /home/you/my-ig/reports/fhir-generate-notes.md (--details to print)
 ```
 
 Also quick, against an instance this size. The `...` hides a per-target
@@ -197,6 +207,11 @@ files - the registry is almost always the bulk of an IG, because every unit
 emits both an `Organization` and a `Location`.
 
 ## 6. Compile it
+
+This is the publish step, and the slow one - the publisher renders a page per
+resource, so a big registry sets its wall clock. Nothing in step 7 waits for
+it: `serve --live` needs no compile at all, and the compiled `serve` posture
+needs only `make sushi`. Come back here when you want the website.
 
 The scaffolded `Dockerfile` carries SUSHI, the IG publisher, and Java, so none
 of them is installed on your machine. Build that image once:
