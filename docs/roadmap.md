@@ -292,9 +292,9 @@ The natural next direction is one of:
   authenticate against. Loopback-by-default is the current mitigation and it is a demo
   posture, not a deployment one. Needs a scope decision first: a gate on the write path, or
   OAuth2 against the same identity provider the client already speaks.
-- **The examples quality wave.** Eleven pre-existing examples show several features at once
-  where the rule is one apiece, a shared served fixture would let six currently-skipped
-  examples run, and eight failures are fixture or environment gaps rather than code.
+- **The examples quality wave.** A handful of non-FHIR examples still show several
+  features at once where the rule is one apiece, and eight failures are fixture or
+  environment gaps rather than code.
 - **Pick one of the two remaining strategic options** below and commit to a multi-PR body of
   work (data approval workflow, or audit log reader).
 - **Promote a medium-term tactical item** (client cold-open latency, the A4 filter-DSL / URL

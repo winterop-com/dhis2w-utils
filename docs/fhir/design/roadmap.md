@@ -1470,12 +1470,6 @@ described, and the git history is where it was built. What is left:
   same identity provider the client already speaks - because it decides whether
   this is one slice or several.
 
-- **The example quality wave.** Every `d2w fhir` example runs in
-  `make verify-examples` against a shared fixture, which is the bar; three of
-  the CLI scripts still read as reference documentation rather than as one
-  feature apiece, and a served fixture the suite stands up once would let the
-  remaining skipped ones run.
-
 - **The history surface, then the IPS document.** Both were deferred behind the
   storage and compliance work and neither is blocked now. History is the
   requirements list the capture comparison produced; the IPS document follows

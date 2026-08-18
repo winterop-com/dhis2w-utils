@@ -22,11 +22,22 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 
 | File | Commands | Runs in `make verify-examples` |
 | --- | --- | --- |
-| [`generate.sh`](cli/generate.sh) | `d2w fhir init`, `generate` (each target and the whole run), `validate` | yes |
+| [`init.sh`](cli/init.sh) | `d2w fhir init` — scaffold a project, offline, with the identity and selection dials | yes |
+| [`init_refresh.sh`](cli/init_refresh.sh) | `d2w fhir init --refresh` — update the scaffold-managed files without losing a line | yes |
+| [`generate.sh`](cli/generate.sh) | `d2w fhir generate` — the whole IG source from one pass over the instance | yes |
+| [`generate_foundation.sh`](cli/generate_foundation.sh) | `d2w fhir generate foundation` — the instance-independent artifacts, no client opened | yes |
+| [`generate_option_sets.sh`](cli/generate_option_sets.sh) | `d2w fhir generate option-sets` — one named target alone | yes |
+| [`validate.sh`](cli/validate.sh) | `d2w fhir validate` — the FHIR-safety gate, exit 1 on errors | yes |
+| [`validate_code_source.sh`](cli/validate_code_source.sh) | `d2w fhir validate --code-source code` — preview a concept-code migration | yes |
 | [`spool.sh`](cli/spool.sh) | `d2w fhir spool`, `requeue` — the capture queue, read and rewound offline | yes |
 | [`serve.sh`](cli/serve.sh) | `d2w fhir serve` — compile, serve, post a load set, read the receipts | no: docker compile, binds a port |
-| [`forward.sh`](cli/forward.sh) | `d2w fhir forward` — drain the spool into DHIS2, dry run then `--import` | no: docker compile, binds a port, `--import` writes to the instance |
+| [`forward.sh`](cli/forward.sh) | `d2w fhir forward` — drain the spool into DHIS2: dry run, `--import`, the three states | no: docker compile, binds a port, `--import` writes to the instance |
+| [`forward_overwrites.sh`](cli/forward_overwrites.sh) | A drain names the values a previous submission already sent | no: the same compile, port, and writes as `forward.sh` |
+| [`forward_completeness.sh`](cli/forward_completeness.sh) | Data set completeness: what a `completed` response registers | no: the same compile, port, and writes as `forward.sh` |
 | [`doctor.sh`](cli/doctor.sh) | `d2w fhir doctor` — the whole chain against one instance, one verdict | no: the chain includes the docker compile |
+| [`doctor_live_oracle.sh`](cli/doctor_live_oracle.sh) | `d2w fhir doctor --live` — the served output judged against the instance | no: the same chain |
+| [`doctor_report.sh`](cli/doctor_report.sh) | `d2w fhir doctor --workspace` — keep the workspace, hand over the report | no: the same chain |
+| [`doctor_json.sh`](cli/doctor_json.sh) | `d2w --json fhir doctor` — the typed report on stdout, for jq and CI | no: the same chain |
 
 ## [`client/`](client/README.md) — the Python library path
 
