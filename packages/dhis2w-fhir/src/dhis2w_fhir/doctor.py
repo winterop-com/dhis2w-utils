@@ -765,14 +765,16 @@ class _DoctorRun:
         except (Dhis2ClientError, httpx.HTTPError, LookupError, ValueError) as error:
             self._record(DoctorPhase.GENERATE, DoctorOutcome.FAILED, str(error), started)
             return False
+        # The distinct-notes view: a note several targets share becomes one finding, not three.
+        distinct = report.with_distinct_notes()
         outcomes = [
-            report.foundation,
-            report.option_sets,
-            report.categories,
-            report.questionnaires,
-            report.examples,
-            report.organisation_units,
-            report.pages,
+            distinct.foundation,
+            distinct.option_sets,
+            distinct.categories,
+            distinct.questionnaires,
+            distinct.examples,
+            distinct.organisation_units,
+            distinct.pages,
         ]
         written = sum(len(outcome.written_files) for outcome in outcomes)
         notes = [note for outcome in outcomes for note in outcome.notes]

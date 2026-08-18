@@ -52,7 +52,7 @@ def translate_response(response: QuestionnaireResponse, context: ConversionConte
             "QuestionnaireResponse.extension",
             f"the response declares no DHIS2 form kind under `{context.naming.form_type_url}`",
         )
-    form = context.forms.get(response.questionnaire or "")
+    form = context.form_for(response.questionnaire)
     if form is None:
         return _refused(
             response,

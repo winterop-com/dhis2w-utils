@@ -51,6 +51,6 @@ Twenty-five examples with [their own README](client/README.md), grouped into fiv
 | Send and verify | How do I post it, and what comes back? |
 | Drive the toolchain | Generating, serving, and draining from Python rather than the command line |
 
-**Every one runs in `make verify-examples`**, because [`client/_fixture.py`](client/_fixture.py) stands up what each needs: a scaffolded project, a translation context built live off the instance, and a `d2w fhir serve --live` facade on a port the operating system picks, stopped at exit. `D2W_FHIR_EXAMPLE_PROJECT` and `D2W_FHIR_EXAMPLE_FACADE` point the fixture at your own instead.
+**Every one runs in `make verify-examples`**, because [`client/_fixture.py`](client/_fixture.py) stands up what each needs: a scaffolded project, a translation context built live off the instance, and a `d2w fhir serve --live` facade on a port the operating system picks, stopped at exit. `D2W_FHIR_EXAMPLE_PROJECT` and `D2W_FHIR_EXAMPLE_FACADE` point the fixture at your own instead - and the verify suite sets exactly those two before its loop, standing the project and the facade up once so every FHIR client example of a batch pass shares one instead of each booting its own.
 
 There are no MCP examples because there are no MCP tools: this surface is driven from the command line and from Python, and what an agent drives is the served facade itself, over HTTP.

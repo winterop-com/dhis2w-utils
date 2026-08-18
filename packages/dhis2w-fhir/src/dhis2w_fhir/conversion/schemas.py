@@ -594,6 +594,21 @@ class ConversionContext(BaseModel):
         """Whether the context was given a Location table to resolve organisation-unit references through."""
         return bool(self.organisation_unit_uids_by_location_id)
 
+    def form_for(self, reference: str | None) -> FormSpec | None:
+        """The served form one reference names: the questionnaire canonical, or the bare form id.
+
+        `forms` is keyed by the canonical a response carries, and a canonical ends in the form's
+        id - so a caller holding the id alone (the segment a UI routes on) resolves here too,
+        rather than building a second index. None for nothing named and for nothing served under
+        the name, which are the same answer to a translator: no form to read the response against.
+        """
+        if not reference:
+            return None
+        direct = self.forms.get(reference)
+        if direct is not None:
+            return direct
+        return next((form for key, form in self.forms.items() if key.rsplit("/", 1)[-1] == reference), None)
+
 
 class ConversionResult(BaseModel):
     """What one QuestionnaireResponse translated into: a payload, or the reasons there is none.
@@ -637,6 +652,21 @@ class ConversionResult(BaseModel):
     def is_refused(self) -> bool:
         """Whether the response produced a refusal instead of a payload."""
         return bool(self.refusals)
+
+    @property
+    def payload(self) -> DataValueSet | TrackerEvent | TrackerTrackedEntity | TrackerEnrollment | None:
+        """Whichever payload this translation produced, or None when the response was refused.
+
+        The four payload fields are mutually exclusive - the invariant the class docstring states -
+        so this is the accessor for a caller that wants the produced document without caring which
+        endpoint shape it is; the typed fields stay for the caller that does. `target_kind` alone
+        cannot answer it: a registration produces `tracked_entity` for a new subject and
+        `enrollment` for one the instance already holds, under the same kind.
+        """
+        for candidate in (self.data_value_set, self.event, self.tracked_entity, self.enrollment):
+            if candidate is not None:
+                return candidate
+        return None
 
 
 class ConversionReport(BaseModel):

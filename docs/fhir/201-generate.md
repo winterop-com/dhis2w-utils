@@ -13,8 +13,8 @@ the implementer running generation for the first time.
 
 **Before you start:** a scaffolded project pointing at your instance
 ([Set up an IG project](201-set-up-a-project.md)), ideally after a clean
-[validate](201-validate.md) - generate refuses the codes validate marks as
-build-aborting.
+[validate](201-validate.md) - generate refuses the codes and names validate
+marks as build-aborting.
 
 **You will be able to:**
 
@@ -56,14 +56,19 @@ info: local_basic (fhir.toml) -> /home/you/demo-ig
 │               │ resources/assignments,        │         │           │         │      │
 │               │ resources/attribute-option-co │         │           │         │      │
 │               │ mbos, resources/concept-maps  │         │           │         │      │
-│examples       │ ig/input/fsh/examples         │ 14      │ 0         │ 0       │ 2    │
+│examples       │ ig/input/fsh/examples         │ 14      │ 0         │ 0       │ 1    │
 │org-units      │ ig/input/fsh/organization,    │ 2667    │ 0         │ 0       │ 0    │
 │               │ resources/registry            │         │           │         │      │
-│pages          │ ig/input/pagecontent          │ 20      │ 0         │ 0       │ 1    │
+│pages          │ ig/input/pagecontent          │ 20      │ 0         │ 0       │ 0    │
 └───────────────┴───────────────────────────────┴─────────┴───────────┴─────────┴──────┘
-note: 4 note(s) across 3 target(s); full list in
+note: 2 note(s) across 2 target(s); full list in
 /home/you/demo-ig/reports/fhir-generate-notes.md (--details to print)
 ```
+
+The step lines and the table disagree about the examples on purpose: the
+step line counts what that target raised on its own, and the table counts
+each note once, on the first target that raised it - the greys-out note the
+examples and the pages both repeat is filed under the questionnaires.
 
 The bare run is the one to reach for: it reads the instance once and every
 target builds off that single result, where seven separate commands each
@@ -225,7 +230,8 @@ an option set the closure pulled in, a form skipped for a `linkId`
 collision. A note carries a **kind**, and three kinds (`code-fallback`,
 `code-collision`, `stem-fallback`) are restatements of what validate already
 reports. A bare run counts them - the echoes separately - and writes them
-all to `reports/fhir-generate-notes.md`, grouped by target:
+all to `reports/fhir-generate-notes.md`, each note once, under the first
+target that raised it:
 
 ```text
 note: 3 note(s) across 2 target(s) (+8 validate echoes); full list in
@@ -252,13 +258,12 @@ $ cat reports/fhir-generate-notes.md
 
 ## examples
 
-- data set 'Child Health' (BfMAe6Itzgt) greys out 8 disaggregated cells, which are not published; a response answering one would not be of the form: DUSpd8Jq3M7.hEFKSsPV5et, DUSpd8Jq3M7.psbwp3CQEhs, ca8lfO062zg.Prlt0C1RF0s, ca8lfO062zg.V6L425pT3A0, d5xTg3WR3DP.Prlt0C1RF0s and 3 more
 - 1 question takes an attachment, a geometry document, or a reference to a DHIS2 object the IG does not publish; left unanswered in the synthetic examples: Birth certificate (uf3svrmp8Oj)
-
-## pages
-
-- data set 'Child Health' (BfMAe6Itzgt) greys out 8 disaggregated cells, which are not published; a response answering one would not be of the form: DUSpd8Jq3M7.hEFKSsPV5et, DUSpd8Jq3M7.psbwp3CQEhs, ca8lfO062zg.Prlt0C1RF0s, ca8lfO062zg.V6L425pT3A0, d5xTg3WR3DP.Prlt0C1RF0s and 3 more
 ```
+
+The greys-out note is a fact about the form, so the questionnaires, the
+examples, and the pages targets all raise it - and the file states it once,
+on the questionnaires, because they are the first target that did.
 
 That first note is the one worth reading twice, because it is a DHIS2 fact
 about your form rather than a defect in the run. **A data set section can

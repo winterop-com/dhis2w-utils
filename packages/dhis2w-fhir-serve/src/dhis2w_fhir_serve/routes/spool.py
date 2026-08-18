@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from dhis2w_fhir.r4 import Extension, QuestionnaireResponse, QuestionnaireResponseItem
 from dhis2w_fhir.service import ForwardImportOutcome
-from dhis2w_fhir.spool import QuarantinedFile
+from dhis2w_fhir.spool import ForwardRefusalRecord, QuarantinedFile
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.concurrency import run_in_threadpool
@@ -140,6 +140,33 @@ class SpoolImport(BaseModel):
         )
 
 
+class SpoolRefusal(BaseModel):
+    """What the last committing drain said when it refused to translate one still-queued receipt.
+
+    The receipt stays `received` and the next drain retries it, so this is the queue's own history
+    rather than a DHIS2 answer: when the drain looked, how many drains have refused the receipt so
+    far, and why. Projected out of the refusal record the forwarder stored beside the receipt.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    refused_at: str
+    attempt_count: int = 1
+    reasons: tuple[SpoolRejectionIssue, ...] = ()
+
+    @classmethod
+    def from_record(cls, record: ForwardRefusalRecord) -> SpoolRefusal:
+        """Reduce one stored refusal record to the rollup a still-queued row shows."""
+        return cls(
+            refused_at=record.refused_at,
+            attempt_count=record.attempt_count,
+            reasons=tuple(
+                SpoolRejectionIssue(error_code=reason.category, subject=reason.element, message=reason.reason)
+                for reason in record.reasons
+            ),
+        )
+
+
 class SpoolResponseSummary(BaseModel):
     """One receipt as a listing row: when it arrived, what it answers, where it is, and what DHIS2 said."""
 
@@ -173,6 +200,9 @@ class SpoolResponseSummary(BaseModel):
 
     imported: SpoolImport | None = None
     """What DHIS2 counted for this receipt, on a forwarded row that has a readable report beside it."""
+
+    refusal: SpoolRefusal | None = None
+    """The last committing drain's translator refusal, on a received row that has a record beside it."""
 
 
 class SpoolCounts(BaseModel):
@@ -257,12 +287,21 @@ def _summaries(
     page of it rather than all of it.
     """
     return tuple(
-        _summary(receipt, naming, spool.import_report(receipt.response_id, receipt.lifecycle)) for receipt in receipts
+        _summary(
+            receipt,
+            naming,
+            spool.import_report(receipt.response_id, receipt.lifecycle),
+            spool.refusal_record(receipt.response_id) if receipt.lifecycle is ResponseLifecycle.RECEIVED else None,
+        )
+        for receipt in receipts
     )
 
 
 def _summary(
-    receipt: StoredReceipt, naming: CaptureNaming, report: ForwardImportOutcome | None
+    receipt: StoredReceipt,
+    naming: CaptureNaming,
+    report: ForwardImportOutcome | None,
+    refusal: ForwardRefusalRecord | None = None,
 ) -> SpoolResponseSummary:
     """Build one listing row, deriving the capture context out of the stored resource where it reads.
 
@@ -282,6 +321,7 @@ def _summary(
         warnings=receipt.warnings,
         rejection=SpoolRejection.from_outcome(report) if report is not None and rejected else None,
         imported=SpoolImport.from_outcome(report) if report is not None and forwarded else None,
+        refusal=SpoolRefusal.from_record(refusal) if refusal is not None else None,
     )
     response = _parsed(receipt)
     if response is None:
