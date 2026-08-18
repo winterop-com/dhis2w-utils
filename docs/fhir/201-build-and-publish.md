@@ -203,12 +203,17 @@ is a rounding error against the compile, and running SUSHI natively rather
 than containerised saves on the order of a fifth. The rest is SUSHI's own
 work.
 
-**What the publisher pays for** is sheer resource count, not terminology
-service time (connecting to `TX_SERVER` and opening the cache are a small
-fixed cost, paid once). The scaffolded `sushi-config.yaml` publishes
-JSON only (`excludexml`, `excludettl`), which on the demo halves the output:
-13,710 files and 466MB instead of 26,120 and 874MB, same 0 errors and 0
-warnings.
+**What the publisher pays for** is sheer resource count - every format it
+writes and every page it renders is per resource - which is why the
+scaffolded `sushi-config.yaml` excludes what a DHIS2-derived guide's
+consumers never read: the XML and Turtle wire formats (`excludexml`,
+`excludettl` - on the demo, half the output: 13,710 files and 466MB instead
+of 26,120 and 874MB) and the per-resource spreadsheets (`excludexls` - on a
+national registry, the spreadsheet pass alone is most of the build).
+Terminology service time is a small fixed cost only while the cache is warm:
+a cold cache on a large guide pays `TX_SERVER` a round-trip per coding, which
+can dominate everything else - and is why the caches survive a
+`make refresh`.
 
 ## Keep the caches warm
 
@@ -225,8 +230,10 @@ both up:
   and ignored by git. Leave it in place when you clear build output; a warm
   tx cache takes the validation phase from minutes to seconds.
 
-Removing both is how you reproduce a cold build: delete `ig/input-cache/`
-and `docker volume rm fhir-ig-cache`.
+Both caches survive `make clean` and `make refresh` - a refresh pulls new
+tooling and regenerates, neither of which invalidates a cache keyed by what
+it holds. `make clean-all` is the deliberate wipe, and running it before a
+build is how you reproduce a cold one.
 
 ## Publish it
 

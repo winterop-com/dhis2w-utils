@@ -102,6 +102,7 @@ def test_sushi_config_declares_the_prebuilt_resource_subfolders() -> None:
     assert parameters == {
         "excludexml": "true",
         "excludettl": "true",
+        "excludexls": "true",
         "path-resource": [
             "input/resources/registry/*",
             "input/resources/terminology/*",
@@ -450,13 +451,18 @@ def test_makefile_serves_the_ig_off_disk_and_straight_from_the_instance() -> Non
     assert ".PHONY: serve serve-live" in makefile
 
 
-def test_makefile_refresh_chains_the_full_force_rebuild() -> None:
-    """`refresh` wipes every cache, pulls the latest tooling, regenerates, revalidates, and rebuilds."""
+def test_makefile_refresh_chains_the_full_rebuild_and_keeps_the_caches() -> None:
+    """`refresh` wipes build output, pulls the latest tooling, regenerates, revalidates, and rebuilds.
+
+    `clean`, not `clean-all`: the terminology cache is hours of tx.fhir.org round-trips on a
+    large guide, and neither cache can go stale under a tooling upgrade - both are keyed by
+    what they hold. `make clean-all` stays the deliberate act for wiping them.
+    """
     makefile = _by_path()["Makefile"]
     refresh_recipe = makefile.split("refresh:")[1]
     steps = [line.strip() for line in refresh_recipe.splitlines() if line.startswith("\t")]
     assert steps == [
-        "$(MAKE) clean-all",
+        "$(MAKE) clean",
         "$(MAKE) upgrade",
         "$(MAKE) generate",
         "-$(MAKE) validate",

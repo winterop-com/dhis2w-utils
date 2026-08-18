@@ -73,8 +73,12 @@ clean-all: clean  ## Also remove the terminology cache and the FHIR package cach
 	rm -rf $(IG_DIR)/input-cache
 	-docker volume rm $(CACHE_VOLUME)
 
-refresh:  ## Force-refresh everything: wipe all caches and output, pull latest tooling, regenerate, revalidate, rebuild
-	$(MAKE) clean-all
+# The caches survive a refresh on purpose. The terminology cache is hours of tx.fhir.org
+# round-trips on a large guide, the package cache is re-downloads, and neither can go stale
+# under a tooling upgrade - both are keyed by what they hold. `make clean-all` first is the
+# deliberate act when you really want them gone.
+refresh:  ## Wipe build output, pull latest tooling, regenerate, revalidate, rebuild (keeps the caches)
+	$(MAKE) clean
 	$(MAKE) upgrade
 	$(MAKE) generate
 # The leading dash keeps the rebuild going: validate exits 1 on instance code errors by design,
