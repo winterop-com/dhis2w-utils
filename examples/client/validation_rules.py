@@ -1,24 +1,8 @@
-"""Validate DHIS2 expressions, run validation analysis, browse results — `client.validation`.
+"""ValidationRule authoring round-trip.
 
-Covers the read + run surface of `dhis2w-core`'s validation plugin
-(`d2w maintenance validation ...`). CRUD on the rules themselves stays
-on the generic metadata surface (`d2w metadata list validationRules`).
-
-What this example exercises:
-
-1. **Expression validation** — `/api/expressions/description` + per-context
-   variants (`validation-rule`, `indicator`, `predictor`, `program-indicator`).
-   Useful as a pre-save check before creating a VR or indicator: parses
-   the formula and reports missing references.
-2. **`run_analysis`** — `POST /api/dataAnalysis/validationRules`. Evaluates
-   every validation rule on the org-unit sub-tree for a date range and
-   returns violations. Synchronous; no task polling.
-3. **`list_results`** — browse DHIS2's persistent `/api/validationResults`
-   table (populated by runs with `persist=True`).
-
-Predictor runs live in the sibling `predictors.py` example — same plugin
-namespace (`d2w maintenance ...`) but a different engine that generates
-data values, not violations.
+The CRUD flip side of `d2w maintenance validation run`. Creates a
+throw-away rule on the first aggregate DE found, groups it, then tears
+everything down.
 
 Usage:
     uv run python examples/client/validation_rules.py
@@ -27,48 +11,48 @@ Usage:
 from __future__ import annotations
 
 from _runner import run_example
+
+# v42 is the canonical baseline: swap `.v42` for `.v41` / `.v43` to pin another major.
+from dhis2w_client.generated.v42.enums import Importance, MissingValueStrategy, Operator
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import profile_from_env
 
 
 async def main() -> None:
-    """Validate an expression, run an analysis, list any persisted results."""
+    """Round-trip a ValidationRule and its group."""
     async with open_client(profile_from_env()) as client:
-        # 1. Expression validation — a valid DE ref + a bogus one.
-        print("--- expression validation ---")
-        ok = await client.validation.describe_expression("#{fClA2Erf6IO}")
-        print(f"  valid expression: {ok.valid} — description={ok.description!r}")
+        data_elements = await client.data_elements.list_all(page_size=1)
+        if not data_elements:
+            print("need at least one data element on the instance to run this example")
+            return
+        de_uid = data_elements[0].id or ""
+        print(f"using data element {de_uid}")
 
-        bad = await client.validation.describe_expression("#{noSuchDeUid}")
-        print(f"  invalid expression: {bad.valid} — message={bad.message!r}")
-
-        # Per-context (validation-rule) — same DHIS2 parser as the VR engine uses.
-        vr_ctx = await client.validation.describe_expression(
-            "#{fClA2Erf6IO} > 0",
-            context="validation-rule",
+        rule = await client.validation_rules.create(
+            name="Example client demo rule",
+            short_name="ExCliDemoVR",
+            left_expression=f"#{{{de_uid}}}",
+            operator=Operator.GREATER_THAN_OR_EQUAL_TO,
+            right_expression="0",
+            importance=Importance.MEDIUM,
+            missing_value_strategy=MissingValueStrategy.SKIP_IF_ALL_VALUES_MISSING,
+            organisation_unit_levels=[4],
         )
-        print(f"  VR-context: {vr_ctx.valid} — description={vr_ctx.description!r}")
+        print(f"created validationRule {rule.id}")
 
-        # 2. Run validation analysis (seeded instance often has 0 violations).
-        print("\n--- validation analysis ---")
-        violations = await client.validation.run_analysis(
-            org_unit="ImspTQPwCqd",
-            start_date="2025-01-01",
-            end_date="2025-12-31",
+        rule_group = await client.validation_rule_groups.create(
+            name="Example client demo rule group",
+            short_name="ExCliDemoVRG",
         )
-        print(f"  {len(violations)} violations on the seeded stack")
-        for v in violations[:5]:
-            print(
-                f"    rule={v.validationRuleDescription or v.validationRuleId}  "
-                f"pe={v.periodDisplayName or v.periodId}  "
-                f"ou={v.organisationUnitDisplayName or v.organisationUnitId}  "
-                f"left={v.leftSideValue} {v.operator} right={v.rightSideValue}"
-            )
+        rule_group = await client.validation_rule_groups.add_members(
+            rule_group.id or "",
+            validation_rule_uids=[rule.id or ""],
+        )
+        print(f"group {rule_group.id} carries {len(rule_group.validationRules or [])} rule(s)")
 
-        # 3. Browse persisted results (empty unless some run had `persist=True`).
-        print("\n--- persisted validation results ---")
-        results = await client.validation.list_results(page_size=5)
-        print(f"  {len(results)} persisted results")
+        await client.validation_rule_groups.delete(rule_group.id or "")
+        await client.validation_rules.delete(rule.id or "")
+        print("cleaned up demo rule + group")
 
 
 if __name__ == "__main__":

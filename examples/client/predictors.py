@@ -1,23 +1,9 @@
-"""Run DHIS2 predictor expressions via `client.predictors`.
+"""Predictor authoring round-trip.
 
-Predictors are DHIS2 server-side expressions that generate synthetic
-`DataValue`s from historical data (averages, sums, projections over
-sliding windows). `dhis2w-core` mounts the run surface under
-`d2w maintenance predictors`. CRUD on the predictors themselves stays
-on the generic metadata surface (`d2w metadata list predictors`).
-
-What this example exercises:
-
-- **`run_all`** — `POST /api/predictors/run` for every predictor on the
-  instance, over the given date range. Returns a `WebMessageResponse`
-  envelope with `importCount` summarising how many new values landed.
-
-The plugin also exposes `run_group(group_uid, ...)` and
-`run_one(predictor_uid, ...)` for targeted runs; same envelope shape.
-
-Validation-rule runs live in the sibling `validation_rules.py` example —
-same plugin namespace (`d2w maintenance ...`) but a different engine
-that returns violations, not generated data values.
+The CRUD flip side of `d2w maintenance predictors run`. Creates a
+throw-away predictor writing into the first aggregate DE found (a real
+predictor writes into a dedicated output DE), groups it, then tears
+everything down.
 
 Usage:
     uv run python examples/client/predictors.py
@@ -31,15 +17,41 @@ from dhis2w_core.profile import profile_from_env
 
 
 async def main() -> None:
-    """Run every predictor on the instance over Jan 2025 and report the import envelope."""
+    """Round-trip a Predictor and its group."""
     async with open_client(profile_from_env()) as client:
-        envelope = await client.predictors.run_all(start_date="2025-01-01", end_date="2025-01-31")
-        count = envelope.import_count()
-        print(
-            f"status={envelope.status or envelope.httpStatus}  "
-            f"imported={count.imported if count else '?'}  "
-            f"message={envelope.message or '-'}"
+        data_elements = await client.data_elements.list_all(page_size=1)
+        if not data_elements:
+            print("need at least one data element on the instance to run this example")
+            return
+        de_uid = data_elements[0].id or ""
+        print(f"using data element {de_uid}")
+
+        levels = await client.organisation_unit_levels.list_all()
+        level_uid = (levels[-1].id or "") if levels else ""
+
+        predictor = await client.predictors.create(
+            name="Example client demo predictor",
+            short_name="ExCliDemoPrd",
+            expression=f"#{{{de_uid}}}",
+            output_data_element_uid=de_uid,
+            sequential_sample_count=3,
+            organisation_unit_level_uids=[level_uid] if level_uid else None,
         )
+        print(f"created predictor {predictor.id}")
+
+        predictor_group = await client.predictor_groups.create(
+            name="Example client demo predictor group",
+            short_name="ExCliDemoPDG",
+        )
+        predictor_group = await client.predictor_groups.add_members(
+            predictor_group.id or "",
+            predictor_uids=[predictor.id or ""],
+        )
+        print(f"group {predictor_group.id} carries {len(predictor_group.predictors or [])} predictor(s)")
+
+        await client.predictor_groups.delete(predictor_group.id or "")
+        await client.predictors.delete(predictor.id or "")
+        print("cleaned up demo predictor + group")
 
 
 if __name__ == "__main__":
