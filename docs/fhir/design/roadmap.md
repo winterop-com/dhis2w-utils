@@ -244,7 +244,7 @@ each one at its section of those pages.
 | --- | --- |
 | `fhir.toml` | The minimal committed config - the profile pointer, `[ig]`, and the seeded target lists when `--data-set` / `--event-program` / `--tracker-program` were given. |
 | `fhir.toml.example` | Every option with its default, documented. |
-| `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), the `path-resource` globs for `input/resources/registry/*`, `input/resources/terminology/*`, and `input/resources/categories/*` (SUSHI recurses into those sub-folders, the IG Publisher does not, so a missing glob drops that sub-folder from the published guide), and the eight-entry `menu:`. No `pages:` and no `groups:`. Also the one file recording the publisher URL and the copyright year, which is why a refresh reads its inputs from it. |
+| `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` / `excludexls` (JSON only, no per-resource spreadsheets), the `path-resource` globs for `input/resources/registry/*`, `input/resources/terminology/*`, and `input/resources/categories/*` (SUSHI recurses into those sub-folders, the IG Publisher does not, so a missing glob drops that sub-folder from the published guide), and the eight-entry `menu:`. No `pages:` and no `groups:`. Also the one file recording the publisher URL and the copyright year, which is why a refresh reads its inputs from it. |
 | `ig/ig.ini` | `template = fhir2.base.template`, pointing at the compiled ImplementationGuide JSON. |
 | `ig/fsh.ini` | `timeout = 1800` for the publisher's embedded SUSHI, settable with `--sushi-timeout`. |
 | `ig/input/fsh/aliases.fsh` | Hand-authored alias stub. Never regenerated - it carries no generated header. |
@@ -1436,15 +1436,22 @@ standalone fast gate for the edit loop.
 
 **Terminology service time is not where the publisher's time goes.** Connecting
 to `TX_SERVER` and opening the terminology cache cost about fourteen seconds
-together. A DHIS2-derived IG codes its concepts in its own CodeSystems and the
-publisher resolves those internally. This is not worth optimising - recorded here
-so it is not re-investigated.
+together **with a warm cache**. A DHIS2-derived IG codes its concepts in its own
+CodeSystems and the publisher resolves those internally - but a cold cache on a
+national-scale guide is a different animal: on the play 2.43 guide (3,288
+resources, uncapped registry) the conformance-validation phase alone ran 1h34m
+against tx.fhir.org at idle CPU, which is why the scaffolded `make refresh`
+keeps the cache and only `make clean-all` wipes it.
 
 **Publishing JSON only halves the output.** `excludexml` and `excludettl` in the
 scaffolded `sushi-config.yaml` take the demo from 26,120 files and 874MB to
 13,710 and 466MB, with the same 0 errors and 0 warnings, because the two extra
 wire formats add a file and a rendered page per resource for content that
-consumers and the tooling read as JSON anyway.
+consumers and the tooling read as JSON anyway. `excludexls` sits beside them
+for the same reason one scale up: the publisher otherwise writes a spreadsheet
+per conformance resource, and on the play 2.43 guide that pass alone ran 3h25m
+of a 5h24m build - the largest single phase, ahead of the cold-cache
+terminology validation.
 
 **The lever on the publisher's rendering pass** is
 `[generate.organisation_units] max_level`. The registry is 2,664 of the demo's
