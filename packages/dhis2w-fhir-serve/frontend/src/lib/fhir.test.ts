@@ -18,7 +18,7 @@ import {
     canonicalId,
     conceptDisplay,
     declaredOperations,
-    declaresPatientSearch,
+    declaresRegisterSearch,
     enrolledAtOf,
     FORM_TYPE_LABELS,
     FORM_TYPES,
@@ -219,69 +219,88 @@ describe('a real /metadata document', () => {
 })
 
 /**
- * Whether this server can be asked who a person is, read off the conformance document.
+ * Whether this server can be asked who a record of one register is, read off the conformance document.
  *
  * THIS IS THE ONE PROBE, AND THE FIXTURE IS THE COMPILED CASE. `metadata.json` is a real
- * `/metadata` from a compiled run, and a compiled run declares no `Patient` at all - the resource
- * is answered from a DHIS2 instance and there is none behind a compiled guide. So the fixture is
- * the negative, and the positive is built here in the shape `dhis2w_fhir_serve.capability` emits
- * under `--live`.
+ * `/metadata` from a compiled run, and a compiled run declares no register at all - the resources
+ * are answered from a DHIS2 instance and there is none behind a compiled guide. So the fixture is
+ * the negative, and the positives are built here in the shape `dhis2w_fhir_serve.capability` emits
+ * under `--live`: one entry per served register, `Patient` being only the default.
  *
- * BOTH HALVES ARE REQUIRED ON PURPOSE. A statement naming `Patient` with a read interaction alone
- * would be a server that resolves a person by uid and cannot look one up, and a search box offered
- * against it would be a search box that always fails.
+ * BOTH HALVES ARE REQUIRED ON PURPOSE. A statement naming the register with a read interaction
+ * alone would be a server that resolves a record by uid and cannot look one up, and a search box
+ * offered against it would be a search box that always fails.
  */
-describe('whether patient search is published', () => {
-    /** The Patient entry a live process over a project publishing a registration form declares. */
-    const livePatient = {
-        type: 'Patient',
-        interaction: [{ code: 'read' }, { code: 'search-type' }],
-        searchParam: [{ name: 'identifier', type: 'token' }],
-    }
+/** The entry a live process declares for one served register. */
+const liveRegister = (type: string) => ({
+    type,
+    interaction: [{ code: 'read' }, { code: 'search-type' }],
+    searchParam: [{ name: 'identifier', type: 'token' }],
+})
 
-    /** One statement carrying whatever Patient entry a case is about, beside the compiled ones. */
-    const withPatient = (entry: Record<string, unknown> | null): CapabilityStatement => ({
+describe('whether a register search is published', () => {
+    /** One statement carrying whatever register entries a case is about, beside the compiled ones. */
+    const withRegisters = (...entries: Record<string, unknown>[]): CapabilityStatement => ({
         ...metadata,
         rest: [
             {
                 ...metadata.rest![0],
                 resource: [
                     ...(metadata.rest?.[0].resource ?? []),
-                    ...(entry === null ? [] : [entry as unknown as (typeof livePatient)]),
+                    ...entries.map((entry) => entry as unknown as ReturnType<typeof liveRegister>),
                 ],
             },
         ],
     })
 
-    it('is not published by a compiled run, which declares no Patient at all', () => {
+    it('is not published by a compiled run, which declares no register at all', () => {
         expect(metadata.rest?.[0].resource?.some((resource) => resource.type === 'Patient')).toBe(false)
-        expect(declaresPatientSearch(metadata)).toBe(false)
+        expect(declaresRegisterSearch(metadata, 'Patient')).toBe(false)
     })
 
-    it('is published when the statement declares Patient with a search on identifier', () => {
-        expect(declaresPatientSearch(withPatient(livePatient))).toBe(true)
+    it('is published when the statement declares the register with a search on identifier', () => {
+        expect(declaresRegisterSearch(withRegisters(liveRegister('Patient')), 'Patient')).toBe(true)
     })
 
-    it('is not published by a Patient entry that can only be read by uid', () => {
+    it('is published per register, so a Specimen-only deployment answers about Specimen', () => {
+        const statement = withRegisters(liveRegister('Specimen'))
+        expect(declaresRegisterSearch(statement, 'Specimen')).toBe(true)
+        expect(declaresRegisterSearch(statement, 'Patient')).toBe(false)
+    })
+
+    it('answers each register of a multi-register deployment on its own entry', () => {
+        const statement = withRegisters(liveRegister('Patient'), {
+            type: 'Device',
+            interaction: [{ code: 'read' }],
+        })
+        expect(declaresRegisterSearch(statement, 'Patient')).toBe(true)
+        expect(declaresRegisterSearch(statement, 'Device')).toBe(false)
+    })
+
+    it('is not published by a register entry that can only be read by uid', () => {
         expect(
-            declaresPatientSearch(withPatient({ type: 'Patient', interaction: [{ code: 'read' }] })),
+            declaresRegisterSearch(
+                withRegisters({ type: 'Patient', interaction: [{ code: 'read' }] }),
+                'Patient',
+            ),
         ).toBe(false)
     })
 
     it('is not published by a search on some parameter other than identifier', () => {
         expect(
-            declaresPatientSearch(
-                withPatient({
+            declaresRegisterSearch(
+                withRegisters({
                     type: 'Patient',
                     interaction: [{ code: 'search-type' }],
                     searchParam: [{ name: 'name', type: 'string' }],
                 }),
+                'Patient',
             ),
         ).toBe(false)
     })
 
     it('is not published by a server that answered nothing at all', () => {
-        expect(declaresPatientSearch(null)).toBe(false)
+        expect(declaresRegisterSearch(null, 'Patient')).toBe(false)
     })
 })
 

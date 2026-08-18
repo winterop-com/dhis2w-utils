@@ -283,12 +283,14 @@ on the receipt rather than in one place out of two.
 Both registration kinds - a tracker registration and a person-only form -
 carry a **Person** control beside the other envelope facts. It opens on
 **New person**, which mints an identity for somebody the instance has never
-seen, and that is the whole of what the control does on a server serving a
-compiled guide: there is no DHIS2 instance behind one, so there is nobody to
-find, and the control says so rather than offering a search that would always
+seen, and that is the whole of what the control does on a server publishing no
+search over this form's register - a server serving a compiled guide publishes
+none - and the control says so rather than offering a search that would always
 fail.
 
-A **live** server publishes `GET /Patient?identifier=`, and then the control
+A **live** server publishes `GET /{RegisterType}?identifier=` per served
+register - the form's `subjectType` says which one its registrations land in,
+`Patient` only by default - and then the control
 offers a second option, **Find in this DHIS2 instance**. Type an identifier
 value and the search runs against the instance once the typing stops. What it
 searches is stated on the control: the identifier values DHIS2 holds - the

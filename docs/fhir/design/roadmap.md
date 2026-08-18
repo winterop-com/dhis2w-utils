@@ -1486,10 +1486,6 @@ described, and the git history is where it was built. What is left:
   it, because a summary of a person is only worth publishing once the record it
   summarises can be read.
 
-- **Filed defects, none blocking.** The
-  capture UI's register search is written to `Patient` alone, so a deployment
-  serving only `Specimen` is told no search is published when one is.
-
 
 ### 9.2 Mid-term
 

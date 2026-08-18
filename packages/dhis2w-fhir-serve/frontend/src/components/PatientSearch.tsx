@@ -101,16 +101,19 @@ export function PatientSearchControl({
 export function PatientSearch({
     controlId,
     enabled,
+    resource,
     onChoose,
 }: {
     /** The id the label and the input find each other by; each mount needs its own. */
     controlId: string
     /** False while the control is on screen but not the active source, so nothing is asked. */
     enabled: boolean
+    /** The register resource type the search reads - the form's own `subjectType`. */
+    resource: string
     onChoose: (patient: PatientProjection) => void
 }) {
     const [typed, setTyped] = useState('')
-    const search = usePatientSearch(typed, enabled)
+    const search = usePatientSearch(typed, enabled, resource)
 
     return (
         <PatientSearchControl controlId={controlId} typed={typed} onTyped={setTyped} state={search}>

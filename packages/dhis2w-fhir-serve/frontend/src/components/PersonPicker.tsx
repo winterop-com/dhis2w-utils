@@ -4,7 +4,7 @@ import { PatientEnrollmentList } from '@/components/PatientEnrollments'
 import { PatientSearch } from '@/components/PatientSearch'
 import { Button } from '@/components/ui/button'
 import { usePatientEnrollments } from '@/hooks/use-patient-enrollments'
-import type { PatientSearchSupport } from '@/hooks/use-patient-search-support'
+import type { RegisterSearchSupport } from '@/hooks/use-register-search-support'
 import { useTrackedEntityNaming } from '@/hooks/use-tracked-entity-naming'
 import { personCardValues } from '@/lib/enrollments'
 import type { PatientProjection } from '@/lib/patients'
@@ -39,11 +39,11 @@ export const EXISTING_PERSON_QUESTION_NOTE = 'Not asked for a person this DHIS2 
  * the control. Nothing on the form implies it, and no default can be right for both cases - so the
  * default is the one that was always true here, a new person, and the other is a deliberate act.
  *
- * WHY THE SECOND OPTION IS NOT ALWAYS THERE. Finding a person means reading the DHIS2 instance, and
- * a facade serving a compiled guide holds no connection to one - `/metadata` declares no `Patient`
- * and every request to it is refused. So the option is offered exactly when the conformance
- * document says a search would be answered, and the compiled case says why it is not rather than
- * offering a control that always fails.
+ * WHY THE SECOND OPTION IS NOT ALWAYS THERE. Finding a person means searching the register this
+ * form registers into, and the conformance document says per register whether a search is
+ * published - a facade serving a compiled guide publishes none. So the option is offered exactly
+ * when the document says a search over this form's register would be answered, and the absent case
+ * says so rather than offering a control that always fails.
  *
  * WHY CHOOSING A PERSON TAKES QUESTIONS AWAY. The entity-level questions are the ones DHIS2 writes
  * onto the person rather than onto the enrollment, and this instance already holds that person's
@@ -55,11 +55,14 @@ export const EXISTING_PERSON_QUESTION_NOTE = 'Not asked for a person this DHIS2 
 export function PersonPicker({
     support,
     source,
+    resource,
     chosen,
     onChange,
 }: {
-    support: PatientSearchSupport
+    support: RegisterSearchSupport
     source: PersonSource
+    /** The register resource type this form registers into - its `subjectType`. */
+    resource: string
     /** The person chosen out of the instance, or null when the source is a new person. */
     chosen: PatientProjection | null
     onChange: (source: PersonSource, patient: PatientProjection | null) => void
@@ -116,8 +119,8 @@ export function PersonPicker({
 
             {support === 'absent' && (
                 <p className="text-muted-foreground text-xs">
-                    This server answers from a compiled guide, so it holds no connection to a DHIS2
-                    instance and cannot find a person already registered in one.
+                    This server publishes no search over this form's register, so a person the
+                    DHIS2 instance already holds cannot be found from here.
                 </p>
             )}
 
@@ -125,6 +128,7 @@ export function PersonPicker({
                 <PatientSearch
                     controlId="person-identifier"
                     enabled
+                    resource={resource}
                     onChoose={(patient) => {
                         setSearching(false)
                         onChange('instance', patient)

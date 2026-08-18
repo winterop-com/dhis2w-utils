@@ -22,9 +22,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useEnrollmentOptions } from '@/hooks/use-enrollment-options'
 import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
-import { usePatientSearchSupport } from '@/hooks/use-patient-search-support'
+import { useRegisterSearchSupport } from '@/hooks/use-register-search-support'
 import { useUiConfig } from '@/hooks/use-ui-config'
-import { CAPTURE_OFF_NOTICE, capturesSubmissions } from '@/lib/uiconfig'
+import { CAPTURE_OFF_NOTICE, capturesSubmissions, PEOPLE_RESOURCE_TYPE } from '@/lib/uiconfig'
 import { FhirRequestError, generateResponse, postQuestionnaireResponse, readResource } from '@/lib/api'
 import { reloadedEnrollment, type EnrollmentOption } from '@/lib/enrollments'
 import {
@@ -204,7 +204,11 @@ export function FormFill() {
     const receivesSubmissions = capturesSubmissions(useUiConfig().config)
     const orgUnitScope = useFormOrgUnitScope(questionnaire)
     const enrollmentOffer = useEnrollmentOptions(questionnaire)
-    const patientSearchSupport = usePatientSearchSupport()
+    // The register this form's subject lives in - the form's own subjectType, with the guide's
+    // unnamed-type default. The search gate and the search itself both read it, so a deployment
+    // whose registrations land in Specimen or Device asks about that register rather than Patient.
+    const registerResource = questionnaire?.subjectType?.[0] ?? PEOPLE_RESOURCE_TYPE
+    const registerSearchSupport = useRegisterSearchSupport(registerResource)
 
     // Applied whenever the offer lands or reloads: a person's choice is re-read so its lifecycle
     // badge catches up with a forwarder run, and before anyone chose, the default rule picks the
@@ -560,8 +564,9 @@ export function FormFill() {
                     )}
                     {registersAPersonHere && (
                         <PersonPicker
-                            support={patientSearchSupport}
+                            support={registerSearchSupport}
                             source={personSource}
+                            resource={registerResource}
                             chosen={existingPerson}
                             onChange={(source, patient) => {
                                 setPersonSource(source)
@@ -574,7 +579,8 @@ export function FormFill() {
                             offer={enrollmentOffer}
                             selected={enrollment}
                             source={enrollmentSource}
-                            support={patientSearchSupport}
+                            support={registerSearchSupport}
+                            resource={registerResource}
                             programUid={programOf(questionnaire)}
                             onChange={(source, option) => {
                                 setEnrollmentSource(source)

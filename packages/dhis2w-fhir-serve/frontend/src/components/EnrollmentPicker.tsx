@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select'
 import type { EnrollmentOfferState } from '@/hooks/use-enrollment-options'
 import { usePatientEnrollments } from '@/hooks/use-patient-enrollments'
-import type { PatientSearchSupport } from '@/hooks/use-patient-search-support'
+import type { RegisterSearchSupport } from '@/hooks/use-register-search-support'
 import type { EnrollmentOption } from '@/lib/enrollments'
 import {
     enrollmentsInProgram,
@@ -70,13 +70,16 @@ export function EnrollmentPicker({
     selected,
     source,
     support,
+    resource,
     programUid,
     onChange,
 }: {
     offer: EnrollmentOfferState
     selected: EnrollmentOption | null
     source: EnrollmentSource
-    support: PatientSearchSupport
+    support: RegisterSearchSupport
+    /** The register resource type this program's registrations land in - the form's `subjectType`. */
+    resource: string
     /** The DHIS2 program uid this stage belongs to, which is the one an instance enrollment must be in. */
     programUid: string | null
     onChange: (source: EnrollmentSource, option: EnrollmentOption | null) => void
@@ -133,6 +136,7 @@ export function EnrollmentPicker({
             ) : (
                 <InstanceOffer
                     programUid={programUid}
+                    resource={resource}
                     selected={selected}
                     onChange={(option) => onChange('instance', option)}
                 />
@@ -238,10 +242,13 @@ function SpoolOffer({
  */
 function InstanceOffer({
     programUid,
+    resource,
     selected,
     onChange,
 }: {
     programUid: string | null
+    /** The register resource type the search reads - the form's own `subjectType`. */
+    resource: string
     selected: EnrollmentOption | null
     onChange: (option: EnrollmentOption) => void
 }) {
@@ -255,6 +262,7 @@ function InstanceOffer({
                 <PatientSearch
                     controlId="answering-identifier"
                     enabled
+                    resource={resource}
                     onChoose={(chosen) => setPatient(chosen)}
                 />
             ) : (
