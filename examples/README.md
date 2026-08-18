@@ -15,14 +15,16 @@ examples/
 **`d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide**, serves the
 compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into
 DHIS2. It has its own group because it is its own product surface, in two shapes of caller: the
-commands, and the Python library. Start at [`fhir/cli/generate.sh`](fhir/cli/generate.sh) to see the
-whole loop as commands, or at [`fhir/client/`](fhir/client/README.md) - twenty-five examples,
-grouped from "build a response from my own data" through to "drive the toolchain" - if you are
-integrating against a guide.
+commands, and the Python library. Start at [`fhir/cli/`](fhir/README.md) - one small script per
+command, from `init` through `doctor` - or at [`fhir/client/`](fhir/client/README.md) -
+twenty-five examples, grouped from "build a response from my own data" through to "drive the
+toolchain" - if you are integrating against a guide.
 
 | File | Shows |
 | --- | --- |
-| [`fhir/cli/generate.sh`](fhir/cli/generate.sh) | `d2w fhir init` + `generate` + `validate` - scaffold a SUSHI project and write the IG source from DHIS2 metadata |
+| [`fhir/cli/init.sh`](fhir/cli/init.sh) | `d2w fhir init` - scaffold a dockerized SUSHI IG project, offline |
+| [`fhir/cli/generate.sh`](fhir/cli/generate.sh) | `d2w fhir generate` - the whole IG source from one pass over the instance |
+| [`fhir/cli/validate.sh`](fhir/cli/validate.sh) | `d2w fhir validate` - the FHIR-safety gate over an instance's codes and names |
 | [`fhir/cli/serve.sh`](fhir/cli/serve.sh) | `d2w fhir serve` - compile the guide, serve it, post a load set, read the receipts back |
 | [`fhir/cli/forward.sh`](fhir/cli/forward.sh) | `d2w fhir forward` - drain the capture spool into DHIS2, dry run first |
 | [`fhir/cli/doctor.sh`](fhir/cli/doctor.sh) | `d2w fhir doctor` - the whole chain against one instance, one verdict |

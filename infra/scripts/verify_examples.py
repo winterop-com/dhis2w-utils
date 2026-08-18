@@ -97,10 +97,18 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # The same compile and the same bound port, and its committing run
         # (`d2w fhir forward --import`) writes data values to the instance.
         "fhir/cli/forward.sh",
+        # The overwrite and completeness stories carry the same compile, the
+        # same bound port, and the same committing writes as forward.sh.
+        "fhir/cli/forward_overwrites.sh",
+        "fhir/cli/forward_completeness.sh",
         # `d2w fhir doctor` runs the whole chain — scaffold, generate,
         # dockerized compile, serve, capture, forward — in one command.
         # Minutes per run, for the same compile reason as its siblings.
         "fhir/cli/doctor.sh",
+        # Each doctor story is its own run of that whole chain.
+        "fhir/cli/doctor_live_oracle.sh",
+        "fhir/cli/doctor_report.sh",
+        "fhir/cli/doctor_json.sh",
         # Every `examples/fhir/client/` example stands its own fixture up —
         # `_fixture.py` scaffolds a project, builds the translation context off
         # the instance, and starts a `d2w fhir serve --live` facade it stops at
