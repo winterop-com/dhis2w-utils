@@ -1,59 +1,38 @@
 #!/usr/bin/env bash
-# `d2w maintenance validation ...` — validate expressions, run the validation
-# engine, browse persisted results. CRUD on the rules themselves stays on the
-# generic `d2w metadata list validationRules` surface.
+# ValidationRule authoring — the CRUD flip side of `d2w maintenance validation run`.
 #
-# Predictor runs (the synthetic-data-value engine) live in the sibling
-# `predictors.sh` — same plugin namespace, different engine.
+#   d2w metadata validation-rules         /api/validationRules
+#   d2w metadata validation-rule-groups   /api/validationRuleGroups
 #
-# Usage:
-#   ./examples/cli/validation_rules.sh
+# Creates a throw-away rule over a seeded DataElement, groups it, renames it,
+# then tears everything down.
 set -euo pipefail
 
-# --- Expression validation --------------------------------------------------
-# Parse-check any DHIS2 expression + render a human description. Useful as a
-# pre-save gate before creating a VR or indicator.
+DE_UID=$(d2w --json metadata list dataElements --page-size 1 --fields "id,name" \
+    | python -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')
+echo "using DE $DE_UID"
 
-d2w maintenance validation validate-expression '#{fClA2Erf6IO}'
-d2w maintenance validation validate-expression '#{noSuchDeUid}'
+VR_OUT=$(d2w --json metadata validation-rules create \
+    --name "Example demo rule" \
+    --short-name "ExDemoVR" \
+    --left "#{${DE_UID}}" \
+    --operator "greater_than_or_equal_to" \
+    --right "0" \
+    --importance MEDIUM \
+    --ou-level 4)
+VR_UID=$(printf '%s' "$VR_OUT" | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+echo "created validationRule $VR_UID"
 
-# Per-context parsers: validation-rule / indicator / predictor / program-indicator.
-# Each has a different allowed-reference set on the DHIS2 side.
-d2w maintenance validation validate-expression '#{fClA2Erf6IO} > 0' --context validation-rule
+VRG_OUT=$(d2w --json metadata validation-rule-groups create \
+    --name "Example demo rule group" \
+    --short-name "ExDemoVRG")
+VRG_UID=$(printf '%s' "$VRG_OUT" | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
 
-# --- Validation analysis ----------------------------------------------------
-# Evaluate validation rules on an org-unit subtree for a date range. Returns
-# violations (cells where the rule evaluates to `false`). Synchronous — no
-# `--watch`. `--persist` writes violations to /api/validationResults for
-# later inspection; `--notification` fires configured notification templates.
-#
-# The workspace seeds two BCG validation rules + a ValidationRuleGroup:
-#   VrBCGPos001  — BCG <1y must be > 0 (catches legitimate zero-dose months)
-#   VrBCGInf001  — BCG <1y == BCG >1y (sentinel — produces reliable violations)
-#   VrGImmun001  — group wrapping both
+d2w metadata validation-rule-groups add-members "$VRG_UID" --rule "$VR_UID"
+d2w metadata validation-rule-groups get "$VRG_UID"
 
-# Run one group against the Sierra Leone root OU (walks the full sub-tree):
-d2w maintenance validation run ImspTQPwCqd \
-    --start-date 2024-04-01 --end-date 2024-06-30 \
-    --group VrGImmun001 --max-results 10
+d2w metadata validation-rules rename "$VR_UID" --short-name "ExVRv2"
 
-# Run every rule on the instance (no --group):
-# d2w maintenance validation run ImspTQPwCqd \
-#     --start-date 2024-04-01 --end-date 2024-06-30 --max-results 5
-
-# --- Persisted validation results -------------------------------------------
-# Persist the sentinel rule's violations, then browse them via
-# /api/validationResults:
-d2w maintenance validation run ImspTQPwCqd \
-    --start-date 2024-04-01 --end-date 2024-04-30 \
-    --group VrGImmun001 --persist --max-results 5
-
-d2w maintenance validation result list --ou ImspTQPwCqd --pe 202404
-
-# Bulk-delete by filter (at least one filter required — can't wipe the whole
-# table accidentally):
-# d2w maintenance validation result delete --pe 202404
-
-# --- CRUD on validation rules ----------------------------------------------
-# Stays on the generic metadata surface — no special plugin:
-d2w metadata list validationRules --fields 'id,name,leftSide,rightSide'
+d2w metadata validation-rule-groups remove-members "$VRG_UID" --rule "$VR_UID"
+d2w metadata validation-rule-groups delete "$VRG_UID" --yes
+d2w metadata validation-rules delete "$VR_UID" --yes
