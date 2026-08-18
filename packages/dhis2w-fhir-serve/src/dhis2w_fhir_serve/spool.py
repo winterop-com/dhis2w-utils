@@ -55,7 +55,13 @@ from pathlib import Path
 from typing import Any
 
 from dhis2w_fhir.service import ForwardImportOutcome
-from dhis2w_fhir.spool import QUARANTINE_REASON_SUFFIX, QuarantinedFile, resolve_spool_root
+from dhis2w_fhir.spool import (
+    QUARANTINE_REASON_SUFFIX,
+    ForwardRefusalRecord,
+    QuarantinedFile,
+    read_refusal_record,
+    resolve_spool_root,
+)
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from dhis2w_fhir_serve.errors import BadSearchError, ServeError
@@ -82,6 +88,11 @@ MALFORMED_RESPONSES_RELATIVE_PATH = f"{SPOOL_RELATIVE_PATH}/malformed"
 #: The forwarder writes one into `forwarded/` and into `rejected/` alike. The listing globs `*.json`,
 #: so this suffix is also what keeps a report out of the receipt set, in either directory.
 IMPORT_REPORT_SUFFIX = ".report.json"
+
+#: What the sibling file carrying a still-queued receipt's translator refusal is named, after the
+#: response id. A committing `d2w fhir forward` writes one into `received/` beside a receipt it
+#: refused to translate and left queued, and the move that finally drains the receipt deletes it.
+REFUSAL_RECORD_SUFFIX = ".refusal.json"
 
 #: What every interrupted write leaves behind, and the suffix `tempfile.mkstemp` is called with here.
 TEMPORARY_FILE_SUFFIX = ".tmp"
@@ -120,9 +131,11 @@ class ResponseLifecycle(StrEnum):
 
     The states are the forwarder's, spelled from the reading side: a receipt is `received` until
     `d2w fhir forward` drains it, and then it is whatever DHIS2 said. A response the translator
-    refused stays `received` and the next drain retries it - except for the one refusal no change to
-    the guide or the data could ever fix, which the forwarder files as `rejected`. `malformed/` is
-    not here because nothing in it is a receipt: it is bytes that would not parse as one.
+    refused stays `received` and the next drain retries it - a committing drain leaves its refusal
+    record beside the receipt, which is what `refusal_record` reads - except for the one refusal no
+    change to the guide or the data could ever fix, which the forwarder files as `rejected`.
+    `malformed/` is not here because nothing in it is a receipt: it is bytes that would not parse
+    as one.
     """
 
     RECEIVED = "received"
@@ -378,6 +391,15 @@ class ResponseSpool(BaseModel):
             logger.warning("%s is not a readable import report; the receipt is listed without one", path)
             return None
 
+    def refusal_record(self, response_id: str) -> ForwardRefusalRecord | None:
+        """The translator refusal the last committing drain left beside one still-queued receipt.
+
+        Only a `received` receipt can have one - the move that drains a receipt deletes the marker -
+        and a receipt no committing drain has refused answers None, exactly like one no drain has
+        seen. A record that will not parse also answers None, for the reason `import_report` gives.
+        """
+        return read_refusal_record(self.directory_for(ResponseLifecycle.RECEIVED), response_id)
+
     def count(self) -> int:
         """How many receipts the spool holds, across every lifecycle state."""
         return len(self.receipts())
@@ -504,7 +526,11 @@ class _MalformedReceiptError(Exception):
 def _receipt_paths(directory: Path) -> list[Path]:
     """Every receipt file of one state directory, in file-name order, with the sidecars left out."""
     return sorted(
-        path for path in _scan(directory) if path.suffix == ".json" and not path.name.endswith(IMPORT_REPORT_SUFFIX)
+        path
+        for path in _scan(directory)
+        if path.suffix == ".json"
+        and not path.name.endswith(IMPORT_REPORT_SUFFIX)
+        and not path.name.endswith(REFUSAL_RECORD_SUFFIX)
     )
 
 

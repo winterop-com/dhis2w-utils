@@ -277,7 +277,7 @@ values are known to have landed.
 
 ```
 .serve/responses/
-  received/    captured, not yet forwarded  - the queue
+  received/    captured, not yet forwarded  - the queue; <id>.refusal.json marks one the translator refused
   forwarded/   DHIS2 accepted it, and <id>.report.json says what it counted
   rejected/    DHIS2 refused it, and <id>.report.json says why
   malformed/   a file that no longer reads as a receipt, and <file>.reason.json says what stopped it
@@ -309,6 +309,15 @@ Moves are renames within one filesystem, so a receipt is in exactly one
 state at every instant. The report is written before the receipt moves, so a
 process killed mid-move leaves a report with no receipt - which the next run
 overwrites - rather than a drained receipt nothing explains.
+
+**A receipt the translator refuses stays in the queue, and says so.** It never
+reached DHIS2, so nothing moves - the next drain retries it - but a committing
+run writes `<id>.refusal.json` beside it: when the run looked, how many runs
+have refused the receipt so far, and the reasons. The listing and the Responses
+page read it, so a receipt every drain refuses no longer looks like one no
+drain has touched. The move that finally drains the receipt deletes the marker,
+because the import report is then the answer about it. A dry run writes none,
+exactly as it moves nothing.
 
 **Each receipt is filed the instant DHIS2 answers about it**, inside the
 posting loop rather than in a pass at the end. A drain that is killed halfway
@@ -350,20 +359,25 @@ conflicts with a drain.
 ```console
 $ d2w fhir spool
   fhir spool
-  project                 /home/anna/demo-ig
-  not yet sent to DHIS2   4
-  accepted by DHIS2       26
-  refused by DHIS2        1
-  unreadable files        0
+  project                                    /home/anna/demo-ig
+  not yet sent to DHIS2                      4
+  refused by the translator, still queued    1
+  accepted by DHIS2                          26
+  refused by DHIS2                           1
+  unreadable files                           0
 
 note: 1 receipt(s) were refused by DHIS2; fix the instance or the data and
   `d2w fhir requeue` puts them back in the queue
+note: 1 queued receipt(s) were refused by the translator on the last run that
+  posted; the reason sits beside each receipt and the next `d2w fhir forward`
+  retries them
 note: --details lists every receipt
 ```
 
 `--details` adds a row per receipt - the id, its state, the form it answered,
-when it arrived, and for a refused one the short reason off the report beside
-it. `--json` puts the whole thing on stdout.
+when it arrived, and the short reason off the sidecar beside it: the import
+report for a receipt DHIS2 answered about, the refusal record for one the
+translator refused and left queued. `--json` puts the whole thing on stdout.
 
 No DHIS2 connection and no profile: every fact in the listing is on disk,
 which is what makes it answerable while the instance is down - exactly when

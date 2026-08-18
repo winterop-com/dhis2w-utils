@@ -49,6 +49,7 @@ import {
     formatInstant,
     ORGANISATION_UNIT_FACT_LABEL,
     rejectionSummary,
+    type SpoolRefusal,
     type SpoolRejection,
     type SpoolRejectionIssue,
     type SpoolResponseSummary,
@@ -201,6 +202,10 @@ export function ResponseDetail() {
                                 rejection={summary.rejection}
                                 rules={programRulesOf(form.resource)}
                             />
+                        ) : null}
+
+                        {summary !== null && summary.refusal ? (
+                            <RefusalSection refusal={summary.refusal} />
                         ) : null}
 
                         <RawResource resource={stored.resource} />
@@ -546,6 +551,61 @@ function RejectionSection({ rejection, rules }: { rejection: SpoolRejection; rul
                                     </TableRow>
                                 )
                             })}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
+        </section>
+    )
+}
+
+/**
+ * What the last forward run said when it refused to convert this still-queued receipt.
+ *
+ * Not a DHIS2 answer - the receipt never reached the instance - so the facts are the queue's own:
+ * how many forward runs have refused it, when the last one looked, and the reasons it gave. The
+ * reasons render in the rejection table's shape because a reader wants the same three things of
+ * either: which rule, which object, what it said.
+ */
+function RefusalSection({ refusal }: { refusal: SpoolRefusal }) {
+    return (
+        <section className="space-y-3">
+            <h3 className="flex items-center gap-2 text-base font-semibold">
+                <AlertTriangle className="text-status-received size-4" aria-hidden />
+                The translator refused this response
+            </h3>
+            <p className="text-muted-foreground text-sm">
+                Still queued for DHIS2.{' '}
+                {refusal.attempt_count === 1
+                    ? 'One forward run has'
+                    : `${String(refusal.attempt_count)} forward runs have`}{' '}
+                refused to convert it, most recently at {formatInstant(refusal.refused_at)}. The next
+                forward run tries again.
+            </p>
+            {refusal.reasons.length > 0 && (
+                <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Category</TableHead>
+                                <TableHead>Element</TableHead>
+                                <TableHead>What the translator said</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {keyedIssues(refusal.reasons).map((row) => (
+                                <TableRow key={row.key}>
+                                    <TableCell className="font-mono text-xs">
+                                        {row.issue.error_code ?? '-'}
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs">
+                                        {row.issue.subject ?? '-'}
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        {row.issue.message ?? 'no reason given'}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
                         </TableBody>
                     </Table>
                 </div>

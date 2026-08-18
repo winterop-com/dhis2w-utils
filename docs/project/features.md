@@ -319,8 +319,11 @@ d2w fhir            FHIR IG generation (SUSHI/FSH + pre-built JSON, package dhis
                         (--details prints them inline, with a Why column
                         carrying each response's first reason)
   spool                 What waits in the capture spool and what became of the
-                        rest, per state (--details lists every receipt with its
-                        reason); no DHIS2 connection and no profile
+                        rest, per state, counting the queued receipts the last
+                        committing drain refused to translate (--details lists
+                        every receipt with its reason, off the import report or
+                        the refusal record beside it); no DHIS2 connection and
+                        no profile
   requeue               Move receipts DHIS2 refused back into the queue for the
                         next drain (<id>... or --all-rejected), leaving the
                         import report behind as the record of what DHIS2 last
@@ -1466,6 +1469,12 @@ in phases that stop at the first level to find an error.
   renames receipts between them from another process while the server is up,
   and a receipt keeps reading back after a drain rather than expiring the id
   its sender was handed. `[serve] spool_dir` is where that tree lives.
+- **A translator-refused receipt says so in the listing**: a committing drain
+  writes `<id>.refusal.json` beside a receipt it refused and left queued - the
+  drain's instant, an attempt count, and the reasons - and `/spool` rows and
+  the Responses page state it, so a receipt every drain refuses reads
+  differently from one no drain has touched. The move that finally drains the
+  receipt deletes the marker.
 - **A capture is durable before it is acknowledged**: the temporary file is
   `fsync`ed, renamed, and the directory entry `fsync`ed too, so the 201
   promises a receipt that survives power loss rather than one that reached the
