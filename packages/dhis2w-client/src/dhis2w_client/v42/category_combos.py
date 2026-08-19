@@ -162,16 +162,11 @@ class CategoryCombosAccessor:
     ) -> int:
         """Block until the CategoryOptionCombo matrix reaches `expected_count`.
 
-        v42 regenerates the COC matrix automatically on every
-        CategoryCombo save — this method just polls until the count lands.
-        The v43 sibling at `dhis2w_client.v43.category_combos` fires
-        `POST /api/maintenance/categoryOptionComboUpdate` once before
-        polling because v43 stopped auto-regenerating (BUGS.md #33).
-
-        Polling reads `client.category_option_combos.list_for_combo(uid)`
-        until the count matches `expected_count`. On cold-start or under
-        arm64 emulation a large combo's regen can still take tens of
-        seconds.
+        DHIS2 regenerates the COC matrix in the background on every
+        CategoryCombo save, so this method polls
+        `client.category_option_combos.list_for_combo(uid)` until the
+        count matches `expected_count`. On cold-start or under arm64
+        emulation a large combo's regen can take tens of seconds.
 
         Raises `TimeoutError` when `timeout_seconds` elapses without
         reaching the expected count. Returns the final count.

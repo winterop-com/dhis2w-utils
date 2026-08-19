@@ -131,7 +131,6 @@ filing.
 
 ### v43-specific
 
-- [#33](#33-v43-saving-a-categorycombo-no-longer-triggers-categoryoptioncombo-matrix-regeneration) — Saving CategoryCombo no longer auto-generates COCs
 - [#34](#34-v43-categorycombocategorys-legacy-alias-dropped--wire-writes-silently-no-op-without-categories) — `CategoryCombo.categorys` alias dropped; writes silently no-op
 - [#35](#35-v43-post-apidatavaluesets-aborts-the-whole-chunk-when-a-de-belongs-to-multiple-datasets) — dataValueSets aborts whole chunk on DE-in-multiple-datasets **[STILL]**
 - [#36](#36-v43-building-event-analytics-for-an-event-program-with-2024-data-fails-with-column-yearly-does-not-exist) — Event analytics build fails with `column "yearly" does not exist` **[STILL]**
@@ -191,7 +190,6 @@ Notable changes since the 2026-05-08 sweep:
 
 | #   | finding |
 | --- | --- |
-| 33  | **No longer reproduces on pinned `2.43.0.0`.** Documented repro yields a populated COC matrix on save (POST → 2 COCs; PUT adding a category → 4), no `categoryOptionComboUpdate` needed. See the re-verify note on #33. |
 | 21  | **v41 diverges:** v41 `2.41.8.1` accepts `filter=attributeValues.value:eq:...` (200); v42/v43 reject it (400 E1003). v42/v43-specific. |
 | 31  | **premise is v42-only:** on v41 `2.41.8.1` and v43 `2.43.0.0`, `/api/expressions/description?context=PREDICTOR_GENERATOR` rejects BOTH lowercase `avg()/sum()` AND uppercase — only v42 accepts lowercase. |
 | 47 (malformed-UID) | **v41 diverges:** `GET /api/dataElements/<bad-uid>` returns the correct 404 on v41 `2.41.8.1`; v42/v43 return 405. v42/v43-specific. |
@@ -211,7 +209,7 @@ correctly on every version. No entry filed.
 
 - **v41-dev `2.41.9-SNAPSHOT`:** nothing flipped — #2 / #6 / #11 / #16 / #17 / #18 / #20 all STILL PRESENT (same as the 2.41.8.1 real release); #31 unchanged.
 - **v42-dev `2.42.6-SNAPSHOT`:** **#44 FIXED** — `make dhis2-run` against `dhis2/core-dev:2.42` seeds PATs successfully (`POST /api/apiToken` no longer 500s), so a released `2.42.6` will unblock the v42 bump (and the parked mapView bump, #43). The other v42-dev write repros were not run (stopped to free local ports).
-- **v43-dev `2.43.1-SNAPSHOT`:** done — nothing flipped vs 2.43.0.0. The cluster #34 / #35 / #36 / #40 / #41 is all STILL PRESENT, #33 still FIXED, #20 still FIXED-on-v43. Analytics still fails to build (#36; `lastAnalyticsTableSuccess`=1970 — see the #36 sharpening). One characterisation note: #18b's bare-UID-attachment rejection is now a clean 409 (was 500); the "must use {id} refs" quirk itself is unchanged.
+- **v43-dev `2.43.1-SNAPSHOT`:** done — nothing flipped vs 2.43.0.0. The cluster #34 / #35 / #36 / #40 / #41 is all STILL PRESENT, #20 still FIXED-on-v43. Analytics still fails to build (#36; `lastAnalyticsTableSuccess`=1970 — see the #36 sharpening). One characterisation note: #18b's bare-UID-attachment rejection is now a clean 409 (was 500); the "must use {id} refs" quirk itself is unchanged.
 
 **Net dev-branch write-bug result:** the only write bug fixed in any dev branch is **#44** (2.42.6-SNAPSHOT). Nothing else flipped on 2.41.9 / 2.42.6 / 2.43.1-SNAPSHOT.
 
@@ -2769,58 +2767,6 @@ behaviour that v42 did not exhibit — usually a strictness regression
 (stricter validation that aborts where v42 silently coerced) or a regenerator
 that no longer runs at save time and now needs an explicit maintenance trigger.
 
-### 33. v43: saving a `CategoryCombo` no longer triggers `CategoryOptionCombo` matrix regeneration
-
-**RE-VERIFIED 2026-06-09 — no longer reproduces on pinned `dhis2/core:2.43.0.0`.** The documented repro yields a populated COC matrix on save: POST over a 1-category (2-option) combo returns 2 COCs immediately, and PUT adding a second category regenerates to 4 — no `categoryOptionComboUpdate` call needed. The empty-matrix behaviour is gone on the final `2.43.0.0` release (originally observed via the floating `:43` tag, likely a pre-release build). The v43 workaround (`category_combos.wait_for_coc_generation` firing the maintenance trigger) is now unnecessary-but-harmless on 2.43.0.0 — keep it until `2.43.1` is confirmed to regenerate too, then it can go. NOTE: the live verifier `test_bug_33_v43_live_save_returns_empty_coc_matrix` would now FAIL against 2.43.0.0.
-
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:43` from Docker Hub, observed against `make dhis2-run DHIS2_VERSION=v43`). Login as `admin/district`.
-
-**Repro (against any v43 instance):**
-
-```bash
-# Create two CategoryOptions and a Category that owns them.
-OPT_A=$(curl -sf -u admin:district -X POST 'http://localhost:8080/api/categoryOptions' \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"DemoSexA","shortName":"DSA"}' | jq -r '.response.uid')
-OPT_B=$(curl -sf -u admin:district -X POST 'http://localhost:8080/api/categoryOptions' \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"DemoSexB","shortName":"DSB"}' | jq -r '.response.uid')
-CAT=$(curl -sf -u admin:district -X POST 'http://localhost:8080/api/categories' \
-  -H 'Content-Type: application/json' \
-  -d "{\"name\":\"DemoSex\",\"shortName\":\"DemoSex\",\"dataDimensionType\":\"DISAGGREGATION\",\"categoryOptions\":[{\"id\":\"$OPT_A\"},{\"id\":\"$OPT_B\"}]}" | jq -r '.response.uid')
-
-# Create a CategoryCombo over that single Category. Expected COC matrix size: 2.
-COMBO=$(curl -sf -u admin:district -X POST 'http://localhost:8080/api/categoryCombos' \
-  -H 'Content-Type: application/json' \
-  -d "{\"name\":\"DemoCombo\",\"dataDimensionType\":\"DISAGGREGATION\",\"skipTotal\":false,\"categories\":[{\"id\":\"$CAT\"}]}" | jq -r '.response.uid')
-
-# Read back the combo's COC list — expect 2, get 0:
-curl -sf -u admin:district "http://localhost:8080/api/categoryCombos/$COMBO?fields=id,name,categoryOptionCombos%5Bid,name%5D"
-# {"name":"DemoCombo","id":"<uid>","categoryOptionCombos":[]}
-
-# Trigger the maintenance task DHIS2 v42 ran automatically:
-curl -sf -u admin:district -X POST 'http://localhost:8080/api/maintenance/categoryOptionComboUpdate'
-# {"httpStatus":"OK","httpStatusCode":200,"status":"OK"}
-
-# Now the matrix is populated:
-curl -sf -u admin:district "http://localhost:8080/api/categoryCombos/$COMBO?fields=id,name,categoryOptionCombos%5Bid,name%5D"
-# {"name":"DemoCombo","id":"<uid>","categoryOptionCombos":[{"id":"...","name":"DemoSexA"},{"id":"...","name":"DemoSexB"}]}
-```
-
-**Expected:** Saving a `CategoryCombo` (POST or PUT) regenerates its `CategoryOptionCombo` matrix as the cross-product of its categories' options — the v42 behavior the dhis2-core docs describe.
-
-**Actual on v43:** The CategoryCombo persists with zero COCs. Any feature that reads `/api/categoryOptionCombos` for that combo (data entry against a non-default disaggregation, analytics aggregation, the dataDimensionItems renderer in the Maintenance app) silently sees no options. The matrix only fills after `POST /api/maintenance/categoryOptionComboUpdate` runs (which walks every persisted combo, adds missing COCs, removes orphaned ones). v42 had the same maintenance endpoint but it was rarely needed because save-time generation already handled it.
-
-A combo created against v43 is functionally broken until that maintenance trigger runs — `d2w metadata category-combos build --spec ...` polled `wait_for_coc_generation` for 120 s and timed out at 0/N before this was diagnosed.
-
-**Impact:** Any code that creates / modifies CategoryCombos and expects the COC matrix to be ready after save. Affects: this repo's `metadata category-combos build` verb (the `CategoryComboBuilder` one-pass helper), any data-entry tooling that targets a freshly-built combo, and likely third-party tooling that relied on the v42 behavior.
-
-**Workaround in this repo:** `Dhis2Client.maintenance.update_category_option_combos()` exposes the maintenance trigger; `Dhis2Client.category_combos.wait_for_coc_generation` calls it on v43 servers via the per-version accessor dispatch wired into `Dhis2Client.connect()` (see `packages/dhis2w-client/src/dhis2w_client/_dispatch.py`). The v42 sibling at `packages/dhis2w-client/src/dhis2w_client/v42/category_combos.py` skips the trigger entirely — v42 auto-regenerates the matrix at save time. v43's `packages/dhis2w-client/src/dhis2w_client/v43/category_combos.py` keeps it.
-
-**How to know it's fixed:** `POST /api/categoryCombos` returns 201, immediately followed by `GET /api/categoryCombos/{uid}?fields=categoryOptionCombos[id]` showing the full cross-product list. No maintenance call required to populate.
-
-**Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_33_v43_save_does_not_populate_coc_matrix`, `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_33_v43_workaround_fires_maintenance_trigger`, `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_33_v43_live_save_returns_empty_coc_matrix`
-
 ### 34. v43: `CategoryCombo.categorys` legacy alias dropped — wire writes silently no-op without categories
 
 **Observed on:** DHIS2 `2.43.0` (`dhis2/core:43` from Docker Hub, `make dhis2-run DHIS2_VERSION=v43`). Login as `admin/district`.
@@ -2850,7 +2796,7 @@ curl -sf -u admin:district "http://localhost:8080/api/categoryCombos/<NEWUID>?fi
 
 **Expected:** Either the v43 wire still accepts `categorys` as an alias for `categories` (the v42 behavior — `/api/schemas/categoryCombo` reports `fieldName='categories'` but writes were lenient), or the POST 400s on the unknown field. The current "201 Created + persisted but empty" combination has the worst possible UX — clients believe the create succeeded but the resulting combo is functionally broken (no cross-product → empty `CategoryOptionCombos` table → data entry against the combo silently fails downstream).
 
-**Actual:** v43 strictly maps the wire JSON against `Schema.fieldName`, which reports `categories` for `CategoryCombo.category`. v42 had a backwards-compat alias that accepted `categorys` (the historical misspelling DHIS2 carried in some places); v43 dropped the alias without warning. Same combo created with `categorys` on v43 has zero categories and zero COCs, so any downstream lookup that needs the cross-product (data entry, analytics, viz pivots that reference the combo) fails opaquely. Combined with #33 (v43 also stopped auto-regenerating COCs on save), a freshly-built CategoryCombo on v43 needs both the corrected wire field name AND the maintenance trigger before it's actually usable.
+**Actual:** v43 strictly maps the wire JSON against `Schema.fieldName`, which reports `categories` for `CategoryCombo.category`. v42 had a backwards-compat alias that accepted `categorys` (the historical misspelling DHIS2 carried in some places); v43 dropped the alias without warning. Same combo created with `categorys` on v43 has zero categories and zero COCs, so any downstream lookup that needs the cross-product (data entry, analytics, viz pivots that reference the combo) fails opaquely. A freshly-built CategoryCombo on v43 therefore needs the corrected wire field name before it's actually usable.
 
 **Impact:** Any client built against the v42 wire shape that uses `categorys` for create / update will silently produce empty combos on v43. Affects: this repo's `Dhis2Client.category_combos.create` (fixed in this PR by switching to `categories`); also the `_VIZ_FIELDS` / `_CO_FIELDS` field selectors (`categorys[id]` returns nothing on v43 — corrected to `categories[id]`); likely any third-party tooling that referenced the misspelled field directly.
 

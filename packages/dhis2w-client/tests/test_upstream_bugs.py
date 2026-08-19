@@ -61,77 +61,6 @@ def _mock_v43_connect() -> None:
     )
 
 
-@pytest.mark.upstream_bug
-@respx.mock
-async def test_bug_33_v43_save_does_not_populate_coc_matrix() -> None:
-    """BUGS.md #33 — bug-still-present: v43 saves a CategoryCombo with zero COCs.
-
-    On v42, saving a CategoryCombo auto-generates its CategoryOptionCombo
-    matrix server-side. On v43, save persists with `categoryOptionCombos: []`
-    until `POST /api/maintenance/categoryOptionComboUpdate` runs. This test
-    models the v43 wire response — when DHIS2 fixes the bug upstream, the
-    `categoryOptionCombos[].id` array would carry rows immediately after
-    the create response, and we'd update the test (or it'd start failing
-    against a live v43 server).
-    """
-    _mock_v43_connect()
-    respx.post("https://dhis2.example/api/categoryCombos").mock(
-        return_value=httpx.Response(201, json={"status": "OK", "httpStatusCode": 201, "response": {"uid": "CC_NEW"}}),
-    )
-    # The bug: immediately after create, GET shows the combo with empty COC list on v43.
-    respx.get("https://dhis2.example/api/categoryCombos/CC_NEW").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "id": "CC_NEW",
-                "name": "Sex",
-                "dataDimensionType": "DISAGGREGATION",
-                "skipTotal": False,
-                "categories": [{"id": "CAT_SEX"}],
-                "categoryOptionCombos": [],  # <-- the bug: should be 2 (cross-product of "Male"/"Female").
-            },
-        ),
-    )
-    async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
-        combo = await client.category_combos.create(name="Sex", categories=["CAT_SEX"])
-    assert combo.categoryOptionCombos == [], (
-        "BUGS.md #33: v43 should still leave categoryOptionCombos empty on save. "
-        "If this assertion fails, DHIS2 may have shipped a fix — verify upstream "
-        "and remove the workaround in `dhis2w_client/v43/category_combos.py`."
-    )
-
-
-@pytest.mark.upstream_bug
-@respx.mock
-async def test_bug_33_v43_workaround_fires_maintenance_trigger() -> None:
-    """BUGS.md #33 — workaround-works: `wait_for_coc_generation` on v43 fires the maintenance task.
-
-    The v43 sibling of `wait_for_coc_generation` calls
-    `POST /api/maintenance/categoryOptionComboUpdate` once before polling so the
-    matrix actually fills. This test asserts the maintenance route is hit on v43
-    (and would NOT be hit on v42 — covered separately in
-    `test_per_version_dispatch.test_v42_wait_for_coc_skips_maintenance_trigger`).
-    """
-    _mock_v43_connect()
-    maintenance_route = respx.post("https://dhis2.example/api/maintenance/categoryOptionComboUpdate").mock(
-        return_value=httpx.Response(200, json={"httpStatus": "OK"})
-    )
-    respx.get("https://dhis2.example/api/categoryOptionCombos").mock(
-        return_value=httpx.Response(200, json={"categoryOptionCombos": [{"id": "COC_1"}, {"id": "COC_2"}]}),
-    )
-    async with Dhis2Client("https://dhis2.example", auth=_auth()) as client:
-        assert client.version_key == "v43"
-        landed = await client.category_combos.wait_for_coc_generation(
-            "CC_NEW", expected_count=2, timeout_seconds=2.0, poll_interval_seconds=0.01
-        )
-    assert landed == 2
-    assert maintenance_route.called, (
-        "BUGS.md #33 workaround: v43's wait_for_coc_generation must fire the maintenance "
-        "trigger. If this fails, the workaround in `dhis2w_client/v43/category_combos.py` "
-        "has regressed."
-    )
-
-
 # ---------------------------------------------------------------------------
 # BUGS.md #34 — v43 dropped the `categorys` alias for `CategoryCombo.categories`.
 # ---------------------------------------------------------------------------
@@ -370,51 +299,6 @@ def _skip_unless_version(client: Dhis2Client, targets: str | frozenset[str]) -> 
             f"BUGS live test targets {sorted(target_set)}; connected to {client.version_key!r}. "
             f"Run `make dhis2-run DHIS2_VERSION=<N>` against one of the target majors first."
         )
-
-
-@pytest.mark.upstream_bug
-@pytest.mark.slow
-async def test_bug_33_v43_live_save_returns_empty_coc_matrix(local_url: str) -> None:
-    """BUGS.md #33 — bug-still-present (LIVE v43): real save leaves COC matrix empty.
-
-    Requires `make dhis2-run DHIS2_VERSION=v43`. Creates a CategoryCombo over
-    an existing seeded Category, GETs the just-created combo, asserts the
-    `categoryOptionCombos` list is empty (the bug). Cleans up afterwards.
-    If DHIS2 fixes the bug upstream, the assertion fails — verify upstream,
-    then drop the workaround in `dhis2w_client/v43/category_combos.py`.
-    """
-    _skip_if_stack_unreachable(local_url)
-    async with Dhis2Client(local_url, auth=_live_auth()) as client:
-        _skip_unless_version(client, "v43")
-        cats = await client.get_raw("/api/categories", params={"fields": "id", "pageSize": "1"})
-        rows = cats.get("categories") or []
-        if not rows:
-            pytest.skip("seeded fixture has no Categories — fresh stack?")
-        cat_uid = rows[0]["id"]
-        create_envelope = await client.post_raw(
-            "/api/categoryCombos",
-            body={
-                "name": "BUGS_33_LIVE_TEST",
-                "dataDimensionType": "DISAGGREGATION",
-                "skipTotal": False,
-                "categories": [{"id": cat_uid}],
-            },
-        )
-        combo_uid = (create_envelope.get("response") or {}).get("uid")
-        assert isinstance(combo_uid, str), f"unexpected create response: {create_envelope}"
-        try:
-            after = await client.get_raw(
-                f"/api/categoryCombos/{combo_uid}",
-                params={"fields": "id,categoryOptionCombos[id]"},
-            )
-            cocs = after.get("categoryOptionCombos") or []
-            assert cocs == [], (
-                f"BUGS.md #33: expected empty categoryOptionCombos on v43 save (bug-still-present), "
-                f"got {len(cocs)} rows. DHIS2 may have shipped a fix — verify upstream, then drop "
-                f"the workaround in `dhis2w_client/v43/category_combos.py`."
-            )
-        finally:
-            await client.delete_raw(f"/api/categoryCombos/{combo_uid}")
 
 
 @pytest.mark.upstream_bug

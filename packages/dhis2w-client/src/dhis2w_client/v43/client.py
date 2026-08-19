@@ -89,7 +89,7 @@ class Dhis2Client:
     and raises `RuntimeError` otherwise.
 
     Choose this class when you want v43-typed accessor returns (e.g. for
-    code that relies on v43-specific divergence — BUGS.md #33/#34/#35/#38).
+    code that relies on v43-specific divergence — BUGS.md #34/#35/#38).
     For auto-detection against any v41/v42/v43 server, use the top-level
     `from dhis2w_client import Dhis2Client` — that returns the v42-typed
     baseline with runtime dispatch via

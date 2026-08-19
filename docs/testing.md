@@ -50,7 +50,7 @@ All flavours carry `@pytest.mark.upstream_bug`. `make test-upstream-bugs` filter
    - `test_bug_N_v<X>_live_<bug-pattern>` — `@pytest.mark.slow` live verifier. Calls `_skip_if_stack_unreachable(local_url)` + `_skip_unless_version(client, "v<X>")` at the top, then POSTs / GETs against the real wire. Cleans up any mutations.
 3. Reference BUGS.md #N in every docstring so the link is bidirectional.
 
-The pattern is illustrated in the file with BUGS.md #33 (v43 CategoryCombo COC auto-regen) covered end-to-end across all three flavours.
+The pattern is illustrated in the file with BUGS.md #34 (v43 dropping the `categorys` wire alias) covered end-to-end across all three flavours.
 
 ## Test connection details
 
