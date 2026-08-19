@@ -178,7 +178,10 @@ def test_bug_38_workaround_v43_sharing_builder_drops_external_access() -> None:
     """BUGS.md #38 — workaround-works: v43 SharingBuilder doesn't expose `external_access`.
 
     The materialised v43 wire payload doesn't carry `externalAccess`. The
-    v42 sibling still has the field for v42 + v41 servers.
+    v42 sibling keeps the field, which matches the released 2.42.4.1 image
+    this repo pins — that build declares and honours it. The 2.42 and 2.41
+    dev snapshots have already dropped it, so this sanity assertion flips
+    when the v42 pin moves to a released 2.42.5+.
     """
     from dhis2w_client.v42.sharing import SharingBuilder as V42Builder
     from dhis2w_client.v43.sharing import ACCESS_READ_METADATA
@@ -348,27 +351,27 @@ async def test_bug_34_v43_live_categorys_alias_silently_dropped(local_url: str) 
 @pytest.mark.upstream_bug
 @pytest.mark.slow
 async def test_bug_38_v43_live_sharing_schema_lacks_external_access(local_url: str) -> None:
-    """BUGS.md #38 — bug-still-present (LIVE v43): `/api/schemas/sharingObject` does not list `externalAccess`.
+    """BUGS.md #38 — bug-still-present (LIVE v43): the OpenAPI `SharingObject` does not declare `externalAccess`.
 
-    Requires `make dhis2-run DHIS2_VERSION=v43`. Reads the schema directly
-    from DHIS2 (no mutation needed) and asserts the field is absent.
-    Note: v43 itself 404s on `/api/schemas/sharingObject` (the endpoint
-    was removed entirely) — that's a stronger form of "externalAccess
-    absent". Either shape satisfies the assertion.
+    Requires `make dhis2-run DHIS2_VERSION=v43`. `sharingObject` is not an
+    `/api/schemas` type on any major (`404 E1005 Type sharingObject does
+    not exist`), so the OpenAPI component is the only introspection surface
+    that describes it. Reads it directly (no mutation needed) and asserts
+    the field is absent. Gated to v43 because the released 2.42.4.1 image
+    this repo pins still declares and honours the field.
     """
     _skip_if_stack_unreachable(local_url)
     async with Dhis2Client(local_url, auth=_live_auth()) as client:
         _skip_unless_version(client, "v43")
-        try:
-            schema = await client.get_raw("/api/schemas/sharingObject", params={"fields": "properties[fieldName]"})
-        except Dhis2ApiError as exc:
-            if exc.status_code == 404:
-                # v43 removed the schema endpoint entirely — strongest "field absent".
-                return
-            raise
-        field_names = {prop.get("fieldName") for prop in schema.get("properties") or []}
-        assert "externalAccess" not in field_names, (
-            "BUGS.md #38: expected v43 SharingObject schema to lack `externalAccess`. "
+        document = await client.get_raw("/api/openapi/openapi.json", params={"path": "/api/sharing"})
+        schemas = document.get("components", {}).get("schemas", {})
+        sharing_object = schemas.get("SharingObject")
+        assert sharing_object is not None, (
+            "BUGS.md #38: the OpenAPI document no longer carries a `SharingObject` component at all — "
+            "find where the sharing wire shape moved before trusting this verifier."
+        )
+        assert "externalAccess" not in (sharing_object.get("properties") or {}), (
+            "BUGS.md #38: expected the v43 OpenAPI SharingObject to lack `externalAccess`. "
             "DHIS2 may have re-added the field — regenerate codegen and revisit "
             "`dhis2w_client.v43.sharing`."
         )
@@ -1465,31 +1468,6 @@ async def test_bug_36_live_verifier(local_url: str) -> None:
     """
     _skip_if_stack_unreachable(local_url)
     pytest.skip("infra-level workaround only — see BUGS.md #36")
-
-
-@pytest.mark.upstream_bug
-@pytest.mark.slow
-async def test_bug_37_live_verifier(local_url: str) -> None:
-    """BUGS.md #37 — v43-only: fresh dataValueSets CREATE is ~80x slower per row than v41/v42.
-
-    Skipped: this is a performance bug, not a binary pass/fail. A reliable
-    verifier would need to measure per-row CREATE latency against an empty
-    `datavalue` table on v43 and assert it's within some threshold. The
-    measurement would have to wipe the data-value rows first, then time the
-    POST — too destructive + too noisy to fold into a regression suite.
-
-    The workaround lives at the infra level in
-    `infra/scripts/seed/loader.py::_DATA_VALUE_CHUNK = 1_000` (chunk-size
-    tuning so individual chunks finish inside httpx's 300 s read timeout).
-    There's no client-side fix because the slowdown is in DHIS2's per-row
-    category-combo cross-check CTE, not in any request-shape the client
-    controls. The slowness only matters for the one-time cold-build of a
-    fresh `datavalue` table; subsequent UPDATEs run at v41/v42 speeds.
-
-    See BUGS.md #37 for the perf repro + workaround details.
-    """
-    _skip_if_stack_unreachable(local_url)
-    pytest.skip("perf bug, not binary verifiable — see BUGS.md #37")
 
 
 _BUG_42_FIELD = "keyAnalysisDisplayProperty"

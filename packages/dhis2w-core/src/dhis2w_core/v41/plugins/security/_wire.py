@@ -12,11 +12,12 @@ The generated v41 `ApiToken` differs from v42/v43: `type` is a `Literal`, not th
 `security_core.tokens` stays version-neutral; v41 deliberately never imports `ApiTokenType`.
 
 The OAuth2 client wire shape diverges too (BUGS.md #52, cross-referencing #39): v41 has only the
-array-typed `OAuth2Client` with the `cid` identifier and the `data` list envelope, while v42/v43 have
-only the comma-string `Dhis2OAuth2Client` with `clientId` and the `oAuth2Clients` envelope, and there is
-no version-invariant generated schema. `oauth2_clients` validates each `data[]` record through the v41
-`OAuth2Client` and projects it into the version-invariant `OAuth2ClientView`; v41 deliberately never
-imports `Dhis2OAuth2Client`. The secret `secret` field is never read, so no secret reaches a finding.
+array-typed `OAuth2Client` with the `cid` identifier, while v42/v43 have only the comma-string
+`Dhis2OAuth2Client` with `clientId`, and there is no version-invariant generated schema. The list
+envelope key is `oAuth2Clients` on every major. `oauth2_clients` validates each `oAuth2Clients[]`
+record through the v41 `OAuth2Client` and projects it into the version-invariant `OAuth2ClientView`;
+v41 deliberately never imports `Dhis2OAuth2Client`. The secret `secret` field is never read, so no
+secret reaches a finding.
 """
 
 from __future__ import annotations
@@ -171,14 +172,14 @@ def _token_allowlists(token: ApiToken) -> TokenAllowlists:
 
 
 def oauth2_clients(raw: dict[str, Any]) -> list[OAuth2ClientView]:
-    """Project each v41 `/api/oAuth2Clients` record from the `data` envelope into an OAuth2ClientView.
+    """Project each v41 `/api/oAuth2Clients` record from the `oAuth2Clients` envelope into an OAuth2ClientView.
 
-    v41 returns the clients under the `data` key, each with the `cid` identifier and array-typed
+    v41 returns the clients under the `oAuth2Clients` key, each with the `cid` identifier and array-typed
     `grantTypes` / `redirectUris`. Grant types are normalised to lowercase so the version-invariant reducer
     compares against the canonical OAuth2 grant tokens. The secret `secret` field is never read, so no secret
     is ever carried. A record that fails validation is skipped rather than aborting the whole inventory.
     """
-    records = raw.get("data")
+    records = raw.get("oAuth2Clients")
     if not isinstance(records, list):
         return []
     views: list[OAuth2ClientView] = []

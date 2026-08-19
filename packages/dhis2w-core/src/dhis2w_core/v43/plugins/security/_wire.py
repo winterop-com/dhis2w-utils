@@ -9,8 +9,8 @@ The generated v43 `ApiToken` carries `type` as the `ApiTokenType` enum and `crea
 `security_core.tokens` stays version-neutral and never imports `ApiTokenType`.
 
 The OAuth2 client wire shape diverges from v41 (BUGS.md #52, cross-referencing #39): v42/v43 have only the
-comma-string `Dhis2OAuth2Client` with the `clientId` identifier and the `oAuth2Clients` list envelope, while
-v41 has only the array-typed `OAuth2Client` with `cid` and the `data` envelope, and there is no
+comma-string `Dhis2OAuth2Client` with the `clientId` identifier, while v41 has only the array-typed
+`OAuth2Client` with `cid`. The list envelope key is `oAuth2Clients` on every major, and there is no
 version-invariant generated schema. `oauth2_clients` validates each `oAuth2Clients[]` record through the v43
 `Dhis2OAuth2Client`, splits the comma-string grant types and redirect URIs into lists, normalises grant types
 to lowercase, and projects into the version-invariant `OAuth2ClientView`; v43 deliberately never imports

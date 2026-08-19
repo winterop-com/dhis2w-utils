@@ -246,7 +246,10 @@ async def list_events(
 ) -> list[TrackerEvent]:
     """List events via GET /api/tracker/events.
 
-    Works with both event programs (no registration) and tracker programs.
+    Works with both event programs (no registration) and tracker programs. The endpoint
+    spells its two entity filters inconsistently: `trackedEntity` is singular and
+    `enrollments` is plural, and the other spelling of each is accepted and silently
+    dropped, so a wrong one returns the whole program (BUGS.md #91).
     """
     params: dict[str, Any] = {"ouMode": ou_mode, "pageSize": page_size}
     for key, value in (
@@ -254,7 +257,7 @@ async def list_events(
         ("programStage", program_stage),
         ("orgUnit", org_unit),
         ("trackedEntity", tracked_entity),
-        ("enrollment", enrollment),
+        ("enrollments", enrollment),
         ("status", status),
         ("occurredAfter", occurred_after),
         ("occurredBefore", occurred_before),

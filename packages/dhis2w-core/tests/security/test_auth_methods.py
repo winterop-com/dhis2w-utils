@@ -6,13 +6,16 @@ MEDIUM fires), broad-grant detection (including the device-code URN), and loose-
 plus non-loopback cleartext http://, with loopback http://localhost / 127.0.0.1 not flagged per RFC 8252).
 The `_run_auth_methods` wiring (reading `/api/loginConfig` and `/api/oAuth2Clients` via `get_raw`, wrapping
 through the per-tree `_wire.oauth2_clients` extractor, and reducing) is exercised against a mock client across
-all three version trees: the v41 `data` envelope / `cid` / array-typed fields vs the v42/v43 `oAuth2Clients`
-envelope / `clientId` / comma-string fields, the oAuth2Clients-403 degrade-with-note that keeps the OIDC
-findings, and the assertion that no client secret ever surfaces in any view or finding.
+all three version trees: the v41 `cid` / array-typed fields vs the v42/v43 `clientId` / comma-string fields
+under the `oAuth2Clients` list envelope every major returns, the oAuth2Clients-403 degrade-with-note that
+keeps the OIDC findings, and the assertion that no client secret ever surfaces in any view or finding.
+A respx-backed test drives a real `Dhis2Client` against the verbatim `{"pager": ..., "oAuth2Clients": [...]}`
+envelope each major serves, so the extractor's envelope key stays pinned to the live wire on every tree.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from importlib import import_module
 from types import ModuleType
 from typing import Any
@@ -20,6 +23,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
+import respx
+from dhis2w_client import BasicAuth, Dhis2Client
 from dhis2w_client.errors import AuthenticationError, Dhis2ApiError
 from dhis2w_core.security_core import (
     CheckStatus,
@@ -30,6 +35,7 @@ from dhis2w_core.security_core import (
 )
 
 TREES = ("v41", "v42", "v43")
+_BASE = "https://dhis2.example"
 
 
 def _titles(findings: list[Any]) -> set[str]:
@@ -206,10 +212,9 @@ def _client_record(tree: str, *, identifier: str, grants: list[str], redirects: 
     }
 
 
-def _clients_payload(tree: str, records: list[dict[str, Any]]) -> dict[str, Any]:
-    """Wrap client records in the tree's list envelope (v41 `data` vs v42/v43 `oAuth2Clients`)."""
-    key = "data" if tree == "v41" else "oAuth2Clients"
-    return {key: records}
+def _clients_payload(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Wrap client records in the `oAuth2Clients` list envelope every major returns."""
+    return {"pager": {"page": 1, "pageSize": 50, "total": len(records), "pageCount": 1}, "oAuth2Clients": records}
 
 
 def _mock_client(*, login: dict[str, Any], clients: dict[str, Any] | Exception) -> MagicMock:
@@ -235,7 +240,7 @@ async def test_run_auth_methods_flags_oidc_provider(tree: str) -> None:
     """A configured OIDC provider on /api/loginConfig flags the INFO across all three trees."""
     client = _mock_client(
         login=_login_payload([{"id": "google", "loginText": "Sign in with Google"}]),
-        clients=_clients_payload(tree, []),
+        clients=_clients_payload([]),
     )
 
     result = await _audit_module(tree)._run_auth_methods(client)
@@ -253,7 +258,7 @@ async def test_run_auth_methods_clean_client_is_info(tree: str) -> None:
         grants=["authorization_code", "refresh_token"],
         redirects=["https://app.example/callback"],
     )
-    client = _mock_client(login=_login_payload([]), clients=_clients_payload(tree, [record]))
+    client = _mock_client(login=_login_payload([]), clients=_clients_payload([record]))
 
     result = await _audit_module(tree)._run_auth_methods(client)
 
@@ -270,7 +275,7 @@ async def test_run_auth_methods_broad_grant_is_medium(tree: str) -> None:
         grants=["client_credentials"],
         redirects=["https://app.example/callback"],
     )
-    client = _mock_client(login=_login_payload([]), clients=_clients_payload(tree, [record]))
+    client = _mock_client(login=_login_payload([]), clients=_clients_payload([record]))
 
     result = await _audit_module(tree)._run_auth_methods(client)
 
@@ -287,7 +292,7 @@ async def test_run_auth_methods_grant_case_is_normalized(tree: str) -> None:
         grants=["CLIENT_CREDENTIALS"],
         redirects=["https://app.example/callback"],
     )
-    client = _mock_client(login=_login_payload([]), clients=_clients_payload(tree, [record]))
+    client = _mock_client(login=_login_payload([]), clients=_clients_payload([record]))
 
     result = await _audit_module(tree)._run_auth_methods(client)
 
@@ -303,7 +308,7 @@ async def test_run_auth_methods_wildcard_redirect_is_medium(tree: str) -> None:
         grants=["authorization_code"],
         redirects=["https://app.example/*"],
     )
-    client = _mock_client(login=_login_payload([]), clients=_clients_payload(tree, [record]))
+    client = _mock_client(login=_login_payload([]), clients=_clients_payload([record]))
 
     result = await _audit_module(tree)._run_auth_methods(client)
 
@@ -319,7 +324,7 @@ async def test_run_auth_methods_loopback_http_redirect_is_clean(tree: str) -> No
         grants=["authorization_code"],
         redirects=["http://localhost:8765/callback"],
     )
-    client = _mock_client(login=_login_payload([]), clients=_clients_payload(tree, [record]))
+    client = _mock_client(login=_login_payload([]), clients=_clients_payload([record]))
 
     result = await _audit_module(tree)._run_auth_methods(client)
 
@@ -399,12 +404,12 @@ async def test_run_auth_methods_never_carries_client_secret(tree: str) -> None:
         grants=["client_credentials"],
         redirects=["https://app.example/*"],
     )
-    client = _mock_client(login=_login_payload([]), clients=_clients_payload(tree, [record]))
+    client = _mock_client(login=_login_payload([]), clients=_clients_payload([record]))
 
     result = await _audit_module(tree)._run_auth_methods(client)
 
     assert "do-not-leak-secret" not in repr(result.findings)
-    views = _audit_module(tree)._wire.oauth2_clients(_clients_payload(tree, [record]))
+    views = _audit_module(tree)._wire.oauth2_clients(_clients_payload([record]))
     assert len(views) == 1
     dumped = views[0].model_dump()
     assert "secret" not in dumped
@@ -422,7 +427,7 @@ async def test_run_auth_methods_identifier_field_matches_wire(tree: str) -> None
         redirects=["https://app.example/callback"],
     )
 
-    views = _audit_module(tree)._wire.oauth2_clients(_clients_payload(tree, [record]))
+    views = _audit_module(tree)._wire.oauth2_clients(_clients_payload([record]))
 
     assert len(views) == 1
     assert views[0].identifier == "id-check"
@@ -431,7 +436,7 @@ async def test_run_auth_methods_identifier_field_matches_wire(tree: str) -> None
 @pytest.mark.parametrize("tree", TREES)
 async def test_run_auth_methods_empty_clients_is_clean(tree: str) -> None:
     """No providers and no clients yields an OK check with no findings across all trees."""
-    client = _mock_client(login=_login_payload([]), clients=_clients_payload(tree, []))
+    client = _mock_client(login=_login_payload([]), clients=_clients_payload([]))
 
     result = await _audit_module(tree)._run_auth_methods(client)
 
@@ -487,9 +492,86 @@ async def test_wire_oauth2_clients_skips_invalid_record(tree: str) -> None:
     )
     # A bare string in the list position: model_validate will raise ValidationError/TypeError.
     garbage: Any = "not-a-dict"
-    payload = _clients_payload(tree, [valid, garbage])
+    payload = _clients_payload([valid, garbage])
 
     views = _audit_module(tree)._wire.oauth2_clients(payload)
 
     assert len(views) == 1
     assert views[0].identifier == "valid-app"
+
+
+# ---------------------------------------------------------------------------
+# Live envelope key: /api/oAuth2Clients answers `oAuth2Clients` on every major
+# ---------------------------------------------------------------------------
+
+
+# The verbatim 200 body `GET /api/oAuth2Clients` serves, per major. v41 carries the array-typed
+# `OAuth2Client` keyed by `cid`; v42/v43 carry the comma-string `Dhis2OAuth2Client` keyed by `clientId`.
+# The list envelope is `oAuth2Clients` on all three — reading `data` there yields an empty inventory
+# however many clients the instance holds.
+_LIVE_CLIENT_ENVELOPE: dict[str, dict[str, Any]] = {
+    "v41": {
+        "pager": {"page": 1, "pageSize": 50, "total": 1, "pageCount": 1},
+        "oAuth2Clients": [
+            {
+                "cid": "live-v41-app",
+                "displayName": "Live v41 app",
+                "grantTypes": ["authorization_code", "refresh_token"],
+                "redirectUris": ["https://app.example/callback"],
+                "id": "q1UnJgAz1gW",
+            }
+        ],
+    },
+    "v42": {
+        "pager": {"page": 1, "pageSize": 50, "total": 1, "pageCount": 1},
+        "oAuth2Clients": [
+            {
+                "clientId": "live-v42-app",
+                "displayName": "Live v42 app",
+                "authorizationGrantTypes": "authorization_code,refresh_token",
+                "redirectUris": "https://app.example/callback",
+                "id": "XYhdFh8rCzn",
+            }
+        ],
+    },
+    "v43": {
+        "pager": {"page": 1, "pageSize": 50, "total": 1, "pageCount": 1},
+        "oAuth2Clients": [
+            {
+                "clientId": "live-v43-app",
+                "displayName": "Live v43 app",
+                "authorizationGrantTypes": "authorization_code,refresh_token",
+                "redirectUris": "https://app.example/callback",
+                "id": "MJrvnRbtnoX",
+            }
+        ],
+    },
+}
+
+
+@respx.mock
+async def test_run_auth_methods_reads_the_live_oauth2_clients_envelope(
+    core_version: str, mock_system_info: Callable[..., None]
+) -> None:
+    """A real client against the verbatim wire envelope finds the client on every tree, v41 included."""
+    mock_system_info(core_version)
+    respx.get(f"{_BASE}/api/loginConfig").mock(return_value=httpx.Response(200, json=_login_payload([])))
+    respx.get(f"{_BASE}/api/oAuth2Clients").mock(
+        return_value=httpx.Response(200, json=_LIVE_CLIENT_ENVELOPE[core_version])
+    )
+
+    async with Dhis2Client(_BASE, auth=BasicAuth(username="a", password="b")) as client:
+        result = await _audit_module(core_version)._run_auth_methods(client)
+
+    assert result.status is CheckStatus.OK
+    assert _titles(result.findings) == {"Registered OAuth2 client"}
+    assert result.findings[0].subject == f"live-{core_version}-app"
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_wire_oauth2_clients_rejects_a_data_keyed_envelope(tree: str) -> None:
+    """`data` is not the list key on any major, so a `data`-keyed body yields no clients rather than an inventory."""
+    records = _LIVE_CLIENT_ENVELOPE[tree]["oAuth2Clients"]
+
+    assert _audit_module(tree)._wire.oauth2_clients({"data": records}) == []
+    assert len(_audit_module(tree)._wire.oauth2_clients(_LIVE_CLIENT_ENVELOPE[tree])) == 1

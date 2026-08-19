@@ -74,8 +74,7 @@ _RUN_ENDPOINTS: dict[str, object] = {
     "/api/routes": {"routes": []},
     "/api/apiToken": {"apiToken": []},
     "/api/loginConfig": {"oidcProviders": []},
-    # Both envelopes so the v41 `data` and v42/v43 `oAuth2Clients` wire shapes each read empty.
-    "/api/oAuth2Clients": {"oAuth2Clients": [], "data": []},
+    "/api/oAuth2Clients": {"oAuth2Clients": []},
     "/api/configuration/corsWhitelist": {"data": []},
     "/api/configuration/selfRegistrationRole": {},
     "/api/users/twoFactor/summary": {
