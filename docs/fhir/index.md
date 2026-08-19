@@ -131,5 +131,9 @@ not here. Read them when you want the *why* rather than the *how*:
   that makes DHIS2 distinctively DHIS2, and whether the guide carries it.
 - [FHIR harmonization](design/harmonization.md) - how several
   country guides relate.
+- [The IPS document](design/ips.md) - what an International
+  Patient Summary requires, which sections a DHIS2 tracker instance could
+  feed, and the prototype that makes the reserved decisions concrete
+  (`examples/fhir/client/ips_document.py`).
 - [FHIR enrollment resource](design/enrollment-resource.md) - why
   the read side models an enrollment as it does.

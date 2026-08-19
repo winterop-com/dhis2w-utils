@@ -70,6 +70,14 @@ Posting a response at a running facade, and reading what comes back.
 | [`read_capture_refusal.py`](read_capture_refusal.py) | A refused capture: the 422, its issues, and the FHIRPath each one locates itself with |
 | [`find_person_by_identifier.py`](find_person_by_identifier.py) | Resolving a person to a DHIS2 UID through the register a live facade serves |
 
+## Summarise a record
+
+Reading one person's record back out of DHIS2 and assembling it into a FHIR document.
+
+| File | Shows |
+| --- | --- |
+| [`ips_document.py`](ips_document.py) | An International Patient Summary prototype: a nominated name, one mapped section of Observations, and the three required sections stating absence the way IPS v2.0.1 states it |
+
 ## Drive the toolchain
 
 Generating, serving, and draining from Python, rather than from the command line.

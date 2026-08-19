@@ -83,6 +83,12 @@ what lets a bare run count those apart from what generation itself found.
 The models every pre-built JSON document is serialised from - `Organization` and
 `Location` for the registry, `CodeSystem` and `ValueSet` for the option-set and
 category terminology, `ConceptMap` for both families' mappings back to DHIS2.
+Beside them are the resources a summary document is assembled out of -
+`Composition` and its flat `CompositionSection`, `Patient`, `Condition`,
+`AllergyIntolerance`, and `Observation`, with `Bundle` carrying the `identifier`
+and `timestamp` a document requires; see
+[`examples/fhir/client/ips_document.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/ips_document.py)
+and [the IPS working paper](design/ips.md).
 Every one is frozen, alias-aware, and closed to unknown keys, so
 `Model.model_validate(payload).model_dump_json(exclude_none=True, by_alias=True)`
 reproduces the input document key for key.
