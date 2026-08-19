@@ -137,3 +137,6 @@ not here. Read them when you want the *why* rather than the *how*:
   (`examples/fhir/client/ips_document.py`).
 - [FHIR enrollment resource](design/enrollment-resource.md) - why
   the read side models an enrollment as it does.
+- [The library surface](design/library.md) - what the FHIR toolchain is
+  apart from its commands: what is importable today, the composition contract
+  the served facade is missing, and the sequence that closes the gap.
