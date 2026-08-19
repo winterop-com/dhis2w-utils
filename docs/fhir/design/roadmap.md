@@ -1626,7 +1626,10 @@ described, and the git history is where it was built. What is left:
   everywhere it does not (the projection's no-invented-demographics rule
   scales to no-invented-clinical-content). Owner-requested; sequenced after
   tracked entity history, since a summary is a projection of a record the
-  facade must first serve.
+  facade must first serve. The working paper behind this item is
+  [The IPS document](ips.md): what IPS v2.0.1 requires section by section, the
+  identity and section gaps measured against the register projection, and a
+  recommendation with the owner decisions it reserves.
 
 - **`d2w fhir push`** - outbound delivery of the generated resources into a real
   FHIR system: transaction bundles against a target server, with the DHIS2
