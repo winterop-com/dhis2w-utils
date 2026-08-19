@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-98 entries grouped by area. **Status tags** carry the result of the most
+100 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -46,17 +46,20 @@ filing.
 - [#27](#27-fresh-dhis2-installs-are-flaky-during-first-metadata-import) — Fresh DHIS2 installs flaky during first metadata import
 - [#28](#28-openapi-relativeperiods-schema-exposes-45-boolean-fields-instead-of-an-enum) — OpenAPI `RelativePeriods` schema = 45 boolean fields, not an enum
 - [#29](#29-apimetadatafilterrootjunctionor-silently-ignores-rootjunction-and-ands-multiple-filters) — `/api/metadata?...&rootJunction=OR` silently ANDs filters
-- [#30](#30-apiapphub-returns-versionscreated--last_updated-as-epoch-millis-integers) — `/api/appHub` returns `created` / `last_updated` as epoch-millis
+- [#30](#30-apiapphub-returns-versionscreated-as-an-epoch-millis-integer-and-last_updated-as-null) — `/api/appHub` returns `created` as epoch-millis and `last_updated` as null
 - [#42](#42-get-apisystemsettings-returns-keyanalysisdisplayproperty-name-lowercase--generated-systemsettings-enum-rejects-it) — `/api/systemSettings` returns lowercase `keyAnalysisDisplayProperty`; generated `SystemSettings` enum rejects it
 - [#43](#43-mapview-schema-removed-from-apischemas-cross-major-lands-first-on-released-2425) — `mapView` schema removed from `/api/schemas` (v42 pin held at `2.42.4.1`)
 - [#46](#46-post-apiapphubversionid-returns-an-opaque-proxied-app-hub-404-when-given-an-app-id-instead-of-a-version-id) — `POST /api/appHub/{versionId}` with an app id → opaque proxied App Hub 404
-- [#51](#51-apitokenexpire-is-a-nullable-long-on-the-model-so-a-non-expiring-pat-is-representable-despite-the-controllers-30-day-create-default): `ApiToken.expire` nullable; non-expiring PAT representable despite 30-day create default
+- [#51](#51-apitokenexpire-is-optional-in-the-openapi-document-and-required-by-apischemas-so-the-two-introspection-surfaces-disagree-on-whether-a-non-expiring-pat-is-representable): `ApiToken.expire` optional in the OpenAPI document, required by `/api/schemas`
 - [#53](#53-the-audit-posture-lives-only-in-dhisconf-and-is-exposed-by-no-api-endpoint-so-it-cannot-be-verified-remotely): Audit posture is dhis.conf-only (not remotely verifiable)
 - [#54](#54-dhis2-applies-create-update-delete-security-as-the-default-matrix-when-a-scope-key-is-absent-or-empty): Absent/empty audit scope matrix falls back to {CREATE, UPDATE, DELETE, SECURITY}
 - [#58](#58-v42v43-apiusers-exposes-no-2fa-state-for-other-users-admin-2fa-audit-moved-to-apiuserstwofactor-master-only): v42/v43: no 2FA state on `/api/users` for other users (moved to `/api/users/twoFactor`)
 - [#59](#59-no-reliable-server-side-filter-for-non-default-sharing-publicaccessexternalaccess-are-unfilterable-sharingpublic-is-an-ineffective-volume-reducer): No reliable server-side filter for non-default sharing
 - [#47](#47-metadata-get-with-a-malformed-uid-returns-http-405-instead-of-404) — malformed UID → HTTP 405 instead of 404 on `GET /api/{resource}/{uid}`
 - [#48](#48-filtering-on-a-nested-geometry-path-geometrytype-returns-400-unknown-path-property) — nested `geometry.type` filter returns `400 Unknown path property`
+- [#93](#93-programrules-is-not-a-field-on-the-program-schema-and-fields-drops-it-without-a-word) — `programRules` is not a field on the Program schema; `fields=` drops it silently
+- [#94](#94-apiopenapiopenapijson-types-the-same-id-reference-under-two-different-component-names-on-243x) — 2.43.x OpenAPI names one `{id}` reference under two component names
+- [#95](#95-categoryoptionaggregationtype-is-schema-typed-boolean-on-2431-while-every-sibling-says-constant) — `categoryOption.aggregationType` schema-typed BOOLEAN on 2.43.1
 
 ### Auth / OAuth2 / OIDC
 
@@ -75,7 +78,8 @@ filing.
 - [#52](#52-no-version-invariant-generated-oauth2-client-schema-v41-emits-only-the-array-typed-oauth2client-v42v43-only-the-comma-string-dhis2oauth2client): No version-invariant generated OAuth2-client schema (cross-ref #39)
 - [#55](#55-dhis2-calls-spring-securitys-defaultsdisabled-and-never-emits-coop--coep--corp-so-cross-origin-isolation-headers-are-absent-on-every-stock-instance): Stock DHIS2 never emits COOP/COEP/CORP (`defaultsDisabled()`)
 - [#57](#57-the-dhis2-public-route-authority-is-f_route_public_add-not-f_public_route_add): Public-route authority is `F_ROUTE_PUBLIC_ADD`, not `F_PUBLIC_ROUTE_ADD`
-- [#60](#60-hsts-is-suppressed-behind-a-tls-terminating-proxy-and-csp-state-is-observable-only-on-the-wire-there-is-no-keycspenabled-setting): HSTS suppressed behind TLS-terminating proxy; CSP is wire-only
+- [#60](#60-hsts-presence-depends-on-the-proxy-in-front-of-dhis2-and-csp-state-is-observable-only-on-the-wire--where-the-header-itself-is-instance-dependent): HSTS presence depends on the fronting proxy; CSP is wire-only and instance-dependent
+- [#96](#96-on-2431-the-oauth2-authorization-server-500s-for-any-registered-client-whose-settings-or-grant-types-are-empty-and-post-apioauth2clients-creates-exactly-that-client): 2.43.1 OAuth2 authorization server 500s for a client `POST /api/oAuth2Clients` accepted
 
 ### Analytics / Aggregate / Data Values
 
@@ -84,7 +88,7 @@ filing.
 - [#6](#6-bulk-apidatavaluesets-push-returns-409-even-when-every-rows-ignored-hiding-the-per-row-conflict-detail) — Bulk dataValueSets 409 even when every row ignored
 - [#13](#13-outlierdetectionalgorithm-oas-enum-reports-mod_z_score-but-dhis2-rejects-that-value-at-runtime) — `OutlierDetectionAlgorithm` OAS enum disagrees with runtime
 - [#31](#31-predictor-expression-parser-rejects-uppercase-aggregators-avg--sum) — Predictor expression parser rejects uppercase `AVG()` / `SUM()`
-- [#50](#50-post-delete-apidatavalues-has-no-attributeoptioncombo-query-param-the-attribute-option-combo-is-addressed-by-cc-cp) — `POST` / `DELETE /api/dataValues` has no `attributeOptionCombo` param (`cc` + `cp` instead)
+- [#50](#50-post--delete-apidatavalues-has-no-attributeoptioncombo-query-param--the-attribute-option-combo-is-addressed-by-cc--cp) — `POST` / `DELETE /api/dataValues` has no `attributeOptionCombo` param (`cc` + `cp` instead)
 - [#84](#84-importstrategycreate-on-apidatavaluesets-overwrites-a-live-value-instead-of-conflicting) — `importStrategy=CREATE` overwrites a live value instead of conflicting
 - [#85](#85-apidatavaluesets-importcount-never-reports-imported-so-a-create-is-indistinguishable-from-a-correction) — `importCount` never reports `imported`; a create looks like a correction
 - [#86](#86-blank-values-mean-opposite-things-on-the-two-data-surfaces-erasure-on-apitracker-e8120-on-apidatavaluesets) — `""` erases a tracker data value and is refused (`E8120`) on `/api/dataValueSets`
@@ -108,7 +112,7 @@ filing.
 - [#65](#65-optioncode-is-required-while-its-sibling-categoryoptioncode-is-optional-and--counts-as-missing) — `Option.code` required, `CategoryOption.code` optional; `""` counts as missing
 - [#66](#66-an-empty-string-code-is-silently-stored-as-absent-rather-than-kept-or-rejected) — Empty-string `code` silently stored as absent
 - [#82](#82-post-apitypeuidtranslations-is-refused-with-e1004-only-identifiable-object-collections-can-be-removed-from) — `POST /api/<type>/{uid}/translations` refused with a message about removal
-- [#83](#83-an-objects-translations-list-comes-back-in-a-different-order-on-every-read) — An object's `translations` list comes back in a different order on every read
+- [#83](#83-an-objects-translations-come-back-in-a-content-derived-order-that-discards-the-order-they-were-written-in) — An object's `translations` come back in a content-derived order, not the write order
 - [#67](#67-get-apitrackereventsprogramstageuid-demands-program-even-though-the-stage-pins-it) — `programStage` events read demands `program`; HTML 400
 - [#68](#68-a-tracker-event-naming-a-non-existent-enrollment-is-reported-as-e1079-different-program-not-as-a-missing-enrollment) — Event naming a non-existent enrollment reported as `E1079` "different Program"
 - [#69](#69-get-apitrackereventsprogramxorgunity-filters-by-the-enrollment-owners-org-unit-not-the-events-own-orgunit) — Events listing `orgUnit=` filters by enrollment owner's unit, not the event's own
@@ -126,7 +130,7 @@ filing.
 - [#81](#81-first-completeness-registration-for-a-never-persisted-period-fails-with-an-opaque-failed-to-flush-batchhandler-the-identical-retry-succeeds) — First registration for a virgin period fails opaquely; the retry succeeds (2.43.1)
 - [#89](#89-includedeletedtrue-is-honoured-by-the-tracker-collection-endpoints-and-ignored-by-the-item-endpoints) — `includeDeleted=true` works on tracker collections, ignored on item endpoints
 - [#90](#90-attribute-filtered-tracked-entity-search-drops-soft-deleted-entities-even-with-includedeletedtrue-while-uid-addressed-listing-returns-them) — attribute-filtered entity search drops soft-deleted rows even with `includeDeleted=true`
-- [#91](#91-get-apitrackereventsenrollmentuid-also-demands-program-answering-with-a-tomcat-html-400) — `enrollment=` events read also demands `program`; HTML 400 (extends #67)
+- [#91](#91-get-apitrackerevents-demands-program-unconditionally-on-v43-and-the-singular-enrollment-filter-is-silently-ignored-on-every-major) — events read demands `program` on v43 (HTML 400); singular `enrollment=` ignored everywhere
 - [#92](#92-apimetadata-import-rewrites-optionsortorder-to-a-0-based-sequence) — `/api/metadata` import rewrites `Option.sortOrder` to a 0-based sequence
 
 ### v43-specific
@@ -134,8 +138,7 @@ filing.
 - [#34](#34-v43-categorycombocategorys-legacy-alias-dropped--wire-writes-silently-no-op-without-categories) — `CategoryCombo.categorys` alias dropped; writes silently no-op
 - [#35](#35-v43-post-apidatavaluesets-aborts-the-whole-chunk-when-a-de-belongs-to-multiple-datasets) — dataValueSets aborts whole chunk on DE-in-multiple-datasets **[STILL]**
 - [#36](#36-v43-building-event-analytics-for-an-event-program-with-2024-data-fails-with-column-yearly-does-not-exist) — Event analytics build fails with `column "yearly" does not exist` **[STILL]**
-- [#37](#37-v43-fresh-post-apidatavaluesets-create-is-80x-slower-per-row-than-v41--v42-update-is-unchanged) — Fresh dataValueSets CREATE ~80x slower per row **[STILL]**
-- [#38](#38-v43-sharingobjectexternalaccess-dropped-from-the-wire-schema) — `SharingObject.externalAccess` dropped from wire schema
+- [#38](#38-sharingobjectexternalaccess-dropped-from-the-wire-schema-writes-that-carry-it-answer-200-and-discard-it) — `SharingObject.externalAccess` dropped from the wire schema; writes carrying it are discarded
 - [#40](#40-v43-e1055-enrollment-error-message-says-categorycombo-but-actually-fires-on-enrollmentcategorycombo) — `E1055` names `categoryCombo` but fires on `enrollmentCategoryCombo`
 - [#41](#41-v43-e8023--e8024-strict-cocaoc-matching-on-post-apidatavaluesets--forcetrue-doesnt-bypass) — Strict `E8023` / `E8024` COC/AOC matching on dataValueSets; `force=true` doesn't bypass
 - [#49](#49-v43-datavaluefollowuprequestperiod-is-typed-as-an-object-but-the-wire-accepts-a-string) — v43 OAS types `DataValueFollowUpRequest.period` as an object; wire accepts a string
@@ -147,7 +150,7 @@ filing.
 
 - [#39](#39-v41-oauth2-client-wire-shape--cid-not-clientid--strict-array-typed-multi-valued-fields) — OAuth2 client wire: `cid` not `clientId`, strict arrays
 - [#45](#45-v41-get-apiauthorities-returns-500) — v41 `GET /api/authorities` returns 500
-- [#56](#56-v41-apiusers-nests-passwordlastupdated-under-usercredentials-v42v43-flatten-it-onto-the-user): v41 nests `passwordLastUpdated` under `userCredentials` (v42/v43 flatten)
+- [#56](#56-v41-serves-passwordlastupdated-twice--flat-and-nested-under-usercredentials-v42v43-serve-only-the-flat-field): v41 serves `passwordLastUpdated` flat AND nested; v42/v43 only flat
 
 ## Retest log
 
@@ -197,8 +200,7 @@ Notable changes since the 2026-05-08 sweep:
 
 Confirmed still present (real-release write/data, where run): #2, #6, #11, #16, #17, #18 (all majors); v43
 cluster #34, #35 (E8002), #36 (literal `column "yearly" does not exist`), #40 (E1055 wording), #41. Confirmed
-FIXED-on-v43 (matching tags): #20 (DELETE removes the option), #23 (small-bundle single-pass import is clean).
-#37 unverifiable (perf, needs a cold datavalue table). Read-only
+FIXED-on-v43 (matching tags): #20 (DELETE removes the option), #23 (small-bundle single-pass import is clean). Read-only
 #1/#13/#14/#15/#28/#29/#30/#38/#39/#42/#43 still present on all dev channels.
 
 **Not a bug:** a "nested `fields=foo[bar]` returns empty" symptom seen mid-sweep was a **curl URL-globbing
@@ -1031,43 +1033,62 @@ Bearer $TOKEN" /api/system/info` against a fresh admin with empty
 
 ### 5. `organisationUnits` POST inside a user's capture scope enforces DESCENDANT, not sibling-of-scope
 
-**Observed on:** DHIS2 `2.42.4`.
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`), Sierra Leone seed.
+
+The repro needs a NON-SUPERUSER. An account holding `ALL` bypasses the org-unit capture
+gate entirely on 2.43.1 — the same write answers `200 SUCCESS`, `importCount.updated=1`,
+and the value persists with the superuser as `storedBy`.
 
 **Repro:**
 
 ```bash
-# Seeded admin has organisationUnits = [4 fylker under NORNorway01].
-# NORNorway01 is the country root; it is NOT in admin's capture scope.
+# a) a capture-only user scoped to one level-2 subtree (Bo, O6uvpzGd5pu).
+curl -s -u admin:district -X POST http://localhost:8080/api/userRoles \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Capture Only","authorities":["F_DATAVALUE_ADD","F_EXPORT_DATA","M_dhis-web-dataentry"]}'
+# -> a role uid, used below as <ROLE>
+curl -s -u admin:district -X POST http://localhost:8080/api/users \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"capture","firstName":"Cap","surname":"Ture","password":"District#5Capture",
+       "userRoles":[{"id":"<ROLE>"}],"organisationUnits":[{"id":"O6uvpzGd5pu"}]}'
 
-# Create an OU directly under NORNorway01 (= sibling of the 4 fylker):
-NEW_OU=$(curl -s -u admin:district 'http://localhost:8080/api/system/id' | python3 -c "import sys,json; print(json.load(sys.stdin)['codes'][0])")
+# b) an org unit that is a SIBLING of that scope (a child of the root, not of Bo):
 curl -s -u admin:district -X POST http://localhost:8080/api/organisationUnits \
   -H 'Content-Type: application/json' \
-  -d "{\"id\":\"$NEW_OU\",\"code\":\"EX_SIB\",\"name\":\"Sibling of scope\",\"shortName\":\"Sib\",
-       \"openingDate\":\"2025-01-01\",\"parent\":{\"id\":\"NORNorway01\"}}"
-# -> 201 Created — that part's fine.
+  -d '{"id":"FzBiZplM2ba","code":"EX_SIB","name":"Sibling of scope","shortName":"Sib",
+       "openingDate":"2025-01-01","parent":{"id":"ImspTQPwCqd"}}'
+# -> 201 Created — creating it is fine.
 
-# Now write a data value at the new OU:
-curl -s -u admin:district -X POST http://localhost:8080/api/dataValueSets \
-  -H 'Content-Type: application/json' \
-  -d "{\"dataValues\":[{\"dataElement\":\"DEancVisit1\",\"period\":\"202603\",\"orgUnit\":\"$NEW_OU\",\"value\":\"42\"}]}"
-# -> 409 "Organisation unit: <NEW_OU> not in hierarchy of current user: <admin uid>"
+# c) a data set assigned to both org units, public data-write, holding one data element,
+#    then write a data value at the sibling org unit AS THE CAPTURE USER:
+curl -s -u capture:District#5Capture -X POST \
+  'http://localhost:8080/api/dataValueSets?dryRun=true' -H 'Content-Type: application/json' \
+  -d '{"dataValues":[{"dataElement":"<DE>","period":"202605","orgUnit":"FzBiZplM2ba","value":"43"}]}'
+# -> 409
 ```
 
-**Expected:** The error message says "not in hierarchy", but admin IS
-assigned to multiple OUs (the 4 fylker). The check is specifically:
-"`NEW_OU` must be a DESCENDANT of at least one of the current user's
-`organisationUnits`". The wording misleads — it sounds like admin's scope
-is empty.
+**Expected:** the conflict names the ancestor the account would need, so a caller can act on
+it. The user IS assigned an org unit — the write is refused because `FzBiZplM2ba` is not a
+DESCENDANT of it, and nothing in the response says so.
 
-**Actual:** Silently-strict DESCENDANT check. Admin has to be explicitly
-granted the new OU (or an ancestor of it) via
-`/api/users/<admin>/organisationUnits` before writes are accepted.
+**Actual:** a `409` whose conflict is:
 
-**Impact:** Any bootstrap / onboarding workflow that provisions a new
-OU structure hits this. The fix is to PATCH the admin user's
-`organisationUnits` to include the new ancestor(s) — but that requires
-knowing the semantics.
+```json
+{"conflicts":[{"objects":{"args":"[FzBiZplM2ba]"},
+  "value":"Current user cannot enter data for org unit(s): `[FzBiZplM2ba]`",
+  "errorCode":"E8011","indexes":[0]}],"rejectedIndexes":[0]}
+```
+
+`E8011` names the rejected org unit and nothing else: not the scope the account holds, not
+the ancestor that would satisfy the check. The account has to be granted the org unit (or an
+ancestor of it) through `/api/users/<uid>/organisationUnits` before the write is accepted,
+and the caller has to know that is what "cannot enter data" means.
+
+**Impact:** any bootstrap or onboarding workflow that provisions a new org unit structure
+under a non-superuser hits this. The fix is to PATCH the user's `organisationUnits` to
+include the new ancestor — but that requires knowing the semantics. A run driven as a
+superuser never sees the refusal at all, so the failure first appears when the same script
+is handed to a real capture account.
 
 **Workaround in this repo:** `examples/client/bootstrap_zero_to_data.py` parents new
 OUs under `NOROsloProv` (already in admin's scope via the seeded fixture)
@@ -1075,13 +1096,13 @@ so they inherit descendant-of-scope. The "one-liner" PATCH pattern for
 when you must create sibling-of-scope OUs is documented inline as a
 comment.
 
-**Expected improvement:** DHIS2's error message should distinguish
-"admin's scope is empty" from "OU X is outside admin's capture tree" —
-the latter case should suggest the PATCH fix in the error body.
+**Expected improvement:** `E8011` should distinguish "this account has no capture scope" from
+"org unit X is outside this account's capture tree", and the latter should name the ancestor
+that would satisfy the check.
 
-**How to know it's fixed:** Error message on the failing POST above
-names the ancestor chain admin would need, or the behaviour is documented
-clearly in the `OrganisationUnit` API reference page.
+**How to know it's fixed:** the failing POST above names the ancestor chain the capture user
+would need, or the DESCENDANT-of-scope rule is documented on the `OrganisationUnit` API
+reference page.
 
 **Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_5_live_verifier`
 
@@ -1690,6 +1711,9 @@ since they silently no-op — documented in the method docstring.
 
 ### 18b. `attachments` on `send` needs `{id}` refs, not bare UID strings
 
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`); the schema
+half also on play `2.41.10` / `2.42.7` / `2.43.2`.
+
 **Repro:**
 
 ```bash
@@ -1698,12 +1722,12 @@ FR_UID=$(curl -s -u admin:district -F 'file=@/tmp/hello.txt' \
   'http://localhost:8080/api/fileResources?domain=MESSAGE_ATTACHMENT' \
   | python3 -c 'import json,sys;print(json.load(sys.stdin)["response"]["fileResource"]["id"])')
 
-# Bare UID strings in attachments[] — OAS-documented shape on Message.attachments:
+# Bare UID strings in attachments[]:
 curl -s -u admin:district -H 'Content-Type: application/json' \
   -d '{"subject":"attach","text":"body","users":[{"id":"M5zQapPyTZI"}],"attachments":["'"$FR_UID"'"]}' \
   'http://localhost:8080/api/messageConversations' \
   -w '\n%{http_code}\n'
-# 500 Internal Server Error
+# 409 Conflict
 
 # Wrap in {id} refs — works:
 curl -s -u admin:district -H 'Content-Type: application/json' \
@@ -1711,20 +1735,43 @@ curl -s -u admin:district -H 'Content-Type: application/json' \
   'http://localhost:8080/api/messageConversations' \
   -w '\n%{http_code}\n'
 # 201 Created
+
+# The schema the create endpoint names as its request body:
+curl -s -u admin:district 'http://localhost:8080/api/openapi/openapi.json?path=/api/messageConversations' \
+  | python3 -c "import sys,json;print(sorted(json.load(sys.stdin)['components']['schemas']['MessageConversationParams']['properties']))"
+# -> no `attachments` key at all
 ```
 
-**Expected:** DHIS2 accepts `attachments: [String]` per the `Message`
-OAS schema (`attachments: array[string]`) — a list of fileResource UIDs.
+**Expected:** the schema `POST /api/messageConversations/` declares as its request body
+documents `attachments` in the shape the handler accepts, so a caller can discover it
+without trial and error.
 
-**Actual:** Bare UIDs produce a 500 with no error body. Only `{"id":
-uid}` reference objects work. The OAS schema for `Message.attachments`
-is typed as `array[string]` on v42 but the handler requires
-`array[ObjectNode]`.
+**Actual:** bare UID strings answer `409` with a Jackson bind failure — the shape is refused
+loudly, but the message describes the deserialiser, not the contract:
+
+```json
+{"httpStatus":"Conflict","httpStatusCode":409,"status":"ERROR","message":"Cannot construct instance of
+ `org.hisp.dhis.fileresource.FileResource` (although at least one Creator exists): no String-argument
+ constructor/factory method to deserialize from String value ('YkzaqefxPQX') ... (through reference
+ chain: org.hisp.dhis.webapi.webdomain.MessageConversation[\"attachments\"]->java.util.HashSet[0])"}
+```
+
+Only `{"id": uid}` reference objects work. `MessageConversationParams`, the schema the create
+operation names as its request body, has no `attachments` property on local 2.43.1 or play
+2.42.7 — so the working shape is undiscoverable from the endpoint's own OpenAPI. Two other
+schemas in the same document do describe it, neither of them the request body:
+`Message.attachments` is `array[FileResource]` and `MessageConversationInfoParams.attachments`
+is `array[{id}]`, the shape the handler actually accepts. On play 2.41.10 only
+`MessageConversationInfo` exists, with the same `{id}`-object item shape.
 
 **Workaround in this repo:**
 `MessagingAccessor.send` takes `attachments: Sequence[str]` and wraps
 each UID as `{"id": uid}` before serialisation. Callers pass plain UID
-lists; the accessor handles the wrapping.
+lists; the accessor handles the wrapping. See `v{41,42,43}/messaging.py`.
+
+**How to know it's fixed:** `MessageConversationParams` declares an `attachments` property in
+the `array[{id}]` shape the handler accepts, or the handler accepts the bare-UID array the
+sibling `Message` schema describes.
 
 ### Impact summary
 
@@ -2455,32 +2502,37 @@ curl -s $AUTH "$BASE/api/dataElements?filter=id:eq:measles&filter=code:eq:measle
 
 ---
 
-### 30. `/api/appHub` returns `versions[*].created` / `last_updated` as epoch-millis integers
+### 30. `/api/appHub` returns `versions[*].created` as an epoch-millis integer, and `last_updated` as null
 
-**Observed on:** DHIS2 `2.42.4` (core image `dhis2/core:42`, build revision `eaf4b70`, build time `2026-01-30`).
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`) and play `2.41.10` / `2.42.7` / `2.43.2`. Every instance reaches the same upstream App Hub, so the payload is byte-identical across majors — this is an apps.dhis2.org shape, not a per-version DHIS2 one.
 
-**Repro (against any v42 instance with internet access to apps.dhis2.org):**
+**Repro (against any instance with internet access to apps.dhis2.org):**
 
 ```bash
-curl -s -u admin:district 'http://localhost:8080/api/appHub' \
-    | jq '.[0].versions[0] | {id, version, created, last_updated}'
-# {
-#   "id": "...",
-#   "version": "1.2.3",
-#   "created": 1747820526374,
-#   "last_updated": 1747820526374
-# }
+curl -s -m 60 -u admin:district 'http://localhost:8080/api/appHub' | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(json.dumps({k: d[0]['versions'][0].get(k) for k in ('id','version','created','last_updated')}))
+types = {}
+for app in d:
+    for version in app.get('versions', []):
+        for key in ('created', 'last_updated'):
+            types.setdefault(key, set()).add(type(version.get(key)).__name__)
+print({k: sorted(v) for k, v in types.items()})
+"
+# {"id": "815594f8-3ae2-4eac-859e-81c319437b7e", "version": "0.1.7", "created": 1747820526374, "last_updated": null}
+# {'created': ['int'], 'last_updated': ['NoneType']}
 ```
 
-**Expected:** ISO-8601 strings, matching every other timestamped field DHIS2 emits (`/api/me`'s `lastLogin`, `/api/systemInfo`'s `lastAnalyticsTableSuccess`, etc.).
+**Expected:** ISO-8601 strings, matching every other timestamped field DHIS2 emits (`/api/me`'s `lastLogin`, `/api/systemInfo`'s `lastAnalyticsTableSuccess`, etc.), and a populated `last_updated` on a version that has been updated.
 
-**Actual:** Epoch-millis `number` for both `created` and `last_updated` on every `versions[*]` entry.
+**Actual:** `created` is an epoch-millis `number` on all 2603 version entries the App Hub serves. `last_updated` is `null` on all 2603, so a caller gets no modification timestamp at all and the field's wire type is not observable from the payload.
 
-**Impact:** Typed clients that declare these fields as `string` break on first contact with a real App Hub payload. Generated OpenAPI clients inherit whatever the spec says; hand-rolled clients guess based on the sibling convention and lose. Our `AppHubVersion` model declares both as `int | str | None` to absorb either shape.
+**Impact:** typed clients that declare `created` as `string` break on first contact with a real App Hub payload. Generated OpenAPI clients inherit whatever the spec says; hand-rolled clients guess based on the sibling convention and lose. `last_updated` being uniformly null means an update-currency check has to fall back to comparing version strings.
 
-**Workaround in this repo:** `packages/dhis2w-client/src/dhis2w_client/v{41,42,43}/apps.py` — `AppHubVersion.created` + `AppHubVersion.last_updated` typed as `int | str | None`.
+**Workaround in this repo:** `packages/dhis2w-client/src/dhis2w_client/v{41,42,43}/apps.py` — `AppHubVersion.created` + `AppHubVersion.last_updated` typed as `int | str | None`, which absorbs the epoch-millis integer, an ISO string, and the null.
 
-**How to know it's fixed:** `/api/appHub` emits ISO-8601 strings for both fields, matching the rest of the DHIS2 API surface. Our workaround can be narrowed to `str | None`.
+**How to know it's fixed:** `/api/appHub` emits ISO-8601 strings for `created` and a real timestamp for `last_updated`, matching the rest of the DHIS2 API surface. Our workaround can then be narrowed to `str | None`.
 
 **Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_30_live_verifier`
 
@@ -2892,73 +2944,48 @@ The compose-time analytics-trigger sidecar (which runs once just after DHIS2 boo
 
 **Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_36_live_verifier`
 
-### 37. v43: fresh `POST /api/dataValueSets` CREATE is ~80x slower per row than v41 / v42; UPDATE is unchanged
+### 38. `SharingObject.externalAccess` dropped from the wire schema; writes that carry it answer 200 and discard it
 
-**STATUS:** STILL PRESENT (workaround active: `_DATA_VALUE_CHUNK = 1_000` in `infra/scripts/seed/loader.py` keeps chunks inside the httpx 300 s read timeout). Live verifier `test_bug_37_live_verifier` is skipped — this is a perf bug, not binary verifiable; a reliable check would require wiping the `datavalue` table and timing per-row CREATE latency, too destructive for a regression suite. No client-side fix possible — slowdown is in DHIS2's category-combo cross-check CTE that runs per-row on CREATE.
+**Observed on:** the field's presence tracks the RELEASE-versus-DEV channel, not the major. Absent on local `2.43.1` (`dhis2/core`, `make dhis2-run`) and on play `2.41.10` / `2.42.7` / `2.43.2`. Present on the released `2.42.4.1` image this repo pins, where a write to it is honoured.
 
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub, `make dhis2-run DHIS2_VERSION=v43`). Login as `admin/district`.
-
-**Repro:** the standard chunked import flow this repo's seed pipeline runs against an empty `datavalue` table.
+**Repro (schema half, per channel):**
 
 ```bash
-# Same 188 701-row Sierra Leone fixture, posted in chunks of 1 000.
-# Each chunk against an empty datavalue table on v43:
-#   ~30 s per 1 k-chunk → ~90 minutes total wall-clock.
-# v41 (`dhis2/core:2.41.8.1`):  ~50 s for the full 188 k rows.
-# v42 (`dhis2/core:2.42.4.1`):  ~60 s for the full 188 k rows.
-# (timings on linux/amd64 under Rosetta on arm64 macOS).
+# `sharingObject` is not an /api/schemas type on ANY version — the OpenAPI component is the
+# only introspection surface that describes it:
+curl -s -u admin:district -g 'http://localhost:8080/api/schemas/sharingObject?fields=properties[fieldName]'
+# -> 404 E1005 "Type sharingObject does not exist."
 
-# After the table is populated, posting the SAME chunk again as an UPDATE
-# completes in 0.3 s — same row-count, same payload, same client. It's
-# specifically the CREATE path that's slow.
+curl -s -m 90 -u admin:district 'http://localhost:8080/api/openapi/openapi.json?path=/api/sharing' \
+  | python3 -c "import sys,json;print(sorted(json.load(sys.stdin)['components']['schemas']['SharingObject']['properties']))"
+# 2.41.10 / 2.42.7 / 2.43.2 / local 2.43.1:
+#   ['displayName','id','name','publicAccess','user','userAccesses','userGroupAccesses']
+# released 2.42.4.1:
+#   ['displayName','externalAccess','id','name','publicAccess','user','userAccesses','userGroupAccesses']
 ```
 
-**Expected:** CREATE per-row cost in line with v41 / v42 (sub-millisecond / row on the same hardware), or comparable to v43's own UPDATE path (0.3 ms / row).
-
-**Actual:** Tracing Postgres during the slow import shows a recurring CTE per call:
-
-```
-WITH aoc_orgs AS (
-  SELECT aoc_co.categoryoptionid, array_agg(DISTINCT ou.path) AS paths
-  FROM categoryoptioncombos_categoryoptions aoc_co
-  JOIN ...
-)
-```
-
-This is v43's category-combo cross-check that came in alongside BUGS.md #35. It runs once **per HTTP call**. `force=true` and `strictAttributeOptionCombos=false` (both set on our calls) do not bypass it. The CTE itself is fast — what's slow is the per-row insert path that consults it for every fresh row. UPDATEs to existing rows skip the heavy validation and finish at the v41 / v42 rate.
-
-**Impact:** Any caller that bulk-imports fresh `dataValueSets` against a v43 instance. Affects: this repo's first-time `infra/scripts/seed/loader.py::import_data_values` cold-build of the v43 dump (90 min); any production v43 deployment running first-time large aggregate-data ingest. Subsequent imports against a populated DB are unaffected — the fast UPDATE path applies.
-
-**Workaround in this repo:** Drop the chunk size to 1 k (`infra/scripts/seed/loader.py::_DATA_VALUE_CHUNK = 1_000`) so individual chunks finish inside the 300 s httpx read timeout. Total wall-clock for the *cold build* is unchanged (one-time 90-minute cost) but the import doesn't crash with `ReadTimeout`. The committed v43 dump (`infra/v43/dump.sql.gz`) captures the post-import state, so every subsequent `make dhis2-up DHIS2_VERSION=v43` and the seed's UPDATE pass on top of it run at v41 / v42 speeds.
-
-**How to know it's fixed:** A first-time CREATE of a 1 k-row `/api/dataValueSets` chunk against an empty v43 DB lands in <1 s (matching v43's UPDATE path on the same chunk). Or DHIS2 ships a documented bypass that bulk-import tooling can opt into for trusted CREATE flows.
-
-**Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_37_live_verifier`
-
-### 38. v43: `SharingObject.externalAccess` dropped from the wire schema
-
-**Observed on:** DHIS2 `2.43.0` (`dhis2/core:2.43.0.0` from Docker Hub). The field shows up in `dhis2w_client.generated.v42.oas.sharing_object.SharingObject` but not in the v43 sibling — confirmed during codegen audit (PR #257) when mypy flagged `Unexpected keyword argument "externalAccess" for "SharingObject"`.
-
-**Repro (against any v43 instance):**
+**Repro (write half):**
 
 ```bash
-# A v42 wire payload that worked there.
-curl -sf -u admin:district -X PUT 'http://localhost:8080/api/sharing?type=dataElement&id=<UID>' \
+curl -s -u admin:district -X PUT 'http://localhost:8080/api/sharing?type=dataElement&id=<UID>' \
   -H 'Content-Type: application/json' \
-  -d '{"object":{"publicAccess":"r-------","externalAccess":false,"userAccesses":[],"userGroupAccesses":[]}}'
-# v42: 200 OK; the externalAccess key is honoured.
-# v43: 200 OK; externalAccess is silently ignored — the v43 schema no longer carries it.
+  -d '{"object":{"publicAccess":"r-------","externalAccess":true,"userAccesses":[],"userGroupAccesses":[]}}'
+# -> 200 {"httpStatus":"OK","httpStatusCode":200,"message":"Access control set"}
+curl -s -u admin:district 'http://localhost:8080/api/sharing?type=dataElement&id=<UID>'
+# -> the read-back object carries no `externalAccess` key at all
 ```
 
-**Expected:** Either v43 keeps `externalAccess` (matching v42) or it 4xx's on writes that include the dropped field. Silent ignore is the worst-case (callers think the setting took effect when it never did).
+**Expected:** an instance whose `SharingObject` no longer declares `externalAccess` refuses a write that carries it, or keeps declaring the field. A `200 "Access control set"` for a payload whose central instruction was discarded is the worst outcome — the caller believes the setting took effect.
 
-**Actual:** v43 dropped `externalAccess` from `SharingObject` entirely — the field is absent from `/api/schemas/sharingObject?fields=properties[fieldName]` and from the generated OAS shape. Existing wire writes that include it succeed but the value is discarded.
+**Actual:** the field is gone from `SharingObject` on every dev channel, v41 and v42 included, and the write is accepted and silently dropped. `GET /api/dataElements/<id>?fields=id,externalAccess,sharing` also omits it, returning only `{"sharing":{"owner":...,"users":{},"userGroups":{},"public":"r-------"},"id":...}`. Sharing changes on those instances honour `publicAccess` + `userAccesses` + `userGroupAccesses` and nothing else.
 
-**Impact:** Any caller carrying v42's `externalAccess` setting in sharing payloads against a v43 instance. The setting silently does nothing — sharing changes on v43 only honour `publicAccess` + `userAccesses` + `userGroupAccesses`.
+Beware a second, separate mechanism that reads identically: on a released 2.42.4.1 the field IS honoured on a type that permits external access (a `visualization` reads back `"externalAccess": true`), but a `dataElement`, whose `meta.allowExternalAccess` is `false`, answers the same 200 and stays `externalAccess: false`. That is the per-type external-access gate, not the schema drop.
 
-**Workaround in this repo:** `dhis2w_client.v43.sharing.SharingBuilder` no longer exposes `external_access`, and `to_sharing_object()` doesn't emit `externalAccess` in the materialised wire shape. The v42 sibling (`dhis2w_client.v42.sharing`) still carries the field. The per-version dispatch at `Dhis2Client.connect()` (PR #259) picks the right builder per detected server version. See `packages/dhis2w-client/src/dhis2w_client/v43/sharing.py`.
+**Impact:** any caller carrying an `externalAccess` setting in sharing payloads. The per-major split is not the axis: a released 2.42 patch beyond 2.42.4.1 will carry the same drop the dev snapshot already shows, so `dhis2w_client.v42.sharing` keeping `external_access` will start writing a field that instance's schema no longer declares.
 
-**How to know it's fixed:** Either v43 schemas list `externalAccess` again under `/api/schemas/sharingObject?fields=properties[fieldName]`, or DHIS2 documents the removal so callers can drop the field deliberately.
+**Workaround in this repo:** `dhis2w_client.v43.sharing.SharingBuilder` does not expose `external_access`, and `to_sharing_object()` does not emit `externalAccess` in the materialised wire shape. The v42 sibling (`dhis2w_client.v42.sharing`) carries the field, matching the pinned `2.42.4.1` image. The per-version dispatch at `Dhis2Client.connect()` picks the right builder per detected server version. See `packages/dhis2w-client/src/dhis2w_client/v43/sharing.py`.
+
+**How to know it's fixed:** the OpenAPI `SharingObject` component lists `externalAccess` again, or a write carrying the undeclared field is refused instead of accepted. When the v42 pin moves to a released 2.42.5+ that has dropped it, the v42 builder drops `external_access` too.
 
 **Verifier:** `packages/dhis2w-client/tests/test_upstream_bugs.py::test_bug_38_v43_live_sharing_schema_lacks_external_access`
 
@@ -3259,29 +3286,50 @@ A live `PUT /api/dataValues/followup` with `{"dataElement":"...","period":"20240
 Entries filed while building the security audit plugin. Numbers continue the global sequence;
 these entries were renumbered on merge with main (main claimed #47–#50 for other findings); the CORS-whitelist finding is #61 at the end of this section.
 
-### 51. `ApiToken.expire` is a nullable `Long` on the model, so a non-expiring PAT is representable despite the controller's 30-day create default
+### 51. `ApiToken.expire` is optional in the OpenAPI document and required by `/api/schemas`, so the two introspection surfaces disagree on whether a non-expiring PAT is representable
 
-**Observed on:** v42 / v43 (model shape; cross-major, the field is `int | None` on all of v41/v42/v43). Surfaced while building the security scanner's `tokens` check.
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`); the schema half also on play `2.41.10` / `2.42.7` / `2.43.2`. Surfaced while building the security scanner's `tokens` check.
 
 **Repro:**
 
+```bash
+# The two introspection surfaces disagree about the same field.
+curl -s -u admin:district 'http://localhost:8080/api/openapi/openapi.json?path=/api/apiToken' \
+  | python3 -c "import sys,json;d=json.load(sys.stdin)['components']['schemas']['ApiToken'];print(d['properties']['expire'], d.get('required'))"
+# -> {'type': 'integer', 'format': 'int64'}   ['type']        <- expire is OPTIONAL
+
+curl -s -u admin:district 'http://localhost:8080/api/schemas/apiToken.json' \
+  | python3 -c "import sys,json;print([p for p in json.load(sys.stdin)['properties'] if p['name']=='expire'])"
+# -> [{'name': 'expire', 'propertyType': 'NUMBER', 'klass': 'java.lang.Long',
+#      'required': True, 'writable': True, 'persisted': True}]   <- expire is REQUIRED
+
+# Create fills the default; an explicit null is accepted and filled too.
+curl -s -X POST http://localhost:8080/api/apiToken -H 'Content-Type: application/json' \
+  -u admin:district -d '{"type":"PERSONAL_ACCESS_TOKEN_V2","expire":null}'
+# -> 201; the read-back carries expire ~30 days out (DEFAULT_TOKEN_EXPIRE)
+
+# Removing the expiry afterwards is refused.
+FULL=$(curl -sg -u admin:district 'http://localhost:8080/api/apiToken/<UID>?fields=:owner')
+BODY=$(echo "$FULL" | python3 -c "import sys,json;d=json.load(sys.stdin);d.pop('expire');print(json.dumps(d))")
+curl -s -X PUT http://localhost:8080/api/apiToken/<UID> -H 'Content-Type: application/json' \
+  -u admin:district -d "$BODY"
+# -> 409 E4000 "Missing required property `expire`"
+
+# And the metadata importer does not know the type at all.
+curl -s -X POST http://localhost:8080/api/metadata -H 'Content-Type: application/json' -u admin:district \
+  -d '{"apiTokens":[{"name":"x","type":"PERSONAL_ACCESS_TOKEN_V2","version":2,"key":"d2p_..."}]}'
+# -> "stats": {"created": 0, ..., "total": 0}, "typeReports": []   <- silent no-op
 ```
-# create a PAT through the normal path; the server fills expire if omitted
-curl -s -X POST "$BASE/api/apiToken" -H "Content-Type: application/json" \
-  -u admin:district -d '{"type":"PERSONAL_ACCESS_TOKEN_V2"}' | jq '.response.expire'
-# -> a non-null epoch-millis ~30 days out (DEFAULT_TOKEN_EXPIRE)
 
-# read it back
-curl -s "$BASE/api/apiToken?fields=id,expire" -u admin:district | jq '.apiToken[].expire'
-```
+**Expected:** the OpenAPI document and `/api/schemas` agree on whether `expire` is required, so a generator and a validating caller reach the same conclusion about whether a permanent credential exists in the model.
 
-**Expected:** if the server always assigns a 30-day default at create when `expire` is omitted, a token can never have a null/absent expiry, so "non-expiring token" would be unrepresentable.
+**Actual:** the OpenAPI document types `ApiToken.expire` as `{"type":"integer","format":"int64"}` with `required: ["type"]` only, so every generated tree emits `expire: int | None = None` (`generated/v{41,42,43}/oas/api_token.py`). `/api/schemas/apiToken` reports the same field `required: true`, and the update path enforces that with `409 E4000`. No API path reaches a null expire on 2.43.1: create fills the default even for an explicit `null`, a full-object PUT without the field is refused, and `POST /api/metadata` with an `apiTokens` collection is a silent no-op because `apiToken` is not an importable metadata type. A direct database insert is the only remaining route, and it is not exercisable over the API.
 
-**Actual:** `ApiToken.expire` is a nullable `Long` (epoch millis) on the entity (and on the generated OAS model: `expire: int | None`). `DEFAULT_TOKEN_EXPIRE = 30 days` is applied server-side only on the normal `POST /api/apiToken` create path when `expire` is null. A token written through metadata import or a direct DB insert can therefore carry a null/absent `expire`, a permanent credential, even though the interactive create path always fills it. The wire read of such a token returns `expire: null`.
+**Impact:** a generated client models a nullable expiry the server will not accept, and a caller trying to build the "permanent credential" the model permits gets a `409` with no hint that the OpenAPI document said otherwise. The tokens security check still cannot assume a live expiry — a `expire` already in the past is trivially reachable and is the same standing credential — but it must not rely on null being reachable to justify the finding.
 
-**Impact:** the tokens security check cannot assume every PAT has an expiry. A null (or past) `expire` is a standing credential that bypasses interactive login and 2FA until manually revoked, so the non-expiring-token finding is valid and necessary despite the create-time default.
+**Workaround in this repo:** `evaluate_tokens` treats `expire_epoch_millis is None` (or an epoch already in the past) as non-expiring and raises a HIGH finding, defensively covering both. See `packages/dhis2w-core/src/dhis2w_core/security_core/tokens.py` and the per-tree `tokens_from_raw` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py`.
 
-**Workaround in this repo:** `evaluate_tokens` treats `expire_epoch_millis is None` (or an epoch already in the past) as non-expiring and raises a HIGH finding. See `packages/dhis2w-core/src/dhis2w_core/security_core/tokens.py` and the per-tree `tokens_from_raw` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py`.
+**How to know it's fixed:** `/api/openapi/openapi.json` lists `expire` in `ApiToken.required`, matching `/api/schemas/apiToken`, and the generated trees emit it non-optional.
 
 **Verifier:** none yet.
 
@@ -3305,11 +3353,11 @@ ls packages/dhis2w-client/src/dhis2w_client/generated/v42/oas/o_auth2_client.py 
 
 **Expected:** one OAuth2-client schema usable across majors, or at least matching field types so a single reader can validate `/api/oAuth2Clients` on every version.
 
-**Actual:** the v42 `cid` -> `clientId` rename plus the array -> comma-string field-type change (BUGS.md #39) means each major emits a differently-named class with differently-typed multi-valued fields, and neither class exists in the other tree. There is no version-invariant generated OAuth2-client model: code that reads the client list must branch on version for the class name, the identifier field, the grant/redirect field types, AND the list envelope key (`data` on v41, `oAuth2Clients` on v42/v43).
+**Actual:** the v42 `cid` -> `clientId` rename plus the array -> comma-string field-type change (BUGS.md #39) means each major emits a differently-named class with differently-typed multi-valued fields, and neither class exists in the other tree. There is no version-invariant generated OAuth2-client model: code that reads the client list must branch on version for the class name, the identifier field, and the grant/redirect field types. Only the list envelope key is common: `GET /api/oAuth2Clients` answers `{"pager": ..., "oAuth2Clients": [...]}` on 2.41.10, 2.42.7 and 2.43.2 alike, and each major's OpenAPI declares that same 200 body.
 
 **Impact:** the auth-methods security check reads `/api/oAuth2Clients` on all three majors. The version-invariant reducer cannot consume the generated classes directly because they share neither a name nor a field shape.
 
-**Workaround in this repo:** the auth-methods check defines a single hand-rolled version-invariant view-model `OAuth2ClientView` (`identifier`, `display_name`, `grant_types: frozenset[str]` normalised lowercase, `redirect_uris: tuple[str, ...]`; deliberately no secret field). Each per-tree `_wire.oauth2_clients` projects its own generated class into it: v41 validates `data[]` through `OAuth2Client` and reads `cid` + the array fields; v42/v43 validate `oAuth2Clients[]` through `Dhis2OAuth2Client`, read `clientId`, and split the comma-string grant/redirect fields into lists. v41 never imports `Dhis2OAuth2Client` and v42/v43 never import `OAuth2Client`. See `packages/dhis2w-core/src/dhis2w_core/security_core/auth_methods.py` and the per-tree `oauth2_clients` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py`.
+**Workaround in this repo:** the auth-methods check defines a single hand-rolled version-invariant view-model `OAuth2ClientView` (`identifier`, `display_name`, `grant_types: frozenset[str]` normalised lowercase, `redirect_uris: tuple[str, ...]`; deliberately no secret field). Each per-tree `_wire.oauth2_clients` projects its own generated class into it off the shared `oAuth2Clients[]` envelope: v41 validates through `OAuth2Client` and reads `cid` + the array fields; v42/v43 validate through `Dhis2OAuth2Client`, read `clientId`, and split the comma-string grant/redirect fields into lists. v41 never imports `Dhis2OAuth2Client` and v42/v43 never import `OAuth2Client`. See `packages/dhis2w-core/src/dhis2w_core/security_core/auth_methods.py` and the per-tree `oauth2_clients` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py`.
 
 **How to know it's fixed:** the generated trees emit one OAuth2-client schema (same class name, same identifier field, same multi-valued field types) across v41/v42/v43, at which point `OAuth2ClientView` and the per-tree `oauth2_clients` extractors collapse into one. Tied to BUGS.md #39 being fixed upstream.
 
@@ -3403,33 +3451,39 @@ curl -sI -u admin:district "$BASE/api/system/info" | grep -iE 'cross-origin-open
 
 ---
 
-### 56. v41: `/api/users` nests `passwordLastUpdated` under `userCredentials`; v42/v43 flatten it onto the User
+### 56. v41 serves `passwordLastUpdated` twice — flat and nested under `userCredentials`; v42/v43 serve only the flat field
 
-**Observed on:** DHIS2 `2.41` (nested) vs `2.42` / `2.43` (flat). The User-resource flattening landed on v42; the generated client trees confirm it (v41 `User` carries a `userCredentials: UserCredentialsDto` block whose `passwordLastUpdated` is the populated path, while v42/v43 have no `UserCredentials` class and expose only the top-level field). The DHIS2 source at `dhis-2/dhis-api/.../user/User.java` (master, 2.44-SNAPSHOT) has `getPasswordLastUpdated()` annotated `@JsonProperty` directly on `User`, serialising it flat with no `UserCredentials` class present.
+**Observed on:** released `2.41.9` (`dhis2/core`, `make dhis2-run DHIS2_VERSION=v41`) and play `2.41.10`, against play `2.42.7` / `2.43.2`. The generated client trees carry the v41 `userCredentials: UserCredentialsDto` block; v42/v43 have no `UserCredentials` class and expose only the top-level field. The DHIS2 source at `dhis-2/dhis-api/.../user/User.java` (master, 2.44-SNAPSHOT) annotates `getPasswordLastUpdated()` with `@JsonProperty` directly on `User`, serialising it flat with no `UserCredentials` class present.
 
 **Repro:**
 
 ```bash
-# v41 returns the timestamp nested under userCredentials:
-curl -s -u admin:district \
-  'https://play.im.dhis2.org/dev-2-41/api/users/xE7jOejl9FI.json?fields=username,userCredentials[passwordLastUpdated]'
-# {"username":"admin","userCredentials":{"passwordLastUpdated":"2024-..."}}
+# v41 answers BOTH selectors, with the same value:
+curl -sg -u admin:district \
+  'http://localhost:8080/api/users?fields=id,username,passwordLastUpdated,userCredentials[passwordLastUpdated]&pageSize=2'
+# {"users":[{"username":"admin",
+#            "passwordLastUpdated":"2026-05-10T15:00:47.564",
+#            "userCredentials":{"passwordLastUpdated":"2026-05-10T15:00:47.564"},
+#            "id":"M5zQapPyTZI"}]}
 
-# v42/v43 return it flattened on the User:
-curl -s -u admin:district \
+# v42/v43 answer only the flat one; the nested selector comes back empty:
+curl -sg -u admin:district \
   'https://play.im.dhis2.org/dev-2-42/api/users/xE7jOejl9FI.json?fields=username,passwordLastUpdated'
-# {"username":"admin","passwordLastUpdated":"2024-..."}
+# {"username":"admin","passwordLastUpdated":"2014-12-18T20:56:05.264"}
+curl -sg -u admin:district \
+  'https://play.im.dhis2.org/dev-2-42/api/users/xE7jOejl9FI.json?fields=username,userCredentials%5BpasswordLastUpdated%5D'
+# {"username":"admin"}
 ```
 
-**Expected:** one field path (`passwordLastUpdated`) answers "when was this password last changed" across all supported majors, so a password-age audit can request a single selector.
+**Expected:** one field path per fact. A resource either carries `passwordLastUpdated` or carries a `userCredentials` block holding it, not both.
 
-**Actual:** v42 flattened `passwordLastUpdated` (and the rest of the former `UserCredentials`) onto the `User` resource; v41 still nests it under `userCredentials`. The same `fields=passwordLastUpdated` selector returns the value on v42/v43 but nothing on v41 (which needs `fields=userCredentials[passwordLastUpdated]`).
+**Actual:** v41 emits the same timestamp twice, once flat on the `User` and once inside a `userCredentials` wrapper that v42 removed. v42/v43 emit only the flat field. A single version-neutral `fields=passwordLastUpdated` selector therefore works on all three majors — the `userCredentials` wrapper is a v41-only wire artifact that duplicates a field already present beside it, and a caller reading the nested path against v42/v43 gets a silently empty object rather than an error.
 
-**Impact:** the password-age hygiene signal, "active accounts whose password is older than the threshold or never set", reads a different field path per major. A version-blind read would silently see every v41 password as never-set (the flat field is empty there).
+**Impact:** the password-age hygiene signal, "active accounts whose password is older than the threshold or never set", can read one selector on every major. A caller that follows the v41 `userCredentials` shape gets nothing on v42/v43 and no diagnostic, which is the direction that fails silently.
 
-**Workaround in this repo:** per-tree `_wire.py` selects the field path: v41 requests `userCredentials[passwordLastUpdated]` and reads the nested value; v42/v43 request the flat `passwordLastUpdated` and read the top-level value. Both feed the version-invariant `password_last_updated` field on `UserHygiene`, so the hygiene reducer stays version-neutral. See `password_last_updated` + `USER_FIELDS` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py` and the password-age aggregate in `packages/dhis2w-core/src/dhis2w_core/security_core/hygiene.py`.
+**Workaround in this repo:** per-tree `_wire.py` selects the field path: v41 requests `userCredentials[passwordLastUpdated]` and reads the nested value; v42/v43 request the flat `passwordLastUpdated` and read the top-level value. Both feed the version-invariant `password_last_updated` field on `UserHygiene`, so the hygiene reducer stays version-neutral. The v41 branch is belt-and-braces on `2.41.9` / `2.41.10`, where the flat field is populated too, and is what keeps an older 2.41.x patch readable. See `password_last_updated` + `USER_FIELDS` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/_wire.py` and the password-age aggregate in `packages/dhis2w-core/src/dhis2w_core/security_core/hygiene.py`.
 
-**How to know it's fixed:** not a bug; a deliberate v42 wire change. This entry documents the per-major field path so the password-age check reads the right shape. Mirrors the 2FA `_wire` split (BUGS.md #58).
+**How to know it's fixed:** v41 drops the duplicate `userCredentials` wrapper, at which point the per-tree `USER_FIELDS` split collapses into one selector. Mirrors the 2FA `_wire` split (BUGS.md #58).
 
 **Verifier:** none yet.
 
@@ -3552,33 +3606,43 @@ curl -sg -u admin:district "$BASE/api/dataElements?filter=sharing.public:eq:----
 
 ---
 
-### 60. HSTS is suppressed behind a TLS-terminating proxy, and CSP state is observable only on the wire (there is no `keyCspEnabled` setting)
+### 60. HSTS presence depends on the proxy in front of DHIS2, and CSP state is observable only on the wire — where the header itself is instance-dependent
 
-**Observed on:** DHIS2 v41 / v42 / v43 (header-setting code is version-uniform). Confirmed against the backend source at `dhis-2/dhis-web-api`.
+**Observed on:** local `2.43.1` (plain HTTP) and play `2.41.10` / `2.42.7` / `2.43.2` (HTTPS behind the play ingress). The header-setting code is version-uniform; confirmed against the backend source at `dhis-2/dhis-web-api`.
 
-**Repro (against any instance):**
+**Repro:**
 
 ```bash
-BASE=https://your-dhis2.example
+# (a) Who emits HSTS? Probe a path no DHIS2 instance handles.
+curl -sI -u admin:district 'https://play.im.dhis2.org/dev-2-43/api/system/info' | grep -i strict-transport
+# -> strict-transport-security: max-age=31536000; includeSubDomains
+curl -sI 'https://play.im.dhis2.org/no-such-channel-xyz/api/system/info' | grep -i strict-transport
+# -> the SAME header on a 404 no DHIS2 ever saw: the fronting proxy adds it, not DHIS2.
 
-# Inspect the security headers DHIS2 (or its proxy) returns:
-curl -sI -u admin:district "$BASE/api/system/info" | grep -iE 'strict-transport-security|content-security-policy|x-frame-options|x-content-type-options|server'
-# A default DHIS2 reached as secure emits:
-#   content-security-policy: frame-ancestors 'self';
-#   x-content-type-options: nosniff
-# strict-transport-security is OFTEN ABSENT when a TLS-terminating proxy forwards plain HTTP to DHIS2.
+curl -sI -u admin:district http://localhost:8080/api/system/info | grep -i strict-transport   # (no output)
+curl -sI -u admin:district -H 'X-Forwarded-Proto: https' http://localhost:8080/api/system/info | grep -i strict-transport
+# -> still nothing: no RemoteIpValve / ForwardedHeaderFilter in a stock stack, so the
+#    forwarded scheme does not make the request "secure" to Spring.
 
-# There is no system setting that reports CSP state; grep confirms no such key exists:
-curl -sg -u admin:district "$BASE/api/systemSettings" | grep -io 'keyCspEnabled'   # (no output)
+# (b) CSP state has no setting, and the header differs per instance.
+curl -sg -u admin:district 'http://localhost:8080/api/systemSettings' | grep -io keyCspEnabled   # (no output)
+curl -sI -u admin:district http://localhost:8080/api/system/info | grep -i content-security-policy
+# -> content-security-policy: frame-ancestors 'self';
+curl -sI -u admin:district 'https://play.im.dhis2.org/dev-2-43/api/system/info' | grep -i content-security-policy
+# -> frame-ancestors 'self' http://localhost:8083 ... https://dhis2.stoplight.io http://localhost:3000 ...
+curl -sg -u admin:district 'https://play.im.dhis2.org/dev-2-43/api/configuration/corsWhitelist'
+# -> exactly the eight origins appended to frame-ancestors above
 ```
 
-**Expected:** (a) an HTTPS endpoint always advertises Strict-Transport-Security; (b) a queryable signal for whether CSP is enabled.
+**Expected:** (a) an HTTPS endpoint advertises Strict-Transport-Security regardless of where TLS terminates; (b) a queryable signal for whether CSP is enabled, and a CSP header whose meaning does not depend on an unrelated setting.
 
-**Actual:** (a) `DhisWebApiWebSecurityConfig.setHttpHeaders` wires HSTS through Spring Security's `httpStrictTransportSecurity()`, which by default emits the header only on requests Spring considers secure. A proxy that terminates TLS and forwards plain HTTP makes DHIS2 see an insecure request, so HSTS is silently dropped even though the public endpoint is HTTPS. (b) CSP is governed by the confidential `dhis.conf` key `csp.enabled` (default ON); `CspFilter` emits `Content-Security-Policy: frame-ancestors 'self';` when on and `X-Frame-Options: SAMEORIGIN` when off. `DefaultDhisConfigurationProvider.getConfigurationsAsMap` masks every confidential key to `""`, so `csp.enabled` is never observable via any exposed config, and no `keyCspEnabled` system setting exists. The response header on the wire is the SOLE evidence of CSP state.
+**Actual:** (a) `DhisWebApiWebSecurityConfig.setHttpHeaders` wires HSTS through Spring Security's `httpStrictTransportSecurity()`, which emits the header only on requests Spring considers secure. Whether the public endpoint gets HSTS is therefore a property of the deployment, not of DHIS2: a TLS-terminating proxy that forwards plain HTTP makes DHIS2 see an insecure request and drop the header, while a proxy that adds its own HSTS puts it back on every response including ones DHIS2 never served. Neither state is readable from DHIS2. (b) CSP is governed by the confidential `dhis.conf` key `csp.enabled` (default ON); `CspFilter` emits `Content-Security-Policy` when on and `X-Frame-Options: SAMEORIGIN` when off. `DefaultDhisConfigurationProvider.getConfigurationsAsMap` masks every confidential key to `""`, so `csp.enabled` is never observable via any exposed config, and no `keyCspEnabled` system setting exists. The response header on the wire is the sole evidence — and `CspFilter` appends the `/api/configuration/corsWhitelist` origins to `frame-ancestors`, so that header is not the constant `frame-ancestors 'self';` a grader might pattern-match. An entry added to the CORS whitelist for an unrelated reason silently widens who may frame the instance.
 
-**Impact:** a security audit cannot read CSP/HSTS posture from settings; it must read the live response headers. A missing HSTS header behind a proxy is a real downgrade window but reads as a false positive if attributed to DHIS2 itself; the cause is proxy configuration.
+**Impact:** a security audit cannot read CSP or HSTS posture from settings; it must read the live response headers, and it must not attribute a missing HSTS header to DHIS2 itself — the cause is the proxy in front of it, in either direction. A grader that matches the stock `frame-ancestors 'self';` string misreads every instance that has a CORS whitelist.
 
-**Workaround in this repo:** the security `transport` check reads the scheme from the resolved base URL and the security headers off one `get_response("/api/system/info")` response, never from settings. It softens the HSTS finding to MEDIUM with a note that a TLS-terminating proxy commonly suppresses it, and treats the wire CSP header as the only CSP evidence. It suppresses the anti-framing finding when a CSP `frame-ancestors` directive is present, to avoid a guaranteed false positive on default instances. See `evaluate_transport` in `packages/dhis2w-core/src/dhis2w_core/security_core/transport.py` and `_run_transport` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py`.
+**Workaround in this repo:** the security `transport` check reads the scheme from the resolved base URL and the security headers off one `get_response("/api/system/info")` response, never from settings. It softens the HSTS finding to MEDIUM with a note that the fronting proxy determines the header, and treats the wire CSP header as the only CSP evidence, parsing `frame-ancestors` into a directive map rather than comparing it to a fixed string. It suppresses the anti-framing finding when a CSP `frame-ancestors` directive is present, to avoid a guaranteed false positive on default instances. See `evaluate_transport` in `packages/dhis2w-core/src/dhis2w_core/security_core/transport.py` and `_run_transport` in `packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/security/audit.py`.
+
+**How to know it's fixed:** `/api/systemSettings` (or any unmasked config surface) reports CSP state, and `frame-ancestors` stops inheriting the CORS whitelist.
 
 **Verifier:** none yet.
 
@@ -4242,9 +4306,9 @@ A caller has to know to ask for `enrollments[...attributes...]` explicitly, and 
 the two attribute lists itself.
 
 **Workaround in this repo:** every read in
-`packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/patients/wire.py` names its `fields`
+`packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/register/wire.py` names its `fields`
 in full, enrollments and their attributes included, and
-`patients/projection.py` folds the entity-level and enrollment-level values into one
+`register/projection.py` folds the entity-level and enrollment-level values into one
 list deduplicated by attribute and value.
 
 **Verifier:** none yet.
@@ -4399,40 +4463,54 @@ the seed idempotent, so `PUT` is the right verb here regardless.
 
 **Verifier:** none yet.
 
-### 83. An object's `translations` list comes back in a different order on every read
+### 83. An object's `translations` come back in a content-derived order that discards the order they were written in
 
-**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`), and on
-`https://laohmis.dhis2.asia/hmis` (`2.42.5.1`). Login as `admin/district` locally.
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`) and play
+`2.43.2`. Login as `admin/district` locally.
 
 **Repro:**
 
 ```bash
-# Write two translations in a stated order.
-curl -s -o /dev/null -u admin:district \
-  -X PUT 'http://localhost:8080/api/dataSets/BfMAe6Itzgt/translations' \
+# Write three translations in a stated order: lo, fr, ar.
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:district \
+  -X PUT 'http://localhost:8080/api/dataElements/eaqTAe51jnW/translations' \
   -H 'Content-Type: application/json' \
-  -d '{"translations":[{"property":"NAME","locale":"lo","value":"A"},{"property":"NAME","locale":"fr","value":"B"}]}'
+  -d '{"translations":[{"property":"NAME","locale":"lo","value":"A"},
+                       {"property":"NAME","locale":"fr","value":"B"},
+                       {"property":"NAME","locale":"ar","value":"C"}]}'
 
-# Read it back a few times; the two entries swap places between reads.
-for i in 1 2 3 4 5; do
-  curl -s -u admin:district 'http://localhost:8080/api/dataSets/BfMAe6Itzgt?fields=translations'; echo
-done
+# Read it back; the order is ar, lo, fr — and stays that way on every read.
+for i in $(seq 1 30); do
+  curl -s -u admin:district "http://localhost:8080/api/dataElements/eaqTAe51jnW?fields=translations&_=$i" \
+  | python3 -c "import sys,json;print(''.join(t['locale'] for t in json.load(sys.stdin)['translations']),end=' ')"
+done; echo
+
+# Re-PUT the identical body: same ar, lo, fr. PUT the three entries in reversed
+# input order (ar, fr, lo): still ar, lo, fr.
 ```
 
-**Expected:** a stable order - the write order, or any other deterministic one.
+**Expected:** the read-back preserves the order the caller wrote, or DHIS2 documents the
+order it imposes so a generator can reproduce it without re-sorting.
 
-**Actual:** `Translation` is held in a Java `Set`, so the serialisation order varies
-between reads of an unchanged object. The same is true of every translated class tried:
-`dataElements`, `dataSets`, `programs`, `programStages`, `trackedEntityAttributes`,
-`optionSets`, `organisationUnits`.
+**Actual:** `Translation` is held in a Java `Set`, so the serialised order is derived from
+the entries' content, not from the write. Thirty reads of the local object and eight of the
+play object return byte-identical orders, so the order is deterministic per read — but
+`lo, fr, ar` goes in and `ar, lo, fr` comes out, and reversing the input order changes
+nothing. The caller's ordering is discarded with no signal. The same holds for every
+translated class tried: `dataElements`, `dataSets`, `programs`, `programStages`,
+`trackedEntityAttributes`, `optionSets`, `organisationUnits`.
 
-**Impact:** anything that writes DHIS2 translations into a generated file has to impose an
-order of its own, or the file churns on every regeneration with no metadata change behind
-it. Same shape as #64 (`CategoryCombo.categoryOptionCombos`).
+**Impact:** anything that writes DHIS2 translations into a generated file cannot round-trip
+an author-chosen order, and the hash order shifts whenever a translation VALUE changes — so
+an edit to one string reshuffles the file around it. A generator has to impose an order of
+its own or accept churn unrelated to the change being made.
 
 **Workaround in this repo:** `packages/dhis2w-fhir/src/dhis2w_fhir/i18n.py` sorts every
-selected translation list by the normalised locale tag and deduplicates on it, so a
-regenerate of unchanged metadata produces an unchanged file.
+selected translation list by the normalised locale tag and deduplicates on it, so the
+generated file carries an order this repo chose rather than the one DHIS2 derived, and an
+unrelated value edit does not reshuffle it.
+
+**How to know it's fixed:** the read-back above returns `lo, fr, ar` — the order written.
 
 **Verifier:** none yet.
 
@@ -4784,45 +4862,93 @@ tracked-entity withdrawal is designed but deliberately unscheduled.
 
 ---
 
-### 91. `GET /api/tracker/events?enrollment=<uid>` also demands `program`, answering with a Tomcat HTML 400
+### 91. `GET /api/tracker/events` demands `program` unconditionally on v43, and the singular `enrollment=` filter is silently ignored on every major
 
-**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`).
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`) and play
+`2.41.10` / `2.42.7` / `2.43.2`.
 
-Extends #67, which records the same demand for `programStage=`. The enrollment form is worth
-stating separately because an enrollment UID pins a program even more directly than a stage
-UID does: an enrollment is a row naming one program.
+Two independent defects meet on the same request. The `program` requirement extends #67,
+which records the same demand for `programStage=`; the ignored `enrollment=` parameter is
+the shape #90 records on `/api/tracker/trackedEntities`, except there the singular form is
+at least refused.
 
 **Repro:**
 
 ```bash
-curl -s -u admin:district \
-  "http://localhost:8080/api/tracker/events?enrollment=W4cEnAnc001"
-# -> HTTP 400, Content-Type: text/html
-# -> a Tomcat error page, not a DHIS2 JSON error envelope
+# (a) The v43 refusal has nothing to do with `enrollment` — `program` is unconditional.
+for Q in "" "?enrollment=lzStAKiuDKs" "?orgUnit=y77LiPqLMoq" "?bogusParam=x" "?program=PrAncCare01"; do
+  curl -s -u admin:district -o /dev/null -w "$Q -> %{http_code} %{content_type}\n" \
+    "http://localhost:8080/api/tracker/events$Q"
+done
+#  -> 400 text/html   (every form without `program`)
+#  ?program=PrAncCare01 -> 200 application/json
 
-# Adding the program the enrollment already names makes it work.
+curl -s -u admin:district "http://localhost:8080/api/tracker/events" \
+  | python3 -c "import sys,re;print(re.sub('<[^>]+>',' ',sys.stdin.read()))" | grep -i required
+# -> Required parameter 'program' is not present.   (inside a Tomcat error page)
+
+# Per major, GET only:
+for V in dev-2-41 dev-2-42 dev-2-43; do
+  curl -s -m 30 -u admin:district -o /dev/null -w "$V %{http_code} %{content_type}\n" \
+    "https://play.im.dhis2.org/$V/api/tracker/events?enrollment=JMgRZyeLWOo"; done
+# dev-2-41 200 application/json    dev-2-42 200 application/json    dev-2-43 400 text/html
+
+# (b) The singular `enrollment=` does not filter. Compare against the plural.
 curl -s -u admin:district \
-  "http://localhost:8080/api/tracker/events?enrollment=W4cEnAnc001&program=PrAncCare01"
-# -> 200, the enrollment's events
+  "http://localhost:8080/api/tracker/events?enrollment=lzStAKiuDKs&program=PrAncCare01&fields=event,enrollment&pageSize=100"
+# -> all 9 events of the program, across 4 distinct enrollments — the same 9 that
+#    ?program=PrAncCare01 alone returns.
+curl -s -u admin:district \
+  "http://localhost:8080/api/tracker/events?enrollments=lzStAKiuDKs&program=PrAncCare01&fields=event,enrollment&pageSize=100"
+# -> 2 events, all from lzStAKiuDKs.
+
+# (c) The same endpoint takes the OTHER convention for the sibling filter: `trackedEntity`
+#     is singular and filters, `trackedEntities` is plural and is ignored.
+for Q in trackedEntity trackedEntities enrollment enrollments; do
+  echo -n "$Q -> "; curl -s -u admin:district \
+    "http://localhost:8080/api/tracker/events?program=PrAncCare01&$Q=<uid>&fields=event&pageSize=100" \
+    | python3 -c "import sys,json;print(len(json.load(sys.stdin)['events']))"
+done
+# trackedEntity  -> 1   (filtered)      enrollment  -> 5   (ignored, = the whole program)
+# trackedEntities-> 5   (ignored)       enrollments -> 1   (filtered)
 ```
 
-**Expected:** the enrollment UID resolves to exactly one program, so `program` is redundant.
-If it is genuinely required, the refusal should be a DHIS2 JSON error naming the missing
-parameter, not a Tomcat HTML page.
+**Expected:** (a) `program` is inferable from an enrollment or a stage UID, and if it is
+genuinely required the refusal is a DHIS2 JSON error naming the missing parameter, not a
+Tomcat HTML page. (b) an unrecognised query parameter is refused, as `/api/tracker/trackedEntities`
+refuses the singular `trackedEntity=` with `400 E1003`.
 
-**Actual:** `400` with an HTML body. A JSON client gets a parse failure where it expected an
-error code.
+**Actual:** (a) on v43 every request to `/api/tracker/events` without `program` answers
+`400 text/html` — a bare call, an unknown parameter, an org unit, an enrollment, the plural
+`enrollments`, all the same. The diagnosis `Required parameter 'program' is not present.`
+exists only inside the Tomcat error page, where a JSON client gets a parse failure instead
+of an error code. v41 and v42 answer `200 application/json` without `program`, so this is a
+v43 constraint. (b) the singular `enrollment=` is accepted and dropped on all three majors:
+the response is a `200` carrying the whole program's events with nothing saying the filter
+was discarded. The sibling filter on the same endpoint takes the opposite convention — the
+singular `trackedEntity=` is the one that filters and the plural `trackedEntities=` is the
+one silently dropped — so there is no rule a caller can learn, only two spellings to
+memorise. Neither `program` nor `enrollments` appears in
+`GET /api/openapi/openapi.json?path=/api/tracker/events`, which declares no query parameters
+for the endpoint beyond the seven `*IdScheme` ones — so neither the requirement nor the
+correct spelling is discoverable from the document.
 
-**Impact:** same as #67 - a caller that has an enrollment and wants its events has to carry
-the program along, and a caller that forgets gets an unparseable body instead of a
-diagnosis. Compounds #89, because reconstructing a collection query is the only way to read
-a soft-deleted event.
+**Impact:** (b) is the worse half. A caller that has an enrollment and asks for its events
+gets a plausible `200` full of other enrollments' events, and only a count check reveals it.
+(a) means a caller that forgets `program` gets an unparseable body instead of a diagnosis,
+and compounds #89, because reconstructing a collection query is the only way to read a
+soft-deleted event.
 
-**Workaround in this repo:** the tracker reads always pass `program` alongside `enrollment`;
-see the #67 workaround, which covers the same call sites.
+**Workaround in this repo:** `list_events` sends the enrollment filter as the plural
+`enrollments` and the tracked-entity filter as the singular `trackedEntity`, the spellings
+DHIS2 honours, while the Python keyword and the CLI option stay `enrollment` /
+`tracked_entity`. See `list_events` in
+`packages/dhis2w-core/src/dhis2w_core/v{41,42,43}/plugins/tracker/service.py`; the tracker
+reads also pass `program` alongside, per the #67 workaround.
 
-**How to know it's fixed:** the first request above returns `200`, or a DHIS2 JSON error
-naming `program`.
+**How to know it's fixed:** `GET /api/tracker/events?enrollments=<uid>` returns `200` on v43
+without `program`, or refuses with a DHIS2 JSON error naming it; and the singular
+`enrollment=` is refused rather than dropped.
 
 **Verifier:** none yet.
 
@@ -4833,23 +4959,41 @@ naming `program`.
 **Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`), while
 reseeding this repository's local stack.
 
+The trigger is the option set being a member of the SAME bundle as its options. Importing
+options into an option set that already exists leaves `sortOrder` untouched, so a re-tester
+who splits the payload sees the values they wrote and reads it as a fix.
+
 **Repro:**
 
 ```bash
-# Import three options with sortOrder 1, 2, 3 into an existing option set.
+# TRIGGER: the option set and its options in ONE bundle.
 curl -s -u admin:district -X POST http://localhost:8080/api/metadata \
-  -H 'Content-Type: application/json' \
-  -d '{"options":[
+  -H 'Content-Type: application/json' -d '{
+  "optionSets":[{"id":"OptSetSort1","name":"Sort Bundle Set","valueType":"TEXT"}],
+  "options":[
     {"id":"OptSortOne1","name":"<5","code":"SORT_LT5","sortOrder":1,"optionSet":{"id":"OptSetSort1"}},
     {"id":"OptSortTwo1","name":">5","code":"SORT_GT5","sortOrder":2,"optionSet":{"id":"OptSetSort1"}},
     {"id":"OptSortThr1","name":"Not stated","code":"SORT_NS","sortOrder":3,"optionSet":{"id":"OptSetSort1"}}]}'
-# -> status OK
+# -> status OK, no warning
 
 curl -s -u admin:district -g \
   "http://localhost:8080/api/optionSets/OptSetSort1?fields=options[id,name,sortOrder]"
-# -> sortOrder comes back 0, 1, 2: every option shifted down by one
+# -> sortOrder comes back 0, 1, 2 in payload order: every option shifted down by one
 
-# A PATCH of the same field sticks.
+# NON-TRIGGER: create the option set first, import the options into it afterwards.
+curl -s -u admin:district -X POST http://localhost:8080/api/metadata \
+  -H 'Content-Type: application/json' \
+  -d '{"optionSets":[{"id":"OptSetSort2","name":"Sort Option Set","valueType":"TEXT"}]}'
+curl -s -u admin:district -X POST http://localhost:8080/api/metadata \
+  -H 'Content-Type: application/json' -d '{"options":[
+    {"id":"OptSortFou1","name":"<5","code":"SORT2_LT5","sortOrder":1,"optionSet":{"id":"OptSetSort2"}},
+    {"id":"OptSortFiv1","name":">5","code":"SORT2_GT5","sortOrder":2,"optionSet":{"id":"OptSetSort2"}},
+    {"id":"OptSortSix1","name":"Not stated","code":"SORT2_NS","sortOrder":3,"optionSet":{"id":"OptSetSort2"}}]}'
+curl -s -u admin:district -g \
+  "http://localhost:8080/api/optionSets/OptSetSort2?fields=options[id,name,sortOrder]"
+# -> sortOrder 1, 2, 3, unchanged. Re-importing the identical options leaves them at 1, 2, 3.
+
+# A PATCH of the same field sticks, in either shape.
 curl -s -u admin:district -X PATCH http://localhost:8080/api/options/OptSortOne1 \
   -H 'Content-Type: application/json-patch+json' \
   -d '[{"op":"replace","path":"/sortOrder","value":1}]'
@@ -4860,14 +5004,18 @@ curl -s -u admin:district "http://localhost:8080/api/options/OptSortOne1?fields=
 **Expected:** `sortOrder` is stored as sent, or the normalisation is documented and applied
 consistently across every write path.
 
-**Actual:** the bundle importer normalises an option set's `sortOrder` values into a
-contiguous 0-based sequence in payload order, silently. `PATCH /api/options/{uid}` does not
-normalise, so the same field has two behaviours depending on which endpoint set it.
+**Actual:** when the option set is a member of the bundle, the importer renumbers its options
+into a contiguous 0-based sequence in payload order, silently and with `status: OK`. When the
+options arrive alone and attach to an existing set, the sent values survive. `PATCH
+/api/options/{uid}` never normalises. The same field therefore has three behaviours across
+three write paths, and the one that renumbers is selected by the presence of an unrelated
+object in the same payload.
 
 **Impact:** a seed or a generator that states `sortOrder` and then asserts what it wrote
-fails on the read-back, for a difference the importer introduced. Round-tripping an option
-set through `/api/metadata` is not idempotent against a source of truth that counts from
-one, and mixing the two write paths leaves an option set whose ordering values came from two
+fails on the read-back, for a difference the importer introduced — and only when the payload
+happens to carry the option set too, which makes it look intermittent. Round-tripping an
+option set through `/api/metadata` is not idempotent against a source of truth that counts
+from one, and mixing the write paths leaves an option set whose ordering values came from two
 different conventions.
 
 **Workaround in this repo:** the seed scripts state `sortOrder` for readability and do not
@@ -4924,34 +5072,70 @@ and `_fetch_program_rules` reads `/api/programRules` unfiltered in one further r
 `packages/dhis2w-fhir/src/dhis2w_fhir/service.py`. The rules are then indexed by
 `program[id]` and carried onto every form that program publishes.
 
-### 94. A `ProgramRule.program` reference is typed while its actions' references are not
+### 94. `/api/openapi/openapi.json` types the same `{id}` reference under two different component names on 2.43.x
 
-**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`).
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`) and play `2.43.2`; contrasted against play `2.41.10` / `2.42.7`.
+
+Not a wire defect. `/api/schemas` declares both sides of the `ProgramRule` reference pair
+symmetrically on every major, and both arrive as `{"id": ...}` — the DIVERGENCE a reader
+meets in the generated models is this repo's codegen, recorded in the impact line below.
 
 **Repro:**
 
 ```bash
+# The wire: both references are the same {id} object.
 curl -s -u admin:district -g \
   "http://localhost:8080/api/programRules?fields=id,program[id],programRuleActions[programRuleActionType,dataElement[id]]&paging=false" \
   | head -c 300
 # -> {"programRules":[{"program":{"id":"IpHINAT79UW"},
 #     "programRuleActions":[{"programRuleActionType":"SHOWWARNING","dataElement":{"id":"H6uSAMO5WLD"}}], ...
+
+# /api/schemas types both sides, on every major:
+curl -s -u admin:district 'http://localhost:8080/api/schemas/programRule.json' | python3 -c "
+import sys, json
+for p in json.load(sys.stdin)['properties']:
+    if p['name'] in ('program', 'programRuleAction'):
+        print({k: p.get(k) for k in ('name','propertyType','itemPropertyType','klass','itemKlass')})
+"
+# {'name':'program','propertyType':'REFERENCE','klass':'org.hisp.dhis.program.Program'}
+# {'name':'programRuleAction','propertyType':'COLLECTION','itemPropertyType':'REFERENCE',
+#  'itemKlass':'org.hisp.dhis.programrule.ProgramRuleAction'}
+
+# The OpenAPI document names the two the same shape under two component names on 2.43.x:
+curl -s -u admin:district 'http://localhost:8080/api/openapi/openapi.json?path=/api/programs' | python3 -c "
+import sys, json
+q = json.load(sys.stdin)['components']['schemas']['ProgramRule']['properties']
+print(json.dumps(q['program'])); print(json.dumps(q['programRuleActions']))"
+# 2.43.x: {"$ref": ".../IdentifiableObject"}  /  {"type":"array","items":{"$ref":".../BaseIdentifiableObject"}}
+# 2.42.7: both sides BaseIdentifiableObject
+# 2.41.10: both sides inlined as the identical {id} object
 ```
 
-**Expected:** one wire shape for a reference, so one reader handles every one of them.
+**Expected:** one component name for one wire shape, so a generator emits one class for a
+reference wherever it appears.
 
-**Actual:** both are `{"id": ...}` on the wire, but the generated models diverge - the
-schema declares `ProgramRule.program`, so it parses into a typed `Reference`, while
-`programRuleActions` is a loose collection whose members stay raw objects. Reading `.id` off
-one and `["id"]` off the other is the same DHIS2 fact reached two ways.
+**Actual:** on 2.43.x the singular reference resolves to `IdentifiableObject` and the
+collection item to `BaseIdentifiableObject`. Both resolve to the same `{"id": ...}` wire
+object, and 2.42.7 uses `BaseIdentifiableObject` for both, so the split is 2.43-only and
+cosmetic on the wire. `/api/schemas` gives a generator everything it needs to type both sides
+identically: `propertyType: REFERENCE` with a `klass` on the singular, `itemPropertyType:
+REFERENCE` with a concrete `itemKlass` on the collection.
 
-**Impact:** a reader written against one shape silently yields None against the other, and
-the failure is invisible: every rule is skipped and the run reports no rules rather than an
-error.
+**Impact:** the divergence a caller actually meets is local, not upstream. `dhis2w-codegen`
+maps `propertyType: REFERENCE` to `Reference` but drops `itemPropertyType: REFERENCE` on a
+COLLECTION to `list[Any]`, so all three committed trees emit `program: Reference | None`
+beside `programRuleActions: list[Any] | None`
+(`packages/dhis2w-client/src/dhis2w_client/generated/v4{1,2,3}/schemas/program_rule.py`). A
+reader written against one shape silently yields None against the other, and the failure is
+invisible: every rule is skipped and the run reports no rules rather than an error. Teaching
+the emitter to consume `itemPropertyType` / `itemKlass` closes it without any upstream change.
 
 **Workaround in this repo:** `_referenced_uid` in
 `packages/dhis2w-fhir/src/dhis2w_fhir/service.py` reads both shapes, so each call site names
 the DHIS2 fact rather than the wire encoding it happened to arrive in.
+
+**How to know it's fixed:** the 2.43.x OpenAPI document names one component for both
+references, matching 2.42.7.
 
 ### 95. `categoryOption.aggregationType` is schema-typed BOOLEAN on 2.43.1 while every sibling says CONSTANT
 
@@ -4990,3 +5174,100 @@ it.
 reports, deliberately. The moment the v43 pin moves to a 2.43.2+ release,
 `d2w dev codegen generate` against it heals the field into the enum and this entry is the
 tripwire to delete.
+
+### 96. On 2.43.1 the OAuth2 authorization server 500s for any registered client whose settings or grant types are empty, and `POST /api/oAuth2Clients` creates exactly that client
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`, buildTime
+`2026-08-03`), with the full OAuth2 `dhis.conf` block from entry #4 in place.
+
+**Repro:**
+
+```bash
+B=http://localhost:8080; A=admin:district
+
+# (a) A client posted without `authorizationGrantTypes` is accepted.
+curl -s -m 30 -u $A -X POST $B/api/oAuth2Clients -H 'Content-Type: application/json' \
+  -d '{"name":"probe","clientId":"probe-min","clientSecret":"s3cret"}' -w '\nHTTP %{http_code}\n'
+# -> HTTP 201 {"httpStatus":"Created", ... "klass":"org.hisp.dhis...Dhis2OAuth2Client"}
+
+curl -s -m 30 -o /dev/null -w '%{http_code} %{content_type}\n' \
+  "$B/oauth2/authorize?response_type=code&client_id=probe-min&redirect_uri=http://localhost:9999/callback&scope=ALL"
+# -> 500 text/html;charset=utf-8
+#    Message: authorizationGrantTypes cannot be empty
+#    java.lang.IllegalArgumentException: authorizationGrantTypes cannot be empty
+#      org.springframework.util.Assert.notEmpty(Assert.java:398)
+#      ...RegisteredClient$Builder.build(RegisteredClient.java:526)
+#      org.hisp.dhis.security.oauth2.client.Dhis2OAuth2ClientServiceImpl.toObject(...:223)
+#      org.hisp.dhis.security.oauth2.client.Dhis2OAuth2ClientServiceImpl.findByClientId(...:167)
+
+# (b) A COMPLETE client works, until it is updated with the same body.
+BODY='{"name":"probe","clientId":"probe-set","clientSecret":"s3cret",
+       "authorizationGrantTypes":"authorization_code,refresh_token",
+       "redirectUris":"http://localhost:9999/callback",
+       "clientAuthenticationMethods":"client_secret_basic","scopes":"ALL"}'
+CLIENT=$(curl -s -m 30 -u $A -X POST $B/api/oAuth2Clients -H 'Content-Type: application/json' \
+  -d "$BODY" | python3 -c 'import sys,json;print(json.load(sys.stdin)["response"]["uid"])')   # $UID is readonly in bash
+
+curl -s -m 30 -o /dev/null -w 'after POST: %{http_code}\n' \
+  "$B/oauth2/authorize?response_type=code&client_id=probe-set&redirect_uri=http://localhost:9999/callback&scope=ALL"
+# -> after POST: 302   (the flow works: a redirect to the login form)
+
+curl -s -m 30 -u $A -X PUT "$B/api/oAuth2Clients/$CLIENT" -H 'Content-Type: application/json' -d "$BODY"
+curl -s -m 30 -u $A "$B/api/oAuth2Clients/$CLIENT?fields=:owner"
+# -> 200, and the read-back has lost `clientSettings` and `tokenSettings` entirely
+
+curl -s -m 30 -o /dev/null -w 'after PUT: %{http_code}\n' \
+  "$B/oauth2/authorize?response_type=code&client_id=probe-set&redirect_uri=http://localhost:9999/callback&scope=ALL"
+curl -s -m 30 -o /dev/null -w 'token: %{http_code}\n' -X POST $B/oauth2/token \
+  -u 'probe-set:s3cret' -d 'grant_type=client_credentials'
+# -> after PUT: 500   token: 500
+#    Message: settings cannot be empty
+#    java.lang.IllegalArgumentException: settings cannot be empty
+#      org.springframework.util.Assert.notEmpty(Assert.java:474)
+#      ...settings.ClientSettings.withSettings(ClientSettings.java:109)
+#      org.hisp.dhis.security.oauth2.client.Dhis2OAuth2ClientServiceImpl.toObject(...:219)
+#      org.hisp.dhis.security.oauth2.client.Dhis2OAuth2ClientServiceImpl.findByClientId(...:167)
+
+# (c) The contrast: an UNREGISTERED client_id is handled correctly.
+curl -s -m 30 -o /dev/null -w '%{http_code}\n' \
+  "$B/oauth2/authorize?response_type=code&client_id=no-such-client&redirect_uri=http://localhost:9999/callback&scope=ALL"
+# -> 400, "[invalid_request] OAuth 2.0 Parameter: client_id"
+```
+
+**Expected:** `POST` / `PUT /api/oAuth2Clients` refuses a client the authorization server
+cannot load, or the authorization server answers an OAuth2 error for one it cannot use. A
+client the metadata API accepted with `201` should not make an unrelated endpoint throw.
+
+**Actual:** `Dhis2OAuth2ClientServiceImpl.findByClientId` converts the stored row through
+`toObject`, which asserts non-empty on two fields the write path never guarantees:
+`ClientSettings.withSettings` (line 219) and `RegisteredClient$Builder.build` (line 223).
+Either assertion failing surfaces as a raw Tomcat exception report — `500 text/html` with a
+Java stack trace, no `error` / `error_description`, nothing an OAuth2 client library can
+read. Two independent write paths reach that state on a stock instance:
+
+- `POST /api/oAuth2Clients` accepts a body with no `authorizationGrantTypes` and answers
+  `201`. A body using the v41 array spellings (`grantTypes`, `secret`) also answers `201`
+  with every one of those fields silently dropped, per BUGS.md #39 — so the shape a v41
+  caller sends produces a v43 client that 500s.
+- `PUT /api/oAuth2Clients/{uid}` with a body that omits `clientSettings` nulls the stored
+  column, answering `200`. The client worked before the update and 500s after it, with no
+  field the caller sent having changed.
+
+The lookup is on the client_id, so the 500 hits both `/oauth2/authorize` and
+`/oauth2/token`, and it is specific to a registered client: an unknown `client_id` correctly
+answers `400 [invalid_request]`.
+
+**Impact:** the authorization server is unusable against a local 2.43.1 seeded through the
+metadata API, which is the only way this repo registers a client. This blocks entries #4,
+#4b, #4c and #4h outright — no authorization code can be obtained, so no token can be minted
+and none of the JWT-side behaviour is reachable. It also means an operator who edits an
+OAuth2 client through the API breaks every login through it, with the client still listed and
+looking correct.
+
+**Workaround in this repo:** none - blocks OAuth2 provider verification against a local
+2.43.1. Not checked against play `2.43.2`: that instance has zero registered OAuth2 clients
+(`GET /api/oAuth2Clients` answers `"total": 0`) and is read-only, so the failing lookup
+cannot be driven there.
+
+**How to know it's fixed:** the `POST`-then-authorize sequence in (a) answers a redirect or an
+OAuth2 JSON error rather than a `500`, and the `PUT` in (b) leaves `clientSettings` intact.

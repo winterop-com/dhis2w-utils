@@ -150,10 +150,9 @@ class DataValuesAccessor:
         [...]}`. This shape is accepted by every DHIS2 major.
 
         Splits each per-dataset group into `chunk_size` rows per POST so the
-        body stays inside httpx's 300 s read timeout on the slow v43 CREATE
-        path (BUGS.md #37). Returns one `WebMessageResponse` per chunk;
-        callers that want aggregate counts should walk `import_count()` across
-        the list and sum.
+        body stays inside httpx's 300 s read timeout. Returns one
+        `WebMessageResponse` per chunk; callers that want aggregate counts
+        should walk `import_count()` across the list and sum.
 
         Skips values whose DataElement isn't in any DataSet (counted in the
         first response's import-count under `ignored`).

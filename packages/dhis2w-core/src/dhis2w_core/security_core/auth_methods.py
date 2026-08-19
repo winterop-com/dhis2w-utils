@@ -9,8 +9,9 @@ flow) or a loose redirect URI (a wildcard, or a non-loopback cleartext http:// t
 vector and is flagged MEDIUM. The check is read-only: two GETs, never a login attempt, never reading secrets.
 
 `OAuth2ClientView` is the hand-rolled version-invariant model bridging the v41 `OAuth2Client` (array-typed
-`grantTypes` / `redirectUris`, `cid`, `data` envelope) and the v42/v43 `Dhis2OAuth2Client` (comma-string
-`authorizationGrantTypes` / `redirectUris`, `clientId`, `oAuth2Clients` envelope); there is no
+`grantTypes` / `redirectUris`, `cid`) and the v42/v43 `Dhis2OAuth2Client` (comma-string
+`authorizationGrantTypes` / `redirectUris`, `clientId`); the list envelope key is `oAuth2Clients` on every
+major, and there is no
 version-invariant generated OAuth2-client schema (BUGS.md #52, cross-referencing #39). It deliberately omits
 any secret field so a client secret can never reach a finding or evidence; the per-tree `_wire.oauth2_clients`
 extractor never reads `secret` / `clientSecret`.

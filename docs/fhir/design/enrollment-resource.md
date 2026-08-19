@@ -444,7 +444,7 @@ Small, and entirely on the read side.
    `dhis2w_fhir/__init__.py` with an `::: ` entry in `docs/fhir/api-dhis2w-fhir.md`, per the repo's
    public-symbol rule.
 2. **`dhis2w_fhir_serve/enrollments/projection.py`** - one enrollment onto one
-   `EpisodeOfCare`, modelled on `patients/projection.py` including its module docstring
+   `EpisodeOfCare`, modelled on `register/projection.py` including its module docstring
    discipline: what it carries, where each fact comes from, and what it deliberately does
    not carry. `id` is the enrollment UID, so `EpisodeOfCare/<uid>` reads back the same
    enrollment. Status map as a frozen table; `period.end` only where `completedAt` exists;
