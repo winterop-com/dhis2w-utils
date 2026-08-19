@@ -79,6 +79,7 @@ Generating, serving, and draining from Python, rather than from the command line
 | [`generate_ig.py`](generate_ig.py) | `load_project` + `resolve_generation_profile` + `generate_full`, and the `GenerateFullReport` consumed as a model rather than parsed as text |
 | [`consume_facade.py`](consume_facade.py) | Plain httpx against a running facade: `/metadata`, search, `$generate`, POST a capture, read the receipt, read `/spool` |
 | [`forward_spool.py`](forward_spool.py) | `forward_responses` dry run, and the `ForwardReport` counts, per-receipt outcomes, and rejection reasons rolled up by cause |
+| [`fhir_to_dhis2_end_to_end.py`](fhir_to_dhis2_end_to_end.py) | The whole chain committed end to end — scaffold, serve in-process, `$generate`, POST, forward with `--import`, read the value back with the dhis2w client, delete it again. Every link has its own file: [`build_aggregate_response.py`](build_aggregate_response.py) for the submission, [`send_response.py`](send_response.py) for the capture, [`forward_spool.py`](forward_spool.py) for the drain |
 
 ## The fixture
 

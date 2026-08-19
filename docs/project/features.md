@@ -2451,9 +2451,11 @@ One example tree, version-neutral: each example is a single copy that runs
 against DHIS2 v41, v42, and v43.
 
 - **`examples/fhir/`**: the `d2w fhir` surface in its own group - 5 CLI scripts
-  (init/generate/validate, serve, forward, doctor, spool) and 25 Python library
+  (init/generate/validate, serve, forward, doctor, spool) and 29 Python library
   examples grouped as build a response, read a form, convert to DHIS2, send and
-  verify, and drive the toolchain. Every one runs in `make verify-examples`
+  verify, and drive the toolchain - the last group ending at
+  `fhir_to_dhis2_end_to_end.py`, which commits the whole chain against an
+  instance and removes what it wrote. Every one runs in `make verify-examples`
   against a shared `_fixture.py` that scaffolds a project, builds a translation
   context off the instance, and starts a live facade on a port the operating
   system picks. There are no MCP examples because there are no MCP tools: what
