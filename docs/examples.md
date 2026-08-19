@@ -19,7 +19,7 @@ Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.c
 
 `d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. `dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages, so this group is one copy that runs on every major. The narrative these sit under is the [`d2w fhir` guide series](fhir/index.md).
 
-The headline rows are below. The Python library path has twenty-nine examples in all — grouped from "build a response from my own data" through reading a form, converting to DHIS2, sending, and driving the toolchain — catalogued in [`examples/fhir/client/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/README.md).
+The headline rows are below. The Python library path has thirty examples in all — grouped from "build a response from my own data" through reading a form, converting to DHIS2, sending, and driving the toolchain — catalogued in [`examples/fhir/client/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/README.md).
 
 | Example | What it demonstrates | Related docs |
 | --- | --- | --- |
@@ -45,6 +45,7 @@ The headline rows are below. The Python library path has twenty-nine examples in
 | [`fhir/client/minimal_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/minimal_facade.py) | Your own FastAPI in place of `d2w fhir serve` — one route that translates a capture, posts it, and hands back DHIS2's verdict | [Build your own facade](fhir/401-build-your-own-facade.md) |
 | [`fhir/client/build_aggregate_response.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/build_aggregate_response.py) | The minimal aggregate capture — a data set's numbers for one period at one organisation unit, built in typed Python | [The capture contract](fhir/401-capture-contract.md) |
 | [`fhir/client/build_registration_response.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/build_registration_response.py) | Registering a person and enrolling them, minting both DHIS2 UIDs client-side | [The capture contract](fhir/401-capture-contract.md) |
+| [`fhir/client/ips_document.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/ips_document.py) | One person's tracker record assembled into an IPS-shaped FHIR `document` Bundle — one mapped section, three required ones stating absence, and the reference check that proves the document closes | [The IPS document](fhir/design/ips.md) |
 
 ## CLI examples
 

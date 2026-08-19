@@ -8,21 +8,35 @@ from typing import Any
 
 import pytest
 from dhis2w_fhir.r4 import (
+    DATA_ABSENT_REASON_EXTENSION_URL,
+    AllergyIntolerance,
     Bundle,
+    BundleEntry,
     CapabilityStatement,
+    CodeableConcept,
     CodeSystem,
     CodeSystemConcept,
     CodeSystemConceptProperty,
+    Coding,
+    Composition,
+    CompositionSection,
     ConceptMap,
+    Condition,
     Element,
     Extension,
+    HumanName,
+    Identifier,
     JsonResource,
     Location,
+    Narrative,
+    Observation,
     Organization,
     Parameters,
     ParametersParameter,
+    Patient,
     Questionnaire,
     QuestionnaireResponse,
+    Reference,
     ValueSet,
     json_resource,
 )
@@ -40,6 +54,11 @@ type ResourceModel = (
     | QuestionnaireResponse
     | CapabilityStatement
     | Parameters
+    | Patient
+    | Composition
+    | Condition
+    | AllergyIntolerance
+    | Observation
 )
 
 _NAME_ELEMENT_CASES = [
@@ -493,3 +512,159 @@ def test_an_unrequired_question_never_serialises_its_required_key() -> None:
     assert items[0]["required"] is True
     assert "required" not in items[1]
     assert "repeats" not in items[0]
+
+
+#: One SNOMED CT concept the IPS names for a section a system holds nothing for - "No information
+#: available" - which is what the document resources below assert absence with.
+_NO_INFORMATION_AVAILABLE = CodeableConcept(
+    coding=[Coding(system="http://snomed.info/sct", code="1287211007", display="No information available")]
+)
+
+
+def _document_bundle() -> Bundle:
+    """A four-entry document: the Composition, its subject, one populated entry, one asserted absence."""
+    patient = Patient(
+        id="Kj9HgT4mQpz",
+        name=[HumanName(family="Kamara", given=["Aminata"])],
+        birthDate="2024-06-01",
+        identifier=[Identifier(system="http://example.org/fhir/id/tracked-entity", value="Kj9HgT4mQpz")],
+    )
+    observation = Observation(
+        id="obs-1",
+        status="final",
+        code=CodeableConcept(coding=[Coding(system="http://example.org/fhir/de", code="UXz7xuGCEhU")]),
+        subject=Reference(reference="urn:uuid:00000000-0000-0000-0000-000000000001"),
+        effectiveDateTime="2024-06-02T00:00:00Z",
+        valueString="3.2",
+    )
+    condition = Condition(id="cond-1", code=_NO_INFORMATION_AVAILABLE, subject=observation.subject)
+    composition = Composition(
+        id="ips-1",
+        status="final",
+        type=CodeableConcept(coding=[Coding(system="http://loinc.org", code="60591-5")]),
+        subject=observation.subject,
+        date="2026-01-19T09:00:00Z",
+        author=[Reference(reference="urn:uuid:00000000-0000-0000-0000-000000000004")],
+        title="International Patient Summary",
+        section=[
+            CompositionSection(
+                title="Problems",
+                code=CodeableConcept(coding=[Coding(system="http://loinc.org", code="11450-4")]),
+                text=Narrative(status="generated", div="<div xmlns='http://www.w3.org/1999/xhtml'>none</div>"),
+                entry=[Reference(reference="urn:uuid:00000000-0000-0000-0000-000000000002")],
+            ),
+            CompositionSection(
+                title="Medication Summary",
+                code=CodeableConcept(coding=[Coding(system="http://loinc.org", code="10160-0")]),
+                text=Narrative(status="generated", div="<div xmlns='http://www.w3.org/1999/xhtml'>none</div>"),
+                emptyReason=CodeableConcept(
+                    coding=[
+                        Coding(system="http://terminology.hl7.org/CodeSystem/list-empty-reason", code="unavailable")
+                    ]
+                ),
+            ),
+        ],
+    )
+    return Bundle(
+        type="document",
+        identifier=Identifier(system="urn:ietf:rfc:3986", value="urn:uuid:00000000-0000-0000-0000-000000000000"),
+        timestamp="2026-01-19T09:00:00Z",
+        entry=[
+            BundleEntry(fullUrl="urn:uuid:00000000-0000-0000-0000-000000000000", resource=json_resource(composition)),
+            BundleEntry(fullUrl="urn:uuid:00000000-0000-0000-0000-000000000001", resource=json_resource(patient)),
+            BundleEntry(fullUrl="urn:uuid:00000000-0000-0000-0000-000000000002", resource=json_resource(condition)),
+            BundleEntry(fullUrl="urn:uuid:00000000-0000-0000-0000-000000000003", resource=json_resource(observation)),
+        ],
+    )
+
+
+def test_a_document_bundle_round_trips_every_resource_it_carries() -> None:
+    emitted = json.loads(_document_bundle().model_dump_json(exclude_none=True, by_alias=True))
+    assert emitted["type"] == "document"
+    assert emitted["identifier"]["value"] == "urn:uuid:00000000-0000-0000-0000-000000000000"
+    assert emitted["timestamp"] == "2026-01-19T09:00:00Z"
+    assert [entry["resource"]["resourceType"] for entry in emitted["entry"]] == [
+        "Composition",
+        "Patient",
+        "Condition",
+        "Observation",
+    ]
+    assert json.loads(Bundle.model_validate(emitted).model_dump_json(exclude_none=True, by_alias=True)) == emitted
+
+
+def test_a_composition_states_either_its_entries_or_why_it_has_none() -> None:
+    sections = json.loads(_document_bundle().model_dump_json(exclude_none=True, by_alias=True))["entry"][0]["resource"][
+        "section"
+    ]
+    assert "entry" in sections[0]
+    assert "emptyReason" not in sections[0]
+    assert "entry" not in sections[1]
+    assert sections[1]["emptyReason"]["coding"][0]["code"] == "unavailable"
+    assert all("section" not in section for section in sections)
+
+
+def test_a_patient_states_an_absent_birth_date_on_the_primitive_element() -> None:
+    model = Patient(
+        id="Kj9HgT4mQpz",
+        name=[HumanName(text="Aminata Kamara")],
+        birthDate_element=Element(
+            extension=[Extension(url=DATA_ABSENT_REASON_EXTENSION_URL, valueCode="unknown")],
+        ),
+    )
+    emitted = _emit(model)
+    assert "birthDate" not in emitted
+    assert emitted["_birthDate"]["extension"][0]["url"] == DATA_ABSENT_REASON_EXTENSION_URL
+    assert emitted["_birthDate"]["extension"][0]["valueCode"] == "unknown"
+    read_back = Patient.model_validate(emitted)
+    assert read_back.birthDate_element is not None
+    assert _emit(read_back) == emitted
+
+
+def test_a_patient_carries_the_two_halves_of_a_nominated_name() -> None:
+    emitted = _emit(Patient(id="Kj9HgT4mQpz", name=[HumanName(family="Kamara", given=["Aminata"])], gender="female"))
+    assert emitted["name"] == [{"family": "Kamara", "given": ["Aminata"]}]
+    assert emitted["gender"] == "female"
+
+
+def test_an_observation_carries_a_dhis2_value_as_the_string_dhis2_sent() -> None:
+    emitted = _emit(
+        Observation(
+            id="obs-1",
+            status="final",
+            code=CodeableConcept(coding=[Coding(system="http://example.org/fhir/de", code="UXz7xuGCEhU")]),
+            valueString="3.2",
+        )
+    )
+    assert emitted["valueString"] == "3.2"
+    assert "valueInteger" not in emitted
+    assert "dataAbsentReason" not in emitted
+
+
+@pytest.mark.parametrize(
+    ("model_type", "document"),
+    [
+        pytest.param(Patient, {"resourceType": "Patient", "photo": []}, id="patient"),
+        pytest.param(Composition, {"resourceType": "Composition", "titel": "typo"}, id="composition"),
+        pytest.param(Condition, {"resourceType": "Condition", "severity": {}}, id="condition"),
+        pytest.param(AllergyIntolerance, {"resourceType": "AllergyIntolerance", "reaction": []}, id="allergy"),
+        pytest.param(Observation, {"resourceType": "Observation", "valueQuantity": {}}, id="observation"),
+    ],
+)
+def test_the_document_resources_reject_the_elements_they_do_not_carry(
+    model_type: type[ResourceModel], document: dict[str, Any]
+) -> None:
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        model_type.model_validate(document)
+
+
+def test_an_allergy_intolerance_asserts_absence_without_the_removed_code_system() -> None:
+    emitted = _emit(
+        AllergyIntolerance(
+            id="allergy-absent",
+            code=_NO_INFORMATION_AVAILABLE,
+            patient=Reference(reference="urn:uuid:00000000-0000-0000-0000-000000000001"),
+        )
+    )
+    assert emitted["code"]["coding"][0]["system"] == "http://snomed.info/sct"
+    assert emitted["code"]["coding"][0]["code"] == "1287211007"
+    assert "clinicalStatus" not in emitted

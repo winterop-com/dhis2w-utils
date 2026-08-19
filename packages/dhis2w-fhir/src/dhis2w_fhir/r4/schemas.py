@@ -25,6 +25,11 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 #: The standard R4 extension carrying the GeoJSON boundary of a Location.
 BOUNDARY_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson"
 
+#: The standard R4 extension stating why a required element carries no value. It rides the
+#: primitive's `_x` sibling - `Patient._birthDate` carrying `valueCode "unknown"` is the
+#: International Patient Summary's own worked example of a person whose birth date nobody stated.
+DATA_ABSENT_REASON_EXTENSION_URL = "http://hl7.org/fhir/StructureDefinition/data-absent-reason"
+
 
 class FhirBase(BaseModel):
     """Pydantic carrier for every schema here - frozen, alias-aware, closed to unknown keys. Not a FHIR type."""
@@ -96,9 +101,15 @@ class ContactPoint(Element):
 
 
 class HumanName(Element):
-    """A person's name; the generated contacts carry the DHIS2 free text in `text`."""
+    """A person's name; the generated contacts carry the DHIS2 free text in `text`.
+
+    `family` and `given` are the parts a nominated DHIS2 attribute fills one of - a name assembled
+    from two attributes states which half each one was, rather than folding both into `text`.
+    """
 
     text: str | None = None
+    family: str | None = None
+    given: list[str] | None = None
 
 
 class Attachment(Element):
@@ -271,6 +282,111 @@ class RegisteredEntity(DomainResource):
     meta: Meta | None = None
     identifier: list[Identifier] | None = None
     extension: list[Extension] | None = None
+
+
+class Patient(DomainResource):
+    """A FHIR R4 Patient - the person a summary document is about, with the demographics somebody stated.
+
+    `RegisteredEntity` is the register's projection of a tracked entity and carries identity alone;
+    this is the fuller resource a document assembles, so it names the elements a nomination fills.
+    `birthDate_element` carries the `_birthDate` sibling the way `name_element` carries `_name`: a
+    person the instance holds no birth date for keeps the required element and states its absence on
+    the data-absent-reason extension, which is what `DATA_ABSENT_REASON_EXTENSION_URL` is for.
+    """
+
+    resourceType: Literal["Patient"] = "Patient"
+    id: str | None = None
+    meta: Meta | None = None
+    text: Narrative | None = None
+    extension: list[Extension] | None = None
+    identifier: list[Identifier] | None = None
+    active: bool | None = None
+    name: list[HumanName] | None = None
+    gender: Literal["male", "female", "other", "unknown"] | None = None
+    birthDate: str | None = None
+    birthDate_element: Element | None = Field(
+        default=None,
+        validation_alias=AliasChoices("_birthDate", "birthDate_element"),
+        serialization_alias="_birthDate",
+    )
+    managingOrganization: Reference | None = None
+
+
+class Condition(DomainResource):
+    """A FHIR R4 Condition - one problem a summary's Problems section names, or an assertion of none."""
+
+    resourceType: Literal["Condition"] = "Condition"
+    id: str | None = None
+    meta: Meta | None = None
+    text: Narrative | None = None
+    extension: list[Extension] | None = None
+    identifier: list[Identifier] | None = None
+    clinicalStatus: CodeableConcept | None = None
+    verificationStatus: CodeableConcept | None = None
+    category: list[CodeableConcept] | None = None
+    code: CodeableConcept | None = None
+    subject: Reference | None = None
+    onsetDateTime: str | None = None
+    recordedDate: str | None = None
+
+
+class AllergyIntolerance(DomainResource):
+    """A FHIR R4 AllergyIntolerance - one allergy a summary names, or an assertion that none is known."""
+
+    resourceType: Literal["AllergyIntolerance"] = "AllergyIntolerance"
+    id: str | None = None
+    meta: Meta | None = None
+    text: Narrative | None = None
+    extension: list[Extension] | None = None
+    identifier: list[Identifier] | None = None
+    clinicalStatus: CodeableConcept | None = None
+    verificationStatus: CodeableConcept | None = None
+    type: Literal["allergy", "intolerance"] | None = None
+    category: list[Literal["food", "medication", "environment", "biologic"]] | None = None
+    criticality: Literal["low", "high", "unable-to-assess"] | None = None
+    code: CodeableConcept | None = None
+    patient: Reference | None = None
+    recordedDate: str | None = None
+
+
+class Observation(DomainResource):
+    """A FHIR R4 Observation - one recorded value, coded as whatever code system stated the question.
+
+    `value[x]` here is the string and the concept: a DHIS2 data value arrives as the string DHIS2
+    sent, and a `Quantity` would need a unit and a unit system nobody has stated for a DHIS2 data
+    element. `dataAbsentReason` is the element R4 gives an observation made with no value.
+    """
+
+    resourceType: Literal["Observation"] = "Observation"
+    id: str | None = None
+    meta: Meta | None = None
+    text: Narrative | None = None
+    extension: list[Extension] | None = None
+    identifier: list[Identifier] | None = None
+    status: (
+        Literal[
+            "registered",
+            "preliminary",
+            "final",
+            "amended",
+            "corrected",
+            "cancelled",
+            "entered-in-error",
+            "unknown",
+        ]
+        | None
+    ) = None
+    category: list[CodeableConcept] | None = None
+    code: CodeableConcept | None = None
+    subject: Reference | None = None
+    effectiveDateTime: str | None = None
+    issued: str | None = None
+    performer: list[Reference] | None = None
+    valueString: str | None = None
+    valueBoolean: bool | None = None
+    valueInteger: int | None = None
+    valueCodeableConcept: CodeableConcept | None = None
+    dataAbsentReason: CodeableConcept | None = None
 
 
 class Location(DomainResource):
@@ -680,6 +796,44 @@ def json_resource(resource: FhirBase) -> JsonResource:
     return JsonResource.model_validate(json.loads(resource.model_dump_json(exclude_none=True, by_alias=True)))
 
 
+class CompositionSection(BackboneElement):
+    """`Composition.section` - one section of a document: what it is, what is in it, or why nothing is.
+
+    `entry` names the resources the section carries and `emptyReason` says why it carries none, and a
+    section states one or the other. No nested `section`: the International Patient Summary pins
+    `section.section` to 0..0, so the section model a summary uses is flat.
+    """
+
+    title: str | None = None
+    code: CodeableConcept | None = None
+    text: Narrative | None = None
+    author: list[Reference] | None = None
+    focus: Reference | None = None
+    entry: list[Reference] | None = None
+    emptyReason: CodeableConcept | None = None
+
+
+class Composition(DomainResource):
+    """A FHIR R4 Composition - the first entry of a document bundle, and the index of everything in it."""
+
+    resourceType: Literal["Composition"] = "Composition"
+    id: str | None = None
+    meta: Meta | None = None
+    text: Narrative | None = None
+    extension: list[Extension] | None = None
+    identifier: Identifier | None = None
+    status: Literal["preliminary", "final", "amended", "entered-in-error"] | None = None
+    type: CodeableConcept | None = None
+    category: list[CodeableConcept] | None = None
+    subject: Reference | None = None
+    encounter: Reference | None = None
+    date: str | None = None
+    author: list[Reference] | None = None
+    title: str | None = None
+    custodian: Reference | None = None
+    section: list[CompositionSection] | None = None
+
+
 class BundleLink(BackboneElement):
     """`Bundle.link` - one relation of a search result set, such as `self`."""
 
@@ -702,10 +856,16 @@ class BundleEntry(BackboneElement):
 
 
 class Bundle(Resource):
-    """A FHIR R4 Bundle - the container a search answers with."""
+    """A FHIR R4 Bundle - the container a search answers with, and the one a document is.
+
+    `identifier` and `timestamp` are optional on the base resource and required on a document: a
+    document bundle states which document it is and the instant it was assembled.
+    """
 
     resourceType: Literal["Bundle"] = "Bundle"
     id: str | None = None
+    identifier: Identifier | None = None
+    timestamp: str | None = None
     type: (
         Literal[
             "searchset",
