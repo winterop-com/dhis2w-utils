@@ -132,8 +132,8 @@ async def test_v41_client_class_against_v42_server_raises() -> None:
 
 
 @respx.mock
-async def test_v43_wait_for_coc_fires_maintenance_trigger() -> None:
-    """v43 servers: wait_for_coc_generation calls /api/maintenance/categoryOptionComboUpdate (BUGS.md #33)."""
+async def test_v43_wait_for_coc_polls_without_a_maintenance_trigger() -> None:
+    """v43 servers auto-regenerate COCs at save time, so the wait is a poll and nothing else."""
     _mock_redirect_probe()
     respx.get("https://dhis2.example/api/system/info").mock(
         return_value=httpx.Response(200, json={"version": "2.43.0"})
@@ -149,7 +149,7 @@ async def test_v43_wait_for_coc_fires_maintenance_trigger() -> None:
             "CC_X", expected_count=2, timeout_seconds=2.0, poll_interval_seconds=0.01
         )
     assert landed == 2
-    assert maintenance_route.called
+    assert not maintenance_route.called
 
 
 @respx.mock

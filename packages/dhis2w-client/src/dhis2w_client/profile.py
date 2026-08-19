@@ -23,7 +23,7 @@ class Profile(BaseModel):
 
     `version` is a plugin-tree hint, NOT a wire-client pin. When set, CLI
     and MCP bootstraps load the matching `dhis2w_core.v{N}.plugins.*` tree
-    (so v43 plugin overrides for BUGS #33/#34/#35 are picked up against a
+    (so v43 plugin overrides for BUGS #34/#35 are picked up against a
     v43 stack). The wire `Dhis2Client` always auto-detects the server's
     version on connect and rebinds accessors via `_dispatch.py` —
     `profile.version` doesn't override that. When unset, plugin discovery

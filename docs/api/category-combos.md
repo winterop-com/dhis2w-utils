@@ -12,7 +12,7 @@ async with Dhis2Client(...) as client:
 
 ## v43 caveat — manual COC matrix regeneration
 
-On DHIS2 v43, saving a `CategoryCombo` no longer triggers automatic regeneration of the `CategoryOptionCombo` matrix (BUGS.md #33). The accessor exposes `wait_for_coc_generation(uid, expected_count, ...)` which fires `POST /api/maintenance/categoryOptionComboUpdate` once + polls until the matrix lands.
+DHIS2 regenerates the `CategoryOptionCombo` matrix in the background on every `CategoryCombo` save, and on a cold instance a large combo can take tens of seconds to land. The accessor exposes `wait_for_coc_generation(uid, expected_count, ...)`, which polls until the matrix reaches the expected count.
 
 ```python
 cc = await client.category_combos.create(name="Sex x Age", category_uids=[...])
