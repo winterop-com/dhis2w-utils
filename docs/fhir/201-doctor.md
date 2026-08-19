@@ -198,8 +198,8 @@ database. It opens with what it connected to:
 │         │         │         │ 108, Questionnaire 5, QuestionnaireResponse 5,         │
 │         │         │         │ StructureDefinition 27, StructureMap 1, ValueSet 25    │
 │capture  │ pass    │ 0.0     │ 5 form(s), 5 generated, 5 accepted as 201              │
-│forward  │ fail    │ 0.2     │ 5 spooled, 5 translated, 0 refused, 5 posted, 3        │
-│         │         │         │ accepted, 1 rejected, 1 unverifiable in a dry run      │
+│forward  │ fail    │ 0.2     │ 5 spooled, 5 translated, 0 refused, 5 posted (validate │
+│         │         │         │ only), 3 accepted, 1 rejected, 1 unverifiable          │
 │oracle   │ pass    │ 0.0     │ organisation units: 108 resource(s) over 107 DHIS2     │
 │         │         │         │ object(s), 107 resolved, 5 deep-compared; option sets: │
 │         │         │         │ 13 resource(s) over 13 DHIS2 object(s), 13 resolved, 5 │
@@ -280,8 +280,8 @@ running 9 step(s)
 0 error(s) and 5 warning(s) instance-wide
 [6/9] serve: pass - 355 resource(s) from the compiled guide: ...
 [7/9] capture: pass - 5 form(s), 5 generated, 5 accepted as 201
-[8/9] forward: fail - 5 spooled, 5 translated, 0 refused, 5 posted, 3 accepted, 1 rejected,
-1 unverifiable in a dry run
+[8/9] forward: fail - 5 spooled, 5 translated, 0 refused, 5 posted (validate only),
+3 accepted, 1 rejected, 1 unverifiable
 [9/9] oracle: pass - organisation units: 108 resource(s) over 107 DHIS2 object(s), ...
 BROKEN: 6 pass, 2 warn, 1 fail, 0 skipped, 0 blocked
 ```
