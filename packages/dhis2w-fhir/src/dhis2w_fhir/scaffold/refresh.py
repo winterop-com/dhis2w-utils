@@ -5,7 +5,10 @@ The scaffold grows: a `path-resource` declaration lands in `ig/sushi-config.yaml
 scaffold for that project - identity read back off disk, not defaults - and writes a file only when
 the render reproduces every line already there, so a refresh can add what the scaffold gained and can
 never take away what the user added. A file holding a line the scaffold would not produce is left
-exactly as it is and reported. `fhir.toml` is the user's configuration and is never written at all.
+exactly as it is and reported - as carrying the user's additions when it still holds every current
+scaffold line, and as diverged when lines are missing in both directions, because the user's edits
+and a scaffold line that has since changed read identically to a line-preserving refresh.
+`fhir.toml` is the user's configuration and is never written at all.
 """
 
 from __future__ import annotations
@@ -90,14 +93,20 @@ def refresh_project(directory: Path) -> ScaffoldReport:
             continue
         current = _read_file(destination)
         if current is None:
-            report.edited_files.append(relative_path)
+            report.diverged_files.append(relative_path)
         elif current == scaffold_file.content:
             report.unchanged_files.append(relative_path)
         elif preserves_every_line(current, scaffold_file.content):
             destination.write_text(scaffold_file.content, encoding="utf-8")
             report.refreshed_files.append(relative_path)
+        elif preserves_every_line(scaffold_file.content, current):
+            # The file holds every line the current render produces, plus lines of its own:
+            # user additions on a current scaffold, with nothing for a refresh to add.
+            report.extended_files.append(relative_path)
         else:
-            report.edited_files.append(relative_path)
+            # Lines missing in both directions. The user's edits and a scaffold line that has
+            # since changed read identically here, so the verdict claims neither author.
+            report.diverged_files.append(relative_path)
     return report
 
 

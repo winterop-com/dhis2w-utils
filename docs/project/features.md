@@ -532,7 +532,10 @@ chain in one command.
   current render reproduces every line already on disk in order. So a refresh
   adds what the scaffold gained (a new `path-resource` glob, a new `.gitignore`
   entry, a new menu entry) and never drops a line the user wrote. Each file is
-  reported as created / refreshed / unchanged / skipped; `fhir.toml` is never
+  reported as created / refreshed / unchanged / with your additions / diverged
+  (kept) - the last two both keep the file byte-identical, and `diverged` names
+  no author, because a line the user wrote and a scaffold line that has since
+  changed read the same to a line-preserving refresh. `fhir.toml` is never
   written; `--force` is rejected; any flag the refresh would ignore is refused.
   The accepted consequence is that a scaffold line deliberately deleted is
   restored, since a deletion leaves the file a subsequence of the render.

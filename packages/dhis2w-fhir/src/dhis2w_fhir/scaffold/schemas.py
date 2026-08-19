@@ -81,8 +81,10 @@ class ScaffoldReport(BaseModel):
     Scaffolding a project reports through `created_files` (written) and `skipped_files` (left
     alone because the file exists). A refresh reports through `created_files` (a scaffold file the
     project lacks), `refreshed_files` (rewritten from the current scaffold), `unchanged_files`
-    (already current), and `edited_files` (carrying content the scaffold would not produce, so the
-    user's version stays).
+    (already current), `extended_files` (carrying every line the current scaffold renders plus
+    lines of the user's own, so there is nothing to add), and `diverged_files` (holding lines the
+    current scaffold does not write - the user's edits, or scaffold lines that have since changed;
+    a line-preserving refresh cannot tell the two apart, so it claims neither and the file stays).
     """
 
     directory: Path
@@ -90,4 +92,5 @@ class ScaffoldReport(BaseModel):
     skipped_files: list[str] = Field(default_factory=list)
     refreshed_files: list[str] = Field(default_factory=list)
     unchanged_files: list[str] = Field(default_factory=list)
-    edited_files: list[str] = Field(default_factory=list)
+    extended_files: list[str] = Field(default_factory=list)
+    diverged_files: list[str] = Field(default_factory=list)

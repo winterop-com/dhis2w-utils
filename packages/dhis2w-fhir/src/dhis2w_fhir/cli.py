@@ -359,7 +359,8 @@ def _refresh_project(directory: Path) -> None:
             DetailRow("created", str(len(report.created_files))),
             DetailRow("refreshed", str(len(report.refreshed_files))),
             DetailRow("unchanged", str(len(report.unchanged_files))),
-            DetailRow("edited (kept)", str(len(report.edited_files))),
+            DetailRow("with your additions", str(len(report.extended_files))),
+            DetailRow("diverged (kept)", str(len(report.diverged_files))),
         ],
         console=STDERR_CONSOLE,
     )
@@ -369,11 +370,18 @@ def _refresh_project(directory: Path) -> None:
         _line(f"  refreshed {relative_path}")
     for relative_path in report.unchanged_files:
         _line(f"  unchanged {relative_path}")
-    for relative_path in report.edited_files:
-        _line(f"  skipped {relative_path} (you edited it; your version stays)")
+    for relative_path in report.extended_files:
+        _line(f"  kept {relative_path} (already carries the current scaffold, plus lines of your own)")
+    for relative_path in report.diverged_files:
+        _line(f"  kept {relative_path} (holds lines the current scaffold does not write)")
     _hint("note", f"{FHIR_CONFIG_FILENAME} is yours - a refresh never writes it")
-    if report.edited_files:
-        _hint("note", "to take the scaffold's version of a skipped file, delete it and refresh again")
+    if report.diverged_files:
+        _hint(
+            "note",
+            "a diverged file holds your edits, or scaffold lines that have since changed - this refresh "
+            "cannot tell which. To take the scaffold's version, delete the file and refresh again; lines "
+            "of your own in it go with it.",
+        )
 
 
 class _TargetOutcome(BaseModel):
