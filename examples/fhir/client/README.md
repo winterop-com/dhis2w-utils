@@ -79,6 +79,7 @@ Generating, serving, and draining from Python, rather than from the command line
 | [`generate_ig.py`](generate_ig.py) | `load_project` + `resolve_generation_profile` + `generate_full`, and the `GenerateFullReport` consumed as a model rather than parsed as text |
 | [`consume_facade.py`](consume_facade.py) | Plain httpx against a running facade: `/metadata`, search, `$generate`, POST a capture, read the receipt, read `/spool` |
 | [`forward_spool.py`](forward_spool.py) | `forward_responses` dry run, and the `ForwardReport` counts, per-receipt outcomes, and rejection reasons rolled up by cause |
+| [`minimal_facade.py`](minimal_facade.py) | Your own FastAPI in place of `d2w fhir serve`: one route that translates a capture, posts it to the endpoint its payload names, and hands back DHIS2's verdict |
 
 ## The fixture
 
