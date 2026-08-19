@@ -4613,13 +4613,17 @@ class ForwardReport(BaseModel):
 
         The not-posted clause is stated only by a run that stopped short. It is not a count every run
         has a zero for - it is the shape of a run that ended early, and a reader who sees it needs to
-        read no further to know the spool still holds work.
+        read no further to know the spool still holds work. The unverifiable clause is stated the same
+        way - only by a dry run that had any, since only a dry run can produce the outcome - and the
+        mode rides the posted count, so a committed line can never claim a dry run.
         """
+        posted = f"{self.posted_count:,} posted (validate only)" if self.dry_run else f"{self.posted_count:,} posted"
         line = (
             f"{self.spooled:,} spooled, {self.translated_count:,} translated, {len(self.refused):,} refused, "
-            f"{self.posted_count:,} posted, {len(self.accepted):,} accepted, {len(self.rejected):,} rejected, "
-            f"{len(self.unverifiable):,} unverifiable in a dry run"
+            f"{posted}, {len(self.accepted):,} accepted, {len(self.rejected):,} rejected"
         )
+        if self.unverifiable:
+            line += f", {len(self.unverifiable):,} unverifiable"
         return f"{line}, {len(self.not_posted):,} not posted" if self.stopped is not None else line
 
     @property

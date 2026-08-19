@@ -1969,7 +1969,8 @@ async def test_a_dry_run_cannot_check_a_stage_event_against_an_enrollment_the_sa
     assert report.unverifiable[0].kind == ForwardOutcomeKind.UNVERIFIABLE
     assert len(report.accepted) == 1
     assert report.posted_count == 2
-    assert "0 rejected, 1 unverifiable in a dry run" in report.counts_line
+    assert "2 posted (validate only)" in report.counts_line
+    assert report.counts_line.endswith("0 rejected, 1 unverifiable")
 
 
 @respx.mock
@@ -2031,6 +2032,9 @@ async def test_an_import_run_reads_the_same_pair_as_a_rejection_and_files_it_as_
 
     assert report.unverifiable == ()
     assert report.unverifiable_reasons == ()
+    assert "dry run" not in report.counts_line
+    assert "validate only" not in report.counts_line
+    assert "unverifiable" not in report.counts_line
     assert len(report.rejected) == 1
     assert report.rejected[0].spool_path.startswith(REJECTED_RESPONSES_RELATIVE_PATH)
     assert (tracker_forward_project / REJECTED_RESPONSES_RELATIVE_PATH / "A03MvHHogjR-example-1.json").is_file()
@@ -2066,7 +2070,8 @@ def test_a_dry_run_whose_only_failures_are_unverifiable_exits_zero(
     result = CliRunner().invoke(build_app(), ["fhir", "forward", str(tracker_forward_project), "--no-progress"])
 
     assert result.exit_code == 0, result.output
-    assert "unverifiable in a dry run" in result.output
+    assert "unverifiable" in result.output
+    assert "DRY RUN (validate only)" in result.output
     assert "created by a registration validated in the same run" in result.output
 
 

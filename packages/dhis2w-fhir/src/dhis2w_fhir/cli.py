@@ -1459,7 +1459,7 @@ def _render_unverifiable_reasons(report: ForwardReport) -> None:
     if not reasons:
         return
     render_list(
-        "unverifiable in a dry run",
+        "unverifiable",
         [{"reason": reason.reason, "responses": str(reason.responses)} for reason in reasons],
         [
             ColumnSpec("What a dry run cannot check", "reason"),
@@ -1847,7 +1847,7 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
             DetailRow("posted", str(report.posted_count)),
             DetailRow("accepted", str(len(report.accepted))),
             DetailRow("rejected", str(len(report.rejected))),
-            DetailRow("unverifiable in a dry run", str(len(report.unverifiable))),
+            *([DetailRow("unverifiable", str(len(report.unverifiable)))] if report.dry_run else []),
             *([DetailRow("data set completeness", report.completeness_line)] if report.completeness_line else []),
             *(
                 [DetailRow("values a previous submission already sent", report.overwrite_line)]
