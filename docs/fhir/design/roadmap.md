@@ -94,7 +94,7 @@ models and ship no templates.
 | `resources/pages/__init__.py` | The six site pages, the per-artifact intros, `SITE_PAGE_FILENAMES`, `PAGES_DIRECTORY`, `PAGES_BASE_SUBDIRECTORY`, `INTRO_SUFFIX`. |
 | `resources/pages/schemas.py` | `PagesIn` plus one view-model per page (`FormRow`, `RegistryView`, `TerminologyView`, `IdentifiersView`, `PeriodsView`, `CaptureView`, and the intro views). |
 | `scaffold/__init__.py` | `build_scaffold_files` - the twelve files `d2w fhir init` writes - plus `SUSHI_CONFIG_RELATIVE_PATH` and `FSH_INI_RELATIVE_PATH`, the two files a refresh recovers values from. |
-| `scaffold/schemas.py` | `InitOptions`, `ScaffoldFile`, `ProjectScaffoldState`, `ScaffoldReport` (created / skipped / refreshed / unchanged / edited), `normalize_project_name`, `DEFAULT_SUSHI_TIMEOUT_SECONDS`. |
+| `scaffold/schemas.py` | `InitOptions`, `ScaffoldFile`, `ProjectScaffoldState`, `ScaffoldReport` (created / skipped / refreshed / unchanged / extended / diverged), `normalize_project_name`, `DEFAULT_SUSHI_TIMEOUT_SECONDS`. |
 | `scaffold/refresh.py` | `d2w fhir init --refresh`: `read_project_scaffold_state` recovering the scaffold inputs off disk, `preserves_every_line` deciding whether a rewrite loses a line, and `refresh_project`. Not re-exported from the package - it is a CLI path, not library surface. |
 | `validation/__init__.py` | `build_code_validation` - the instance-wide sweep, the deep option-set pass, and the deep attribute pass. Its module docstring carries "What the deep passes do not repeat, and why". |
 | `validation/report.py` | Markdown and CSV rendering, `display_code`, `CSV_HEADER`. |
@@ -134,8 +134,11 @@ Every command and every flag, from `cli.py`.
 identity flag - the inputs come from `read_project_scaffold_state`, not from the
 command line. `refresh_project` reports each scaffold file as `created` (the
 project lacked it), `refreshed` (the render is a superset of what is on disk, so
-rewriting loses nothing), `unchanged`, or `edited` (rendered by the CLI as
-`skipped (you edited it; your version stays)`). The accepted consequence: a
+rewriting loses nothing), `unchanged`, `with your additions` (disk carries every
+line the render produces plus lines of the user's own, so there is nothing to
+add), or `diverged` (lines missing in both directions). A diverged file claims no
+author, because a line the user wrote and a scaffold line that has since changed
+read identically to a line-preserving refresh. The accepted consequence: a
 scaffold line the user deliberately deleted leaves the file a subsequence of the
 render, so a refresh restores it. A directory with no `fhir.toml` exits 1 with
 `NoFhirProjectError`.

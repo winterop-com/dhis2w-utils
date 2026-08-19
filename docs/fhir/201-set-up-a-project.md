@@ -204,13 +204,14 @@ the scaffold for an existing project and writes what it safely can:
 ```console
 $ d2w fhir init . --refresh
                               fhir init --refresh
-┌──────────────┬──────────────────────────┐
-│directory     │ /home/you/demo-ig        │
-│created       │ 0                        │
-│refreshed     │ 0                        │
-│unchanged     │ 12                       │
-│edited (kept) │ 0                        │
-└──────────────┴──────────────────────────┘
+┌────────────────────┬──────────────────────────┐
+│directory           │ /home/you/demo-ig        │
+│created             │ 0                        │
+│refreshed           │ 0                        │
+│unchanged           │ 12                       │
+│with your additions │ 0                        │
+│diverged (kept)     │ 0                        │
+└────────────────────┴──────────────────────────┘
   unchanged fhir.toml.example
   unchanged ig/sushi-config.yaml
   unchanged ig/ig.ini
@@ -229,14 +230,15 @@ note: fhir.toml is yours - a refresh never writes it
 The rule is one sentence: **a file is rewritten only when the current
 scaffold render reproduces every line already on disk, in order.** So a
 refresh can only add what the scaffold gained, and no line you wrote is ever
-dropped. Every file gets one of four outcomes, all of them printed:
+dropped. Every file gets one of five outcomes, all of them printed:
 
 | Outcome | Meaning |
 | --- | --- |
 | `created` | A scaffold file the project did not have. Written. |
 | `refreshed` | The render carries every line on disk plus more. Rewritten. |
 | `unchanged` | Already byte-identical to the current scaffold. |
-| `edited (kept)` | Carries a line the scaffold would not produce. Your version stays, reported as `skipped <path> (you edited it; your version stays)`. |
+| `with your additions` | Carries every line the current scaffold renders, plus lines of your own. Nothing to add, so nothing is written. |
+| `diverged (kept)` | Holds lines the current scaffold does not write - your edits, or scaffold lines that have since changed; a line-preserving refresh cannot tell which. Your version stays, reported as `kept <path> (holds lines the current scaffold does not write)`. To take the scaffold's version, delete the file and refresh again. |
 
 `fhir.toml` is never written - it is your configuration, and a refresh skips
 it outright. The IG identity comes off the project itself: `[ig]` and the

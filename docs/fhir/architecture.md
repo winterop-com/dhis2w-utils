@@ -84,9 +84,12 @@ to repair.
 where nothing on disk is lost. `preserves_every_line` is the whole decision: it
 walks the render as a forward iterator and asks whether every line currently on
 disk appears in it, in order. A file that is a strict subsequence of the render
-is `refreshed`, because rewriting can only add; one that is not holds something
-the scaffold would not produce and is left byte-identical and reported as
-`edited`. `fhir.toml` is skipped before any comparison - it is the user's
+is `refreshed`, because rewriting can only add; one that already carries every
+line the render produces plus lines of its own is `extended`, and one that is
+neither holds lines the current scaffold does not write and is `diverged`. Both
+are left byte-identical, and `diverged` names no author, because a line the user
+wrote and a scaffold line that has since changed look the same from here.
+`fhir.toml` is skipped before any comparison - it is the user's
 configuration, not a scaffold-managed file. `--force` and `--refresh` are
 opposite answers to the same question and are rejected together.
 

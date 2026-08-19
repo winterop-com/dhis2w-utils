@@ -531,7 +531,8 @@ def test_refresh_of_an_untouched_project_writes_nothing(tmp_path: Path) -> None:
 
     assert report.created_files == []
     assert report.refreshed_files == []
-    assert report.edited_files == []
+    assert report.extended_files == []
+    assert report.diverged_files == []
     assert len(report.unchanged_files) == 12
     assert "fhir.toml" not in report.unchanged_files
 
@@ -557,8 +558,13 @@ def test_refresh_adds_the_path_resource_block_to_a_stale_sushi_config(tmp_path: 
     ]
 
 
-def test_refresh_leaves_an_edited_sushi_config_alone(tmp_path: Path) -> None:
-    """The same file, once the user has written a line of their own into it, is left byte-identical."""
+def test_refresh_leaves_a_changed_line_alone_and_calls_it_diverged(tmp_path: Path) -> None:
+    """A replaced line reads the same whether the user or a later scaffold changed it, so the verdict claims neither.
+
+    `releaseLabel: ci-build` becoming `releaseLabel: release` is exactly what a user's edit and a
+    scaffold revision both look like from disk: a line the current render produces is missing, and
+    a line it does not produce is present. The file stays byte-identical and is reported diverged.
+    """
     _write_project(tmp_path)
     sushi_config = tmp_path / "ig" / "sushi-config.yaml"
     edited = sushi_config.read_text(encoding="utf-8").replace("releaseLabel: ci-build", "releaseLabel: release")
@@ -566,8 +572,22 @@ def test_refresh_leaves_an_edited_sushi_config_alone(tmp_path: Path) -> None:
 
     report = refresh_project(tmp_path)
 
-    assert report.edited_files == ["ig/sushi-config.yaml"]
+    assert report.diverged_files == ["ig/sushi-config.yaml"]
+    assert report.extended_files == []
     assert sushi_config.read_text(encoding="utf-8") == edited
+
+
+def test_refresh_calls_a_pure_addition_yours_and_current(tmp_path: Path) -> None:
+    """A file carrying every current scaffold line plus one of the user's own has nothing to gain."""
+    _write_project(tmp_path)
+    gitignore = tmp_path / ".gitignore"
+    gitignore.write_text(gitignore.read_text(encoding="utf-8") + "my-own-entry/\n", encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert report.extended_files == [".gitignore"]
+    assert report.diverged_files == []
+    assert gitignore.read_text(encoding="utf-8").endswith("my-own-entry/\n")
 
 
 def test_refresh_adds_the_prebuilt_resource_entry_to_a_stale_gitignore(tmp_path: Path) -> None:
@@ -625,7 +645,13 @@ def test_refresh_never_writes_fhir_toml(tmp_path: Path) -> None:
     report = refresh_project(tmp_path)
 
     assert config_path.read_text(encoding="utf-8") == body
-    reported = report.created_files + report.refreshed_files + report.unchanged_files + report.edited_files
+    reported = (
+        report.created_files
+        + report.refreshed_files
+        + report.unchanged_files
+        + report.extended_files
+        + report.diverged_files
+    )
     assert "fhir.toml" not in reported
 
 
@@ -650,7 +676,7 @@ def test_refresh_reads_the_identity_back_off_disk(tmp_path: Path) -> None:
     assert state.options.ig_id == "dhis2.fhir.sldemo"
     assert state.options.publisher == "Winterop"
     assert state.options.status == "active"
-    assert refresh_project(tmp_path).edited_files == []
+    assert refresh_project(tmp_path).diverged_files == []
 
 
 def test_refresh_recovers_the_selection_tables_from_fhir_toml(tmp_path: Path) -> None:
@@ -670,7 +696,7 @@ def test_refresh_recovers_the_selection_tables_from_fhir_toml(tmp_path: Path) ->
     assert state.options.event_program_ids == ["VBqh0ynB2wv"]
     assert state.options.tracker_program_ids == ["IpHINAT79UW"]
     report = refresh_project(tmp_path)
-    assert report.edited_files == []
+    assert report.diverged_files == []
     assert "fhir.toml" not in report.refreshed_files + report.unchanged_files
 
 
