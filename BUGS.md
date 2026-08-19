@@ -5006,3 +5006,41 @@ error.
 **Workaround in this repo:** `_referenced_uid` in
 `packages/dhis2w-fhir/src/dhis2w_fhir/service.py` reads both shapes, so each call site names
 the DHIS2 fact rather than the wire encoding it happened to arrive in.
+
+### 95. `categoryOption.aggregationType` is schema-typed BOOLEAN on 2.43.1 while every sibling says CONSTANT
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`). Already fixed on
+`2.43.2-SNAPSHOT` (`play.im.dhis2.org/dev-2-43`).
+
+**Repro:**
+
+```bash
+curl -s -u admin:district \
+  "http://localhost:8080/api/schemas/categoryOption.json?fields=properties[name,propertyType,constants]" \
+  | jq '.properties[] | select(.name=="aggregationType")'
+# -> {"propertyType": "BOOLEAN", "name": "aggregationType"}
+
+curl -s -u admin:district \
+  "http://localhost:8080/api/schemas/dataElement.json?fields=properties[name,propertyType]" \
+  | jq '.properties[] | select(.name=="aggregationType")'
+# -> {"propertyType": "CONSTANT", "name": "aggregationType"}
+```
+
+**Expected:** `aggregationType` is the `AggregationType` enum on every schema that carries
+it, as `dataElement` reports on the same instance and as `categoryOption` itself reports on
+v41, v42, and 2.43.2-SNAPSHOT (`CONSTANT` with the twenty-one aggregation constants).
+
+**Actual:** the 2.43.1 release's schema introspection types `categoryOption.aggregationType`
+as `BOOLEAN`, so anything generated from `/api/schemas` types the field as a boolean on this
+one resource of this one release.
+
+**Impact:** the committed v43 generated model
+(`packages/dhis2w-client/src/dhis2w_client/generated/v43/schemas/category_option.py`) carries
+`aggregationType: bool | None` where the v41 and v42 trees carry the enum - faithful to the
+release, wrong about the concept. A caller reading the field cross-version has to branch on
+it.
+
+**Workaround in this repo:** none - the generated tree mirrors what the pinned release
+reports, deliberately. The moment the v43 pin moves to a 2.43.2+ release,
+`d2w dev codegen generate` against it heals the field into the enum and this entry is the
+tripwire to delete.
