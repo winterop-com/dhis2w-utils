@@ -87,7 +87,10 @@ Generating, serving, and draining from Python, rather than from the command line
 | [`generate_ig.py`](generate_ig.py) | `load_project` + `resolve_generation_profile` + `generate_full`, and the `GenerateFullReport` consumed as a model rather than parsed as text |
 | [`consume_facade.py`](consume_facade.py) | Plain httpx against a running facade: `/metadata`, search, `$generate`, POST a capture, read the receipt, read `/spool` |
 | [`forward_spool.py`](forward_spool.py) | `forward_responses` dry run, and the `ForwardReport` counts, per-receipt outcomes, and rejection reasons rolled up by cause |
-| [`minimal_facade.py`](minimal_facade.py) | Your own FastAPI in place of `d2w fhir serve`: one route that translates a capture, posts it to the endpoint its payload names, and hands back DHIS2's verdict |
+| [`minimal_facade.py`](minimal_facade.py) | Facade ladder, rung one: one route that translates a capture, posts it to the endpoint its payload names, and hands back DHIS2's verdict under DHIS2's own status |
+| [`basic_facade.py`](basic_facade.py) | Facade ladder, rung two: one client for the process in a FastAPI lifespan, settings resolved once at startup, `/health` off a cheap DHIS2 read, one log line per verdict |
+| [`complex_facade.py`](complex_facade.py) | Facade ladder, rung three: the real spool primitives — a receipt written durably, `201` before DHIS2 is asked, a background drain that retries, and a receipt readable by id |
+| [`advanced_facade.py`](advanced_facade.py) | Facade ladder, rung four: tracker routing, the coded-answer dial as configuration, values an earlier receipt already sent named before the post, and a small `/metadata` — then run `d2w fhir serve` |
 
 ## The fixture
 

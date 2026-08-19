@@ -89,8 +89,8 @@ not a menu - the pages build on each other left to right.
   submission must meet.
 - [Consume the FHIR API](401-consume-the-fhir-api.md) - reads, searches, and the
   operations a client drives.
-- [Build your own facade](401-build-your-own-facade.md) - the fifty lines of
-  FastAPI that receive a capture, translate it, and post it to DHIS2.
+- [Build your own facade](401-build-your-own-facade.md) - the four-rung ladder
+  from one route of FastAPI to the point where `d2w fhir serve` is the answer.
 - [Identifiers and the D2 extensions](401-identifiers-and-extensions.md) -
   where the DHIS2 identity of every artifact lives.
 - [Terminology and ConceptMaps](401-terminology-and-conceptmaps.md) - the
