@@ -546,10 +546,10 @@ chain in one command.
 - **`JAVA_HEAP`** sizes the publisher JVM heap - the knob for an exit-137 OOM
   kill on a small docker VM.
 - **Registry scale.** `d2w fhir generate org-units` warns at generate time once
-  the registry passes 10,000 instances, because the IG publisher renders a page
-  per resource and the registry therefore sets the wall clock of `make build`.
-  The warning names the `[generate.organisation_units]` `max_level` / `root`
-  dials.
+  the registry passes 2,000 instances, because the IG publisher validates and
+  renders every resource and the registry therefore sets the wall clock of
+  `make build`. The warning names the `[generate.organisation_units]`
+  `max_level` / `root` dials.
 - **A code or name carrying `<` refuses the run.** `d2w fhir generate` refuses
   a run whose emitted code or byte-true name carries `<`, through the same
   predicates `fhir validate` grades with, naming the resource type, UID, name,

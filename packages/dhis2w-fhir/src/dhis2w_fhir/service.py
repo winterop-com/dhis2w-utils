@@ -704,10 +704,13 @@ _SWEEP_EXCLUDED_COLLECTIONS = frozenset({"options", "system"})
 #: Every organisation unit emits an Organization and a Location, so the registry is twice the unit count.
 _INSTANCES_PER_ORGANISATION_UNIT = 2
 
-#: Registry instances past which the IG publisher's rendering pass dominates the build. The registry
-#: itself never reaches SUSHI - it ships as pre-built JSON - but the publisher still renders a page
-#: per resource, so the wall clock of `make build` tracks this count.
-_REGISTRY_RENDER_COST_INSTANCES = 10_000
+#: Registry instances past which the IG publisher's per-resource passes dominate the build. The
+#: registry never reaches SUSHI - it ships as pre-built JSON - but the publisher still validates
+#: and renders every resource, so the wall clock of `make build` tracks this count. Calibrated
+#: against a timed build of the play 2.43 guide: its 2,664 registry instances carried a
+#: multi-hour build (the measurements are in the FHIR design roadmap's build-facts section), so
+#: a registry that size deserves the warning rather than sailing under it.
+_REGISTRY_RENDER_COST_INSTANCES = 2_000
 
 #: Read timeout for the validate sweep's single `/api/metadata` request. The client's 30 s default
 #: is sized for an ordinary API read; a whole-instance metadata read is a different shape of request
@@ -2213,9 +2216,10 @@ def _registry_scale_notes(organisation_unit_count: int) -> list[GenerateNote]:
         generate_note(
             GenerateNoteCategory.BUILD_COST,
             f"{organisation_unit_count} organisation units emit {instance_count} instances. They ship as "
-            "pre-built JSON so SUSHI never compiles them, but the IG publisher renders a page per resource, "
-            "so they set the wall clock of `make build`. Narrow the registry with "
-            "`[generate.organisation_units]` max_level or root if the build is longer than you want.",
+            "pre-built JSON so SUSHI never compiles them, but the IG publisher validates and renders every "
+            "resource, so they set the wall clock of `make build` - a registry this size is hours, not "
+            "minutes. Narrow it with `[generate.organisation_units]` max_level or root if the build is "
+            "longer than you want; serving needs no build at all.",
         )
     ]
 

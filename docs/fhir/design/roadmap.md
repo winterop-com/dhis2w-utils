@@ -753,9 +753,10 @@ them. They are why predefined option-set terminology saves 3m18s rather than the
 whole of what SUSHI spends on CodeSystems, and the dials that reach them are
 `[generate.data_sets]` / `[generate.event_programs]` / `[generate.tracker_programs]`.
 
-Registry size lands on the IG publisher instead, which writes and renders a page
-per resource. `generate_organisation_units` warns once a registry passes
-`_REGISTRY_RENDER_COST_INSTANCES` (10,000), naming the
+Registry size lands on the IG publisher instead, which validates and renders
+every resource. `generate_organisation_units` warns once a registry passes
+`_REGISTRY_RENDER_COST_INSTANCES` (2,000 - calibrated against the play 2.43
+build, whose 2,664 registry instances carried a multi-hour run), naming the
 `[generate.organisation_units]` `max_level` / `root` dials, so the cost surfaces
 at generate time rather than at the end of a long build - and
 `d2w fhir init --max-level` seeds the cap at scaffold time.
