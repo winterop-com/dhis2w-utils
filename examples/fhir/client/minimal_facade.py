@@ -1,10 +1,20 @@
-"""The fifty-line FHIR facade: receive a QuestionnaireResponse, translate it, post it to DHIS2.
+"""Rung one of the facade ladder: receive a QuestionnaireResponse, translate it, post it to DHIS2.
+
+**The trade:** nothing is written down. A capture is a request, a verdict is its answer, and when the
+request is over there is no record that it happened. Everything the next three rungs add - a client
+held for the process, a durable receipt, a queue that outlives an unreachable instance - is a
+guarantee this rung does without, on purpose, because the application around it already has one.
 
 `d2w fhir serve` is the complete facade - capability statement, published guide, a live register, a
 durable spool, and `d2w fhir forward` draining it. Most integrations want none of that: they have a
 FastAPI application already, and somewhere to put a failure already. What they need is the one thing
 they cannot write themselves - a captured `QuestionnaireResponse` as the DHIS2 import payload it
 means. That is `translate_response`, and `build_facade` below is the whole recipe around it.
+
+The rungs above this one are `examples/fhir/client/basic_facade.py` (one client for the process, a
+health route, a log line per verdict), `examples/fhir/client/complex_facade.py` (a durable spool and
+a background drain), and `examples/fhir/client/advanced_facade.py` (tracker routing, the
+coded-answer dial, overwrite naming, and a small `/metadata`).
 
 What this gives up, all of it deliberately:
 
@@ -54,8 +64,18 @@ from fastapi.responses import JSONResponse
 
 #: What the demo reports: a facility Child Health is assigned to, a monthly period, two cells.
 ORGANISATION_UNIT_UID = "y77LiPqLMoq"
-REPORTED_PERIOD = [Extension(url="iso", valueString="202601"), Extension(url="type", valueCode="Monthly")]
+REPORTED_PERIOD_ISO = "202601"
 REPORTED_NUMBERS = {"s46m5MS0hxu.Prlt0C1RF0s": 12, "s46m5MS0hxu.psbwp3CQEhs": 8}
+
+#: Wara Wara Yagala, a chiefdom of Koinadugu. The fixture publishes it as a `Location` like every
+#: other organisation unit in the district, so the translator resolves a response naming it without
+#: hesitating - and the seeded instance collects Child Health at facilities, not at chiefdoms, so
+#: DHIS2 itself is the one that says no. That is the third verdict the demo drives.
+UNREPORTING_ORGANISATION_UNIT_UID = "EZPwuUTeIIG"
+
+#: What DHIS2 answers a payload it will not take: a verdict to pass on. From 500 up the instance is
+#: failing rather than answering, which is about the run and not about this capture.
+SERVER_ERROR_STATUS = 500
 
 
 def build_facade(context: ConversionContext, profile: Profile, *, dry_run: bool = False) -> FastAPI:
@@ -98,26 +118,35 @@ def build_facade(context: ConversionContext, profile: Profile, *, dry_run: bool 
             try:
                 verdict = await client.post_raw(path, body, params=params)
             except Dhis2ApiError as error:
-                # A refused import is a 409 carrying DHIS2's own report - a verdict to pass on, not
-                # a fault. Anything carrying no report is about the run, and is raised.
-                if not isinstance(error.body, dict):
+                # A refused import carries DHIS2's own report - a verdict to pass on, not a fault -
+                # and it goes back under the status DHIS2 gave it, which is a 409 for an import the
+                # endpoint refused and a 400 for a payload it would not read at all. A 5xx is the
+                # instance failing rather than answering, and a body that is not a report is about
+                # the run rather than about this capture; both are raised.
+                if error.status_code >= SERVER_ERROR_STATUS or not isinstance(error.body, dict):
                     raise
-                return JSONResponse(status_code=409, content=error.body)
+                return JSONResponse(status_code=error.status_code, content=error.body)
         return JSONResponse(content=verdict)
 
     return app
 
 
-def aggregate_capture(context: ConversionContext, canonical: str) -> QuestionnaireResponse:
+def aggregate_capture(
+    context: ConversionContext, canonical: str, organisation_unit: str = ORGANISATION_UNIT_UID
+) -> QuestionnaireResponse:
     """One small aggregate report: the form it answers, the period, the place, and two numbers."""
+    period = [
+        Extension(url="iso", valueString=REPORTED_PERIOD_ISO),
+        Extension(url="type", valueCode="Monthly"),
+    ]
     return QuestionnaireResponse(
         questionnaire=canonical,
         status="completed",
         extension=[
             Extension(url=context.naming.form_type_url, valueCode="aggregate"),
-            Extension(url=context.naming.period_url, extension=REPORTED_PERIOD),
+            Extension(url=context.naming.period_url, extension=period),
         ],
-        subject=Reference(reference=f"Location/{ORGANISATION_UNIT_UID}"),
+        subject=Reference(reference=f"Location/{organisation_unit}"),
         item=[
             QuestionnaireResponseItem(linkId=link_id, answer=[QuestionnaireResponseAnswer(valueInteger=value)])
             for link_id, value in REPORTED_NUMBERS.items()
@@ -126,14 +155,25 @@ def aggregate_capture(context: ConversionContext, canonical: str) -> Questionnai
 
 
 async def main() -> None:
-    """Drive the recipe in-process: one capture DHIS2 grades, and one the translator refuses first."""
+    """Drive all three verdicts in-process: DHIS2 accepts one capture, DHIS2 refuses one, the translator one."""
     context = conversion_context()
     # The demo validates only; a real facade drops the parameter and DHIS2 keeps what it is sent.
     app = build_facade(context, resolve_profile(), dry_run=True)
-    served = aggregate_capture(context, form_canonical(aggregate_form_id()))
-    unknown = aggregate_capture(context, "http://example.org/fhir/Questionnaire/NotAServedForm")
+    canonical = form_canonical(aggregate_form_id())
+    served = aggregate_capture(context, canonical)
+    # A well-formed report about a place this form is not collected at. Every rule the translator
+    # owns is met - a served form, a published Location, a period the calendar holds, answers of the
+    # right type - and only the instance knows that Child Health is not assigned to a chiefdom. So
+    # this is the capture that reaches DHIS2 and comes back refused: the recipe's pass-through branch.
+    unreporting_place = aggregate_capture(context, canonical, organisation_unit=UNREPORTING_ORGANISATION_UNIT_UID)
+    unknown_form = aggregate_capture(context, "http://example.org/fhir/Questionnaire/NotAServedForm")
+    postings = (
+        ("a form the context carries", served),
+        ("a place the form is not collected at", unreporting_place),
+        ("a form the context does not carry", unknown_form),
+    )
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://facade") as caller:
-        for label, response in (("a form the context carries", served), ("a form it does not", unknown)):
+        for label, response in postings:
             answer = await caller.post(
                 "/QuestionnaireResponse", json=response.model_dump(mode="json", by_alias=True, exclude_none=True)
             )

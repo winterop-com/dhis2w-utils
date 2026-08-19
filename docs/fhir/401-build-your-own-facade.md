@@ -9,11 +9,12 @@ submission is ([The capture contract](401-capture-contract.md)).
 
 **You will be able to:**
 
-- decide between the complete served facade and one route of your own
 - build a `ConversionContext` and translate a `QuestionnaireResponse` with it
 - post each translated payload to the DHIS2 endpoint its shape names
 - answer a refusal with the categories, elements, and reasons the translator gave
-- state plainly what the small facade trades away, and when that trade is wrong
+- decide which of four facade shapes your integration actually needs
+- see the point at which writing more of one costs more than running
+  `d2w fhir serve`
 
 ## Two postures
 
@@ -30,20 +31,31 @@ the translation from a captured `QuestionnaireResponse` into the DHIS2 import
 payload it means. That is `translate_response`, and everything around it is
 about fifty lines of FastAPI.
 
-| Take the served facade when | Take your own route when |
-| --- | --- |
-| the submitting side is somebody else's client, and discovery matters | you write both sides, and the contract is agreed out of band |
-| a refused capture must survive until a person fixes it | your application already owns the retry |
-| the receipts are the record of what was submitted | your own store is the record |
-| you want the guide, the register, and the capture screens served too | you want one route inside an application that exists |
-
 The two are not exclusive. A deployment often serves the guide from
 `d2w fhir serve` for discovery and reads, and receives its own traffic on its own
 route, both built from the same published artifacts.
 
-## The recipe
+## The ladder
 
-The runnable version is
+Between those two postures there is a ladder, and each rung buys back exactly
+one guarantee the rung below traded away. Four runnable files walk it:
+
+| Rung | What it adds | What it still gives up |
+| --- | --- | --- |
+| [minimal](#rung-one-minimal) | one route: translate, post, answer with DHIS2's verdict | everything else - nothing is written down, and a client per request |
+| [basic](#rung-two-basic) | one client for the process, settings at startup, `/health`, a log line per verdict | durability: an unreachable instance is still a failed request |
+| [complex](#rung-three-complex) | a durable spool, `201` before DHIS2 is asked, a background drain, receipts readable by id | tracker routing, the coded-answer dial, overwrite naming, any published surface |
+| [advanced](#rung-four-advanced) | tracker routing, the strict/lenient dial, overwrite naming, a small `/metadata` | the register, the guide, capture screens, requeue, a drain that is its own process |
+
+Read the last column downwards. Each rung's remaining gap is the next rung's
+subject, and the last rung's gap is the served facade itself - which is the
+whole argument of [When to stop building](#when-to-stop-building).
+
+The rungs are cumulative in guarantees, not in code: each file is standalone and
+runs on its own, so a rung can be read cold without the three below it.
+
+## Rung one: minimal
+
 [`examples/fhir/client/minimal_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/minimal_facade.py) -
 one file, one route, and a `__main__` that drives it in-process. This section
 walks it in the order the code reads.
@@ -134,16 +146,52 @@ async with open_client(profile) as client:
     verdict = await client.post_raw(path, body, params=params)
 ```
 
-**A refused import is not an error.** DHIS2 answers one with `409 Conflict`
-carrying its own report, so the route catches `Dhis2ApiError`, passes the body
-back when there is one, and re-raises when there is not - a failure to
-authenticate or an unreachable instance is about the run, not about this
-capture.
+### Pass DHIS2's verdict back under DHIS2's status
 
-Whether you open a client per request or hold one for the process is your call.
-`open_client` reads `/api/system/info` to bind the version tree, so a facade
-taking captures continuously should hold one open in a FastAPI lifespan; the
-example opens one per request because that keeps the recipe a single function.
+**A refused import is not an error.** DHIS2 answers one with `409 Conflict`
+carrying its own report, and a payload it will not read at all with a `400`, so
+the route catches `Dhis2ApiError` and answers with the instance's own status
+and body:
+
+```python
+except Dhis2ApiError as error:
+    if error.status_code >= SERVER_ERROR_STATUS or not isinstance(error.body, dict):
+        raise
+    return JSONResponse(status_code=error.status_code, content=error.body)
+```
+
+Two things are re-raised rather than passed on. A body that is not a report at
+all - an authentication failure, an unreachable instance - is about the run and
+not about this capture. And a 5xx is the instance *failing* rather than
+answering: DHIS2 and the proxies in front of it wrap a server error in a
+`WebMessage` with a `status` in it, and reading that as a verdict would file a
+refusal DHIS2 never made.
+
+### The three verdicts the demo drives
+
+The example's `__main__` posts three captures, which are the three answers a
+facade can give:
+
+| The capture | Answer | Who decided |
+| --- | --- | --- |
+| a form the context carries | `200` with the import summary | DHIS2 took it |
+| a place the form is not collected at | `409` with conflict `E8022` | DHIS2 refused it |
+| a form the context does not carry | `422` with `unknown-form` | the translator refused it |
+
+The middle one is worth a second look, because it is the only capture in these
+four examples that is *well formed and still refused*. It answers a served form,
+names a published `Location`, states a period the calendar holds, and types
+every answer the way the form types it - so the translator has nothing to object
+to. What it reports is a chiefdom, and the seeded instance collects Child Health
+at facilities. Only the instance knows that, which is why the verdict has to
+come back from DHIS2 rather than from the translator.
+
+That division is worth stating plainly, because it decides where your own
+failures will come from: the translator guards the payload thoroughly - the
+form, the place, the period, the answer types, the codes - so what is left for
+DHIS2 to refuse is what only DHIS2 knows. Assignment, as here. And, on a live
+instance, the state a demo instance does not carry: a locked period, an approved
+data set, sharing that was revoked since the form was published.
 
 ### Validate without writing
 
@@ -153,46 +201,195 @@ The example's `__main__` posts under it, which is what lets the example run in
 `make verify-examples` without leaving data on the instance. A real facade drops
 the parameter.
 
-## What the small facade gives up
+## Rung two: basic
 
-Every one of these is a thing `d2w fhir serve` plus `d2w fhir forward` does and
-this route does not. None of them is an accident, and each is a reason to reach
-for the served chain instead.
+[`examples/fhir/client/basic_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/basic_facade.py) -
+the same one route, in the shape a deployment runs it in. Four changes, no new
+guarantees about the capture itself.
 
-- **Durable receipts.** The served facade stores every submission as received and
-  serves it back by id, forever. Here, the verdict is the answer to the request
-  and nothing is written down.
-- **The retryable spool.** A capture that arrives while DHIS2 is unreachable
-  waits in the spool and drains later. Here, an unreachable instance is a failed
-  request, and retrying it is the caller's job.
-- **The refused queue.** A receipt DHIS2 rejected is kept, readable, and put back
-  in the queue with `d2w fhir requeue` once the cause is fixed. Here, a refusal is
-  a 422 body and then it is gone.
-- **Capability discovery.** `/metadata` states which resources are served, which
-  searches answer, and which operations exist, so a client learns the surface
-  rather than being told it. Here there is one route at one address.
-- **The register.** `Patient` search and listing, answered from the live
-  instance, is how a client resolves who a person is. Here, your own application
-  answers that.
-- **The strict/lenient dial on coded answers.** `--strict-codes` moves five
-  findings between warning and refusal on a served facade. Here, the behaviour is
-  whatever `ConversionContext` the process was handed, and changing it means
-  building a different context.
-- **Overwrite naming on drains.** A drain says which values a previous submission
-  already sent, so an operator can see a resubmission before it lands. Here, each
-  capture is posted on its own, with no memory of the last.
+**Settings resolved once.** `FacadeSettings.resolved()` reads the profile at
+startup - `DHIS2_PROFILE`, or the configured default - so a process that cannot
+name its instance fails at boot rather than at the first capture.
 
-The full chain remains the durable posture. Reach for the recipe when the
-submitting side is yours and the durability lives in your application; reach for
-[Serve the guide](201-serve.md) and
-[Forward captures into DHIS2](201-forward.md) when it has to live here.
+**One client for the process.** `open_client` reads `/api/system/info` to bind
+the version tree, so opening one per capture is a second round trip per capture.
+The client is opened in a FastAPI lifespan and held in a small runtime model:
+
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    async with open_client(settings.profile) as client:
+        runtime.client = client
+        yield
+        runtime.client = None
+```
+
+The lifespan is what uvicorn runs at startup and shutdown. Note what the
+example's `__main__` has to do about that: `httpx.ASGITransport` calls the
+application and nothing else, so a demo that only wrapped the app in a transport
+would find `runtime.client` still `None` inside every route. Entering
+`app.router.lifespan_context(app)` by hand is the fix, and it is exactly what
+`asgi-lifespan`'s `LifespanManager` does for a test suite.
+
+**`/health`.** One uncached read of `/api/system/info`, answered as a small
+`HealthReport`: whether DHIS2 is reachable, which instance and profile, and the
+version it reported. Uncached on purpose - a cached answer says the instance was
+reachable once, which is not the question. An unreachable instance is a `503`
+carrying the sentence that explains it.
+
+**One log line per verdict.** Accepted, refused by the translator, refused by
+DHIS2 - each is one line through the `logging` module, so a capture six weeks
+old is answerable.
+
+The trade is unchanged from rung one and worth naming again: a capture that
+arrives while DHIS2 is unreachable is a failed request, and its sender is the
+only place it exists.
+
+## Rung three: complex
+
+[`examples/fhir/client/complex_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/complex_facade.py) -
+where a capture starts surviving. The route's answer stops being DHIS2's verdict
+and becomes a receipt id.
+
+### Receive, write, answer - in that order
+
+```python
+result = translate_response(response, runtime.context)  # validation, not the send
+if result.is_refused:
+    return JSONResponse(status_code=422, content={"refusals": refusals})
+runtime.spool.save(envelope)  # durable: fsync, rename, fsync
+return JSONResponse(status_code=201, content=accepted.model_dump(mode="json"))
+```
+
+Translating at the door is validation: a response the translator will not read is
+refused while there is still a client on the other end of the request to tell.
+Everything after that is written down first and posted later, and the `201`
+carries the id the capture is readable under from then on.
+
+### The spool is the library's, not the example's
+
+Nothing about the receipt tree is reimplemented in the example. It is the same
+tree `d2w fhir serve` writes and `d2w fhir forward` drains, through the same
+published primitives:
+
+| Side | Module | What the example uses |
+| --- | --- | --- |
+| write | `dhis2w_fhir_serve.spool` | `ResponseSpool.save`, `get`, `import_report`, `refusal_record` |
+| drain | `dhis2w_fhir.spool` | `read_received_responses`, `move_to_forwarded`, `move_to_rejected`, `record_refusal`, `drain_lock` |
+
+`ResponseSpool.save` writes through a temporary sibling, `fsync`s the file,
+renames it, and `fsync`s the directory. That ordering is the whole reason a
+`201` from this facade is a promise rather than a hope, and it is not a thing
+worth having a second version of - which is why the example imports it.
+
+Where the tree sits is `SpoolLayout.resolve(project_root)`, the same resolution
+of `[serve] spool_dir` both halves of the served chain read, so a project that
+moved its receipts moved them for the writer and the drain at once. The example
+uses a scratch directory and says in a comment what a deployment uses instead.
+
+### The drain
+
+A background `asyncio` task, started in the lifespan and cancelled before the
+client closes under it. Each pass takes the spool's own `drain_lock` - the same
+lock `d2w fhir forward` takes, because this facade's drain is exactly the kind
+of second drain that lock exists to refuse - reads `received/`, and files each
+receipt the moment its verdict is known:
+
+- DHIS2 took it: `move_to_forwarded(spooled, record)`, with the import counts and
+  the cells the payload landed on written into the sidecar beside it.
+- DHIS2 refused it: `move_to_rejected(spooled, record)`, with DHIS2's own reasons
+  in the sidecar.
+- The translator refused it: nothing moves. `record_refusal` leaves the reason
+  beside the queued receipt, and the next pass is the retry. A guide can move
+  between the capture and the drain, so this is not a case that cannot happen.
+- The instance did not answer: nothing moves and nothing is lost. The pass logs
+  it and the next pass reads the same queue.
+
+### Reading a receipt back
+
+`GET /receipts/{id}` answers where a capture stands: its state, and whatever the
+drain wrote beside it - DHIS2's import counts once a drain has asked, or the
+translator refusal record while it is still queued. A receipt is readable in
+every state, forever, because expiring the id a client was handed at capture time
+would break that client on a schedule nothing told it about.
+
+The example's `__main__` posts one capture, polls its receipt until the drain has
+filed it, and prints the journey. It imports for real and deletes the two values
+again at the end, so a run leaves the instance as it found it.
+
+## Rung four: advanced
+
+[`examples/fhir/client/advanced_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/advanced_facade.py) -
+the durable rung plus the four things it lacked.
+
+**Tracker routing.** `post_payload` branches on which field the translation
+filled and posts to the endpoint that shape names, projecting either answer into
+one `ForwardImportRecord`: `/api/dataValueSets` answers an `ImportSummary`
+wrapped in a `WebMessage`, `/api/tracker` answers a `TrackerImportReport` bare,
+and a reader of either wants the same three things - which rule, which object,
+what it said. The demo captures an event of a program without registration.
+
+**The coded-answer dial.** `strict` or `lenient` is application configuration
+here, resolved at startup and stamped onto the context so every translation the
+process runs reads coded answers the same way:
+
+```python
+dialled = context.model_copy(update={"coded_answer_mode": settings.coded_answers})
+```
+
+It is the same dial `[serve] strict_codes` sets for a served facade and
+`d2w fhir forward` inherits - see
+[What `--strict-codes` turns into a refusal](401-capture-contract.md#what-strict-codes-turns-into-a-refusal).
+
+**Overwrite naming.** Before a pass posts an aggregate payload it builds
+`build_forwarded_cell_index(layout)` - one read of the sidecars in `forwarded/` -
+and names every value a forwarded receipt already sent. DHIS2 cannot answer that
+question: it replaces such a value in place and counts the write exactly like a
+first entry, so no import summary separates the two. Nothing is refused over it;
+the drain says so and the operator decides. The demo posts the same two cells
+twice to make the naming happen.
+
+**A small `/metadata`.** The forms this facade accepts, the two routes it answers
+on, and the dial it is running under - and explicitly **not** a FHIR
+CapabilityStatement. A CapabilityStatement is a claim about a FHIR server:
+resources served, searches answered, interactions supported. This facade serves
+no FHIR resource and answers no search, so publishing one would be a claim it
+cannot keep.
+
+## When to stop building
+
+Each rung closes the gap below it. The gap left at the top is not a fifth rung -
+it is `d2w fhir serve` plus `d2w fhir forward`, and every item is something the
+served chain already does:
+
+| Still missing at rung four | What the served chain provides |
+| --- | --- |
+| capability discovery | a real `/metadata` CapabilityStatement, stating the resources served, the searches answered, and the operations that exist - [Consume the FHIR API](401-consume-the-fhir-api.md) |
+| the guide itself | the published implementation guide served beside the API, so a client reads the forms it is submitting against - [Serve the guide](201-serve.md) |
+| the register | `Patient` search and read off the live instance, which is how a client resolves who a person is |
+| capture screens | the capture UI a person fills a form in, served from the same process |
+| a refused receipt's second chance | `d2w fhir spool` lists the queue and `d2w fhir requeue` puts a rejected receipt back in it once the cause is fixed - [Forward captures into DHIS2](201-forward.md#putting-a-refused-receipt-back-in-the-queue) |
+| a drain that is its own process | `d2w fhir forward` runs on its own schedule, so a slow or unreachable instance cannot hold up the process that is receiving captures |
+| the five form kinds, all of them | every profile of [the capture contract](401-capture-contract.md), including registration and stage forms |
+| completeness registration | a `completed` aggregate response also registers the data set complete, after DHIS2 takes the values - [Data set completeness](201-forward.md#data-set-completeness) |
+| a drain report | `ForwardReport` - counts, per-receipt outcomes, rejection reasons rolled up by cause - [`forward_spool.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/forward_spool.py) |
+
+**The rule of thumb.** Take your own route while the answer to the request is
+the whole of what the sender needs, and the durability lives in your
+application. Climb a rung when a capture has to outlive the request. And when
+you find yourself writing the rung above the fourth - a register, a
+CapabilityStatement, a requeue command - stop: you are rebuilding
+`d2w fhir serve` smaller, and it is one command.
 
 ## Next
 
-Read the file:
-[`examples/fhir/client/minimal_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/minimal_facade.py),
-and run it with `uv run python examples/fhir/client/minimal_facade.py`. What
-counts as a valid submission - the five form kinds, the required extensions, and
-every rule a response must meet before any of this applies - is
+Read the four files, in order:
+[`minimal_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/minimal_facade.py),
+[`basic_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/basic_facade.py),
+[`complex_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/complex_facade.py),
+[`advanced_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/advanced_facade.py).
+Each runs with `uv run python examples/fhir/client/<name>.py`. What counts as a
+valid submission - the five form kinds, the required extensions, and every rule a
+response must meet before any of this applies - is
 [The capture contract](401-capture-contract.md). The Python surface itself is
 documented in [the `dhis2w_fhir` API reference](api-dhis2w-fhir.md).
