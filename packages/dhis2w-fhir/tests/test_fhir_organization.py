@@ -618,7 +618,7 @@ def test_registry_scale_note_fires_only_past_the_render_cost_threshold() -> None
     note = scale_notes[0].message
     assert "12581 organisation units emit 25162 instances" in note
     assert "max_level" in note
-    assert "renders a page per resource" in note
+    assert "validates and renders every resource" in note
     # The registry ships as pre-built JSON, so the SUSHI timeout is no longer the failure it warns about.
     assert "143" not in note
     assert "timeout" not in note

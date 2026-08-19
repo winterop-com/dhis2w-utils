@@ -208,9 +208,9 @@ as given). Points worth knowing:
   `[generate.option_sets] include_ids` pulls the set in anyway, with a note.
   Validate resolves scope the same way, so the two never disagree.
 - **Registry scale**: every organisation unit emits two instances, and the
-  IG publisher renders a page per resource, so the registry sets the wall
-  clock of the publisher run. `org-units` warns once a registry passes 10,000
-  instances, naming both dials (`max_level`, `root`). See
+  IG publisher validates and renders every resource, so the registry sets the
+  wall clock of the publisher run. `org-units` warns once a registry passes
+  2,000 instances, naming both dials (`max_level`, `root`). See
   [Build and publish the guide](201-build-and-publish.md).
 - **Examples**: `[generate.examples]` `per_target` sets responses per form
   (0 disables the target); `source = "synthetic"` (default, deterministic,
