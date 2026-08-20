@@ -1583,6 +1583,26 @@ described, and the git history is where it was built. What is left:
   value set and an event onto a `QuestionnaireResponse`, but only a handful per
   target and only as `Usage: #example`. Bulk export of the captured values as
   normative content is the next step.
+- **Computable measures: DHIS2 indicators as FHIR `Measure` + CQL.** Today an
+  indicator's numerator and denominator exist only as DHIS2 expressions; a guide
+  carries no computable measure at all. The target shape is a `generate measures`
+  target beside the other eight: each selected indicator becomes a `Measure`
+  (percentage to `proportion`, per-thousand to `ratio`, plain sums to `cohort`)
+  whose population criteria are real CQL in an attached `Library`, evaluable by a
+  FHIR-side consumer without DHIS2's analytics engine. Doctrine: the parser layer
+  derives from the official HL7 ANTLR grammars (`cql.g4`, `fhirpath.g4`), never a
+  hand-rolled grammar. Prior art to reuse rather than rewrite, all in-house:
+  `winterop-com/fhirkit` (Python, ANTLR over the official grammars, ELM load and
+  emit, a `MeasureEvaluator` producing `MeasureReport`, 2,879 tests) is the
+  engine; the `dhis2ql` grammar and module in `mortenoh/playground-rust`
+  (`languages/antlr`) is the design for binding retrieves to DHIS2 metadata -
+  program, stage, element, organisation unit; the Indicator-to-Measure scoring
+  patterns in `hispvn/vn-workshop-2026` are the mapping specification, written
+  there with criteria as plain text precisely because this bridge did not exist.
+  What exists nowhere yet - and is the actual work - is the compiler from a DHIS2
+  indicator expression to CQL. Reserved owner decisions: whether fhirkit returns
+  as a published dependency or a workspace member, and whether DHIS2QL travels
+  with it or CQL alone suffices.
 
 ### 9.3 Long-term
 
