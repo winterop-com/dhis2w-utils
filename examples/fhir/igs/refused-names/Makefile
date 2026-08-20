@@ -1,0 +1,90 @@
+DOCKER_IMAGE := fhir-ig
+IG_DIR := ig
+TX_SERVER ?= http://tx.fhir.org
+# Publisher JVM heap. It needs roughly this much again for metaspace, JVM native memory, and
+# the OS, so keep the docker VM at JAVA_HEAP + ~2G or the kernel OOM-kills the build (exit 137).
+JAVA_HEAP ?= 4g
+# The toolchain uv.lock pins. Override to run a checkout: D2W="uv run --project /path/to/dhis2w-utils d2w"
+D2W ?= uv run d2w
+# Named volume for the FHIR package cache - the bulk of a cold build's wall clock.
+CACHE_VOLUME := fhir-ig-cache
+
+.PHONY: cache-init help setup upgrade generate validate sushi build refresh clean clean-all
+
+help:  ## Show available targets
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "%-12s %s\n", $$1, $$2}'
+
+setup:  ## Build the SUSHI + IG publisher docker image
+	docker build -t $(DOCKER_IMAGE) .
+
+upgrade:  ## Rebuild the image from scratch, pulling the latest SUSHI + IG publisher
+	docker build --pull --no-cache -t $(DOCKER_IMAGE) .
+
+generate:  ## Regenerate FSH from DHIS2 metadata
+	$(D2W) fhir generate
+
+.PHONY: update
+update:  ## Update the project to the current d2w: move the toolchain pin, sync, refresh the scaffold-managed files
+	uv lock --upgrade
+	uv sync
+	$(D2W) fhir init --refresh
+
+validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (writes md/csv/pdf; exit 1 on errors)
+	$(D2W) fhir validate
+
+cache-init:  ## Ensure the shared package-cache volume is writable by the publisher user
+	docker run --rm -u root -v $(CACHE_VOLUME):/home/publisher/.fhir --entrypoint sh $(DOCKER_IMAGE) -c "mkdir -p /home/publisher/.fhir/packages && chown -R 1001:1001 /home/publisher/.fhir"
+
+sushi: cache-init  ## Compile FSH to FHIR resources
+	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
+		$(DOCKER_IMAGE) sushi .
+
+build: cache-init  ## Run the full IG publisher
+	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
+		$(DOCKER_IMAGE) \
+		java -Xmx$(JAVA_HEAP) -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx $(TX_SERVER)
+
+.PHONY: serve serve-live
+
+serve:  ## Serve the compiled IG as a FHIR endpoint (run generate + sushi first)
+	$(D2W) fhir serve
+
+serve-live:  ## Serve straight from the DHIS2 instance, no compile needed
+	$(D2W) fhir serve --live
+
+.PHONY: serve-ui
+
+serve-ui:  ## Serve the FHIR endpoint plus the capture UI at / (open the printed URL in a browser)
+	$(D2W) fhir serve --ui
+
+.PHONY: forward forward-import
+
+forward:  ## Dry-run the capture spool against DHIS2 - validate only, nothing written, nothing moved
+	$(D2W) fhir forward
+
+forward-import:  ## Import the capture spool into DHIS2 and file every receipt by what it became
+	$(D2W) fhir forward --import
+
+clean:  ## Remove build output (keeps ig/input-cache, the terminology cache the next build reuses)
+	rm -rf $(IG_DIR)/fsh-generated $(IG_DIR)/output $(IG_DIR)/temp $(IG_DIR)/template \
+		$(IG_DIR)/translations $(IG_DIR)/Requirements-fromNarrative.json
+
+clean-all: clean  ## Also remove the terminology cache and the FHIR package cache volume
+	rm -rf $(IG_DIR)/input-cache
+	-docker volume rm $(CACHE_VOLUME)
+
+# The caches survive a refresh on purpose. The terminology cache is hours of tx.fhir.org
+# round-trips on a large guide, the package cache is re-downloads, and neither can go stale
+# under a tooling upgrade - both are keyed by what they hold. `make clean-all` first is the
+# deliberate act when you really want them gone.
+refresh:  ## Wipe build output, pull latest tooling, regenerate, revalidate, rebuild (keeps the caches)
+	$(MAKE) clean
+	$(MAKE) upgrade
+	$(MAKE) generate
+# The leading dash keeps the rebuild going: validate exits 1 on instance code errors by design,
+# and a full refresh wants fresh reports out of it, not an abort. The dash rather than --no-fail,
+# because --no-fail also drops the red "N error(s) found" line - the one thing worth reading here.
+	-$(MAKE) validate
+# No sushi step: the publisher runs its own SUSHI over the same FSH, so calling both
+# compiles everything twice - the single largest cost in the chain.
+	$(MAKE) build

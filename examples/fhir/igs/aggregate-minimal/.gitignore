@@ -1,0 +1,12 @@
+reports/
+ig/fsh-generated/
+ig/input/resources/
+ig/output/
+ig/temp/
+ig/template/
+ig/input-cache/
+ig/translations/
+ig/Requirements-fromNarrative.json
+.serve/
+load/
+.venv/

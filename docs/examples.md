@@ -50,6 +50,21 @@ The headline rows are below. The Python library path has thirty-three examples i
 | [`fhir/client/build_registration_response.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/build_registration_response.py) | Registering a person and enrolling them, minting both DHIS2 UIDs client-side | [The capture contract](fhir/401-capture-contract.md) |
 | [`fhir/client/ips_document.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/ips_document.py) | One person's tracker record assembled into an IPS-shaped FHIR `document` Bundle — one mapped section, three required ones stating absence, and the reference check that proves the document closes | [The IPS document](fhir/design/ips.md) |
 
+### Full guides
+
+Where the scripts above show one command or one library call apiece, [`examples/fhir/igs/`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/README.md) holds eight complete `d2w fhir init` project trees — a `fhir.toml`, a SUSHI skeleton, a Makefile, a Dockerfile — each selecting one feature story out of the seeded local instance. Every tree is committed as its inputs alone; nothing `d2w fhir generate` or SUSHI writes is. `make verify-igs` refreshes, validates, generates, and dockerized-SUSHI-compiles all eight on demand.
+
+| Guide | What it demonstrates | Related docs |
+| --- | --- | --- |
+| [`fhir/igs/aggregate-minimal`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/aggregate-minimal/README.md) | The smallest complete guide: the forms, one district, no category axis published | [Set up an IG project](fhir/201-set-up-a-project.md) |
+| [`fhir/igs/aggregate-disaggregated`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/aggregate-disaggregated/README.md) | The same selection with both category axes on — the category pairs, the per-axis properties, and the ConceptMaps | [Terminology and ConceptMaps](fhir/401-terminology-and-conceptmaps.md) |
+| [`fhir/igs/event-program`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/event-program/README.md) | A program without registration, and the two program rules that ride on its Questionnaire | [What goes in](fhir/301-what-goes-in.md) |
+| [`fhir/igs/tracker-registration`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/tracker-registration/README.md) | Registration, enrollment, two stage forms, and the person-only form the tracked entity type publishes | [The capture contract](fhir/401-capture-contract.md) |
+| [`fhir/igs/terminology-strict`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/terminology-strict/README.md) | `concept_code_source = "code"` — concept codes taken from DHIS2 codes, and what that trades | [Generation](fhir/301-generation.md) |
+| [`fhir/igs/registry-district`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/registry-district/README.md) | One district as Organization and Location pairs, boundaries as GeoJSON, plus the organisation-unit code list | [What goes in](fhir/301-what-goes-in.md) |
+| [`fhir/igs/facility-mixed`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/facility-mixed/README.md) | The flagship: one of every capture kind at once, six Questionnaires in one guide | [The capture contract](fhir/401-capture-contract.md) |
+| [`fhir/igs/refused-names`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/refused-names/README.md) | The exhibit: a selection `d2w fhir generate` refuses, and the publisher failure it stands in for | [Troubleshooting](fhir/201-troubleshooting.md) |
+
 ## CLI examples
 
 | Example | What it demonstrates | Related docs |

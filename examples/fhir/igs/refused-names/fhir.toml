@@ -1,0 +1,40 @@
+# fhir.toml - configuration for `d2w fhir generate` (scaffolded by `d2w fhir init`).
+# Only the essentials live here; every available option is documented with its default
+# in fhir.toml.example beside this file, and explained in depth at
+# https://winterop-com.github.io/dhis2w-utils/fhir/301-fhir-toml/
+
+profile = "local_basic"           # DHIS2 profile to read metadata from
+
+[ig]
+id = "dhis2.fhir.examples.refused-names"
+canonical = "http://example.org/fhir/examples/refused-names"
+name = "ExamplesRefusedNames"
+title = "Refused names example guide"
+publisher = "dhis2w-utils examples"
+# "draft" while building; "active" for production - drives the sushi-config status
+# and the status and experimental flag on every generated CodeSystem/ValueSet/Questionnaire.
+status = "draft"
+
+[generate.data_sets]
+include_ids = ["BfMAe6Itzgt"]
+
+[generate.event_programs]
+include_ids = ["EVTsupVis01"]
+
+[generate.tracker_programs]
+include_ids = ["PrAncCare01"]
+
+# Edited in by hand after `d2w fhir init`; README.md explains each line.
+# This selection is deliberately unbuildable. `d2w fhir generate` refuses it.
+
+[generate.option_sets]
+include_ids = ["OsVaccType1"]
+
+[generate.categories]
+# The two axes Child Health disaggregates over. `EPI/nutrition age` holds the category
+# option named `<1y`, which is what generate refuses the run on.
+include_ids = ["YNZyaJHiHYq", "fMZEcRHuamy"]
+
+[generate.organisation_units]
+root = "PMa2VCrupOd"
+max_level = 4

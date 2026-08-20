@@ -1,0 +1,44 @@
+# fhir.toml - configuration for `d2w fhir generate` (scaffolded by `d2w fhir init`).
+# Only the essentials live here; every available option is documented with its default
+# in fhir.toml.example beside this file, and explained in depth at
+# https://winterop-com.github.io/dhis2w-utils/fhir/301-fhir-toml/
+
+profile = "local_basic"           # DHIS2 profile to read metadata from
+
+[ig]
+id = "dhis2.fhir.examples.aggregate-minimal"
+canonical = "http://example.org/fhir/examples/aggregate-minimal"
+name = "ExamplesAggregateMinimal"
+title = "Minimal aggregate example guide"
+publisher = "dhis2w-utils examples"
+# "draft" while building; "active" for production - drives the sushi-config status
+# and the status and experimental flag on every generated CodeSystem/ValueSet/Questionnaire.
+status = "draft"
+
+[generate.data_sets]
+include_ids = ["TuL8IOPzpHh"]
+
+[generate.event_programs]
+include_ids = ["EVTsupVis01"]
+
+[generate.tracker_programs]
+include_ids = ["PrAncCare01"]
+
+# Everything below is edited into fhir.toml by hand; `d2w fhir init` has flags for
+# the identity and the form tables and none for these. A refresh never writes this
+# file, so the block survives `d2w fhir init --refresh`. README.md explains each line.
+
+[generate.option_sets]
+# The DHIS2 default is every option set the instance holds, and this instance carries
+# `Age (<5 - 49) & over` (OsFhirEscS1), whose name would abort the publisher's last
+# pass - so every guide here names its vocabularies. See the refused-names exhibit.
+include_ids = ["OsVaccType1"]
+
+[generate.categories]
+# The DHIS2 built-in `default` category alone: this guide publishes the forms and no
+# category axis. aggregate-disaggregated is the same selection with the axes turned on.
+include_ids = ["GLevLNI9wkl"]
+
+[generate.organisation_units]
+root = "PMa2VCrupOd"
+max_level = 4

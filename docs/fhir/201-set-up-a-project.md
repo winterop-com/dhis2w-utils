@@ -77,6 +77,18 @@ never checked against an instance. `init` writes a minimal `fhir.toml` holding
 just the IG identity, plus `fhir.toml.example` documenting every option with
 its default - copy what you need across; anything you omit keeps its default.
 
+!!! tip "Eight worked starting points"
+    [`examples/fhir/igs/`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/README.md)
+    holds eight complete project trees built exactly this way against the
+    seeded local instance, one per feature story - the smallest possible
+    guide, a disaggregated aggregate one, an event program, a tracker
+    program, a strict-terminology one, an organisation-unit registry, a
+    facility publishing every capture kind at once, and one whose generate
+    is refused by design. Each carries a README stating the `d2w fhir init`
+    command it was scaffolded with, the `fhir.toml` lines added by hand, and
+    what the compiled guide shows. Copying the one nearest your instance is
+    usually faster than starting from the flags above.
+
 ## Install the pinned toolchain
 
 The scaffolded project is a `uv` project. Its `pyproject.toml` declares

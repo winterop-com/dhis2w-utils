@@ -1,0 +1,39 @@
+# fhir.toml - configuration for `d2w fhir generate` (scaffolded by `d2w fhir init`).
+# Only the essentials live here; every available option is documented with its default
+# in fhir.toml.example beside this file, and explained in depth at
+# https://winterop-com.github.io/dhis2w-utils/fhir/301-fhir-toml/
+
+profile = "local_basic"           # DHIS2 profile to read metadata from
+
+[ig]
+id = "dhis2.fhir.examples.tracker-registration"
+canonical = "http://example.org/fhir/examples/tracker-registration"
+name = "ExamplesTrackerRegistration"
+title = "Tracker registration example guide"
+publisher = "dhis2w-utils examples"
+# "draft" while building; "active" for production - drives the sushi-config status
+# and the status and experimental flag on every generated CodeSystem/ValueSet/Questionnaire.
+status = "draft"
+
+[generate.data_sets]
+include_ids = ["TuL8IOPzpHh"]
+
+[generate.event_programs]
+include_ids = ["EVTsupVis01"]
+
+[generate.tracker_programs]
+include_ids = ["IpHINAT79UW"]
+
+# Edited in by hand after `d2w fhir init`; README.md explains each line.
+
+[generate.option_sets]
+# The eleven option sets Child Programme's coded questions bind are added by the form
+# closure, so the table names only the vocabulary no form reaches.
+include_ids = ["OsVaccType1"]
+
+[generate.categories]
+include_ids = ["yY2bQYqNt0o", "Qzh0MSUx4RM"]
+
+[generate.organisation_units]
+root = "qhqAxPSTUXp"
+max_level = 4

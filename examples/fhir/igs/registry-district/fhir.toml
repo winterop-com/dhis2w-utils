@@ -1,0 +1,40 @@
+# fhir.toml - configuration for `d2w fhir generate` (scaffolded by `d2w fhir init`).
+# Only the essentials live here; every available option is documented with its default
+# in fhir.toml.example beside this file, and explained in depth at
+# https://winterop-com.github.io/dhis2w-utils/fhir/301-fhir-toml/
+
+profile = "local_basic"           # DHIS2 profile to read metadata from
+
+[ig]
+id = "dhis2.fhir.examples.registry-district"
+canonical = "http://example.org/fhir/examples/registry-district"
+name = "ExamplesRegistryDistrict"
+title = "District registry example guide"
+publisher = "dhis2w-utils examples"
+# "draft" while building; "active" for production - drives the sushi-config status
+# and the status and experimental flag on every generated CodeSystem/ValueSet/Questionnaire.
+status = "draft"
+
+[generate.data_sets]
+include_ids = ["TuL8IOPzpHh"]
+
+[generate.event_programs]
+include_ids = ["EVTsupVis01"]
+
+[generate.tracker_programs]
+include_ids = ["PrAncCare01"]
+
+# Edited in by hand after `d2w fhir init`; README.md explains each line.
+
+[generate.option_sets]
+include_ids = ["OsVaccType1"]
+
+[generate.categories]
+include_ids = ["GLevLNI9wkl"]
+
+[generate.organisation_units]
+# Bonthe: one district, twelve chiefdoms, fifty-five facilities.
+root = "lc3eMKXaEfw"
+max_level = 4
+# Also publish the organisation unit code list, which the other guides leave off.
+terminology = true
