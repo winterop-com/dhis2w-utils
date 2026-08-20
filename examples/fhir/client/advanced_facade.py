@@ -1,8 +1,8 @@
-"""Rung four of the facade ladder: everything the durable rung has, plus the four things it lacked.
+"""Level four of the facade ladder: everything the durable level has, plus the four things it lacked.
 
 `examples/fhir/client/complex_facade.py` receives, spools, and drains - but it takes aggregate
 reports only, translates under whatever dial the context was built with, says nothing about a value
-an earlier receipt already sent, and states its own surface nowhere. This rung closes all four:
+an earlier receipt already sent, and states its own surface nowhere. This level closes all four:
 
 - **Tracker routing.** A translated payload goes to the endpoint its shape names: an aggregate
   envelope to `/api/dataValueSets`, a person, an enrollment, or an event to `/api/tracker` under the
@@ -17,11 +17,11 @@ an earlier receipt already sent, and states its own surface nowhere. This rung c
   two routes it answers on. It is **not** a FHIR CapabilityStatement, and it does not pretend to be.
 
 **The moral of the ladder.** Read the four additions above and notice what they have in common:
-every one is a piece of `d2w fhir serve` and `d2w fhir forward`, rebuilt smaller. At this rung the
+every one is a piece of `d2w fhir serve` and `d2w fhir forward`, rebuilt smaller. At this level the
 question is no longer "what else do I need to write" but "why am I writing it": the served facade
 brings the capability statement, the published guide, the register, the capture screens, the requeue
 path, and a drain that is a separate process from the server - and it is one command. **At this
-rung, run `d2w fhir serve`.**
+level, run `d2w fhir serve`.**
 
 The guide is [Build your own facade](../../../docs/fhir/401-build-your-own-facade.md); what a valid
 response is, is [the capture contract](../../../docs/fhir/401-capture-contract.md).

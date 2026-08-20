@@ -1,8 +1,8 @@
-"""Rung two of the facade ladder: the same one route, in the shape a deployment runs it in.
+"""Level two of the facade ladder: the same one route, in the shape a deployment runs it in.
 
 The minimal recipe (`examples/fhir/client/minimal_facade.py`) opens a DHIS2 client per request,
 resolves its profile inside the route, and says nothing about what it did. Each of those is fine for
-a demo and wrong for a process that runs for months, so this rung buys back four guarantees:
+a demo and wrong for a process that runs for months, so this level buys back four guarantees:
 
 - **One client, opened in a FastAPI lifespan.** `open_client` reads `/api/system/info` to bind the
   version tree, so a client per request is a second round trip per capture.
@@ -14,8 +14,8 @@ a demo and wrong for a process that runs for months, so this rung buys back four
 
 **The trade:** still nothing is written down. A capture that arrives while DHIS2 is unreachable is a
 failed request, and its sender is the only one who knows it happened. `/health` will say the instance
-is unreachable, which is more than the rung below says, and it is not a queue. Captures start
-surviving one rung up, at `examples/fhir/client/complex_facade.py`.
+is unreachable, which is more than the level below says, and it is not a queue. Captures start
+surviving one level up, at `examples/fhir/client/complex_facade.py`.
 
 The guide is [Build your own facade](../../../docs/fhir/401-build-your-own-facade.md); what a valid
 response is, is [the capture contract](../../../docs/fhir/401-capture-contract.md).

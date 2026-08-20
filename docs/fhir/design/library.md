@@ -391,7 +391,7 @@ rather than waiting for a reviewer. Cheap, and it is what keeps R1 from decaying
 `docs/fhir/api-dhis2w-fhir-serve.md` render only what the packages export, and their
 "When to reach for it" lists gain the capabilities R1 publishes.
 
-**R11 - The facade ladder gains its capstone.** A rung above
+**R11 - The facade ladder gains its capstone.** A level above
 `examples/fhir/client/complex_facade.py` that mounts the **real** serve routers over a
 real `ServeRuntime` rather than reimplementing them. Section 5 says why this is the
 natural last PR rather than the first.
@@ -472,7 +472,7 @@ target.
 
 **PR 9 - `feat(examples): the facade ladder ends at the routers it has been describing`.**
 Touches the examples and `docs/fhir/401-build-your-own-facade.md`. Adds the capstone
-rung: an application that opens a `ServeRuntime`, attaches it, mounts the real
+level: an application that opens a `ServeRuntime`, attaches it, mounts the real
 `serve_routers` beside its own routes, and serves a genuine FHIR facade with no
 reimplementation. **Tests prove**: it passes `make verify-examples` and `make check-examples`.
 
@@ -491,7 +491,7 @@ today runs `minimal_facade.py` (one route, nothing written down),
 `complex_facade.py` (a durable spool and a background drain). `complex_facade.py:26` already
 makes the argument this whole paper generalises: "half the imports are the served
 facade's own. Writing receipts durably is not a thing worth having a second version of,
-so this rung uses the one that exists." The rung above it currently ends by conceding
+so this level uses the one that exists." The level above it currently ends by conceding
 that the honest answer becomes `d2w fhir serve`. After PR 5 that concession is no longer
 the only option, and the ladder can end where it has been pointing all along: an
 application that mounts the real read router, the real capture route, the real

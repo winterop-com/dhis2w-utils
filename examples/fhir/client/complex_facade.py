@@ -1,7 +1,7 @@
-"""Rung three of the facade ladder: the capture survives the instance being unreachable.
+"""Level three of the facade ladder: the capture survives the instance being unreachable.
 
-The two rungs below answer a capture with what DHIS2 said about it, which means the sender is the
-only place the submission exists until DHIS2 has taken it. This rung inverts that. A capture is
+The two levels below answer a capture with what DHIS2 said about it, which means the sender is the
+only place the submission exists until DHIS2 has taken it. This level inverts that. A capture is
 written to disk first - atomically, fsynced, under an id the client is handed - and answered `201`
 **before DHIS2 is asked anything at all**. A background task drains the queue afterwards, and a
 capture that arrives while the instance is down simply waits for the pass that finds it up.
@@ -16,13 +16,13 @@ forward` drains, through the same published primitives:
   `move_to_forwarded` / `move_to_rejected` file each receipt beside DHIS2's own report, and
   `record_refusal` leaves the queue's history beside a receipt the translator stopped reading.
 
-**The trade:** this rung posts aggregate reports and no tracker payload, holds no dial on coded
+**The trade:** this level posts aggregate reports and no tracker payload, holds no dial on coded
 answers, names no value an earlier receipt already sent, and states its surface nowhere - a client
 is told the two routes out of band. That is `examples/fhir/client/advanced_facade.py`, which is also
-the rung where the honest answer becomes `d2w fhir serve`.
+the level where the honest answer becomes `d2w fhir serve`.
 
 Note what has already happened here: half the imports are the served facade's own. Writing receipts
-durably is not a thing worth having a second version of, so this rung uses the one that exists.
+durably is not a thing worth having a second version of, so this level uses the one that exists.
 
 The guide is [Build your own facade](../../../docs/fhir/401-build-your-own-facade.md); what a valid
 response is, is [the capture contract](../../../docs/fhir/401-capture-contract.md).
@@ -195,7 +195,7 @@ def build_facade(settings: FacadeSettings, context: ConversionContext) -> FastAP
             refusals = [refusal.model_dump(mode="json", exclude_none=True) for refusal in result.refusals]
             return JSONResponse(status_code=422, content={"refusals": refusals})
         if result.data_value_set is None:
-            # This rung posts aggregate reports and routes nothing else, so it says so at the door
+            # This level posts aggregate reports and routes nothing else, so it says so at the door
             # rather than writing down a receipt it will never drain.
             return JSONResponse(
                 status_code=422,
@@ -316,7 +316,7 @@ async def post_data_value_set(
         target_kind=result.target_kind,
         received_at=received_at,
         # The identity of every value this payload landed on, never the numbers. It is what lets a
-        # later drain say which values an earlier receipt already sent - the next rung's story.
+        # later drain say which values an earlier receipt already sent - the next level's story.
         cells=aggregate_cells(envelope),
     )
 

@@ -89,7 +89,7 @@ not a menu - the pages build on each other left to right.
   submission must meet.
 - [Consume the FHIR API](401-consume-the-fhir-api.md) - reads, searches, and the
   operations a client drives.
-- [Build your own facade](401-build-your-own-facade.md) - the four-rung ladder
+- [Build your own facade](401-build-your-own-facade.md) - the four-level ladder
   from one route of FastAPI to the point where `d2w fhir serve` is the answer.
 - [Identifiers and the D2 extensions](401-identifiers-and-extensions.md) -
   where the DHIS2 identity of every artifact lives.
