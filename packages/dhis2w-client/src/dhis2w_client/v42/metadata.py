@@ -492,26 +492,41 @@ class MetadataAccessor:
         if not flat:
             return BulkPatchResult()
 
-        semaphore = asyncio.Semaphore(max(1, concurrency))
+        # Bounded admission: exactly `worker_count` worker coroutines share one cursor over
+        # `flat`, so the pool is the concurrency ceiling and the number of pending task objects
+        # stays flat no matter how many records the caller supplied.
+        worker_count = min(max(1, concurrency), len(flat))
+        results: list[tuple[str, str, BulkPatchError | None]] = [("", "", None) for _ in flat]
+        next_record_index = 0
 
         async def _one(resource: str, uid: str, ops: list[dict[str, Any]]) -> tuple[str, str, BulkPatchError | None]:
-            async with semaphore:
-                try:
-                    await self._client.patch_raw(f"/api/{resource}/{uid}", body=ops)
-                except Dhis2ApiError as exc:
-                    return (
-                        resource,
-                        uid,
-                        BulkPatchError(
-                            uid=uid,
-                            resource=resource,
-                            status_code=exc.status_code,
-                            message=exc.message,
-                        ),
-                    )
+            try:
+                await self._client.patch_raw(f"/api/{resource}/{uid}", body=ops)
+            except Dhis2ApiError as exc:
+                return (
+                    resource,
+                    uid,
+                    BulkPatchError(
+                        uid=uid,
+                        resource=resource,
+                        status_code=exc.status_code,
+                        message=exc.message,
+                    ),
+                )
             return resource, uid, None
 
-        results = await asyncio.gather(*(_one(r, u, o) for r, u, o in flat))
+        async def _worker() -> None:
+            nonlocal next_record_index
+            while next_record_index < len(flat):
+                # Claiming a record reads the cursor and advances it with no `await` between
+                # the two statements, so the event loop cannot interleave a second worker
+                # mid-claim and hand the same record out twice.
+                record_index = next_record_index
+                next_record_index = record_index + 1
+                resource, uid, ops = flat[record_index]
+                results[record_index] = await _one(resource, uid, ops)
+
+        await asyncio.gather(*(_worker() for _ in range(worker_count)))
         successful: list[str] = []
         failures: list[BulkPatchError] = []
         for _resource, uid, error in results:
@@ -533,7 +548,7 @@ class MetadataAccessor:
 
         DHIS2's `/api/sharing` is per-object (one POST per UID). This method
         fans the same `SharingObject` / `SharingBuilder` payload across every
-        UID in `uids` under a `concurrency` semaphore (default 8). Useful
+        UID in `uids` through a pool of `concurrency` workers (default 8). Useful
         when rolling a single user-group-access pattern across a cohort
         without writing the loop in caller code.
 
@@ -567,30 +582,45 @@ class MetadataAccessor:
         if not flat:
             return BulkSharingResult()
 
-        semaphore = asyncio.Semaphore(max(1, concurrency))
+        # Bounded admission: exactly `worker_count` worker coroutines share one cursor over
+        # `flat`, so the pool is the concurrency ceiling and the number of pending task objects
+        # stays flat no matter how many UIDs the caller supplied.
+        worker_count = min(max(1, concurrency), len(flat))
+        results: list[tuple[str, str, BulkSharingError | None]] = [("", "", None) for _ in flat]
+        next_record_index = 0
 
         async def _one(resource: str, uid: str) -> tuple[str, str, BulkSharingError | None]:
-            async with semaphore:
-                try:
-                    await self._client.post_raw(
-                        "/api/sharing",
-                        payload,
-                        params={"type": resource, "id": uid},
-                    )
-                except Dhis2ApiError as exc:
-                    return (
-                        resource,
-                        uid,
-                        BulkSharingError(
-                            uid=uid,
-                            resource=resource,
-                            status_code=exc.status_code,
-                            message=exc.message,
-                        ),
-                    )
+            try:
+                await self._client.post_raw(
+                    "/api/sharing",
+                    payload,
+                    params={"type": resource, "id": uid},
+                )
+            except Dhis2ApiError as exc:
+                return (
+                    resource,
+                    uid,
+                    BulkSharingError(
+                        uid=uid,
+                        resource=resource,
+                        status_code=exc.status_code,
+                        message=exc.message,
+                    ),
+                )
             return resource, uid, None
 
-        results = await asyncio.gather(*(_one(r, u) for r, u in flat))
+        async def _worker() -> None:
+            nonlocal next_record_index
+            while next_record_index < len(flat):
+                # Claiming a record reads the cursor and advances it with no `await` between
+                # the two statements, so the event loop cannot interleave a second worker
+                # mid-claim and hand the same record out twice.
+                record_index = next_record_index
+                next_record_index = record_index + 1
+                resource, uid = flat[record_index]
+                results[record_index] = await _one(resource, uid)
+
+        await asyncio.gather(*(_worker() for _ in range(worker_count)))
         successful: list[str] = []
         failures: list[BulkSharingError] = []
         for _resource, uid, error in results:

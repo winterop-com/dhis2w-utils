@@ -54,7 +54,7 @@ async with Dhis2Client("https://dhis2.example.org", auth=auth) as client:
 - **Analytics** — `client.analytics.aggregate(dx=..., pe=..., ou=...) -> Grid` for parsed responses, `stream_to(...)` for very large pivots.
 - **Period math** — `parse_period`, `next_period_id`, `previous_period_id`, `period_start_end` across all six absolute period shapes.
 - **Pluggable auth** — `BasicAuth`, `PatAuth`, `OAuth2Auth`. Add your own by implementing the `AuthProvider` Protocol.
-- **Bulk operations** — `patch_bulk`, `apply_sharing_bulk`, with explicit `concurrency` cap (`asyncio.Semaphore`).
+- **Bulk operations** — `patch_bulk`, `apply_sharing_bulk`, fanned out over a pool of `concurrency` workers that pull records one at a time, so memory stays flat however long the input list is.
 
 ## Documentation
 
