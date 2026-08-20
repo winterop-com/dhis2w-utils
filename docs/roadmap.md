@@ -351,6 +351,34 @@ Niche but valuable for compliance + forensics use cases.
   - **`make lint` mypy/pyright are non-incremental** — add mypy `incremental = true` (and optionally `dmypy`) for 3-10× faster local re-lints (CI cold-cache unaffected).
   - **CI e2e installs Playwright Chromium on every matrix leg** — cache `~/.cache/ms-playwright` across the v41/v42/v43 legs (~2-6 min/run).
 - **Property-based testing on filter / order DSL parsing.**
+- **Plugin machinery on `pluginkit`.** The plugin surface today is homegrown twice
+  over: the CLI/MCP trees discover plugins by iterating `dhis2w_core.v{N}.plugins.*`,
+  and external plugins register through the bare `dhis2.plugins` entry-point group
+  with no typed contract on what a plugin provides.
+  [`pluginkit`](https://github.com/winterop-com/pluginkit/) (in-house, on PyPI,
+  zero runtime dependencies, strictly typed extension points with sync/async
+  dispatch) is the replacement: hook specs for the real extension seams - mount a
+  CLI sub-app, register MCP tools, contribute an auth provider, contribute a FHIR
+  capability - so a plugin's obligations are a type-checked contract rather than a
+  naming convention, and a plugin living in another repository registers exactly
+  like one living here. Adopting it inside the workspace first, behind the existing
+  discovery so nothing user-visible changes, is the proving step the repository
+  split below depends on.
+- **Split the workspace into multiple repositories.** Thirteen members, one lock,
+  one CI, one release train - the single repository is getting out of hand, and
+  the seams the members already draw are the candidate cut lines: the client
+  foundation (`dhis2w-client` + `dhis2w-codegen`), the toolkit
+  (`dhis2w-core`, `dhis2w-cli`, `dhis2w-mcp`, `dhis2w-mcp-bridge`,
+  `dhis2w-mcp-router`, `dhis2w-ql`, `dhis2w-browser`, `dhis2w-bench`), and the
+  FHIR product (`dhis2w-fhir`, `dhis2w-fhir-engine`, `dhis2w-fhir-serve`).
+  What must be true first, in order: the library surfaces published and
+  drift-tested (done in the 1.7.0 line), plugin contracts on `pluginkit` so
+  cross-repository plugins are first-class (the item above), and per-repository
+  version trains with explicit cross-repository pins replacing the workspace lock.
+  Owner decisions reserved: the exact seam lines (does `dhis2w-ql` ride with the
+  toolkit or stand alone), where `infra/` and the local stack live, whether the
+  docs site stays one hub or splits with its packages, and the release cadence
+  each repository runs on.
 
 ## Long-term / exploratory
 
