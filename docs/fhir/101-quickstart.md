@@ -22,15 +22,16 @@ the organisation-unit registry is almost always most of those pages
 (`[generate.organisation_units] max_level` and `root` are the dials). Serving
 never needs it: `d2w fhir serve --live` needs nothing compiled at all and shows
 you a working endpoint straight after step 5, and the compiled posture of
-`serve` needs only the SUSHI compile (`make sushi`, minutes), not the build.
+`serve` needs only the SUSHI compile (`make sushi`), not the build.
 Run step 6 when you want the website in a browser; skip to step 7 when you want
 the endpoint.
 
 Command output below was captured on a real run against a local DHIS2 2.43.1
-carrying the Sierra Leone demo database. Your paths, counts, and timings will
-differ, and long absolute paths are shortened to `/home/you/my-ig`. To run it
-against the public play server instead, use a URL from
-[play.im.dhis2.org](https://play.im.dhis2.org/) in step 3 - the instance names
+carrying the Sierra Leone demo database, which also holds a handful of
+deliberately template-hostile names - step 4 is where they surface. Your paths
+and counts will differ, and long absolute paths are shortened to
+`/home/you/my-ig`. To run it against the public play server instead, use a URL
+from [play.im.dhis2.org](https://play.im.dhis2.org/) in step 3 - the instance names
 rotate, so pick a current one. To run a DHIS2 locally, see
 [the local setup page](../local-setup.md).
 
@@ -116,95 +117,133 @@ the versions `uv.lock` records rather than whatever `d2w` is on your PATH.
 $ uv run d2w fhir validate
 running 5 step(s)
 [1/5] connecting: http://localhost:8080
-[2/5] selection: 2 data sets, 6 programs, 5 stages, 70 data elements, 13 option sets, 7 categories, 1,332 organisation units
-[3/5] instance sweep: 43 collections, 1,652 objects
-[4/5] option sets: 13 read
+[2/5] selection: 2 data sets, 4 programs, 3 stages, 70 data elements, 12 option sets, 5 categories, 1,332 organisation units
+[3/5] instance sweep: 40 collections, 1,618 objects
+[4/5] option sets: 12 read
 [5/5] findings: 41 finding(s)
 ...
-                                 fhir validate
-┌───────────────────┬──────────────────────────────────────────────────────────┐
-│profile            │ demo (project-toml)                                      │
-│resource types     │ 43                                                       │
-│objects swept      │ 1652                                                     │
-│option sets        │ 13                                                       │
-│options            │ 52                                                       │
-│attributes         │ 4                                                        │
-│errors             │ 4                                                        │
-│warnings           │ 4                                                        │
-│infos              │ 33                                                       │
-│selection findings │ 4 errors, 4 warnings, 20 infos                           │
-│code coverage      │ 1/1435 (selection objects whose code can serve as an     │
-│                   │ identity stem)                                           │
-│code source        │ id                                                       │
-└───────────────────┴──────────────────────────────────────────────────────────┘
+                                fhir validate
+┌───────────────────┬────────────────────────────────────────────────────────┐
+│profile            │ demo (project-toml)                                    │
+│resource types     │ 40                                                     │
+│objects swept      │ 1618                                                   │
+│option sets        │ 12                                                     │
+│options            │ 48                                                     │
+│attributes         │ 4                                                      │
+│errors             │ 6                                                      │
+│warnings           │ 7                                                      │
+│infos              │ 28                                                     │
+│selection findings │ 6 errors, 7 warnings, 20 infos                         │
+│code coverage      │ 1/1428 (selection objects whose code can serve as an   │
+│                   │ identity stem)                                         │
+│code source        │ id                                                     │
+└───────────────────┴────────────────────────────────────────────────────────┘
                findings by category (6)
 ┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┓
 ┃Severity ┃ Scope     ┃ Category              ┃ Count┃
 ┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━┩
-│error    │ selection │ template-hostile-name │ 4    │
-│warning  │ selection │ template-hostile-name │ 4    │
+│error    │ selection │ template-hostile-name │ 6    │
+│warning  │ selection │ invalid-code          │ 1    │
+│warning  │ selection │ template-hostile-name │ 6    │
 │info     │ selection │ spaced-code           │ 20   │
-│info     │ instance  │ invalid-code          │ 1    │
 │info     │ instance  │ missing-code          │ 1    │
-│info     │ instance  │ template-hostile-name │ 11   │
+│info     │ instance  │ template-hostile-name │ 7    │
 └─────────┴───────────┴───────────────────────┴──────┘
-                                  findings (4)
+                                 findings (6)
 [one row per error - the object, its code, and the character it carries]
-error: 4 error(s) found; exiting 1 (--no-fail to suppress)
+error: 6 error(s) found; exiting 1 (--no-fail to suppress)
 ```
 
 Validation is one of the quick steps. The `...` hides the
 `wrote /home/you/my-ig/reports/fhir-validate-report.{md,csv,pdf}` lines, and the
 full findings are in that Markdown report.
 
-**It exited 1, and that is the command working.** Four objects on the Sierra
-Leone demo carry a `<` in their name - a category, a data element, an option
-set, and an option. The IG publisher's template injects names into HTML without
-escaping them and then strict-parses what it wrote, so each of those four is a
-publisher failure waiting at the end of a build. Validate grades them as errors
-because that is what they are; step 6 below shows one of them - the option set
-`Age (<5 - 49) & over` - doing exactly that.
+**It exited 1, and that is the command working.** Six selected objects carry a
+`<` in their name: the category `Age (<5 >5) & sex`, the category options `<1y`
+and `<5`, the data element `Vitamin A given to < 5y`, the option set
+`Age (<5 - 49) & over`, and the option `<5` inside it. A DHIS2 name stays
+byte-true on the `title` of the resource it becomes - escaping it would make the
+guide disagree with the instance about what the object is called - and the IG
+publisher writes those titles into pages it strict-parses after writing. A `<`
+opens a tag there, and the publisher dies on the page it just wrote.
 
-You have two honest ways forward:
+The error grade means one specific thing here: **`d2w fhir generate` refuses a
+selection holding any of them**, before it writes a file. These errors are not
+advice, they are the gate the next step applies, so validate and generate cannot
+disagree about what is publishable. The refusal costs seconds; the same names
+reaching the publisher cost a whole build, because it fails in its final output
+check, once every resource has already been rendered.
 
-- **Fix the names in DHIS2** and run validate again. This is the real fix, and
-  on your own instance it is the one to take: rename the four so no name
-  carries a `<`, and clear the `>` and `&` warnings while you are in there.
-- **Carry on knowing the publisher will fail on them.** Generation does not
-  care about these names, so step 5 works either way, and step 6 still produces
-  a complete browsable site - the failure lands in the final output check,
-  after everything has been rendered. Add `--no-fail` if a script needs
-  validate to report without exiting 1.
+The seven warnings are softer, and a build survives them. Six are the same
+character class one grade down - the category options `>1y` and `>5 & over`, the
+option `>5 & under 50`, and three organisation units carrying `&`
+(`EM&BEE Maternity Home Clinic`, `Leprosy & TB Hospital`, and
+`UMC Mitchener Memorial Maternity & Health Centre`). `>` and `&` cost a
+malformed page rather than a dead one. The seventh is a different fault: the
+category option `Outreach` carries a line break inside its code.
 
-This quickstart takes the second road, because meeting the failure once is the
-fastest way to learn what the finding means. The four warnings are the same
-character class in the softer grades - `>` and `&` cost a malformed page the
-build survives. [Validate the
-instance](201-validate.md#read-severity-as-build-impact) explains the grades.
+The twenty-eight infos are cosmetic beside those - twenty selected codes with
+spaces in them, and eight findings about objects the instance holds but this
+project does not select. [Validate the
+instance](201-validate.md#read-severity-as-build-impact) explains every grade.
 
-## 5. Generate the IG source
+Two honest ways forward, and both are real:
+
+- **Fix the names in DHIS2** and run validate again. On your own instance this
+  is the one to take: rename the six so no name carries a `<`, and clear the
+  `>` and `&` warnings while you are in there.
+- **Keep them out of the selection.** A guide publishes what its `fhir.toml`
+  names, and nothing obliges it to name everything. Step 5 takes this road,
+  because the demo database is not yours to rename.
+
+## 5. Narrow the selection, then generate the IG source
+
+An absent `[generate.*]` table means *everything of that kind*, which is how the
+six objects step 4 graded as errors got into the selection. Name the vocabularies
+and the form instead, and the offenders are simply not in the guide. Add this to
+`fhir.toml` - `d2w fhir init --refresh` never rewrites the file, so hand edits
+survive:
+
+```toml
+[generate.data_sets]
+include_ids = ["TuL8IOPzpHh"]     # EPI Stock - Child Health owns the hostile data element
+
+[generate.option_sets]
+include_ids = ["OsVaccType1"]     # naming any keeps Age (<5 - 49) & over out
+
+[generate.categories]
+include_ids = ["GLevLNI9wkl"]     # the DHIS2 built-in `default` category alone
+```
+
+The organisation units stay unnarrowed, so the registry is still the whole
+country. The vocabularies the selected forms bind come along regardless of what
+the table names - that is why the run below reports eleven option sets against
+one id - and what naming any at all does is stop the *unbound* ones being swept
+in, which is where `Age (<5 - 49) & over` was coming from.
+`uv run d2w fhir validate` now reports 0 errors and 3 warnings, the three `&`
+facility names, and generation is no longer refused:
 
 ```console
 $ uv run d2w fhir generate
 running 8 step(s)
-[1/8] instance metadata: 14 questionnaire target(s), 13 option set(s), 7 categories, 1,332 organisation unit(s)
+[1/8] instance metadata: 9 questionnaire target(s), 11 option set(s), 1 category, 1,332 organisation unit(s)
 [2/8] foundation: 24 written, 0 unchanged
-[3/8] option sets: 39 written, 0 unchanged
-[4/8] categories: 21 written, 0 unchanged
-[5/8] questionnaires: 28 written, 0 unchanged, 1 note
-[6/8] examples: 14 written, 0 unchanged, 2 notes
-[7/8] organisation units: 2667 written, 0 unchanged
-[8/8] pages: 20 written, 0 unchanged, 1 note
-full pipeline: 2,813 file(s) written across 7 target(s)
+[3/8] option sets: 33 written, 0 unchanged, 1 note
+[4/8] categories: 3 written, 0 unchanged
+[5/8] questionnaires: 21 written, 0 unchanged, 1 note
+[6/8] examples: 9 written, 0 unchanged, 1 note
+[7/8] organisation units: 2667 written, 0 unchanged, 1 note
+[8/8] pages: 15 written, 0 unchanged, 1 note
+full pipeline: 2,772 file(s) written across 7 target(s)
 ...
-note: 2 note(s) across 2 target(s); full list in /home/you/my-ig/reports/fhir-generate-notes.md (--details to print)
+note: 4 note(s) across 4 target(s); full list in /home/you/my-ig/reports/fhir-generate-notes.md (--details to print)
 ```
 
-Also quick, against an instance this size. The `...` hides a per-target
-table naming each output directory. Note the shape of it: two data sets and six
-programs produced fourteen forms, while 1,332 organisation units produced 2,667
-files - the registry is almost always the bulk of an IG, because every unit
-emits both an `Organization` and a `Location`.
+One of the quick steps. The `...` hides a per-target table naming each output
+directory. Note the shape of it: one data set and four programs produced nine
+forms, while 1,332 organisation units produced 2,667 files - the registry is
+almost always the bulk of an IG, because every unit emits both an `Organization`
+and a `Location`.
 
 ## 6. Compile it
 
@@ -246,55 +285,50 @@ Sushi: ========================= SUSHI RESULTS ===========================
 Sushi: |  -------------------------------------------------------------  |
 Sushi: | |    Profiles   |  Extensions  |   Logicals   |   Resources   | |
 Sushi: | |-------------------------------------------------------------| |
-Sushi: | |       7       |      19      |      1       |       0       | |
+Sushi: | |       7       |      20      |      1       |       0       | |
 Sushi: |  -------------------------------------------------------------  |
 Sushi: |  -------------------------------------------------------------  |
 Sushi: | |      ValueSets     |    CodeSystems    |     Instances      | |
 Sushi: | |-------------------------------------------------------------| |
-Sushi: | |         7          |         7         |         60         | |
+Sushi: | |         8          |         8         |         50         | |
 Sushi: |  -------------------------------------------------------------  |
 Sushi: |                                                                 |
 Sushi: ===================================================================
-Sushi: | Ac-clam-ations!                        0 Errors      0 Warnings |
+Sushi: | You are dolphinitely doing great!      0 Errors      0 Warnings |
 Sushi: ===================================================================
 ...
-Generating Narratives                              (00:34.062)
-Run Template                                       (08:19.109)
-Generate HTML Outputs                              (10:36.070)
-Jekyll: done in 34.278 seconds.                    (16:15.377)
-Checking Output HTML                               (16:23.794)
+Generating Narratives
+Run Template
+Generate HTML Outputs
+Checking Output HTML
+Errors: 11, Warnings: 1413, Info: 1426, Broken Links: 0
 ```
 
-The `...` hide publisher start-up and the long tail. The elapsed times in that
-run are the publisher's own, on the machine that captured this transcript; what
-carries over to yours is the shape. A first build with cold caches is much the
-most expensive thing in the chain and gets far cheaper once they are warm, and
-the registry is what makes it long - which is why
+The `...` hide publisher start-up and the long tail. A first build with cold
+caches is much the most expensive thing in the chain and gets far cheaper once
+they are warm, and the registry is what makes it long - which is why
 [`max_level`](301-what-goes-in.md) is the dial worth knowing about.
 
-Those counts are worth a second look, because they show the split the generator
-makes. SUSHI compiled 7 profiles, 19 extensions, 1 logical model, and only 7
-CodeSystems - the shared ones. The option-set and category terminology and all 2,664
-registry resources are not in that table at all: they are written as pre-built FHIR
-JSON and loaded verbatim, which is what keeps SUSHI's part of the run to a small
-slice of it. Nearly all the rest is the publisher: narratives, the template, a
-rendered page per artifact, and Jekyll over the result.
+The SUSHI counts are worth a second look, because they show the split the
+generator makes. SUSHI compiled 7 profiles, 20 extensions, 1 logical model, and
+only 8 CodeSystems - the shared ones. All 2,664 registry resources are not in that
+table at all: they are written as pre-built FHIR JSON and loaded verbatim, which is
+what keeps SUSHI's part of the run to a small slice of it. Nearly all the rest is
+the publisher: narratives, the template, a rendered page per artifact, and Jekyll
+over the result.
 
-### When a DHIS2 name is hostile to the template
+The last line of the transcript is the publisher's own QA pass over the site it
+wrote, and not the build's exit status - this run exited 0 with `ig/output/`
+complete and browsable. Those counts are what the publisher makes of the guide's
+content, mostly terminology conventions a generated IG does not follow;
+[Troubleshooting](201-troubleshooting.md) covers reading them.
 
-This run did not finish cleanly, and step 4 said so before it started:
+### Why the hostile names were worth catching in step 4
 
-```console
-Publishing Content Failed: Unable to process page output/en/CodeSystem-d2-os-OsFhirEscS1-cs.html
-Caused by: org.hl7.fhir.exceptions.FHIRFormatError: Unable to read attribute '49' value on <5>
-```
-
-The option set behind that page is named `Age (<5 - 49) & over`. The publisher
-injects that name into the HTML it generates without escaping the `<`, then fails
-re-parsing its own output - it reads `<5 - 49)` as a tag. It exits non-zero, and it
-does it in the final output check - so the whole build is spent before you find out.
-
-This is one of the four errors from step 4, named there in full:
+The build above reached its end because step 5 kept the six objects step 4 named
+out of the selection. Had any of them stayed in, there would have been no build to
+reach: `d2w fhir generate` refuses before writing a file, naming the object and
+the character it carries.
 
 ```
 error | selection | template-hostile-name | optionSets | Age (<5 - 49) & over (OsFhirEscS1)
@@ -303,17 +337,15 @@ error | selection | template-hostile-name | optionSets | Age (<5 - 49) & over (O
   it just wrote and cannot read it back; change the name in DHIS2
 ```
 
-That is the whole argument for the error grade: the finding names the object, the
-character, and the failure, and it costs a quick command instead of a whole build
-to find out. Read `template-hostile-name` as build-breaking, not cosmetic, and rename the
-offending objects in DHIS2 before building. Angle brackets are common in real DHIS2
-metadata - `<1y`, `< 5y`, `>5 & over` are ordinary category option and data element
-names - so this is worth checking on any instance.
-
-The site itself was still written: the failure comes at the final output check, after
-Jekyll has rendered everything, so `ig/output/` holds a complete browsable guide even
-on this run. [Troubleshooting](201-troubleshooting.md) covers the other ways a
-publisher run ends badly.
+That is the whole argument for the gate sitting where it does. The alternative is
+not a warning, it is this build failing in its final output check - after every one
+of those 2,664 registry resources has been rendered - on a page the publisher wrote
+itself and then could not read back. Read `template-hostile-name` as build-breaking
+rather than cosmetic. Angle brackets are ordinary in real DHIS2 metadata (`<1y`,
+`< 5y`, `>5 & over` are all real names on this instance), so this is worth checking
+on any instance before you invest a build in it. The
+[`refused-names`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/fhir/igs/refused-names)
+example is a project that keeps one in on purpose, so you can watch the refusal.
 
 Open the generated site:
 
@@ -333,18 +365,19 @@ Publishing the site is one way to hand the guide over. The other is to run it
 as a live FHIR endpoint a client can call:
 
 ```console
-$ uv run d2w fhir serve
+$ uv run d2w fhir serve --port 8091
 starting /home/you/my-ig on http://127.0.0.1:8091 as a FHIR endpoint (ctrl-c to stop)
-INFO dhis2w_fhir_serve loaded the compiled IG at /home/you/my-ig: 2830 resources across 14 types, 0 stored responses
+INFO dhis2w_fhir_serve loaded the compiled IG at /home/you/my-ig: 2803 resources across 14 types, 0 stored responses
 ```
 
 It binds loopback, because the facade has no authentication - reaching it from
-another host is a deliberate act. Now any FHIR client can read what you
-published:
+another host is a deliberate act. The port is worth stating on this instance:
+`[serve] port` defaults to 8080, which is where the DHIS2 you just read from is
+listening. Now any FHIR client can read what you published:
 
 ```console
-$ curl -s localhost:8091/Questionnaire/BfMAe6Itzgt | jq .title
-"Child Health"
+$ curl -s localhost:8091/Questionnaire/TuL8IOPzpHh | jq .title
+"EPI Stock"
 ```
 
 Three things beyond reading are worth knowing exist:

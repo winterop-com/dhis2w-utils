@@ -1261,6 +1261,11 @@ bound to loopback by default that loads the project once at startup.
   `make serve` / `make serve-live` / `make serve-ui` read too, with flags
   beating the table beating the defaults and `--strict-codes` /
   `--no-strict-codes` reaching all three levels.
+  The precedence is `ServeSettings.resolve`, in `dhis2w-fhir-serve`, so an
+  embedded facade asks for the posture `d2w fhir serve` has by name rather than
+  reproducing it: it applies the flag-over-table precedence, resolves the DHIS2
+  profile into the address the screens link out to, and refuses a project with
+  nothing compiled.
 - **`capture` and `spool_dir` carry no flag**, because each says what the
   server *is* rather than what one run does. `capture = false` is the viewer
   posture: it mounts a 405 that names the key in the create route's place and
@@ -1520,6 +1525,34 @@ in phases that stop at the first level to find an error.
   submission was accepted, its form kind, its warnings, its lifecycle state,
   and the DHIS2 import report stored beside a rejection - none of which are
   QuestionnaireResponse elements.
+
+### Embed the facade
+
+`dhis2w-fhir-serve` publishes what `d2w fhir serve` assembles, so an application
+that already runs FastAPI serves the real FHIR surface rather than a second
+implementation of it.
+
+- **The settings.** `ServeSettings.resolve(project, ...)` returns a
+  `ServeInvocation`: the frozen settings, the address the process binds, and the
+  profile it resolved - the credentials stay on the invocation and never reach
+  the settings the app is handed.
+- **The runtime.** `open_serve_runtime(settings)` is an async context manager
+  over everything one facade holds - project, store, spool, register surface,
+  and the CapabilityStatement `/metadata` answers with - as a `ServeRuntime`,
+  with the DHIS2 client a live run reads through open for as long as it is
+  entered and closed when it is left. A caller already holding an authenticated
+  `Dhis2Client` hands it in and keeps owning it. `attach_serve_runtime(app,
+  runtime)` writes the two names every handler reads.
+- **The routers.** `serve_routers(capture=..., serve_ui=...)` answers a
+  `ServeRouters` with the mount requirements as data: the FHIR routers that must
+  carry `require_json_is_acceptable`, the three that answer plain JSON about the
+  facade and must not, and the read catch-alls that mount after every fixed path.
+  `accept_head_wherever_get_is_served` is the HEAD parity a liveness probe needs.
+  `d2w fhir serve` is the first caller of all of it.
+- **The UI is not on this surface.** The capture bundle and `/uiconfig` exist so
+  the browser can work and are reached by running the server with `[serve] ui`;
+  `create_app` is the only thing that mounts them, and `UiBundleMissingError` is
+  the one name of theirs the package publishes, because `create_app` raises it.
 
 ### Capture in the browser
 

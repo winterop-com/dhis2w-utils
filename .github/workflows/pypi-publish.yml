@@ -33,9 +33,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Workspace members shipped to PyPI. Excludes the workspace-only
-        # members (`dhis2w-codegen`, `dhis2w-bench`) — internal tools with no
-        # value to PyPI consumers.
+        # Workspace members shipped to PyPI, matching the Makefile's
+        # `PUBLISHABLE_MEMBERS`. Excludes the workspace-only members
+        # (`dhis2w-codegen`, `dhis2w-bench`) — internal tools with no value to
+        # PyPI consumers — and `dhis2w-fhir-engine`, which has a `make
+        # publish-fhir-engine` target but no PyPI project yet: it joins this
+        # matrix, the verify matrix, and the simple-index wait list below on the
+        # release that first uploads it, once its Trusted Publisher is
+        # configured on PyPI.
         package:
           - dhis2w-client
           - dhis2w-ql

@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev build-frontend lint-frontend test-frontend e2e-frontend docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-client deps-upgrade clean clean-artifacts dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples verify-igs bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev build-frontend lint-frontend test-frontend e2e-frontend docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-all deps-upgrade clean clean-artifacts dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples verify-igs bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -27,7 +27,9 @@ help:
 	@echo "  test-durations   Show 20 slowest tests"
 	@echo "  coverage         Run tests with coverage reporting"
 	@echo "  build            Build all workspace wheels (run build-frontend first, or the wheel ships no UI)"
-	@echo "  publish-client   Upload dhis2w-client wheel to PyPI (requires UV_PUBLISH_TOKEN env)"
+	@echo "  publish-<member> Build + upload one dhis2w-<member> to PyPI (requires UV_PUBLISH_TOKEN env)"
+	@echo "                   Members: $(PUBLISHABLE_MEMBERS)"
+	@echo "  publish-all      Upload every publishable member in dependency order (same token)"
 	@echo "  deps-upgrade     Re-resolve uv.lock to pick up newer versions"
 	@echo "  clean            Remove caches, build artifacts, coverage output, and run artifacts"
 	@echo "  clean-artifacts  Remove run artifacts alone: reports, screenshots, browser state"
@@ -196,19 +198,51 @@ build:
 	@echo "    (the dhis2w-fhir-serve wheel ships whatever 'make build-frontend' last produced)"
 	@$(UV) build --all-packages
 
-publish-client:
-	@echo ">>> Building dhis2w-client wheel"
-	@$(UV) build --package dhis2w-client
-	@echo ">>> Publishing dhis2w-client to PyPI (dry-run, set PUBLISH=1 + UV_PUBLISH_TOKEN to actually upload)"
-	@if [ "$(PUBLISH)" = "1" ]; then \
-		$(UV) publish dist/dhis2w_client-*.whl dist/dhis2w_client-*.tar.gz; \
-	else \
-		echo "    (skipped upload; run 'make publish-client PUBLISH=1' to push)"; \
-	fi
-	@echo ""
-	@echo "Note: 'make publish-client' is for local emergencies only. The canonical flow"
-	@echo "is to tag vX.Y.Z and push — .github/workflows/pypi-publish.yml builds and"
-	@echo "uploads every dhis2w-* package via PyPI Trusted Publishing (no token needed)."
+# Releasing from the terminal. The other path to PyPI is a tag: push vX.Y.Z and
+# .github/workflows/pypi-publish.yml builds and uploads every dhis2w-* package
+# via Trusted Publishing, which needs no token. These targets need
+# UV_PUBLISH_TOKEN and upload from the checkout in front of you.
+#
+# The publishable workspace members, in dependency order: each one is uploaded
+# after everything it imports, so a resolver reading PyPI mid-release never meets
+# a package naming a sibling version the index has not seen yet. The two
+# workspace-only members — dhis2w-codegen and dhis2w-bench — are absent on
+# purpose: they are internal tools with nothing to offer a PyPI consumer.
+#
+# Names here are the suffix after `dhis2w-`; the targets are `publish-<suffix>`.
+PUBLISHABLE_MEMBERS := client ql core browser fhir fhir-engine fhir-serve cli mcp mcp-bridge mcp-router
+
+# `publish-<member>` is deliberately not declared .PHONY: GNU make skips pattern-rule
+# search for a phony target, and the pattern rule below is the whole family. Nothing
+# in the tree is named `publish-anything`, so there is no file for it to collide with.
+#
+# One member: build its wheel + sdist and upload that pair alone. The member's
+# own artifacts are removed from dist/ first, so a dist/ holding an earlier
+# version cannot be uploaded alongside the one just built — `make build` and the
+# sibling publish targets all write into the same directory.
+publish-%:
+	@test -n "$(UV_PUBLISH_TOKEN)" || { \
+		echo "UV_PUBLISH_TOKEN is unset — export a PyPI token before publishing dhis2w-$*"; \
+		exit 2; \
+	}
+	@echo ">>> Building dhis2w-$* wheel + sdist"
+	@rm -f dist/$(subst -,_,dhis2w-$*)-*.whl dist/$(subst -,_,dhis2w-$*)-*.tar.gz
+	@$(UV) build --package dhis2w-$*
+	@echo ">>> Uploading dhis2w-$* to PyPI"
+	@$(UV) publish dist/$(subst -,_,dhis2w-$*)-*.whl dist/$(subst -,_,dhis2w-$*)-*.tar.gz
+
+publish-all:
+	@test -n "$(UV_PUBLISH_TOKEN)" || { \
+		echo "UV_PUBLISH_TOKEN is unset — export a PyPI token before publishing"; \
+		exit 2; \
+	}
+	@echo ">>> Publishing every dhis2w-* package in dependency order:"
+	@echo "    $(PUBLISHABLE_MEMBERS)"
+	@echo "    (the dhis2w-fhir-serve wheel ships whatever 'make build-frontend' last produced)"
+	@for member in $(PUBLISHABLE_MEMBERS); do \
+		$(MAKE) --no-print-directory publish-$$member || exit 1; \
+	done
+	@echo ">>> Every member uploaded"
 
 deps-upgrade:
 	@echo ">>> Upgrading all resolvable deps (uv lock --upgrade)"

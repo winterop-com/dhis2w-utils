@@ -45,7 +45,7 @@ The ten publishable workspace members ship to PyPI in lockstep — every release
    git push origin main v0.6.0
    ```
 
-6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. Nine `build` jobs produce wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
+6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. One `build` job per publishable member produces wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
 
 7. **Create the GitHub release** (the tag alone does not — the Releases page stays on the previous version otherwise):
 
@@ -57,6 +57,27 @@ The ten publishable workspace members ship to PyPI in lockstep — every release
    - https://github.com/winterop-com/dhis2w-utils/actions — all green.
    - `uvx --refresh --from 'dhis2w-client==0.6.0' python -c 'import dhis2w_client; print(dhis2w_client.__file__)'` pulls and imports the new wheel.
    - `uv tool list` (or `uv tool upgrade dhis2w-cli`) shows the right version.
+
+## Releasing from the terminal
+
+`make publish-all` uploads every publishable member from the checkout in front of you, in
+dependency order — `client`, `ql`, `core`, `browser`, `fhir`, `fhir-engine`, `fhir-serve`, `cli`,
+`mcp`, `mcp-bridge`, `mcp-router` — so a resolver reading PyPI mid-release never meets a package
+naming a sibling version the index has not seen yet. `make publish-<member>` does one of them:
+
+```bash
+export UV_PUBLISH_TOKEN=...   # a PyPI API token; both targets refuse to run without one
+make build-frontend           # or the dhis2w-fhir-serve wheel ships no capture UI
+make publish-all
+```
+
+Each target builds the member's wheel and sdist with `uv build --package dhis2w-<member>` and
+uploads that pair alone, removing the member's earlier artifacts from `dist/` first so a stale
+version cannot ride along. `dhis2w-fhir-engine` has a target ahead of its first upload; it is not
+in the tag workflow's matrix until its PyPI project exists.
+
+This path and the tag are two ways to the same index, and the tag is the one to reach for: it
+builds on a clean runner and authenticates with Trusted Publishing, no token on anyone's machine.
 
 ## First release of a new package
 

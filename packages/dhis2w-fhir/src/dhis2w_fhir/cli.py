@@ -38,7 +38,6 @@ if TYPE_CHECKING:
 
     from dhis2w_core.progress import ProgressReporter
 
-    from dhis2w_fhir.config import FhirProject
     from dhis2w_fhir.doctor import DoctorReport
     from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import (
@@ -1155,27 +1154,6 @@ def _preflight_bind(host: str, port: int) -> None:
         raise
 
 
-def _resolve_serve_profile(project: FhirProject, *, required: bool) -> GenerationProfile | None:
-    """The DHIS2 instance a serve run is about, or None when this machine names no profile at all.
-
-    Absence and error are different answers and are answered differently. A machine with no
-    `profiles.toml` anywhere is a compiled guide being served on its own - a valid, fully offline
-    posture - so it resolves to None and the screens simply link nothing out. A profile that IS
-    named, by `d2w -p`, by `DHIS2_PROFILE`, or by `fhir.toml`, and turns out not to exist is a
-    statement that is wrong, and it refuses the run whether or not `--live` needed to connect.
-    """
-    from dhis2w_client.profile import NoProfileError
-
-    from dhis2w_fhir import service
-
-    try:
-        return service.resolve_generation_profile(project)
-    except NoProfileError:
-        if required:
-            raise
-        return None
-
-
 @app.command("serve")
 def serve_command(
     directory: Annotated[
@@ -1253,56 +1231,40 @@ def serve_command(
     `spool_dir` says where the receipts live - the same directory `d2w fhir forward` drains.
     """
     try:
-        from dhis2w_fhir_serve import (
-            COMPILED_RESOURCES_RELATIVE_PATH,
-            CompiledIgMissingError,
-            ServeSettings,
-            configure_logging,
-            create_app,
-        )
+        from dhis2w_fhir_serve import ServeSettings, configure_logging, create_app
     except ImportError as error:
         raise LookupError(_SERVE_PACKAGE_MISSING) from error
 
-    from dhis2w_fhir.config import basemaps_from_options
-
     project = load_project(directory)
-    serve_config = project.config.serve
-    resolved_host = host if host is not None else serve_config.host
-    resolved_port = port if port is not None else serve_config.port
-    resolved_strict_codes = strict_codes if strict_codes is not None else serve_config.strict_codes
-    resolved_ui = ui if ui is not None else serve_config.ui
-    stated_basemaps = list(basemap or [])
+    # The precedence, the profile, and the preflight on the compiled guide belong to
+    # `ServeSettings.resolve`, in `dhis2w-fhir-serve`, so an embedded facade asks for the posture
+    # this command has by name and the two cannot disagree about what a flag beats or when an
+    # unknown profile refuses a run. The one `ValueError` it raises is a `--basemap` value that
+    # names nothing servable, which is this command's to render against the flag it came from.
     try:
-        resolved_basemaps = basemaps_from_options(stated_basemaps) if stated_basemaps else list(serve_config.basemaps)
+        invocation = ServeSettings.resolve(
+            project,
+            live=live,
+            host=host,
+            port=port,
+            strict_codes=strict_codes,
+            ui=ui,
+            basemaps=basemap,
+        )
     except ValueError as error:
         raise typer.BadParameter(str(error), param_hint="--basemap") from error
-    # Resolve the profile before anything says the server is starting, so an unknown profile fails
-    # as a failure rather than under a success banner. `--live` connects with it; every run that
-    # resolves one also hands the UI the instance's address, which is what lets an identity on a
-    # page link back to the object it was generated from.
-    generation = _resolve_serve_profile(project, required=live)
-    if not live and not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
-        raise CompiledIgMissingError
-    settings = ServeSettings(
-        project_dir=directory,
-        live=live,
-        profile=None,
-        strict_codes=resolved_strict_codes,
-        capture=serve_config.capture,
-        ui=resolved_ui,
-        spool_dir=serve_config.spool_dir,
-        basemaps=resolved_basemaps,
-        dhis2_base_url=None if generation is None else generation.profile.base_url,
-        tracked_entities=serve_config.tracked_entities,
-    )
-    _preflight_bind(resolved_host, resolved_port)
+    settings = invocation.settings
+    generation = invocation.generation
+    _preflight_bind(invocation.host, invocation.port)
     configure_logging()
     # The app is built before the banner so a missing UI bundle refuses as one line here, the way
     # a taken port does, rather than under a message saying the server is starting.
     application = create_app(settings)
-    surface = _serve_surface(capture=serve_config.capture, ui=resolved_ui)
-    _line(f"starting {project.project_root} on http://{resolved_host}:{resolved_port} as a {surface} (ctrl-c to stop)")
-    if resolved_ui:
+    surface = _serve_surface(capture=settings.capture, ui=settings.ui)
+    _line(
+        f"starting {project.project_root} on http://{invocation.host}:{invocation.port} as a {surface} (ctrl-c to stop)"
+    )
+    if settings.ui:
         _hint(
             "links",
             f"the screens link identities into {generation.profile.base_url} ({generation.name}, "
@@ -1310,7 +1272,7 @@ def serve_command(
             if generation is not None
             else "no profile resolved, so the screens link no identity to a DHIS2 instance",
         )
-    _run_server(application, host=resolved_host, port=resolved_port)
+    _run_server(application, host=invocation.host, port=invocation.port)
 
 
 def _serve_surface(*, capture: bool, ui: bool) -> str:
