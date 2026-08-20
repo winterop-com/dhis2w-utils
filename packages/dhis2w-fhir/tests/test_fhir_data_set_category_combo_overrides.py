@@ -9,8 +9,10 @@ every reader of a data-set cell's combo is downstream of it - the questionnaire'
 child items, the `D2COC_CS` concepts, the compulsory operands, and the conversion that writes each
 answer back under its own `categoryOptionCombo`.
 
-The fixture is the shape play dev-2-43 carries on "Mortality < 5 years by age group" (`ce7DSxx5H2I`):
-every data element on `default`, every join on `Morbidity Age`.
+The fixture is the shape play dev-2-43 carries on "Mortality under 5 years by age group"
+(`ce7DSxx5H2I`): every data element on `default`, every join on `Morbidity Age`. The names are
+spelled "under 5" rather than "< 5" because the generate gate refuses a `<` in any name it emits,
+question names included.
 """
 
 from __future__ import annotations
@@ -71,13 +73,13 @@ _CATEGORIES_PAYLOAD: dict[str, object] = {
 #: The two data elements the fixture data set carries, both on the default combo.
 _CHOLERA: dict[str, Any] = {
     "id": "eY5ehpbEsB7",
-    "name": "Cholera (Deaths < 5 yrs)",
+    "name": "Cholera (Deaths under 5 yrs)",
     "valueType": "INTEGER_ZERO_OR_POSITIVE",
     "categoryCombo": _DEFAULT_COMBO,
 }
 _DYSENTERY: dict[str, Any] = {
     "id": "Ix2HsbDMLea",
-    "name": "Dysentery (Deaths < 5 yrs)",
+    "name": "Dysentery (Deaths under 5 yrs)",
     "valueType": "INTEGER_ZERO_OR_POSITIVE",
     "categoryCombo": _DEFAULT_COMBO,
 }

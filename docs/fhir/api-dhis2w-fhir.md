@@ -33,6 +33,36 @@ surface.
   option code (`build_option_set_concept_maps` for the `dhis2w_fhir.r4.ConceptMap`
   models, `build_option_set_concept_map_artifacts` for the JSON files that land in
   `CONCEPT_MAP_DIRECTORY`).
+- Generate one target, or the whole guide, without the command
+  (`generate_foundation`, `generate_option_sets`, `generate_categories`,
+  `generate_questionnaires`, `generate_examples`, `generate_organisation_units`,
+  `generate_pages`, `generate_full`). Each returns a `GenerateReport`, and each raises
+  `BuildAbortingCodeError` or `BuildAbortingNameError` rather than writing a guide the IG
+  publisher will die on hours later.
+- Scaffold a project, or re-render one that already exists (`init_project`,
+  `refresh_project`, `read_project_scaffold_state`, `ProjectScaffoldState`).
+- Produce a validation report rather than only rendering one (`validate_codes`, with
+  `resolve_validation_context`, `resolve_validation_scope`, and `resolve_code_source` for the
+  three things a run has to decide first). `build_aborting_code` and `build_aborting_name`
+  are the two predicates the report's error grade and the generate refusal share, so a
+  caller can ask the same question either command asks; `display_code` renders a DHIS2 code
+  for human eyes the way the report does.
+- Run the conformance chain in process, or grade one phase of it on its own (`run_doctor`,
+  `DoctorOptions`, `DoctorReport`, `render_doctor_markdown`, `phase_evidence`,
+  `resolve_doctor_profile`, and the graders `grade`, `grade_capture`, `grade_forward`,
+  `grade_oracle` over `DoctorFinding`, `CaptureOutcome`, and `FamilyOutcome`). Read
+  `run_doctor`'s own docstring first: it writes a workspace, shells out to a compiler, and
+  posts a corpus, which the graders do not.
+- Record why a spooled response was refused, and read the record back (`record_refusal`,
+  `read_refusal_record`, `ForwardRefusalRecord`, `RefusalReason`, `SPOOL_RELATIVE_PATH`).
+  `ForwardRefusalRecord` is the declared type of `SpooledReceipt.refusal`, so a caller
+  reading receipts holds instances of it either way.
+
+Every capability above that reads DHIS2 takes the connection as an argument:
+`client=` on `validate_codes`, `run_doctor`, and each generate target, with the `Profile`
+form kept as the convenience wrapper the commands use. A handed-in client is used as it
+stands and left open, so an application already holding an authenticated connection makes
+one connection rather than one per call.
 
 ## Worked example — parse a period, then walk backwards
 
@@ -134,8 +164,16 @@ models rather than as terminal output. A `DoctorReport` carries one `DoctorPhase
 phase - the outcome, the one line it is read by, the reason a phase that did not run gives,
 and every `DoctorFinding` it raised with the field path a mismatch was found at. The graders
 are the pure half of the runner: `grade_forward`, `grade_capture`, and `grade_oracle` turn a
-phase's own report into the verdict it is recorded under, and `render_doctor_markdown` turns
-the whole run into the report file a handover is read from.
+phase's own report into the verdict it is recorded under, over `ForwardReport`,
+`CaptureOutcome`, and `FamilyOutcome`, and `render_doctor_markdown` turns the whole run into
+the report file a handover is read from.
+
+`run_doctor` is the other half, and what it does to the machine is part of its contract: it
+mints a workspace directory (or writes into the one `DoctorOptions.workspace` names) and
+removes a minted one unless `keep` is set, runs `sushi` or `docker run` where a compiler is
+on the machine, writes compiled resources under `ig/fsh-generated/resources`, runs an ASGI
+application in process, and posts a synthetic corpus at the instance under validate-only
+mode. A caller that cannot afford that wants the graders rather than the run.
 
 ::: dhis2w_fhir.doctor
 

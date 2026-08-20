@@ -9,14 +9,20 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 from dhis2w_fhir.notes import pluralize
 
 #: The sweep collection each `ValidationScope` surface answers for - every other collection is never in scope.
+#: Every surface here is a kind the generate gate refuses a build-aborting name on, which is what makes
+#: the two-way parity hold: a selection-scoped `template-hostile-name` error and a generate refusal name
+#: the same objects.
 SCOPE_SURFACE_FIELDS: dict[str, str] = {
     "optionSets": "option_sets",
     "categories": "categories",
+    "categoryOptions": "category_options",
     "organisationUnits": "organisation_units",
     "dataSets": "data_sets",
     "programs": "programs",
     "programStages": "program_stages",
+    "trackedEntityTypes": "tracked_entity_types",
     "dataElements": "data_elements",
+    "trackedEntityAttributes": "tracked_entity_attributes",
 }
 
 
@@ -33,6 +39,9 @@ class ValidationScope(BaseModel):
 
     option_sets: frozenset[str] = frozenset()
     categories: frozenset[str] = frozenset()
+    #: The category options of the selected categories - the concepts their CodeSystem publishes,
+    #: and the members the generate gate refuses a build-aborting name on.
+    category_options: frozenset[str] = frozenset()
     organisation_units: frozenset[str] = frozenset()
     data_sets: frozenset[str] = frozenset()
     programs: frozenset[str] = frozenset()
@@ -40,7 +49,13 @@ class ValidationScope(BaseModel):
     #: namespace of their own, while event programs share the questionnaire targets' namespace.
     tracker_programs: frozenset[str] = frozenset()
     program_stages: frozenset[str] = frozenset()
+    #: The tracked entity types publishing a person-only registration form, whose names become
+    #: that form's title exactly as a data set's does.
+    tracked_entity_types: frozenset[str] = frozenset()
     data_elements: frozenset[str] = frozenset()
+    #: The tracked entity attributes the selected registration and person-only forms ask, which
+    #: land as concepts in the attribute half of the data dictionary.
+    tracked_entity_attributes: frozenset[str] = frozenset()
 
     def contains(self, resource_type: str, uid: str) -> bool:
         """Whether one swept object is on the configured build path, by its sweep collection name."""

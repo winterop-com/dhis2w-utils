@@ -34,16 +34,16 @@ from dhis2w_fhir.conversion import (
 from dhis2w_fhir.doctor import (
     _ORACLE_FAMILIES,
     DOCTOR_PHASE_ORDER,
+    CaptureOutcome,
     DoctorFinding,
     DoctorOptions,
     DoctorOutcome,
     DoctorPhase,
     DoctorPhaseResult,
     DoctorReport,
+    FamilyOutcome,
     _capture_one,
     _capture_order,
-    _CaptureOutcome,
-    _FamilyOutcome,
     _judge_family,
     _OracleFamily,
     _ProbeAssignment,
@@ -791,7 +791,7 @@ async def test_a_served_resource_the_instance_agrees_with_raises_nothing() -> No
 
 def test_an_oracle_family_nothing_was_served_for_says_so() -> None:
     """A family the project publishes nothing of is stated rather than counted as agreement."""
-    assert grade_oracle([_FamilyOutcome(summary="programs: nothing served")]).outcome is DoctorOutcome.PASSED
+    assert grade_oracle([FamilyOutcome(summary="programs: nothing served")]).outcome is DoctorOutcome.PASSED
 
 
 #: The four families by their label, so a failure names the family rather than an index.
@@ -910,7 +910,7 @@ async def test_the_two_questionnaire_families_are_separated_by_their_identifier_
 
 def test_capture_grading_of_an_ungeneratable_form_only_degrades_the_phase() -> None:
     """A form the server cannot generate against is a note; only a refused 201 breaks the phase."""
-    outcome = _CaptureOutcome(
+    outcome = CaptureOutcome(
         generated=False,
         accepted=False,
         findings=(
@@ -932,3 +932,38 @@ def test_the_json_payload_is_the_typed_report(tmp_path: Path) -> None:
     assert payload["phases"][0]["outcome"] == "pass"
     assert payload["options"]["samples"] == 5
     del tmp_path
+
+
+@respx.mock
+async def test_a_run_reads_through_the_client_the_caller_already_holds(
+    probe_profile: None,  # noqa: ARG001
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Handed a client, the run reads through it and opens no connection of its own.
+
+    Every connection this client library opens costs one `/api/system/info` read on the way up, so
+    counting that path across the mocked calls is how a second connection would announce itself. The
+    report a handed-in client produces is the report the profile form produces, phase for phase.
+    """
+    monkeypatch.setattr("dhis2w_fhir.doctor.shutil.which", lambda _name: None)
+    _mock_whole_instance()
+    options = DoctorOptions(workspace=tmp_path / "workspace", live=True, samples=5)
+
+    from_profile = await run_doctor(_profile(), options)
+    async with open_client(_profile().profile) as client:
+        opened = _connections()
+        from_client = await run_doctor(
+            _profile(), DoctorOptions(workspace=tmp_path / "handed-in", live=True, samples=5), client=client
+        )
+        assert _connections() == opened, "the run opened a second connection instead of using the caller's"
+        # The client is the caller's to close, so it still answers after the run has finished with it.
+        assert await client.resources.option_sets.list(fields="id", paging=False) is not None
+
+    assert [phase.phase for phase in from_client.phases] == [phase.phase for phase in from_profile.phases]
+    assert [phase.outcome for phase in from_client.phases] == [phase.outcome for phase in from_profile.phases]
+
+
+def _connections() -> int:
+    """How many DHIS2 connections this test has paid for - every `open_client` reads `/api/system/info` once."""
+    return sum(1 for call in respx.calls if call.request.url.path == "/api/system/info")

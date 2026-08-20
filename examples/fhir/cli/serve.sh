@@ -13,9 +13,21 @@ CANONICAL="http://example.org/fhir/serve-demo"
 # Scaffold a small project. --data-set and --event-program keep the IG to two forms, which
 # is what makes the compile short enough to sit inside an example script.
 d2w fhir init serve-demo --id dhis2.fhir.servedemo --canonical "$CANONICAL" \
-    --publisher "Demo Org" --data-set BfMAe6Itzgt --event-program VBqh0ynB2wv --max-level 2
+    --publisher "Demo Org" --data-set TuL8IOPzpHh --event-program EVTsupVis01 --max-level 2
 
 cd serve-demo
+
+# `init` has no flag for the terminology tables, so they are written here. A table left
+# absent selects everything of its kind, and one DHIS2 name carrying a raw '<' anywhere in
+# that everything refuses the whole generate run.
+cat >>fhir.toml <<'TOML'
+
+[generate.option_sets]
+include_ids = ["OsVaccType1"]
+
+[generate.categories]
+include_ids = ["yY2bQYqNt0o", "Qzh0MSUx4RM"]
+TOML
 
 # Generate the IG source, then compile it. The facade serves what SUSHI wrote merged with
 # the pre-built JSON the generate targets left in ig/input/resources/ - SUSHI never
@@ -50,13 +62,13 @@ curl -sf "${BASE}/metadata" | head -c 400
 echo
 
 # Read one resource. The body is byte-faithful to what the project published.
-curl -sf "${BASE}/Questionnaire/BfMAe6Itzgt" | head -c 200
+curl -sf "${BASE}/Questionnaire/TuL8IOPzpHh" | head -c 200
 echo
 
 # Search. Within a parameter, comma-separated values are alternatives; across parameters
 # they combine. An unrecognised parameter is ignored, and the Bundle's self link echoes
 # back only what was applied.
-curl -sf "${BASE}/Questionnaire?_id=BfMAe6Itzgt" | head -c 200
+curl -sf "${BASE}/Questionnaire?_id=TuL8IOPzpHh" | head -c 200
 echo
 
 # The identifier search is how a tracker program's stages are selected - the same query
@@ -83,12 +95,12 @@ echo
 # filled in against that form's own rules - value types, bounds, repeats, and real
 # concepts of the CodeSystems the questions bind. Instance-level, on the form's resource
 # id. It is deliberately NOT SDC's $populate: $populate means fill-from-real-context.
-curl -sf "${BASE}/Questionnaire/BfMAe6Itzgt/\$generate" | head -c 300
+curl -sf "${BASE}/Questionnaire/TuL8IOPzpHh/\$generate" | head -c 300
 echo
 
 # The invariant the operation exists for: generated output is immediately postable to the
 # same server. 201 means the server accepts what it just produced.
-curl -sf "${BASE}/Questionnaire/BfMAe6Itzgt/\$generate" \
+curl -sf "${BASE}/Questionnaire/TuL8IOPzpHh/\$generate" \
     | curl -s -o /dev/null -w '%{http_code}\n' \
         -X POST "${BASE}/QuestionnaireResponse" \
         -H 'Content-Type: application/fhir+json' --data-binary @-
@@ -96,9 +108,9 @@ curl -sf "${BASE}/Questionnaire/BfMAe6Itzgt/\$generate" \
 # seed makes it reproducible: same form, same seed, same bytes. Name it on the query, or
 # in a Parameters body for the POST spelling. A call naming no seed is answered from one
 # the server drew - and states it back on the response's identifier, so it replays too.
-curl -sf "${BASE}/Questionnaire/BfMAe6Itzgt/\$generate?seed=4242" | head -c 200
+curl -sf "${BASE}/Questionnaire/TuL8IOPzpHh/\$generate?seed=4242" | head -c 200
 echo
-curl -sf -X POST "${BASE}/Questionnaire/BfMAe6Itzgt/\$generate" \
+curl -sf -X POST "${BASE}/Questionnaire/TuL8IOPzpHh/\$generate" \
     -H 'Content-Type: application/fhir+json' \
     -d '{"resourceType":"Parameters","parameter":[{"name":"seed","valueInteger":4242}]}' \
     | head -c 200

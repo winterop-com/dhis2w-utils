@@ -28,7 +28,16 @@ import tempfile
 from pathlib import Path
 
 from _runner import run_example
-from dhis2w_fhir import FhirProject, GenerateReport, InitOptions, load_project, service
+from dhis2w_fhir import (
+    FHIR_CONFIG_FILENAME,
+    FhirProject,
+    GenerateReport,
+    InitOptions,
+    load_fhir_config,
+    load_project,
+    service,
+    write_fhir_config,
+)
 
 # One data set and a shallow registry keep a demonstration run to a few seconds.
 _DEMO_OPTIONS = InitOptions(
@@ -37,9 +46,17 @@ _DEMO_OPTIONS = InitOptions(
     name="GenerateDemo",
     title="Generate Demo Implementation Guide",
     publisher="Demo Org",
-    data_set_ids=["BfMAe6Itzgt"],
+    data_set_ids=["TuL8IOPzpHh"],
     max_level=2,
 )
+
+# `InitOptions` seeds the three data-definition tables and not the terminology ones, so these are
+# written into the scaffolded fhir.toml after the fact. Naming them is what keeps the demonstration
+# runnable: a table left absent selects everything of its kind, and one DHIS2 name carrying a raw
+# '<' anywhere in that everything refuses the whole run rather than writing a guide the IG
+# publisher dies on. `d2w fhir validate` lists the offenders before a run is spent on them.
+_DEMO_OPTION_SET_IDS = ["OsVaccType1"]
+_DEMO_CATEGORY_IDS = ["yY2bQYqNt0o", "Qzh0MSUx4RM"]
 
 
 async def _open_project(directory: Path | None) -> FhirProject:
@@ -48,8 +65,18 @@ async def _open_project(directory: Path | None) -> FhirProject:
         return load_project(directory)
     scratch = Path(tempfile.mkdtemp(prefix="d2w-fhir-generate-"))
     scaffold = await service.init_project(scratch, _DEMO_OPTIONS)
+    _narrow_terminology(scratch)
     print(f"scaffolded {len(scaffold.created_files)} files into {scaffold.directory}")
     return load_project(scratch)
+
+
+def _narrow_terminology(directory: Path) -> None:
+    """Name the option sets and the categories the demonstration publishes, in the project's own file."""
+    config_path = directory / FHIR_CONFIG_FILENAME
+    config = load_fhir_config(config_path)
+    config.generate.option_sets.include_ids = list(_DEMO_OPTION_SET_IDS)
+    config.generate.categories.include_ids = list(_DEMO_CATEGORY_IDS)
+    write_fhir_config(config_path, config)
 
 
 def _print_target(label: str, report: GenerateReport) -> None:

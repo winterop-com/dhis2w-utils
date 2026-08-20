@@ -69,6 +69,13 @@ emits, resolved with the same semantics `generate` uses:
   code-identifier collection (the `build_aborting_code` predicate the generate gate shares)
   or in any swept object's name. Both reach a page surface the publisher writes unescaped
   and then strict-parses, and both take the build down with them.
+
+  The name half of that grade holds in both directions, which is the property `d2w fhir
+  generate` is gated to keep: every name graded a selection-scoped error here refuses a
+  generate run, and every name a generate run refuses is graded a selection-scoped error
+  here. That is why `SCOPE_SURFACE_FIELDS` names one surface per object kind the gate reads -
+  category options, tracked entity types, and tracked entity attributes included - rather than
+  only the kinds whose codes become artifact identities.
 - **warning**: degrades the IG but the build survives - an in-scope code falling back to
   the UID, an in-scope duplicate, an in-scope `>` or `&` malforming a page.
 - **info**: the same defect on an out-of-scope object (instance hygiene - the
@@ -103,7 +110,6 @@ from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.resources.questionnaires.schemas import QUESTIONNAIRE_STEM_SURFACE, TRACKER_PROGRAM_STEM_SURFACE
 from dhis2w_fhir.validation.report import display_code, render_validation_markdown
 from dhis2w_fhir.validation.schemas import (
-    SCOPE_SURFACE_FIELDS,
     CodeCoverage,
     FhirValidationReport,
     MetadataCollectionIn,
@@ -140,6 +146,15 @@ _STEM_SURFACE_LABELS: dict[str, str] = {
     "programs": "program",
     "programStages": "program stage",
 }
+
+#: The surfaces the code-migration probe counts: the ones whose objects take an artifact identity from
+#: their DHIS2 code, plus `dataElements`, whose codes become the concept codes of the data dictionary.
+#: The rest of `SCOPE_SURFACE_FIELDS` is there to grade names by build impact rather than to be counted -
+#: a category option, a tracked entity type, and a tracked entity attribute all read their identity from
+#: the object that publishes them, so a fraction over them would answer a question nobody asks.
+_COVERAGE_SURFACES = frozenset(
+    {"optionSets", "categories", "organisationUnits", "dataSets", "programs", "programStages", "dataElements"}
+)
 
 #: Option-pass categories that only bite once generation actually reads DHIS2 codes.
 _CODE_MODE_CATEGORIES = frozenset({"invalid-code", "missing-code", "duplicate-code"})
@@ -271,7 +286,7 @@ def _code_coverage(collections: list[MetadataCollectionIn], scope: ValidationSco
     """
     surfaces: list[SurfaceCodeCoverage] = []
     for collection in sorted(collections, key=lambda item: item.resource):
-        if collection.resource not in SCOPE_SURFACE_FIELDS:
+        if collection.resource not in _COVERAGE_SURFACES:
             continue
         in_scope_items = [item for item in collection.items if scope.contains(collection.resource, item.uid)]
         if not in_scope_items:
