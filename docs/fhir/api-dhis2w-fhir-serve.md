@@ -19,7 +19,20 @@ so anything cached would be stale within seconds of a drain.
 
 ## When to reach for it
 
-- Embed the facade in another ASGI process (`create_app`, `ServeSettings`).
+- Embed the facade in another ASGI process (`create_app`, `ServeSettings`), or mount its routers
+  beside your own routes over a runtime you opened yourself (`ServeSettings.resolve`,
+  `open_serve_runtime`, `attach_serve_runtime`, `serve_routers`, `register_error_handlers`) - see
+  [Embed the facade](#embed-the-facade).
+- Get the settings `d2w fhir serve` gets for the same project and the same flags, precedence rules
+  included (`ServeSettings.resolve`, `ServeInvocation`).
+- Load a project's store, spool, and register surface without an HTTP server at all
+  (`open_serve_runtime`, `ServeRuntime`, `ServeContext`).
+- Build the served read set off a live DHIS2 instance, over a client you hold open
+  (`open_live_client`, `build_live_store`, `build_store`).
+- Translate a concept through the ConceptMaps a project publishes, with no server running
+  (`find_translations`, `TranslateRequest`, `TranslationMatch`).
+- Page through the receipts a facade holds the way `GET /spool` pages through them (`page_of`,
+  `SpoolCursor`, `SpoolPage`, `requested_page_size`, `requested_cursor`).
 - Load a project's served resources without an HTTP server (`load_compiled_store`, `ResourceStore`,
   `SearchQuery`, `IdentifierToken`).
 - Read or write the receipt spool a running facade keeps, in any of its three lifecycle states
@@ -57,20 +70,115 @@ store.search("Questionnaire", SearchQuery(urls=("http://example.org/fhir/demo/Qu
 # (StoreEntry(resource_type='Questionnaire', resource_id='BfMAe6Itzgt', ...),)
 ```
 
+## Embed the facade
+
+`create_app` builds the whole server, and an application that already runs FastAPI wants the FHIR
+surface inside the process it has. That is four steps, and each one is a name:
+
+```python
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from dhis2w_fhir import load_project
+from dhis2w_fhir_serve import (
+    ServeSettings,
+    accept_head_wherever_get_is_served,
+    attach_serve_runtime,
+    open_serve_runtime,
+    register_error_handlers,
+    require_json_is_acceptable,
+    serve_routers,
+)
+from fastapi import Depends, FastAPI
+
+settings = ServeSettings.resolve(load_project()).settings
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    async with open_serve_runtime(settings) as runtime:
+        attach_serve_runtime(app, runtime)
+        yield
+
+
+application = FastAPI(lifespan=lifespan)
+register_error_handlers(application)
+
+routers = serve_routers(capture=settings.capture)
+for router in routers.in_mount_order():
+    accept_head_wherever_get_is_served(router)
+for router in routers.fhir:
+    application.include_router(router, dependencies=[Depends(require_json_is_acceptable)])
+for router in routers.facade:
+    application.include_router(router)
+application.include_router(routers.read, dependencies=[Depends(require_json_is_acceptable)])
+```
+
+What each step is for:
+
+1. **The settings.** `ServeSettings.resolve` applies the flag-over-`[serve]` precedence, resolves the
+   DHIS2 profile, and refuses a project that has never been built. Constructing `ServeSettings`
+   directly is supported too, and a facade built that way differs from `d2w fhir serve` on purpose
+   rather than by accident.
+2. **The runtime.** `open_serve_runtime` loads the project, the store, the spool, the register
+   surface, and the CapabilityStatement, and holds the DHIS2 client a live run reads through open for
+   as long as the context manager is entered. `attach_serve_runtime` puts the two things every
+   handler reads onto the application, and nothing serves a request before it has been called.
+3. **The routers.** `serve_routers` states the mount requirements as data: the FHIR routers carry
+   `Depends(require_json_is_acceptable)`, the facade routers do not, the read catch-alls mount after
+   every fixed path your application serves - `/{resource_type}` claims any one-segment path, so your
+   own `/health` mounts first or it is gone - and every router gets the HEAD sweep, or a liveness
+   probe asking `HEAD /metadata` reads a live facade as down.
+4. **The error handlers.** Without `register_error_handlers`, every typed refusal the facade raises -
+   `RegisterDisabledError`, `NotServedError`, `CaptureDisabledError` - is a 500 with no
+   `OperationOutcome` in it.
+
+Two things stay outside this contract. The capture UI is not a router and is reached by running
+`create_app` with `settings.ui`; see [the UI boundary](design/library.md#35-the-ui-boundary-and-what-it-means-for-the-package-layout).
+And a facade served under a path is **mounted** rather than included under a prefix: every `fullUrl`,
+`self`, and paging link is built from `request.base_url`, which carries an ASGI mount's path and not
+an `include_router` prefix.
+
+A worked example of all of this is coming to the facade ladder in
+[Build your own facade](401-build-your-own-facade.md), as the level above `complex_facade.py`: an
+application that mounts these routers rather than reimplementing them.
+
 ## Reference
 
 ### Settings
 
 What one running facade is built from: the project it serves, whether the store is built live,
-which DHIS2 profile that build reads with, and how strictly a received code is checked.
+which DHIS2 profile that build reads with, and how strictly a received code is checked - and how one
+invocation resolves all of that from a project's `[serve]` table and the dials it was given.
 
 ::: dhis2w_fhir_serve.settings
 
+### The runtime
+
+What one loaded facade holds - the project, its store, its spool, its register surface, the
+statement it answers `/metadata` with, and the DHIS2 client a live run reads through - as a value a
+caller can open without starting a server. The lifespan is its first caller.
+
+::: dhis2w_fhir_serve.runtime
+
 ### Application
 
-The app factory and the lifespan that loads the project, its store, and its spool once.
+The app factory and the lifespan that opens the runtime and attaches it.
 
 ::: dhis2w_fhir_serve.app
+
+### The routers
+
+Every router the facade mounts, with what mounting it requires stated as data: which carry the
+`Accept` negotiation, which answer plain JSON about the facade rather than FHIR resources out of it,
+which claim every path of their shape and therefore mount last, and where the runtime state the
+handlers read is written and read back.
+
+::: dhis2w_fhir_serve.routes
+
+::: dhis2w_fhir_serve.routes.context
+
+::: dhis2w_fhir_serve.routes.negotiation
 
 ### Resource store
 
@@ -134,6 +242,8 @@ otherwise defines - each module docstring states why.
 
 ::: dhis2w_fhir_serve.register.projection
 
+::: dhis2w_fhir_serve.register.listing
+
 ::: dhis2w_fhir_serve.routes.register
 
 ### Enrollment listing
@@ -166,6 +276,14 @@ at the same server for a 201.
 ::: dhis2w_fhir_serve.routes.generate
 
 ::: dhis2w_fhir_serve.synthesize
+
+### Terminology translation
+
+`GET /ConceptMap/$translate` - the DHIS2 identifiers the published ConceptMaps state for one
+concept. The matching itself is a pure function over the maps a store holds, so a caller with a
+loaded store answers the same question with no server running.
+
+::: dhis2w_fhir_serve.routes.translate
 
 ### Conformance
 

@@ -2,9 +2,15 @@
 
 Each module owns its schemas; this module is the one stable import surface over them, so
 `from dhis2w_fhir_serve import ResourceStore` keeps working however the internals are arranged.
+
+What is deliberately NOT here is the capture UI. `dhis2w_fhir_serve.ui` and the `/uiconfig` document
+exist so the built React bundle can work, they are reached by running the server with
+`settings.ui`, and `create_app` is the only thing that mounts them. `UiBundleMissingError` is the
+one exception: `create_app` raises it while building, so a caller of `create_app` has to be able to
+catch it by name.
 """
 
-from dhis2w_fhir_serve.app import ServeContext, build_store, create_app, server_version
+from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.capability import build_server_capability
 from dhis2w_fhir_serve.capture import (
     DEFAULT_STRICT_CODES,
@@ -44,6 +50,7 @@ from dhis2w_fhir_serve.errors import (
     outcome,
     register_error_handlers,
 )
+from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.log import RequestLogMiddleware, configure_logging
 from dhis2w_fhir_serve.metadata import build_metadata_body
 from dhis2w_fhir_serve.register.index import PublishedAttribute, PublishedTrackedEntityType, TrackedEntityIndex
@@ -65,11 +72,14 @@ from dhis2w_fhir_serve.register.wire import (
     list_tracked_entities,
     search_tracked_entities,
 )
+from dhis2w_fhir_serve.routes import ServeRouters, accept_head_wherever_get_is_served, register_routes, serve_routers
+from dhis2w_fhir_serve.routes.context import live_client, serve_context
 from dhis2w_fhir_serve.routes.enrollments import (
     TRACKED_ENTITY_ENROLLMENTS_PATH,
     TrackedEntityEnrollment,
     TrackedEntityEnrollments,
 )
+from dhis2w_fhir_serve.routes.negotiation import require_json_is_acceptable
 from dhis2w_fhir_serve.routes.spool import (
     SPOOL_PATH,
     SpoolCounts,
@@ -79,19 +89,16 @@ from dhis2w_fhir_serve.routes.spool import (
     SpoolRejectionIssue,
     SpoolResponseSummary,
 )
-from dhis2w_fhir_serve.routes.uiconfig import (
-    OPENSTREETMAP_ATTRIBUTION,
-    UI_CONFIG_PATH,
-    BasemapLayer,
-    RegisteredTypeUiConfig,
-    RegisterUiConfig,
-    TrackedEntitiesUiConfig,
-    UiConfig,
-    basemap_layers,
-    public_instance_url,
-    tracked_entities_config,
+from dhis2w_fhir_serve.routes.translate import TranslateRequest, TranslationMatch, find_translations
+from dhis2w_fhir_serve.runtime import (
+    ServeContext,
+    ServeRuntime,
+    attach_serve_runtime,
+    build_store,
+    open_serve_runtime,
+    server_version,
 )
-from dhis2w_fhir_serve.settings import ServeSettings
+from dhis2w_fhir_serve.settings import ServeInvocation, ServeSettings
 from dhis2w_fhir_serve.spool import (
     FORWARDED_RESPONSES_RELATIVE_PATH,
     IMPORT_REPORT_SUFFIX,
@@ -100,11 +107,16 @@ from dhis2w_fhir_serve.spool import (
     SPOOL_RELATIVE_PATH,
     ResponseLifecycle,
     ResponseSpool,
+    SpoolCursor,
+    SpoolPage,
     StoredReceipt,
     StoredResponseEnvelope,
     UnreadableReceiptError,
     current_instant,
     new_response_id,
+    page_of,
+    requested_cursor,
+    requested_page_size,
 )
 from dhis2w_fhir_serve.store import (
     COMPILED_RESOURCES_RELATIVE_PATH,
@@ -125,14 +137,7 @@ from dhis2w_fhir_serve.synthesize import (
     generate_response,
     resolve_period_type,
 )
-from dhis2w_fhir_serve.ui import (
-    STATIC_DIRECTORY,
-    UiBundleMissingError,
-    UiStaticFiles,
-    mount_ui_assets,
-    mount_ui_shell,
-    ui_bundle_present,
-)
+from dhis2w_fhir_serve.ui import UiBundleMissingError
 
 __all__ = [
     "COMPILED_RESOURCES_RELATIVE_PATH",
@@ -143,24 +148,17 @@ __all__ = [
     "FORWARDED_RESPONSES_RELATIVE_PATH",
     "GENERATED_STATUS",
     "GENERATE_SEED_IDENTIFIER_SEGMENT",
+    "IMPORT_REPORT_SUFFIX",
     "MAXIMUM_SEED",
     "PAGE_PARAMETER",
-    "TRACKED_ENTITY_ENROLLMENTS_PATH",
     "RECEIVED_RESPONSES_RELATIVE_PATH",
     "REJECTED_RESPONSES_RELATIVE_PATH",
-    "IMPORT_REPORT_SUFFIX",
-    "SPOOL_PATH",
     "SEARCH_ORG_UNIT_MODE",
+    "SPOOL_PATH",
     "SPOOL_RELATIVE_PATH",
     "TOTAL_PAGES_PARAMETER",
+    "TRACKED_ENTITY_ENROLLMENTS_PATH",
     "TRACKED_ENTITY_FIELDS",
-    "OPENSTREETMAP_ATTRIBUTION",
-    "UI_CONFIG_PATH",
-    "BasemapLayer",
-    "UiConfig",
-    "basemap_layers",
-    "public_instance_url",
-    "STATIC_DIRECTORY",
     "AmbiguousCodingError",
     "BadOperationError",
     "BadSearchError",
@@ -182,19 +180,12 @@ __all__ = [
     "NotFoundError",
     "NotServedError",
     "NotServedFromCompiledIgError",
+    "PublishedAttribute",
     "PublishedTrackedEntityType",
     "RegisterDisabledError",
     "RegisterListingDisabledError",
     "RegisterListingPage",
     "RegisterSurface",
-    "RegisterUiConfig",
-    "RegisteredTypeUiConfig",
-    "ServedRegister",
-    "TrackedEntitiesUiConfig",
-    "TrackedEntityEnrollment",
-    "TrackedEntityEnrollments",
-    "TrackedEntityIndex",
-    "PublishedAttribute",
     "RequestLogMiddleware",
     "ResolvedCoding",
     "ResourceStore",
@@ -203,10 +194,16 @@ __all__ = [
     "SearchQuery",
     "ServeContext",
     "ServeError",
+    "ServeInvocation",
+    "ServeRouters",
+    "ServeRuntime",
     "ServeSettings",
+    "ServedRegister",
     "SpoolCounts",
+    "SpoolCursor",
     "SpoolImport",
     "SpoolListing",
+    "SpoolPage",
     "SpoolRejection",
     "SpoolRejectionIssue",
     "SpoolResponseSummary",
@@ -214,14 +211,21 @@ __all__ = [
     "StoreSummary",
     "StoredReceipt",
     "StoredResponseEnvelope",
+    "TrackedEntityEnrollment",
+    "TrackedEntityEnrollments",
+    "TrackedEntityIndex",
+    "TranslateRequest",
+    "TranslationMatch",
     "UiBundleMissingError",
-    "UiStaticFiles",
     "UnreadableQuestionnaireError",
     "UnreadableReceiptError",
     "UnresolvableCodingError",
     "UpstreamError",
     "ValidatedCapture",
+    "accept_head_wherever_get_is_served",
+    "attach_serve_runtime",
     "build_capture_index",
+    "build_live_store",
     "build_metadata_body",
     "build_server_capability",
     "build_store",
@@ -231,22 +235,29 @@ __all__ = [
     "current_instant",
     "draw_seed",
     "fetch_tracked_entity",
+    "find_translations",
     "generate_response",
     "list_tracked_entities",
+    "live_client",
     "load_compiled_store",
-    "mount_ui_assets",
-    "mount_ui_shell",
     "new_response_id",
+    "open_live_client",
+    "open_serve_runtime",
     "outcome",
-    "registered_entity_for",
-    "tracked_entities_config",
+    "page_of",
     "read_listing_page",
     "register_error_handlers",
+    "register_routes",
+    "registered_entity_for",
     "rejection_outcome",
+    "require_json_is_acceptable",
+    "requested_cursor",
+    "requested_page_size",
     "resolve_period_type",
     "search_tracked_entities",
+    "serve_context",
+    "serve_routers",
     "server_version",
     "success_outcome",
-    "ui_bundle_present",
     "validate_response",
 ]

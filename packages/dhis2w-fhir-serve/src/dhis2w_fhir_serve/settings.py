@@ -1,14 +1,23 @@
-"""The settings the FHIR facade app factory is built from."""
+"""The settings the FHIR facade app factory is built from, and how one invocation resolves them."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from dhis2w_fhir.config import DEFAULT_BASEMAPS, BasemapSource, TrackedEntitiesConfig
+from dhis2w_client.profile import NoProfileError
+from dhis2w_fhir.config import (
+    DEFAULT_BASEMAPS,
+    BasemapSource,
+    FhirProject,
+    TrackedEntitiesConfig,
+    basemaps_from_options,
+)
+from dhis2w_fhir.service import GenerationProfile, resolve_generation_profile
 from dhis2w_fhir.spool import SPOOL_RELATIVE_PATH
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir_serve.capture.validate import DEFAULT_STRICT_CODES
+from dhis2w_fhir_serve.store import COMPILED_RESOURCES_RELATIVE_PATH, CompiledIgMissingError
 
 
 class ServeSettings(BaseModel):
@@ -71,3 +80,107 @@ class ServeSettings(BaseModel):
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
     dhis2_base_url: str | None = None
     tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)
+
+    @classmethod
+    def resolve(
+        cls,
+        project: FhirProject,
+        *,
+        live: bool = False,
+        host: str | None = None,
+        port: int | None = None,
+        strict_codes: bool | None = None,
+        ui: bool | None = None,
+        basemaps: list[str] | None = None,
+        profile: str | None = None,
+    ) -> ServeInvocation:
+        """Resolve one invocation of the facade: a stated dial wins, then `[serve]`, then this model's defaults.
+
+        Every argument is what one run stated and None is "stated nothing", which is why the
+        booleans are `bool | None` rather than `bool`: `--no-ui` on a project whose table says
+        `ui = true` has to be able to say False and be heard. `live` is the exception and takes a
+        plain bool, because no `[serve]` key answers it - a live store is a property of the run.
+
+        `basemaps` are the raw `--basemap` strings, read through `basemaps_from_options`; stating
+        none leaves the table's layers alone. A value that names nothing servable raises
+        `ValueError`, which is the caller's to render - `d2w fhir serve` renders it against the
+        flag the value came from.
+
+        Two of `[serve]` have no dial at all and are carried across verbatim: `capture`, which says
+        what this server offers rather than what one run does, and `spool_dir`, which says where the
+        receipts a previous run wrote already live.
+
+        The profile is resolved here, before anything is built, so a named profile that does not
+        exist refuses the run rather than failing under a banner saying the server is starting. A
+        machine that names no profile at all resolves to None and serves its compiled guide offline,
+        which is a whole posture rather than a degraded one; `live` makes the profile required,
+        since a live store has an instance to read. The address it resolved is what the screens link
+        an identity out to, and it is the only part of the profile that reaches the settings - the
+        name, the origin, and the credentials stay on the invocation, which never leaves the process
+        that opened it.
+
+        The compiled guide is checked last, and only when the store is the one on disk: a project
+        that has never run SUSHI has nothing to serve, and refusing here says so in one line rather
+        than answering every read with a 404.
+        """
+        serve_config = project.config.serve
+        stated_basemaps = list(basemaps or [])
+        # The refusals are ordered as a reader meets them: a value this run stated and cannot mean
+        # is answered before a profile is looked up, and both before the guide on disk is counted.
+        resolved_basemaps = basemaps_from_options(stated_basemaps) if stated_basemaps else list(serve_config.basemaps)
+        generation = _resolved_generation(project, profile, required=live)
+        if not live and not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
+            raise CompiledIgMissingError
+        return ServeInvocation(
+            settings=cls(
+                project_dir=project.project_root,
+                live=live,
+                profile=profile,
+                strict_codes=strict_codes if strict_codes is not None else serve_config.strict_codes,
+                capture=serve_config.capture,
+                ui=ui if ui is not None else serve_config.ui,
+                spool_dir=serve_config.spool_dir,
+                basemaps=resolved_basemaps,
+                dhis2_base_url=None if generation is None else generation.profile.base_url,
+                tracked_entities=serve_config.tracked_entities,
+            ),
+            host=host if host is not None else serve_config.host,
+            port=port if port is not None else serve_config.port,
+            generation=generation,
+        )
+
+
+class ServeInvocation(BaseModel):
+    """What one run of the facade resolved to: what it serves, where it listens, and the profile behind it.
+
+    The address is here rather than on `ServeSettings` because it is what the process binds and not
+    what the app serves - the factory reads the settings and never asks where the socket is. The
+    resolved profile is here for the sharper reason: it carries the credentials the store connects
+    with, and the settings are handed to the app and read out again by `/uiconfig`, so a profile on
+    them would be a credential one HTTP response away from a browser. What the screens are entitled
+    to - the instance's address - is on the settings as `dhis2_base_url`, and the name and the origin
+    stay here, where the command that resolved them can say which profile it used.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    settings: ServeSettings
+    host: str
+    port: int
+    generation: GenerationProfile | None = None
+
+
+def _resolved_generation(project: FhirProject, profile: str | None, *, required: bool) -> GenerationProfile | None:
+    """The DHIS2 instance this run is about, or None when this machine names no profile at all.
+
+    Absence and error are different answers. A machine with no `profiles.toml` anywhere is a
+    compiled guide being served on its own, so it resolves to None. A profile that IS named - by
+    `d2w -p`, by `DHIS2_PROFILE`, or by fhir.toml - and turns out not to exist is a statement that
+    is wrong, and it refuses the run whether or not a live store needed to connect.
+    """
+    try:
+        return resolve_generation_profile(project, profile)
+    except NoProfileError:
+        if required:
+            raise
+        return None
