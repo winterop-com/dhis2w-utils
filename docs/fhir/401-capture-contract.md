@@ -28,6 +28,16 @@ the response profiles, a requirements CapabilityStatement, and a prose
 Capture page with validated examples. A third party needs the published
 guide and nothing else.
 
+The shapes are deliberately generic FHIR. A capture is a plain
+`QuestionnaireResponse`, a vocabulary a standard `CodeSystem` and
+`ValueSet`, an organisation unit a `Location`, a summary a standard
+document `Bundle` - and everything DHIS2-specific rides in the D2
+extensions and identifier conventions, never in the structure. Any FHIR
+client reads what the facade serves without knowing DHIS2 exists; the
+extensions are there for the round trip home. That layering is also what
+makes this contract a pattern: another system could publish its forms the
+same way, carrying its own identity in its own extension vocabulary.
+
 ## The five profiles
 
 One per form kind, in `foundation/d2-responses.fsh`. "Form kind" is the

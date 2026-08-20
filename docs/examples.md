@@ -6,12 +6,12 @@ One copy of each example, running against DHIS2 v41, v42, and v43 alike. An exam
 
 Each entry below: **file path → what it demonstrates → which concept doc explains it**. This page is curated — it covers the headline examples per topic; not every single file shows up here. `ls examples/{cli,client,mcp}/` is the source of truth, and each surface directory has a README of its own.
 
-Examples come in four groups — the three surfaces, plus [FHIR](#fhir-examples), which carries two of its own:
+Examples come in four groups — the three surfaces, plus [FHIR](#fhir-examples), which carries three of its own:
 
 - **CLI** (`examples/cli/*.sh`) — bash invocations of the `d2w` Typer CLI. Run with `bash examples/cli/<name>.sh` with the venv on `PATH` (via `source .venv/bin/activate` or `uv run -- bash ...`).
 - **Client** (`examples/client/*.py`) — Python library usage. Run with `uv run python examples/client/<name>.py`.
 - **MCP** (`examples/mcp/*.py`) — FastMCP tool calls through an in-process client. Run with `uv run python examples/mcp/<name>.py`.
-- **FHIR** (`examples/fhir/{cli,client}/`) — the `d2w fhir` surface, grouped on its own because it is its own product, in two shapes of caller: the commands, and the Python library.
+- **FHIR** (`examples/fhir/{cli,client,engine}/`) — the FHIR surface, grouped on its own because it is its own product: `cli/` and `client/` are the two shapes of caller for `d2w fhir`, and `engine/` is the evaluation engine, which has no DHIS2 in it at all.
 
 Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.config/dhis2/profiles.toml` / `DHIS2_PROFILE` env (see [profiles](architecture/profiles.md)). Assume a seeded local stack (`make dhis2-run`) unless stated otherwise.
 
@@ -19,7 +19,7 @@ Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.c
 
 `d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. `dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages, so this group is one copy that runs on every major. The narrative these sit under is the [`d2w fhir` guide series](fhir/index.md).
 
-The headline rows are below. The Python library path has thirty-three examples in all — grouped from "build a response from my own data" through reading a form, converting to DHIS2, sending, and driving the toolchain — catalogued in [`examples/fhir/client/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/README.md).
+The headline rows are below. The Python library path has thirty-three examples in all — grouped from "build a response from my own data" through reading a form, converting to DHIS2, sending, and driving the toolchain — catalogued in [`examples/fhir/client/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/README.md). The evaluation engine has nine of its own, catalogued in [`examples/fhir/engine/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/README.md).
 
 | Example | What it demonstrates | Related docs |
 | --- | --- | --- |
@@ -49,6 +49,22 @@ The headline rows are below. The Python library path has thirty-three examples i
 | [`fhir/client/build_aggregate_response.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/build_aggregate_response.py) | The minimal aggregate capture — a data set's numbers for one period at one organisation unit, built in typed Python | [The capture contract](fhir/401-capture-contract.md) |
 | [`fhir/client/build_registration_response.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/build_registration_response.py) | Registering a person and enrolling them, minting both DHIS2 UIDs client-side | [The capture contract](fhir/401-capture-contract.md) |
 | [`fhir/client/ips_document.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/ips_document.py) | One person's tracker record assembled into an IPS-shaped FHIR `document` Bundle — one mapped section, three required ones stating absence, and the reference check that proves the document closes | [The IPS document](fhir/design/ips.md) |
+
+### Evaluate
+
+`dhis2w-fhir-engine` evaluates FHIRPath, CQL, and ELM over FHIR-shaped data, and scores CQL quality measures into a FHIR R4 `MeasureReport`. It has no DHIS2 dependency and no web framework, so eight of these nine run instantly against an inline Bundle with nothing else installed. The narrative they sit under is the [501 pages](fhir/index.md) of the guide series.
+
+| Example | What it demonstrates | Related docs |
+| --- | --- | --- |
+| [`fhir/engine/fhirpath_basics.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/fhirpath_basics.py) | Paths, `where()`, `first()`, `count()`, `exists()` over one Patient — and why every expression answers with a collection | [FHIRPath](fhir/501-fhirpath.md) |
+| [`fhir/engine/fhirpath_over_bundle.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/fhirpath_over_bundle.py) | `ofType()` over a whole Bundle: pick a resource type out of the mix, filter it, count what is left | [FHIRPath](fhir/501-fhirpath.md) |
+| [`fhir/engine/cql_library_structure.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/cql_library_structure.py) | What each CQL header line declares — `library`, `using`, `include`, `codesystem`, `valueset`, `code`, `parameter` — and that nothing runs until a definition is asked for by name | [CQL](fhir/501-cql.md) |
+| [`fhir/engine/cql_retrieves.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/cql_retrieves.py) | `[Patient]` and `[Immunization]`, then the same retrieves under `context Patient`: one evaluation per person, each seeing only their own records | [CQL](fhir/501-cql.md) |
+| [`fhir/engine/cql_terminology.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/cql_terminology.py) | A ValueSet scoping a retrieve, resolved outside the library — plus `$validate-code` and `memberOf` asked of the terminology service directly | [CQL](fhir/501-cql.md) |
+| [`fhir/engine/cql_intervals.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/cql_intervals.py) | Interval literals, closed and open bounds, the timing vocabulary, and a `"Measurement Period"` parameter the caller replaces without editing the library | [CQL](fhir/501-cql.md) |
+| [`fhir/engine/measure_report.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/measure_report.py) | The populations, proportion versus cohort scoring, the per-person decisions, and `to_fhir()` rendering a FHIR R4 `MeasureReport` | [Quality measures](fhir/501-measures.md) |
+| [`fhir/engine/elm_round_trip.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/elm_round_trip.py) | CQL compiled to ELM JSON and run back from the ELM, with every answer compared across both evaluators | [`dhis2w_fhir_engine` API reference](fhir/api-dhis2w-fhir-engine.md) |
+| [`fhir/engine/e2e_measure_from_dhis2.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/e2e_measure_from_dhis2.py) | The whole chain: read a seeded Child Programme cohort, map tracked entities to `Patient` and weight data values to `Observation`, score a measure, check the counts against DHIS2's own records (needs `make dhis2-run`) | [Quality measures](fhir/501-measures.md) |
 
 ### Full guides
 

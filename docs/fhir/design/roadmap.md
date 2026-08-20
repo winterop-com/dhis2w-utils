@@ -1591,18 +1591,27 @@ described, and the git history is where it was built. What is left:
   whose population criteria are real CQL in an attached `Library`, evaluable by a
   FHIR-side consumer without DHIS2's analytics engine. Doctrine: the parser layer
   derives from the official HL7 ANTLR grammars (`cql.g4`, `fhirpath.g4`), never a
-  hand-rolled grammar. Prior art to reuse rather than rewrite, all in-house:
-  `winterop-com/fhirkit` (Python, ANTLR over the official grammars, ELM load and
-  emit, a `MeasureEvaluator` producing `MeasureReport`, 2,879 tests) is the
-  engine; the `dhis2ql` grammar and module in `mortenoh/playground-rust`
-  (`languages/antlr`) is the design for binding retrieves to DHIS2 metadata -
-  program, stage, element, organisation unit; the Indicator-to-Measure scoring
-  patterns in `hispvn/vn-workshop-2026` are the mapping specification, written
-  there with criteria as plain text precisely because this bridge did not exist.
-  What exists nowhere yet - and is the actual work - is the compiler from a DHIS2
-  indicator expression to CQL. Reserved owner decisions: whether fhirkit returns
-  as a published dependency or a workspace member, and whether DHIS2QL travels
-  with it or CQL alone suffices.
+  hand-rolled grammar.
+
+  The evaluation half is shipped. `dhis2w-fhir-engine` is a workspace member and a
+  published package: ANTLR over the official grammars, ELM load and emit, a
+  `MeasureEvaluator` producing `MeasureReport`, and the official HL7 CQL and
+  FHIRPath R4 compliance suites in its own test run. Its evaluator layers are
+  FHIR-version-neutral, with the release reaching them as a `FhirVersionBinding`
+  value out of `dhis2w_fhir_engine.r4`. The four
+  [501 guides](../501-cql.md) teach it and
+  [`examples/fhir/engine/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/fhir/engine)
+  runs it, including an end-to-end example that maps a seeded Child Programme
+  cohort into FHIR and scores a measure over it.
+
+  What remains - and is the actual work - is the compiler from a DHIS2 indicator
+  expression to CQL, and the `generate measures` target that would emit the
+  `Measure` and `Library` pair per selected indicator. The mapping specification
+  is the Indicator-to-Measure scoring patterns in `hispvn/vn-workshop-2026`,
+  written there with criteria as plain text precisely because this bridge did not
+  exist. Reserved owner decision: whether a DHIS2-metadata query language travels
+  with the compiler - binding retrieves to program, stage, element, and
+  organisation unit - or whether CQL over a mapped FHIR projection suffices.
 
 ### 9.3 Long-term
 

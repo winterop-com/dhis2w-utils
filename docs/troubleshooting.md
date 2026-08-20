@@ -156,11 +156,11 @@ Every `while True` / `while not` and every `asyncio.gather` in `dhis2w-*` source
 | --- | --- | --- |
 | `dhis2w-client/.../metadata.py:309` (`search`) | One request per search field | Bounded by the number of search fields (~5) |
 | `dhis2w-client/.../metadata.py:385` (`usage`) | One request per `_USAGE_PATTERNS` template | Bounded by the static pattern table |
-| `dhis2w-client/.../metadata.py:514` (`patch_bulk`) | One PATCH per (resource, uid, ops) tuple | **`asyncio.Semaphore(concurrency)`** caps concurrent in-flight requests |
-| `dhis2w-client/.../metadata.py:593` (`apply_sharing_bulk`) | One POST per (resource, uid) tuple | **`asyncio.Semaphore(concurrency)`** caps concurrent in-flight requests |
+| `dhis2w-client/.../metadata.py:529` (`patch_bulk`) | One PATCH per (resource, uid, ops) tuple | **A worker pool of `min(concurrency, len(work))` coroutines** sharing one cursor over the work list, so at most that many requests are ever in flight |
+| `dhis2w-client/.../metadata.py:623` (`apply_sharing_bulk`) | One POST per (resource, uid) tuple | **The same worker pool**: `min(concurrency, len(work))` coroutines draw from one cursor, so the fan-out never exceeds `concurrency` |
 | `dhis2w-core/.../doctor/service.py:46,50,84` | Fixed list of metadata + bug probes | Bounded by the static probe lists |
 | `dhis2w-core/.../doctor/probes_metadata.py:606` | 3 read calls (programs, stages, DEs) | Bounded by the literal tuple |
-| `dhis2w-core/.../files/service.py:94` (`get_many`) | One request per uid | **No semaphore.** Mitigation: caller controls list size; would need to be 10k+ uids before it became a real problem |
+| `dhis2w-core/.../files/service.py:94` (`get_many`) | One request per uid | **Unbounded.** Mitigation: caller controls list size; would need to be 10k+ uids before it became a real problem |
 | `dhis2w-core/.../metadata/service.py:643` | 2 metadata-export calls | Bounded by the literal pair |
 | `dhis2w-core/.../oauth2_redirect.py:113` | Single `create_task(server.serve())` | Single task, awaited |
 

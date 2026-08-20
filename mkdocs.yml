@@ -193,10 +193,16 @@ nav:
           - Terminology and ConceptMaps: fhir/401-terminology-and-conceptmaps.md
           - Custom subject types: fhir/401-custom-subject-types.md
           - Regeneration and hand-authoring: fhir/401-regeneration-and-hand-authoring.md
+      - 501 - Evaluate:
+          - FHIRPath: fhir/501-fhirpath.md
+          - CQL: fhir/501-cql.md
+          - Quality measures: fhir/501-measures.md
+          - The FHIR version binding: fhir/501-version-binding.md
       - Reference:
           - Runnable examples: examples.md
           - dhis2w_fhir API: fhir/api-dhis2w-fhir.md
           - dhis2w_fhir_serve API: fhir/api-dhis2w-fhir-serve.md
+          - dhis2w_fhir_engine API: fhir/api-dhis2w-fhir-engine.md
       - Design:
           - Architecture: fhir/architecture.md
           - Roadmap + review guide: fhir/design/roadmap.md

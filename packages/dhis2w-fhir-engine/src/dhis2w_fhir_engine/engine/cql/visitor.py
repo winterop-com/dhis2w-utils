@@ -1612,12 +1612,10 @@ class CQLEvaluatorVisitor(cqlVisitor):
         return accumulator
 
     def visitRetrieve(self, ctx: cqlParser.RetrieveContext) -> list[Any]:
-        """Visit retrieve expression [ResourceType: property in ValueSet].
+        """Visit a retrieve expression: `[ResourceType: property in ValueSet]`.
 
-        CQL retrieve syntax:
-            [ResourceType]
-            [ResourceType: codePath in valueset]
-            [ResourceType: codePath ~ code]
+        CQL retrieve syntax: `[ResourceType]`, `[ResourceType: codePath in valueset]`,
+        `[ResourceType: codePath ~ code]`.
         """
         # Get resource type
         named_type = ctx.namedTypeSpecifier()
