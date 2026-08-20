@@ -3,7 +3,8 @@
 The factory takes settings and returns an app; everything the app serves is loaded once in the
 lifespan and held on `app.state.context`. That is what makes the facade cheap - the store is
 parsed once, the CapabilityStatement is rendered once, and a request does index lookups and
-nothing else.
+nothing else. What the lifespan loads is `dhis2w_fhir_serve.runtime`'s to say: this module opens one
+runtime, attaches it, and says in one log line what was loaded.
 
 The spool is the one exception, and deliberately so: it is a path, not a loaded index, and every
 read of it re-reads the directory. `d2w fhir forward` runs as a separate process and moves receipt
@@ -24,51 +25,20 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import AsyncExitStack, asynccontextmanager
-from importlib.metadata import version
-from typing import TYPE_CHECKING, Any
+from contextlib import asynccontextmanager
 
-from dhis2w_fhir.config import FhirProject, load_project
 from fastapi import FastAPI
-from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir_serve.errors import register_error_handlers
-from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.log import LOGGER_NAME, RequestLogMiddleware
-from dhis2w_fhir_serve.metadata import build_metadata_body
-from dhis2w_fhir_serve.register.index import TrackedEntityIndex
-from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.routes import register_routes
+from dhis2w_fhir_serve.runtime import attach_serve_runtime, open_serve_runtime, server_version
 from dhis2w_fhir_serve.settings import ServeSettings
-from dhis2w_fhir_serve.spool import ResponseSpool
-from dhis2w_fhir_serve.store import ResourceStore, load_compiled_store
-
-if TYPE_CHECKING:
-    from dhis2w_client import Dhis2Client
-
-#: The distribution the server reports as its software version.
-DISTRIBUTION_NAME = "dhis2w-fhir-serve"
 
 #: The title the app carries, matching the command that runs it.
 APPLICATION_TITLE = "d2w fhir serve"
 
 logger = logging.getLogger(LOGGER_NAME)
-
-
-class ServeContext(BaseModel):
-    """Everything one running facade serves: the project, its resources, its spool, its settings."""
-
-    model_config = ConfigDict(frozen=True)
-
-    project: FhirProject
-    store: ResourceStore
-    spool: ResponseSpool
-    settings: ServeSettings
-    register_surface: RegisterSurface
-    """What this process answers for: the published register, narrowed by `[serve.tracked_entities]`."""
-
-    capability_body: dict[str, Any]
-    """The `/metadata` document, pre-rendered - the same HTTP-boundary escape hatch `StoreEntry.body` documents."""
 
 
 def create_app(settings: ServeSettings) -> FastAPI:
@@ -102,63 +72,23 @@ def create_app(settings: ServeSettings) -> FastAPI:
     return app
 
 
-async def build_store(settings: ServeSettings, project: FhirProject, client: Dhis2Client | None) -> ResourceStore:
-    """Select the store the facade serves from: the compiled IG on disk, or one built live from DHIS2.
-
-    `client` is the connection a live run holds open, and None in the default mode - the two are the
-    same fact stated once, which is why the caller opens it rather than this function.
-
-    Both paths are deliberate about failing loudly, and neither is retried: `CompiledIgMissingError`
-    or an unreachable instance propagates out of the lifespan and the server refuses to start,
-    rather than serving an empty IG that reads to a client as a project that published nothing.
-    """
-    if client is not None:
-        return await build_live_store(project, settings, client)
-    return load_compiled_store(project)
-
-
-def server_version() -> str:
-    """The installed version of this package, as the app and its CapabilityStatement report it."""
-    return version(DISTRIBUTION_NAME)
-
-
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    """Load the project and its store once, hold the live client open, and point the facade at its spool."""
+    """Open the runtime this process serves, attach it where the handlers read it, and say what was loaded."""
     settings: ServeSettings = app.state.settings
-    project = load_project(settings.project_dir)
-    async with AsyncExitStack() as connections:
-        client = await connections.enter_async_context(open_live_client(project, settings)) if settings.live else None
-        app.state.live_client = client
-        store = await build_store(settings, project, client)
-        spool = ResponseSpool.at(project.project_root, settings.spool_dir)
-        summary = store.summary()
-        register_surface = RegisterSurface.resolve(
-            TrackedEntityIndex.from_store(project, store), settings.tracked_entities
-        )
-        app.state.context = ServeContext(
-            project=project,
-            store=store,
-            spool=spool,
-            settings=settings,
-            register_surface=register_surface,
-            capability_body=build_metadata_body(
-                project=project,
-                store_summary=summary,
-                settings=settings,
-                register_surface=register_surface,
-                server_version=server_version(),
-            ),
-        )
+    async with open_serve_runtime(settings) as runtime:
+        attach_serve_runtime(app, runtime)
+        context = runtime.context
+        summary = context.store.summary()
         # This line fires before the server binds its socket - ASGI lifespan startup completes
         # first, then uvicorn opens the listeners - so it states what was loaded, never that the
         # server is up. The CLI's bind preflight owns the taken-port failure mode.
         logger.info(
             "loaded %s at %s: %d resources across %d types, %d stored responses",
             "live DHIS2" if settings.live else "the compiled IG",
-            project.project_root,
+            context.project.project_root,
             summary.total,
             len(summary.counts_by_type),
-            spool.count(),
+            context.spool.count(),
         )
         yield
