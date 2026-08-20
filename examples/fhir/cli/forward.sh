@@ -14,8 +14,21 @@ BASE="http://127.0.0.1:${PORT}"
 # resources the facade serves, so a project that cannot be served cannot be forwarded either.
 d2w fhir init forward-demo --id dhis2.fhir.forwarddemo \
     --canonical http://example.org/fhir/forward-demo \
-    --publisher "Demo Org" --data-set BfMAe6Itzgt --event-program VBqh0ynB2wv --max-level 2
+    --publisher "Demo Org" --data-set TuL8IOPzpHh --event-program EVTsupVis01 --max-level 2
 cd forward-demo
+
+# `init` has no flag for the terminology tables, so they are written here. A table left
+# absent selects everything of its kind, and one DHIS2 name carrying a raw '<' anywhere in
+# that everything refuses the whole generate run.
+cat >>fhir.toml <<'TOML'
+
+[generate.option_sets]
+include_ids = ["OsVaccType1"]
+
+[generate.categories]
+include_ids = ["yY2bQYqNt0o", "Qzh0MSUx4RM"]
+TOML
+
 d2w fhir generate
 make setup
 make sushi

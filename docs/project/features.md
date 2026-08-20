@@ -558,11 +558,22 @@ chain in one command.
   predicates `fhir validate` grades with, naming the resource type, UID, name,
   and code - because the IG publisher writes identifier values and titles into
   pages it strict-parses after writing, and aborts its final pass on the
-  malformed page after every resource has been rendered. Option and category
-  option names are gated too, since they land in page tables the instance
-  sweep cannot see. The whole run is refused rather than the object skipped,
-  since skipping leaves every Questionnaire binding it pointing at a ValueSet
-  nobody wrote.
+  malformed page after every resource has been rendered. The whole run is
+  refused rather than the object skipped, since skipping leaves every
+  Questionnaire binding it pointing at a ValueSet nobody wrote.
+- **The name gate covers every kind of object a selection publishes**: option
+  sets and their options, categories and their category options, organisation
+  units, data sets, event programs, tracker programs and their stages, tracked
+  entity types, and the data elements and tracked entity attributes those forms
+  ask as questions - a question's name is its label and its data-dictionary
+  concept display, both byte-true DHIS2 data. Every target that writes a form's
+  name reads the same gate, so `generate pages` and `generate examples` refuse
+  exactly what `generate questionnaires` refuses. The parity with
+  `fhir validate` runs both ways: a validate error on the build path is a
+  generate refusal, and a generate refusal is a validate error on the build
+  path. Only codes stay asymmetric, and deliberately - a question object's code
+  becomes a concept property the publisher escapes rather than an identifier
+  value it does not.
 
 ### Generate the IG source
 
@@ -1203,6 +1214,15 @@ semantics `generate` uses.
   after every resource has been rendered. Both errors are also generate
   refusals, through the shared `build_aborting_code` / `build_aborting_name`
   predicates.
+- **The name grade and the generate refusal hold in both directions.** Every
+  name graded a `selection`-scoped `template-hostile-name` error refuses a
+  `d2w fhir generate` run, and every name generate refuses is graded that error
+  here. The `ValidationScope` therefore carries one surface per kind of object a
+  selection can publish - option sets, options, categories, category options,
+  organisation units, data sets, programs, program stages, tracked entity types,
+  data elements, and tracked entity attributes - rather than only the six whose
+  codes become identity stems. Codes stay asymmetric on purpose: a data element's
+  code is a concept property the publisher escapes, so neither command gates it.
 - **The scope and both restrictions keep the error meaning "this build will
   fail"**: a dashboard is never generated and a data element carries its code
   through an escaped surface, so neither is a finding; `<` is the only
@@ -2237,6 +2257,39 @@ Every `d2w fhir` command with an instance behind it narrates its steps on
 stderr - a spinner on a terminal, plain `[k/N]` lines when redirected - and
 takes `--progress` / `--no-progress`. Tables, notes, and progress are stderr;
 stdout carries the `--json` payload alone, so `--json` implies a silent stderr.
+
+### The library surface
+
+Every capability behind a `d2w fhir` command is importable from `dhis2w_fhir`
+itself, so an embedding application calls what the command calls. Names below are
+`from dhis2w_fhir import ...`; [the API reference](../fhir/api-dhis2w-fhir.md)
+renders each module.
+
+| Capability | Names |
+| --- | --- |
+| Generation, whole guide or one target | `generate_full`, `generate_foundation`, `generate_option_sets`, `generate_categories`, `generate_questionnaires`, `generate_examples`, `generate_organisation_units`, `generate_pages`, plus `GenerateReport` / `GenerateFullReport` |
+| The build refusals | `BuildAbortingCodeError`, `BuildAbortingNameError`, and the two predicates behind them, `build_aborting_code` and `build_aborting_name` |
+| Scaffolding | `init_project`, `refresh_project`, `read_project_scaffold_state`, `ProjectScaffoldState`, `normalize_project_name`, `preserves_every_line` |
+| Validation, producing a report rather than rendering one | `validate_codes`, `resolve_validation_context`, `resolve_validation_scope`, `resolve_code_source`, `ValidationContext`, `display_code` |
+| The conformance runner | `run_doctor`, `DoctorOptions`, `DoctorReport`, `DoctorPhase`, `DoctorOutcome`, `DoctorPhaseResult`, `DoctorFinding`, `PhaseOutcome`, `CaptureOutcome`, `FamilyOutcome`, `resolve_doctor_profile`, `render_doctor_markdown`, `phase_evidence`, `generate_findings`, and the graders `grade`, `grade_capture`, `grade_forward`, `grade_oracle` |
+| Refusal records on the spool | `record_refusal`, `read_refusal_record`, `ForwardRefusalRecord`, `RefusalReason`, `SPOOL_RELATIVE_PATH`, `REFUSAL_RECORD_SUFFIX`, `QUARANTINE_REASON_SUFFIX`, `DRAIN_LOCK_FILE_NAME`, `ORPHAN_TEMPORARY_FILE_AGE_SECONDS` |
+| The profile a run resolves | `GenerationProfile`, `resolve_generation_profile` |
+
+- **Every capability that reads DHIS2 takes the connection as an argument.**
+  `client=` on `validate_codes`, `run_doctor`, `forward_responses`, and each
+  generate target, with the `Profile` form kept as the convenience wrapper the
+  commands use. A handed-in client is used as it stands and left open - its
+  lifetime belongs to whoever entered it - so an application already holding an
+  authenticated connection makes one connection rather than one per call.
+  `fetch_live_ig_inputs` and `fetch_live_artifacts` have always taken one.
+- **`run_doctor` states what it does to the machine** in its own docstring: it
+  mints a workspace, shells out to `sushi` or `docker run`, writes compiled
+  resources, runs an ASGI application in process, and posts a synthetic corpus
+  under validate-only mode. The graders are pure and callable without any of it.
+- **A test asserts the surface.** `test_fhir_package_surface.py` parses the
+  `:::` directives out of `docs/fhir/api-dhis2w-fhir.md` and fails when a module
+  the API reference renders exports a name the package does not, so the docs and
+  the imports cannot drift apart quietly.
 
 ### No MCP tools
 

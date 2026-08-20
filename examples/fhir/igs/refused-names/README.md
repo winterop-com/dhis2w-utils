@@ -43,26 +43,37 @@ seconds and the object's own name.
 
 ## What is in the selection, and what each half catches
 
-| Object | Where the `<` is | Who catches it |
+| Object | Where the `<` is | What each command says |
 | --- | --- | --- |
-| `tU7GixyHhsv` data element `Vitamin A given to < 5y` | Its DHIS2 name, which becomes a question label and a concept display | `d2w fhir validate` - an error on the build path |
-| `btOyqprQ9e8` category option `<1y` | Its DHIS2 name and its DHIS2 code | `d2w fhir generate` - the refusal above |
+| `btOyqprQ9e8` category option `<1y` | Its DHIS2 name and its DHIS2 code | validate: `template-hostile-name` error on the build path. generate: the refusal above, raised by the category target |
+| `tU7GixyHhsv` data element `Vitamin A given to < 5y` | Its DHIS2 name, which becomes a question label and a concept display | validate: `template-hostile-name` error on the build path. generate: refused by the questionnaire target, which runs next |
 | `lVsbKXoF0zX` data element `Weight/height <70` | Its shortName only; its name is clean | Neither. A shortName lands in resource data, not in the page furniture the publisher injects raw |
 
-Both commands are worth running here, because they answer different questions.
-Validate answers "what does this instance cost this guide?" and names every
-object, graded:
+**Both offenders are caught by both commands.** That is the parity the gate
+keeps, and it runs in both directions: every name validate grades an error on
+the build path refuses a generate run, and every name generate refuses is graded
+an error on the build path. It holds over every kind of object a selection can
+publish - option sets and their options, categories and their category options,
+organisation units, data sets, event programs, tracker programs and their
+stages, tracked entity types, and the data elements and tracked entity
+attributes those forms ask as questions.
+
+The two commands still answer different questions, which is why running both is
+worth it. Validate answers "what does this instance cost this guide?" and names
+every offender, graded:
 
 ```console
 $ uv run --project ../../../.. d2w fhir validate --no-fail
 ...
-template-hostile-name  dataElements  tU7GixyHhsv  'Vitamin A given to < 5y'   error
+error  selection  template-hostile-name  categoryOptions  btOyqprQ9e8  <1y
+error  selection  template-hostile-name  dataElements     tU7GixyHhsv  Vitamin A given to < 5y
 ```
 
-Generate answers "may I write this guide?" and stops at the first object it
+Generate answers "may I write this guide?" and stops at the **first** object it
 cannot write. On this selection that is the category option, because the
-category target runs before the questionnaire target - so the two commands name
-different objects, and reading only one of them under-reports the instance.
+category target runs before the questionnaire target - so generate names one of
+the two and validate names both. Deselect `YNZyaJHiHYq` and generate refuses on
+`tU7GixyHhsv` instead; it never falls silent.
 
 ## The selection
 

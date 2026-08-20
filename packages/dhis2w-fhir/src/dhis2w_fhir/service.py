@@ -6,6 +6,7 @@ import json
 import os
 import re
 from collections import Counter
+from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -192,7 +193,7 @@ from dhis2w_fhir.writer import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import AsyncGenerator, Sequence
 
     from dhis2w_client import Dhis2Client
     from dhis2w_client.generated.v42.schemas import (
@@ -587,6 +588,79 @@ def _refuse_build_aborting_member_names(sources: Sequence[ConceptSourceIn]) -> N
             )
 
 
+#: The DHIS2 collection each form kind asks its questions from - the name a question gate's refusal
+#: reports the object under, and the `ValidationScope` surface `d2w fhir validate` grades it against.
+_QUESTION_COLLECTIONS: dict[str, str] = {
+    "data-element": "dataElements",
+    "tracked-entity-attribute": "trackedEntityAttributes",
+}
+
+
+def _refuse_build_aborting_question_names(sources: Sequence[QuestionnaireSourceIn]) -> None:
+    """Refuse the run when the name of a question one of these forms asks aborts the publisher's build.
+
+    A data element's name is the `text` of its question and the `display` of its concept in
+    `data-dictionary/data-elements.fsh`; a tracked entity attribute's name is the same two places in
+    the attribute half of the dictionary. Both stay byte-true DHIS2 data, and the publisher writes
+    both into pages it strict-parses after writing, so a `<` in either aborts `make build` exactly as
+    a data set's own name does.
+
+    Only the name is read. A question object is a concept inside the dictionary rather than an
+    artifact of its own, so its DHIS2 code never becomes an identifier value - which is why
+    `dataElements` and `trackedEntityAttributes` are absent from validate's code-identifier
+    collections, and why gating their codes here would refuse runs validate calls clean.
+    """
+    for source in sources:
+        collection = _QUESTION_COLLECTIONS[FORM_KIND_PROFILES[source.kind].question_subject]
+        for item in _source_items(source):
+            if not build_aborting_name(item.name):
+                continue
+            raise BuildAbortingNameError(
+                f"{collection} {item.name!r} ({item.uid}), asked by {_SOURCE_CODE_COLLECTIONS[source.kind]} "
+                f"{source.name!r} ({source.uid}), has a name carrying '<'. A DHIS2 name stays byte-true on the "
+                "question text and on the data dictionary concept it publishes, which the IG publisher writes "
+                "into pages it strict-parses after writing, so `make build` aborts in its last pass, once every "
+                "resource has already been rendered. Change the name in DHIS2, then run `d2w fhir validate` for "
+                "the full report."
+            )
+
+
+def _refuse_build_aborting_form_objects(sources: Sequence[QuestionnaireSourceIn]) -> None:
+    """Refuse the run when any name or code the forms publish aborts the publisher's build.
+
+    The whole gate one form-consuming target applies: the forms' own identities, then the questions
+    they ask. Every target that writes a form's name to disk calls this, so `d2w fhir generate
+    pages` refuses exactly what `d2w fhir generate questionnaires` refuses rather than writing a
+    catalog row for a form the questionnaire target would not have emitted.
+    """
+    _refuse_build_aborting_objects([_coded_source(source) for source in sources])
+    _refuse_build_aborting_question_names(sources)
+
+
+@asynccontextmanager
+async def _instance_connection(
+    profile: Profile, client: Dhis2Client | None, *, timeout: float | None = None
+) -> AsyncGenerator[Dhis2Client]:
+    """The connection one capability reads DHIS2 through: the caller's when it holds one, else its own.
+
+    `client` is the connection the caller holds open, and None in the command's own mode - the two
+    are the same fact stated once, which is why the caller opens it rather than this function. A
+    handed-in client is used as it stands and left open afterwards: its lifetime belongs to whoever
+    entered it, so a caller making six calls over one connection makes one connection. With none
+    handed in the `Profile` is the convenience wrapper every command uses, and the connection opens
+    and closes inside the call.
+
+    `timeout` is honoured only on the connection this function opens. A handed-in client already
+    carries the caller's own read ceiling, and silently re-timing someone else's client would be a
+    side effect on an object this call does not own.
+    """
+    if client is not None:
+        yield client
+        return
+    async with open_client(profile, timeout=timeout) as opened:
+        yield opened
+
+
 #: How many steps `validate_codes` announces: connect, resolve the selection, sweep, read the
 #: option sets, build the report.
 VALIDATE_CODES_STEPS = 5
@@ -752,16 +826,21 @@ async def validate_codes(
     code_source: str | None = None,
     *,
     reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> FhirValidationReport:
     """Check the whole instance's codes (sweep) plus the option sets in depth, without writing anything.
 
     The run first resolves the configured selection into a `ValidationScope`, so every finding's
     severity means build impact on this project's IG rather than instance-wide alarm.
+
+    `client` is a connection the caller already holds open, which the run reads through and leaves
+    open; with none, the profile opens one for the length of the call, under the sweep's own read
+    ceiling rather than the client's ordinary one.
     """
     effective_source = resolve_code_source(config, code_source)
     progress = _StepAnnouncer(reporter, VALIDATE_CODES_STEPS)
     progress.step("connecting")
-    async with open_client(profile, timeout=_SWEEP_TIMEOUT_SECONDS) as client:
+    async with _instance_connection(profile, client, timeout=_SWEEP_TIMEOUT_SECONDS) as client:
         progress.complete(profile.base_url)
         progress.step("selection", "resolving the configured selection")
         scope = await resolve_validation_scope(client, config)
@@ -793,15 +872,21 @@ _SCOPE_DATA_SET_FIELDS = "id,dataSetElements[dataElement[id,optionSet[id]]]"
 #: registration form asks - every one of them carrying the option set it binds, because the
 #: option-set closure is the union of what the whole capture surface binds.
 _SCOPE_PROGRAM_FIELDS = (
-    "id,programType,programStages[id,programStageDataElements[dataElement[id,optionSet[id]]]],"
+    "id,programType,trackedEntityType[id],"
+    "programStages[id,programStageDataElements[dataElement[id,optionSet[id]]]],"
     "programTrackedEntityAttributes[trackedEntityAttribute[id,optionSet[id]]]"
 )
 
+#: The id-only tracked-entity-type projection scope resolution reads: the attributes a person-only
+#: form asks, which are the questions whose names the generate gate refuses a `<` in.
+_SCOPE_TRACKED_ENTITY_TYPE_FIELDS = "id,trackedEntityTypeAttributes[trackedEntityAttribute[id]]"
+
 
 class _ScopeBindings(BaseModel):
-    """The data elements the selected containers carry, and the option sets they and the attributes bind."""
+    """The question objects the selected containers carry, and the option sets they and the attributes bind."""
 
     data_element_uids: set[str] = Field(default_factory=set)
+    tracked_entity_attribute_uids: set[str] = Field(default_factory=set)
     option_set_uids: set[str] = Field(default_factory=set)
 
     def collect(self, reference: dict[str, object]) -> None:
@@ -810,6 +895,19 @@ class _ScopeBindings(BaseModel):
         if uid is None:
             return
         self.data_element_uids.add(uid)
+        self.collect_option_set(reference)
+
+    def collect_attribute(self, reference: dict[str, object]) -> None:
+        """Record one wire tracked-entity-attribute reference: its UID plus the option set it binds.
+
+        An attribute is not a data element, so it lands on the `trackedEntityAttributes` surface
+        rather than the `dataElements` one - the same split the generate gate reports a refused
+        question name under.
+        """
+        uid = _optional_text(reference.get("id"))
+        if uid is None:
+            return
+        self.tracked_entity_attribute_uids.add(uid)
         self.collect_option_set(reference)
 
     def collect_option_set(self, reference: dict[str, object]) -> None:
@@ -838,14 +936,52 @@ def _collect_stage_elements(stage: dict[str, object], bindings: _ScopeBindings) 
 
 
 def _collect_registration_attributes(program: Program, bindings: _ScopeBindings) -> None:
-    """Mine one tracker program's registration attributes into the scope bindings' option-set closure."""
+    """Mine one tracker program's registration attributes into the scope bindings' attribute and set closures."""
     raw_attributes = program.programTrackedEntityAttributes
     for entry in raw_attributes if isinstance(raw_attributes, list) else []:
         if not isinstance(entry, dict):
             continue
         reference = _tracked_entity_attribute_reference(entry)
         if reference is not None:
-            bindings.collect_option_set(reference)
+            bindings.collect_attribute(reference)
+
+
+def _collect_type_attributes(model: TrackedEntityType, bindings: _ScopeBindings) -> None:
+    """Mine one tracked entity type's own attributes into the scope bindings - a person-only form's questions."""
+    raw_attributes = model.trackedEntityTypeAttributes
+    for entry in raw_attributes if isinstance(raw_attributes, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        reference = _tracked_entity_attribute_reference(entry)
+        if reference is not None:
+            bindings.collect_attribute(reference)
+
+
+async def _resolve_scope_tracked_entity_types(
+    client: Dhis2Client, config: GenerateConfig, tracked_by_programs: set[str], bindings: _ScopeBindings
+) -> frozenset[str]:
+    """Resolve the tracked entity types publishing a person-only form, mining their attributes on the way.
+
+    The same selection `_fetch_tracked_entity_type_sources` applies - `[generate.tracked_entity_forms]`
+    where it names anything, the types the selected tracker programs track where it does not - so a
+    run naming neither costs no request at all.
+    """
+    selected = config.tracked_entity_forms.include_ids
+    uids = selected or sorted(tracked_by_programs)
+    if not uids:
+        return frozenset()
+    models: list[TrackedEntityType] = await client.resources.tracked_entity_types.list(
+        fields=_SCOPE_TRACKED_ENTITY_TYPE_FIELDS,
+        filters=[_uid_filter(uids)],
+        paging=False,
+    )
+    resolved: set[str] = set()
+    for model in models:
+        if not model.id:
+            continue
+        resolved.add(model.id)
+        _collect_type_attributes(model, bindings)
+    return frozenset(resolved)
 
 
 async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) -> ValidationScope:
@@ -861,11 +997,16 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
     A data element is in scope when a selected data set or a selected program's stage carries it;
     an event program contributes its single stage's elements (the stage itself is not a surface -
     only a tracker stage emits its own Questionnaire). A tracker program's tracked entity
-    attributes contribute their option sets to the closure without joining the data-element
-    surface: a registration form asks them as questions, so the sets they bind are published, but
-    an attribute is not a data element and `dataElements` is what that surface answers for. A
-    program named under the selection table its type does not belong to contributes nothing here:
-    that misconfiguration is generate's refusal to raise, not validate's.
+    attributes land on the `trackedEntityAttributes` surface rather than the data-element one -
+    a registration form asks them as questions, so their names reach the guide and the sets they
+    bind are published, but an attribute is not a data element and `dataElements` is what that
+    surface answers for. A program named under the selection table its type does not belong to
+    contributes nothing here: that misconfiguration is generate's refusal to raise, not validate's.
+
+    Every surface a `ValidationScope` carries is a surface the generate gate refuses a
+    build-aborting name on, which is what keeps the parity two-way: the category options of the
+    selected categories, the tracked entity types publishing a person-only form, and the
+    attributes those forms ask are all resolved here for exactly that reason.
     """
     bindings = _ScopeBindings()
     data_set_ids = config.data_sets.include_ids
@@ -892,6 +1033,7 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
     programs: set[str] = set()
     tracker_programs: set[str] = set()
     program_stages: set[str] = set()
+    tracked_by_programs: set[str] = set()
     for program in program_models:
         uid = program.id or ""
         if not uid:
@@ -908,6 +1050,9 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
             programs.add(uid)
             tracker_programs.add(uid)
             _collect_registration_attributes(program, bindings)
+            tracked_type_uid = _tracked_entity_type_uid(program)
+            if tracked_type_uid is not None:
+                tracked_by_programs.add(tracked_type_uid)
             for stage in stages:
                 stage_uid = _optional_text(stage.get("id"))
                 if stage_uid is not None:
@@ -921,25 +1066,34 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
     )
     category_ids = config.categories.include_ids
     # `id,name` rather than id-only: the name is the wire's one signal a category is DHIS2's
-    # built-in default placeholder, which `_category_selected` keeps off the build path.
+    # built-in default placeholder, which `_category_selected` keeps off the build path. The
+    # category options ride along on the same read - they are the concepts the selected category
+    # publishes, so their names are on the build path exactly as the category's own is.
     category_models: list[Category] = await client.resources.categories.list(
-        fields="id,name",
+        fields="id,name,categoryOptions[id]",
         filters=[_uid_filter(category_ids)] if category_ids else None,
         paging=False,
     )
+    selected_categories = [
+        model
+        for model in category_models
+        if model.id and _category_selected(model.id, model.name or "", config.categories)
+    ]
+    tracked_entity_types = await _resolve_scope_tracked_entity_types(client, config, tracked_by_programs, bindings)
     return ValidationScope(
         option_sets=option_sets,
-        categories=frozenset(
-            model.id
-            for model in category_models
-            if model.id and _category_selected(model.id, model.name or "", config.categories)
+        categories=frozenset(model.id for model in selected_categories if model.id),
+        category_options=frozenset(
+            uid for model in selected_categories for uid in _reference_uid_list(model.categoryOptions)
         ),
         organisation_units=await _fetch_published_organisation_unit_uids(client, config),
         data_sets=frozenset(data_sets),
         programs=frozenset(programs),
         tracker_programs=frozenset(tracker_programs),
         program_stages=frozenset(program_stages),
+        tracked_entity_types=tracked_entity_types,
         data_elements=frozenset(bindings.data_element_uids),
+        tracked_entity_attributes=frozenset(bindings.tracked_entity_attribute_uids),
     )
 
 
@@ -991,14 +1145,22 @@ def _emit_foundation(project: FhirProject, *, progress: _StepAnnouncer) -> Gener
 
 
 async def generate_option_sets(
-    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+    profile: Profile,
+    project: FhirProject,
+    *,
+    reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> GenerateReport:
-    """Generate a CodeSystem/ValueSet pair per option set into `terminology/`, plus its ConceptMap."""
+    """Generate a CodeSystem/ValueSet pair per option set into `terminology/`, plus its ConceptMap.
+
+    `client` is a connection the caller already holds open, which the run reads through and leaves
+    open; with none, the profile opens one for the length of the call.
+    """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching option sets")
-    async with open_client(profile) as client:
+    async with _instance_connection(profile, client) as client:
         models = await client.resources.option_sets.list(
             fields=_OPTION_SET_FIELDS,
             order=["name:asc"],
@@ -1073,14 +1235,22 @@ def _emit_option_sets(
 
 
 async def generate_categories(
-    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+    profile: Profile,
+    project: FhirProject,
+    *,
+    reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> GenerateReport:
-    """Generate one pre-built CodeSystem and ValueSet document per configured category into `categories/`."""
+    """Generate one pre-built CodeSystem and ValueSet document per configured category into `categories/`.
+
+    `client` is a connection the caller already holds open, which the run reads through and leaves
+    open; with none, the profile opens one for the length of the call.
+    """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching categories")
-    async with open_client(profile) as client:
+    async with _instance_connection(profile, client) as client:
         inputs = await _fetch_categories(client, config, notes)
         attribute_codes = await resolve_attribute_code_index(client)
     progress.complete(f"{len(inputs):,} categor{'y' if len(inputs) == 1 else 'ies'}")
@@ -1239,14 +1409,22 @@ async def fetch_assignment_index(client: Dhis2Client, sources: list[Questionnair
 
 
 async def generate_questionnaires(
-    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+    profile: Profile,
+    project: FhirProject,
+    *,
+    reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> GenerateReport:
-    """Generate one Questionnaire FSH file per selected data set, event program, and tracker program stage."""
+    """Generate one Questionnaire FSH file per selected data set, event program, and tracker program stage.
+
+    `client` is a connection the caller already holds open, which the run reads through and leaves
+    open; with none, the profile opens one for the length of the call.
+    """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets")
-    async with open_client(profile) as client:
+    async with _instance_connection(profile, client) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
         attribute_codes = await resolve_attribute_code_index(client)
@@ -1310,7 +1488,7 @@ def _emit_questionnaires(
         f"writing ig/input/fsh/{{{','.join(QUESTIONNAIRE_DIRECTORIES)}}} and "
         f"ig/input/resources/{{{ASSIGNMENT_DIRECTORY},{ATTRIBUTE_COMBO_DIRECTORY}}}",
     )
-    _refuse_build_aborting_objects([_coded_source(source) for source in sources])
+    _refuse_build_aborting_form_objects(sources)
     assignment_build = build_assignment_artifacts(
         sources,
         assignments,
@@ -1380,9 +1558,17 @@ def _emit_questionnaires(
 
 
 async def generate_examples(
-    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+    profile: Profile,
+    project: FhirProject,
+    *,
+    reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> GenerateReport:
-    """Generate one `Usage: #example` QuestionnaireResponse per configured example into `examples/`."""
+    """Generate one `Usage: #example` QuestionnaireResponse per configured example into `examples/`.
+
+    `client` is a connection the caller already holds open, which the run reads through and leaves
+    open; with none, the profile opens one for the length of the call.
+    """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[GenerateNote] = []
@@ -1400,7 +1586,7 @@ async def generate_examples(
             progress=progress,
         )
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets and the option sets they bind")
-    async with open_client(profile) as client:
+    async with _instance_connection(profile, client) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_sets = await _fetch_example_option_sets(client, sources)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
@@ -1448,6 +1634,14 @@ async def _emit_examples(
     notes stay on the targets that own those surfaces.
     """
     progress.step("examples", f"writing ig/input/fsh/{EXAMPLES_DIRECTORY}")
+    _refuse_build_aborting_form_objects(sources)
+    _refuse_build_aborting_objects(
+        [
+            _CodedObject(resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.code)
+            for option_set in option_sets
+        ]
+    )
+    _refuse_build_aborting_member_names(option_sets)
     artifacts: list[FshArtifact] = []
     example_count = 0
     if client is not None and project.config.generate.examples.per_target > 0:
@@ -2225,14 +2419,22 @@ def _registry_scale_notes(organisation_unit_count: int) -> list[GenerateNote]:
 
 
 async def generate_organisation_units(
-    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+    profile: Profile,
+    project: FhirProject,
+    *,
+    reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> GenerateReport:
-    """Generate the profiles and terminology into `organization/`, and the instance registry into `registry/`."""
+    """Generate the profiles and terminology into `organization/`, and the instance registry into `registry/`.
+
+    `client` is a connection the caller already holds open, which the run reads through and leaves
+    open; with none, the profile opens one for the length of the call.
+    """
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
     progress.step(_FETCH_LABEL, "fetching organisation units")
-    async with open_client(profile) as client:
+    async with _instance_connection(profile, client) as client:
         organisation_units = await _fetch_organisation_units(client, project.config.generate, tally, today, progress)
         attribute_codes = await resolve_attribute_code_index(client)
     progress.complete(f"{len(organisation_units):,} organisation unit(s)")
@@ -2334,16 +2536,24 @@ def _emit_organisation_units(
 
 
 async def generate_pages(
-    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+    profile: Profile,
+    project: FhirProject,
+    *,
+    reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> GenerateReport:
-    """Generate the narrative site pages and the per-artifact intros into `ig/input/pagecontent/`."""
+    """Generate the narrative site pages and the per-artifact intros into `ig/input/pagecontent/`.
+
+    `client` is a connection the caller already holds open, which the run reads through and leaves
+    open; with none, the profile opens one for the length of the call.
+    """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     notes: list[GenerateNote] = []
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets, option sets, and organisation units")
-    async with open_client(profile) as client:
+    async with _instance_connection(profile, client) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         models = await client.resources.option_sets.list(
             fields=_OPTION_SET_FIELDS,
@@ -2386,6 +2596,23 @@ def _emit_pages(
     so every artifact link and intro file name follows the ids the emitting targets wrote.
     """
     progress.step("pages", f"writing ig/{PAGES_BASE_SUBDIRECTORY}/{PAGES_DIRECTORY}")
+    _refuse_build_aborting_form_objects(sources)
+    _refuse_build_aborting_objects(
+        [
+            _CodedObject(resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.code)
+            for option_set in option_sets
+        ]
+        + [
+            _CodedObject(
+                resource_type="organisationUnits",
+                uid=organisation_unit.uid,
+                name=organisation_unit.name,
+                code=organisation_unit.code,
+            )
+            for organisation_unit in organisation_units
+        ]
+    )
+    _refuse_build_aborting_member_names(option_sets)
     pages = PagesIn(forms=_published_sources(sources), option_sets=option_sets, organisation_units=organisation_units)
     build = build_page_artifacts(
         pages,
@@ -2412,7 +2639,11 @@ def _emit_pages(
 
 
 async def generate_full(
-    profile: Profile, project: FhirProject, *, reporter: ProgressReporter | None = None
+    profile: Profile,
+    project: FhirProject,
+    *,
+    reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> GenerateFullReport:
     """Generate every target off one connected client and one pass over the instance's metadata.
 
@@ -2424,11 +2655,14 @@ async def generate_full(
     wrote. Each target keeps every note its solo command would raise, so its report reads
     exactly as the solo command's does; a consumer reading the whole run takes
     `with_distinct_notes()` so a note shared across targets is reported once.
+
+    `client` is a connection the caller already holds open, which the run reads through and leaves
+    open; with none, the profile opens one for the length of the call.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_FULL_STEPS)
     progress.step(_FETCH_LABEL, "fetching instance metadata")
-    async with open_client(profile) as client:
+    async with _instance_connection(profile, client) as client:
         inputs = await fetch_live_ig_inputs(client, config, progress=progress)
         progress.complete(
             f"{len(inputs.sources):,} questionnaire target(s), {len(inputs.option_sets):,} option set(s), "
@@ -4745,6 +4979,7 @@ async def forward_responses(
     coded_answer_mode: CodedAnswerMode | None = None,
     register_completeness: bool | None = None,
     reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> ForwardReport:
     """Drain a project's capture spool into DHIS2: translate every receipt, post it, and file what it became.
 
@@ -4766,6 +5001,8 @@ async def forward_responses(
     One client serves the run. It reads the DHIS2 value types behind the questions the published forms
     bind - the one fact the compiled IG cannot carry, since R4 spells `BOOLEAN` and `TRUE_ONLY` as the
     same `#boolean` item type - and then posts every translated payload through the same connection.
+    `client` is that connection when the caller already holds one, which the drain reads and posts
+    through and leaves open; with none, the profile opens one for the length of the drain.
 
     A guide reaches the run one of two ways, and the project decides which by what it holds. A
     compiled `ig/fsh-generated/resources` is read off disk. A project that has never run SUSHI - which
@@ -4834,6 +5071,7 @@ async def forward_responses(
             import_responses=importing,
             register_completeness=registering,
             reporter=reporter,
+            client=client,
         )
 
 
@@ -4845,6 +5083,7 @@ async def _drain_spool(
     import_responses: bool,
     register_completeness: bool,
     reporter: ProgressReporter | None,
+    client: Dhis2Client | None = None,
 ) -> ForwardReport:
     """Run one drain, with the spool lock already held - the body `forward_responses` documents."""
     progress = _StepAnnouncer(reporter, FORWARD_STEPS)
@@ -4880,7 +5119,7 @@ async def _drain_spool(
         )
         progress.complete(report.counts_line)
         return report
-    async with open_client(profile) as client:
+    async with _instance_connection(profile, client) as client:
         if compiled is None:
             progress.step("guide", "building the guide off the instance, this project holding no compiled one")
             artifacts = await fetch_live_artifacts(client, project, progress=progress)

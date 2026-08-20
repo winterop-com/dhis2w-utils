@@ -98,7 +98,13 @@ hygiene:
 The summary's **code coverage** line counts how many in-scope objects carry
 a code usable as an identity stem - the R4 `id` bar, stricter than the R4
 `code` datatype. It is the number to watch grow before switching
-`[generate.naming]` `source` from `"id"` toward `"code"`.
+`[generate.naming]` `source` from `"id"` toward `"code"`. It counts the seven
+surfaces whose objects take an identity from their code - the six naming
+surfaces plus `dataElements`, whose codes become dictionary concept codes. The
+scope carries more surfaces than that, because a name is graded on every kind
+of object the selection publishes, but a fraction over a category option or a
+tracked entity attribute would answer a question nobody asks: those read their
+identity from the object that publishes them.
 
 ### Read the scope column
 
@@ -139,6 +145,32 @@ identifier values are what a consumer matches on, and an IG that disagrees
 with its instance is worse than a malformed page. The fix is in DHIS2, which
 is what the finding is for.
 
+### The name grade and the generate refusal are the same statement
+
+A `template-hostile-name` error on the build path and a `d2w fhir generate`
+refusal name the same objects, and they do so **in both directions**:
+
+- every name graded `error` in the `selection` scope here refuses a generate
+  run, and
+- every name a generate run refuses is graded `error` in the `selection` scope
+  here.
+
+That holds over every kind of object a selection can publish: option sets and
+their options, categories and their category options, organisation units, data
+sets, event programs, tracker programs and their stages, tracked entity types,
+and the questions all of those ask - data elements and tracked entity
+attributes. Whichever command you run first, the other one has nothing new to
+tell you about names. Codes are the asymmetry that remains, and deliberately:
+a data element's code becomes a concept property the publisher escapes rather
+than an identifier value it does not, so `template-hostile-code` is raised only
+on the six collections above and generate gates codes only there.
+
+Run both anyway, because they answer different questions. Validate answers
+"what does this instance cost this guide?" and grades every object it finds.
+Generate answers "may I write this guide?" and stops at the first object it
+cannot write - so on an instance with several offenders, only validate lists
+them all.
+
 ## Preview a code migration with `--code-source`
 
 The option-pass findings are gated on the effective code source - the
@@ -157,9 +189,7 @@ The code-stem pass works the same dial for naming: under
 `code-stem-fallback` warning (that object's ids fall back to the UID); under
 `source = "code"` the same object is a `code-stem-refusal` **error** -
 `d2w fhir generate` refuses the run through the same defect predicate, so a
-validate error is also a generate refusal. A build-aborting **name** refuses
-the same way, options included, through the predicate the
-`template-hostile-name` error grade shares with the gate.
+validate error is also a generate refusal.
 `spaced-code` is the info-grade
 neighbour: a code with spaces is FHIR-valid but emits in the quoted
 `#"..."` FSH form.

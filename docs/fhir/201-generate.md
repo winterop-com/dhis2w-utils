@@ -178,10 +178,10 @@ names the handful of UIDs it is about:
 
 ```toml
 [generate.data_sets]
-include_ids = ["BfMAe6Itzgt"]       # Child Health
+include_ids = ["TuL8IOPzpHh"]       # EPI Stock
 
 [generate.event_programs]
-include_ids = ["VBqh0ynB2wv"]       # Malaria case registration
+include_ids = ["EVTsupVis01"]       # Supervision visit
 
 [generate.tracker_programs]
 include_ids = ["IpHINAT79UW"]       # Child Programme - registration + one per stage
@@ -189,9 +189,20 @@ include_ids = ["IpHINAT79UW"]       # Child Programme - registration + one per s
 [generate.tracked_entity_forms]
 include_ids = ["nEenWmSyUEp"]       # Person (Play) - register a person, no program
 
+[generate.option_sets]
+include_ids = ["OsVaccType1"]       # Vaccine type
+
+[generate.categories]
+include_ids = ["yY2bQYqNt0o", "Qzh0MSUx4RM"]
+
 [generate.organisation_units]
 max_level = 4                       # or root = "<uid>" for one sub-hierarchy
 ```
+
+Name the terminology tables too, and not only the form tables. A table left
+absent selects everything of its kind, and one DHIS2 name carrying a raw `<`
+anywhere in that everything refuses the run - which is why every guide in
+`examples/fhir/igs/` names its option sets and its categories explicitly.
 
 Or seed the same lists while scaffolding: `d2w fhir init --data-set ...
 --event-program ... --tracker-program ... --max-level 4` (offline; written
@@ -222,6 +233,43 @@ as given). Points worth knowing:
   to narrow. `NAME` translations become concept designations and title/name
   translation extensions; a question DHIS2 gives a form name to takes its
   label translation from `FORM_NAME`. Nothing else is emitted.
+
+## Know what a run refuses to write
+
+A DHIS2 name is kept byte-true on the resource it becomes, and the IG publisher
+writes those names into pages it strict-parses after writing. A `<` opens a tag,
+so the parse of the page it just wrote fails - hours in, once every resource has
+already been rendered. A run that would write such a name is refused whole
+before a single file is written, naming the object and exiting 1:
+
+```console
+$ d2w fhir generate
+error: dataElements 'Vitamin A given to < 5y' (tU7GixyHhsv), asked by dataSets
+'Child Health' (BfMAe6Itzgt), has a name carrying '<'. ...
+$ echo $?
+1
+```
+
+The whole run is refused rather than the one object skipped, because a quietly
+skipped object leaves a guide that disagrees with its own selection - a
+Questionnaire referencing terminology nobody wrote.
+
+**This is the same statement `d2w fhir validate` makes, in both directions.**
+Every name graded a `selection`-scoped `template-hostile-name` error there
+refuses a run here, and every name refused here is graded that error there. It
+holds over every kind of object a selection publishes: option sets and their
+options, categories and their category options, organisation units, data sets,
+event programs, tracker programs and their stages, tracked entity types, and the
+data elements and tracked entity attributes those forms ask as questions. Codes
+are gated too, on the six collections whose codes become identifier values -
+`optionSets`, `categories`, `organisationUnits`, `dataSets`, `programs`,
+`programStages`.
+
+Run `d2w fhir validate` first anyway: generate stops at the first object it
+cannot write, so on an instance with several offenders only validate lists them
+all. The fix is in DHIS2 - rename the object - or leave it out of the selection.
+`examples/fhir/igs/refused-names/` is a working exhibit of both commands on one
+poisoned selection.
 
 ## Read the notes
 

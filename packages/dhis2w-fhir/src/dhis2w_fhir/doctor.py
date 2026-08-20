@@ -10,9 +10,18 @@ The direction of judgement is the whole point of the oracle phase: the DHIS2 ins
 authority and the served output is what is on trial, never the reverse. A mismatch is a fact about
 this toolchain against this instance, stated with the field path it was found on.
 
-CLI-only, the way `d2w profile` is. A run writes a project tree, shells out to a compiler, posts a
-corpus through an in-process server, and reads a whole instance - a write-heavy orchestration with
-no read-only shape an MCP tool could honestly advertise.
+No MCP tool, the way `d2w profile` has none. A run writes a project tree, shells out to a compiler,
+posts a corpus through an in-process server, and reads a whole instance - a write-heavy
+orchestration with no read-only shape an MCP tool could honestly advertise.
+
+`run_doctor` is a library call all the same, and what it does to the machine is part of its
+contract rather than a surprise: it mints a workspace directory (or writes into the one
+`DoctorOptions.workspace` names) and removes a minted one unless `keep` is set, runs `sushi` or
+`docker run` when a compiler is on the machine, writes compiled resources under
+`ig/fsh-generated/resources`, runs an ASGI application in process, and posts a synthetic corpus at
+the instance under validate-only mode. A caller that cannot afford any of that wants the phases it
+grades rather than the run: `grade`, `grade_capture`, `grade_forward`, and `grade_oracle` are pure
+over `DoctorFinding`, `CaptureOutcome`, `FamilyOutcome`, and `ForwardReport`.
 """
 
 from __future__ import annotations
@@ -51,6 +60,35 @@ if TYPE_CHECKING:
 
     from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import ForwardReport
+
+__all__ = [
+    "CAPTURE_SEED_BASE",
+    "DEFAULT_ORACLE_SAMPLES",
+    "DOCTOR_PHASE_ORDER",
+    "DOCTOR_REPORT_STEM",
+    "DOCTOR_STEPS",
+    "ORACLE_SAMPLE_SEED",
+    "PROBE_MAX_LEVEL",
+    "PROBE_ROOT_LEVEL",
+    "CaptureOutcome",
+    "DoctorFinding",
+    "DoctorOptions",
+    "DoctorOutcome",
+    "DoctorPhase",
+    "DoctorPhaseResult",
+    "DoctorReport",
+    "FamilyOutcome",
+    "PhaseOutcome",
+    "generate_findings",
+    "grade",
+    "grade_capture",
+    "grade_forward",
+    "grade_oracle",
+    "phase_evidence",
+    "render_doctor_markdown",
+    "resolve_doctor_profile",
+    "run_doctor",
+]
 
 
 class DoctorPhase(StrEnum):
@@ -289,6 +327,25 @@ class PhaseOutcome(BaseModel):
     findings: tuple[DoctorFinding, ...] = ()
 
 
+class CaptureOutcome(BaseModel):
+    """What one form contributed to the capture phase: whether it generated, whether it was accepted, and why not."""
+
+    model_config = ConfigDict(frozen=True)
+
+    generated: bool
+    accepted: bool
+    findings: tuple[DoctorFinding, ...] = ()
+
+
+class FamilyOutcome(BaseModel):
+    """What one oracle family concluded: the line it is summarised by, and every mismatch it found."""
+
+    model_config = ConfigDict(frozen=True)
+
+    summary: str
+    findings: tuple[DoctorFinding, ...] = ()
+
+
 def grade(phase: DoctorPhase, evidence: str, findings: Sequence[DoctorFinding]) -> PhaseOutcome:
     """Grade one phase off what it found: an error breaks it, a warning degrades it, nothing passes it."""
     if any(finding.severity == "error" for finding in findings):
@@ -325,7 +382,7 @@ def generate_findings(notes: Sequence[GenerateNote]) -> list[DoctorFinding]:
     ]
 
 
-def grade_capture(captured: Sequence[_CaptureOutcome]) -> PhaseOutcome:
+def grade_capture(captured: Sequence[CaptureOutcome]) -> PhaseOutcome:
     """Grade the capture phase: an endpoint refusing what it generated is broken, a form it cannot fill is not."""
     findings = [finding for outcome in captured for finding in outcome.findings]
     generated = sum(1 for outcome in captured if outcome.generated)
@@ -381,7 +438,7 @@ def grade_forward(report: ForwardReport) -> PhaseOutcome:
     return grade(DoctorPhase.FORWARD, report.counts_line, findings)
 
 
-def grade_oracle(families: Sequence[_FamilyOutcome]) -> PhaseOutcome:
+def grade_oracle(families: Sequence[FamilyOutcome]) -> PhaseOutcome:
     """Grade the oracle phase off what the instance said about each family it judged."""
     findings = [finding for family in families for finding in family.findings]
     return grade(DoctorPhase.ORACLE, "; ".join(family.summary for family in families), findings)
@@ -402,9 +459,16 @@ async def run_doctor(
     options: DoctorOptions,
     *,
     reporter: ProgressReporter | None = None,
+    client: Dhis2Client | None = None,
 ) -> DoctorReport:
-    """Run every phase against the instance the profile names and report what each one concluded."""
-    return await _DoctorRun(generation, options, reporter).execute()
+    """Run every phase against the instance the profile names and report what each one concluded.
+
+    `client` is a connection the caller already holds open. Handed one, the connect phase reads the
+    instance version off it and opens nothing, and the client is left open when the run ends - its
+    lifetime belongs to whoever entered it. With none, the profile opens one for the run and closes
+    it on every exit path.
+    """
+    return await _DoctorRun(generation, options, reporter, client).execute()
 
 
 def render_doctor_markdown(report: DoctorReport) -> str:
@@ -594,7 +658,7 @@ _EVENT_PROGRAM_TYPE = "WITHOUT_REGISTRATION"
 _TRACKER_PROGRAM_TYPE = "WITH_REGISTRATION"
 
 #: What one probe target is, which is which selection table it lands in.
-ProbeTargetKind = Literal["data set", "event program", "tracker program"]
+_ProbeTargetKind = Literal["data set", "event program", "tracker program"]
 
 
 #: The organisation-unit property each probe kind's assignment is filtered on.
@@ -610,7 +674,7 @@ class _ProbeTarget(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    kind: ProbeTargetKind
+    kind: _ProbeTargetKind
     uid: str
     name: str
 
@@ -645,11 +709,16 @@ class _DoctorRun:
     """One doctor run: holds the state the phases hand each other and produces the report."""
 
     def __init__(
-        self, generation: GenerationProfile, options: DoctorOptions, reporter: ProgressReporter | None
+        self,
+        generation: GenerationProfile,
+        options: DoctorOptions,
+        reporter: ProgressReporter | None,
+        client: Dhis2Client | None = None,
     ) -> None:
         """Store what the run was invoked with; nothing is opened or written until `execute` runs."""
         self._generation = generation
         self._options = options
+        self._given_client = client
         self._progress = _PhaseProgress(reporter, DOCTOR_STEPS)
         self._results: list[DoctorPhaseResult] = []
         self._workspace = _resolve_workspace(options)
@@ -701,11 +770,18 @@ class _DoctorRun:
         await self._oracle(served=served)
 
     async def _connect(self, stack: AsyncExitStack) -> bool:
-        """Open the client, detect the instance's version, and say which plugin tree bound to it."""
+        """Read the instance's version off the run's client, and say which plugin tree bound to it.
+
+        The client is the caller's when `run_doctor` was handed one - the stack never enters it, so
+        the run closes nothing it did not open - and one opened from the profile otherwise.
+        """
         self._progress.start(DoctorPhase.CONNECT.value, f"connecting to {self._generation.profile.base_url}")
         started = time.perf_counter()
+        given = self._given_client
         try:
-            self._client = await stack.enter_async_context(open_client(self._generation.profile))
+            client = (
+                given if given is not None else await stack.enter_async_context(open_client(self._generation.profile))
+            )
         except (Dhis2ClientError, httpx.HTTPError) as error:
             self._record(
                 DoctorPhase.CONNECT,
@@ -714,8 +790,9 @@ class _DoctorRun:
                 started,
             )
             return False
-        self._dhis2_version = self._client.raw_version
-        self._version_tree = self._client.version_key
+        self._client = client
+        self._dhis2_version = client.raw_version
+        self._version_tree = client.version_key
         self._record(
             DoctorPhase.CONNECT,
             DoctorOutcome.PASSED,
@@ -761,7 +838,7 @@ class _DoctorRun:
         started = time.perf_counter()
         project = self._require_project()
         try:
-            report = await service.generate_full(self._generation.profile, project)
+            report = await service.generate_full(self._generation.profile, project, client=self._client)
         except (Dhis2ClientError, httpx.HTTPError, LookupError, ValueError) as error:
             self._record(DoctorPhase.GENERATE, DoctorOutcome.FAILED, str(error), started)
             return False
@@ -836,7 +913,9 @@ class _DoctorRun:
         started = time.perf_counter()
         project = self._require_project()
         try:
-            report = await service.validate_codes(self._generation.profile, project.config.generate)
+            report = await service.validate_codes(
+                self._generation.profile, project.config.generate, client=self._client
+            )
         except (Dhis2ClientError, httpx.HTTPError, LookupError, ValueError) as error:
             self._record(DoctorPhase.VALIDATE, DoctorOutcome.FAILED, str(error), started)
             return
@@ -898,7 +977,7 @@ class _DoctorRun:
         source = "the compiled guide"
         try:
             if not self._compiled:
-                materialised = await _materialise_live_store(project)
+                materialised = await _materialise_live_store(project, self._client)
                 source = f"the live builders ({materialised:,} document(s) written to disk)"
             application = create_app(ServeSettings(project_dir=self._workspace, live=False))
             await stack.enter_async_context(application.router.lifespan_context(application))
@@ -967,7 +1046,7 @@ class _DoctorRun:
         http = await stack.enter_async_context(
             httpx.AsyncClient(transport=transport, base_url=_IN_PROCESS_BASE_URL, timeout=60.0)
         )
-        captured: list[_CaptureOutcome] = []
+        captured: list[CaptureOutcome] = []
         for index, form in enumerate(forms):
             self._progress.tick(f"capturing ({index + 1:,}/{len(forms):,})")
             captured.append(await _capture_one(http, form, index))
@@ -988,7 +1067,9 @@ class _DoctorRun:
             return
         project = self._require_project()
         try:
-            report = await service.forward_responses(self._generation.profile, project, import_responses=False)
+            report = await service.forward_responses(
+                self._generation.profile, project, import_responses=False, client=self._client
+            )
         except (Dhis2ClientError, httpx.HTTPError, LookupError, ValueError) as error:
             self._record(DoctorPhase.FORWARD, DoctorOutcome.FAILED, str(error), started)
             return
@@ -1019,7 +1100,7 @@ class _DoctorRun:
         client = self._require_client()
         project = self._require_project()
         identifier_base = f"{project.config.generate.identifier_system_base}/id"
-        families: list[_FamilyOutcome] = []
+        families: list[FamilyOutcome] = []
         for family in _ORACLE_FAMILIES:
             self._progress.tick(f"judging {family.label}")
             families.append(await _judge_family(client, family, self._served, identifier_base, self._options.samples))
@@ -1081,25 +1162,6 @@ class _CompilerRun(BaseModel):
     tail: str
 
 
-class _CaptureOutcome(BaseModel):
-    """What one form contributed to the capture phase: whether it generated, whether it was accepted, and why not."""
-
-    model_config = ConfigDict(frozen=True)
-
-    generated: bool
-    accepted: bool
-    findings: tuple[DoctorFinding, ...] = ()
-
-
-class _FamilyOutcome(BaseModel):
-    """What one oracle family concluded: the line it is summarised by, and every mismatch it found."""
-
-    model_config = ConfigDict(frozen=True)
-
-    summary: str
-    findings: tuple[DoctorFinding, ...] = ()
-
-
 def _resolve_workspace(options: DoctorOptions) -> Path:
     """Where the throwaway project is written: the stated directory, or a fresh temporary one."""
     if options.workspace is not None:
@@ -1125,7 +1187,7 @@ async def _probe_targets(client: Dhis2Client) -> list[_ProbeTarget]:
     targets = [
         _ProbeTarget(kind="data set", uid=model.id or "", name=model.name or "") for model in data_sets if model.id
     ]
-    program_probes: tuple[tuple[str, ProbeTargetKind], ...] = (
+    program_probes: tuple[tuple[str, _ProbeTargetKind], ...] = (
         (_EVENT_PROGRAM_TYPE, "event program"),
         (_TRACKER_PROGRAM_TYPE, "tracker program"),
     )
@@ -1214,7 +1276,7 @@ def _registry_root(samples: Sequence[_ProbeAssignment]) -> str | None:
     return None
 
 
-def _uids_of_kind(targets: Sequence[_ProbeTarget], kind: ProbeTargetKind) -> list[str]:
+def _uids_of_kind(targets: Sequence[_ProbeTarget], kind: _ProbeTargetKind) -> list[str]:
     """The UIDs of one probe kind, which is what its selection table is seeded with."""
     return [target.uid for target in targets if target.kind == kind]
 
@@ -1341,7 +1403,7 @@ async def _run_compiler(command: Sequence[str], ig_directory: Path) -> _Compiler
     )
 
 
-async def _materialise_live_store(project: FhirProject) -> int:
+async def _materialise_live_store(project: FhirProject, client: Dhis2Client | None = None) -> int:
     """Write the documents the live builders produce into the compiled tree, and say how many landed.
 
     A machine with no FSH compiler still has to serve, capture, and forward against one guide. The
@@ -1351,13 +1413,19 @@ async def _materialise_live_store(project: FhirProject) -> int:
     Only the half SUSHI would have produced is written. The generate run already left the registry,
     the terminology, and their ConceptMaps in `ig/input/resources` as pre-built JSON, and both trees
     load into one store, so writing those again would serve every one of them twice.
+
+    `client` is the run's own connection, which the builders read through and which stays open for
+    the phases after this one; with none, a live client is opened and closed around the build.
     """
     from dhis2w_fhir_serve import ServeSettings  # noqa: PLC0415
     from dhis2w_fhir_serve.live import build_live_store, open_live_client  # noqa: PLC0415
 
     settings = ServeSettings(project_dir=project.project_root, live=True)
-    async with open_live_client(project, settings) as client:
+    if client is not None:
         store = await build_live_store(project, settings, client)
+    else:
+        async with open_live_client(project, settings) as opened:
+            store = await build_live_store(project, settings, opened)
     predefined = _predefined_identities(project)
     directory = project.ig_directory / _COMPILED_RESOURCES_RELATIVE_PATH
     directory.mkdir(parents=True, exist_ok=True)
@@ -1453,13 +1521,13 @@ def _capture_order(forms: Sequence[_ServedResource]) -> list[_ServedResource]:
     )
 
 
-async def _capture_one(http: httpx.AsyncClient, form: _ServedResource, index: int) -> _CaptureOutcome:
+async def _capture_one(http: httpx.AsyncClient, form: _ServedResource, index: int) -> CaptureOutcome:
     """Generate one response to one served form and post it back, grading whatever the endpoint answered."""
     subject = f"Questionnaire/{form.resource_id}"
     seed = (CAPTURE_SEED_BASE + index) % _CAPTURE_SEED_MODULUS
     generated = await http.get(f"/Questionnaire/{form.resource_id}/$generate", params={"seed": str(seed)})
     if generated.status_code != 200:
-        return _CaptureOutcome(
+        return CaptureOutcome(
             generated=False,
             accepted=False,
             findings=(
@@ -1477,7 +1545,7 @@ async def _capture_one(http: httpx.AsyncClient, form: _ServedResource, index: in
         headers={"Content-Type": "application/fhir+json"},
     )
     if posted.status_code != 201:
-        return _CaptureOutcome(
+        return CaptureOutcome(
             generated=True,
             accepted=False,
             findings=(
@@ -1492,7 +1560,7 @@ async def _capture_one(http: httpx.AsyncClient, form: _ServedResource, index: in
                 ),
             ),
         )
-    return _CaptureOutcome(generated=True, accepted=True)
+    return CaptureOutcome(generated=True, accepted=True)
 
 
 def _outcome_diagnostics(response: httpx.Response) -> str:
@@ -1516,7 +1584,7 @@ async def _judge_family(
     served: Sequence[_ServedResource],
     identifier_base: str,
     samples: int,
-) -> _FamilyOutcome:
+) -> FamilyOutcome:
     """Have the instance judge one family: every served UID resolved, then a seeded sample deep-compared."""
     system = f"{identifier_base}/{family.identifier_segment}"
     members = [
@@ -1525,7 +1593,7 @@ async def _judge_family(
         if resource.resource_type == family.resource_type and resource.identity_system == system
     ]
     if not members:
-        return _FamilyOutcome(summary=f"{family.label}: nothing served")
+        return FamilyOutcome(summary=f"{family.label}: nothing served")
     # Two resources can name one DHIS2 object - the registry publishes a worked example of its own
     # root unit beside the unit - so the family is judged per object, on the resource of lowest id.
     by_uid: dict[str, _ServedResource] = {}
@@ -1547,7 +1615,7 @@ async def _judge_family(
     sampled = _sample_uids(sorted(uid for uid in by_uid if uid in resolved), samples)
     for uid in sampled:
         findings.extend(_compare_resource(family, by_uid[uid], resolved[uid]))
-    return _FamilyOutcome(
+    return FamilyOutcome(
         summary=(
             f"{family.label}: {len(members):,} resource(s) over {len(by_uid):,} DHIS2 object(s), "
             f"{len(resolved):,} resolved, {len(sampled):,} deep-compared"

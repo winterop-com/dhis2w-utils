@@ -74,6 +74,14 @@ _FIXTURE_REVISION = 2
 #: Every one is in the seeded Sierra Leone fixture `make dhis2-run` boots. `Child Health` reports on
 #: the default attribute category combination and `EPI Stock` on a non-default one, which is what
 #: gives the two aggregate examples something different to say.
+#:
+#: `Child Health` carries a data element the seed names "Vitamin A given to < 5y", which
+#: `d2w fhir generate` refuses to write into an IG - a raw `<` in a name takes the IG publisher's
+#: build down in its last pass. That refusal is a build-time gate, and this fixture never builds:
+#: it scaffolds a project and reads the instance through `fetch_live_artifacts`, which produces the
+#: same documents in memory for a translator and a served facade to read. Serving a name is not
+#: publishing a page, so the selection stands. `examples/fhir/igs/refused-names/` is the exhibit
+#: for what generate does with the same data set.
 _DATA_SET_IDS = ("BfMAe6Itzgt", "TuL8IOPzpHh")
 _EVENT_PROGRAM_IDS = ("EVTsupVis01",)
 _TRACKER_PROGRAM_IDS = ("IpHINAT79UW",)
