@@ -1,0 +1,17 @@
+# Generated IG source, for every project in this catalog.
+#
+# Each project's own .gitignore (written by `d2w fhir init`) already covers the build
+# output - ig/fsh-generated/, ig/output/, ig/temp/, ig/input-cache/, ig/input/resources/,
+# reports/. What it does not cover is the FSH and the markdown `d2w fhir generate` writes
+# beside the two hand-authored files, because a real project commits those. This catalog
+# does not: the trees here are the inputs, and `make verify-igs` regenerates the rest.
+
+*/ig/input/fsh/*
+!*/ig/input/fsh/aliases.fsh
+*/ig/input/pagecontent/*
+!*/ig/input/pagecontent/index.md
+
+# The catalog runs through the workspace `d2w`, never through a project's own
+# environment, so neither the lock nor the virtual environment is ever written here.
+*/uv.lock
+*/.venv/

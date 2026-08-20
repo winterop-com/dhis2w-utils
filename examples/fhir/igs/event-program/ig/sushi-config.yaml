@@ -1,0 +1,43 @@
+id: dhis2.fhir.examples.event-program
+canonical: http://example.org/fhir/examples/event-program
+name: ExamplesEventProgram
+title: Event program example guide
+description: Event program example guide, generated from DHIS2 metadata by d2w fhir.
+status: draft
+version: 0.1.0
+fhirVersion: 4.0.1
+copyrightYear: 2026+
+releaseLabel: ci-build
+license: CC0-1.0
+publisher:
+  name: dhis2w-utils examples
+
+# The publisher writes every resource as JSON, XML and Turtle, plus a rendered page per
+# format, plus a spreadsheet per conformance resource. A DHIS2-derived IG publishes
+# thousands of instances, so the extra formats cost far more build time than they earn -
+# on a national registry the spreadsheet pass alone is most of the build - and JSON is
+# what consumers and the tooling read.
+# SUSHI recurses into sub-folders of input/resources, the IG Publisher does not. The
+# pre-built JSON d2w writes lands two levels down, so each sub-folder is declared as a
+# path-resource glob to put those resources in the ImplementationGuide.
+parameters:
+  excludexml: "true"
+  excludettl: "true"
+  excludexls: "true"
+  path-resource:
+    - input/resources/registry/*
+    - input/resources/terminology/*
+    - input/resources/concept-maps/*
+    - input/resources/categories/*
+    - input/resources/attribute-option-combos/*
+    - input/resources/assignments/*
+
+menu:
+  Home: index.html
+  Forms: forms.html
+  Registry: registry.html
+  Terminology: terminology.html
+  Identifiers: identifiers.html
+  Periods: periods.html
+  Capture: capture.html
+  Artifacts: artifacts.html

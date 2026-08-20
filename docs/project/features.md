@@ -2458,6 +2458,15 @@ against DHIS2 v41, v42, and v43.
   context off the instance, and starts a live facade on a port the operating
   system picks. There are no MCP examples because there are no MCP tools: what
   an agent drives is the served facade, over HTTP.
+- **`examples/fhir/igs/`**: eight complete `d2w fhir init` project trees, one
+  per feature story - minimal aggregate, disaggregated aggregate, event program,
+  tracker registration, strict terminology, district registry, mixed facility,
+  and the `refused-names` exhibit whose generate is refused by design. Each is
+  committed as its inputs alone (`fhir.toml`, the SUSHI skeleton, the Makefile,
+  the Dockerfile); nothing `d2w fhir generate` or SUSHI writes is. `make
+  verify-igs` refreshes, validates, generates, and dockerized-SUSHI-compiles all
+  eight - an on-demand target, because it needs a reachable DHIS2 instance and
+  docker.
 - **`examples/client/`**: 80+ Python examples (whoami, CRUD, analytics, OIDC,
   bulk import, tracker lifecycle, sharing, error handling, ...)
 - **`examples/cli/`**: 60+ shell scripts covering every CLI domain

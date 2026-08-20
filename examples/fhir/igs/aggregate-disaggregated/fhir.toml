@@ -1,0 +1,42 @@
+# fhir.toml - configuration for `d2w fhir generate` (scaffolded by `d2w fhir init`).
+# Only the essentials live here; every available option is documented with its default
+# in fhir.toml.example beside this file, and explained in depth at
+# https://winterop-com.github.io/dhis2w-utils/fhir/301-fhir-toml/
+
+profile = "local_basic"           # DHIS2 profile to read metadata from
+
+[ig]
+id = "dhis2.fhir.examples.aggregate-disaggregated"
+canonical = "http://example.org/fhir/examples/aggregate-disaggregated"
+name = "ExamplesAggregateDisaggregated"
+title = "Disaggregated aggregate example guide"
+publisher = "dhis2w-utils examples"
+# "draft" while building; "active" for production - drives the sushi-config status
+# and the status and experimental flag on every generated CodeSystem/ValueSet/Questionnaire.
+status = "draft"
+
+[generate.data_sets]
+include_ids = ["TuL8IOPzpHh"]
+
+[generate.event_programs]
+include_ids = ["EVTsupVis01"]
+
+[generate.tracker_programs]
+include_ids = ["PrAncCare01"]
+
+# Edited in by hand after `d2w fhir init`; README.md explains each line.
+
+[generate.option_sets]
+include_ids = ["OsVaccType1"]
+
+[generate.categories]
+# Both axes EPI Stock disaggregates over: `Project` is the data set's own attribute
+# category combination, `Stock discarded` is the one three of its elements carry.
+include_ids = ["yY2bQYqNt0o", "Qzh0MSUx4RM"]
+
+[generate.examples]
+per_target = 3
+
+[generate.organisation_units]
+root = "PMa2VCrupOd"
+max_level = 4

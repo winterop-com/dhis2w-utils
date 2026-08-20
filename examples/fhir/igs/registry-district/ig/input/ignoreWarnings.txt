@@ -1,0 +1,26 @@
+== Suppressed Messages ==
+
+# OIDs serve OID-based terminology exchange (CDA); a DHIS2-derived IG identifies everything by URI and UID.
+%should have an OID assigned to cater for possible use with OID based terminology systems%
+%could usefully have an OID assigned%
+
+# Inherited from the core Location definition's own binding, not declared by anything in this IG.
+%is deprecated with the note: 'Use additionalBinding extension or element instead'%
+
+# DHIS2-derived concept properties are namespaced under the configured identifier system base and resolve
+# nowhere; the patterns are base-independent substrings so a custom identifier_system_base stays covered.
+%/property/dhis2-id'%
+%/property/dhis2-code'%
+
+# DHIS2-derived classifier property; its values are the fixed set aggregate|tracker.
+%/property/domain'%
+
+# The domain property values are classifiers, not concepts of the data-element CodeSystem.
+%The code 'aggregate' is not a valid code in this code system%
+%The code 'tracker' is not a valid code in this code system%
+
+# A code-typed classifier property over two fixed literals publishes no ValueSet of its own.
+%The type of property 'code' is 'code', but no ValueSet information was found%
+
+# The boundary extension is version-stable across the package versions the publisher loads.
+%There are multiple different potential matches for the url 'http://hl7.org/fhir/StructureDefinition/location-boundary-geojson'%
