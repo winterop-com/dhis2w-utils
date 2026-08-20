@@ -12,8 +12,9 @@ that endpoint captured back into DHIS2. `doctor` runs that whole chain against
 one instance and reports what the instance breaks.
 
 The series is graded: **101** pages explain and demonstrate, **201** pages
-operate a project day to day, **301** pages configure `fhir.toml`, and **401**
-pages integrate against and extend what the project publishes. Every page
+operate a project day to day, **301** pages configure `fhir.toml`, **401**
+pages integrate against and extend what the project publishes, and **501**
+pages teach the expression languages that compute over FHIR data. Every page
 states who it is for; start where your question lives.
 
 Every term either side of the boundary - DHIS2's and FHIR's - has an entry in
@@ -34,6 +35,7 @@ not a menu - the pages build on each other left to right.
 | **You configure what the guide contains** | [Quickstart](101-quickstart.md), [Validate the instance](201-validate.md), then the 301 pages from [The settings file](301-fhir-toml.md) |
 | **You operate a project that already exists** | [Check an instance with doctor](201-doctor.md), then the 201 pages in order |
 | **You are new to FHIR entirely** | [Glossary](glossary.md), [FHIR for DHIS2 people](101-fhir-concepts.md), [What `d2w fhir` is and why](101-what-and-why.md) |
+| **You want to compute over FHIR data - expressions, logic, quality measures** | [FHIRPath](501-fhirpath.md), [CQL](501-cql.md), [Quality measures](501-measures.md), then [The FHIR version binding](501-version-binding.md) |
 
 ## 101 - Understand
 
@@ -100,19 +102,41 @@ not a menu - the pages build on each other left to right.
 - [Regeneration and hand-authoring](401-regeneration-and-hand-authoring.md) - what a generate run owns,
   and where hand-authored content is safe.
 
+## 501 - Evaluate
+
+The expression languages that compute over FHIR data, in the
+`dhis2w-fhir-engine` package. Written for someone who knows DHIS2 and has never
+seen an expression language, and needing no DHIS2 instance, no server, and no
+generated project - every page runs against data you paste in.
+
+- [FHIRPath](501-fhirpath.md) - the smaller language: paths, filters, and
+  functions over one resource or one Bundle, and why every expression answers
+  with a collection.
+- [CQL](501-cql.md) - the bigger language: a named, versioned library, what its
+  header binds, how a retrieve reaches data, how a ValueSet scopes one, and how
+  an interval bounds a reporting period.
+- [Quality measures](501-measures.md) - the populations, the scoring rules, the
+  `MeasureReport` that comes out, and the DHIS2 payoff: indicators published as
+  computable measures.
+- [The FHIR version binding](501-version-binding.md) - what is
+  FHIR-version-neutral, what is R4-bound, and what an R5 sibling would provide.
+
 ## Reference
 
 - [Runnable examples](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/fhir) -
   `examples/fhir/`, the whole surface as scripts you can run: `cli/` for the
   commands each 201 page describes, `client/` for the Python library path
-  (generate a guide, consume a facade, drain a spool), `mcp/` for the two tools
-  an agent calls. One copy, runs on v41, v42 and v43 alike.
+  (generate a guide, consume a facade, drain a spool), and `engine/` for the
+  expression languages the 501 pages teach. One copy, runs on v41, v42 and v43
+  alike.
 - [Feature catalog: FHIR IG Toolchain](../project/features.md#fhir-ig-toolchain) -
   every capability of the toolchain in one inventory, surface by surface.
 - [CLI reference](../cli-reference.md) - every `d2w fhir` command and flag.
 - [`dhis2w_fhir` API reference](api-dhis2w-fhir.md) - the importable surface.
 - [`dhis2w_fhir_serve` API reference](api-dhis2w-fhir-serve.md) - the facade
   package.
+- [`dhis2w_fhir_engine` API reference](api-dhis2w-fhir-engine.md) - the
+  evaluation engine: FHIRPath, CQL, ELM, and quality measures.
 - [FHIR plugin architecture](architecture.md) - how the
   packages are laid out and why.
 

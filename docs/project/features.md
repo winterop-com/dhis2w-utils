@@ -27,6 +27,7 @@ and two workspace-only ones.
 - [MCP CLI Bridge (dhis2w-mcp-bridge)](#mcp-cli-bridge)
 - [Browser Automation (dhis2w-browser)](#browser-automation)
 - [FHIR IG Toolchain (dhis2w-fhir, dhis2w-fhir-serve)](#fhir-ig-toolchain)
+- [FHIR Evaluation Engine (dhis2w-fhir-engine)](#fhir-evaluation-engine)
 - [Code Generator (dhis2w-codegen)](#code-generator)
 - [Cross-Cutting Capabilities](#cross-cutting-capabilities)
 
@@ -89,8 +90,8 @@ await client.resources.data_elements.delete(uid)
 
 ### Bulk Operations
 
-- `patch_bulk(operations, concurrency=10)`: JSON Patch with semaphore control
-- `apply_sharing_bulk(objects, sharing, concurrency=10)`; bulk sharing updates
+- `patch_bulk(resource_type, patches, concurrency=8)`: RFC 6902 JSON Patch across many UIDs, fanned out through a bounded worker pool
+- `apply_sharing_bulk(resource_type, uids, sharing, concurrency=8)`: one sharing block applied to many UIDs through the same pool
 - `stream_to(query, file)`: stream large analytics results to disk
 
 ### Utilities
@@ -133,6 +134,11 @@ plugin exists in three version trees (v41, v42, v43). The version-neutral
 **fhir** plugin ships as its own `dhis2w-fhir` package and mounts through
 the external entry-point mechanism.
 
+One row of the table is not a `d2w` plugin. **fhir-engine** is a standalone
+package with a console script of its own and no DHIS2 dependency at all. It sits
+beside **fhir** because that is where a reader looking for the FHIR surface will
+look, and it is named as a package rather than a plugin in its own row.
+
 | Plugin | Domain |
 | --- | --- |
 | **metadata** | List, get, create, patch, delete all resource types. Bulk import/export, filter DSL, sharing, cross-resource search, usage reverse-lookup, bundle diff/merge across profiles. |
@@ -149,6 +155,7 @@ the external entry-point mechanism.
 | **datastore** | Key-value store: namespaces, keys, get/set/delete on `/api/dataStore` + `/api/userDataStore`. |
 | **files** | Documents + fileResources: upload, download, list. |
 | **fhir** | FHIR Implementation Guide generation, serving, capture, and forwarding (packages `dhis2w-fhir` + `dhis2w-fhir-serve`). See [FHIR IG Toolchain](#fhir-ig-toolchain). |
+| **fhir-engine** | FHIRPath, CQL, and ELM evaluation over FHIR data, with clinical quality measure evaluation (package `dhis2w-fhir-engine`). See [FHIR Evaluation Engine](#fhir-evaluation-engine). |
 | **messaging** | Message conversations: list, get, send, reply, mark read/unread, ticket-workflow priority/status/assignment. |
 | **maintenance** | Background tasks, cache clear, data-integrity checks, soft-delete cleanup, validation runs, predictor runs, analytics-table rebuild. |
 | **doctor** | Health probes: ~100+ metadata checks, DHIS2 data-integrity checks, BUGS.md workaround drift detection. |
@@ -2440,6 +2447,38 @@ refusal text a mistake produces, captured from real misconfigured runs.
 
 ---
 
+## FHIR Evaluation Engine
+
+**Package:** `dhis2w-fhir-engine` | **Install:** `uv add dhis2w-fhir-engine`
+
+Evaluate FHIRPath expressions, CQL libraries, and ELM against FHIR-shaped data,
+and score CQL quality measures into a FHIR R4 `MeasureReport`.
+
+The grammar, parser, AST, and evaluator layers are FHIR-version-neutral - FHIRPath
+is normative and CQL is 1.5, and neither names a FHIR release. Everything that does
+bind to a release reaches those layers as a `FhirVersionBinding` value out of
+`dhis2w_fhir_engine.r4`, so R5 lands as a sibling subpackage rather than a fork of
+the evaluator.
+
+The package runs the official HL7 CQL and FHIRPath R4 compliance suites as part of
+its own test run.
+
+It ships the console script `d2w-fhir-engine` with `fhirpath`, `cql`, and `elm`
+sub-apps over the same engine.
+
+It has no DHIS2 dependency and no web-framework dependency: it evaluates
+expressions over FHIR-shaped JSON and returns values.
+
+- [`dhis2w_fhir_engine` API reference](../fhir/api-dhis2w-fhir-engine.md) - the
+  importable surface, module by module.
+- [FHIRPath](../fhir/501-fhirpath.md), [CQL](../fhir/501-cql.md),
+  [Quality measures](../fhir/501-measures.md), and
+  [The FHIR version binding](../fhir/501-version-binding.md) - the 501 guide series.
+- [`examples/fhir/engine/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/fhir/engine) -
+  nine runnable examples, one feature apiece.
+
+---
+
 ## Code Generator
 
 **Package:** `dhis2w-codegen` | **Workspace-only** (not published to PyPI)
@@ -2582,9 +2621,12 @@ dhis2w-fhir-serve -> dhis2w-fhir            |
                        |                     |
               (optional [serve] extra)
 
-dhis2w-codegen   workspace-only generator
+dhis2w-codegen        workspace-only generator
+dhis2w-fhir-engine    standalone; no dhis2w-* dependency
 ```
 
-No dependency cycles. `dhis2w-client` is standalone. Browser automation and the
-FHIR serving facade are always optional.
+No dependency cycles. `dhis2w-client` is standalone, and so is
+`dhis2w-fhir-engine`: it evaluates expressions over FHIR-shaped JSON and imports
+nothing else in this workspace. Browser automation and the FHIR serving facade are
+always optional.
 

@@ -1,8 +1,8 @@
 # FHIR examples
 
-`d2w fhir` turns a DHIS2 instance's metadata into a [FHIR](https://hl7.org/fhir/R4/) Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. It has its own example group because it is its own product surface, in two shapes of caller - the commands and the Python library - plus a catalogue of complete projects those callers drive.
+`d2w fhir` turns a DHIS2 instance's metadata into a [FHIR](https://hl7.org/fhir/R4/) Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. It has its own example group because it is its own product surface, in two shapes of caller - the commands and the Python library - plus a catalogue of complete projects those callers drive. Beside them sits the evaluation engine, which computes over FHIR data no matter where it came from.
 
-`dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages — the client detects the DHIS2 major from `/api/system/info` — so this is one copy that runs against v41, v42, and v43 alike.
+`dhis2w-fhir`, `dhis2w-fhir-serve` and `dhis2w-fhir-engine` are not per-version packages — the client detects the DHIS2 major from `/api/system/info`, and the engine talks to no DHIS2 at all — so this is one copy that runs against v41, v42, and v43 alike.
 
 The narrative these scripts sit under is the [`d2w fhir` guide series](../../docs/fhir/index.md); [`docs/examples.md`](../../docs/examples.md) is the curated catalogue.
 
@@ -41,7 +41,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 
 ## [`client/`](client/README.md) — the Python library path
 
-Twenty-five examples with [their own README](client/README.md), grouped into five readings:
+Thirty-three examples with [their own README](client/README.md), grouped into five readings:
 
 | Group | What it answers |
 | --- | --- |
@@ -54,6 +54,21 @@ Twenty-five examples with [their own README](client/README.md), grouped into fiv
 **Every one runs in `make verify-examples`**, because [`client/_fixture.py`](client/_fixture.py) stands up what each needs: a scaffolded project, a translation context built live off the instance, and a `d2w fhir serve --live` facade on a port the operating system picks, stopped at exit. `D2W_FHIR_EXAMPLE_PROJECT` and `D2W_FHIR_EXAMPLE_FACADE` point the fixture at your own instead - and the verify suite sets exactly those two before its loop, standing the project and the facade up once so every FHIR client example of a batch pass shares one instead of each booting its own.
 
 There are no MCP examples because there are no MCP tools: this surface is driven from the command line and from Python, and what an agent drives is the served facade itself, over HTTP.
+
+## [`engine/`](engine/README.md) - the evaluation engine
+
+Nine examples with [their own README](engine/README.md). `dhis2w-fhir-engine` evaluates FHIRPath, CQL, and ELM over FHIR-shaped data and scores CQL quality measures into a FHIR R4 `MeasureReport`. It has no DHIS2 dependency and no web framework, which is why eight of these nine need nothing running at all.
+
+| Group | What it answers |
+| --- | --- |
+| Navigate data with FHIRPath | How do I point at a part of this resource, or pick one type out of a Bundle? |
+| State clinical logic in CQL | How do I write the question once, as a library, and evaluate it against data? |
+| Score a quality measure | How do I turn that into populations, a score, and a FHIR `MeasureReport`? |
+| Against a real DHIS2 instance | What does the whole chain look like over seeded tracker data? |
+
+The narrative these sit under is the [501 pages](../../docs/fhir/index.md) of the guide series: [FHIRPath](../../docs/fhir/501-fhirpath.md), [CQL](../../docs/fhir/501-cql.md), [Quality measures](../../docs/fhir/501-measures.md), and [The FHIR version binding](../../docs/fhir/501-version-binding.md).
+
+**Every one runs in `make verify-examples`.** The eight pure-evaluation examples read the inline Bundle in [`engine/_bundle.py`](engine/_bundle.py); `e2e_measure_from_dhis2.py` reads `DHIS2_URL`, `DHIS2_USERNAME`, and `DHIS2_PASSWORD`, which the verify suite sources from the seeded credentials file and skips with the missing names stated when they are absent.
 
 ## [`igs/`](igs/README.md) - the full guides
 

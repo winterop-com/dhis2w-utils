@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-100 entries grouped by area. **Status tags** carry the result of the most
+101 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -132,6 +132,7 @@ filing.
 - [#90](#90-attribute-filtered-tracked-entity-search-drops-soft-deleted-entities-even-with-includedeletedtrue-while-uid-addressed-listing-returns-them) — attribute-filtered entity search drops soft-deleted rows even with `includeDeleted=true`
 - [#91](#91-get-apitrackerevents-demands-program-unconditionally-on-v43-and-the-singular-enrollment-filter-is-silently-ignored-on-every-major) — events read demands `program` on v43 (HTML 400); singular `enrollment=` ignored everywhere
 - [#92](#92-apimetadata-import-rewrites-optionsortorder-to-a-0-based-sequence) — `/api/metadata` import rewrites `Option.sortOrder` to a 0-based sequence
+- [#97](#97-get-apitrackertrackedentities-answers-409-e7145-column-reference-uid-is-ambiguous-when-ordered-by-trackedentity) — tracked-entity read ordered by `trackedEntity` answers 409 E7145 (ambiguous `uid`) on 2.43.1
 
 ### v43-specific
 
@@ -5271,3 +5272,71 @@ cannot be driven there.
 
 **How to know it's fixed:** the `POST`-then-authorize sequence in (a) answers a redirect or an
 OAuth2 JSON error rather than a `500`, and the `PUT` in (b) leaves `clientSettings` intact.
+
+---
+
+### 97. `GET /api/tracker/trackedEntities` answers 409 E7145 `column reference "uid" is ambiguous` when ordered by `trackedEntity`
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`, buildTime
+`2026-08-03`), Sierra Leone demo database.
+
+**Repro:**
+
+```bash
+B=http://localhost:8080; A=admin:district
+Q="program=IpHINAT79UW&orgUnitMode=ACCESSIBLE&pageSize=2&totalPages=false&fields=trackedEntity"
+
+# (a) Ordering by the tracked entity's own identifier fails.
+curl -s -m 30 -u $A -w '\nHTTP %{http_code}\n' "$B/api/tracker/trackedEntities?$Q&order=trackedEntity:asc"
+# -> HTTP 409
+#    {"httpStatus":"Conflict","httpStatusCode":409,"status":"ERROR",
+#     "message":"Query failed because of a syntax error (SqlState: 42702)",
+#     "devMessage":"ERROR: column reference \"uid\" is ambiguous\n  Position: 28",
+#     "errorCode":"E7145"}
+
+# (b) Every other order key on the same query answers 200.
+curl -s -m 30 -u $A -w '\nHTTP %{http_code}\n' "$B/api/tracker/trackedEntities?$Q&order=createdAt:asc"
+# -> HTTP 200 {"pager":{...},"trackedEntities":[{"trackedEntity":"PQfMcpmXeFE"},{"trackedEntity":"vOxUH373fy5"}]}
+
+for KEY in trackedEntity:asc trackedEntity:desc createdAt:asc updatedAt:asc enrolledAt:asc; do
+  printf '%-22s ' "$KEY"
+  curl -s -m 30 -o /dev/null -w '%{http_code}\n' -u $A "$B/api/tracker/trackedEntities?$Q&order=$KEY"
+done
+# -> trackedEntity:asc      409
+#    trackedEntity:desc     409
+#    createdAt:asc          200
+#    updatedAt:asc          200
+#    enrolledAt:asc         200
+
+# (c) Not caused by the program filter — a trackedEntityType-scoped query fails the same way.
+curl -s -m 30 -o /dev/null -w '%{http_code}\n' -u $A \
+  "$B/api/tracker/trackedEntities?orgUnitMode=ACCESSIBLE&trackedEntityType=nEenWmSyUEp&pageSize=2&totalPages=false&fields=trackedEntity&order=trackedEntity:asc"
+# -> 409
+```
+
+**Expected:** `order=trackedEntity:asc` sorts the page by the tracked entity identifier. It is the
+one field the endpoint is guaranteed to return, it is the identifier every other tracker endpoint
+addresses an entity by, and it is the obvious key for a caller who wants a stable page across runs.
+
+**Actual:** `409 Conflict`, error code `E7145`, PostgreSQL `SqlState 42702` — `column reference
+"uid" is ambiguous` at position 28 of the generated SQL. The generated statement joins at least two
+tables that each carry a `uid` column and emits an unqualified `order by uid`, so PostgreSQL refuses
+to plan it. The failure is in SQL generation, not in request validation: the parameter is accepted,
+the query is built, and the database rejects what was built. `trackedEntity:desc` fails identically,
+and the failure is independent of whether the query is scoped by `program` or by
+`trackedEntityType`. Every other documented order key on the endpoint answers `200` on the same
+query, so nothing about the request shape is at fault.
+
+**Impact:** a caller who wants a deterministic page of tracked entities cannot ask for it by
+identifier and must pick a temporal key instead. That is a weaker guarantee: two entities created in
+the same millisecond have no defined relative order under `createdAt`, so a page is stable in
+practice rather than by contract.
+
+**Workaround in this repo:** every tracked-entity read that needs a fixed cohort orders by
+`createdAt:asc` instead. The engine's end-to-end tests in
+`packages/dhis2w-fhir-engine/tests/e2e_dhis2/` (see `conftest.py`, `read_seeded_cohort`) and the
+matching example `examples/fhir/engine/e2e_measure_from_dhis2.py` both do so, each with a comment
+citing this entry.
+
+**How to know it's fixed:** `order=trackedEntity:asc` on the query in (a) answers `200` with the
+page sorted by identifier, and the workaround comments above can name `trackedEntity` again.

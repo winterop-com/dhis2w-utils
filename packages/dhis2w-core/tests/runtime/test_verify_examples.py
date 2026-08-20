@@ -26,9 +26,9 @@ def test_discover_examples_returns_cli_client_mcp() -> None:
     paths = discover_examples("v42")
     assert paths, "expected at least one example in the repo"
     surfaces = {p.parent.name for p in paths}
-    # The workspace always ships all three surfaces; make the test tolerant
-    # in case one is empty on an oddly-pruned checkout.
-    assert surfaces.issubset({"cli", "client", "mcp"})
+    # The workspace always ships all three common surfaces plus the FHIR group's
+    # engine directory; make the test tolerant in case one is empty on an oddly-pruned checkout.
+    assert surfaces.issubset({"cli", "client", "mcp", "engine"})
     # _runner.py and other helper underscore-files must be excluded.
     assert all(not p.name.startswith("_") for p in paths)
     assert all(p.suffix in {".sh", ".py"} for p in paths)
@@ -40,6 +40,7 @@ def test_discover_examples_includes_the_fhir_group_on_every_major() -> None:
         discovered = {p.as_posix() for p in discover_examples(version_key)}
         assert any(path.endswith("examples/fhir/cli/generate.sh") for path in discovered)
         assert any(path.endswith("examples/fhir/client/consume_facade.py") for path in discovered)
+        assert any(path.endswith("examples/fhir/engine/measure_report.py") for path in discovered)
 
 
 def test_discover_examples_takes_only_the_active_majors_variants() -> None:

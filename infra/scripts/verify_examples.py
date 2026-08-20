@@ -11,9 +11,9 @@ Targets every script under:
 
 - `examples/{cli,client,mcp}/` — the version-neutral set, run on whichever
   DHIS2 major the active profile points at.
-- `examples/fhir/{cli,client}/` — the FHIR surface. `dhis2w-fhir` and
-  `dhis2w-fhir-serve` are not per-version packages, so these run on every
-  major from one copy.
+- `examples/fhir/{cli,client,engine}/` — the FHIR surface. `dhis2w-fhir`,
+  `dhis2w-fhir-serve` and `dhis2w-fhir-engine` are not per-version packages,
+  so these run on every major from one copy.
 - `examples/{cli,client,mcp}/v{N}/` — the variants that exist only for one
   DHIS2 major, run only when that major is the active one.
 
@@ -52,8 +52,10 @@ SURFACES = ("cli", "client", "mcp")
 VERSION_KEYS = ("v41", "v42", "v43")
 
 # The FHIR group is driven from the command line and from Python, and has no MCP
-# examples — so it is two surfaces where the common set is three.
-FHIR_SURFACES = ("cli", "client")
+# examples — so its surfaces are the two shapes of caller plus the evaluation
+# engine, which is its own package and its own kind of caller: expressions over
+# FHIR-shaped data, with no DHIS2 in the picture.
+FHIR_SURFACES = ("cli", "client", "engine")
 
 # Examples that need Chromium (Playwright), a human-clicked OIDC login,
 # external network dependencies, or run slow server-side jobs unsuitable
@@ -159,6 +161,10 @@ SKIP_BY_VERSION: dict[str, frozenset[str]] = {
 SKIP_WHEN_ENVIRONMENT_MISSING: dict[str, tuple[str, ...]] = {
     "client/profile_pat_pure_client.py": ("DHIS2_URL", "DHIS2_PAT"),
     "client/profile_crud.py": ("DHIS2_PAT",),
+    # The one FHIR engine example that reads DHIS2: it maps a seeded Child Programme
+    # cohort into FHIR and scores a measure over it. Every other example in that
+    # directory evaluates over inline data and needs nothing running.
+    "fhir/engine/e2e_measure_from_dhis2.py": ("DHIS2_URL", "DHIS2_USERNAME", "DHIS2_PASSWORD"),
 }
 
 DEFAULT_PROFILE = "local_basic"

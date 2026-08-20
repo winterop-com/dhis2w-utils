@@ -137,6 +137,13 @@ ignore_missing_imports = true
 module = ["_fixture"]
 ignore_missing_imports = true
 
+# `examples/fhir/engine/_bundle.py` is the same shape: every example there reads it
+# by its own directory being on sys.path at runtime. Pyright reaches it through
+# `extraPaths` below.
+[[tool.mypy.overrides]]
+module = ["_bundle"]
+ignore_missing_imports = true
+
 [tool.pyright]
 include = ["packages", "infra", "examples"]
 exclude = ["**/.venv", "**/site", "**/build", "**/dist"]
@@ -150,6 +157,7 @@ extraPaths = [
   "examples/client/v41",
   "examples/client/v43",
   "examples/fhir/client",
+  "examples/fhir/engine",
   "infra/scripts",
 ]
 pythonVersion = "3.13"

@@ -14,7 +14,7 @@ These reshape every decision. Re-read them when in doubt.
 2. **DHIS2 v41 / v42 / v43 supported via per-version subpackages.** Each major has its own hand-written tree under `dhis2w_client.v{41,42,43}` + `dhis2w_core.v{41,42,43}.plugins.*`; the client auto-detects via `/api/system/info` on connect and binds the matching tree (v42 is the canonical baseline). No compatibility shims for DHIS2 versions older than v41.
 3. **Auth is pluggable; ship three kinds of provider: Basic, PAT, OAuth2/OIDC.** `dhis2w-client` defines an `AuthProvider` Protocol. The client never touches auth internals. OAuth2 uses the OAuth 2.1 authorization-code flow with PKCE against `/oauth2/authorize` and `/oauth2/token`. Future providers (service-account JWT, OIDC federation, proxy-injected headers) land as new files in `dhis2w-client/auth/` without touching the client.
 4. **Playwright UI automation is isolated in `dhis2w-browser`.** API-only installs must not pull Chromium. The screenshot plugin is the first consumer; future UI-update plugins layer on the same helpers.
-5. **`uv` for everything Python, organized as a `uv` workspace.** Twelve members under `packages/`: the ten publishable ones — `dhis2w-client`, `dhis2w-core`, `dhis2w-cli`, `dhis2w-mcp`, `dhis2w-mcp-bridge`, `dhis2w-browser`, `dhis2w-ql`, `dhis2w-mcp-router` (first published in 1.2.0), `dhis2w-fhir`, `dhis2w-fhir-serve` (first published in 1.5.0) — plus the workspace-only `dhis2w-codegen` and `dhis2w-bench` (not published). Single `uv.lock` at the workspace root, `uv_build` backend. Every member uses the `src/` layout. Shared code lives in a workspace member (never a floating `src/` outside a package). **Never edit `pyproject.toml` deps by hand — use `uv add` / `uv add --dev`.**
+5. **`uv` for everything Python, organized as a `uv` workspace.** Thirteen members under `packages/`: the eleven publishable ones — `dhis2w-client`, `dhis2w-core`, `dhis2w-cli`, `dhis2w-mcp`, `dhis2w-mcp-bridge`, `dhis2w-browser`, `dhis2w-ql`, `dhis2w-mcp-router` (first published in 1.2.0), `dhis2w-fhir`, `dhis2w-fhir-serve` (first published in 1.5.0), `dhis2w-fhir-engine` (first published in 1.7.0) — plus the workspace-only `dhis2w-codegen` and `dhis2w-bench` (not published). Single `uv.lock` at the workspace root, `uv_build` backend. Every member uses the `src/` layout. Shared code lives in a workspace member (never a floating `src/` outside a package). **Never edit `pyproject.toml` deps by hand — use `uv add` / `uv add --dev`.**
 6. **FastAPI for any HTTP service, FastMCP for any MCP service.** No Flask, no bare `http.server`, no hand-rolled stdio loops.
 7. **Pydantic for ALL structured data. No `dict`s. No `@dataclass`es.** Every type that carries domain meaning — DHIS2 resources, service return values, CLI output shapes, MCP tool returns, error bodies, configuration, view-models, command options — is a `pydantic.BaseModel`. DHIS2 resource models (Me, SystemInfo, DataElement, Indicator, …) live in `dhis2w-client/models/` so PyPI users of the client get them. Plugin-internal view-models (reports, job state, summaries) live in the plugin's `models.py`. `Dhis2Client` returns parsed models, not raw dicts.
 
@@ -37,12 +37,13 @@ These reshape every decision. Re-read them when in doubt.
 
 ## Architecture
 
-Four orthogonal axes of extension — extending one never forces edits to another:
+Five orthogonal axes of extension — extending one never forces edits to another:
 
 - **Workspace members** (`packages/`): each shippable unit. New surfaces (a future FastAPI web UI, another SDK) land as new members.
 - **Version subpackages** (`dhis2w_client.v{41,42,43}/`, `dhis2w_core.v{41,42,43}/plugins/`): each DHIS2 major has its own hand-written tree. The three trees start as mechanical copies of v42 (the canonical baseline) and diverge per-file as version-specific behaviour lands.
 - **Plugins** (`dhis2w-core/v{N}/plugins/<name>/`): each DHIS2 domain is a folder with `__init__.py` and `cli.py` always; `service.py` when the plugin has logic (grouping shells like `data` and `dev` only mount sub-apps); `models.py` when the plugin has view-models (small models may live inline in `service.py`); `mcp.py` optional with justification. Tests live outside the shipped package, grouped per domain at `packages/dhis2w-core/tests/<name>/` (one test tree parametrised over the three version trees — never per-tree test copies). Discovered automatically by iterating `dhis2w_core.v{N}.plugins.*` (today: v42); external plugins register via `importlib.metadata.entry_points(group="dhis2.plugins")`.
 - **Auth providers** (`dhis2w-client/v{N}/auth/`): `AuthProvider` Protocol. Ship Basic, PAT, OAuth2. Add more without touching `client.py`.
+- **FHIR version trees** (`dhis2w_fhir_engine.r4/`, later `r5/`): the evaluation engine's own version axis, parallel to the DHIS2 v41/v42/v43 split. The grammar, parser, AST, and evaluator are FHIR-version-neutral; everything bound to a release lives in a version subpackage and reaches the neutral core as a `FhirVersionBinding` value. A new FHIR release is a new subpackage exporting a `FhirVersionBinding` (and, where the wire shapes differ, its own data sources and measure report writer) — never an edit to the evaluator.
 
 Dependency arrows (no cycles):
 
@@ -60,6 +61,7 @@ graph LR
     client["dhis2w-client"]
     fhir["dhis2w-fhir"]
     fhirserve["dhis2w-fhir-serve"]
+    fhirengine["dhis2w-fhir-engine"]
 
     cli --> core
     mcp --> core
