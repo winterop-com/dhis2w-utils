@@ -1,0 +1,62 @@
+[project]
+name = "dhis2w-fhir-engine"
+version = "1.7.0.dev0"
+description = "FHIRPath, CQL, and ELM evaluation over FHIR data, with clinical quality measure evaluation. Version-neutral grammar and evaluator core with the FHIR release bound in as a value."
+readme = "README.md"
+authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
+requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+keywords = ["fhir", "fhirpath", "cql", "elm", "hl7", "measure"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Healthcare Industry",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "antlr4-python3-runtime>=4.13.2",
+    "pydantic>=2.13",
+    "rich>=15.0.0",
+    "typer>=0.27.0",
+]
+
+# No dhis2w-* runtime dependency: the engine evaluates FHIRPath and CQL over FHIR-shaped JSON and
+# knows nothing about DHIS2. The DHIS2 binding lives in the tests (dev-only) and in consumers.
+
+[project.scripts]
+d2w-fhir-engine = "dhis2w_fhir_engine.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/winterop-com/dhis2w-utils"
+Documentation = "https://winterop-com.github.io/dhis2w-utils/"
+Repository = "https://github.com/winterop-com/dhis2w-utils"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# The engine ships its grammars and built-in CQL libraries alongside the Python modules.
+source-include = ["src/dhis2w_fhir_engine/grammars/*.g4", "src/dhis2w_fhir_engine/r4/builtins/*.cql"]
+
+[tool.uv.sources]
+dhis2w-client = { workspace = true }
+
+# The ANTLR output under src/dhis2w_fhir_engine/generated/ is machine-emitted and is excluded from
+# every linter. Hand-written code in this member meets the strict workspace configs whole. Ruff reads
+# this member config for the files beneath it, so `extend-exclude` covers it here; mypy and pyright
+# read the workspace-root config, so each generated module also carries a file-level `# mypy:
+# ignore-errors` plus the `# pyright: report<Rule>=false` list its emitted shape trips.
+[tool.ruff]
+extend = "../../pyproject.toml"
+extend-exclude = ["src/dhis2w_fhir_engine/generated"]
+
+[dependency-groups]
+dev = [
+    "dhis2w-client",
+    "httpx>=0.28.1",
+]

@@ -1,0 +1,31 @@
+{
+  "resourceType": "Bundle",
+  "id": "bundle-001",
+  "meta": {
+    "versionId": "1",
+    "lastUpdated": "2024-01-15T10:30:00Z"
+  },
+  "type": "collection",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:patient-001",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-001",
+        "name": [{"family": "Smith", "given": ["John"]}],
+        "gender": "male",
+        "birthDate": "1980-05-15"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:condition-001",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "condition-001",
+        "code": {"text": "Type 2 Diabetes"},
+        "subject": {"reference": "Patient/patient-001"}
+      }
+    }
+  ]
+}
