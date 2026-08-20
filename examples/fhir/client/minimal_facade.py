@@ -1,9 +1,9 @@
-"""Rung one of the facade ladder: receive a QuestionnaireResponse, translate it, post it to DHIS2.
+"""Level one of the facade ladder: receive a QuestionnaireResponse, translate it, post it to DHIS2.
 
 **The trade:** nothing is written down. A capture is a request, a verdict is its answer, and when the
-request is over there is no record that it happened. Everything the next three rungs add - a client
+request is over there is no record that it happened. Everything the next three levels add - a client
 held for the process, a durable receipt, a queue that outlives an unreachable instance - is a
-guarantee this rung does without, on purpose, because the application around it already has one.
+guarantee this level does without, on purpose, because the application around it already has one.
 
 `d2w fhir serve` is the complete facade - capability statement, published guide, a live register, a
 durable spool, and `d2w fhir forward` draining it. Most integrations want none of that: they have a
@@ -11,7 +11,7 @@ FastAPI application already, and somewhere to put a failure already. What they n
 they cannot write themselves - a captured `QuestionnaireResponse` as the DHIS2 import payload it
 means. That is `translate_response`, and `build_facade` below is the whole recipe around it.
 
-The rungs above this one are `examples/fhir/client/basic_facade.py` (one client for the process, a
+The levels above this one are `examples/fhir/client/basic_facade.py` (one client for the process, a
 health route, a log line per verdict), `examples/fhir/client/complex_facade.py` (a durable spool and
 a background drain), and `examples/fhir/client/advanced_facade.py` (tracker routing, the
 coded-answer dial, overwrite naming, and a small `/metadata`).

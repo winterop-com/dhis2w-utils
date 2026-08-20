@@ -37,24 +37,24 @@ route, both built from the same published artifacts.
 
 ## The ladder
 
-Between those two postures there is a ladder, and each rung buys back exactly
-one guarantee the rung below traded away. Four runnable files walk it:
+Between those two postures there is a ladder, and each level buys back exactly
+one guarantee the level below traded away. Four runnable files walk it:
 
-| Rung | What it adds | What it still gives up |
+| Level | What it adds | What it still gives up |
 | --- | --- | --- |
-| [minimal](#rung-one-minimal) | one route: translate, post, answer with DHIS2's verdict | everything else - nothing is written down, and a client per request |
-| [basic](#rung-two-basic) | one client for the process, settings at startup, `/health`, a log line per verdict | durability: an unreachable instance is still a failed request |
-| [complex](#rung-three-complex) | a durable spool, `201` before DHIS2 is asked, a background drain, receipts readable by id | tracker routing, the coded-answer dial, overwrite naming, any published surface |
-| [advanced](#rung-four-advanced) | tracker routing, the strict/lenient dial, overwrite naming, a small `/metadata` | the register, the guide, capture screens, requeue, a drain that is its own process |
+| [minimal](#level-one-minimal) | one route: translate, post, answer with DHIS2's verdict | everything else - nothing is written down, and a client per request |
+| [basic](#level-two-basic) | one client for the process, settings at startup, `/health`, a log line per verdict | durability: an unreachable instance is still a failed request |
+| [complex](#level-three-complex) | a durable spool, `201` before DHIS2 is asked, a background drain, receipts readable by id | tracker routing, the coded-answer dial, overwrite naming, any published surface |
+| [advanced](#level-four-advanced) | tracker routing, the strict/lenient dial, overwrite naming, a small `/metadata` | the register, the guide, capture screens, requeue, a drain that is its own process |
 
-Read the last column downwards. Each rung's remaining gap is the next rung's
-subject, and the last rung's gap is the served facade itself - which is the
+Read the last column downwards. Each level's remaining gap is the next level's
+subject, and the last level's gap is the served facade itself - which is the
 whole argument of [When to stop building](#when-to-stop-building).
 
-The rungs are cumulative in guarantees, not in code: each file is standalone and
-runs on its own, so a rung can be read cold without the three below it.
+The levels are cumulative in guarantees, not in code: each file is standalone and
+runs on its own, so a level can be read cold without the three below it.
 
-## Rung one: minimal
+## Level one: minimal
 
 [`examples/fhir/client/minimal_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/minimal_facade.py) -
 one file, one route, and a `__main__` that drives it in-process. This section
@@ -201,7 +201,7 @@ The example's `__main__` posts under it, which is what lets the example run in
 `make verify-examples` without leaving data on the instance. A real facade drops
 the parameter.
 
-## Rung two: basic
+## Level two: basic
 
 [`examples/fhir/client/basic_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/basic_facade.py) -
 the same one route, in the shape a deployment runs it in. Four changes, no new
@@ -241,11 +241,11 @@ carrying the sentence that explains it.
 DHIS2 - each is one line through the `logging` module, so a capture six weeks
 old is answerable.
 
-The trade is unchanged from rung one and worth naming again: a capture that
+The trade is unchanged from level one and worth naming again: a capture that
 arrives while DHIS2 is unreachable is a failed request, and its sender is the
 only place it exists.
 
-## Rung three: complex
+## Level three: complex
 
 [`examples/fhir/client/complex_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/complex_facade.py) -
 where a capture starts surviving. The route's answer stops being DHIS2's verdict
@@ -317,10 +317,10 @@ The example's `__main__` posts one capture, polls its receipt until the drain ha
 filed it, and prints the journey. It imports for real and deletes the two values
 again at the end, so a run leaves the instance as it found it.
 
-## Rung four: advanced
+## Level four: advanced
 
 [`examples/fhir/client/advanced_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/advanced_facade.py) -
-the durable rung plus the four things it lacked.
+the durable level plus the four things it lacked.
 
 **Tracker routing.** `post_payload` branches on which field the translation
 filled and posts to the endpoint that shape names, projecting either answer into
@@ -358,11 +358,11 @@ cannot keep.
 
 ## When to stop building
 
-Each rung closes the gap below it. The gap left at the top is not a fifth rung -
+Each level closes the gap below it. The gap left at the top is not a fifth level -
 it is `d2w fhir serve` plus `d2w fhir forward`, and every item is something the
 served chain already does:
 
-| Still missing at rung four | What the served chain provides |
+| Still missing at level four | What the served chain provides |
 | --- | --- |
 | capability discovery | a real `/metadata` CapabilityStatement, stating the resources served, the searches answered, and the operations that exist - [Consume the FHIR API](401-consume-the-fhir-api.md) |
 | the guide itself | the published implementation guide served beside the API, so a client reads the forms it is submitting against - [Serve the guide](201-serve.md) |
@@ -376,8 +376,8 @@ served chain already does:
 
 **The rule of thumb.** Take your own route while the answer to the request is
 the whole of what the sender needs, and the durability lives in your
-application. Climb a rung when a capture has to outlive the request. And when
-you find yourself writing the rung above the fourth - a register, a
+application. Climb a level when a capture has to outlive the request. And when
+you find yourself writing the level above the fourth - a register, a
 CapabilityStatement, a requeue command - stop: you are rebuilding
 `d2w fhir serve` smaller, and it is one command.
 
