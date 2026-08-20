@@ -36,11 +36,7 @@ jobs:
         # Workspace members shipped to PyPI, matching the Makefile's
         # `PUBLISHABLE_MEMBERS`. Excludes the workspace-only members
         # (`dhis2w-codegen`, `dhis2w-bench`) — internal tools with no value to
-        # PyPI consumers — and `dhis2w-fhir-engine`, which has a `make
-        # publish-fhir-engine` target but no PyPI project yet: it joins this
-        # matrix, the verify matrix, and the simple-index wait list below on the
-        # release that first uploads it, once its Trusted Publisher is
-        # configured on PyPI.
+        # PyPI consumers.
         package:
           - dhis2w-client
           - dhis2w-ql
@@ -52,6 +48,7 @@ jobs:
           - dhis2w-mcp-router
           - dhis2w-fhir
           - dhis2w-fhir-serve
+          - dhis2w-fhir-engine
     steps:
       - uses: actions/checkout@v7
 
@@ -129,6 +126,7 @@ jobs:
           - dhis2w-mcp-router
           - dhis2w-fhir
           - dhis2w-fhir-serve
+          - dhis2w-fhir-engine
     steps:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -160,7 +158,7 @@ jobs:
         # newer-style sdist/wheel filenames.
         run: |
           VERSION="${{ steps.version.outputs.value }}"
-          PACKAGES="dhis2w-client dhis2w-ql dhis2w-core dhis2w-cli dhis2w-browser dhis2w-mcp dhis2w-mcp-bridge dhis2w-mcp-router dhis2w-fhir dhis2w-fhir-serve"
+          PACKAGES="dhis2w-client dhis2w-ql dhis2w-core dhis2w-cli dhis2w-browser dhis2w-mcp dhis2w-mcp-bridge dhis2w-mcp-router dhis2w-fhir dhis2w-fhir-serve dhis2w-fhir-engine"
           for pkg in $PACKAGES; do
             normalized="${pkg//-/_}"
             for i in $(seq 1 36); do

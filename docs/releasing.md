@@ -1,6 +1,6 @@
 # Releasing to PyPI
 
-The ten publishable workspace members ship to PyPI in lockstep — every release tags every package at the same version. The internal `dhis2w-codegen` and `dhis2w-bench` packages are workspace-only and do not ship. `dhis2w-mcp-router` first ships in 1.2.0, and `dhis2w-fhir` and `dhis2w-fhir-serve` in 1.5.0; because each is new to PyPI, register its pending Trusted Publisher on pypi.org before that tag (see [First release of a new package](#first-release-of-a-new-package) below).
+The eleven publishable workspace members ship to PyPI in lockstep — every release tags every package at the same version. The internal `dhis2w-codegen` and `dhis2w-bench` packages are workspace-only and do not ship. `dhis2w-mcp-router` first ships in 1.2.0, `dhis2w-fhir` and `dhis2w-fhir-serve` in 1.5.0, and `dhis2w-fhir-engine` in 1.7.0; because each is new to PyPI, register its pending Trusted Publisher on pypi.org before that tag (see [First release of a new package](#first-release-of-a-new-package) below).
 
 | Package | PyPI |
 | --- | --- |
@@ -14,6 +14,7 @@ The ten publishable workspace members ship to PyPI in lockstep — every release
 | `dhis2w-mcp-router` | https://pypi.org/project/dhis2w-mcp-router/ (from 1.2.0) |
 | `dhis2w-fhir` | https://pypi.org/project/dhis2w-fhir/ (from 1.5.0) |
 | `dhis2w-fhir-serve` | https://pypi.org/project/dhis2w-fhir-serve/ (from 1.5.0) |
+| `dhis2w-fhir-engine` | https://pypi.org/project/dhis2w-fhir-engine/ (from 1.7.0) |
 
 ## Versioning policy
 
@@ -47,10 +48,10 @@ The ten publishable workspace members ship to PyPI in lockstep — every release
 
 6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. One `build` job per publishable member produces wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
 
-7. **Create the GitHub release** (the tag alone does not — the Releases page stays on the previous version otherwise):
+7. **Create the GitHub release** (the tag alone does not — the Releases page stays on the previous version otherwise). Write the notes by hand — grouped by user-visible theme, release voice — and pass them as a file. Never `--generate-notes`: an auto-generated PR list is not release notes.
 
    ```bash
-   gh release create v0.6.0 --verify-tag --title v0.6.0 --generate-notes --latest
+   gh release create v0.6.0 --verify-tag --title v0.6.0 --notes-file notes.md --latest
    ```
 
 8. **Verify**:

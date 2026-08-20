@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-fhir-serve"
-version = "1.7.0.dev0"
+version = "1.7.0"
 description = "FHIR facade server for a generated IG - serves the compiled or live-built resources and receives QuestionnaireResponse captures; mounted as `d2w fhir serve`."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
@@ -15,7 +15,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "dhis2w-fhir>=1.5.0,<2.0",
+    "dhis2w-fhir>=1.7.0,<2.0",
     "fastapi>=0.141.1",
     "uvicorn>=0.49.0",
 ]
