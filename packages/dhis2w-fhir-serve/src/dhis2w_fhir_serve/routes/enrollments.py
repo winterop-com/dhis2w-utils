@@ -34,7 +34,9 @@ entity.
 
 This listing is part of the register, so `[serve.tracked_entities] enabled = false` refuses it along
 with the FHIR routes: a project that serves no tracked entity serves nothing about its enrollments
-either.
+either. It is part of the register in the other sense too: under `[serve] auth = "dhis2"` the entity
+is read with the CALLER'S own `Authorization` header, so a caller who may not see that person is
+told by DHIS2 that there is nobody there - see `dhis2w_fhir_serve.passthrough`.
 """
 
 from __future__ import annotations
@@ -54,8 +56,9 @@ from dhis2w_fhir_serve.errors import (
     RegisterDisabledError,
     UpstreamError,
 )
+from dhis2w_fhir_serve.passthrough import register_reader
 from dhis2w_fhir_serve.register.wire import fetch_tracked_entity, upstream_refusal_text
-from dhis2w_fhir_serve.routes.context import live_client, serve_context
+from dhis2w_fhir_serve.routes.context import serve_context
 
 if TYPE_CHECKING:
     from dhis2w_client.generated.v42.oas import TrackerEnrollment
@@ -113,14 +116,14 @@ async def read_tracked_entity_enrollments(request: Request, tracked_entity_uid: 
     surface = serve_context(request).register_surface
     if not surface.tracked_entities.enabled:
         raise RegisterDisabledError(ENROLLMENTS_SURFACE_NAME)
-    client = live_client(request)
-    if client is None:
+    reader = await register_reader(request)
+    if reader is None:
         raise NotServedFromCompiledIgError(ENROLLMENTS_SURFACE_NAME)
     if not surface.serves_tracked_entities():
         raise NoPublishedSubjectTypeError(ENROLLMENTS_SURFACE_NAME)
     index = surface.index
     try:
-        entity = await fetch_tracked_entity(client, tracked_entity_uid)
+        entity = await fetch_tracked_entity(reader, tracked_entity_uid)
     except Dhis2ClientError as error:
         raise UpstreamError(
             f"the DHIS2 instance did not answer the tracked entity read: {upstream_refusal_text(error)}"

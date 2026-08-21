@@ -218,6 +218,23 @@ def test_each_scope_says_how_much_of_the_surface_the_posture_covers(compiled_pro
     assert "every interaction except reading this document" in (everything.description or "")
 
 
+def test_the_dhis2_posture_states_that_the_register_is_read_as_the_caller(compiled_project: FhirProject) -> None:
+    """The rule a client meets on the register is stated ahead of the request, not discovered from a refusal."""
+    security = _security(compiled_project, ServeAuth.DHIS2, ServeAuthScope.WRITE)
+
+    assert "under your own DHIS2 authorization" in (security.description or "")
+
+
+def test_the_write_scope_under_the_dhis2_posture_never_claims_every_read_is_open(
+    compiled_project: FhirProject,
+) -> None:
+    """A register read asks for credentials in either scope, so the scope sentence cannot promise otherwise."""
+    security = _security(compiled_project, ServeAuth.DHIS2, ServeAuthScope.WRITE)
+
+    assert "read or search the register" in (security.description or "")
+    assert "Every read, every search, this document" not in (security.description or "")
+
+
 def _security(project: FhirProject, posture: ServeAuth, scope: ServeAuthScope) -> CapabilityStatementSecurity:
     """The `rest.security` one process declares, built the way `/metadata` builds it."""
     statement = build_server_capability(

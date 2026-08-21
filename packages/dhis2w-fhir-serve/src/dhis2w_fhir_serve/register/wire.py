@@ -25,8 +25,12 @@ recorded in the repository's `BUGS.md`:
    count of a table DHIS2 has indexed; a lookup does not, because nobody asks an identifier search
    how many tracked entities the instance holds.
 
-The client is held open for the life of the process and passed in, because these are the only
-routes on this server that talk to DHIS2 per request.
+WHAT `reader` IS HERE IS THE POINT OF THE PARAMETER. Every read below takes a `RegisterReader` - one
+raw GET answering parsed JSON - and never a `Dhis2Client`, because whose credentials a register read
+runs under is settled per request rather than per process. Under `[serve] auth = "dhis2"` it is the
+caller's own header on the process's credential-free pool; under `none` and `token` it is the
+runtime's client, which `Dhis2Client` satisfies as it stands. `dhis2w_fhir_serve.passthrough` states
+which is which, and nothing in this module branches on the answer.
 """
 
 from __future__ import annotations
@@ -39,7 +43,7 @@ from dhis2w_client.generated.v42.oas import TrackerTrackedEntity
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
-    from dhis2w_client import Dhis2Client
+    from dhis2w_fhir_serve.passthrough import RegisterReader
 
 #: The tracker endpoint a lookup reads, and the one-entity form of it.
 TRACKED_ENTITIES_PATH = "/api/tracker/trackedEntities"
@@ -137,7 +141,7 @@ def _is_unknown_type_refusal(error: Dhis2ApiError) -> bool:
 
 
 async def list_tracked_entities(
-    client: Dhis2Client,
+    reader: RegisterReader,
     *,
     tracked_entity_type_uid: str,
     page: int,
@@ -151,7 +155,7 @@ async def list_tracked_entities(
     saying so. A type the instance does not hold answers an empty page, not a refusal.
     """
     try:
-        raw = await client.get_raw(
+        raw = await reader.get_raw(
             TRACKED_ENTITIES_PATH,
             params={
                 "trackedEntityType": tracked_entity_type_uid,
@@ -169,7 +173,7 @@ async def list_tracked_entities(
     return TrackedEntitiesPage.model_validate(raw)
 
 
-async def count_tracked_entity_pages(client: Dhis2Client, *, tracked_entity_type_uid: str, page_size: int) -> int:
+async def count_tracked_entity_pages(reader: RegisterReader, *, tracked_entity_type_uid: str, page_size: int) -> int:
     """How many pages of one type there are at one page size, asked without carrying anybody back.
 
     The listing needs this at one place only: a `previous` link crossing back over a type boundary
@@ -178,7 +182,7 @@ async def count_tracked_entity_pages(client: Dhis2Client, *, tracked_entity_type
     A type the instance does not hold counts zero pages.
     """
     try:
-        raw = await client.get_raw(
+        raw = await reader.get_raw(
             TRACKED_ENTITIES_PATH,
             params={
                 "trackedEntityType": tracked_entity_type_uid,
@@ -197,7 +201,7 @@ async def count_tracked_entity_pages(client: Dhis2Client, *, tracked_entity_type
     return 0 if pager is None or pager.pageCount is None else pager.pageCount
 
 
-async def count_tracked_entities(client: Dhis2Client, *, tracked_entity_type_uid: str) -> int | None:
+async def count_tracked_entities(reader: RegisterReader, *, tracked_entity_type_uid: str) -> int | None:
     """How many entities one tracked entity type holds, asked without carrying any of them back.
 
     The listing needs this when several types are in scope: DHIS2 counts one type at a time, so the
@@ -207,7 +211,7 @@ async def count_tracked_entities(client: Dhis2Client, *, tracked_entity_type_uid
     all the way to the Bundle. A type the instance does not hold holds nothing, so it counts zero.
     """
     try:
-        raw = await client.get_raw(
+        raw = await reader.get_raw(
             TRACKED_ENTITIES_PATH,
             params={
                 "trackedEntityType": tracked_entity_type_uid,
@@ -227,7 +231,7 @@ async def count_tracked_entities(client: Dhis2Client, *, tracked_entity_type_uid
 
 
 async def search_tracked_entities(
-    client: Dhis2Client,
+    reader: RegisterReader,
     *,
     tracked_entity_type_uid: str,
     attribute_uid: str,
@@ -238,7 +242,7 @@ async def search_tracked_entities(
     A type the instance does not hold matches nothing, not a refusal.
     """
     try:
-        raw = await client.get_raw(
+        raw = await reader.get_raw(
             TRACKED_ENTITIES_PATH,
             params={
                 "trackedEntityType": tracked_entity_type_uid,
@@ -260,7 +264,7 @@ def is_tracked_entity_uid(value: str) -> bool:
     return _DHIS2_UID_PATTERN.match(value) is not None
 
 
-async def fetch_tracked_entity(client: Dhis2Client, tracked_entity_uid: str) -> TrackerTrackedEntity | None:
+async def fetch_tracked_entity(reader: RegisterReader, tracked_entity_uid: str) -> TrackerTrackedEntity | None:
     """Read one tracked entity by its UID, or None when the instance holds none under it.
 
     A value that is not UID-shaped is None without a request: DHIS2 answers 400 for one, and a
@@ -274,7 +278,7 @@ async def fetch_tracked_entity(client: Dhis2Client, tracked_entity_uid: str) -> 
     if not is_tracked_entity_uid(tracked_entity_uid):
         return None
     try:
-        raw = await client.get_raw(
+        raw = await reader.get_raw(
             f"{TRACKED_ENTITIES_PATH}/{tracked_entity_uid}", params={"fields": TRACKED_ENTITY_FIELDS}
         )
     except Dhis2ApiError as error:

@@ -129,8 +129,11 @@ What each step is for:
    rather than by accident.
 2. **The runtime.** `open_serve_runtime` loads the project, the store, the spool, the register
    surface, and the CapabilityStatement, and holds the DHIS2 client a live run reads through open for
-   as long as the context manager is entered. `attach_serve_runtime` puts the two things every
-   handler reads onto the application, and nothing serves a request before it has been called.
+   as long as the context manager is entered. Under `auth = "dhis2"` it holds a second connection
+   beside it - `ServeRuntime.caller_client`, pointed at the same instance and carrying no credential -
+   which is the pool a register read forwards each caller's own `Authorization` over; see
+   [credential pass-through](#credential-pass-through). `attach_serve_runtime` puts all three things
+   the handlers read onto the application, and nothing serves a request before it has been called.
 3. **The routers.** `serve_routers` states the mount requirements as data: the FHIR routers carry
    `Depends(require_json_is_acceptable)`, the facade routers do not, the read catch-alls mount after
    every fixed path your application serves - `/{resource_type}` claims any one-segment path, so your
@@ -231,7 +234,9 @@ for router in routers.fhir:
 A dependency mounted this way that wants its captures attributed writes a
 `dhis2w_fhir_serve.auth.RequestIdentity` onto `request.state` under
 `dhis2w_fhir_serve.auth.REQUEST_IDENTITY_ATTRIBUTE`; the capture route reads it there and stamps the
-username onto the receipt. `register_routes` takes the same seam as its `authentication` argument for
+username onto the receipt. An identity written with `posture=ServeAuth.DHIS2` also puts the register
+reads on the pass-through path, where the request's own `Authorization` header is what reaches DHIS2 -
+so write that posture only for an identity whose credential DHIS2 itself would accept. `register_routes` takes the same seam as its `authentication` argument for
 an application that wants the facade's own mounting and its own check.
 
 Two things stay outside this contract. The capture UI is not a router and is reached by running
@@ -288,6 +293,18 @@ covers, the startup refusals a posture this run could not honour meets before th
 the one dependency the guarded routers carry.
 
 ::: dhis2w_fhir_serve.auth
+
+### Credential pass-through
+
+Under `[serve] auth = "dhis2"` on a live run, a register read carries the **caller's** own
+`Authorization` header to the instance, opaque and unparsed, so DHIS2 applies its sharing,
+organisation unit scopes, ownership, and access levels to the person who actually asked. The reads
+share one pooled connection held on the runtime for the life of the process, and that pool carries no
+credential of its own - `CallerCredentialReader` is the per-request pairing of it with one caller's
+header, and nothing on the path is cached. The startup store build, `/uiconfig`, and the forward
+drain are not on it: none of them acts on behalf of a request.
+
+::: dhis2w_fhir_serve.passthrough
 
 ### Resource store
 

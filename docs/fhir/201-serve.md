@@ -210,7 +210,7 @@ the basemap policy included, is covered in
 | --- | --- | --- |
 | `none` | Nothing | Every caller is served. The default. |
 | `token` | `Authorization: Bearer <token>` | The values of `D2W_FHIR_SERVE_TOKENS`, compared in constant time. |
-| `dhis2` | The DHIS2 credentials they would sign in to the instance with | One `GET /api/me` against that instance, as them. Needs `--live`. |
+| `dhis2` | The DHIS2 credentials they would sign in to the instance with | One `GET /api/me` against that instance, as them - and every register read goes to it as them too. Needs `--live`. |
 
 `[serve] auth_scope` says how much of the surface the posture covers. `write` -
 the default - asks for credentials on `POST /QuestionnaireResponse`, which is
@@ -273,7 +273,8 @@ minute, keyed by a hash of the header, so a page of requests costs one round
 trip rather than one each.
 
 The posture needs an instance, so it is refused on a compiled run, which has
-none.
+none. What that credential then buys is the next section: the register is read
+as you, not as the server.
 
 ```bash
 curl -u clerk:secret -X POST http://127.0.0.1:8390/QuestionnaireResponse \
@@ -292,19 +293,60 @@ carries it through.
 instance is DHIS2's own stamp of that profile. The receipt is where "who
 captured this" is answered; the instance is where "who wrote this" is.
 
-### What this wave of authentication does and does not do
+### Under `dhis2`, the register is read as you
 
-Authentication here gates **who may ask**. It does not change whose rights the
-answers are read under: on a live run every read still goes to DHIS2 as the
-facade's own configured profile, so what a caller can see is scoped by that
-profile's rights rather than by their own. Where that profile is an
-administrator - the common demo posture - DHIS2 skips its tracker ownership and
-access-level model for superusers entirely and does not write the
-break-the-glass audit entry, so those reads pass sharing, ownership, and access
-levels at once with nothing in the audit trail to distinguish them. **Give the
-facade a least-privilege DHIS2 user, never an administrator.** Passing the
-caller's own credentials through to DHIS2 on proxied reads, so the instance
-applies its own rules per caller, is the next wave.
+Authenticating a caller says who is asking. It says nothing, on its own, about
+what they may see - and a facade that checked every caller and then read the
+instance as its own profile would hand each of them that profile's rights.
+
+So under `dhis2`, every register read carries **your** `Authorization` header to
+the instance, exactly as it arrived:
+
+| Read | Answered as |
+| --- | --- |
+| `GET /Patient/{uid}` and every other registered type | The caller |
+| `GET /Patient?identifier=...` | The caller |
+| `GET /Patient` (the register listing, and its `_count=0` total) | The caller |
+| `GET /tracked-entities/{uid}/enrollments` | The caller |
+| `POST /evaluate` with a `registered` context | The caller |
+| The store built at startup | The facade's profile |
+| The instance address `/uiconfig` hands the screens | The facade's profile |
+| `d2w fhir forward`'s drain | The forwarding profile |
+
+DHIS2 then applies its own five gates - authority, sharing, the data element
+bits, the organisation unit scopes, and ownership with access levels - to the
+person who actually asked, and this facade applies no rule of its own. **What
+DHIS2 hides stays hidden as DHIS2 hides it**: a tracked entity you may not see
+answers 404 here because it answers 404 there, and no verdict is invented that
+the instance never gave.
+
+The credential is never parsed, never logged, and never held past the request.
+Nothing on this path is cached - one caller's page is never another caller's
+page - and the only thing the facade does remember for about a minute is the
+username `/api/me` gave, keyed by a hash of the header. Each forwarded read
+carries one header of the facade's own, `X-DHIS2W-Facade`, naming the software
+and version it arrived through; that is provenance for whoever reads the DHIS2
+access log, and it is deliberately not your username, which your own header
+already carries.
+
+Two consequences worth stating plainly:
+
+- A register read with no credential is a 401, even under
+  `auth_scope = "write"`, which leaves reads unguarded otherwise. There is
+  nobody to answer as, and answering as the facade is the read this posture
+  exists to prevent. A read that *does* carry credentials is answered in either
+  scope.
+- **The facade's own DHIS2 profile still wants least privilege.** The three
+  bottom rows of that table run as it in every posture, and under `none` and
+  `token` it answers every caller besides. DHIS2 skips its tracker ownership and
+  access-level model outright for a superuser and writes no break-the-glass
+  audit entry when it does, so a facade running as an administrator reads past
+  sharing, ownership, and access levels with nothing in the audit trail to say
+  so. Give it a least-privilege user, never an administrator.
+
+`GET /metadata` says all of this to a client: `rest.security.description` under
+`dhis2` states that reads of the register are answered under the caller's own
+DHIS2 authorization.
 
 `oauth2` is the name reserved for the posture after that. It is deliberately
 not a value `[serve] auth` accepts today: DHIS2 2.43.1's authorization server
