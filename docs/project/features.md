@@ -289,7 +289,8 @@ d2w fhir            FHIR IG generation (SUSHI/FSH + pre-built JSON, package dhis
                         --live builds the store off the instance at startup,
                         --strict-codes/--no-strict-codes governs codes outside
                         the served terminology, --ui adds the browser capture
-                        UI, --auth none|token|dhis2 with --auth-scope write|all
+                        UI, --auth none|token|dhis2|jwt with --auth-scope
+                        write|all
                         says who is served and how much of the surface the
                         posture covers, and host/port/authentication/strict
                         codes fall back to the [serve]
@@ -1286,7 +1287,7 @@ bound to loopback by default that loads the project once at startup.
   from the very Python vocabulary its FSH template renders and gated dict-equal
   against the SUSHI-compiled pair.
 - **The profile is the root `d2w -p`**, resolved before the start banner.
-- **Authentication is `[serve] auth`, in three postures.** `none` - the default -
+- **Authentication is `[serve] auth`, in four postures.** `none` - the default -
   serves every caller. `token` takes `Authorization: Bearer <token>` and compares
   it against `D2W_FHIR_SERVE_TOKENS` with `hmac.compare_digest`; the tokens come
   from the environment and never from `fhir.toml`, and rotating them is replacing
@@ -1296,10 +1297,43 @@ bound to loopback by default that loads the project once at startup.
   run reads, in a fresh request carrying the caller's header and never the
   runtime's client, cached about a minute against a hash of that header. The
   validated username becomes the request identity, and under this posture every
-  register read is answered under the caller's own DHIS2 authorization. `oauth2`
-  is reserved and
+  register read is answered under the caller's own DHIS2 authorization. `jwt`
+  takes `Authorization: Bearer <token>` from an external OpenID Connect issuer
+  and verifies it locally against that issuer's JWKS; the value of
+  `[serve.jwt] username_claim` becomes the request identity. `oauth2` is the name
+  reserved for an authorization server this facade would run itself and is
   deliberately not accepted: DHIS2 2.43.1's authorization server 500s for any
-  client its API creates (BUGS.md 96).
+  client its API creates (BUGS.md 96) - a deployment wanting bearer tokens today
+  states `jwt` and names the issuer it already has.
+- **The `jwt` posture is `[serve.jwt]`, verified locally against the issuer's
+  published keys.** `issuer` names the OpenID Connect issuer identifier and is
+  required for the posture; `audience` is checked only when stated;
+  `username_claim` defaults to `preferred_username` and names the claim that
+  identifies the caller; `forward_bearer` decides whether a register read carries
+  the caller's token to DHIS2. While the server starts it reads
+  `{issuer}/.well-known/openid-configuration` and the `jwks_uri` it names, and
+  every request after that is checked in memory with no round trip: the signature
+  against the key the token's `kid` selects, over RS256/RS384/RS512 and
+  ES256/ES384/ES512 and no symmetric algorithm (a shared-secret algorithm
+  verified against a public key is the algorithm-confusion attack), `iss`, `exp`
+  with a minute of clock leeway and no token accepted without one, `nbf` where
+  stated, `aud` where configured, and the username claim. The JWKS answer's own
+  `Cache-Control: max-age` is honoured with a five-minute floor and no ceiling; a
+  `kid` this process does not hold forces one refetch, so a key rotation is not
+  an outage, and that refetch is itself floored at a minute so a stream of
+  invented `kid`s costs the issuer one read. Revocation is the stated trade: a
+  token withdrawn before it expires stays valid here until it expires.
+- **Under `jwt`, the register is refused rather than read as the facade.** DHIS2
+  resolves a foreign issuer's JWT only when the instance was configured to trust
+  the same issuer (`oidc.jwt.token.authentication.enabled`), which this facade
+  cannot read and will not guess, so `[serve.jwt] forward_bearer` states it and
+  is false by default. False answers every register read 501 with an
+  OperationOutcome naming both halves that would make it answerable; true
+  forwards the caller's `Bearer` header over exactly the path the `dhis2` posture
+  forwards `Basic` over - same opaque header, same credential-free pool. There is
+  no silent fallback to the facade's own profile, which under an administrator
+  profile would be DHIS2's whole ownership and access-level model skipped with no
+  break-the-glass audit entry.
 - **`[serve] auth_scope` says how much the posture covers.** `write` - the
   default - guards `POST /QuestionnaireResponse` and nothing else, which is the
   facade's whole state-changing surface: `$generate`, `/evaluate`, and a CDS
@@ -1334,17 +1368,25 @@ bound to loopback by default that loads the project once at startup.
   of the register are answered under the caller's own DHIS2 authorization, and
   the `write`-scope sentence names the register as needing credentials rather
   than claiming every read is open.
-- **Three startup refusals, in `ServeSettings.resolve`** beside the sibling
+- **Five startup refusals, in `ServeSettings.resolve`** beside the sibling
   preflights, so `d2w fhir serve` and an embedder meet the same ones: binding an
   interface other than loopback while neither the run nor `fhir.toml` has stated
   a posture (the message names the fhir.toml line to write), the `token` posture
-  with `D2W_FHIR_SERVE_TOKENS` unset, and the `dhis2` posture on a compiled run,
-  which has no instance to check anybody against.
+  with `D2W_FHIR_SERVE_TOKENS` unset, the `dhis2` posture on a compiled run,
+  which has no instance to check anybody against, the `jwt` posture with no
+  `[serve.jwt] issuer`, and `[serve.jwt] forward_bearer` on a compiled run, which
+  has no instance to forward to. A sixth refusal is a round trip rather than a
+  value, so it lands while the server starts: a `jwt` run whose issuer this
+  machine cannot reach raises the same `ServeAuthConfigurationError` from
+  `open_serve_runtime` before a single request is taken.
 - **`/metadata` declares `rest.security` in every posture**, `none` included, so
   a client never infers an absence: the DHIS2 posture names `Basic` by its code
   in R4's `restful-security-service` value set and the personal access token as
-  text, the token posture states its scheme as text, and the `none` posture says
-  in words that every caller is served.
+  text, the token posture states its scheme as text, the `jwt` posture names
+  `OAuth` by its code with `JWT bearer token` as text and carries the issuer in
+  an extension on the element (never a key, never the audience, never the claim
+  name) while its description states whether the register is forwarded or
+  refused, and the `none` posture says in words that every caller is served.
 - **The check is one FastAPI dependency**, mounted over the routers
   `ServeRouters.guarded` names. An embedding application reads that set and
   mounts its own dependency in its place, writing a `RequestIdentity` onto
@@ -1631,10 +1673,27 @@ in phases that stop at the first level to find an error.
   submitted and never what DHIS2 now holds, and `ls` on that directory is the
   pending count the forwarding phase will drain.
 - **The spool is a directory rather than an index**: reads re-read `received/`,
-  `forwarded/`, and `rejected/` on every request, because `fhir forward`
-  renames receipts between them from another process while the server is up,
-  and a receipt keeps reading back after a drain rather than expiring the id
-  its sender was handed. `[serve] spool_dir` is where that tree lives.
+  `forwarded/`, `rejected/`, and `withdrawn/` on every request, because
+  `fhir forward` renames receipts between them from another process while the
+  server is up, and a receipt keeps reading back after a drain rather than
+  expiring the id its sender was handed. `[serve] spool_dir` is where that
+  tree lives.
+- **The served lifecycle names the spool's fourth state**: a receipt
+  `d2w fhir withdraw` retracted is read out of `withdrawn/`, counted by
+  `GET /spool`, and carries the record of the delete on its row - the event
+  UID, the instant, and what the instance keeps - which is the one sidecar
+  that is not an import report. The receipt still reads back at
+  `GET /QuestionnaireResponse/{id}`, because retracting data from an instance
+  does not unsay the submission.
+- **A correction or a withdrawal is refused at capture where the project's
+  dial is off**: `status = "amended"` is read against `[forward] corrections`
+  and `status = "entered-in-error"` against `[forward] withdrawals`, both off
+  unless a project says otherwise, and an unreceived one is answered 422 with
+  an OperationOutcome naming the key and the value that would accept it. The
+  check runs before the profile invariants, so a client that sent a correction
+  is told the one thing that decided the request. With a dial on the
+  submission is stored like any other receipt, status preserved - what a drain
+  then does with the marker is the corrections design's later slices.
 - **A translator-refused receipt says so in the listing**: a committing drain
   writes `<id>.refusal.json` beside a receipt it refused and left queued - the
   drain's instant, an attempt count, and the reasons - and `/spool` rows and
@@ -1720,10 +1779,14 @@ shipped inside the wheel.
 
 #### Overview
 
-- **Three spool counts as stat tiles**, with `Received` (the queue
+- **Four spool counts as stat tiles**, with `Received` (the queue
   `fhir forward` drains) set at hero size and every tile linking into the
   Responses table with that lifecycle already selected via
   `#/responses?lifecycle=`.
+- **A withdrawn receipt states what the instance keeps**, in the withdrawal
+  record's own words - "This DHIS2 instance keeps a hidden copy of the event;
+  it no longer appears in reports" - beside the instant and the event UID, and
+  never the bare word "deleted". The answers stay on the page.
 - **The rejected tile names the DHIS2 error code most of its receipts share**,
   counted per receipt rather than per issue, because DHIS2 states a rule once
   and then names every object that broke it.

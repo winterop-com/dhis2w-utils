@@ -12,6 +12,7 @@ from dhis2w_fhir.config import (
     SearchConfig,
     ServeAuth,
     ServeAuthScope,
+    ServeJwtConfig,
     TrackedEntitiesConfig,
     basemaps_from_options,
 )
@@ -70,6 +71,14 @@ class ServeSettings(BaseModel):
     password, and no header ever reaches these settings: `dhis2w_fhir_serve.auth.AuthState` holds what
     a check needs, on the application, for exactly that reason.
 
+    `jwt` is what the `jwt` posture runs on, off `[serve.jwt]` with no flag over it: which issuer this
+    facade trusts, the audience it insists on where one is stated, the claim that names the caller, and
+    whether a register read carries the caller's token on to DHIS2. It is a table of PUBLIC facts and
+    that is what makes it safe here - an issuer's identifier is what a client has to be told, not
+    something to keep from one. The issuer's keys are not here: they are fetched while the server
+    starts and held on `dhis2w_fhir_serve.auth.AuthState`, because they are a live document rather than
+    a setting.
+
     `tracked_entities` is the register this run serves - whether the instance's tracked entities are
     answered for at all, whether they can be listed, and how a listing is paged. It comes off
     `[serve.tracked_entities]` and no flag overrides it, because every value in it says what this
@@ -89,6 +98,7 @@ class ServeSettings(BaseModel):
     profile: str | None = None
     auth: ServeAuth = ServeAuth.NONE
     auth_scope: ServeAuthScope = ServeAuthScope.WRITE
+    jwt: ServeJwtConfig = Field(default_factory=ServeJwtConfig)
     strict_codes: bool = DEFAULT_STRICT_CODES
     capture: bool = True
     ui: bool = False
@@ -144,13 +154,18 @@ class ServeSettings(BaseModel):
 
         THE AUTH POSTURE IS PREFLIGHTED HERE TOO, and for the same reason every other refusal is: a
         server that starts and then cannot honour what it was asked for is a failure nobody reads
-        until somebody meets it. Three refusals, in `dhis2w_fhir_serve.auth.preflight_auth`: an
+        until somebody meets it. Five refusals, in `dhis2w_fhir_serve.auth.preflight_auth`: an
         interface other than loopback while neither this run nor fhir.toml has stated a posture, the
-        `token` posture with its environment variable unset, and the `dhis2` posture on a run that
-        reads a compiled guide and so has no instance to check anybody against. Whether the posture
-        was STATED is what the first of those turns on - `auth = "none"` written down is a decision,
-        an absent key is not - so a stated flag counts as much as a stated table key, and only the
-        two of them being silent is silence.
+        `token` posture with its environment variable unset, the `dhis2` posture on a run that reads
+        a compiled guide and so has no instance to check anybody against, the `jwt` posture with no
+        `[serve.jwt] issuer`, and `[serve.jwt] forward_bearer` on a run with no instance to forward
+        to. Whether the posture was STATED is what the first of those turns on - `auth = "none"`
+        written down is a decision, an absent key is not - so a stated flag counts as much as a
+        stated table key, and only the two of them being silent is silence.
+
+        The sixth thing that could stop a `jwt` run - an issuer this machine cannot reach - is a
+        round trip, so it is not made here: `open_serve_runtime` reads the issuer while the server
+        starts and refuses with the same error type. This function reads values.
         """
         serve_config = project.config.serve
         stated_basemaps = list(basemaps or [])
@@ -164,6 +179,7 @@ class ServeSettings(BaseModel):
             host=resolved_host,
             live=live,
             stated=auth is not None or serve_config.auth is not None,
+            jwt=serve_config.jwt,
         )
         generation = _resolved_generation(project, profile, required=live)
         if not live and not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):

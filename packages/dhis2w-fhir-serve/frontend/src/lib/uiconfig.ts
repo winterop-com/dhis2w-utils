@@ -78,20 +78,22 @@ export interface TrackedEntitiesSettings {
 /**
  * How this run decides who is calling, as `/uiconfig` states it: the posture, and how much it covers.
  *
- * THE NAME AND NOTHING ELSE. No token, no realm, no username. `posture` is what a screen would draw a
- * prompt from and `scope` is whether browsing needs a credential or only submitting does - and the
- * sign-in gate reads neither of them from here, because this document is itself behind the check
- * under `scope: 'all'`. It reads the posture off `/metadata`, which is open under every posture; see
- * `lib/auth`. What this object is for is the Server page, which says what this process is - and
- * `scope` is the one fact `/metadata` states only in prose.
+ * THE NAME AND NOTHING ELSE. No token, no realm, no username, no signing key. `posture` is what a
+ * screen would draw a prompt from, `scope` is whether browsing needs a credential or only submitting
+ * does, and `issuer` names whose tokens the JWT posture takes - and the sign-in gate reads none of
+ * them from here, because this document is itself behind the check under `scope: 'all'`. It reads
+ * them off `/metadata`, which is open under every posture; see `lib/auth`. What this object is for is
+ * the Server page, which says what this process is - and `scope` is the one fact `/metadata` states
+ * only in prose.
  */
 export interface AuthSettings {
     posture: AuthPosture
     scope: AuthScope
+    issuer?: string | null
 }
 
 /** What a server stating nothing is read as: it authenticates nobody, so no prompt is invented. */
-export const NO_AUTHENTICATION: AuthSettings = { posture: 'none', scope: 'write' }
+export const NO_AUTHENTICATION: AuthSettings = { posture: 'none', scope: 'write', issuer: null }
 
 /** How this run decides who is calling, with silence read as deciding nothing. */
 export function authSettings(config: UiConfig): AuthSettings {

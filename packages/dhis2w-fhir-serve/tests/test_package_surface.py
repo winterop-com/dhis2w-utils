@@ -190,3 +190,11 @@ def test_the_composition_contract_is_importable_in_one_import() -> None:
             serve_routers,
         )
     )
+
+
+def test_the_fourth_spool_state_is_on_the_surface() -> None:
+    """A withdrawn receipt is a lifecycle an embedder reads, so the state and its path are published."""
+    from dhis2w_fhir_serve import WITHDRAWN_RESPONSES_RELATIVE_PATH, ResponseLifecycle
+
+    assert ResponseLifecycle.WITHDRAWN == "withdrawn"
+    assert WITHDRAWN_RESPONSES_RELATIVE_PATH.endswith("/withdrawn")

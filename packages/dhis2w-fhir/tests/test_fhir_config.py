@@ -10,7 +10,9 @@ from dhis2w_fhir.config import (
     NoFhirProjectError,
     SearchBackend,
     SearchConfig,
+    ServeAuth,
     ServeConfig,
+    ServeJwtConfig,
     TrackedEntitiesConfig,
     UnknownFhirConfigKeyError,
     find_project_fhir_config,
@@ -411,3 +413,89 @@ def test_the_tracked_entities_table_survives_a_config_round_trip(tmp_path: Path)
     write_fhir_config(path, config)
 
     assert load_fhir_config(path).serve.tracked_entities == TrackedEntitiesConfig(listing=False, page_size=10)
+
+
+def test_the_jwt_table_defaults_to_the_openid_connect_convention_and_no_forwarding() -> None:
+    """A project stating only an issuer gets the standard username claim and no token sent to DHIS2."""
+    table = ServeJwtConfig(issuer="https://idp.example.org/realms/health")
+
+    assert table.username_claim == "preferred_username"
+    assert table.audience is None
+    assert table.forward_bearer is False
+
+
+def test_an_absent_jwt_table_is_a_table_of_defaults_naming_no_issuer() -> None:
+    """The posture refuses by the key's name rather than by a missing section, which needs the table present."""
+    assert ServeConfig().jwt.issuer is None
+
+
+def test_a_trailing_slash_on_the_issuer_is_dropped_so_one_issuer_is_one_string() -> None:
+    """A token's `iss` carries no trailing slash, and the comparison is a string comparison."""
+    assert ServeJwtConfig(issuer="https://idp.example.org/realms/health/").issuer == (
+        "https://idp.example.org/realms/health"
+    )
+
+
+def test_a_blank_issuer_states_nothing_rather_than_naming_an_empty_one() -> None:
+    """`issuer = ""` and an absent key mean the same thing, and both are refused by the preflight."""
+    assert ServeJwtConfig(issuer="  ").issuer is None
+
+
+def test_an_issuer_that_is_not_a_url_is_refused_by_name() -> None:
+    """The issuer is what `/.well-known/openid-configuration` is appended to, so it has to be a URL."""
+    with pytest.raises(ValidationError, match="is not an issuer identifier"):
+        ServeJwtConfig(issuer="idp.example.org")
+
+
+def test_a_blank_username_claim_would_read_every_token_as_naming_nobody() -> None:
+    """A claim name has to name a claim; leaving the key out is how a project takes the default."""
+    with pytest.raises(ValidationError, match="username_claim is empty"):
+        ServeJwtConfig(username_claim="   ")
+
+
+def test_the_jwt_table_parses_off_fhir_toml(tmp_path: Path) -> None:
+    """Which issuer a deployment federates with is project config, so it loads off the document."""
+    path = _write(
+        tmp_path,
+        after=(
+            '\n[serve]\nauth = "jwt"\n\n[serve.jwt]\n'
+            'issuer = "https://idp.example.org/realms/health"\n'
+            'audience = "d2w-fhir-serve"\n'
+            'username_claim = "dhis2_username"\n'
+            "forward_bearer = true\n"
+        ),
+    )
+
+    serve = load_fhir_config(path).serve
+
+    assert serve.auth is ServeAuth.JWT
+    assert serve.jwt.issuer == "https://idp.example.org/realms/health"
+    assert serve.jwt.audience == "d2w-fhir-serve"
+    assert serve.jwt.username_claim == "dhis2_username"
+    assert serve.jwt.forward_bearer is True
+
+
+def test_a_misspelled_key_in_the_jwt_table_gets_the_same_treatment(tmp_path: Path) -> None:
+    """`[serve.jwt]` declares its full key set like every other table, so a typo is named and placed."""
+    path = _write(tmp_path, after='\n[serve.jwt]\nissur = "https://idp.example.org"\n')
+
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+
+    assert raised.value.diagnostics == ("fhir.toml: unknown key 'issur' in [serve.jwt]\n  did you mean 'issuer'?",)
+
+
+def test_the_jwt_table_survives_a_config_round_trip(tmp_path: Path) -> None:
+    """The table writes to fhir.toml and loads back off it, exactly as its sibling tables do."""
+    path = tmp_path / "fhir.toml"
+    config = _make_config()
+    config.serve = ServeConfig(
+        auth=ServeAuth.JWT,
+        jwt=ServeJwtConfig(issuer="https://idp.example.org/realms/health", audience="d2w-fhir-serve"),
+    )
+
+    write_fhir_config(path, config)
+
+    assert load_fhir_config(path).serve.jwt == ServeJwtConfig(
+        issuer="https://idp.example.org/realms/health", audience="d2w-fhir-serve"
+    )

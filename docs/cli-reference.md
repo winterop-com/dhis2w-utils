@@ -10052,7 +10052,9 @@ Received QuestionnaireResponses are stored as receipts, so reading one back says
 
 `--basemap` offers another tile layer on the organisation-unit map, and `--basemap none` offers none.
 
-`--auth` says who is served: `none`, `token` (D2W_FHIR_SERVE_TOKENS), or `dhis2` (the caller&#x27;s own credentials).
+`--auth` says who is served: `none`, `token` (D2W_FHIR_SERVE_TOKENS), `dhis2` (the caller&#x27;s own
+credentials), or `jwt` (a token from the OpenID Connect issuer named in `[serve.jwt] issuer`,
+verified against that issuer&#x27;s published keys).
 
 Host, port, authentication, strict codes, the UI, and basemaps come from `[serve]` unless a flag beats them.
 
@@ -10074,7 +10076,7 @@ $ d2w fhir serve [OPTIONS] [directory]
 * `--live`: Build the served resources from a DHIS2 instance at startup instead of reading the compiled IG off disk. The store is a snapshot of the instance the server started against, and the one client that built it stays open for the life of the process, because the register routes read the instance per request.
 * `--host <str>`: Interface to bind, overriding `[serve] host`. The default is loopback. Binding anything else while neither --auth nor `[serve] auth` states a posture is refused: who reaches this facade and who it answers are one decision.
 * `--port <int>`: Port to listen on, overriding `[serve] port` (default 8080).
-* `--auth <none|token|dhis2>`: Who this facade serves, overriding `[serve] auth`. `none` serves every caller; `token` takes a static bearer token out of D2W_FHIR_SERVE_TOKENS; `dhis2` takes the caller&#x27;s own DHIS2 credentials and checks them against the instance this run reads, which needs --live. Binding an interface other than loopback while neither this flag nor fhir.toml states a posture is refused.
+* `--auth <none|token|dhis2|jwt>`: Who this facade serves, overriding `[serve] auth`. `none` serves every caller; `token` takes a static bearer token out of D2W_FHIR_SERVE_TOKENS; `dhis2` takes the caller&#x27;s own DHIS2 credentials and checks them against the instance this run reads, which needs --live; `jwt` takes a token from the OpenID Connect issuer named in `[serve.jwt] issuer`, verified against that issuer&#x27;s published keys. Binding an interface other than loopback while neither this flag nor fhir.toml states a posture is refused.
 * `--auth-scope <write|all>`: How much of the surface the posture covers, overriding `[serve] auth_scope`. `write` asks for credentials on `POST /QuestionnaireResponse` and leaves every read open; `all` asks for them everywhere except `/metadata`, which stays open so a client can read the posture it has to meet.
 * `--strict-codes / --no-strict-codes`: Refuse a received answer whose code is outside the served terminology, overriding `[serve] strict_codes`. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
 * `--ui / --no-ui`: Serve the capture UI at `/` alongside the FHIR routes, overriding `[serve] ui`. The bundle is mounted around them and shadows none of them; a checkout that has never run `make build-frontend` is refused rather than served blank.

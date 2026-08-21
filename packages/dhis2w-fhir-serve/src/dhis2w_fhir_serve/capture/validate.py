@@ -7,7 +7,8 @@ a period against a questionnaire that is not served here. Inside a phase every i
 so one round trip reports every problem at that level rather than one at a time.
 
     0. Read the body      - JSON, `resourceType`, and the R4 shape of a QuestionnaireResponse (400).
-    1. Read the contract  - the D2FormType kind, then the invariants that kind's profile pins (422).
+    1. Read the contract  - the D2FormType kind, the lifecycle status this project accepts, then the
+                            invariants that kind's profile pins (422).
     2. Resolve the form   - the questionnaire canonical, its served Questionnaire, its index, and
                             the resource type that form declares its subject is (422).
     3. Read the assignment - the organisation unit the response reports for, against the form's List (422).
@@ -48,6 +49,15 @@ sent in a spelling the contract does not ask for, a required question left unans
 range that disagrees with the ISO period it was derived from - and they ride back on the
 OperationOutcome of the accepted capture and into the stored receipt.
 
+A CORRECTION AND A WITHDRAWAL ARE POSTURES, NOT SHAPES. R4 spells both on the response itself -
+`status = "amended"` says the submission corrects one this project already sent, and
+`status = "entered-in-error"` says it retracts one - and whether a deployment receives either is
+`[forward] corrections` and `[forward] withdrawals` in its `fhir.toml`. Both default to off, and
+with the dial off the submission is refused here rather than spooled for a drain that would never
+act on it: a receipt accepted and then never forwarded is a client told "kept" about a fact that
+never reaches the instance. With the dial on the submission is stored like any other receipt, status
+and all - what a drain then does with it is `docs/fhir/design/data-lifecycle.md`.
+
 Nothing here talks to DHIS2. A capture is validated against the served IG and stored; translating
 a receipt into DHIS2 data values, events, and enrollments is a later phase.
 """
@@ -57,6 +67,7 @@ from __future__ import annotations
 import json
 from typing import Any, Final, cast
 
+from dhis2w_fhir.config import CorrectionPosture, FhirProject, WithdrawalPosture
 from dhis2w_fhir.names import DHIS2_UID_LENGTH, is_dhis2_uid
 from dhis2w_fhir.period import parse_period
 from dhis2w_fhir.r4 import (
@@ -109,6 +120,16 @@ runtime source a request is actually validated against.
 #: drafted against one, so a half-finished aggregate submission is not something to store as sent.
 AGGREGATE_REQUIRED_STATUS = "completed"
 
+#: The R4 status a submission declares itself a correction with, and the one it declares itself a
+#: withdrawal with. Both are lifecycle statements about a receipt this project already forwarded,
+#: which is why each is gated on its own `[forward]` dial rather than on the form's profile.
+AMENDED_STATUS = "amended"
+ENTERED_IN_ERROR_STATUS = "entered-in-error"
+
+#: How a refusal names the `fhir.toml` key that decides each, spelled as the table and the key.
+CORRECTIONS_CONFIG_KEY = "[forward] corrections"
+WITHDRAWALS_CONFIG_KEY = "[forward] withdrawals"
+
 #: The resource type a capture request carries, and what a client posting a Bundle is told instead.
 QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE = "QuestionnaireResponse"
 BUNDLE_RESOURCE_TYPE = "Bundle"
@@ -149,6 +170,30 @@ _FULL_DATE_PARTS = 3
 _COMBO_EXPRESSION = "QuestionnaireResponse.extension"
 
 
+class CaptureLifecyclePostures(BaseModel):
+    """Whether this project receives a submission that corrects, or one that retracts, a forwarded receipt.
+
+    The `[forward]` dials of `fhir.toml`, read at capture time by the server that receives the
+    submission rather than only by the drain that would act on it. Both default to off, which is what
+    a project that says nothing gets: publishing forms and forwarding them is not the same decision as
+    letting a submitter reach back into what DHIS2 already holds.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    corrections: CorrectionPosture = CorrectionPosture.OFF
+    withdrawals: WithdrawalPosture = WithdrawalPosture.OFF
+
+    @classmethod
+    def from_project(cls, project: FhirProject) -> CaptureLifecyclePostures:
+        """The two dials as this project's `fhir.toml` states them - the same values `d2w fhir forward` reads."""
+        return cls(corrections=project.config.forward.corrections, withdrawals=project.config.forward.withdrawals)
+
+
+#: What a project that states no `[forward]` dials receives, which is neither corrections nor withdrawals.
+DEFAULT_LIFECYCLE_POSTURES = CaptureLifecyclePostures()
+
+
 class ValidatedCapture(BaseModel):
     """A submission that cleared every phase: what it is, what it answers, and what the server noted."""
 
@@ -172,6 +217,7 @@ def validate_response(
     naming: CaptureNaming,
     store: ResourceStore,
     strict_codes: bool = DEFAULT_STRICT_CODES,
+    postures: CaptureLifecyclePostures = DEFAULT_LIFECYCLE_POSTURES,
 ) -> ValidatedCapture:
     """Run every phase over one received body, answering with what to store or raising what to refuse."""
     payload = _read_body(raw_body)
@@ -179,6 +225,7 @@ def validate_response(
     warnings: list[CaptureIssue] = []
 
     form_kind = _declared_form_kind(response, naming)
+    _refuse_unreceived_lifecycle_status(response, postures)
     _settle(_profile_issues(response, naming, form_kind), warnings)
 
     resolvers = CodingResolverSet(store=store)
@@ -271,6 +318,40 @@ def _declared_form_kind(response: QuestionnaireResponse, naming: CaptureNaming) 
         "QuestionnaireResponse.extension",
         f"`{declared[0]}` is not a DHIS2 form kind this server captures ({', '.join(FORM_KINDS)})",
     )
+
+
+def _refuse_unreceived_lifecycle_status(response: QuestionnaireResponse, postures: CaptureLifecyclePostures) -> None:
+    """Phase 1b: refuse a correction or a withdrawal whose `[forward]` dial this project leaves off.
+
+    The refusal names the key that would receive the submission, because that is the one thing the
+    client cannot work out from the response it got: `amended` is valid R4 and the form admits it, so
+    a bare "not accepted" would read as a bug in the submission rather than as a decision the project
+    made. It runs before the profile invariants so a client that sent a correction is told that first,
+    rather than being told about the form's own rules for a submission this project will not receive.
+
+    One issue rather than a collected phase: a submission is a correction or a withdrawal, never both,
+    and there is no second thing to say about a status the project does not receive.
+    """
+    if response.status == AMENDED_STATUS and postures.corrections is CorrectionPosture.OFF:
+        raise _refusal(
+            422,
+            "business-rule",
+            "QuestionnaireResponse.status",
+            f"`{AMENDED_STATUS}` says this submission corrects one this project already forwarded, and this "
+            f"project receives no corrections: `{CORRECTIONS_CONFIG_KEY}` in fhir.toml is "
+            f"`{CorrectionPosture.OFF.value}`, and a project that receives them sets it to "
+            f"`{CorrectionPosture.AMEND.value}`",
+        )
+    if response.status == ENTERED_IN_ERROR_STATUS and postures.withdrawals is WithdrawalPosture.OFF:
+        raise _refusal(
+            422,
+            "business-rule",
+            "QuestionnaireResponse.status",
+            f"`{ENTERED_IN_ERROR_STATUS}` says this submission retracts one this project already forwarded, and "
+            f"this project receives no withdrawals: `{WITHDRAWALS_CONFIG_KEY}` in fhir.toml is "
+            f"`{WithdrawalPosture.OFF.value}`, and a project that receives them sets it to "
+            f"`{WithdrawalPosture.RETRACT.value}`",
+        )
 
 
 def _profile_issues(

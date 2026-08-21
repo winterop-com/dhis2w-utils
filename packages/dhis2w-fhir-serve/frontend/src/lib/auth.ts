@@ -10,8 +10,14 @@
  * WHAT DECIDES WHICH PROMPT. `security.service` is R4's own way of naming schemes. The DHIS2 posture
  * names `Basic` by its code in R4's value set, so the prompt is a username and a password; the token
  * posture names a scheme the value set has no code for, so the server states it as text, and the
- * prompt is one field. Those two strings are a contract with
- * `dhis2w_fhir_serve.capability.build_security` and are asserted on both sides.
+ * prompt is one field. The JWT posture names `OAuth` by its code and states `JWT bearer token` as
+ * text, and its prompt is one field too - for a token this server did not issue. Those strings are a
+ * contract with `dhis2w_fhir_serve.capability.build_security` and are asserted on both sides.
+ *
+ * THE JWT POSTURE ALSO CARRIES AN ISSUER, and it has to: a person told to present a token cannot get
+ * one without being told whose. R4 has no element for it - `service` names schemes and an issuer is
+ * not a scheme - so the server puts it in an extension on `security`, and `issuerFromSecurity` is
+ * what reads it back. Never a key, never an audience: the issuer alone.
  *
  * WHERE THE CREDENTIAL LIVES. `sessionStorage`, under one key, as the whole `Authorization` value.
  * A tab, not a browser: closing the tab ends the session, and a second tab signs in on its own.
@@ -23,18 +29,24 @@
  * instance behind this facade cannot yet offer (BUGS.md 96).
  */
 
-/** The three postures this server can be in, as `/uiconfig` and this module spell them. */
-export type AuthPosture = 'none' | 'token' | 'dhis2'
+/** The four postures this server can be in, as `/uiconfig` and this module spell them. */
+export type AuthPosture = 'none' | 'token' | 'dhis2' | 'jwt'
 
 /** How much of the surface the posture covers, as `/uiconfig` spells it. */
 export type AuthScope = 'write' | 'all'
 
-/** R4's own code system for the schemes a `rest.security` may name, and the one code this server uses. */
+/** R4's own code system for the schemes a `rest.security` may name, and the two codes this server uses. */
 export const SECURITY_SERVICE_SYSTEM = 'http://terminology.hl7.org/CodeSystem/restful-security-service'
 export const BASIC_SECURITY_CODE = 'Basic'
+export const OAUTH_SECURITY_CODE = 'OAuth'
 
-/** What the token posture states where the value set has no code, matching the Python side exactly. */
+/** What each bearer posture states where the value set has no code, matching the Python side exactly. */
 export const BEARER_TOKEN_SECURITY_TEXT = 'Bearer token'
+export const JWT_BEARER_TOKEN_SECURITY_TEXT = 'JWT bearer token'
+
+/** Where the JWT posture states which issuer it takes tokens from - see this module's own note. */
+export const JWT_ISSUER_EXTENSION_URL =
+    'https://winterop-com.github.io/dhis2w-utils/fhir/StructureDefinition/serve-jwt-issuer'
 
 /** Where this tab keeps the `Authorization` value it signs its requests with. */
 export const CREDENTIAL_STORAGE_KEY = 'd2w-fhir-serve-authorization'
@@ -45,6 +57,7 @@ export const IDENTITY_STORAGE_KEY = 'd2w-fhir-serve-identity'
 /** The shape `rest.security` arrives in - only the parts this module reads. */
 export interface CapabilitySecurity {
     cors?: boolean
+    extension?: { url?: string; valueString?: string }[]
     service?: { coding?: { system?: string; code?: string }[]; text?: string }[]
     description?: string
 }
@@ -55,6 +68,9 @@ export interface CapabilitySecurity {
  * A statement with no `security` at all is read as `none`, which is the safe reading for a UI: it
  * draws no prompt and lets the server answer for itself. This server always states the element,
  * `none` included, so silence means something in front of it rewrote the document.
+ *
+ * `JWT bearer token` is checked before `Bearer token` because the first contains the second: read in
+ * the other order, every JWT server would draw the deployment-token prompt.
  */
 export function postureFromSecurity(security: CapabilitySecurity | null | undefined): AuthPosture {
     const services = security?.service ?? []
@@ -65,8 +81,23 @@ export function postureFromSecurity(security: CapabilitySecurity | null | undefi
         for (const coding of service.coding ?? []) if (coding.code) named.add(coding.code)
     }
     if (named.has(BASIC_SECURITY_CODE)) return 'dhis2'
+    if (named.has(JWT_BEARER_TOKEN_SECURITY_TEXT) || named.has(OAUTH_SECURITY_CODE)) return 'jwt'
     if (named.has(BEARER_TOKEN_SECURITY_TEXT)) return 'token'
     return 'none'
+}
+
+/**
+ * Which issuer one CapabilityStatement says its tokens come from, or null where it says none.
+ *
+ * Only the JWT posture states it, and only that posture's prompt reads it. Null is what every other
+ * posture answers, and what a JWT statement something rewrote would answer - the panel says so in
+ * plainer words rather than naming an issuer nobody declared.
+ */
+export function issuerFromSecurity(security: CapabilitySecurity | null | undefined): string | null {
+    for (const extension of security?.extension ?? []) {
+        if (extension.url === JWT_ISSUER_EXTENSION_URL && extension.valueString) return extension.valueString
+    }
+    return null
 }
 
 /** One username and password as HTTP Basic sends them. */
@@ -101,6 +132,8 @@ export function storedIdentity(): string | null {
 export interface AuthState {
     /** The posture read off `/metadata`, or null until that read lands. */
     posture: AuthPosture | null
+    /** The issuer that same document named, under the JWT posture, and null under every other. */
+    issuer: string | null
     /** The `Authorization` value this tab holds, or null. */
     authorization: string | null
     /** Who that credential is, where the credential names anybody. */
@@ -111,6 +144,7 @@ export interface AuthState {
 
 let state: AuthState = {
     posture: null,
+    issuer: null,
     authorization: storedAuthorization(),
     identity: storedIdentity(),
     refused: false,
@@ -135,9 +169,9 @@ export function authSnapshot(): AuthState {
     return state
 }
 
-/** Record which posture this server declared, once `/metadata` has been read. */
-export function setAuthPosture(posture: AuthPosture): void {
-    publish({ ...state, posture })
+/** Record which posture this server declared, and whose tokens it takes, once `/metadata` has been read. */
+export function setAuthPosture(posture: AuthPosture, issuer: string | null = null): void {
+    publish({ ...state, posture, issuer })
 }
 
 /**
@@ -199,9 +233,24 @@ export function signInIsRequired(current: AuthState): boolean {
 }
 
 /** What the sign-in panel is headed with, per posture. Say the fact, not the verb. */
-export const SIGN_IN_HEADINGS: Record<Exclude<AuthPosture, 'none'>, string> = {
+export const SIGN_IN_HEADINGS: Record<Exclude<AuthPosture, 'none' | 'jwt'>, string> = {
     token: 'This server takes a token',
     dhis2: 'This server takes your DHIS2 credentials',
+}
+
+/** What the JWT posture is headed with, which has to name the issuer the token comes from. */
+export const UNNAMED_ISSUER_HEADING = 'This server takes a token from an identity provider'
+
+/**
+ * What one posture heads its prompt with, naming the issuer where there is one to name.
+ *
+ * An unnamed issuer is not a case this server produces - it declares the issuer in every `jwt`
+ * statement it writes - so it is what a rewritten document reads as, and the honest heading for it
+ * says a token is wanted without inventing whose.
+ */
+export function signInHeading(posture: Exclude<AuthPosture, 'none'>, issuer: string | null): string {
+    if (posture !== 'jwt') return SIGN_IN_HEADINGS[posture]
+    return issuer === null ? UNNAMED_ISSUER_HEADING : `This server takes a token from ${issuer}`
 }
 
 /** What it says under that heading, per posture. */
@@ -211,6 +260,11 @@ export const SIGN_IN_NOTES: Record<Exclude<AuthPosture, 'none'>, string> = {
         'The username and password are the ones you sign in to DHIS2 with. This server checks them ' +
         'against the instance and records your username on everything you capture. They are held ' +
         'for this browser tab only.',
+    jwt:
+        'Getting a token is the identity provider’s business, not this server’s: sign in ' +
+        'there the way you normally do and paste the token it gives you. This server checks the ' +
+        'signature against the keys that provider publishes and records your username on everything ' +
+        'you capture. The token is held for this browser tab only.',
 }
 
 /** What the control that ends a session is called, and what the one that starts it is called. */

@@ -1,6 +1,14 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Inbox, TriangleAlert } from 'lucide-react'
+import {
+    AlertTriangle,
+    ArrowLeft,
+    ChevronDown,
+    ChevronRight,
+    Inbox,
+    TriangleAlert,
+    Undo2,
+} from 'lucide-react'
 
 import { PageState } from '@/components/PageState'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
@@ -49,10 +57,12 @@ import {
     formatInstant,
     ORGANISATION_UNIT_FACT_LABEL,
     rejectionSummary,
+    withdrawalSummary,
     type SpoolRefusal,
     type SpoolRejection,
     type SpoolRejectionIssue,
     type SpoolResponseSummary,
+    type SpoolWithdrawal,
 } from '@/lib/spool'
 
 /**
@@ -206,6 +216,10 @@ export function ResponseDetail() {
 
                         {summary !== null && summary.refusal ? (
                             <RefusalSection refusal={summary.refusal} />
+                        ) : null}
+
+                        {summary !== null && summary.withdrawal ? (
+                            <WithdrawalSection withdrawal={summary.withdrawal} />
                         ) : null}
 
                         <RawResource resource={stored.resource} />
@@ -610,6 +624,35 @@ function RefusalSection({ refusal }: { refusal: SpoolRefusal }) {
                     </Table>
                 </div>
             )}
+        </section>
+    )
+}
+
+/**
+ * What DHIS2 answered when it was asked to take this receipt's event back.
+ *
+ * WHY THE COPY IS SO CAREFUL. DHIS2 soft-deletes: the row stays in the instance carrying its value
+ * and is gone from every ordinary read. "Deleted" would claim more than that, so the note is the
+ * withdrawal record's own sentence rendered as written - one wording, in the package that posts the
+ * delete, shown here and in the terminal alike.
+ *
+ * The receipt itself is untouched, and the page still renders every answer above: what a submitter
+ * asserted is a fact about the submission, and retracting it from an instance does not unsay it.
+ */
+function WithdrawalSection({ withdrawal }: { withdrawal: SpoolWithdrawal }) {
+    return (
+        <section className="space-y-3">
+            <h3 className="flex items-center gap-2 text-base font-semibold">
+                <Undo2 className="text-status-withdrawn size-4" aria-hidden />
+                Withdrawn from DHIS2
+            </h3>
+            <p className="text-muted-foreground text-sm">{withdrawalSummary(withdrawal)}</p>
+            <dl className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border p-4 text-xs sm:grid-cols-4">
+                <Fact label="Withdrawn" value={formatInstant(withdrawal.withdrawn_at)} />
+                <Fact label="Event" value={withdrawal.event_uid} mono />
+                <Fact label="Status" value={withdrawal.status ?? 'not stated'} />
+                <Fact label="Deleted" value={String(withdrawal.deleted)} />
+            </dl>
         </section>
     )
 }

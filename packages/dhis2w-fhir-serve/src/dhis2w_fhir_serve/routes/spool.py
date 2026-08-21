@@ -6,7 +6,7 @@ Almost everything this facade answers has a FHIR spelling, and where one exists 
 receipts themselves are `GET /QuestionnaireResponse`, and that search covers all three lifecycle
 states, so a client that only speaks FHIR still sees every receipt. What that search cannot carry
 is the receipt *envelope*: when the facade accepted the submission, which DHIS2 form kind it was
-validated as, what the server had to warn about, which of the spool's three directories the file
+validated as, what the server had to warn about, which of the spool's four directories the file
 now sits in, and - for a rejection - the DHIS2 import report `d2w fhir forward` left beside it.
 
 None of those are elements of a QuestionnaireResponse. Two of them could be forced into `meta`
@@ -35,7 +35,7 @@ would be no queue depth at all.
 from __future__ import annotations
 
 from dhis2w_fhir.r4 import Extension, QuestionnaireResponse, QuestionnaireResponseItem
-from dhis2w_fhir.service import ForwardImportOutcome
+from dhis2w_fhir.service import ForwardImportOutcome, WithdrawalRecord
 from dhis2w_fhir.spool import ForwardRefusalRecord, QuarantinedFile
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -167,6 +167,42 @@ class SpoolRefusal(BaseModel):
         )
 
 
+class SpoolWithdrawal(BaseModel):
+    """What DHIS2 answered when it was asked to take one receipt's event back, and what it keeps afterwards.
+
+    Projected out of the withdrawal record `d2w fhir withdraw` stored beside the receipt. The note is
+    the record's own sentence rather than a phrasing invented here: DHIS2 soft-deletes, so the row
+    stays in the instance carrying its value and is gone from every ordinary read, and a listing that
+    said "deleted" would be claiming more than the toolkit can stand behind.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    withdrawn_at: str
+    """The instant the withdrawal was posted, as a FHIR `instant` (UTC)."""
+
+    event_uid: str
+    """The DHIS2 event the withdrawal named, derived from the receipt's own logical id."""
+
+    note: str
+    """What remains in the instance, in the record's own words."""
+
+    status: str | None = None
+    deleted: int = 0
+    """How many objects DHIS2 counted as deleted when it took the retraction."""
+
+    @classmethod
+    def from_record(cls, record: WithdrawalRecord) -> SpoolWithdrawal:
+        """Reduce one stored withdrawal record to what a withdrawn row shows."""
+        return cls(
+            withdrawn_at=record.withdrawn_at,
+            event_uid=record.event_uid,
+            note=record.note,
+            status=record.status,
+            deleted=record.deleted,
+        )
+
+
 class SpoolResponseSummary(BaseModel):
     """One receipt as a listing row: when it arrived, what it answers, where it is, and what DHIS2 said."""
 
@@ -207,6 +243,9 @@ class SpoolResponseSummary(BaseModel):
     refusal: SpoolRefusal | None = None
     """The last committing drain's refusal, on a received row that has a record beside it."""
 
+    withdrawal: SpoolWithdrawal | None = None
+    """What DHIS2 answered the retraction, on a withdrawn row that has a readable record beside it."""
+
 
 class SpoolCounts(BaseModel):
     """How many receipts sit in each lifecycle state - the queue depth, and what became of the rest."""
@@ -216,6 +255,9 @@ class SpoolCounts(BaseModel):
     received: int = 0
     forwarded: int = 0
     rejected: int = 0
+    withdrawn: int = 0
+    """Receipts DHIS2 took and `d2w fhir withdraw` retracted afterwards. Terminal: nothing leaves this state."""
+
     malformed: int = 0
     """Files in the holding pen. Not receipts and not a lifecycle state - bytes that would not parse as one."""
 
@@ -260,6 +302,7 @@ async def read_spool(request: Request) -> SpoolListing:
         received=sum(1 for receipt in reading.receipts if receipt.lifecycle is ResponseLifecycle.RECEIVED),
         forwarded=sum(1 for receipt in reading.receipts if receipt.lifecycle is ResponseLifecycle.FORWARDED),
         rejected=sum(1 for receipt in reading.receipts if receipt.lifecycle is ResponseLifecycle.REJECTED),
+        withdrawn=sum(1 for receipt in reading.receipts if receipt.lifecycle is ResponseLifecycle.WITHDRAWN),
         malformed=len(reading.quarantined),
     )
     page = page_of(reading.receipts, cursor, count)
@@ -283,21 +326,31 @@ def _page_url(request: Request, cursor: SpoolCursor, count: int) -> str:
 def _summaries(
     spool: ResponseSpool, receipts: tuple[StoredReceipt, ...], naming: CaptureNaming
 ) -> tuple[SpoolResponseSummary, ...]:
-    """Project one page of receipts into listing rows, reading the report beside each drained one.
+    """Project one page of receipts into listing rows, reading the sidecar beside each receipt that has one.
 
     Only the page pays for this. Deriving a row parses the stored resource and reads a sidecar off
     disk, which is the expensive half of the listing, so a spool of ten thousand receipts costs a
     page of it rather than all of it.
+
+    Which sidecar is read follows from the state, because the three sidecars answer three questions:
+    a drained receipt has an import report, a queued one may have a drain's refusal, and a withdrawn
+    one has the record of the delete. Reading a state's own file is also what keeps a withdrawal
+    record from being parsed as the import report it is not.
     """
-    return tuple(
-        _summary(
-            receipt,
-            naming,
-            spool.import_report(receipt.response_id, receipt.lifecycle),
-            spool.refusal_record(receipt.response_id) if receipt.lifecycle is ResponseLifecycle.RECEIVED else None,
+    rows: list[SpoolResponseSummary] = []
+    for receipt in receipts:
+        drained = receipt.lifecycle in (ResponseLifecycle.FORWARDED, ResponseLifecycle.REJECTED)
+        withdrawn = receipt.lifecycle is ResponseLifecycle.WITHDRAWN
+        rows.append(
+            _summary(
+                receipt,
+                naming,
+                spool.import_report(receipt.response_id, receipt.lifecycle) if drained else None,
+                spool.refusal_record(receipt.response_id) if receipt.lifecycle is ResponseLifecycle.RECEIVED else None,
+                spool.withdrawal_record(receipt.response_id) if withdrawn else None,
+            )
         )
-        for receipt in receipts
-    )
+    return tuple(rows)
 
 
 def _summary(
@@ -305,6 +358,7 @@ def _summary(
     naming: CaptureNaming,
     report: ForwardImportOutcome | None,
     refusal: ForwardRefusalRecord | None = None,
+    withdrawal: WithdrawalRecord | None = None,
 ) -> SpoolResponseSummary:
     """Build one listing row, deriving the capture context out of the stored resource where it reads.
 
@@ -326,6 +380,7 @@ def _summary(
         rejection=SpoolRejection.from_outcome(report) if report is not None and rejected else None,
         imported=SpoolImport.from_outcome(report) if report is not None and forwarded else None,
         refusal=SpoolRefusal.from_record(refusal) if refusal is not None else None,
+        withdrawal=SpoolWithdrawal.from_record(withdrawal) if withdrawal is not None else None,
     )
     response = _parsed(receipt)
     if response is None:

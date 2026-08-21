@@ -111,7 +111,13 @@ async def test_the_spool_counts_are_the_whole_spool_rather_than_the_page(paged_c
     body = (await paged_client.get("/spool?_count=2")).json()
 
     assert len(body["responses"]) == 2
-    assert body["counts"] == {"received": SEEDED_RECEIPTS, "forwarded": 0, "rejected": 0, "malformed": 0}
+    assert body["counts"] == {
+        "received": SEEDED_RECEIPTS,
+        "forwarded": 0,
+        "rejected": 0,
+        "withdrawn": 0,
+        "malformed": 0,
+    }
 
 
 async def test_a_page_this_server_did_not_mint_is_refused(paged_client: httpx.AsyncClient) -> None:

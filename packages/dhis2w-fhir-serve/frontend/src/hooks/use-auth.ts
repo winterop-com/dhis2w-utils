@@ -3,6 +3,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 import { apiFetch } from '@/lib/api'
 import {
     authSnapshot,
+    issuerFromSecurity,
     postureFromSecurity,
     setAuthPosture,
     subscribeToAuth,
@@ -32,8 +33,8 @@ export function useAuth(): AuthState {
     useEffect(() => {
         if (state.posture !== null) return
         let cancelled = false
-        void readPosture().then((posture) => {
-            if (!cancelled && posture !== null) setAuthPosture(posture)
+        void readPosture().then((declared) => {
+            if (!cancelled && declared !== null) setAuthPosture(declared.posture, declared.issuer)
         })
         return () => {
             cancelled = true
@@ -49,13 +50,17 @@ export function useAuth(): AuthState {
  * Deliberately not `readCapabilityStatement`: this runs before anything else in the app and its
  * failure is not a page's failure. An unreachable server answers null, the shell keeps waiting, and
  * the status menu is what says the server is not there.
+ *
+ * The issuer comes off the same read because it comes off the same element, and because it is what
+ * the JWT posture's prompt has to name. It is null under every other posture.
  */
-async function readPosture(): Promise<AuthPosture | null> {
+async function readPosture(): Promise<{ posture: AuthPosture; issuer: string | null } | null> {
     try {
         const response = await apiFetch('/metadata', { cache: 'no-store' })
         if (!response.ok) return null
         const statement = (await response.json()) as CapabilityStatement
-        return postureFromSecurity(statement.rest?.[0]?.security)
+        const security = statement.rest?.[0]?.security
+        return { posture: postureFromSecurity(security), issuer: issuerFromSecurity(security) }
     } catch {
         return null
     }

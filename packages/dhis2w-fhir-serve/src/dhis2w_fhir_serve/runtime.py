@@ -17,10 +17,18 @@ keeps ownership of it. It rides beside the served context rather than on it, for
 `dhis2w_fhir_serve.routes.context` gives - a Pydantic model of what a facade serves is not the place
 for a live HTTP connection - and `ServeRuntime` is the name for the pair.
 
-A live run under `[serve] auth = "dhis2"` opens a second connection to the same instance, and this
-one carries no credential: it is the pool a register read sends the CALLER'S own `Authorization`
-over, so DHIS2 decides per caller what comes back. `dhis2w_fhir_serve.passthrough` states why, and
-opens it; the lifespan owns it exactly as it owns the client, so both close when the process unwinds.
+A live run that forwards credentials - `[serve] auth = "dhis2"`, or `"jwt"` with
+`[serve.jwt] forward_bearer = true` - opens a second connection to the same instance, and this one
+carries no credential: it is the pool a register read sends the CALLER'S own `Authorization` over, so
+DHIS2 decides per caller what comes back. `dhis2w_fhir_serve.passthrough` states why, and opens it;
+the lifespan owns it exactly as it owns the client, so both close when the process unwinds.
+
+A run under `[serve] auth = "jwt"` also reads its issuer here, before anything is served: the
+discovery document and then the keys it names. That is a network read at startup and it is a
+deliberate one - an issuer this machine cannot reach is a posture this process cannot honour, and
+finding that out on a caller's behalf would mean a server that starts and 401s everybody for a
+reason none of them can act on. `dhis2w_fhir_serve.oidc` does the reading and `auth.open_jwt_verifier`
+turns a failure into the same refusal the other postures raise.
 """
 
 from __future__ import annotations
@@ -34,8 +42,10 @@ from dhis2w_client import Dhis2Client
 from dhis2w_fhir.config import FhirProject, ServeAuth, load_project
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_fhir_serve.auth import JWT_VERIFIER_ATTRIBUTE, open_jwt_verifier
 from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.metadata import build_metadata_body
+from dhis2w_fhir_serve.oidc import JwtVerifier
 from dhis2w_fhir_serve.passthrough import open_pass_through_client
 from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 from dhis2w_fhir_serve.register.surface import RegisterSurface
@@ -90,8 +100,15 @@ class ServeRuntime(BaseModel):
     caller_client: httpx.AsyncClient | None = None
     """The credential-free pool a register read forwards one caller's `Authorization` over.
 
-    None in every posture but `dhis2`, and in every mode but live, because nothing else forwards
-    anybody's credential - see `dhis2w_fhir_serve.passthrough`.
+    None in every mode but live, and in every posture that forwards nothing - `none`, `token`, and
+    `jwt` with `[serve.jwt] forward_bearer` off. See `dhis2w_fhir_serve.passthrough`.
+    """
+
+    jwt_verifier: JwtVerifier | None = None
+    """The `jwt` posture's issuer and its published keys, read while the server started.
+
+    None in every other posture. It holds public keys and no secret, so unlike the client beside it
+    there is nothing here a process would want to keep from itself.
     """
 
 
@@ -107,11 +124,12 @@ async def open_serve_runtime(
     refused rather than ignored: `live` is what says this facade reads an instance, and a client
     beside `live = False` is two statements that disagree.
 
-    A live run under the `dhis2` posture opens the credential-free pool beside it, which is what a
+    A live run under a forwarding posture opens the credential-free pool beside it, which is what a
     register read forwards the caller's own header over. It is opened here, rather than lazily at
     the first request, because it is the connection that decides whose rights an answer is read
     under: a process that could not open it should refuse to serve rather than discover that on a
-    caller's behalf.
+    caller's behalf. A run under the `jwt` posture reads its issuer here for the same reason - the
+    discovery document and the keys it names, before a single request is taken.
 
     Nothing here is retried and nothing is defaulted. `CompiledIgMissingError` from a project that
     has never been built, or an unreachable instance, propagates out and the server refuses to
@@ -126,10 +144,11 @@ async def open_serve_runtime(
         if settings.live and live is None:
             live = await connections.enter_async_context(open_live_client(project, settings))
         caller = None
-        if live is not None and settings.auth is ServeAuth.DHIS2 and settings.dhis2_base_url is not None:
+        if live is not None and _forwards_credentials(settings) and settings.dhis2_base_url is not None:
             caller = await connections.enter_async_context(
                 open_pass_through_client(settings.dhis2_base_url, provenance=facade_provenance())
             )
+        verifier = await open_jwt_verifier(settings.jwt) if settings.auth is ServeAuth.JWT else None
         store = await build_store(settings, project, live)
         spool = ResponseSpool.at(project.project_root, settings.spool_dir)
         register_surface = RegisterSurface.resolve(
@@ -152,7 +171,15 @@ async def open_serve_runtime(
             ),
             live_client=live,
             caller_client=caller,
+            jwt_verifier=verifier,
         )
+
+
+def _forwards_credentials(settings: ServeSettings) -> bool:
+    """Whether this run's posture sends a caller's own `Authorization` on to DHIS2, and so needs the pool."""
+    if settings.auth is ServeAuth.DHIS2:
+        return True
+    return settings.auth is ServeAuth.JWT and settings.jwt.forward_bearer
 
 
 def attach_serve_runtime(app: FastAPI, runtime: ServeRuntime) -> None:
@@ -160,12 +187,14 @@ def attach_serve_runtime(app: FastAPI, runtime: ServeRuntime) -> None:
 
     This is the whole of what an application mounting the facade's routers must promise them. The
     state is the application's rather than the request's because one project, one store, and one
-    spool are properties of the process, and the three names it writes are the three
-    `dhis2w_fhir_serve.routes.context` reads back.
+    spool are properties of the process. Three of the four names it writes are the three
+    `dhis2w_fhir_serve.routes.context` reads back; the fourth is the JWT verifier, which
+    `dhis2w_fhir_serve.auth` reads because it is the only thing that has a use for it.
     """
     setattr(app.state, SERVE_CONTEXT_ATTRIBUTE, runtime.context)
     setattr(app.state, LIVE_CLIENT_ATTRIBUTE, runtime.live_client)
     setattr(app.state, CALLER_CLIENT_ATTRIBUTE, runtime.caller_client)
+    setattr(app.state, JWT_VERIFIER_ATTRIBUTE, runtime.jwt_verifier)
 
 
 async def build_store(settings: ServeSettings, project: FhirProject, client: Dhis2Client | None) -> ResourceStore:

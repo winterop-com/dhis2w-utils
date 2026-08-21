@@ -7,16 +7,17 @@ import { expect, request as playwrightRequest, test } from '@playwright/test'
 import { E2E_BASE_URL } from '../playwright.config.ts'
 
 /**
- * The forwarded and rejected halves of the lifecycle, driven the way `d2w fhir forward` drives them.
+ * The three drained states of the lifecycle, driven the way the two commands that write them drive them.
  *
- * No DHIS2 stands behind the fixture server, so nothing in this suite can *earn* a forwarded or
- * rejected receipt - and every other spec therefore only ever sees `received`. But the spool is a
- * directory the forwarder mutates from another process entirely: a forward is a rename into
- * `forwarded/`, a refusal is a rename into `rejected/` plus a `<id>.report.json` beside it, and the
- * server re-reads the tree on every call. So this file does exactly what the forwarder does - posts
- * two real receipts, then renames their files - and asserts the UI over the states no other path
- * reaches: the rejected tile's cause line, the filtered landing, and the import-report rollup on
- * the receipt itself.
+ * No DHIS2 stands behind the fixture server, so nothing in this suite can *earn* a forwarded,
+ * rejected, or withdrawn receipt - and every other spec therefore only ever sees `received`. But the
+ * spool is a directory those commands mutate from another process entirely: a forward is a rename
+ * into `forwarded/`, a refusal is a rename into `rejected/` plus a `<id>.report.json` beside it, a
+ * withdrawal is a rename into `withdrawn/` plus the record of the delete, and the server re-reads
+ * the tree on every call. So this file does exactly what they do - posts three real receipts, then
+ * renames their files - and asserts the UI over the states no other path reaches: the rejected
+ * tile's cause line, the filtered landing, the import-report rollup, and what a withdrawn receipt
+ * says about what the instance keeps.
  *
  * The seeded files are removed afterwards, so the specs after this one meet the same spool they
  * would have without it.
@@ -39,6 +40,13 @@ const SEEDED_MESSAGE =
 
 let forwardedId = ''
 let rejectedId = ''
+let withdrawnId = ''
+
+/** The DHIS2 event the seeded withdrawal names, and the sentence the record states about it. */
+const WITHDRAWN_EVENT_UID = 'EvTsupVis01'
+const WITHDRAWAL_NOTE =
+    'Withdrawn. This DHIS2 instance keeps a hidden copy of the event; it no longer appears in reports. ' +
+    'The UID is burned, so this receipt can never be forwarded again.'
 
 /** Post one generated response and answer with the receipt id the server minted for it. */
 async function post(seed: number): Promise<string> {
@@ -60,7 +68,7 @@ async function post(seed: number): Promise<string> {
 }
 
 /** Rename one received receipt into another lifecycle directory, which is all a forward run does. */
-function move(responseId: string, lifecycle: 'forwarded' | 'rejected'): void {
+function move(responseId: string, lifecycle: 'forwarded' | 'rejected' | 'withdrawn'): void {
     const destination = path.join(spoolDirectory, lifecycle)
     fs.mkdirSync(destination, { recursive: true })
     fs.renameSync(
@@ -72,8 +80,10 @@ function move(responseId: string, lifecycle: 'forwarded' | 'rejected'): void {
 test.beforeAll(async () => {
     forwardedId = await post(501)
     rejectedId = await post(502)
+    withdrawnId = await post(503)
     move(forwardedId, 'forwarded')
     move(rejectedId, 'rejected')
+    move(withdrawnId, 'withdrawn')
     // The import report the forwarder writes beside a refusal, in `ForwardImportOutcome`'s shape.
     fs.writeFileSync(
         path.join(spoolDirectory, 'rejected', `${rejectedId}.report.json`),
@@ -85,6 +95,21 @@ test.beforeAll(async () => {
             issues: [{ error_code: SEEDED_CODE, subject: SEEDED_UID, message: SEEDED_MESSAGE }],
         }),
     )
+    // The record `d2w fhir withdraw` writes beside the receipt it files, in `WithdrawalRecord`'s
+    // shape - the same file name as an import report, in the one directory whose sidecar is not one.
+    fs.writeFileSync(
+        path.join(spoolDirectory, 'withdrawn', `${withdrawnId}.report.json`),
+        JSON.stringify({
+            status: 'OK',
+            created: 0,
+            updated: 0,
+            ignored: 0,
+            deleted: 1,
+            event_uid: WITHDRAWN_EVENT_UID,
+            withdrawn_at: '2026-08-18T08:30:00Z',
+            note: WITHDRAWAL_NOTE,
+        }),
+    )
 })
 
 test.afterAll(() => {
@@ -92,6 +117,8 @@ test.afterAll(() => {
     fs.rmSync(path.join(spoolDirectory, 'forwarded', `${forwardedId}.json`), { force: true })
     fs.rmSync(path.join(spoolDirectory, 'rejected', `${rejectedId}.json`), { force: true })
     fs.rmSync(path.join(spoolDirectory, 'rejected', `${rejectedId}.report.json`), { force: true })
+    fs.rmSync(path.join(spoolDirectory, 'withdrawn', `${withdrawnId}.json`), { force: true })
+    fs.rmSync(path.join(spoolDirectory, 'withdrawn', `${withdrawnId}.report.json`), { force: true })
 })
 
 test('the rejected tile names the top cause with its instances generalised away', async ({ page }) => {
@@ -148,4 +175,38 @@ test('a forwarded receipt still reads back, badged as accepted', async ({ page }
     // No refusal section: DHIS2 took this one, so there is nothing to explain.
     await expect(page.getByRole('heading', { name: 'DHIS2 refused this import' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Answers' })).toBeVisible()
+})
+
+
+test('the withdrawn tile says what happened rather than that something failed', async ({ page }) => {
+    await page.goto('/')
+
+    await expect(page.getByTestId('spool-withdrawn-count')).toHaveText('1')
+    const tile = page.getByRole('link', { name: /^Withdrawn/ })
+    await expect(tile).toContainText('withdrawn from DHIS2 after it landed')
+})
+
+test('the withdrawn tile lands on the responses already filtered to withdrawals', async ({ page }) => {
+    await page.goto('/')
+
+    await page.getByRole('link', { name: /^Withdrawn/ }).click()
+
+    await expect(page).toHaveURL(/#\/responses\?lifecycle=withdrawn$/)
+    await expect(page.getByRole('button', { name: /^Withdrawn/ })).toHaveAttribute('aria-pressed', 'true')
+    const row = page.getByRole('row').filter({ hasText: withdrawnId })
+    await expect(row).toHaveCount(1)
+    await expect(row).toContainText('Withdrawn')
+})
+
+test('a withdrawn receipt states what the instance keeps, and still shows its answers', async ({ page }) => {
+    await page.goto(`/#/responses/${withdrawnId}`)
+
+    await expect(page.getByText('Withdrawn', { exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Withdrawn from DHIS2' })).toBeVisible()
+    // The record's own sentence, not a paraphrase, and never the bare word "deleted".
+    await expect(page.getByText('keeps a hidden copy of the event')).toBeVisible()
+    await expect(page.getByText(WITHDRAWN_EVENT_UID, { exact: true })).toBeVisible()
+    // The receipt is untouched: retracting the data from an instance does not unsay the submission.
+    await expect(page.getByRole('heading', { name: 'Answers' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'DHIS2 refused this import' })).toHaveCount(0)
 })
