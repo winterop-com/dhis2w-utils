@@ -32,7 +32,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`spool.sh`](cli/spool.sh) | `d2w fhir spool`, `requeue` — the capture queue, read and rewound offline | yes |
 | [`serve.sh`](cli/serve.sh) | `d2w fhir serve` — compile, serve, post a load set, read the receipts | no: docker compile, binds a port |
 | [`forward.sh`](cli/forward.sh) | `d2w fhir forward` — drain the spool into DHIS2: dry run, `--import`, the three states | no: docker compile, binds a port, `--import` writes to the instance |
-| [`forward_overwrites.sh`](cli/forward_overwrites.sh) | A drain names the values a previous submission already sent | no: the same compile, port, and writes as `forward.sh` |
+| [`forward_overwrites.sh`](cli/forward_overwrites.sh) | The two postures a drain takes towards a value already sent - `allow` names it, `refuse` queues the response | no: the same compile, port, and writes as `forward.sh` |
 | [`forward_completeness.sh`](cli/forward_completeness.sh) | Data set completeness: what a `completed` response registers | no: the same compile, port, and writes as `forward.sh` |
 | [`doctor.sh`](cli/doctor.sh) | `d2w fhir doctor` — the whole chain against one instance, one verdict | no: the chain includes the docker compile |
 | [`doctor_live_oracle.sh`](cli/doctor_live_oracle.sh) | `d2w fhir doctor --live` — the served output judged against the instance | no: the same chain |

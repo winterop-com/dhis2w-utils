@@ -2170,9 +2170,29 @@ Each response goes through `dhis2w_fhir.conversion` all-or-nothing.
   says that the second replaced the first.
 - **A dry run states it too**, as the prediction it is - the moment there is
   still something to be done about it.
-- **Nothing is refused over it.** The drain reports and the operator decides;
-  whether an unmarked overwrite should be refused outright is decision D8 in
-  [Corrections and withdrawals](../fhir/design/data-lifecycle.md).
+- **`[forward] overwrites` decides what the drain does about it**, with
+  `--overwrites allow|refuse` outranking it for one run - flag, then table, then
+  default, resolved in `forward_responses` like the sibling dials. `allow` - the
+  default - posts the value and names it, which is DHIS2's own last-write-wins
+  semantics taken as a posture rather than inherited by omission.
+- **`refuse` sends no payload holding such a value at all**, and refuses the
+  **whole response** rather than part of it - a payload posted in part would
+  tear one submission across two postures. The refusal is non-terminal: the
+  receipt stays in `received/` with an `<id>.refusal.json` under category
+  `overwrite-refused` naming every covered value, the receipt that sent it, and
+  when that receipt arrived, so `d2w fhir spool` shows it as refused-but-queued
+  with the reason and a later drain under `allow` posts it. A dry run under
+  `refuse` states what it would refuse and files nothing. A refused response
+  claims no data-set completeness, since its values were never sent.
+- **The refused responses are counted under the run's own refused number**, and
+  read apart from a translator refusal wherever the reason matters:
+  `ForwardOutcome.overwrite_refused`, a `Refused as an overwrite` section of the
+  written report, and a terminal note naming `--overwrites allow` as the way to
+  post them.
+- **The dial never reaches a tracker payload.** An event's DHIS2 identity is
+  derived from the receipt's own id, so it collides rather than overwriting -
+  see [Corrections and withdrawals](../fhir/design/data-lifecycle.md), which
+  carries the decision (D8) in full.
 - **The reading is built once per drain and only when the drain carries an
   aggregate payload**, so a tracker-only run reads nothing at all. It opens
   each forwarded receipt's import report once and nothing else, and it never
@@ -2193,7 +2213,8 @@ are in [Corrections and withdrawals](../fhir/design/data-lifecycle.md).
 - **A second capture of an aggregate report overwrites the first in place.**
   The envelope names no `importStrategy`, so DHIS2 applies its own
   `CREATE_AND_UPDATE`; the values are replaced and the report says which ones
-  (above).
+  (above). `[forward] overwrites = "refuse"` is the deployment posture that
+  leaves such a response in the queue instead of sending it.
 - **A second capture of a tracker visit creates a duplicate**, because an
   event's UID is derived from the receipt's own id and every capture mints a
   fresh receipt. Re-forwarding the *same* receipt is the case DHIS2 refuses,
@@ -2300,7 +2321,7 @@ full key set and refuses anything else.
 | `[generate.examples]` | `per_target`, `source` |
 | `[serve]` | `host`, `port`, `strict_codes`, `capture`, `ui`, `spool_dir`, `basemaps`, `tracked_entities` |
 | `[serve.tracked_entities]` | `enabled`, `listing`, `page_size`, `page_size_limit`, `tracked_entity_types`, `search_attributes` |
-| `[forward]` | `live`, `import`, `register_completeness` |
+| `[forward]` | `live`, `import`, `register_completeness`, `overwrites` |
 
 - **An unknown key stops the command.** A misspelled `max_lvl = 4` produces
   `error: fhir.toml: unknown key 'max_lvl' in [generate.organisation_units]`
@@ -2447,7 +2468,7 @@ refusal text a mistake produces, captured from real misconfigured runs.
   `host` exposure warning, the `capture` viewer posture, the `spool_dir`
   receipt tree and the `basemaps` outbound-call note; the
   `[serve.tracked_entities]` register block; and the `[forward]` section -
-  `live`, `import`, and `register_completeness`.
+  `live`, `import`, `register_completeness`, and `overwrites`.
 
 **401 - Integrate and extend**
 

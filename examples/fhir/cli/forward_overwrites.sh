@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# d2w fhir forward — a drain names the values a previous submission already sent.
+# d2w fhir forward — the two postures a drain takes towards a value already sent.
 # Needs the serve extra, docker for the SUSHI compile, a bound port, and its `--import` runs
 # write data values to the instance. `make verify-examples` skips it for the same reasons it
 # skips forward.sh. Run it by hand, against an instance you are willing to write to.
@@ -54,6 +54,18 @@ d2w fhir forward --import
 # it as a prediction, which is the moment there is still something to be done about it.
 post_load_set
 d2w fhir forward --details
-d2w fhir forward --import --details
+
+# `refuse` is the posture for a deployment where forwarded data changes only through a
+# declared correction. Nothing is posted: a response carrying any already-sent value is
+# refused whole - posting part of it would land a report nobody filled in - and stays in the
+# queue with `<id>.refusal.json` beside it naming every covered value and the receipt that
+# sent it. The spool listing reads that record back.
+d2w fhir forward --import --overwrites refuse --details
+d2w fhir spool --details
+
+# `allow` is the default, and it is the way forward from a refusal: the same receipts, now
+# posted, with every value they replaced named. The move that drains a receipt deletes the
+# refusal record - the import report is the answer about it from then on.
+d2w fhir forward --import --overwrites allow --details
 
 cd .. && rm -rf overwrite-demo

@@ -28,6 +28,7 @@ from dhis2w_fhir import (
     ForwardOutcome,
     ForwardOutcomeKind,
     ForwardReport,
+    OverwritePosture,
     OverwrittenValue,
 )
 from typer.testing import CliRunner
@@ -573,3 +574,86 @@ def test_a_run_that_replaced_nothing_says_so_in_the_written_report(forward_proje
     written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
     assert "- Values a previous submission already sent: none" in written
     assert "## Values a previous submission already sent" not in written
+
+
+def _refused_overwrite_report(root: Path, *, dry_run: bool = False) -> ForwardReport:
+    """One run under `overwrites = "refuse"`, whose only response was left in the queue over two values."""
+    posted = _overwrite_report(root, dry_run=dry_run)
+    refused = posted.outcomes[0].model_copy(
+        update={
+            "kind": ForwardOutcomeKind.REFUSED,
+            "import_outcome": None,
+            "overwrite_refused": True,
+            "spool_path": ".serve/responses/received/recapture-1.json",
+        }
+    )
+    return posted.model_copy(update={"outcomes": (refused,), "overwrite_posture": OverwritePosture.REFUSE})
+
+
+def test_the_overwrite_flag_reaches_the_service_and_a_bare_run_states_nothing(forward_project: Path) -> None:
+    """The dial is resolved in `forward_responses`, so the CLI passes the flag through rather than deciding."""
+    _, bare = _invoke(["--no-progress", "--import"], _overwrite_report(forward_project))
+    assert bare.await_args is not None
+    assert bare.await_args.kwargs["overwrites"] is None
+
+    _, stated = _invoke(
+        ["--no-progress", "--import", "--overwrites", "refuse"], _refused_overwrite_report(forward_project)
+    )
+    assert stated.await_args is not None
+    assert stated.await_args.kwargs["overwrites"] is OverwritePosture.REFUSE
+
+
+def test_a_posture_the_dial_does_not_name_is_a_usage_error(forward_project: Path) -> None:
+    """Two postures, and a third spelling is refused before a drain is opened at all."""
+    result, mock = _invoke(["--no-progress", "--overwrites", "reject"], _overwrite_report(forward_project))
+    assert result.exit_code != 0
+    assert mock.await_args is None
+
+
+def test_the_terminal_says_the_refused_responses_are_still_in_the_queue(forward_project: Path) -> None:
+    """The reader has to learn that nothing was sent and that the receipts are still there to send."""
+    result, _ = _invoke(
+        ["--no-progress", "--import", "--overwrites", "refuse"], _refused_overwrite_report(forward_project)
+    )
+    assert "1 response(s) were not sent" in result.output
+    assert "`[forward] overwrites` is `refuse`" in result.output
+    assert "still in the queue" in result.output
+    assert "--overwrites allow` posts them" in result.output
+    assert "overwrites" in result.output
+    assert "refuse" in result.output
+
+
+def test_a_dry_run_under_refuse_says_it_wrote_nothing_at_all(forward_project: Path) -> None:
+    """A dry run leaves no record beside the receipt, so the run must not claim it did."""
+    result, _ = _invoke(
+        ["--no-progress", "--overwrites", "refuse"], _refused_overwrite_report(forward_project, dry_run=True)
+    )
+    assert "this run wrote nothing at all" in result.output
+
+
+def test_the_details_table_says_why_a_refused_response_stayed_put(forward_project: Path) -> None:
+    """A blank `Why` cell on a refused row is the one thing a reader cannot act on."""
+    result, _ = _invoke(
+        ["--no-progress", "--details", "--import", "--overwrites", "refuse"],
+        _refused_overwrite_report(forward_project),
+    )
+    assert "0c81a28f79ba4226b8d4d348f2b96de1" in result.output
+    assert "refused" in result.output
+
+
+def test_the_written_report_gives_the_refused_responses_their_own_section(forward_project: Path) -> None:
+    """A refusal over an overwrite is a different fact from one the translator made, so it reads apart."""
+    _invoke(["--no-progress", "--import", "--overwrites", "refuse"], _refused_overwrite_report(forward_project))
+    written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
+    assert "- Overwrites: refuse" in written
+    assert "## Refused as an overwrite" in written
+    assert "## Refused by the translator" not in written
+    assert "none of it was sent" in written
+    assert "0c81a28f79ba4226b8d4d348f2b96de1" in written
+
+
+def test_an_allowing_run_states_its_posture_in_the_written_report(forward_project: Path) -> None:
+    """The default is a chosen posture rather than an absence of one, so every report names it."""
+    _invoke(["--no-progress", "--import"], _overwrite_report(forward_project))
+    written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
+    assert "- Overwrites: allow" in written

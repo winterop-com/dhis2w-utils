@@ -89,7 +89,7 @@ MALFORMED_RESPONSES_RELATIVE_PATH = f"{SPOOL_RELATIVE_PATH}/malformed"
 #: so this suffix is also what keeps a report out of the receipt set, in either directory.
 IMPORT_REPORT_SUFFIX = ".report.json"
 
-#: What the sibling file carrying a still-queued receipt's translator refusal is named, after the
+#: What the sibling file carrying a still-queued receipt's forward refusal is named, after the
 #: response id. A committing `d2w fhir forward` writes one into `received/` beside a receipt it
 #: refused to translate and left queued, and the move that finally drains the receipt deletes it.
 REFUSAL_RECORD_SUFFIX = ".refusal.json"
@@ -392,7 +392,7 @@ class ResponseSpool(BaseModel):
             return None
 
     def refusal_record(self, response_id: str) -> ForwardRefusalRecord | None:
-        """The translator refusal the last committing drain left beside one still-queued receipt.
+        """The refusal the last committing drain left beside one still-queued receipt.
 
         Only a `received` receipt can have one - the move that drains a receipt deletes the marker -
         and a receipt no committing drain has refused answers None, exactly like one no drain has

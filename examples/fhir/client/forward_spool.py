@@ -8,7 +8,8 @@ receipt moves. Pass `import_responses=True` to commit.
 
 The report is where the value is. `ForwardReport` carries every receipt's outcome plus
 derived views a caller would otherwise have to compute: `accepted` / `rejected` /
-`refused` / `unverifiable` partition the run, `counts_line` states it in one sentence, and
+`refused` / `unverifiable` partition the run, `refused` splits again into
+`translator_refused` and `overwrite_refused`, `counts_line` states it in one sentence, and
 `rejection_reasons` rolls a wall of DHIS2 errors up by cause so a hundred rejections read
 as the three things that are actually wrong.
 
@@ -50,9 +51,15 @@ async def main() -> None:
 
     # A refusal is the translator declining to read a response whole - the fix is in the guide or
     # in the data, and the receipt stays queued so the next drain is the retry.
-    for outcome in report.refused:
+    for outcome in report.translator_refused:
         for refusal in outcome.refusals:
             print(f"  refused {outcome.response_id}: {refusal.reason}")
+
+    # The other refusal is this run's own posture: under `[forward] overwrites = "refuse"` a
+    # response carrying an aggregate value a forwarded receipt already sent is not posted at all.
+    for outcome in report.overwrite_refused:
+        for value in outcome.overwritten_values:
+            print(f"  overwrite refused {outcome.response_id}: {value.line}")
 
     # A rejection is DHIS2 stating the payload is wrong. Rolled up by cause, commonest first.
     for reason in report.rejection_reasons:

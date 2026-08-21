@@ -258,4 +258,4 @@ def test_the_spool_state_report_counts_the_refused_still_queued(tmp_path: Path) 
     assert "the form declares no kind" in row.reason
     assert "2 drains" in row.reason
     assert "2026-08-17T12:00:00Z" in row.reason
-    assert "refused by the translator" in report.counts_line
+    assert "1 of the received refused by a drain" in report.counts_line

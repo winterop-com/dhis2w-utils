@@ -15,6 +15,7 @@ import difflib
 import re
 import tomllib
 import zoneinfo
+from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -410,6 +411,20 @@ def basemaps_from_options(values: list[str]) -> list[BasemapSource]:
     return [_basemap_from_option(value) for value in values]
 
 
+class OverwritePosture(StrEnum):
+    """What a drain does with an aggregate value a forwarded receipt of this spool already sent."""
+
+    #: Post the value and name it. DHIS2 keeps the newest number for a cell, and this posture is the
+    #: toolkit agreeing with that: the instance ends up holding what the newest submission carried,
+    #: and the run states every value it replaced, the receipt that sent it before, and when that
+    #: receipt arrived - which is the one thing no import summary can say.
+    ALLOW = "allow"
+
+    #: Refuse the whole response and leave it in the queue with a record naming every covered value.
+    #: The posture for a deployment where forwarded data changes only through a declared correction.
+    REFUSE = "refuse"
+
+
 class ForwardConfig(BaseModel):
     """How `d2w fhir forward` drains this project's spool - the `[forward]` table of `fhir.toml`.
 
@@ -438,7 +453,16 @@ class ForwardConfig(BaseModel):
     the values imported and registers nothing, which is the posture for a deployment where
     completeness is somebody else's decision to record.
 
-    A flag on the command line wins over both keys for one run, and either key wins over these
+    `overwrites` is what a drain does with an aggregate value a forwarded receipt of this spool
+    already sent, arriving in a response that declares no correction. `"allow"` - the default -
+    posts it and names it: DHIS2 keeps the newest number for a cell, and the toolkit follows the
+    platform it writes into rather than inventing a stricter one. `"refuse"` posts no payload
+    holding such a value; the response stays in the queue with a record naming every covered value
+    and the receipt that sent it, which is the posture for a deployment where forwarded data changes
+    only through a declared correction. The dial reaches aggregate values alone - a tracker event
+    carries its own DHIS2 identity, so it collides rather than overwriting.
+
+    A flag on the command line wins over all four keys for one run, and either key wins over these
     defaults - the same order `[serve]` states for its own dials.
     """
 
@@ -447,6 +471,7 @@ class ForwardConfig(BaseModel):
     live: bool = True
     import_responses: bool = Field(default=False, alias="import")
     register_completeness: bool = True
+    overwrites: OverwritePosture = OverwritePosture.ALLOW
 
 
 class FhirProjectConfig(BaseModel):

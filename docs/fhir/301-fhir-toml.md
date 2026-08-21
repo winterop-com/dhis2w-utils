@@ -245,6 +245,7 @@ the file refuses.
 | `[forward]` | [`import`](301-serving.md#import) | `false` | whether a plain forward writes to DHIS2 or only checks |
 | `[forward]` | [`live`](301-serving.md#live) | `true` | what a drain reads when the project holds no compiled guide |
 | `[forward]` | [`register_completeness`](301-serving.md#register_completeness) | `true` | whether a finished aggregate form also marks its data set complete |
+| `[forward]` | [`overwrites`](301-serving.md#overwrites) | `"allow"` | whether a figure a previous submission already sent is sent again and named, or the form left in the queue |
 
 What the generated output itself looks like from the inside - the identifier
 families, the code-list structures - is the integrate-tier's territory:

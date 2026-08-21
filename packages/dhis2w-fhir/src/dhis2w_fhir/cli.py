@@ -29,6 +29,7 @@ from dhis2w_fhir import (
     DEFAULT_SUSHI_TIMEOUT_SECONDS,
     MALFORMED_RESPONSES_RELATIVE_PATH,
     GenerateReport,
+    OverwritePosture,
     load_project,
 )
 from dhis2w_fhir.doctor import DEFAULT_ORACLE_SAMPLES
@@ -1373,9 +1374,12 @@ def _outcome_reasons(outcome: ForwardOutcome, sample: int, width: int | None = N
     """Why this response ended where it did: DHIS2's rows for a rejection, the translator's for a refusal.
 
     A rejection that DHIS2 named no row for still says something - the message off the envelope - because
-    "rejected" with nothing beside it is the one thing a reader cannot act on.
+    "rejected" with nothing beside it is the one thing a reader cannot act on. A response refused as an
+    overwrite reads its covered values, which are the whole of why it stayed in the queue.
     """
-    if outcome.refusals:
+    if outcome.overwrite_refused:
+        lines = [value.line for value in outcome.overwritten_values]
+    elif outcome.refusals:
         lines = [f"{refusal.category}: {refusal.reason}" for refusal in outcome.refusals]
     else:
         imported = outcome.import_outcome
@@ -1476,7 +1480,7 @@ def _render_completeness(report: ForwardReport) -> None:
 
 
 def _render_overwritten_values(report: ForwardReport) -> None:
-    """Name every value the run sent that an earlier submission had already sent, and which one sent it."""
+    """Name every value the run met that an earlier submission had already sent, and which one sent it."""
     overwrites = report.overwrites
     if not overwrites:
         return
@@ -1590,6 +1594,26 @@ _OVERWRITE_DRY_RUN_PREAMBLE = (
     "write exactly as it counts a first entry, so no import summary would separate the two afterwards.",
 )
 
+#: The same section under `[forward] overwrites = "refuse"`, where the values below are what the run
+#: refused over rather than what it replaced. The response is what is refused, never the value: a
+#: payload posted in part would tear one submission across two postures.
+_OVERWRITE_REFUSED_PREAMBLE = (
+    "Each value below was sent to DHIS2 by a receipt this spool has already forwarded, and this run",
+    'carries it again. `[forward] overwrites = "refuse"` is set, so none of it was sent: a response',
+    "holding any of these values is refused whole and stays in `.serve/responses/received/`.",
+    "",
+    "Nothing in the instance changed, and nothing about these responses is decided. `overwrites =",
+    '"allow"` - or `--overwrites allow` for one run - posts them and names each replaced value',
+    "instead.",
+)
+
+
+def _overwrite_preamble(report: ForwardReport) -> tuple[str, ...]:
+    """Which of the three things the written report's overwrite section is about, for this run's posture."""
+    if report.overwrite_posture is OverwritePosture.REFUSE:
+        return _OVERWRITE_REFUSED_PREAMBLE
+    return _OVERWRITE_DRY_RUN_PREAMBLE if report.dry_run else _OVERWRITE_IMPORT_PREAMBLE
+
 
 def _overwritten_value_report_lines(report: ForwardReport) -> list[str]:
     """The written report's section for the values this run sent that an earlier submission had sent."""
@@ -1600,7 +1624,7 @@ def _overwritten_value_report_lines(report: ForwardReport) -> list[str]:
     if overwrites:
         lines.extend(
             [
-                *(_OVERWRITE_DRY_RUN_PREAMBLE if report.dry_run else _OVERWRITE_IMPORT_PREAMBLE),
+                *_overwrite_preamble(report),
                 "",
                 "The earlier receipt is named so the submission it came from can be read: it is",
                 "`.serve/responses/forwarded/<id>.json`, with what DHIS2 did with it in `<id>.report.json`",
@@ -1649,6 +1673,7 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
         f"- Coded answers: {report.coded_answer_mode}",
         f"- Data set completeness: {report.completeness_line or 'no aggregate response claimed any'}",
         f"- Values a previous submission already sent: {report.overwrite_line or 'none'}",
+        f"- Overwrites: {report.overwrite_posture}",
         f"- Forwarded: {datetime.now(tz=UTC).isoformat(timespec='seconds')}",
         f"- Counts: {report.counts_line}",
         "",
@@ -1718,7 +1743,8 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
     for heading, outcomes in (
         ("Rejected by DHIS2", report.rejected),
         ("Unverifiable in a dry run", report.unverifiable),
-        ("Refused by the translator", report.refused),
+        ("Refused by the translator", report.translator_refused),
+        ("Refused as an overwrite", report.overwrite_refused),
         ("Not yet sent to DHIS2", report.not_posted),
         ("Accepted", report.accepted),
     ):
@@ -1748,9 +1774,24 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
 
 
 def _render_overwrite_hints(report: ForwardReport) -> None:
-    """State that this run sent values an earlier submission had sent, which DHIS2's own answer cannot."""
+    """State that this run met values an earlier submission had sent, which DHIS2's own answer cannot."""
     overwrites = report.overwrites
-    if overwrites:
+    if overwrites and report.overwrite_posture is OverwritePosture.REFUSE:
+        refused = len(report.overwrite_refused)
+        values = report.overwritten_value_count
+        _hint(
+            "note",
+            f"{refused} response(s) were not sent: each carries {values} value(s) in all that a receipt this "
+            "spool has already forwarded sent, and `[forward] overwrites` is `refuse`. They are still in the "
+            "queue"
+            + (
+                ", each with the covered values written down beside it, and `--overwrites allow` posts them"
+                if not report.dry_run
+                else " - this run wrote nothing at all, and `--overwrites allow` posts them"
+            ),
+            style="yellow",
+        )
+    elif overwrites:
         values = report.overwritten_value_count
         _hint(
             "note",
@@ -1816,6 +1857,11 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
                 if report.overwrite_line
                 else []
             ),
+            *(
+                [DetailRow("overwrites", str(report.overwrite_posture))]
+                if report.overwrite_posture is OverwritePosture.REFUSE or report.overwrite_line
+                else []
+            ),
             *([DetailRow("not posted", str(len(report.not_posted)))] if report.stopped is not None else []),
         ],
         console=STDERR_CONSOLE,
@@ -1861,11 +1907,11 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
             "the instance or the data, and forward again",
             style="red",
         )
-    if report.refused:
+    if report.translator_refused:
         _hint(
             "note",
-            f"{len(report.refused)} response(s) refused by the translator - they stay in the spool, so fixing "
-            "the guide or the data and forwarding again is the retry",
+            f"{len(report.translator_refused)} response(s) refused by the translator - they stay in the spool, "
+            "so fixing the guide or the data and forwarding again is the retry",
         )
     if report.unverifiable:
         _hint(
@@ -1910,6 +1956,15 @@ def forward_command(
             "default - the response said it was finished.",
         ),
     ] = None,
+    overwrites: Annotated[
+        OverwritePosture | None,
+        typer.Option(
+            "--overwrites",
+            help="What to do with an aggregate value a forwarded receipt already sent, overriding "
+            "`\\[forward] overwrites`. `allow` - the default - posts it and names it; `refuse` leaves "
+            "the whole response in the queue with the covered values written down beside it.",
+        ),
+    ] = None,
     details: Annotated[
         bool,
         typer.Option("--details", help="Print every response's outcome instead of writing them to the report."),
@@ -1921,9 +1976,10 @@ def forward_command(
     DRY RUN IS THE DEFAULT. Every payload is posted to the real instance under the endpoint's own
     validate-only mode, so DHIS2's rules decide the answer and nothing is written; `--import` commits.
 
-    The posture comes from `\[forward]` in fhir.toml - `import` and `register_completeness` - unless
-    a flag here overrides it for this run, and from the defaults above when the file states neither.
-    Which spool is drained is `\[serve] spool_dir`, the same key the server writes receipts under.
+    The posture comes from `\[forward]` in fhir.toml - `import`, `register_completeness`, and
+    `overwrites` - unless a flag here overrides it for this run, and from the defaults above when the
+    file states none. Which spool is drained is `\[serve] spool_dir`, the same key the server writes
+    receipts under.
 
     An imported response moves from the spool's received/ to forwarded/, a DHIS2-rejected one to
     rejected/ beside a report, and a translator-refused one stays put - fix and forward again.
@@ -1939,7 +1995,8 @@ def forward_command(
     A value an earlier submission already sent is named in the run, with the receipt that sent it and
     when that receipt arrived. DHIS2 replaces such a value in place and counts the write exactly as it
     counts a first entry, so no import summary can say it happened; a dry run says it too, while there
-    is still time to act on it. Nothing is refused over it.
+    is still time to act on it. `--overwrites refuse` leaves any response holding one in the queue,
+    with each covered value written down beside it, instead of posting it.
 
     A DHIS2 rejection exits 1. A dry run counts a stage event whose enrollment a registration of the
     same run creates as unverifiable rather than rejected - a dry run writes nothing, so there is no
@@ -1961,6 +2018,7 @@ def forward_command(
                 import_responses=import_responses,
                 coded_answer_mode=mode,
                 register_completeness=register_completeness,
+                overwrites=overwrites,
                 reporter=reporter,
             )
         )
@@ -1981,7 +2039,7 @@ def _render_spool_state(report: SpoolStateReport, *, details: bool) -> None:
         [
             DetailRow("project", str(report.project_root)),
             DetailRow("not yet sent to DHIS2", str(report.counts.received)),
-            DetailRow("refused by the translator, still queued", str(report.counts.refused_in_queue)),
+            DetailRow("refused by a drain, still queued", str(report.counts.refused_in_queue)),
             DetailRow("accepted by DHIS2", str(report.counts.forwarded)),
             DetailRow("refused by DHIS2", str(report.counts.rejected)),
             DetailRow("unreadable files", str(report.counts.malformed)),
@@ -2035,8 +2093,8 @@ def _render_spool_state(report: SpoolStateReport, *, details: bool) -> None:
     if report.counts.refused_in_queue:
         _hint(
             "note",
-            f"{report.counts.refused_in_queue} queued receipt(s) were refused by the translator on the last "
-            "run that posted; the reason sits beside each receipt and the next `d2w fhir forward` retries them",
+            f"{report.counts.refused_in_queue} queued receipt(s) were refused on the last run that posted; the "
+            "reason sits beside each receipt and the next `d2w fhir forward` retries them",
         )
     if not details:
         _hint("note", "--details lists every receipt")

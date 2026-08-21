@@ -67,23 +67,25 @@ run the same command with `--import`.
 
 ### Where a run's posture comes from
 
-Two things decide how a drain behaves before you type anything: whether it
-writes, and whether a finished aggregate form also marks its data set
-complete. Each is settled the same way - **the flag, then the project, then
-the default**:
+Three things decide how a drain behaves before you type anything: whether it
+writes, whether a finished aggregate form also marks its data set complete,
+and what it does with a figure a previous submission already sent. Each is
+settled the same way - **the flag, then the project, then the default**:
 
-| Stated where | Writes to DHIS2 | Marks data sets complete |
-| --- | --- | --- |
-| `--import` / `--dry-run` on the command line | that, for this run | - |
-| `--register-completeness` / `--no-register-completeness` | - | that, for this run |
-| `[forward] import` in `fhir.toml` | that, for every bare run | - |
-| `[forward] register_completeness` | - | that, for every bare run |
-| nothing at all | dry run | marks them |
+| Stated where | Writes to DHIS2 | Marks data sets complete | Meets a figure already sent |
+| --- | --- | --- | --- |
+| `--import` / `--dry-run` on the command line | that, for this run | - | - |
+| `--register-completeness` / `--no-register-completeness` | - | that, for this run | - |
+| `--overwrites allow` / `--overwrites refuse` | - | - | that, for this run |
+| `[forward] import` in `fhir.toml` | that, for every bare run | - | - |
+| `[forward] register_completeness` | - | that, for every bare run | - |
+| `[forward] overwrites` | - | - | that, for every bare run |
+| nothing at all | dry run | marks them | sends it and names it |
 
 A project whose drains are routine states `import = true` once and stops
 typing the flag; a run that means to check rather than to write says
-`--dry-run` and gets a check whatever the file says. Both keys are documented
-in full at [`[forward]`](301-serving.md#forward).
+`--dry-run` and gets a check whatever the file says. All three keys are
+documented in full at [`[forward]`](301-serving.md#forward).
 
 ## What one run does
 
@@ -277,7 +279,7 @@ values are known to have landed.
 
 ```
 .serve/responses/
-  received/    captured, not yet forwarded  - the queue; <id>.refusal.json marks one the translator refused
+  received/    captured, not yet forwarded  - the queue; <id>.refusal.json marks one a drain refused
   forwarded/   DHIS2 accepted it, and <id>.report.json says what it counted
   rejected/    DHIS2 refused it, and <id>.report.json says why
   malformed/   a file that no longer reads as a receipt, and <file>.reason.json says what stopped it
@@ -360,24 +362,24 @@ conflicts with a drain.
 $ d2w fhir spool
   fhir spool
   project                                    /home/anna/demo-ig
-  not yet sent to DHIS2                      4
-  refused by the translator, still queued    1
-  accepted by DHIS2                          26
-  refused by DHIS2                           1
-  unreadable files                           0
+  not yet sent to DHIS2               4
+  refused by a drain, still queued    1
+  accepted by DHIS2                   26
+  refused by DHIS2                    1
+  unreadable files                    0
 
 note: 1 receipt(s) were refused by DHIS2; fix the instance or the data and
   `d2w fhir requeue` puts them back in the queue
-note: 1 queued receipt(s) were refused by the translator on the last run that
-  posted; the reason sits beside each receipt and the next `d2w fhir forward`
-  retries them
+note: 1 queued receipt(s) were refused on the last run that posted; the reason
+  sits beside each receipt and the next `d2w fhir forward` retries them
 note: --details lists every receipt
 ```
 
 `--details` adds a row per receipt - the id, its state, the form it answered,
 when it arrived, and the short reason off the sidecar beside it: the import
-report for a receipt DHIS2 answered about, the refusal record for one the
-translator refused and left queued. `--json` puts the whole thing on stdout.
+report for a receipt DHIS2 answered about, the refusal record for one a drain
+refused and left queued - whether the translator could not read it or
+[`overwrites = "refuse"`](#refuse-the-opt-in) would not send it. `--json` puts the whole thing on stdout.
 
 No DHIS2 connection and no profile: every fact in the listing is on disk,
 which is what makes it answerable while the instance is down - exactly when
@@ -458,8 +460,9 @@ because the earlier receipt id is the thing to act on:
 `--details` prints the same rows to the terminal instead, and `--json`
 carries them on each response as `overwritten_values`.
 
-**What to do about it.** Nothing is refused and nothing is undone - the run
-states the fact and you decide.
+**What to do about it.** By default nothing is refused and nothing is undone -
+the run states the fact and you decide. ([Overwrites](#overwrites) is the dial
+that changes that.)
 
 - If the second submission is the correction you meant to make, this is the
   confirmation that it landed on the value you meant to correct rather than on
@@ -488,6 +491,118 @@ project, so the reading happens only when a drain actually carries an
 aggregate payload, and it opens each forwarded receipt's import report once
 and nothing else. On a spool of a few hundred receipts the whole pass takes a
 small fraction of the time a single POST to DHIS2 takes.
+
+## Overwrites
+
+The section above is what a drain *says* about a figure a previous submission
+already sent. `[forward] overwrites` is what it *does* about it.
+
+### What an unmarked overwrite is
+
+Two people fill in the same aggregate form for the same month and the same
+health facility. Both submissions are valid, both are captured, both are
+forwarded - and they name the same cells, because a cell is the data element,
+the category option combo, the period, the organisation unit, and the
+attribute option combo, and the two submissions match on all five. DHIS2 keeps
+the newest number and replaces the older one in place.
+
+**Unmarked** means neither submission says it is correcting anything. There is
+no `basedOn` pointing at the first receipt and no status saying "this is an
+amendment" - just a second form for a month a first form already covered.
+Marked corrections are unbuilt (see
+[Corrections and withdrawals](design/data-lifecycle.md)), so today every
+overwrite this toolchain can meet is an unmarked one.
+
+### `allow` - the default
+
+The drain posts the figure and names it: the run states the value, the receipt
+that sent it before, and when that receipt arrived, on the terminal, in the
+written report, and in a dry run before anything changes. That is the section
+above, in full.
+
+This is the default because it is DHIS2's own behaviour, stated as a choice
+rather than left as an absence of one. `/api/dataValueSets` keeps the newest
+number for a cell whatever a client does, so a toolkit that refused by default
+would be inventing a rule the platform underneath it does not have - and the
+common case a deployment actually meets is a clerk re-entering a month they
+got wrong, which is precisely the write they meant to make.
+
+### `refuse` - the opt-in
+
+```toml
+[forward]
+overwrites = "refuse"
+```
+
+or `d2w fhir forward --overwrites refuse` for one run.
+
+The drain sends **no payload holding such a figure at all**:
+
+```console
+$ d2w fhir forward . --import --overwrites refuse
+...
+note: 1 response(s) were not sent: each carries 2 value(s) in all that a receipt
+  this spool has already forwarded sent, and `[forward] overwrites` is `refuse`.
+  They are still in the queue, each with the covered values written down beside
+  it, and `--overwrites allow` posts them
+```
+
+**The whole response is refused, never part of it.** A form answering ten
+questions of which one lands on a covered cell is one submission, and posting
+the nine while dropping the one would tear a single form across two postures -
+DHIS2 would end up holding a report nobody filled in. So the payload is
+refused whole.
+
+**The refusal is not terminal.** Nothing moves. The receipt stays in
+`.serve/responses/received/` exactly where it was, and a committing run writes
+`<id>.refusal.json` beside it naming every covered value, the receipt that sent
+it, and when that receipt arrived. `d2w fhir spool` reads that record, so the
+receipt shows as refused-but-queued with the reason rather than as one no drain
+has touched:
+
+```console
+$ d2w fhir spool
+  fhir spool
+  project                             /home/anna/demo-ig
+  not yet sent to DHIS2               1
+  refused by a drain, still queued    1
+  ...
+```
+
+**The way forward is a choice, not a repair.** A drain under
+`--overwrites allow` posts the queued receipt and names every figure it
+replaces, and the move that finally drains it deletes the refusal record - the
+import report is the answer about it from then on. `d2w fhir requeue` is
+unchanged and is what brings a receipt back out of `rejected/`; a
+refused-but-queued receipt never left the queue, so it needs no requeue at all.
+
+A dry run under `refuse` states what it would refuse and files nothing, exactly
+as a dry run moves nothing.
+
+### When to choose which
+
+| Your deployment | The posture |
+| --- | --- |
+| A clerk re-entering a month they got wrong is the ordinary case | `allow` |
+| Two facilities filing the same form is a data-quality question you want reported, not blocked | `allow` |
+| Forwarded figures must only change through a declared correction, reviewed by a person | `refuse` |
+| Two capture clients are running against one instance and neither knows about the other | `refuse`, until you know which one is authoritative |
+
+Under `refuse` the queue is where the decision waits, and it waits safely: the
+submission is on disk verbatim, the covered figures are written down beside it,
+and nothing has been lost. Under `allow` the instance holds the newest number
+and the report says which ones those are.
+
+### Tracker data is out of scope
+
+The dial reaches aggregate figures alone, and a tracker payload is untouched by
+it whatever the file says. A tracker event carries its own DHIS2 identity: the
+event UID is derived from the receipt's own id, so forwarding a receipt twice
+collides with `E1030` rather than overwriting, and capturing the same visit
+twice creates two events rather than replacing one. Neither is an overwrite,
+so neither is a thing this dial can be about. What tracker re-capture does
+instead is in
+[Correcting or withdrawing what you forwarded](#correcting-or-withdrawing-what-you-forwarded).
 
 ## Correcting or withdrawing what you forwarded
 

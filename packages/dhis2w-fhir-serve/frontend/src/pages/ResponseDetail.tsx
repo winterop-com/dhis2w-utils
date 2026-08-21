@@ -560,7 +560,7 @@ function RejectionSection({ rejection, rules }: { rejection: SpoolRejection; rul
 }
 
 /**
- * What the last forward run said when it refused to convert this still-queued receipt.
+ * What the last forward run said when it refused to send this still-queued receipt.
  *
  * Not a DHIS2 answer - the receipt never reached the instance - so the facts are the queue's own:
  * how many forward runs have refused it, when the last one looked, and the reasons it gave. The
@@ -572,14 +572,14 @@ function RefusalSection({ refusal }: { refusal: SpoolRefusal }) {
         <section className="space-y-3">
             <h3 className="flex items-center gap-2 text-base font-semibold">
                 <AlertTriangle className="text-status-received size-4" aria-hidden />
-                The translator refused this response
+                A forward run refused this response
             </h3>
             <p className="text-muted-foreground text-sm">
                 Still queued for DHIS2.{' '}
                 {refusal.attempt_count === 1
                     ? 'One forward run has'
                     : `${String(refusal.attempt_count)} forward runs have`}{' '}
-                refused to convert it, most recently at {formatInstant(refusal.refused_at)}. The next
+                refused to send it, most recently at {formatInstant(refusal.refused_at)}. The next
                 forward run tries again.
             </p>
             {refusal.reasons.length > 0 && (
@@ -589,7 +589,7 @@ function RefusalSection({ refusal }: { refusal: SpoolRefusal }) {
                             <TableRow>
                                 <TableHead>Category</TableHead>
                                 <TableHead>Element</TableHead>
-                                <TableHead>What the translator said</TableHead>
+                                <TableHead>Why</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
