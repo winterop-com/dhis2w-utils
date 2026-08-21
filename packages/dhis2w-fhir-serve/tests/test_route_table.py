@@ -21,7 +21,7 @@ from typing import Any
 
 import httpx
 import pytest
-from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope
+from dhis2w_fhir.config import FhirProject, SearchBackend, SearchConfig, ServeAuth, ServeAuthScope
 from dhis2w_fhir_serve import capability as capability_module
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.errors import NotFoundError, register_error_handlers
@@ -183,6 +183,21 @@ def test_the_route_table_is_the_same_whatever_the_posture(compiled_project: Fhir
     )
 
     assert open_to_everyone == guarded
+
+
+def test_the_route_table_is_the_same_whatever_answers_a_search(compiled_project: FhirProject) -> None:
+    """`[serve.search]` says what a lookup runs through, never where a lookup lives: no path moves with it."""
+    default = _route_table(create_app(ServeSettings(project_dir=compiled_project.project_root)))
+    through_the_instance = _route_table(
+        create_app(
+            ServeSettings(
+                project_dir=compiled_project.project_root,
+                search=SearchConfig(backend=SearchBackend.DHIS2),
+            )
+        )
+    )
+
+    assert default == through_the_instance
 
 
 def test_the_capture_choice_is_settled_at_mount_time() -> None:

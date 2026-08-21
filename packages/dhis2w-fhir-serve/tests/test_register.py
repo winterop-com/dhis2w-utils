@@ -17,7 +17,7 @@ without.
 from __future__ import annotations
 
 import base64
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +30,10 @@ from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope, TrackedEn
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.capability import build_server_capability
 from dhis2w_fhir_serve.passthrough import FACADE_PROVENANCE_HEADER, open_pass_through_client
+from dhis2w_fhir_serve.projection.base import IndexedName, NameMatch, NameMatches, NameQuery
 from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 from dhis2w_fhir_serve.register.surface import RegisterSurface
+from dhis2w_fhir_serve.routes import register as register_route_module
 from dhis2w_fhir_serve.runtime import facade_provenance
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import load_compiled_store
@@ -50,6 +52,7 @@ from fixture_project import (
     SPECIMEN_TRACKED_ENTITY_TYPE_UID,
     SPECIMEN_UNIQUE_ATTRIBUTE,
 )
+from pydantic import BaseModel
 
 _HOST = "https://dhis2.example"
 
@@ -62,7 +65,7 @@ _TRACKED_ENTITY_TYPE_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/tracked-entity-type
 _NATIONAL_ID_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/tracked-entity-attribute/{REGISTRATION_UNIQUE_ATTRIBUTE}"
 
 _PERSON_UID = "PLoWmEuLJl2"
-_OTHER_PERSON_UID = "QaTbMxTeSt01"
+_OTHER_PERSON_UID = "QaTbMxTeS01"
 _NATIONAL_ID = "SCEN-A-0001"
 
 _PROFILES_TOML = """
@@ -166,10 +169,21 @@ async def live_client(
 
 
 def _search_route(*entities: dict[str, Any]) -> respx.Route:
-    """Mock the tracker search, answering every query with the same page."""
-    return respx.get(f"{_HOST}/api/tracker/trackedEntities").mock(
+    """Mock the tracker search, answering every query with the same page - and the read that resolves a match.
+
+    A search discloses identifiers and a read resolves one, which is what
+    `dhis2w_fhir_serve.projection` splits the register's lookup into, so an entity a search matches is
+    an entity the very next request reads by its UID. The read is mocked here rather than in each
+    test because it is the same fact the search route already states. A test that wants a different
+    answer for one UID registers `_read_route` for it first: respx resolves in registration order,
+    and every test below opens with its reads.
+    """
+    route = respx.get(f"{_HOST}/api/tracker/trackedEntities").mock(
         return_value=httpx.Response(200, json={"trackedEntities": list(entities)})
     )
+    for entity in entities:
+        _read_route(entity, str(entity["trackedEntity"]))
+    return route
 
 
 def _read_route(entity: dict[str, Any] | None, tracked_entity_uid: str = _PERSON_UID) -> respx.Route:
@@ -229,6 +243,50 @@ async def test_a_bare_identifier_value_tries_the_uid_and_every_search_key(
         f"{REGISTRATION_GENERATED_ATTRIBUTE}:eq:{_NATIONAL_ID}",
     ]
     assert all(call.request.url.params["ouMode"] == "ACCESSIBLE" for call in search.calls)
+
+
+async def test_every_search_runs_through_the_index_whatever_is_behind_it(
+    live_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The register asks a `NameSearchIndex` for candidates and reads each one back - never records from a search.
+
+    An index that is not the instance stands in here, which is the whole claim step 1 of
+    `docs/fhir/design/projection.md` makes: the search path crosses the seam, so a later backend is a
+    config line rather than a refactor. What the register hands it is the value, the keys the surface
+    holds, and the tracked entity types the resource is served over; what comes back is a UID, and
+    the record under it is read live.
+    """
+    asked: list[NameQuery] = []
+
+    class _RecordingIndex(BaseModel):
+        """A `NameSearchIndex` that answers one match and remembers what it was asked."""
+
+        async def index(self, entries: Sequence[IndexedName]) -> None:
+            """Hold nothing, as the `dhis2` backend does."""
+            return None
+
+        async def find(self, query: NameQuery) -> NameMatches:
+            """Remember the lookup, and answer with the one person this test holds."""
+            asked.append(query)
+            return NameMatches(matches=(NameMatch(tracked_entity_uid=_PERSON_UID),))
+
+        async def forget(self, tracked_entity_uids: Sequence[str]) -> None:
+            """Drop nothing, as the `dhis2` backend does."""
+            return None
+
+    monkeypatch.setattr(register_route_module, "build_name_search_index", lambda backend, *, reader: _RecordingIndex())
+    _read_route(None, _NATIONAL_ID)
+    resolution = _read_route(_entity(), _PERSON_UID)
+    search = _search_route()
+
+    body = (await live_client.get(f"/Patient?identifier={_NATIONAL_ID_SYSTEM}|{_NATIONAL_ID}")).json()
+
+    assert [query.value for query in asked] == [_NATIONAL_ID]
+    assert asked[0].attribute_uids == (REGISTRATION_UNIQUE_ATTRIBUTE,)
+    assert asked[0].tracked_entity_type_uids == (REGISTRATION_TRACKED_ENTITY_TYPE_UID,)
+    assert body["entry"][0]["resource"]["id"] == _PERSON_UID
+    assert resolution.called
+    assert not search.called
 
 
 async def test_a_value_that_is_not_uid_shaped_is_never_read_as_one(live_client: httpx.AsyncClient) -> None:
@@ -655,6 +713,25 @@ async def test_a_search_and_a_listing_carry_it_too(pass_through_facade: httpx.As
 
     forwarded = [call.request.headers["authorization"] for call in search.calls]
     assert forwarded == [_CALLER_BASIC, _OTHER_CALLER_BASIC]
+
+
+async def test_resolving_a_match_is_read_as_the_caller_too(pass_through_facade: httpx.AsyncClient) -> None:
+    """The index says an identifier matched; the instance says whether this caller may have the person behind it.
+
+    Authorization by construction, on the wire: the read that turns a match into a record carries the
+    same credential the search did, so DHIS2 decides per match per caller exactly as it does for a
+    read of one entity by its UID (`docs/fhir/design/projection.md` R9).
+    """
+    _read_route(None, _NATIONAL_ID)
+    resolution = _read_route(_entity(), _PERSON_UID)
+    _search_route(_entity())
+
+    answered = await pass_through_facade.get(
+        f"/Patient?identifier={_NATIONAL_ID_SYSTEM}|{_NATIONAL_ID}", headers={"Authorization": _CALLER_BASIC}
+    )
+
+    assert answered.json()["entry"][0]["resource"]["id"] == _PERSON_UID
+    assert resolution.calls.last.request.headers["authorization"] == _CALLER_BASIC
 
 
 async def test_the_enrollment_listing_is_read_as_the_caller(pass_through_facade: httpx.AsyncClient) -> None:

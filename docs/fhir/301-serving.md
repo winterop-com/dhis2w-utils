@@ -18,6 +18,7 @@
   it accepts are kept
 - decide whether the server answers questions about people at all, who can be
   found, and how many of them one page holds
+- decide what answers a search for one of them
 - state the posture every `d2w fhir forward` in the project runs in
 
 `d2w fhir serve` starts a small
@@ -28,7 +29,8 @@ every start. For most of these options a command-line flag wins over the file
 for a single run. Three have no flag behind them, and each for the same reason -
 what they decide is what the server *is* rather than how one run of it went:
 [`capture`](#capture), [`spool_dir`](#spool_dir), and the whole
-[`[serve.tracked_entities]`](#tracked_entities) table.
+[`[serve.tracked_entities]`](#tracked_entities) table - which
+[`[serve.search]`](#search) joins for the same reason.
 
 Two things to know before the options:
 
@@ -848,6 +850,58 @@ itself already treats as worth looking somebody up by.
 **If you get it wrong:** as with the types above, no check is possible before
 the server connects, so a mistyped id is a key nothing is ever found under. The
 symptom is a value you know a person holds finding nobody.
+
+### What answers a search: the `[serve.search]` table { #search }
+
+`[serve.tracked_entities]` says what may be looked up. This table says what
+answers the lookup. It has one key today, and a live run that writes no table at
+all behaves exactly as it always has.
+
+#### `backend` { #search-backend }
+
+**In plain words.** What a register search runs through. `"dhis2"` is the DHIS2
+instance itself: one `filter=<attribute>:eq:<value>` query per search key per
+tracked entity type, put to the instance while somebody waits, which is the
+search this server has always run.
+
+**Why the key exists while it has one value.** Because of the shape it fixes,
+which is worth more than the choice it offers. A search answers with tracked
+entity identifiers - who matched, and nothing about them. The record behind a
+match is then read back from the instance under the credentials the request runs
+as, so DHIS2 applies its sharing, its organisation-unit scopes, and its
+ownership rules to every record this server hands out, whatever found it. That
+is what lets something other than the instance answer the *finding* half later
+without this server ever deciding on DHIS2's behalf who may see whom. The design
+is [the materialized projection](design/projection.md), sections 7 and 9.
+
+**What that costs, stated.** A search that finds nobody costs what it always
+did. A search that finds somebody spends one more read on the instance - the
+read of the person it is about to hand over, which is the read DHIS2 authorizes.
+
+**When you would change it.** Not yet. The second value, `"index"`, arrives with
+the OpenSearch backend, and with it the things an exact match cannot do: finding
+`ສົມສັກ` from `Somsack`, surviving a typed one-character slip, ranking near
+matches. Until that ships, this key has one word and the file refuses every
+other.
+
+**Example.**
+
+```toml
+[serve.search]
+backend = "dhis2"
+```
+
+**Default:** `"dhis2"` - **If you leave it out:** the instance answers every
+search, which is what a live run has always done.
+
+**If you get it wrong:** the file refuses the value and names the key, before
+the server starts:
+
+```
+error: 1 validation error for FhirProjectConfig
+serve.search.backend
+  Input should be 'dhis2' [type=enum, input_value='index', input_type=str]
+```
 
 ## Forwarding it: the `[forward]` section { #forward }
 

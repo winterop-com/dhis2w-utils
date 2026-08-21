@@ -1277,7 +1277,9 @@ bound to loopback by default that loads the project once at startup.
   and validates them with one `GET /api/me` against the same instance the live
   run reads, in a fresh request carrying the caller's header and never the
   runtime's client, cached about a minute against a hash of that header. The
-  validated username becomes the request identity. `oauth2` is reserved and
+  validated username becomes the request identity, and under this posture every
+  register read is answered under the caller's own DHIS2 authorization. `oauth2`
+  is reserved and
   deliberately not accepted: DHIS2 2.43.1's authorization server 500s for any
   client its API creates (BUGS.md 96).
 - **`[serve] auth_scope` says how much the posture covers.** `write` - the
@@ -1286,6 +1288,34 @@ bound to loopback by default that loads the project once at startup.
   Hooks call are POSTs that write nothing. `all` guards every router but
   `/metadata`, which stays open in every posture so a client can read the posture
   it has to meet; the capture UI's own files stay open too.
+- **`dhis2` forwards the caller's credentials on every register read.** The
+  tracked entity read, the identifier search, the register listing and its
+  counts, the enrollment listing, and `/evaluate`'s registered context are sent
+  to DHIS2 carrying the caller's own `Authorization` header, verbatim and
+  unparsed, over a pooled connection the process holds open with no credential
+  of its own - so DHIS2's five authorization gates (authority, sharing, the
+  data-element bits, the three organisation-unit scopes, ownership with access
+  levels) are enforced per caller by DHIS2 itself, and the facade computes no
+  permission of its own. DHIS2's verdicts are answered as they stand: a tracked
+  entity a caller may not see is the 404 DHIS2 gave, and a 401 or 403 is carried
+  rather than turned into a 502. Nothing on the path is cached - the one cache
+  is `auth`'s identity cache, keyed by a hash of the header and holding a
+  username. Each forwarded read carries one header of the facade's own,
+  `X-DHIS2W-Facade`, naming the software and version; never the username, which
+  the caller's header already carries. A register read presenting no credential
+  is a 401 in either scope, since there is nobody to answer as; one presenting
+  credentials is answered in either scope, checked on the spot through the same
+  cache.
+- **The facade's own profile still answers the work no caller asked for.** The
+  startup store build, the instance address `/uiconfig` hands the capture
+  screens, and `d2w fhir forward`'s drain read and write as the facade's (or the
+  forwarding) profile in every posture, because none of them acts on behalf of a
+  request - so least privilege still applies to that profile, and under `none`
+  and `token` it is what answers every caller.
+- **`rest.security` says so under `dhis2`**: the description states that reads
+  of the register are answered under the caller's own DHIS2 authorization, and
+  the `write`-scope sentence names the register as needing credentials rather
+  than claiming every read is open.
 - **Three startup refusals, in `ServeSettings.resolve`** beside the sibling
   preflights, so `d2w fhir serve` and an embedder meet the same ones: binding an
   interface other than loopback while neither the run nor `fhir.toml` has stated
@@ -1392,6 +1422,16 @@ reads that table.
   would miss exactly the people identifier search exists to find.
 - **A bare value** tries every key at once and folds the results deduplicated
   by tracked entity UID.
+- **Every search runs through a `NameSearchIndex`**, which answers with tracked
+  entity identifiers and never with records; each match is then read back by UID
+  under the credentials the request runs as, so DHIS2 authorizes every record
+  this server hands out whatever found it. `[serve.search] backend` names the
+  index and has one value, `"dhis2"` - the instance itself, one
+  `filter=<uid>:eq:<value>` query per key, which is the search a live run has
+  always run. `"index"` arrives with the OpenSearch backend and is refused until
+  then, naming `serve.search.backend`. The seam is `ProjectionStore` and
+  `NameSearchIndex`, both exported, both documented in
+  [the materialized projection](../fhir/design/projection.md).
 - **The identifier set** is the attributes `D2TEA_CS` publishes `unique` - not
   `searchable`, which a superuser is not held to. The tracked entity types come
   from the registration forms the store publishes, and an unmatched identifier
@@ -2429,8 +2469,9 @@ full key set and refuses anything else.
 | `[generate.tracked_entity_forms]` | Person-only registration form selection |
 | `[generate.tracked_entity_types]` | UID to FHIR resource type map |
 | `[generate.examples]` | `per_target`, `source` |
-| `[serve]` | `host`, `port`, `strict_codes`, `capture`, `ui`, `spool_dir`, `basemaps`, `tracked_entities` |
+| `[serve]` | `host`, `port`, `strict_codes`, `capture`, `ui`, `spool_dir`, `basemaps`, `tracked_entities`, `search` |
 | `[serve.tracked_entities]` | `enabled`, `listing`, `page_size`, `page_size_limit`, `tracked_entity_types`, `search_attributes` |
+| `[serve.search]` | `backend` (`dhis2`) |
 | `[forward]` | `live`, `import`, `register_completeness`, `overwrites`, `corrections`, `withdrawals` |
 
 - **An unknown key stops the command.** A misspelled `max_lvl = 4` produces
@@ -2442,8 +2483,9 @@ full key set and refuses anything else.
 - **Two values unset silently**: `root = ""` and `max_level = 0`.
 - **Flags beat the table beats the defaults** on `[serve]` and `[forward]`
   alike, and `--strict-codes` / `--no-strict-codes` reaches all three levels.
-  `[serve] capture` and `[serve] spool_dir` have no flag at all, because each
-  states what the server is rather than what one run does.
+  `[serve] capture` and `[serve] spool_dir` have no flag at all, and neither do
+  `[serve.tracked_entities]` and `[serve.search]`, because each states what the
+  server is rather than what one run does.
 - **The `[forward] import` key is spelled `import` in the file** (the field is
   `import_responses` in Python, because `import` is a keyword), and the file
   accepts no other spelling of it.

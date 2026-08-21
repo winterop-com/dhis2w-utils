@@ -322,6 +322,40 @@ class TrackedEntitiesConfig(BaseModel):
         return self
 
 
+class SearchBackend(StrEnum):
+    """What answers a register search - the `[serve.search] backend` key.
+
+    One value ships. `"index"` is the name reserved for the OpenSearch backend of step 6 in
+    `docs/fhir/design/projection.md`, and it is deliberately not a member here for the reason
+    `ServeAuth` reserves `oauth2` in its own docstring: a value that parses and then has nothing to
+    run on is worse than a value the file refuses by name, naming the key it refused.
+    """
+
+    #: The DHIS2 instance itself, asked one filtered tracker search per key while the caller waits.
+    #: Search is as wide as `filter=<attribute>:eq:<value>` is, and every match is authorized by the
+    #: instance on the read that resolves it.
+    DHIS2 = "dhis2"
+
+
+class SearchConfig(BaseModel):
+    """How a register search is answered - the `[serve.search]` table of `fhir.toml`.
+
+    A register search reaches the instance through one seam, `NameSearchIndex`, and this table says
+    which backend sits behind it. `backend = "dhis2"` is the instance itself: the search a live run
+    has always run, with the authorization properties it has always had - the matches a search
+    discloses are identifiers, and the record behind one is read back under the caller's own
+    credentials, so DHIS2 decides per match per caller what may be seen.
+
+    The table has no command-line flag. Which searches this server answers is its contract - it is
+    what `/metadata` declares - rather than a property of one invocation, which is the rule
+    `[serve.tracked_entities]` follows for the same reason.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    backend: SearchBackend = SearchBackend.DHIS2
+
+
 class ServeAuth(StrEnum):
     """How the served facade decides who is calling it - the `[serve] auth` posture.
 
@@ -394,6 +428,10 @@ class ServeConfig(BaseModel):
     the one part of this table that says what a live run will tell a client about the instance behind
     it.
 
+    `[serve.search]` is what answers a register search - the instance itself today, and a search
+    index when one is configured. It says how a lookup is answered where `[serve.tracked_entities]`
+    says what may be looked up.
+
     `auth` is who the facade serves, and `auth_scope` is how much of it the posture covers. The key
     is `ServeAuth | None` rather than `ServeAuth` because absence is a third state this table has to
     be able to tell apart: a project that never wrote the key is served on loopback with no
@@ -415,6 +453,7 @@ class ServeConfig(BaseModel):
     spool_dir: str = SPOOL_RELATIVE_PATH
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
     tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)
+    search: SearchConfig = Field(default_factory=SearchConfig)
 
     @field_validator("spool_dir")
     @classmethod
