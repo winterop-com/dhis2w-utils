@@ -28,10 +28,12 @@ from dhis2w_fhir import (
     DEFAULT_LOAD_SET_PER_TARGET,
     DEFAULT_SUSHI_TIMEOUT_SECONDS,
     MALFORMED_RESPONSES_RELATIVE_PATH,
+    CorrectionPosture,
     GenerateReport,
     OverwritePosture,
     ServeAuth,
     ServeAuthScope,
+    WithdrawalPosture,
     load_project,
 )
 from dhis2w_fhir.doctor import DEFAULT_ORACLE_SAMPLES
@@ -50,6 +52,7 @@ if TYPE_CHECKING:
         GenerationProfile,
         LoadSetReport,
         SpoolStateReport,
+        WithdrawReport,
     )
     from dhis2w_fhir.validation.schemas import FhirValidationReport
 
@@ -1894,6 +1897,16 @@ def _render_forward_report(report: ForwardReport, generation: GenerationProfile,
                 if report.overwrite_posture is OverwritePosture.REFUSE or report.overwrite_line
                 else []
             ),
+            *(
+                [DetailRow("corrections", str(report.correction_posture))]
+                if report.correction_posture is not CorrectionPosture.OFF
+                else []
+            ),
+            *(
+                [DetailRow("withdrawals", str(report.withdrawal_posture))]
+                if report.withdrawal_posture is not WithdrawalPosture.OFF
+                else []
+            ),
             *([DetailRow("not posted", str(len(report.not_posted)))] if report.stopped is not None else []),
         ],
         console=STDERR_CONSOLE,
@@ -1997,6 +2010,24 @@ def forward_command(
             "the whole response in the queue with the covered values written down beside it.",
         ),
     ] = None,
+    corrections: Annotated[
+        CorrectionPosture | None,
+        typer.Option(
+            "--corrections",
+            help="Whether this deployment accepts a submission that names the receipt it corrects, "
+            "overriding `\\[forward] corrections`. Off by default. Stated by the run rather than acted "
+            "on by it - a drain imports, and a correction lands on the corrected receipt's identity.",
+        ),
+    ] = None,
+    withdrawals: Annotated[
+        WithdrawalPosture | None,
+        typer.Option(
+            "--withdrawals",
+            help="Whether this deployment retracts what it forwarded, overriding "
+            "`\\[forward] withdrawals`. Off by default, and read by `d2w fhir withdraw` rather than by "
+            "the drain, which never deletes anything.",
+        ),
+    ] = None,
     details: Annotated[
         bool,
         typer.Option("--details", help="Print every response's outcome instead of writing them to the report."),
@@ -2008,10 +2039,14 @@ def forward_command(
     DRY RUN IS THE DEFAULT. Every payload is posted to the real instance under the endpoint's own
     validate-only mode, so DHIS2's rules decide the answer and nothing is written; `--import` commits.
 
-    The posture comes from `\[forward]` in fhir.toml - `import`, `register_completeness`, and
-    `overwrites` - unless a flag here overrides it for this run, and from the defaults above when the
-    file states none. Which spool is drained is `\[serve] spool_dir`, the same key the server writes
-    receipts under.
+    The posture comes from `\[forward]` in fhir.toml - `import`, `register_completeness`,
+    `overwrites`, `corrections`, and `withdrawals` - unless a flag here overrides it for this run,
+    and from the defaults above when the file states none. Which spool is drained is
+    `\[serve] spool_dir`, the same key the server writes receipts under.
+
+    `corrections` and `withdrawals` are the deployment's posture towards a submission that names what
+    it amends or retracts, and the run states them rather than acting on them: a drain imports, and
+    `d2w fhir withdraw` is what reads `withdrawals`.
 
     An imported response moves from the spool's received/ to forwarded/, a DHIS2-rejected one to
     rejected/ beside a report, and a translator-refused one stays put - fix and forward again.
@@ -2051,6 +2086,8 @@ def forward_command(
                 coded_answer_mode=mode,
                 register_completeness=register_completeness,
                 overwrites=overwrites,
+                corrections=corrections,
+                withdrawals=withdrawals,
                 reporter=reporter,
             )
         )
@@ -2074,6 +2111,7 @@ def _render_spool_state(report: SpoolStateReport, *, details: bool) -> None:
             DetailRow("refused by a drain, still queued", str(report.counts.refused_in_queue)),
             DetailRow("accepted by DHIS2", str(report.counts.forwarded)),
             DetailRow("refused by DHIS2", str(report.counts.rejected)),
+            DetailRow("withdrawn from DHIS2", str(report.counts.withdrawn)),
             DetailRow("unreadable files", str(report.counts.malformed)),
         ],
         console=STDERR_CONSOLE,
@@ -2204,6 +2242,150 @@ def requeue_command(
     _hint("ok", report.counts_line)
     if report.requeued:
         _hint("note", "`d2w fhir forward --import` posts them again")
+
+
+#: What a withdrawal's dry run says at both ends of its output. The delete reaches the real tracker
+#: endpoint under that endpoint's own validate-only mode, which for a terminal act is the one
+#: rehearsal worth having.
+_WITHDRAW_DRY_RUN_BANNER = (
+    "DRY RUN - every delete was posted to DHIS2 under the tracker endpoint's own validate-only mode "
+    "(importMode=VALIDATE). Nothing was deleted from the instance and no receipt moved. Re-run with "
+    "--import to commit."
+)
+
+#: The Rich style each withdrawal outcome renders in, so a glance separates a refusal from a retraction.
+_WITHDRAWAL_KIND_STYLES = {
+    "retracted": "green",
+    "would-retract": "yellow",
+    "refused": "red",
+}
+
+
+def _withdrawal_kind_cell(value: Any) -> str:
+    """Render one withdrawal outcome in the style it carries."""
+    kind = str(value)
+    return f"[{_WITHDRAWAL_KIND_STYLES.get(kind, 'default')}]{kind}[/]"
+
+
+def _render_withdraw_report(report: WithdrawReport, generation: GenerationProfile) -> None:
+    """Render one withdrawal run: the mode first, then a row per receipt, then what remains in DHIS2."""
+    if report.dry_run:
+        _hint("dry run", _WITHDRAW_DRY_RUN_BANNER, style="bold yellow")
+    render_detail(
+        "fhir withdraw",
+        [
+            DetailRow("profile", f"{generation.name} ({generation.origin})"),
+            DetailRow("project", str(report.project_root)),
+            DetailRow("mode", "DRY RUN (validate only)" if report.dry_run else "withdraw"),
+            DetailRow("named", str(len(report.receipts))),
+            DetailRow("refused by DHIS2", str(len(report.refused))),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    render_list(
+        "receipts",
+        [
+            {
+                "id": receipt.response_id,
+                "kind": receipt.kind.value,
+                "event": receipt.event_uid,
+                "form": receipt.questionnaire.rsplit("/", 1)[-1] or receipt.questionnaire,
+                "answer": receipt.line,
+            }
+            for receipt in report.receipts
+        ],
+        [
+            ColumnSpec("Receipt", "id", no_wrap=True),
+            ColumnSpec("Outcome", "kind", formatter=_withdrawal_kind_cell, no_wrap=True),
+            ColumnSpec("Event", "event", no_wrap=True),
+            ColumnSpec("Form", "form"),
+            ColumnSpec("DHIS2 said", "answer"),
+        ],
+    )
+    if report.retracted:
+        _hint(
+            "note",
+            "This DHIS2 instance keeps a hidden copy of each withdrawn event; none of them appears in "
+            "reports any more. The UIDs are burned, so those receipts can never be forwarded again",
+        )
+    if report.refused:
+        _hint(
+            "error",
+            f"{len(report.refused)} receipt(s) DHIS2 would not delete; exiting 1 - each stays in forwarded/ "
+            "with the import report that says what it landed",
+            style="red",
+        )
+    _hint("ok", report.counts_line)
+    if report.dry_run:
+        _hint("dry run", _WITHDRAW_DRY_RUN_BANNER, style="bold yellow")
+
+
+@app.command("withdraw")
+def withdraw_command(
+    response_ids: Annotated[list[str], typer.Argument(help="Forwarded receipt ids to retract from DHIS2.")],
+    directory: Annotated[
+        Path, typer.Option("--directory", file_okay=False, help="Project directory (default: current directory).")
+    ] = Path("."),
+    import_responses: Annotated[
+        bool,
+        typer.Option(
+            "--import/--dry-run",
+            help="Delete the events in DHIS2 and file the receipts under withdrawn/. The default is a dry "
+            "run: the delete goes to the real endpoint under its own validate-only mode, and nothing is "
+            "written and nothing moves.",
+        ),
+    ] = False,
+    withdrawals: Annotated[
+        WithdrawalPosture | None,
+        typer.Option(
+            "--withdrawals",
+            help="Whether this project retracts what it forwarded, overriding `\\[forward] withdrawals`. "
+            "Off by default, and `retract` is what this command requires.",
+        ),
+    ] = None,
+) -> None:
+    r"""Retract from DHIS2 the events named forwarded receipts landed, and file each receipt as withdrawn.
+
+    WITHDRAWAL IS TERMINAL. DHIS2 burns the UID of a tracker object it deletes and refuses it under
+    every import strategy afterwards, so a withdrawn receipt can never be forwarded again. What
+    remains in the instance is a hidden copy of the event carrying its values, which no ordinary read
+    returns - not the nothing that the word "deleted" implies.
+
+    DRY RUN IS THE DEFAULT. The delete goes to the real instance under the tracker endpoint's own
+    validate-only mode, so DHIS2 answers whether it would take it while nothing is written; `--import`
+    commits.
+
+    `\[forward] withdrawals` gates the whole command and is off unless this project says otherwise -
+    a project that publishes forms and forwards them is not thereby one that reaches back into what
+    DHIS2 already holds. `--withdrawals retract` states it for one run.
+
+    The receipt is never rewritten. Its file moves from forwarded/ to withdrawn/ with a sidecar
+    holding what DHIS2 answered the delete, and the import report that recorded what it landed stays
+    in forwarded/, because that document is still true of that import.
+
+    Only a receipt in forwarded/ that landed a single event can be withdrawn, and every id is checked
+    before anything is posted. `d2w data aggregate delete` and `d2w data tracker delete` are the raw
+    escape hatches for the other kinds, outside the FHIR path.
+    """
+    from dhis2w_fhir import service
+
+    project = load_project(directory)
+    generation = service.resolve_generation_profile(project)
+    report = asyncio.run(
+        service.withdraw_responses(
+            generation.profile,
+            project,
+            response_ids,
+            import_responses=import_responses,
+            withdrawals=withdrawals,
+        )
+    )
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+    else:
+        _render_withdraw_report(report, generation)
+    if report.refused:
+        raise typer.Exit(code=1)
 
 
 #: The Rich style each doctor outcome renders in, so a glance separates a break from a note.

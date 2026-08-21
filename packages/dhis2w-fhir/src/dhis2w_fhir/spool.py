@@ -3,16 +3,23 @@
 `d2w fhir serve` writes every accepted `QuestionnaireResponse` to `<spool root>/received/<id>.json` as a
 receipt envelope - the root being `.serve/responses` inside the project unless `[serve] spool_dir` names
 another - and `ls` on that directory is the pending count. This module is the read side of the same
-convention plus the three states a drained response can end in:
+convention plus the four states a receipt can end in:
 
     `received/`   captured, not yet forwarded - the queue.
     `forwarded/`  translated, posted, and accepted by DHIS2.
     `rejected/`   translated and posted, and DHIS2 refused it.
+    `withdrawn/`  it landed, and `d2w fhir withdraw` retracted it from DHIS2 afterwards.
 
-Both drained states carry an `<id>.report.json` sidecar holding what DHIS2 answered. A rejection needs
+Three of those states carry an `<id>.report.json` sidecar holding what DHIS2 answered. A rejection needs
 one to say why it was refused; an acceptance needs one because "DHIS2 took it" is not the whole answer
 either - the import counts are what say how much of it landed, and a receipt filed with nothing beside
 it leaves that unanswerable from the spool alone.
+
+`withdrawn/` is the one state a receipt reaches without being posted again. Its report is what DHIS2
+answered the delete, and the report of the import that landed it stays behind in `forwarded/`: that
+document is still true of that import, and the two answer different questions. Withdrawal is terminal
+by DHIS2's rule rather than by ours - the UID a tracker delete burns is refused under every import
+strategy afterwards - so nothing moves a receipt back out of `withdrawn/`.
 
 A fourth directory, `malformed/`, is a holding pen rather than a state: a file that does not read as a
 receipt is moved there with its reason beside it, and the read that found it carries on. One unreadable
@@ -75,6 +82,7 @@ __all__ = [
     "REFUSAL_RECORD_SUFFIX",
     "REJECTED_RESPONSES_RELATIVE_PATH",
     "SPOOL_RELATIVE_PATH",
+    "WITHDRAWN_RESPONSES_RELATIVE_PATH",
     "ForwardRefusalRecord",
     "QuarantinedFile",
     "RefusalReason",
@@ -91,6 +99,8 @@ __all__ = [
     "move_to_forwarded",
     "move_to_received",
     "move_to_rejected",
+    "move_to_withdrawn",
+    "read_receipt",
     "read_received_responses",
     "read_refusal_record",
     "read_spooled_receipts",
@@ -100,7 +110,7 @@ __all__ = [
 ]
 
 #: The spool root a project holds unless `[serve] spool_dir` names another, relative to the project
-#: root. The five constants below spell that default layout out; a project that moved its spool has
+#: root. The six constants below spell that default layout out; a project that moved its spool has
 #: the same directory names under the root `SpoolLayout` resolved for it.
 SPOOL_RELATIVE_PATH = ".serve/responses"
 
@@ -112,6 +122,10 @@ FORWARDED_RESPONSES_RELATIVE_PATH = ".serve/responses/forwarded"
 
 #: Where a response DHIS2 refused is moved to by default, relative to the project root.
 REJECTED_RESPONSES_RELATIVE_PATH = ".serve/responses/rejected"
+
+#: Where a receipt `d2w fhir withdraw` retracted from DHIS2 is moved to by default, relative to the
+#: project root.
+WITHDRAWN_RESPONSES_RELATIVE_PATH = ".serve/responses/withdrawn"
 
 #: Where a file that does not read as a receipt is moved to by default, relative to the project root.
 #: Not a state a receipt is in - a holding pen for bytes nothing can act on until a person looks at them.
@@ -157,11 +171,18 @@ class SpoolLockedError(LookupError):
 
 
 class SpoolState(StrEnum):
-    """Which of the spool's three directories a receipt currently sits in."""
+    """Which of the spool's four directories a receipt currently sits in.
+
+    Three of the four are the drain's: a receipt is captured, and DHIS2 either takes the payload or
+    refuses it. The fourth is an operator's, and it is the only one that is reached without posting
+    the receipt again - `d2w fhir withdraw` retracts from DHIS2 what a forwarded receipt landed, and
+    files the receipt here to say the submission stands withdrawn rather than unsent.
+    """
 
     RECEIVED = "received"
     FORWARDED = "forwarded"
     REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
 
 
 #: The directory each state's receipts sit in, under whatever root the project points the spool at.
@@ -169,6 +190,7 @@ SPOOL_STATE_DIRECTORY_NAMES: dict[SpoolState, str] = {
     SpoolState.RECEIVED: "received",
     SpoolState.FORWARDED: "forwarded",
     SpoolState.REJECTED: "rejected",
+    SpoolState.WITHDRAWN: "withdrawn",
 }
 
 #: What the holding pen is called, which is a sibling of the three state directories.
@@ -368,6 +390,23 @@ def read_received_responses(layout: SpoolLayout) -> SpoolReading:
     return SpoolReading(responses=tuple(responses), quarantined=tuple(quarantined))
 
 
+def read_receipt(layout: SpoolLayout, state: SpoolState, response_id: str) -> SpooledResponse:
+    """Read one named receipt out of one state, resource and all, refusing by name when it is not there.
+
+    What `d2w fhir withdraw` reads. A drain reads a whole directory because it acts on the queue; a
+    withdrawal acts on one receipt an operator named, so it opens that file and nothing else - and a
+    file that is not there, or will not read as a receipt, is a refusal rather than a quarantine,
+    because the operator is standing in front of the answer.
+    """
+    path = layout.directory_for(state) / f"{response_id}.json"
+    if not path.is_file():
+        raise SpoolReadError(f"`{response_id}` is not a {state.value} receipt of {layout.project_root}")
+    try:
+        return _read_receipt(path, layout)
+    except _MalformedReceiptError as error:
+        raise SpoolReadError(f"{path}: {error}") from error
+
+
 def read_spooled_receipts(layout: SpoolLayout) -> SpoolContents:
     """Read the envelope of every receipt in every state, quarantining whatever will not read as one.
 
@@ -440,6 +479,17 @@ def move_to_forwarded(spooled: SpooledResponse, report: BaseModel) -> Path:
 def move_to_rejected(spooled: SpooledResponse, report: BaseModel) -> Path:
     """Write one rejection's import report beside where the receipt is going, then move the receipt there."""
     return _file_beside_report(spooled, report, SpoolState.REJECTED)
+
+
+def move_to_withdrawn(spooled: SpooledResponse, report: BaseModel) -> Path:
+    """Write what DHIS2 answered the delete beside `withdrawn/`, then move the forwarded receipt in after it.
+
+    THE FORWARD'S OWN IMPORT REPORT STAYS IN `forwarded/`. It states what DHIS2 did with the payload
+    when it took it, which is still true of that import and is the only record of what was landed;
+    the document written here states what DHIS2 did when it was asked to take it back. Two answers
+    to two questions, and neither is rewritten - the receipt itself never was.
+    """
+    return _file_beside_report(spooled, report, SpoolState.WITHDRAWN)
 
 
 def move_to_received(layout: SpoolLayout, response_id: str) -> Path:

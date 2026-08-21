@@ -2268,8 +2268,9 @@ Each response goes through `dhis2w_fhir.conversion` all-or-nothing.
 #### Corrections and withdrawals
 
 The posture today, in one place, because "is this supported?" is the question
-this section exists to close. The full argument and the design that changes it
-are in [Corrections and withdrawals](../fhir/design/data-lifecycle.md).
+this section exists to close. The full argument and the design the remaining
+slices follow are in
+[Corrections and withdrawals](../fhir/design/data-lifecycle.md).
 
 - **A second capture of an aggregate report overwrites the first in place.**
   The envelope names no `importStrategy`, so DHIS2 applies its own
@@ -2281,14 +2282,60 @@ are in [Corrections and withdrawals](../fhir/design/data-lifecycle.md).
   fresh receipt. Re-forwarding the *same* receipt is the case DHIS2 refuses,
   with `E1030` - one receipt names one event, and that is the guarantee that
   holds.
-- **A forwarded receipt cannot be withdrawn.** The spool has three states and
-  none of them retracts anything from DHIS2; a receipt reporting itself
-  `entered-in-error` is a refusal filed to `rejected/`, which is bookkeeping
-  about a receipt rather than a withdrawal.
-- **`d2w data tracker delete` is the raw escape hatch**, outside the FHIR path
-  and behind a confirmation prompt, with `d2w data aggregate delete` beside it.
-  Deleting a tracker object burns its UID permanently, so the receipt that
-  named it can never be forwarded again.
+- **`[forward] corrections` and `[forward] withdrawals` are the deployment's
+  posture towards a marked submission**, where `overwrites` is its posture
+  towards an unmarked one. `corrections` takes `"off"` (the default) or
+  `"amend"`; `withdrawals` takes `"off"` (the default) or `"retract"`. Both
+  resolve in `service.forward_responses` alongside every sibling dial - the
+  flag, then `fhir.toml`, then the default - with `--corrections` and
+  `--withdrawals` on `d2w fhir forward` overriding either for one run, and both
+  are named in `--details` and `--json` wherever a project has turned one on.
+  A drain acts on neither: it imports.
+- **A project publishing forms is not thereby a project that reaches back into
+  DHIS2**, which is why both default to off. Turning one on is a sentence
+  somebody wrote rather than a default nobody read.
+- **`d2w data tracker delete` is the raw escape hatch** for the kinds the FHIR
+  path does not retract, outside it and behind a confirmation prompt, with
+  `d2w data aggregate delete` beside it.
+
+### Withdraw an event you forwarded
+
+`d2w fhir withdraw <receipt id>...` deletes from DHIS2 the event a forwarded
+receipt landed, and files the receipt under the spool's fourth state.
+
+- **`[forward] withdrawals = "retract"` gates the whole command**, with
+  `--withdrawals retract` stating it for one run. Off, the command posts
+  nothing at all and the refusal names the key.
+- **The identity is recomputed, never looked up.** The object deleted is
+  `receipt_event_uid(<the receipt's id>)`, so a withdrawal needs no compiled
+  guide, no metadata read, and no translation - which makes it answerable about
+  a project captured through `d2w fhir serve --live`.
+- **A dry run is the default**, exactly as it is for a drain: the delete goes
+  to `/api/tracker` under `importMode=VALIDATE`, so DHIS2 answers whether it
+  would take it while nothing is deleted and no receipt moves. `--import`
+  commits.
+- **`withdrawn/` is the spool's fourth state**, and the only one a receipt
+  reaches without being posted again. The receipt file is never rewritten; a
+  `<id>.report.json` holding what DHIS2 answered the delete lands beside it
+  first, and the import report that recorded what it landed **stays in
+  `forwarded/`** - two answers to two questions, neither rewritten.
+- **Withdrawal is terminal, and the copy says what remains rather than
+  "deleted".** DHIS2 burns the UID it deletes and refuses it under every import
+  strategy afterwards, so a withdrawn receipt can never be forwarded again;
+  what stays in the instance is a hidden copy of the event carrying its values,
+  which no ordinary read returns.
+- **Only a forwarded receipt that landed one event can be withdrawn**, and
+  every id is checked before anything is posted. An aggregate report and a
+  registration are refused by name with the kind they are - each needs a guard
+  the event leg does not.
+- **A delete DHIS2 refuses leaves the receipt in `forwarded/`** with the import
+  report that says what it landed, names it `refused` in the run, and exits 1.
+- **Typed as `WithdrawReport` / `WithdrawnReceipt` / `WithdrawalRecord` /
+  `WithdrawalKind`**, with `--json` carrying the whole report, and
+  `WithdrawalNotEnabledError` / `WithdrawalUnsupportedError` for the two
+  refusals that are about the project rather than about DHIS2.
+- **`d2w fhir spool` counts the fourth state** and reads the record of the
+  delete back for the reason column.
 
 #### Output
 
@@ -2315,6 +2362,8 @@ Two operator verbs sit beside the drain and touch no instance at all.
   `rejected/` as the record of what DHIS2 last answered about that payload, and
   refusing an id that is not there before anything moves - so a run of five
   never leaves an operator working out which three it reached.
+- **`d2w fhir spool` states four states**, `withdrawn/` beside the three the
+  drain files into.
 - **Neither opens a client nor needs a profile**, because every fact either
   states is in the project directory, which is what makes them answerable while
   the instance is down.
@@ -2382,7 +2431,7 @@ full key set and refuses anything else.
 | `[generate.examples]` | `per_target`, `source` |
 | `[serve]` | `host`, `port`, `strict_codes`, `capture`, `ui`, `spool_dir`, `basemaps`, `tracked_entities` |
 | `[serve.tracked_entities]` | `enabled`, `listing`, `page_size`, `page_size_limit`, `tracked_entity_types`, `search_attributes` |
-| `[forward]` | `live`, `import`, `register_completeness`, `overwrites` |
+| `[forward]` | `live`, `import`, `register_completeness`, `overwrites`, `corrections`, `withdrawals` |
 
 - **An unknown key stops the command.** A misspelled `max_lvl = 4` produces
   `error: fhir.toml: unknown key 'max_lvl' in [generate.organisation_units]`
@@ -2498,9 +2547,9 @@ The graded `d2w fhir` series lives under `docs/fhir/`, routed from
   (`frontend/e2e/docs-screenshots.spec.ts`), including how to re-shoot them.
 - [Forward captures into DHIS2](../fhir/201-forward.md) - the
   dry-run-first workflow on DHIS2's own validate-only modes, the six steps of a
-  run, the three receipt states, refusal versus rejection, the drain lock,
+  run, the four receipt states, refusal versus rejection, the drain lock,
   reading the queue with `fhir spool` and putting a refused receipt back with
-  `fhir requeue`, correcting or withdrawing what was forwarded, the
+  `fhir requeue`, taking back a forwarded event with `fhir withdraw`, the
   translated-payload field tables, and a worked run with the rejection rollup.
 - [Troubleshooting](../fhir/201-troubleshooting.md) - every literal
   `d2w fhir` refusal plus the SUSHI / IG publisher failure modes, as symptom,
@@ -2529,7 +2578,8 @@ refusal text a mistake produces, captured from real misconfigured runs.
   `host` exposure warning, the `capture` viewer posture, the `spool_dir`
   receipt tree and the `basemaps` outbound-call note; the
   `[serve.tracked_entities]` register block; and the `[forward]` section -
-  `live`, `import`, `register_completeness`, and `overwrites`.
+  `live`, `import`, `register_completeness`, `overwrites`, `corrections`, and
+  `withdrawals`.
 
 **401 - Integrate and extend**
 

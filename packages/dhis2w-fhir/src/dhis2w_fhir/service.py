@@ -24,7 +24,15 @@ from dhis2w_core.profile import Profile, resolve
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
-from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, OverwritePosture, load_project
+from dhis2w_fhir.config import (
+    CorrectionPosture,
+    FhirProject,
+    GenerateConfig,
+    NoFhirProjectError,
+    OverwritePosture,
+    WithdrawalPosture,
+    load_project,
+)
 from dhis2w_fhir.conversion.artifacts import (
     BoundQuestionUids,
     CompiledArtifacts,
@@ -37,6 +45,7 @@ from dhis2w_fhir.conversion.artifacts import (
     load_compiled_artifacts,
     program_rule_names,
 )
+from dhis2w_fhir.conversion.payloads import receipt_event_uid
 from dhis2w_fhir.conversion.schemas import (
     FORWARD_TARGET_ORDER,
     CodedAnswerMode,
@@ -170,6 +179,8 @@ from dhis2w_fhir.spool import (
     move_to_forwarded,
     move_to_received,
     move_to_rejected,
+    move_to_withdrawn,
+    read_receipt,
     read_received_responses,
     read_refusal_record,
     read_spooled_receipts,
@@ -4528,9 +4539,10 @@ _TERMINAL_REFUSAL_STATUS = "REFUSED"
 #: `rejected/` cold learns why the receipt is there without a drain report in front of them.
 _TERMINAL_REFUSAL_MESSAGE = (
     "The translator will never convert this response, whatever changes in the guide or in the data, so it is "
-    "filed here rather than retried by every drain. Withdrawing a submission is unbuilt in this toolchain - "
-    "see docs/fhir/design/data-lifecycle.md - and `d2w fhir requeue` puts the receipt back in the queue for "
-    "an operator who wants it tried again."
+    "filed here rather than retried by every drain. A drain imports; retracting what one already imported is "
+    "`d2w fhir withdraw <response id>`, naming the forwarded receipt to take back rather than this one - see "
+    "docs/fhir/design/data-lifecycle.md. `d2w fhir requeue` puts the receipt back in the queue for an operator "
+    "who wants it tried again."
 )
 
 
@@ -4808,6 +4820,17 @@ class ForwardReport(BaseModel):
     overwrite_posture: OverwritePosture = OverwritePosture.ALLOW
     """What the run did with an aggregate value a forwarded receipt already sent - post it, or refuse it."""
 
+    correction_posture: CorrectionPosture = CorrectionPosture.OFF
+    """What this project does with a submission that names a receipt it corrects, as the run resolved it.
+
+    Stated rather than acted on by the drain, because the two dials that govern a marked submission
+    are the deployment's posture rather than one run's: an operator reading a report has to be able
+    to see which posture the drain ran under without opening `fhir.toml` beside it.
+    """
+
+    withdrawal_posture: WithdrawalPosture = WithdrawalPosture.OFF
+    """Whether this project retracts what it forwarded, which is what `d2w fhir withdraw` requires."""
+
     spooled: int = 0
     outcomes: tuple[ForwardOutcome, ...] = ()
     unreadable_artifacts: tuple[str, ...] = ()
@@ -5028,16 +5051,19 @@ async def forward_responses(
     coded_answer_mode: CodedAnswerMode | None = None,
     register_completeness: bool | None = None,
     overwrites: OverwritePosture | None = None,
+    corrections: CorrectionPosture | None = None,
+    withdrawals: WithdrawalPosture | None = None,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
 ) -> ForwardReport:
     """Drain a project's capture spool into DHIS2: translate every receipt, post it, and file what it became.
 
-    THE FOUR DIALS ARE RESOLVED HERE, so the CLI and the MCP tool cannot resolve them differently.
-    `import_responses`, `register_completeness`, `overwrites`, and `coded_answer_mode` are each None
-    for "the caller stated nothing", and each falls to what `fhir.toml` says - `[forward] import`,
-    `[forward] register_completeness`, `[forward] overwrites`, and `[serve] strict_codes` - which in
-    turn fall to the defaults those keys carry.
+    THE SIX DIALS ARE RESOLVED HERE, so the CLI and the MCP tool cannot resolve them differently.
+    `import_responses`, `register_completeness`, `overwrites`, `corrections`, `withdrawals`, and
+    `coded_answer_mode` are each None for "the caller stated nothing", and each falls to what
+    `fhir.toml` says - `[forward] import`, `[forward] register_completeness`, `[forward] overwrites`,
+    `[forward] corrections`, `[forward] withdrawals`, and `[serve] strict_codes` - which in turn fall
+    to the defaults those keys carry.
 
     A **dry run is the default**. Every payload still goes to the real endpoint against the real
     instance, under that endpoint's own validate-only mode - `dryRun=true` for `/api/dataValueSets`,
@@ -5102,6 +5128,13 @@ async def forward_responses(
     posts it once the dial is flipped or `d2w fhir requeue` has been used. A dry run under `"refuse"`
     states what it would refuse and files nothing, exactly as it moves nothing.
 
+    `corrections` and `withdrawals` are the deployment's posture towards a *marked* submission, where
+    `overwrites` is its posture towards an unmarked one, and the run states both rather than acting
+    on either: a drain neither amends nor retracts, and `d2w fhir withdraw` is what reads
+    `withdrawals`. They are resolved here so that the posture a report names is the posture every
+    surface of this project resolves, and so a deployment can see its own dial being read before the
+    capability it gates arrives.
+
     `coded_answer_mode` defaults to what `[serve] strict_codes` says, so a project that captures
     strictly forwards strictly without stating it twice.
 
@@ -5124,6 +5157,8 @@ async def forward_responses(
     importing = import_responses if import_responses is not None else forward_config.import_responses
     registering = register_completeness if register_completeness is not None else forward_config.register_completeness
     posture = overwrites if overwrites is not None else forward_config.overwrites
+    correcting = corrections if corrections is not None else forward_config.corrections
+    withdrawing = withdrawals if withdrawals is not None else forward_config.withdrawals
     with drain_lock(spool_layout(project)):
         return await _drain_spool(
             profile,
@@ -5132,6 +5167,8 @@ async def forward_responses(
             import_responses=importing,
             register_completeness=registering,
             overwrites=posture,
+            corrections=correcting,
+            withdrawals=withdrawing,
             reporter=reporter,
             client=client,
         )
@@ -5145,6 +5182,8 @@ async def _drain_spool(
     import_responses: bool,
     register_completeness: bool,
     overwrites: OverwritePosture,
+    corrections: CorrectionPosture,
+    withdrawals: WithdrawalPosture,
     reporter: ProgressReporter | None,
     client: Dhis2Client | None = None,
 ) -> ForwardReport:
@@ -5178,6 +5217,8 @@ async def _drain_spool(
             coded_answer_mode=mode,
             register_completeness=register_completeness,
             overwrite_posture=overwrites,
+            correction_posture=corrections,
+            withdrawal_posture=withdrawals,
             unreadable_artifacts=() if compiled is None else compiled.unreadable_resources,
             quarantined=reading.quarantined,
         )
@@ -5263,6 +5304,8 @@ async def _drain_spool(
         coded_answer_mode=mode,
         register_completeness=register_completeness,
         overwrite_posture=overwrites,
+        correction_posture=corrections,
+        withdrawal_posture=withdrawals,
         spooled=len(spooled),
         outcomes=outcomes,
         unreadable_artifacts=artifacts.unreadable_resources,
@@ -6049,6 +6092,9 @@ class SpoolStateCounts(BaseModel):
     received: int = 0
     forwarded: int = 0
     rejected: int = 0
+    withdrawn: int = 0
+    """Receipts that landed and were later retracted from DHIS2 by `d2w fhir withdraw`."""
+
     malformed: int = 0
     """Files in `malformed/`, which are not receipts - they are bytes that would not read as one."""
 
@@ -6057,8 +6103,8 @@ class SpoolStateCounts(BaseModel):
 
     @property
     def total(self) -> int:
-        """How many receipts the spool holds, which counts the three states and not the holding pen."""
-        return self.received + self.forwarded + self.rejected
+        """How many receipts the spool holds, which counts the four states and not the holding pen."""
+        return self.received + self.forwarded + self.rejected + self.withdrawn
 
 
 class SpoolReceiptRow(BaseModel):
@@ -6096,6 +6142,8 @@ class SpoolStateReport(BaseModel):
         )
         if self.counts.refused_in_queue:
             line = f"{line} ({self.counts.refused_in_queue:,} of the received refused by a drain)"
+        if self.counts.withdrawn:
+            line = f"{line}, {self.counts.withdrawn:,} withdrawn"
         return f"{line}, {self.counts.malformed:,} malformed" if self.counts.malformed else line
 
 
@@ -6154,6 +6202,7 @@ def read_spool_state(project: FhirProject) -> SpoolStateReport:
         received=len(contents.in_state(SpoolState.RECEIVED)),
         forwarded=len(contents.in_state(SpoolState.FORWARDED)),
         rejected=len(contents.in_state(SpoolState.REJECTED)),
+        withdrawn=len(contents.in_state(SpoolState.WITHDRAWN)),
         malformed=len(contents.quarantined),
         refused_in_queue=sum(1 for receipt in contents.in_state(SpoolState.RECEIVED) if receipt.refusal is not None),
     )
@@ -6204,7 +6253,8 @@ def _receipt_reason(receipt: SpooledReceipt) -> str | None:
 
     A drained receipt reads its import report. A queued receipt reads the refusal record a
     committing drain left beside it, when one has - a receipt no drain has touched has nothing on
-    disk to read, and the row states no reason rather than inventing one.
+    disk to read, and the row states no reason rather than inventing one. A withdrawn receipt reads
+    the record of the delete, which is the one state whose sidecar is not an import report.
     """
     if receipt.state is SpoolState.RECEIVED:
         if receipt.refusal is None:
@@ -6214,10 +6264,258 @@ def _receipt_reason(receipt: SpooledReceipt) -> str | None:
     path = receipt.path.with_name(f"{receipt.response_id}{IMPORT_REPORT_SUFFIX}")
     if not path.is_file():
         return None
+    model = WithdrawalRecord if receipt.state is SpoolState.WITHDRAWN else ForwardImportRecord
     try:
-        record = ForwardImportRecord.model_validate_json(path.read_text(encoding="utf-8"))
+        record = model.model_validate_json(path.read_text(encoding="utf-8"))
     except (OSError, ValidationError, ValueError):
         return None
+    if isinstance(record, WithdrawalRecord):
+        return record.line
     if record.issues:
         return record.issues[0].line
     return record.message
+
+
+#: What `/api/tracker` is asked to do when a withdrawal retracts an event this project forwarded.
+#: `DELETE` needs nothing of the object but its UID - the payload is the identity alone - and the
+#: run is synchronous for the same reason a forward's is: the answer is the point.
+_TRACKER_DELETE_PARAMS = {"importStrategy": "DELETE", "async": "false"}
+
+#: The form kinds whose receipt lands as the single `/api/tracker` event a withdrawal retracts. An
+#: aggregate receipt lands a set of cells and has to be read before it is deleted, because deleting
+#: an aggregate tuple that was never written materialises a tombstone that blocks the parent data
+#: element for ever (BUGS.md 87); a registration lands a person and an enrollment whose deletion
+#: cascades into events other receipts named. Both are designed and neither is built - see
+#: `docs/fhir/design/data-lifecycle.md`.
+_WITHDRAWABLE_FORM_KINDS = frozenset({"event", "tracker-event"})
+
+#: What the sidecar of a withdrawn receipt says in the words a person reading `withdrawn/` cold
+#: needs, which are not the words "deleted". DHIS2 soft-deletes: the row stays, carrying its value,
+#: and it is gone from every ordinary read.
+_WITHDRAWAL_MESSAGE = (
+    "Withdrawn. This DHIS2 instance keeps a hidden copy of the event; it no longer appears in reports. "
+    "The UID is burned, so this receipt can never be forwarded again."
+)
+
+
+class WithdrawalNotEnabledError(LookupError):
+    """Raised when a withdrawal is asked for and this project's `[forward] withdrawals` says off."""
+
+
+class WithdrawalUnsupportedError(LookupError):
+    """Raised when the named receipt landed something other than the one event a withdrawal retracts."""
+
+
+class WithdrawalKind(StrEnum):
+    """What became of one receipt a withdrawal named."""
+
+    #: DHIS2 deleted the event, and the receipt now sits in `withdrawn/`.
+    RETRACTED = "retracted"
+
+    #: A dry run: DHIS2 validated the delete, wrote nothing, and the receipt is untouched in `forwarded/`.
+    WOULD_RETRACT = "would-retract"
+
+    #: DHIS2 refused the delete. The receipt stays in `forwarded/`, because what it says is still true.
+    REFUSED = "refused"
+
+
+class WithdrawalRecord(ForwardImportOutcome):
+    """The sidecar beside a withdrawn receipt: what DHIS2 answered when it was asked to take the event back.
+
+    A document of its own rather than a second import report, because it answers a different
+    question. `forwarded/<id>.report.json` says what DHIS2 did with the payload when it took it and
+    stays where it is; this one says what it did when it was asked to let go of it.
+    """
+
+    event_uid: str
+    """The DHIS2 event this withdrawal named, derived from the receipt's own logical id."""
+
+    withdrawn_at: str
+    """The instant the withdrawal was posted, as a FHIR `instant` (UTC)."""
+
+    received_at: str | None = None
+    """When the receipt this withdrawal retracts was captured."""
+
+    note: str = _WITHDRAWAL_MESSAGE
+    """What remains in the instance, in the words a person reading this file cold needs them in."""
+
+    @property
+    def line(self) -> str:
+        """The record as the one line a listing row shows: the fact, and the object it is about."""
+        return f"withdrawn at {self.withdrawn_at}; event {self.event_uid} no longer appears in reports"
+
+
+class WithdrawnReceipt(BaseModel):
+    """One receipt a withdrawal run named, and what DHIS2 answered about the event it landed."""
+
+    model_config = ConfigDict(frozen=True)
+
+    response_id: str
+    kind: WithdrawalKind
+    event_uid: str
+    questionnaire: str
+    form_kind: str
+    received_at: str
+    outcome: ForwardImportOutcome
+    """DHIS2's own answer to the delete, projected out of the `/api/tracker` report shape."""
+
+    spool_path: str | None = None
+    """Where the receipt sits now, relative to the project root; None when nothing moved it."""
+
+    @property
+    def line(self) -> str:
+        """The one line a listing row shows about this receipt: the reason, or what the delete counted.
+
+        The counts are the delete's own two - a withdrawal never creates or updates anything, so the
+        forward's `created / updated / ignored` would be three zeroes for every row that worked.
+        """
+        if self.outcome.issues:
+            return self.outcome.issues[0].line
+        return f"{self.outcome.deleted} deleted, {self.outcome.ignored} ignored"
+
+
+class WithdrawReport(BaseModel):
+    """What one `d2w fhir withdraw` retracted, in the order the ids were given."""
+
+    model_config = ConfigDict(frozen=True)
+
+    project_root: Path
+    dry_run: bool
+    withdrawal_posture: WithdrawalPosture
+    receipts: tuple[WithdrawnReceipt, ...] = ()
+
+    @property
+    def retracted(self) -> tuple[WithdrawnReceipt, ...]:
+        """Every receipt DHIS2 took the delete for, which on a dry run is none - it validated instead."""
+        return tuple(receipt for receipt in self.receipts if receipt.kind is WithdrawalKind.RETRACTED)
+
+    @property
+    def refused(self) -> tuple[WithdrawnReceipt, ...]:
+        """Every receipt DHIS2 would not delete, each still in `forwarded/` with its import report."""
+        return tuple(receipt for receipt in self.receipts if receipt.kind is WithdrawalKind.REFUSED)
+
+    @property
+    def counts_line(self) -> str:
+        """What the run amounted to, which is the one line a summary states."""
+        verb = "would be withdrawn" if self.dry_run else "withdrawn"
+        taken = len(self.receipts) - len(self.refused)
+        line = f"{taken:,} receipt(s) {verb}"
+        return f"{line}, {len(self.refused):,} refused by DHIS2" if self.refused else line
+
+
+async def withdraw_responses(
+    profile: Profile,
+    project: FhirProject,
+    response_ids: Sequence[str],
+    *,
+    import_responses: bool = False,
+    withdrawals: WithdrawalPosture | None = None,
+    client: Dhis2Client | None = None,
+) -> WithdrawReport:
+    """Retract from DHIS2 the events named forwarded receipts landed, and file each receipt as withdrawn.
+
+    THE RECEIPT IS NEVER REWRITTEN AND NEVER MUTATED. A withdrawal is a state the receipt moves into,
+    exactly as forwarding is: the file is renamed from `forwarded/` to `withdrawn/` and a sidecar
+    lands beside it holding what DHIS2 answered the delete. The import report that recorded what the
+    receipt landed stays behind in `forwarded/`, because it is still true of that import.
+
+    THE IDENTITY IS RECOMPUTED, NOT LOOKED UP. An event's DHIS2 UID is derived from the receipt's own
+    logical id, so the object to delete is `receipt_event_uid(<the receipt's id>)` and the run needs
+    no guide, no metadata read, and no translation to know it - which is what makes a withdrawal
+    answerable about a project whose IG was never compiled.
+
+    WITHDRAWAL IS TERMINAL. DHIS2 burns the UID of a tracker object it deletes and refuses it under
+    every import strategy afterwards (`E1082`), so the withdrawn receipt can never be forwarded
+    again and no correction can ever be modelled as delete-then-recreate. What remains in the
+    instance is a soft-deleted row carrying its values, invisible to every ordinary read - which is
+    what the sidecar says, rather than the bare word "deleted" this toolkit cannot stand behind.
+
+    `[forward] withdrawals` gates the whole command and defaults to `"off"`: a project that publishes
+    forms and forwards them is not thereby a project that reaches back into what DHIS2 already holds.
+    `withdrawals=WithdrawalPosture.RETRACT` overrides the table for one run, in the same order every
+    other dial resolves - the caller's word, then the file, then the default.
+
+    A DRY RUN IS THE DEFAULT, exactly as it is for a drain. The delete goes to the real endpoint
+    under `importMode=VALIDATE`, so DHIS2's own rules answer whether it would take it - which for a
+    terminal act is the one rehearsal worth having - and nothing is written and no receipt moves.
+
+    Only a receipt in `forwarded/` can be withdrawn, and only one that landed a single event: a
+    queued receipt never reached DHIS2, a rejected one never landed, and the aggregate and
+    registration legs each need a guard this one does not. Each of those is refused by name, and
+    refused before anything is posted, so a run of five never leaves an operator working out which
+    two it reached.
+    """
+    posture = withdrawals if withdrawals is not None else project.config.forward.withdrawals
+    if posture is not WithdrawalPosture.RETRACT:
+        raise WithdrawalNotEnabledError(
+            f"this project does not withdraw what it forwarded: `[forward] withdrawals` is `{posture.value}`. "
+            f'Set `withdrawals = "{WithdrawalPosture.RETRACT.value}"` in fhir.toml, or pass '
+            f"`--withdrawals {WithdrawalPosture.RETRACT.value}` for one run. Withdrawal is terminal - DHIS2 "
+            "burns the UID it deletes and the receipt can never be forwarded again."
+        )
+    layout = spool_layout(project)
+    with drain_lock(layout):
+        wanted = [read_receipt(layout, SpoolState.FORWARDED, response_id) for response_id in response_ids]
+        _refuse_unwithdrawable(wanted)
+        receipts: list[WithdrawnReceipt] = []
+        async with _instance_connection(profile, client) as client:
+            for spooled in wanted:
+                receipts.append(await _withdraw_one(client, spooled, project, dry_run=not import_responses))
+    return WithdrawReport(
+        project_root=project.project_root,
+        dry_run=not import_responses,
+        withdrawal_posture=posture,
+        receipts=tuple(receipts),
+    )
+
+
+def _refuse_unwithdrawable(spooled: Sequence[SpooledResponse]) -> None:
+    """Refuse the whole run when any named receipt landed something other than one event.
+
+    Named before anything is posted, and named with the kind it is, because "this one is aggregate"
+    is what the operator has to act on - not a partial run they then have to reconstruct.
+    """
+    other = [entry for entry in spooled if entry.form_kind not in _WITHDRAWABLE_FORM_KINDS]
+    if not other:
+        return
+    named = ", ".join(f"`{entry.response_id}` ({entry.form_kind or 'no form kind'})" for entry in other)
+    raise WithdrawalUnsupportedError(
+        f"{named}: a withdrawal retracts the one `/api/tracker` event a receipt landed, and these landed "
+        "something else. `d2w data aggregate delete` and `d2w data tracker delete` are the raw escape "
+        "hatches outside the FHIR path; the design that brings the other kinds inside it is in "
+        "docs/fhir/design/data-lifecycle.md."
+    )
+
+
+async def _withdraw_one(
+    client: Dhis2Client, spooled: SpooledResponse, project: FhirProject, *, dry_run: bool
+) -> WithdrawnReceipt:
+    """Post one event's delete, then file the receipt under `withdrawn/` when DHIS2 took it."""
+    event_uid = receipt_event_uid(spooled.response.id or spooled.response_id)
+    params = {**_TRACKER_DELETE_PARAMS, **(_TRACKER_DRY_RUN_PARAMS if dry_run else {})}
+    body: dict[str, Any] = {_TRACKER_EVENTS_KEY: [{"event": event_uid}]}
+    outcome = _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
+    if outcome.is_rejected:
+        kind = WithdrawalKind.REFUSED
+    else:
+        kind = WithdrawalKind.WOULD_RETRACT if dry_run else WithdrawalKind.RETRACTED
+    spool_path: str | None = None
+    if kind is WithdrawalKind.RETRACTED:
+        record = WithdrawalRecord(
+            **outcome.model_dump(),
+            event_uid=event_uid,
+            withdrawn_at=_utc_instant(),
+            received_at=spooled.received_at or None,
+        )
+        moved = move_to_withdrawn(spooled, record)
+        spool_path = _relative_path(moved, project.project_root)
+    return WithdrawnReceipt(
+        response_id=spooled.response_id,
+        kind=kind,
+        event_uid=event_uid,
+        questionnaire=spooled.questionnaire,
+        form_kind=spooled.form_kind,
+        received_at=spooled.received_at,
+        outcome=outcome,
+        spool_path=spool_path,
+    )

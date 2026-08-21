@@ -156,6 +156,7 @@ def test_the_spool_listing_answers_json_on_stdout(spooled_project: Path) -> None
         "received": 1,
         "forwarded": 0,
         "rejected": 1,
+        "withdrawn": 0,
         "malformed": 1,
         "refused_in_queue": 0,
     }

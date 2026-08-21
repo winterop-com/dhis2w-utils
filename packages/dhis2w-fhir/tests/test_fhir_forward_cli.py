@@ -21,6 +21,7 @@ from dhis2w_fhir import (
     ConversionRefusal,
     ConversionRefusalCategory,
     ConversionTargetKind,
+    CorrectionPosture,
     ForwardCompletenessKind,
     ForwardCompletenessOutcome,
     ForwardImportIssue,
@@ -30,6 +31,7 @@ from dhis2w_fhir import (
     ForwardReport,
     OverwritePosture,
     OverwrittenValue,
+    WithdrawalPosture,
 )
 from typer.testing import CliRunner
 
@@ -657,3 +659,46 @@ def test_an_allowing_run_states_its_posture_in_the_written_report(forward_projec
     _invoke(["--no-progress", "--import"], _overwrite_report(forward_project))
     written = (forward_project / "reports" / "fhir-forward-report.md").read_text(encoding="utf-8")
     assert "- Overwrites: allow" in written
+
+
+def test_the_two_marked_submission_flags_reach_the_service_and_a_bare_run_states_nothing(
+    forward_project: Path,
+) -> None:
+    """Every dial of `[forward]` resolves in one place, so the CLI hands the flag over rather than deciding."""
+    _, bare = _invoke(["--no-progress"], _report(forward_project))
+    assert bare.await_args is not None
+    assert bare.await_args.kwargs["corrections"] is None
+    assert bare.await_args.kwargs["withdrawals"] is None
+
+    _, stated = _invoke(
+        ["--no-progress", "--corrections", "amend", "--withdrawals", "retract"], _report(forward_project)
+    )
+    assert stated.await_args is not None
+    assert stated.await_args.kwargs["corrections"] is CorrectionPosture.AMEND
+    assert stated.await_args.kwargs["withdrawals"] is WithdrawalPosture.RETRACT
+
+
+def test_a_marked_submission_posture_the_dial_does_not_name_is_a_usage_error(forward_project: Path) -> None:
+    """Two words apiece, and a third spelling is refused before a drain is opened at all."""
+    result, mock = _invoke(["--no-progress", "--corrections", "correct"], _report(forward_project))
+    assert result.exit_code != 0
+    assert mock.await_args is None
+
+
+def test_the_run_names_a_marked_submission_posture_only_where_one_is_stated(forward_project: Path) -> None:
+    """A row per dial a deployment turned on, and no row for the off that every project starts at."""
+    quiet, _ = _invoke(["--no-progress"], _report(forward_project))
+    assert "withdrawals" not in quiet.output
+
+    stated, _ = _invoke(
+        ["--no-progress"],
+        _report(forward_project).model_copy(
+            update={
+                "correction_posture": CorrectionPosture.AMEND,
+                "withdrawal_posture": WithdrawalPosture.RETRACT,
+            }
+        ),
+    )
+    assert "corrections" in stated.output
+    assert "withdrawals" in stated.output
+    assert "retract" in stated.output

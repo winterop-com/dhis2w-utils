@@ -2390,7 +2390,7 @@ async def test_an_entered_in_error_receipt_is_filed_once_and_is_gone_from_the_ne
     assert first.refused[0].refusals[0].category == "entered-in-error-is-a-deletion"
     assert first.refused[0].spool_path == f"{REJECTED_RESPONSES_RELATIVE_PATH}/{withdrawn.id}.json"
     sidecar = root / REJECTED_RESPONSES_RELATIVE_PATH / f"{withdrawn.id}{IMPORT_REPORT_SUFFIX}"
-    assert "Withdrawing a submission is unbuilt" in sidecar.read_text(encoding="utf-8")
+    assert "`d2w fhir withdraw <response id>`" in sidecar.read_text(encoding="utf-8")
 
     second = await _forward(root, import_responses=True)
 

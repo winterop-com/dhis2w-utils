@@ -103,6 +103,9 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # same bound port, and the same committing writes as forward.sh.
         "fhir/cli/forward_overwrites.sh",
         "fhir/cli/forward_completeness.sh",
+        # The withdrawal story binds the same port and makes two committing writes
+        # of its own: one creates an event in the instance, the other deletes it.
+        "fhir/cli/withdraw.sh",
         # `d2w fhir doctor` runs the whole chain — scaffold, generate,
         # dockerized compile, serve, capture, forward — in one command.
         # Minutes per run, for the same compile reason as its siblings.

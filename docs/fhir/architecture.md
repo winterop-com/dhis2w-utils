@@ -515,13 +515,14 @@ questionnaire, its arrival instant, and any warnings it was accepted with.
 Lifecycle is not written into the file - it is which directory the file sits
 in, which is what makes a forward run a pure rename. Beside a drained receipt
 the forwarder writes an `<id>.report.json` sidecar: in `forwarded/` what the
-import counted, in `rejected/` why DHIS2 refused.
+import counted, in `rejected/` why DHIS2 refused, and in `withdrawn/` what
+DHIS2 answered when `d2w fhir withdraw` asked for the event back.
 
 The spool is the deliberate exception to load-once. It is a path rather than a
 loaded index and every read re-reads the directory, because `d2w fhir forward`
 is a separate process moving files while the server is up. Writes are atomic,
-and a receipt stays readable through `GET /QuestionnaireResponse/{id}` in all
-three states.
+and a receipt stays readable through `GET /QuestionnaireResponse/{id}` in
+every state the served facade knows.
 
 Configuration and the served contract are in [Serving
 it](301-serving.md) and [Consume the FHIR
