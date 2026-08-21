@@ -1365,10 +1365,14 @@ class CQLEvaluatorVisitor(cqlVisitor):
         return filtered
 
     def _apply_return_clause(self, results: list[dict[str, Any]], ctx: cqlParser.ReturnClauseContext) -> list[Any]:
-        """Apply return clause to shape output."""
+        """Apply return clause to shape output, de-duplicating unless the clause says `all`.
+
+        CQL 1.5 makes `distinct` the default return qualifier, so `return X` and `return distinct X`
+        answer the same de-duplicated list and only `return all X` keeps duplicates.
+        """
         expr = ctx.expression()
-        distinct = ctx.getText().lower().startswith("return distinct") or ctx.getText().lower().startswith("return all")
-        is_all = "all" in ctx.getText().lower()
+        # `returnClause: 'return' ('all' | 'distinct')? expression` - the qualifier is the middle child.
+        qualifier = _node_text(ctx.getChild(1)).lower() if ctx.getChildCount() > 2 else ""
 
         returned = []
         for row in results:
@@ -1383,15 +1387,29 @@ class CQLEvaluatorVisitor(cqlVisitor):
             finally:
                 self.context.pop_scope()
 
-        # Apply distinct if specified
-        if distinct and not is_all:
-            seen: list[Any] = []
-            for item in returned:
-                if item not in seen:
-                    seen.append(item)
-            return seen
+        if qualifier == "all":
+            return returned
+        return self._distinct_values(returned)
 
-        return returned
+    def _distinct_values(self, values: list[Any]) -> list[Any]:
+        """Drop duplicates using CQL equality, counting nulls equal to one another."""
+        kept: list[Any] = []
+        for value in values:
+            if not any(self._same_value(value, seen) for seen in kept):
+                kept.append(value)
+        return kept
+
+    def _same_value(self, left: Any, right: Any) -> bool:
+        """Answer whether two values are the same value for de-duplication.
+
+        CQL equality answers null when either side is null, but `distinct` treats nulls as equal so a
+        list of nulls collapses to one. Boolean is its own type, so `true` never collapses onto `1`.
+        """
+        if left is None or right is None:
+            return left is None and right is None
+        if isinstance(left, bool) != isinstance(right, bool):
+            return False
+        return self._equals(left, right) is True
 
     def _apply_sort_clause(self, results: list[Any], ctx: cqlParser.SortClauseContext) -> list[Any]:
         """Apply sort clause to order results."""
@@ -1414,34 +1432,57 @@ class CQLEvaluatorVisitor(cqlVisitor):
                     pass  # Keep original order if not sortable
             return results
 
-        # Complex sort with sortByItem
-        for sort_item in reversed(sort_items):  # Apply in reverse order
+        # Complex sort with sortByItem, applied last item first so an earlier item wins the tie
+        for sort_item in reversed(sort_items):
             direction = sort_item.sortDirection()
             dir_text = _node_text(direction).lower() if direction else "asc"
             reverse = dir_text in ("desc", "descending")
 
             expr = sort_item.expressionTerm()
             if expr:
-                # Sort by expression
-                def sort_key(item: Any, expr: Any = expr) -> Any:
-                    """Evaluate the sort expression for one item, ordering nulls last."""
-                    self.context.push_scope()
-                    self.context.set_alias("$this", item)
-                    try:
-                        key = self.visit(expr)
-                        return (key is None, key)  # None values sort last
-                    finally:
-                        self.context.pop_scope()
-
-                # Keep original order if not sortable
-                with contextlib.suppress(TypeError):
-                    results = sorted(results, key=sort_key, reverse=reverse)
+                results = self._sort_by_expression(results, expr, reverse)
             else:
                 # Sort by natural order
                 with contextlib.suppress(TypeError):
                     results = sorted(results, reverse=reverse)
 
         return results
+
+    def _sort_by_expression(self, results: list[Any], expr: Any, reverse: bool) -> list[Any]:
+        """Order results by an expression evaluated against each element, keeping nulls last."""
+        keyed = [(self._sort_key_for(expr, item), item) for item in results]
+        ranked = [(key, item) for key, item in keyed if key is not None]
+        unranked = [item for key, item in keyed if key is None]
+        try:
+            ranked.sort(key=lambda pair: pair[0], reverse=reverse)
+        except TypeError:
+            return results  # Keep original order when the keys do not compare
+        return [item for _, item in ranked] + unranked
+
+    def _sort_key_for(self, expr: Any, item: Any) -> Any:
+        """Evaluate one sort expression against one element of the result list.
+
+        The element is bound as `$this` and its named parts are bound as aliases, so both
+        `sort by $this` and `sort by <property>` name the element the clause is ordering.
+        """
+        self.context.push_scope()
+        self.context.push_this(item)
+        for name, value in self._sortable_parts(item).items():
+            self.context.set_alias(name, value)
+        try:
+            return self.visit(expr)
+        finally:
+            self.context.pop_this()
+            self.context.pop_scope()
+
+    @staticmethod
+    def _sortable_parts(item: Any) -> dict[str, Any]:
+        """Name the parts of a result element that a sort expression may refer to bare."""
+        if isinstance(item, CQLTuple):
+            return dict(item.elements)
+        if isinstance(item, dict):
+            return {str(name): value for name, value in item.items()}
+        return {}
 
     def _apply_inclusion_clause(
         self, results: list[dict[str, Any]], ctx: cqlParser.QueryInclusionClauseContext
@@ -1657,21 +1698,18 @@ class CQLEvaluatorVisitor(cqlVisitor):
             term_expr = terminology.qualifiedIdentifierExpression()
             if term_expr:
                 term_name = self._get_identifier_text(term_expr)
-                if self._library:
-                    if term_name in self._library.valuesets:
-                        valueset = self._library.valuesets[term_name].id
-                    elif term_name in self._library.codes:
-                        code = self._library.resolve_code(term_name)
-                        if code:
-                            codes = [code]
-                    elif term_name in self._library.concepts:
-                        concept = self._library.concepts[term_name]
-                        codes = list(concept.codes)
+                valueset, codes = self._resolve_retrieve_terminology(term_name, resource_type)
             else:
                 # Direct code expression
                 code_expr = terminology.expression() if hasattr(terminology, "expression") else None
                 if code_expr:
                     code_value = self.visit(code_expr)
+                    if isinstance(code_value, str):
+                        raise CQLError(
+                            f"the retrieve [{resource_type}: '{code_value}'] filters on a string where a "
+                            "terminology reference belongs - name a valueset, code, or concept the "
+                            "library declares"
+                        )
                     if code_value:
                         codes = code_value if isinstance(code_value, list) else [code_value]
 
@@ -1686,6 +1724,47 @@ class CQLEvaluatorVisitor(cqlVisitor):
             )
 
         return []
+
+    def _resolve_retrieve_terminology(self, term_name: str, resource_type: str) -> tuple[str | None, list[Any] | None]:
+        """Resolve a retrieve's named terminology to a valueset URL or a list of codes.
+
+        A name that resolves to nothing is refused rather than dropped: dropping it would widen the
+        retrieve from the set the library named to every resource of that type, which is the loudest
+        possible wrong answer delivered silently.
+        """
+        library = self._resolving_library(term_name)
+        local_name = term_name.rsplit(".", 1)[-1] if library is not self._library else term_name
+        if library is not None:
+            if local_name in library.valuesets:
+                return library.valuesets[local_name].id, None
+            if local_name in library.codes:
+                code = library.resolve_code(local_name)
+                return None, [code] if code else None
+            if local_name in library.concepts:
+                return None, list(library.concepts[local_name].codes)
+            if local_name in library.definitions:
+                defined = (
+                    self._evaluate_definition(local_name)
+                    if library is self._library
+                    else self._evaluate_library_definition(library, local_name)
+                )
+                if defined is None:
+                    return None, None
+                return None, defined if isinstance(defined, list) else [defined]
+        raise CQLError(
+            f'the retrieve [{resource_type}: "{term_name}"] names a terminology reference the library '
+            f"does not declare - add `valueset \"{term_name}\": '<url>'`, or a code or concept "
+            "declaration of that name"
+        )
+
+    def _resolving_library(self, term_name: str) -> CQLLibrary | None:
+        """Name the library a terminology reference is declared in, following an include qualifier."""
+        qualifier, separator, _ = term_name.rpartition(".")
+        if separator:
+            included = self.context.resolve_library(qualifier)
+            if included is not None:
+                return included
+        return self._library
 
     # =========================================================================
     # Set Operations
@@ -3708,7 +3787,8 @@ class CQLEvaluatorVisitor(cqlVisitor):
         if type_lower in ("decimal", "system.decimal"):
             try:
                 return Decimal(str(value))
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, InvalidOperation):
+                # A cast that cannot be made answers null, per CQL's `as` semantics.
                 return None
         if type_lower in ("boolean", "system.boolean"):
             if isinstance(value, bool):

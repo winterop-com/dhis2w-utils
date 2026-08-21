@@ -190,12 +190,25 @@ def interval_timing(left: "CQLInterval[Any]", right: "CQLInterval[Any]", op: str
         return left_starts_within_right
 
     elif "during" in op or "included in" in op:
-        return right.includes(left)
+        return _interval_includes(right, left, proper="properly" in op)
     elif "includes" in op:
-        return left.includes(right)
+        return _interval_includes(left, right, proper="properly" in op)
     elif "same" in op:
         return left == right
     return None
+
+
+def _interval_includes(container: "CQLInterval[Any]", contained: "CQLInterval[Any]", proper: bool) -> bool:
+    """Answer whether one interval includes another, and for `properly` whether it is strictly larger.
+
+    Proper inclusion is inclusion that does not run both ways: an interval that includes an interval
+    which includes it back is the same interval, and no interval properly includes itself.
+    """
+    if not container.includes(contained):
+        return False
+    if proper:
+        return not contained.includes(container)
+    return True
 
 
 def interval_point_timing(interval: "CQLInterval[Any]", point: Any, op: str) -> bool | None:

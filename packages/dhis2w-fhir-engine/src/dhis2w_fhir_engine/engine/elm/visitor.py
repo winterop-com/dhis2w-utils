@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
 from dhis2w_fhir_engine.engine.cql.context import CQLContext
@@ -22,6 +22,26 @@ if TYPE_CHECKING:
 
 # Logger for CQL Message expressions
 cql_logger = logging.getLogger("dhis2w_fhir_engine.cql.message")
+
+
+def _builtin_to_integer(value: Any) -> int | None:
+    """Read an integer from a value, answering null when no integer can be read from it."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _builtin_to_decimal(value: Any) -> Decimal | None:
+    """Read a decimal from a value, answering null when no decimal can be read from it."""
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value))
+    except (ValueError, TypeError, InvalidOperation):
+        return None
 
 
 class ELMExpressionVisitor:
@@ -1784,7 +1804,9 @@ class ELMExpressionVisitor:
                 # Process relationships (with/without)
                 include = True
                 for rel in relationships or []:
-                    rel_type = "With" if "suchThat" in rel or rel.get("type") == "With" else "Without"
+                    # The relationship's own type decides the join: `Without` is the anti-join of
+                    # `With`, and both carry a `suchThat` condition, so the condition cannot decide it.
+                    rel_type = rel.get("type", "With")
                     rel_alias = rel.get("alias")
                     rel_expr = rel.get("expression")
                     such_that = rel.get("suchThat")
@@ -2317,13 +2339,13 @@ class ELMExpressionVisitor:
         return self._eval_to_integer(node)
 
     def _eval_to_decimal(self, node: dict[str, Any]) -> Decimal | None:
-        """Convert to decimal."""
+        """Convert to decimal, answering null for an operand no decimal can be read from."""
         operand = self._get_unary_operand(node)
         if operand is None:
             return None
         try:
             return Decimal(str(operand))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, InvalidOperation):
             return None
 
     def _eval_to_string(self, node: dict[str, Any]) -> str | None:
@@ -3294,7 +3316,7 @@ class ELMExpressionVisitor:
         # Map function names to implementations
         builtins: dict[str, Callable[..., Any]] = {
             "ToString": lambda x: str(x) if x is not None else None,
-            "ToInteger": lambda x: int(x) if x is not None else None,
-            "ToDecimal": lambda x: Decimal(str(x)) if x is not None else None,
+            "ToInteger": _builtin_to_integer,
+            "ToDecimal": _builtin_to_decimal,
         }
         return builtins.get(name)

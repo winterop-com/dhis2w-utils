@@ -2,8 +2,11 @@
 
 import json
 
+import pytest
+
 from dhis2w_fhir_engine.engine.cql.evaluator import CQLEvaluator
 from dhis2w_fhir_engine.engine.elm import ELMEvaluator, ELMSerializer, serialize_to_elm, serialize_to_elm_json
+from dhis2w_fhir_engine.engine.elm.exceptions import ELMValidationError
 
 
 class TestELMSerializerBasics:
@@ -629,3 +632,121 @@ class TestRoundtrip:
         elm_result = elm_evaluator.evaluate_definition("Numbers")
 
         assert cql_result == elm_result == [1, 2, 3, 4, 5]
+
+
+class TestQueryInclusionSerialization:
+    """`with` and `without` are different joins, and the ELM says which one it is."""
+
+    def test_with_clause_carries_its_type(self) -> None:
+        elm = serialize_to_elm("""
+            library Test
+            define Orders: { 1, 2, 3 }
+            define Known: { 1, 3 }
+            define Matched: from Orders O with Known K such that O = K return all O
+        """)
+        statements = elm["library"]["statements"]["def"]
+        matched = next(d for d in statements if d["name"] == "Matched")
+        assert [rel["type"] for rel in matched["expression"]["relationship"]] == ["With"]
+
+    def test_without_clause_carries_its_type(self) -> None:
+        elm = serialize_to_elm("""
+            library Test
+            define Orders: { 1, 2, 3 }
+            define Known: { 1, 3 }
+            define Unmatched: from Orders O without Known K such that O = K return all O
+        """)
+        statements = elm["library"]["statements"]["def"]
+        unmatched = next(d for d in statements if d["name"] == "Unmatched")
+        relationship = unmatched["expression"]["relationship"][0]
+        assert relationship["type"] == "Without"
+        assert "suchThat" in relationship
+
+    def test_return_all_is_serialized_as_not_distinct(self) -> None:
+        elm = serialize_to_elm("""
+            library Test
+            define Numbers: { 1, 2, 2 }
+            define Kept: from Numbers N return all N
+            define Folded: from Numbers N return N
+        """)
+        statements = elm["library"]["statements"]["def"]
+        assert next(d for d in statements if d["name"] == "Kept")["expression"]["return"]["distinct"] is False
+        assert next(d for d in statements if d["name"] == "Folded")["expression"]["return"]["distinct"] is True
+
+
+class TestQuerySourceSerialization:
+    """Every query source is serialized as the expression it names, whichever shape it takes."""
+
+    def test_a_named_source_becomes_an_expression_ref(self) -> None:
+        elm = serialize_to_elm("""
+            library Test
+            define Numbers: { 1, 2, 3 }
+            define Queried: from Numbers N return all N
+        """)
+        statements = elm["library"]["statements"]["def"]
+        query = next(d for d in statements if d["name"] == "Queried")["expression"]
+        assert query["source"] == [{"alias": "N", "expression": {"type": "ExpressionRef", "name": "Numbers"}}]
+
+    def test_a_parenthesised_source_becomes_the_expression_itself(self) -> None:
+        elm = serialize_to_elm("""
+            library Test
+            define Queried: from ({ 1, 2 }) N return all N
+        """)
+        statements = elm["library"]["statements"]["def"]
+        query = next(d for d in statements if d["name"] == "Queried")["expression"]
+        assert query["source"][0]["expression"]["type"] == "List"
+
+    def test_a_retrieve_source_becomes_a_retrieve(self) -> None:
+        elm = serialize_to_elm("""
+            library Test
+            using FHIR version '4.0.1'
+            define Queried: from [Condition] C return all C
+        """)
+        statements = elm["library"]["statements"]["def"]
+        query = next(d for d in statements if d["name"] == "Queried")["expression"]
+        assert query["source"][0]["expression"]["type"] == "Retrieve"
+
+    def test_an_inclusion_clause_source_is_serialized_too(self) -> None:
+        elm = serialize_to_elm("""
+            library Test
+            define Orders: { 1, 2, 3 }
+            define Known: { 1, 3 }
+            define Unmatched: from Orders O without Known K such that O = K return all O
+        """)
+        statements = elm["library"]["statements"]["def"]
+        relationship = next(d for d in statements if d["name"] == "Unmatched")["expression"]["relationship"][0]
+        assert relationship["expression"] == {"type": "ExpressionRef", "name": "Known"}
+
+
+class TestRetrieveTerminologySerialization:
+    """A retrieve's terminology is serialized once, and a literal in its place is refused."""
+
+    def test_a_valueset_reference_becomes_a_valueset_ref(self) -> None:
+        elm = serialize_to_elm("""
+            library Test
+            using FHIR version '4.0.1'
+            valueset Diabetes: 'http://example.org/vs/diabetes'
+            define Narrowed: [Condition: Diabetes]
+        """)
+        statements = elm["library"]["statements"]["def"]
+        retrieve = next(d for d in statements if d["name"] == "Narrowed")["expression"]
+        assert retrieve["type"] == "Retrieve"
+        assert retrieve["codes"] == {"type": "ValueSetRef", "name": "Diabetes"}
+
+    def test_a_plain_retrieve_carries_no_codes(self) -> None:
+        elm = serialize_to_elm("""
+            library Test
+            using FHIR version '4.0.1'
+            define Everything: [Condition]
+        """)
+        statements = elm["library"]["statements"]["def"]
+        retrieve = next(d for d in statements if d["name"] == "Everything")["expression"]
+        assert retrieve["type"] == "Retrieve"
+        assert "codes" not in retrieve
+
+    def test_a_string_where_a_terminology_reference_belongs_is_refused(self) -> None:
+        with pytest.raises(ELMValidationError, match="terminology reference"):
+            serialize_to_elm("""
+                library Test
+                using FHIR version '4.0.1'
+                define Bare: [Observation: 'x']
+            """)

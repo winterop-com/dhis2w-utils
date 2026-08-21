@@ -607,6 +607,19 @@ class TestTypeTestingAndCasting:
     def test_as_decimal_from_numeric_string(self, evaluator: CQLEvaluator) -> None:
         assert evaluator.evaluate_expression("'2.5' as Decimal") == Decimal("2.5")
 
+    @pytest.mark.parametrize("expression", ["'x' as Decimal", "'1.2.3' as Decimal", "cast 'x' as Decimal"])
+    def test_as_decimal_from_a_string_that_is_no_decimal_is_null(
+        self, evaluator: CQLEvaluator, expression: str
+    ) -> None:
+        """A cast that cannot be made answers null; it does not leak the decimal module's own error."""
+        assert evaluator.evaluate_expression(expression) is None
+
+    @pytest.mark.parametrize("expression", ["ToDecimal('x')", "ToDecimal('1.2.3')"])
+    def test_to_decimal_from_a_string_that_is_no_decimal_is_null(
+        self, evaluator: CQLEvaluator, expression: str
+    ) -> None:
+        assert evaluator.evaluate_expression(expression) is None
+
     def test_as_boolean_from_string(self, evaluator: CQLEvaluator) -> None:
         assert evaluator.evaluate_expression("'true' as Boolean") is True
 
@@ -703,6 +716,36 @@ class TestIntervalAndListTiming:
 
     @pytest.mark.parametrize(("expression", "expected"), LIST_TIMING_CASES)
     def test_list_timing(self, evaluator: CQLEvaluator, expression: str, expected: bool) -> None:
+        assert evaluator.evaluate_expression(expression) is expected
+
+
+PROPER_INCLUSION_CASES: list[tuple[str, bool]] = [
+    # An interval never properly includes an interval that includes it back - the same interval.
+    ("Interval[1, 10] properly includes Interval[1, 10]", False),
+    ("Interval[1, 10] properly included in Interval[1, 10]", False),
+    ("Interval[1, 10] properly includes Interval[1, 9]", True),
+    ("Interval[1, 10] properly includes Interval[2, 10]", True),
+    ("Interval[1, 10] properly includes Interval[2, 9]", True),
+    ("Interval[2, 9] properly included in Interval[1, 10]", True),
+    ("Interval[1, 10] properly includes Interval[5, 20]", False),
+    # Plain inclusion is unchanged: an interval does include itself.
+    ("Interval[1, 10] includes Interval[1, 10]", True),
+    ("Interval[1, 10] included in Interval[1, 10]", True),
+    # A half-open bound narrows the operand, so the closed interval properly includes it.
+    ("Interval[1, 10] properly includes Interval[1, 10)", True),
+    ("Interval[1, 10) properly includes Interval[1, 10]", False),
+    # Lists answer the same way.
+    ("{1, 2, 3} properly includes {1, 2, 3}", False),
+    ("{1, 2, 3} properly included in {1, 2, 3}", False),
+    ("{1, 2, 3} properly includes {1, 2}", True),
+]
+
+
+class TestProperInclusion:
+    """`properly includes` and `properly included in` demand more than plain inclusion."""
+
+    @pytest.mark.parametrize(("expression", "expected"), PROPER_INCLUSION_CASES)
+    def test_proper_inclusion(self, evaluator: CQLEvaluator, expression: str, expected: bool) -> None:
         assert evaluator.evaluate_expression(expression) is expected
 
 
