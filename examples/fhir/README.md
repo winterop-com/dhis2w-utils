@@ -41,7 +41,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 
 ## [`client/`](client/README.md) — the Python library path
 
-Thirty-three examples with [their own README](client/README.md), grouped into five readings:
+Thirty-four examples with [their own README](client/README.md), grouped into five readings:
 
 | Group | What it answers |
 | --- | --- |

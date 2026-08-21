@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
     ClipboardList,
+    FlaskConical,
     Inbox,
     LayoutDashboard,
     Library,
@@ -93,6 +94,7 @@ export const NAV_ITEMS: NavItem[] = [
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
     { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
+    { path: 'evaluate', label: 'Evaluate', hint: 'FHIRPath, CQL, and ELM', icon: FlaskConical },
     { path: 'server', label: 'Server', hint: 'What /metadata declares', icon: ServerCog },
 ]
 

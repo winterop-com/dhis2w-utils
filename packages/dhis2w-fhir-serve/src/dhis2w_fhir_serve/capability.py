@@ -6,6 +6,13 @@ and then narrows it to this installation - the profiles this project generated, 
 types this store actually holds, so a client that reads `/metadata` never sees a resource type
 advertised that the store cannot answer for.
 
+The three facade surfaces that are not FHIR at all - the evaluator, the terminology reads, and the
+CDS Hooks discovery - are named in the `description` rather than declared as resources or as
+server-level operations, exactly as `GET /spool` is. A CapabilityStatement describes the FHIR
+interface, and `rest.operation` would send a client following this document to `[base]/$evaluate`,
+which is not an address this server serves. The sentence is what a person reading the conformance
+document needs; the paths themselves are what a client calls.
+
 The QuestionnaireResponse entry is the one that says what the facade is: responses are received
 and stored as receipts. Reading one back returns the submission as it arrived, never a live view
 of what DHIS2 now holds.
@@ -184,7 +191,10 @@ def build_server_capability(
         description=(
             f"{project.config.ig.title} served as a FHIR capture facade: {store_summary.total} resources "
             f"across {len(store_summary.counts_by_type)} types. `GET /spool` states how many responses "
-            f"are stored, which is a number that changes while this server runs."
+            f"are stored, which is a number that changes while this server runs. Beside the FHIR surface "
+            f"this process also answers `POST /evaluate` (FHIRPath, CQL, and ELM over what it serves), "
+            f"`GET /terminology/validate-code` and `GET /terminology/lookup` (this guide's own "
+            f"vocabularies, not a terminology server), and `GET /cds-services` (CDS Hooks, one service)."
         ),
         instantiates=[f"{canonical}/CapabilityStatement/{names.capture_server_id}"],
         software=CapabilityStatementSoftware(name=SOFTWARE_NAME, version=server_version),

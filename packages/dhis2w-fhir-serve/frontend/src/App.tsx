@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppLayout } from '@/components/AppLayout'
+import { Evaluate } from '@/pages/Evaluate'
 import { FormFill } from '@/pages/FormFill'
 import { Forms } from '@/pages/Forms'
 import { OrgUnits } from '@/pages/OrgUnits'
@@ -48,6 +49,12 @@ import { TrackedEntityDetail } from '@/pages/TrackedEntityDetail'
  * offers no register. The route table stays whole either way, because whether a
  * page exists is a fact about the running server rather than about the bundle.
  *
+ * `/evaluate` is a listing of nothing: it is a place to run an expression and
+ * read what this server answers, so it holds its whole state in the form on it
+ * and links to nothing deeper. It is offered by every run, because the two
+ * contexts that need no DHIS2 instance - a pasted resource, a resource this
+ * guide publishes - are the two it opens with.
+ *
  * `/organisation-units` is the one page that keeps its selection in the query
  * string (`#/organisation-units?unit=<uid>`) rather than in the path: the tree,
  * the detail panel, and the map are one screen over one read, and an
@@ -74,6 +81,7 @@ export default function App() {
                     element={<TrackedEntityDetail />}
                 />
                 <Route path="organisation-units" element={<OrgUnits />} />
+                <Route path="evaluate" element={<Evaluate />} />
                 <Route path="terminology" element={<Terminology />} />
                 <Route path="terminology/:resourceType/:resourceId" element={<TerminologyDetail />} />
                 <Route path="server" element={<Server />} />

@@ -1285,8 +1285,35 @@ bound to loopback by default that loads the project once at startup.
   and the drainer cannot land on two directories.
 - **Content negotiation.** Every FHIR route answers `application/fhir+json`; an
   `Accept` that rules JSON out is a 406 naming the one format served, while
-  `/spool` and `/uiconfig` negotiate nothing. `POST /` is a 405 saying the
-  facade runs no batch and no transaction.
+  `/spool`, `/uiconfig`, `/evaluate`, `/terminology/*`, and `/cds-services`
+  negotiate nothing. `POST /` is a 405 saying the facade runs no batch and no
+  transaction.
+
+#### Evaluating, terminology, and CDS Hooks
+
+- **`POST /evaluate`** runs one FHIRPath expression, CQL library, or compiled
+  ELM library over a resource this facade serves - one from the guide by type
+  and id, one posted inline, or one tracked entity read from the DHIS2 instance
+  a live run holds open. It answers typed results, one row per CQL define, and
+  real diagnostics: a parse failure carries the line and column its parser
+  stopped on, and a define that refuses carries its message on its own row. A
+  bad expression is a 200 with the reason, never a 500. The engine reaches the
+  named context and nothing else - no library path is passed and no file is
+  opened.
+- **`GET /terminology/validate-code`** and **`GET /terminology/lookup`** answer
+  about the CodeSystems and ValueSets this project publishes: is this code in
+  that set, and what is this code called. It is not a terminology server, and
+  says so - a SNOMED CT or LOINC code is answered "this server publishes no
+  code system under that url".
+- **`GET /cds-services`** and **`POST /cds-services/{id}`** are CDS Hooks, one
+  service wide: it evaluates a CQL library the caller sends, or one this guide
+  publishes as a Library, over the resources the hook prefetched, and answers a
+  card per define that resolves to true or to a message. `fhirServer` is read
+  and never followed.
+- **The Evaluate screen** in the capture UI is all of the first of those as a
+  place to click: a language, a worked example already loaded, a context picker
+  offering exactly what the endpoint offers, and a parse error shown against
+  the line it names.
 
 #### Read and search
 
