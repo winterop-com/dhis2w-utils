@@ -72,6 +72,23 @@ option, whose name lands in page tables - and ends with the same
 instruction: change the name in DHIS2, then run `d2w fhir validate` for the
 full report.
 
+**The same refusal, read off the files a build publishes:**
+
+```text
+error: 3 build-aborting artifact(s) found; exiting 1 before the publisher runs
+(--no-fail to suppress)
+```
+
+Cause: `d2w fhir check-artifacts` found a `<` in the artifacts on disk. That
+is a different question from the two above, which read the instance and the
+selection - a build publishes whatever `ig/fsh-generated/` and `ig/input/`
+hold, so output from before the gate existed, output from an older toolchain
+pin, and hand-authored FSH all reach the publisher without passing it. Fix:
+what each finding's own line says - regenerate after narrowing the selection
+for a generated file, edit the file for a hand-authored one. [The build
+refuses before it begins](201-build-and-publish.md#the-build-refuses-before-it-begins)
+covers the scan.
+
 **A code-sourced naming run refuses on unusable stems:**
 
 ```text
@@ -111,9 +128,9 @@ sweep routes each program by its live type and never refuses.)
 | The publisher exits `137` with `ig/output` empty afterwards | `128 + 9` - SIGKILL from the kernel's OOM killer during the peak-memory phases. | Give the docker VM more memory (heap + ~2G), or drop the publisher's `-Xmx` (`-Xmx2g`, or `make build JAVA_HEAP=2g`) to fit the box. Confirm with `docker inspect <container> --format '{{.State.OOMKilled}}'`. |
 | `Publishing Content Failed: Process exited with an error: 4 (Exit value: 4)` | Not an exit code - SUSHI exits with the number of errors it counted, and the publisher reports it and stops. | Read the `Sushi: error` lines above it, not the number. |
 | `Failed to register resource at path: .../input/resources/...` | One predefined resource failed to load - malformed JSON *or* a failed read; a file written shortly before the container read it can come back truncated across a Docker bind mount. | Re-run first. A transient read registers cleanly the second time; a genuinely malformed resource fails every time on the same files. Cross-check `Loaded virtual package sushi-local#LOCAL with N resources` against the file count under `ig/input/resources/`. |
-| `Unable to process page .../CodeSystem-....html` with `Caused by: org.hl7.fhir.exceptions.FHIRFormatError: Unable to Parse HTML - node 'td' has unexpected content` | A DHIS2 code carrying `<` reached an identifier table cell - the publisher's final pass, so the whole build was spent first. | Change the code in DHIS2. `d2w fhir validate` reports the same object as `template-hostile-code` in seconds. |
+| `Unable to process page .../CodeSystem-....html` with `Caused by: org.hl7.fhir.exceptions.FHIRFormatError: Unable to Parse HTML - node 'td' has unexpected content` | A DHIS2 code carrying `<` reached an identifier table cell - the publisher's final pass, so the whole build was spent first. | Change the code in DHIS2. `d2w fhir check-artifacts` finds it in the file on disk before a build starts, and `d2w fhir validate` reports the same object as `template-hostile-code` from the instance side. |
 | `Unable to Parse HTML - node 'h2' has unexpected content` | A DHIS2 *name* carrying `<` in a change-history heading - a malformed page, not an aborted build. | Change the name in DHIS2; validate reports it as `template-hostile-name`. |
-| `Publishing Content Failed: Unable to process page <Resource>.html`, with `Caused by: org.hl7.fhir.exceptions.FHIRFormatError: Unable to Parse HTML - ... last text = '<the text before the bracket>'` and `AIProcessor.produceMDForResource` in the stack | A DHIS2 *name* carrying `<` reached a rendered page. This is the expensive one: the name survives every earlier pass, Checking Output HTML included, and kills only the publisher's final AI-markdown pass - hours in, once every resource has already been rendered, and the message names a page rather than the object. | `d2w fhir validate` names every such object in seconds, and `d2w fhir generate` refuses the run up front rather than letting the build start. Rename the object in DHIS2; where you cannot - upstream demo metadata, a name a ministry actually uses - leave it out of the selection. [`examples/fhir/igs/refused-names`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/refused-names/README.md) is the worked exhibit. |
+| `Publishing Content Failed: Unable to process page <Resource>.html`, with `Caused by: org.hl7.fhir.exceptions.FHIRFormatError: Unable to Parse HTML - ... last text = '<the text before the bracket>'` and `AIProcessor.produceMDForResource` in the stack | A DHIS2 *name* carrying `<` reached a rendered page. This is the expensive one: the name survives every earlier pass, Checking Output HTML included, and kills only the publisher's final AI-markdown pass - hours in, once every resource has already been rendered, and the message names a page rather than the object. Run `d2w fhir check-artifacts`: it reads the same files the publisher does, names the file, the resource, and the element in seconds, and it is what `make build` runs first, so a refreshed project (`d2w fhir init --refresh`) never reaches this failure again. `d2w fhir validate` names the same objects from the instance side, and `d2w fhir generate` refuses the run up front. Rename the object in DHIS2; where you cannot - upstream demo metadata, a name a ministry actually uses - leave it out of the selection. [`examples/fhir/igs/refused-names`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/refused-names/README.md) is the worked exhibit. |
 | `Duplicate definition of ...` | The same identity reached SUSHI twice - once compiled from FSH, once as a predefined resource; generated FSH left behind by an older plugin layout. | Run `d2w fhir generate`; it sweeps the superseded FSH and the report's deleted count is the confirmation. |
 | `NullPointerException` during an offline build (`TX_SERVER=n/a`) | Current publisher versions need a terminology server for some required bindings - the `Attachment.contentType` binding on the GeoJSON boundary extension among them, so a guide carrying the organisation-unit registry will not build offline. | Build online, or use `n/a` only when your content has no such bindings. |
 

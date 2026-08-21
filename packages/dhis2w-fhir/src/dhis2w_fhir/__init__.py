@@ -30,6 +30,7 @@ from dhis2w_fhir.config import (
     ServeAuth,
     ServeAuthScope,
     ServeConfig,
+    ServeJwtConfig,
     TrackedEntitiesConfig,
     UnknownFhirConfigKeyError,
     WithdrawalPosture,
@@ -563,6 +564,7 @@ from dhis2w_fhir.validation import (
     render_validation_markdown,
     usable_code_stem,
 )
+from dhis2w_fhir.validation.artifacts import ArtifactCheckReport, ArtifactFinding, check_publishable_artifacts
 from dhis2w_fhir.validation.pdf import render_validation_pdf
 from dhis2w_fhir.validation.report import display_code, render_validation_csv
 from dhis2w_fhir.validation.schemas import (
@@ -601,6 +603,8 @@ __all__ = [
     "ANSWER_ELEMENTS_BY_ITEM_TYPE",
     "ANSWER_VALUE_ELEMENTS",
     "answer_wire_value",
+    "ArtifactCheckReport",
+    "ArtifactFinding",
     "ASSIGNMENT_DIRECTORY",
     "AssignmentIndex",
     "AssignmentPlan",
@@ -694,6 +698,7 @@ __all__ = [
     "CategoryOptionComboIn",
     "CategorySelection",
     "CELL_LINK_ID_SEPARATOR",
+    "check_publishable_artifacts",
     "clean_generated_files",
     "code_system_canonical",
     "CodeCoverage",
@@ -1027,6 +1032,7 @@ __all__ = [
     "ServeAuth",
     "ServeAuthScope",
     "ServeConfig",
+    "ServeJwtConfig",
     "SeverityBreakdown",
     "SITE_PAGE_FILENAMES",
     "source_description",

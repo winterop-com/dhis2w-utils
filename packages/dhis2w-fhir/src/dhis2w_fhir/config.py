@@ -359,11 +359,17 @@ class SearchConfig(BaseModel):
 class ServeAuth(StrEnum):
     """How the served facade decides who is calling it - the `[serve] auth` posture.
 
-    Three postures ship. `oauth2` is the name reserved for the fourth and is deliberately not a
-    value here: DHIS2 2.43.1's own authorization server 500s for any client the API creates
-    (BUGS.md 96), so a project could state it and nothing would answer. A posture that parses and
-    then refuses is worse than one that is not offered, so the reservation lives in this docstring
-    and in `docs/fhir/301-serving.md` rather than in the enum.
+    Four postures ship, and they are a ladder rather than a menu: `none` serves every caller,
+    `token` takes a secret this deployment issued, `dhis2` takes the caller's own DHIS2 credentials,
+    and `jwt` takes a token an external OpenID Connect issuer minted, validated here against that
+    issuer's JWKS. Climbing a rung is editing `[serve] auth` and the table beside it.
+
+    `oauth2` is the name reserved for an authorization server this facade runs itself, and is
+    deliberately not a value here: DHIS2 2.43.1's own authorization server 500s for any client the
+    API creates (BUGS.md 96), so a project could state it and nothing would answer. A posture that
+    parses and then refuses is worse than one that is not offered, so the reservation lives in this
+    docstring and in `docs/fhir/301-serving.md` rather than in the enum. A deployment that wants
+    tokens from an authorization server today states `jwt` and names the one it already runs.
     """
 
     #: Every caller is served. The default, and the posture the loopback demo runs in.
@@ -374,6 +380,78 @@ class ServeAuth(StrEnum):
 
     #: The caller's own DHIS2 credentials, checked against the instance this run reads.
     DHIS2 = "dhis2"
+
+    #: A JWT an external OIDC issuer minted, verified here against that issuer's published keys.
+    JWT = "jwt"
+
+
+class ServeJwtConfig(BaseModel):
+    """Which issuer the `jwt` posture trusts, and what one of its tokens means - the `[serve.jwt]` table.
+
+    `issuer` is the OpenID Connect issuer identifier, the value its tokens carry as `iss`. The
+    facade reads `{issuer}/.well-known/openid-configuration` once while it starts, takes the
+    `jwks_uri` from it, and verifies every token against the keys published there. It is the one
+    key the posture cannot run without, and a `jwt` run that names none is refused before the socket
+    opens rather than at the first caller.
+
+    `audience` is checked only when it is stated. An issuer that mints tokens for several audiences
+    is minting tokens this facade should not accept on another audience's behalf, so a deployment
+    sharing an issuer with other services states the value it was registered under. Left out, a
+    token this issuer signed is a token this facade takes.
+
+    `username_claim` names the claim whose value becomes the request identity - what a receipt
+    records as its submitter. `preferred_username` is the OpenID Connect claim for exactly that, and
+    it is the default; a deployment whose issuer puts the DHIS2 username somewhere else names that
+    claim instead. A token that carries no such claim is refused: an identity nobody stated is not
+    one to invent.
+
+    `forward_bearer` is whether a register read carries the caller's token on to DHIS2. It is false
+    by default and it is the honest default: DHIS2 accepts a foreign issuer's JWT only when it was
+    configured to trust the same issuer (`oidc.jwt.token.authentication.enabled`), and a facade that
+    quietly read the register as its own profile instead would answer every caller with that
+    profile's rights. So under `forward_bearer = false` the live register is not answered at all,
+    and the refusal says what would make it answerable.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    issuer: str | None = None
+    """The OIDC issuer identifier, or None when this project's table states none."""
+
+    audience: str | None = None
+    """The `aud` every accepted token must carry, or None to accept whatever this issuer minted."""
+
+    username_claim: str = "preferred_username"
+    """The claim whose value names the caller, and becomes the identity a receipt records."""
+
+    forward_bearer: bool = False
+    """Whether a register read carries the caller's own token to DHIS2 - see the note above."""
+
+    @field_validator("issuer")
+    @classmethod
+    def _names_an_issuer(cls, value: str | None) -> str | None:
+        """A blank issuer states nothing, and a stated one is the `https://` identifier its tokens carry."""
+        if value is None or value.strip() == "":
+            return None
+        issuer = value.strip().rstrip("/")
+        scheme = urlsplit(issuer).scheme
+        if scheme not in {"http", "https"}:
+            raise ValueError(
+                f"{value!r} is not an issuer identifier: name the `https://` URL the issuer publishes as its "
+                "own `iss`, which is what this server appends `/.well-known/openid-configuration` to"
+            )
+        return issuer
+
+    @field_validator("username_claim")
+    @classmethod
+    def _names_a_claim(cls, value: str) -> str:
+        """A blank claim name would read every token as naming nobody, which is a posture nobody asked for."""
+        if value.strip() == "":
+            raise ValueError(
+                "username_claim is empty: name the claim whose value identifies the caller, or leave the "
+                "key out for `preferred_username`"
+            )
+        return value.strip()
 
 
 class ServeAuthScope(StrEnum):
@@ -437,6 +515,11 @@ class ServeConfig(BaseModel):
     be able to tell apart: a project that never wrote the key is served on loopback with no
     authentication, and refused on any other interface, so that binding the world is a sentence
     somebody wrote rather than a default nobody read. `auth = "none"` written out is that sentence.
+
+    `[serve.jwt]` is what `auth = "jwt"` runs on: the issuer whose tokens this facade takes, the
+    audience it checks when one is stated, the claim that names the caller, and whether a register
+    read carries the caller's token on to DHIS2. It is always present as a table of defaults, so a
+    `jwt` run that names no issuer is refused by the key's name rather than by a missing section.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -447,6 +530,9 @@ class ServeConfig(BaseModel):
     """The posture, or None when this project's table states none - see the note above on absence."""
 
     auth_scope: ServeAuthScope = ServeAuthScope.WRITE
+    jwt: ServeJwtConfig = Field(default_factory=ServeJwtConfig)
+    """What the `jwt` posture runs on - the `[serve.jwt]` table, defaults when the project writes none."""
+
     strict_codes: bool = False
     capture: bool = True
     ui: bool = False

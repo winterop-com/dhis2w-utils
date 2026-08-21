@@ -18,6 +18,7 @@ terminology server (or a plan for offline, below).
 **You will be able to:**
 
 - compile the FSH as a fast gate, and run the full publisher when it counts
+- refuse a build in seconds that would otherwise have failed in hours
 - size the build - what the registry costs, what the caches buy back
 - read the publisher's exit codes instead of guessing
 
@@ -78,7 +79,9 @@ layer are compiled from source.
 The scaffold's Makefile wraps every command on this page - `setup`, `sushi`,
 and `build` are the lines above, with the chown folded in as a prerequisite
 and the JVM heap lifted into a `JAVA_HEAP` variable, and `generate` /
-`validate` are `uv run d2w fhir generate` / `... validate`. [Set up an IG
+`validate` are `uv run d2w fhir generate` / `... validate`. `build` runs one
+thing the lines above do not: the artifact scan below, which refuses a doomed
+publisher run before it starts. [Set up an IG
 project](201-set-up-a-project.md) lists the targets. Only `refresh` does
 something no single command above does: it chains clean-all, upgrade,
 generate, validate, and build, tolerating validate's exit 1 so a full rebuild
@@ -103,6 +106,99 @@ uvx --from 'git+ssh://git@github.com/winterop-com/dhis2w-utils.git@main#subdirec
     `d2w fhir generate` followed by the SUSHI-only run compiles the FSH and
     tells you whether it is valid without paying for a published site. Run the
     publisher when you are ready to publish one, not after every edit.
+
+## The build refuses before it begins
+
+`make build` does not go straight to the publisher. Its first line is
+`d2w fhir check-artifacts`, a scan of the files on disk for the one thing the
+publisher cannot survive: a raw `<` in a DHIS2 name or code. That character
+survives every earlier pass, the publisher's own Checking Output HTML step
+included, and kills the final AI-markdown pass - hours in, once every resource
+has already been rendered, with a message naming a page rather than the object.
+[Troubleshooting](201-troubleshooting.md#sushi-and-ig-publisher-failures)
+carries that stack trace.
+
+Generation already refuses such a selection. The scan exists because a build
+does not read a selection - it publishes whatever `ig/fsh-generated/` and
+`ig/input/` hold. Output written before the gate existed, output from an older
+toolchain pin, and hand-authored FSH all reach the publisher without ever
+passing it.
+
+It reads the same files the publisher reads, through the very predicates the
+generate-time refusal uses, and it opens no connection and reads no profile -
+so it answers in seconds, offline, on any project:
+
+```console
+$ d2w fhir check-artifacts
+                        fhir check-artifacts
+┌───────────┬────────────────────────────────────────────────┐
+│project    │ /home/you/anc-guide                            │
+│json files │ 240                                            │
+│fsh files  │ 42                                             │
+│findings   │ 0                                              │
+└───────────┴────────────────────────────────────────────────┘
+ok: 282 publishable file(s) scanned; nothing the IG publisher aborts on
+```
+
+A stale artifact turns that into a refusal that names the file, the resource,
+the element, and the value - three findings here, from one CodeSystem an old
+generate wrote:
+
+```console
+$ d2w fhir check-artifacts
+                        fhir check-artifacts
+┌───────────┬────────────────────────────────────────────────┐
+│project    │ /home/you/anc-guide                            │
+│json files │ 240                                            │
+│fsh files  │ 42                                             │
+│findings   │ 3                                              │
+└───────────┴────────────────────────────────────────────────┘
+                    build-aborting artifacts (3)
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃File               ┃ Resource  ┃ Field               ┃ Value             ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ig/fsh-generated/r │ d2-os-Age │ concept[0].display  │ <5 y              │
+│esources/CodeSyste │           │ identifier[0].value │ AGE<5             │
+│m-d2-os-Age.json   │           │ title               │ Age (<5 - 49) &   │
+│                   │           │                     │ over              │
+└───────────────────┴───────────┴─────────────────────┴───────────────────┘
+note: what it costs: a name carrying '<' stays byte-true on the resource, and
+the IG publisher writes it into pages it strict-parses after writing, so `make
+build` aborts in its last pass, once every resource has already been rendered.
+error: 3 build-aborting artifact(s) found; exiting 1 before the publisher runs
+(--no-fail to suppress)
+
+$ echo $?
+1
+```
+
+Each finding also carries the one line that answers it, in a `What to do`
+column left out above for width. Which line depends on what wrote the file: an
+artifact this toolchain generated asks for a rename in DHIS2 or a narrower
+`fhir.toml` selection followed by another `d2w fhir generate`, while a
+hand-authored FSH source asks for an edit, because no regeneration rewrites
+one. `--json` puts the whole typed report on stdout.
+
+The scan covers three trees, and each position it reads is one the emitted
+resource carries byte-true into a page:
+
+| Read | Positions | Where the publisher would have died |
+| --- | --- | --- |
+| `ig/fsh-generated/**/*.json` | `name`, `title`, `display`, `text`, `identifier[].value` | the compiled resources it renders a page each from |
+| `ig/input/resources/**/*.json` | the same five | the registry, terminology, and ConceptMap documents SUSHI passes through untouched |
+| `ig/input/fsh/**/*.fsh` | `Title:`, assignments to those elements, `* #code "display"` rules | the FSH sources, generated and hand-authored alike |
+
+`ig/input/pagecontent/**/*.md` is deliberately left out: markdown carries HTML
+by design, so a `<` there is the page's own markup.
+
+An existing project takes the gate up with one command - `d2w fhir init
+--refresh` adds the `check` target and the line that runs it, and never
+rewrites anything else in the Makefile:
+
+```bash
+d2w fhir init --refresh
+make build
+```
 
 ## Turn the three build knobs
 

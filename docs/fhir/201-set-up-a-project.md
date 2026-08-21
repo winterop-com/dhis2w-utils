@@ -130,6 +130,7 @@ upgrade      Rebuild the image from scratch, pulling the latest SUSHI + IG publi
 generate     Regenerate FSH from DHIS2 metadata
 update       Update the project to the current d2w: move the toolchain pin, sync, refresh the scaffold-managed files
 validate     Check the DHIS2 instance's codes/names for FHIR-safety (writes md/csv/pdf; exit 1 on errors)
+check        Scan the artifacts on disk for what aborts the IG publisher (offline, seconds, exit 1 on findings)
 cache-init   Ensure the shared package-cache volume is writable by the publisher user
 sushi        Compile FSH to FHIR resources
 build        Run the full IG publisher
@@ -140,7 +141,7 @@ forward      Dry-run the capture spool against DHIS2 - validate only, nothing wr
 forward-import Import the capture spool into DHIS2 and file every receipt by what it became
 clean        Remove build output (keeps ig/input-cache, the terminology cache the next build reuses)
 clean-all    Also remove the terminology cache and the FHIR package cache volume
-refresh      Force-refresh everything: wipe all caches and output, pull latest tooling, regenerate, revalidate, rebuild
+refresh      Wipe build output, pull latest tooling, regenerate, revalidate, rebuild (keeps the caches)
 ```
 
 Move the pin when you want the newer toolchain, not by accident:

@@ -558,6 +558,24 @@ chain in one command.
   generate, a non-fatal validate, sushi, and build. `make update` re-runs the
   scaffold refresh. `make serve` / `make serve-live` / `make serve-ui` read the
   `[serve]` table; `make forward` / `make forward-import` drive the drain.
+  `make check` is the artifact scan below, and `make build` runs it first.
+- **`d2w fhir check-artifacts` refuses a doomed build in seconds.** The
+  generate-time gate stands at the emit site, and a build never visits it:
+  `make build` publishes whatever `ig/fsh-generated/` and `ig/input/` hold, so
+  artifacts written before the gate existed, artifacts from an older toolchain
+  pin, and hand-authored FSH all reach the publisher without passing it. The
+  command applies the same refusal to those files - `ig/fsh-generated/**/*.json`,
+  `ig/input/resources/**/*.json`, and `ig/input/fsh/**/*.fsh` - reading `name`,
+  `title`, `display`, `text`, and `identifier[].value` through the shared
+  `build_aborting_name` / `build_aborting_code` predicates rather than a second
+  copy of the rule. Each finding names the file, the resource, the element, the
+  value, and the one line that answers it, which differs for a generated file
+  (rename in DHIS2 or narrow the selection, then regenerate) and a hand-authored
+  one (edit the file). It opens no connection and reads no profile, exits 1 on
+  findings, and takes `--no-fail`, `--json`, and an optional project directory.
+  `ig/input/pagecontent/**/*.md` is out of scope on purpose: markdown carries
+  HTML by design. An existing project takes the gate up with one
+  `d2w fhir init --refresh`.
 - **`JAVA_HEAP`** sizes the publisher JVM heap - the knob for an exit-137 OOM
   kill on a small docker VM.
 - **Registry scale.** `d2w fhir generate org-units` warns at generate time once
@@ -2511,6 +2529,7 @@ renders each module.
 | --- | --- |
 | Generation, whole guide or one target | `generate_full`, `generate_foundation`, `generate_option_sets`, `generate_categories`, `generate_questionnaires`, `generate_examples`, `generate_organisation_units`, `generate_pages`, plus `GenerateReport` / `GenerateFullReport` |
 | The build refusals | `BuildAbortingCodeError`, `BuildAbortingNameError`, and the two predicates behind them, `build_aborting_code` and `build_aborting_name` |
+| The same refusal read off disk | `check_publishable_artifacts`, `ArtifactCheckReport`, `ArtifactFinding` |
 | Scaffolding | `init_project`, `refresh_project`, `read_project_scaffold_state`, `ProjectScaffoldState`, `normalize_project_name`, `preserves_every_line` |
 | Validation, producing a report rather than rendering one | `validate_codes`, `resolve_validation_context`, `resolve_validation_scope`, `resolve_code_source`, `ValidationContext`, `display_code` |
 | The conformance runner | `run_doctor`, `DoctorOptions`, `DoctorReport`, `DoctorPhase`, `DoctorOutcome`, `DoctorPhaseResult`, `DoctorFinding`, `PhaseOutcome`, `CaptureOutcome`, `FamilyOutcome`, `resolve_doctor_profile`, `render_doctor_markdown`, `phase_evidence`, `generate_findings`, and the graders `grade`, `grade_capture`, `grade_forward`, `grade_oracle` |

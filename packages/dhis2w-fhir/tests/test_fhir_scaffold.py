@@ -441,6 +441,22 @@ def test_makefile_mounts_the_package_cache_volume() -> None:
     assert "CACHE_VOLUME := fhir-ig-cache" in makefile
 
 
+def test_makefile_refuses_the_build_before_the_publisher_runs() -> None:
+    """`build` scans the artifacts on disk first, so a '<' costs seconds rather than a full publisher run.
+
+    The scan is the build's own first recipe line rather than a prerequisite, which is what lets one
+    `d2w fhir init --refresh` bring an existing project's Makefile up to date: a refresh writes only
+    when the new render carries every line already on disk, and the `build: cache-init` line stays.
+    """
+    makefile = _by_path()["Makefile"]
+    assert "check:  ## Scan the artifacts on disk for what aborts the IG publisher" in makefile
+    assert "\t$(D2W) fhir check-artifacts\n" in makefile
+    assert ".PHONY: check" in makefile
+    build_recipe = makefile.split("build: cache-init")[1]
+    steps = [line.strip() for line in build_recipe.splitlines() if line.startswith("\t")]
+    assert steps[0] == "$(MAKE) check"
+
+
 def test_makefile_serves_the_ig_off_disk_and_straight_from_the_instance() -> None:
     """`serve` reads the compiled IG, `serve-live` builds it from the instance, and both are declared phony."""
     makefile = _by_path()["Makefile"]
