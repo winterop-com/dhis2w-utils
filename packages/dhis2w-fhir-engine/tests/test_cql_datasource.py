@@ -2,11 +2,14 @@
 
 from typing import Any
 
+import pytest
+
 from dhis2w_fhir_engine.engine.cql import (
     CQLCode,
     CQLEvaluator,
     PatientContext,
 )
+from dhis2w_fhir_engine.engine.exceptions import CQLError
 from dhis2w_fhir_engine.r4 import (
     BundleDataSource,
     InMemoryDataSource,
@@ -268,6 +271,59 @@ class TestPatientBundleDataSource:
 
 class TestDataSourceIntegration:
     """Integration tests for data sources with CQL evaluator."""
+
+    DIABETES_VALUE_SET_URL = "http://example.org/fhir/ValueSet/diabetes"
+
+    LIBRARY_SCOPED_BY_A_VALUE_SET = f"""
+        library ValueSetScoped version '1.0'
+        using FHIR version '4.0.1'
+
+        valueset "Diabetes": '{DIABETES_VALUE_SET_URL}'
+
+        define "Diabetic Conditions": [Condition: "Diabetes"]
+    """
+
+    def _conditions_data_source(self) -> InMemoryDataSource:
+        """Two conditions, one of which the diabetes valueset would name."""
+        data_source = InMemoryDataSource()
+        data_source.add_resources(
+            [
+                {
+                    "resourceType": "Condition",
+                    "id": "c1",
+                    "code": {"coding": [{"system": "http://snomed.info/sct", "code": "44054006"}]},
+                },
+                {
+                    "resourceType": "Condition",
+                    "id": "c2",
+                    "code": {"coding": [{"system": "http://snomed.info/sct", "code": "OTHER"}]},
+                },
+            ]
+        )
+        return data_source
+
+    def test_a_declared_valueset_with_no_expansion_refuses_rather_than_widening(self) -> None:
+        """A retrieve scoped to a valueset nothing expanded refuses instead of matching every Condition."""
+        evaluator = CQLEvaluator(data_source=self._conditions_data_source())
+        evaluator.compile(self.LIBRARY_SCOPED_BY_A_VALUE_SET)
+
+        with pytest.raises(CQLError) as refusal:
+            evaluator.evaluate_definition("Diabetic Conditions")
+
+        assert self.DIABETES_VALUE_SET_URL in str(refusal.value)
+        assert "add_valueset" in str(refusal.value)
+
+    def test_the_same_retrieve_narrows_once_the_valueset_is_expanded(self) -> None:
+        """The refusal names the call that fixes it, and making that call answers the question."""
+        data_source = self._conditions_data_source()
+        data_source.add_valueset(
+            self.DIABETES_VALUE_SET_URL,
+            [CQLCode(code="44054006", system="http://snomed.info/sct")],
+        )
+        evaluator = CQLEvaluator(data_source=data_source)
+        evaluator.compile(self.LIBRARY_SCOPED_BY_A_VALUE_SET)
+
+        assert [c["id"] for c in evaluator.evaluate_definition("Diabetic Conditions")] == ["c1"]
 
     def test_retrieve_with_evaluator(self) -> None:
         """Test CQL retrieve with data source."""
