@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-102 entries grouped by area. **Status tags** carry the result of the most
+105 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -60,6 +60,7 @@ filing.
 - [#93](#93-programrules-is-not-a-field-on-the-program-schema-and-fields-drops-it-without-a-word) — `programRules` is not a field on the Program schema; `fields=` drops it silently
 - [#94](#94-apiopenapiopenapijson-types-the-same-id-reference-under-two-different-component-names-on-243x) — 2.43.x OpenAPI names one `{id}` reference under two component names
 - [#95](#95-categoryoptionaggregationtype-is-schema-typed-boolean-on-2431-while-every-sibling-says-constant) — `categoryOption.aggregationType` schema-typed BOOLEAN on 2.43.1
+- [#100](#100-the-openapi-document-routes-put-apitypeuidsharing-for-23-types-whose-schema-says-shareable-false-and-the-refusal-blames-data-sharing) — OpenAPI routes `PUT /api/<type>/{uid}/sharing` for 23 `shareable: false` types
 
 ### Auth / OAuth2 / OIDC
 
@@ -134,6 +135,8 @@ filing.
 - [#92](#92-apimetadata-import-rewrites-optionsortorder-to-a-0-based-sequence) — `/api/metadata` import rewrites `Option.sortOrder` to a 0-based sequence
 - [#97](#97-get-apitrackertrackedentities-answers-409-e7145-column-reference-uid-is-ambiguous-when-ordered-by-trackedentity) — tracked-entity read ordered by `trackedEntity` answers 409 E7145 (ambiguous `uid`) on 2.43.1
 - [#98](#98-get-apitrackertrackedentities-silently-ignores-every-unrecognised-query-parameter-so-the-singular-trackedentity-turns-a-uid-scoped-read-into-an-unscoped-page) — `/api/tracker/trackedEntities` ignores unrecognised parameters; singular `trackedEntity=` returns a full page
+- [#99](#99-put-apitrackerownershiptransfer-binds-orgunit-while-the-documentation-gives-ou-and-the-refusal-is-a-tomcat-html-page) — ownership transfer binds `orgUnit`; the documentation gives `ou`, and the refusal is a Tomcat HTML page
+- [#101](#101-get-apisharing-reports-no-metaallowexternalaccess-so-no-caller-can-discover-whether-a-type-permits-external-access-at-all) — `GET /api/sharing` reports no `meta.allowExternalAccess`
 
 ### v43-specific
 
@@ -3968,6 +3971,28 @@ by `orgUnit`. Read-backs that must find every event of a submission are owner-aw
 they scope by `?trackedEntity=` (which serves the enrollment's events whatever unit each
 was recorded at) or fetch by event UID.
 
+**Verifier status (2.43.1, `9cbfbf3`, 2026-08-21):** the repro above does not run against the
+current local seed and needs re-staging before it can. Event `UjSVkfcz37F` and tracked entity
+`JfLRdItcS4o` both answer `404 E1005`; the two org units it names, Kamasikie MCHP
+(`ZxuSbAmsLCn`) and Kathombo MCHP (`yEU926iVAJJ`), still exist. The seed carries no
+owner/record divergence at all to substitute them with: across the 500 `IpHINAT79UW`
+enrollments and their 971 events, every event's own `orgUnit` equals its enrollment's, and 25
+org units sampled from that set return exactly their own events under `?program=&orgUnit=`
+with no foreign unit in the result. The behaviour is therefore neither confirmed nor
+contradicted here — it needs a tracked entity whose owner sits at one unit and whose event was
+recorded at another, which this seed does not build. Restage that pair before re-reading the
+entry as refuted.
+
+```bash
+curl -s -u admin:district 'http://localhost:8080/api/tracker/events/UjSVkfcz37F?fields=event,orgUnit'
+# -> 404 {"message":"Event with id UjSVkfcz37F could not be found.","errorCode":"E1005"}
+
+# Owner/record divergence across the whole programme: zero.
+curl -s -u admin:district 'http://localhost:8080/api/tracker/enrollments?program=IpHINAT79UW&orgUnitMode=ACCESSIBLE&pageSize=2000&fields=enrollment,orgUnit,events' \
+  | python3 -c "import sys,json;e=json.load(sys.stdin)['enrollments'];v=[(x['enrollment'],y['event']) for x in e for y in x.get('events',[]) if y.get('orgUnit')!=x['orgUnit']];print(len(e),'enrollments,',sum(len(x.get('events',[])) for x in e),'events,',len(v),'divergent')"
+# -> 500 enrollments, 971 events, 0 divergent
+```
+
 **Verifier:** none yet.
 
 ### 70. Events import into a `COMPLETED` enrollment with no error or warning
@@ -5426,5 +5451,227 @@ this is written up in `docs/fhir/design/projection.md` section 3.4.
 **How to know it's fixed:** query (b) with `trackedEntity=` either returns one entity or answers
 a DHIS2 JSON error naming the parameter it did not recognise, and the OpenAPI document in (c)
 declares the query parameters the endpoint honours.
+
+**Verifier:** none yet.
+
+### 99. `PUT /api/tracker/ownership/transfer` binds `orgUnit` while the documentation gives `ou`, and the refusal is a Tomcat HTML page
+
+The ownership-transfer endpoint takes its target organisation unit as `orgUnit`. The Web API
+documentation for the same endpoint gives `ou`. A caller who copies the documented request line
+gets a `400` that is not a DHIS2 `WebMessage` but a raw Tomcat error page, so a client that
+parses the error body as JSON fails on the parse rather than on the message that would have told
+it the parameter name. Sending both spellings changes nothing: `ou` is not read.
+
+**Observed on:** DHIS2 `2.43.1`, revision `9cbfbf3` (local `dhis2/core` stack, `admin:district`).
+Documented spelling from
+`https://docs.dhis2.org/en/develop/using-the-api/dhis-core-version-master/tracker.html`,
+section "Tracker Ownership Transfer", which gives
+`/api/tracker/ownership/transfer?trackedEntity=DiszpKrYNg8&program=eBAyeGv0exc&ou=EJNxP3WreNP`.
+
+**Repro** (read-only — the UIDs below are deliberately non-existent, so no ownership can be
+written; the difference in *where* each call fails is the whole finding):
+
+```bash
+# (a) The documented spelling. Refused at parameter binding, before any UID is looked up,
+#     with a Tomcat HTML page rather than a DHIS2 JSON error.
+curl -s -u admin:district -X PUT \
+  'http://localhost:8080/api/tracker/ownership/transfer?trackedEntity=aaaaaaaaaaa&program=bbbbbbbbbbb&ou=ccccccccccc'
+# -> HTTP 400
+#    <h1>HTTP Status 400 – Bad Request</h1> ...
+#    <p><b>Message</b> Required parameter &#39;orgUnit&#39; is not present.</p>
+
+# (b) The spelling the instance's own OpenAPI document declares. Binds, reaches the handler,
+#     and fails on the UID lookup with a proper DHIS2 error body.
+curl -s -u admin:district -X PUT \
+  'http://localhost:8080/api/tracker/ownership/transfer?trackedEntity=aaaaaaaaaaa&program=bbbbbbbbbbb&orgUnit=ccccccccccc'
+# -> HTTP 404 {"httpStatus":"Not Found","httpStatusCode":404,"status":"ERROR",
+#     "message":"Program with id bbbbbbbbbbb could not be found.","errorCode":"E1005"}
+
+# (c) What the instance declares.
+curl -s -u admin:district 'http://localhost:8080/api/openapi/openapi.json' \
+  | python3 -c "import sys,json;p=json.load(sys.stdin)['paths']['/api/tracker/ownership/transfer']['put'];print([(q['name'],q['required']) for q in p['parameters']])"
+# -> [('orgUnit', True), ('program', True), ('trackedEntity', True)]
+```
+
+With real UIDs the same split holds: `ou=` still answers the HTML `400`, while `orgUnit=`
+reaches the transfer logic — on the seeded stack, passing a tracked entity's current owner
+answers `400 E1003 "Tracked entity not transferred. The owner of the tracked entity ... is
+already ..."`. Passing `ou=` *and* `orgUnit=` together answers exactly what `orgUnit=` alone
+answers, which is what establishes that `ou` is read by nothing.
+
+**Expected:** the documented parameter name is the one the endpoint binds. Failing that, a
+refusal for a missing required parameter is a DHIS2 `WebMessage` naming the parameter, in the
+`application/json` shape the endpoint's own OpenAPI entry declares for its `400`.
+
+**Actual:** the endpoint binds `orgUnit`; `ou` is silently unbound, and the resulting refusal is
+served by the container as `text/html` — a body shape the OpenAPI document does not mention for
+any status on this path. Two surfaces disagree (documentation says `ou`, OpenAPI and wire say
+`orgUnit`) and the third surface that could resolve the disagreement, the error body, is not
+machine-readable.
+
+**Impact:** every caller written from the documentation. The failure is at least loud rather
+than silent — the transfer does not happen — but a client that decodes error bodies as JSON
+reports a parse failure instead of "you named the parameter wrong", which is the difference
+between a five-minute fix and an afternoon. This is the same HTML-400 shape #67 and #91 record
+on other tracker endpoints; the parameter-name half is new.
+
+**Workaround in this repo:** no shipped path transfers ownership, so nothing carries a
+workaround today. Any future caller writes `orgUnit=`, matching the OpenAPI document and the
+wire, and treats a non-JSON `400` from a tracker endpoint as a parameter-binding failure.
+
+**How to know it's fixed:** the documentation gives `orgUnit`, or the endpoint accepts `ou` as
+well; and the missing-required-parameter refusal arrives as a DHIS2 JSON error body.
+
+**Verifier:** none yet.
+
+### 100. The OpenAPI document routes `PUT /api/<type>/{uid}/sharing` for 23 types whose schema says `shareable: false`, and the refusal blames data sharing
+
+`/api/schemas/<type>` carries a `shareable` flag that says whether a type has sharing at all,
+and `GET /api/sharing?type=<type>` refuses the non-shareable ones outright. The OpenAPI document
+does not agree with either: it emits a `PUT /api/<type>/{uid}/sharing` operation, declaring a
+`204` success, for 23 types whose schema says `shareable: false`. The route is live — it reaches
+the sharing importer rather than 404ing — and refuses every payload with `E3016 "Data sharing is
+not enabled for this object"`, including a payload that asks for no data access whatsoever. So
+the one error a caller can get names the wrong reason: the object has no *metadata* sharing
+either, and the message speaks only about data sharing.
+
+**Observed on:** DHIS2 `2.43.1`, revision `9cbfbf3` (local `dhis2/core` stack, `admin:district`).
+
+**Repro** (the write leg is refused, so nothing is persisted; run against any existing
+organisation unit UID — `ImspTQPwCqd` is the Sierra Leone root in the demo seed):
+
+```bash
+# Leg 1 — the OpenAPI document routes the operation and declares a 204.
+curl -s -u admin:district 'http://localhost:8080/api/openapi/openapi.json' \
+  | python3 -c "import sys,json;p=json.load(sys.stdin)['paths']['/api/organisationUnits/{uid}/sharing'];print(sorted(p),p['put']['operationId'],sorted(p['put']['responses']))"
+# -> ['put'] OrganisationUnit.setSharing ['204', '403', '404']
+
+# Leg 2 — the schema says the type has no sharing.
+curl -s -u admin:district 'http://localhost:8080/api/schemas/organisationUnit?fields=name,shareable'
+# -> {"name":"organisationUnit","shareable":false}
+
+# Leg 3 — the sharing API refuses the type by name, with 409 rather than 404.
+curl -s -u admin:district 'http://localhost:8080/api/sharing?type=organisationUnit&id=ImspTQPwCqd'
+# -> HTTP 409 {"httpStatus":"Conflict","httpStatusCode":409,"status":"ERROR",
+#     "message":"Type organisationUnit is not supported."}
+
+# Leg 4 — the routed PUT reaches the sharing importer and refuses with a data-sharing message,
+#         even for a payload that grants no data access at all.
+curl -s -u admin:district -X PUT -H 'Content-Type: application/json' \
+  -d '{"object":{"publicAccess":"--------"}}' \
+  'http://localhost:8080/api/organisationUnits/ImspTQPwCqd/sharing'
+# -> HTTP 409 {"httpStatus":"Conflict","httpStatusCode":409,"status":"ERROR",
+#     "message":"One or more errors occurred, please see full details in import report.",
+#     "response":{"status":"ERROR","stats":{"created":0,"updated":0,"deleted":0,"ignored":0,"total":0},
+#      "objectReports":[{"klass":"org.hisp.dhis.user.sharing.Sharing","index":0,
+#       "errorReports":[{"message":"Data sharing is not enabled for this object","errorCode":"E3016",
+#        "mainKlass":"org.hisp.dhis.user.sharing.Sharing",
+#        "errorKlass":"org.hisp.dhis.organisationunit.OrganisationUnit"}]}]}}
+# Identical for publicAccess "r-------", "rw------" and "rwrw----": the access string is not
+# what the refusal turns on.
+
+# Leg 5 — the scale of the mismatch: how many routed sharing PUTs belong to non-shareable types.
+curl -s -u admin:district 'http://localhost:8080/api/openapi/openapi.json' -o /tmp/oas.json
+curl -s -u admin:district 'http://localhost:8080/api/schemas?fields=plural,shareable' -o /tmp/schemas.json
+python3 -c "
+import json,re
+routes={re.match(r'/api/(\w+)/',p).group(1) for p,v in json.load(open('/tmp/oas.json'))['paths'].items() if p.endswith('/{uid}/sharing') and 'put' in v}
+byplural={s['plural']:s for s in json.load(open('/tmp/schemas.json'))['schemas'] if 'plural' in s}
+bad=sorted(p for p in routes if p in byplural and not byplural[p].get('shareable'))
+print(len(routes),'routed;',len(bad),'non-shareable:',bad)"
+# -> 79 routed; 23 non-shareable: ['analyticsTableHooks', 'categoryOptionCombos', 'dashboardItems',
+#    'dataEntryForms', 'dataSetNotificationTemplates', 'indicatorTypes', 'jobConfigurations',
+#    'messageConversations', 'oAuth2Clients', 'options', 'organisationUnitLevels',
+#    'organisationUnits', 'predictors', 'programNotificationTemplates', 'programRuleActions',
+#    'programRuleVariables', 'programRules', 'programSections', 'programStageSections',
+#    'sections', 'smsCommands', 'users', 'validationNotificationTemplates']
+```
+
+`indicatorTypes` behaves identically to `organisationUnits` on legs 3 and 4, so this is the
+class-wide shape rather than an organisation-unit special case.
+
+**Expected:** the OpenAPI document does not declare a sharing write for a type whose schema says
+the type has no sharing. Failing that, the refusal names the actual reason — the type is not
+shareable — rather than attributing it to data sharing, and the two introspection surfaces
+(`/api/schemas`'s `shareable` and the OpenAPI path list) agree on which types are writable.
+
+**Actual:** 23 of the 79 declared `{uid}/sharing` write routes address types the schema marks
+`shareable: false`. All of them are live and all of them fail, with `E3016` naming data sharing
+whatever access string the payload asks for. A generated client that trusts the OpenAPI document
+emits 23 methods that cannot succeed, and the error text sends whoever calls one of them looking
+for a data-sharing toggle that does not exist. `/api/sharing?type=` answering `409` rather than
+`404` for these types is the same disagreement seen from the read side (see #101 and
+docs/api/sharing.md).
+
+**Impact:** anything generated from the OpenAPI document, and anyone reading `E3016` at face
+value. Sharing an organisation unit is a thing people reasonably try — organisation-unit
+visibility is scoped by the user's capture and search trees, not by a sharing block, and neither
+the OpenAPI document nor the error message says so.
+
+**Workaround in this repo:** the sharing helpers go through `/api/sharing?type=`, which refuses
+non-shareable types by name up front, rather than through the per-type `{uid}/sharing` route
+(`packages/dhis2w-client/src/dhis2w_client/v43/sharing.py`). The refusal shape is documented at
+`docs/api/sharing.md`.
+
+**How to know it's fixed:** the count in leg 5 reaches zero, or leg 4 answers an error whose
+message names non-shareability rather than data sharing.
+
+**Verifier:** none yet.
+
+### 101. `GET /api/sharing` reports no `meta.allowExternalAccess`, so no caller can discover whether a type permits external access at all
+
+The `meta` block on `GET /api/sharing` exists to tell a caller which parts of a sharing payload
+this type will honour. The Web API documentation shows it carrying both `allowPublicAccess` and
+`allowExternalAccess`. On `2.43.1` it carries only `allowPublicAccess`, and the instance's own
+`SharingMeta` component declares only that one property. Since `SharingObject.externalAccess` is
+gone from the same document (#38) and a write carrying `externalAccess` is accepted and
+discarded, the meta block was the one surface that could have warned a caller in advance — and
+it is now silent rather than saying `false`.
+
+**Observed on:** DHIS2 `2.43.1`, revision `9cbfbf3` (local `dhis2/core` stack, `admin:district`).
+Documented shape from
+`https://docs.dhis2.org/en/develop/using-the-api/dhis-core-version-master/sharing.html`, whose
+example response body carries `"allowPublicAccess": true` alongside `"allowExternalAccess": false`.
+
+**Repro** (read-only):
+
+```bash
+# The live meta block, on a type that has sharing.
+curl -s -u admin:district 'http://localhost:8080/api/sharing?type=dataSet&id=BfMAe6Itzgt'
+# -> {"meta":{"allowPublicAccess":true},
+#     "object":{"id":"BfMAe6Itzgt","name":"Child Health","displayName":"Child Health",
+#      "publicAccess":"--------","user":{"id":"M5zQapPyTZI","name":"admin admin"},
+#      "userGroupAccesses":[],"userAccesses":[]}}
+# `program` answers the same one-key meta block.
+
+# The instance's own component declaration agrees: one property, not two.
+curl -s -u admin:district 'http://localhost:8080/api/openapi/openapi.json' \
+  | python3 -c "import sys,json;c=json.load(sys.stdin)['components']['schemas'];print(sorted(c['SharingMeta']['properties']),sorted(c['SharingObject']['properties']))"
+# -> ['allowPublicAccess'] ['displayName', 'id', 'name', 'publicAccess', 'user', 'userAccesses', 'userGroupAccesses']
+```
+
+**Expected:** the meta block enumerates every sharing capability the type has, reporting `false`
+for the ones it lacks, so a caller can decide what to send before sending it. That is what the
+documentation shows and what the block is for.
+
+**Actual:** `allowExternalAccess` is absent from the response and from `SharingMeta`. A caller
+cannot distinguish "this type forbids external access" from "this instance has no concept of
+external access", because the wire says the same nothing in both cases.
+
+**Impact:** compounding on #38. There, a sharing write carrying `externalAccess` answers `200`
+and drops the field. A caller that wanted to check first has nowhere to look: the meta block is
+the documented place, and the key is gone. On a mixed estate — this repo's v42 pin still
+declares `SharingObject.externalAccess` — a client cannot probe an instance to learn which shape
+it is talking to, so the branch has to be made on the detected server version instead of on
+anything the instance says about itself.
+
+**Workaround in this repo:** the sharing helpers branch on the detected major rather than on
+`meta`: `dhis2w_client.v43.sharing` neither sends nor reads `externalAccess`, while
+`dhis2w_client.v42.sharing` carries it for the pinned `2.42.4.1` image, with
+`Dhis2Client.connect()` choosing between them. `docs/api/sharing.md` describes the fields the
+helpers expose.
+
+**How to know it's fixed:** `meta` carries `allowExternalAccess` again — with either value —
+and the `SharingMeta` component declares it.
 
 **Verifier:** none yet.
