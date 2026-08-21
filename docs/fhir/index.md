@@ -164,3 +164,7 @@ not here. Read them when you want the *why* rather than the *how*:
 - [The library surface](design/library.md) - what the FHIR toolchain is
   apart from its commands: what is importable today, the composition contract
   the served facade is missing, and the sequence that closes the gap.
+- [The materialized projection](design/projection.md) - what it takes to serve
+  FHIR from a synced backend rather than a live proxy: the measured limits of the
+  live model on population evaluation and multilingual person search, the sync
+  doctrine, and the backends that could hold it.

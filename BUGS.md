@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-101 entries grouped by area. **Status tags** carry the result of the most
+102 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -133,6 +133,7 @@ filing.
 - [#91](#91-get-apitrackerevents-demands-program-unconditionally-on-v43-and-the-singular-enrollment-filter-is-silently-ignored-on-every-major) — events read demands `program` on v43 (HTML 400); singular `enrollment=` ignored everywhere
 - [#92](#92-apimetadata-import-rewrites-optionsortorder-to-a-0-based-sequence) — `/api/metadata` import rewrites `Option.sortOrder` to a 0-based sequence
 - [#97](#97-get-apitrackertrackedentities-answers-409-e7145-column-reference-uid-is-ambiguous-when-ordered-by-trackedentity) — tracked-entity read ordered by `trackedEntity` answers 409 E7145 (ambiguous `uid`) on 2.43.1
+- [#98](#98-get-apitrackertrackedentities-silently-ignores-every-unrecognised-query-parameter-so-the-singular-trackedentity-turns-a-uid-scoped-read-into-an-unscoped-page) — `/api/tracker/trackedEntities` ignores unrecognised parameters; singular `trackedEntity=` returns a full page
 
 ### v43-specific
 
@@ -5340,3 +5341,90 @@ citing this entry.
 
 **How to know it's fixed:** `order=trackedEntity:asc` on the query in (a) answers `200` with the
 page sorted by identifier, and the workaround comments above can name `trackedEntity` again.
+
+---
+
+### 98. `GET /api/tracker/trackedEntities` silently ignores every unrecognised query parameter, so the singular `trackedEntity=` turns a UID-scoped read into an unscoped page
+
+**Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`), Sierra Leone
+demo database. Surfaced while measuring whether a `lastUpdated` cursor can drive an incremental
+sync of the tracker.
+
+**Repro:**
+
+```bash
+B=http://localhost:8080; A=admin:district
+TE=w9wDBv99aRt   # any tracked entity of the Child Programme
+
+# (a) With no scope at all, the endpoint refuses — and its own message names the PLURAL spelling.
+curl -s -u $A "$B/api/tracker/trackedEntities?ouMode=ACCESSIBLE&trackedEntity=$TE"
+# -> {"httpStatus":"Bad Request","httpStatusCode":400,"status":"ERROR",
+#     "message":"Either `program`, `trackedEntityType` or `trackedEntities` should be specified",
+#     "errorCode":"E1003"}
+#
+#    The 400 is about the missing scope, not about the parameter. The plural is accepted alone:
+curl -s -u $A -o /dev/null -w 'plural alone -> %{http_code}\n' \
+  "$B/api/tracker/trackedEntities?ouMode=ACCESSIBLE&trackedEntities=$TE"
+# -> plural alone -> 200
+
+# (b) With a scope present, the singular is accepted and dropped — as is any invented name.
+for Q in trackedEntity trackedEntities totallyBogusParam; do
+  echo -n "  $Q -> "
+  curl -s -u $A "$B/api/tracker/trackedEntities?program=IpHINAT79UW&ouMode=ACCESSIBLE&pageSize=50&fields=trackedEntity&$Q=$TE" \
+    | python3 -c "import sys,json;print(len(json.load(sys.stdin)['trackedEntities']),'entities')"
+done
+#   trackedEntity     -> 50 entities   (ignored — the whole page)
+#   trackedEntities   ->  1 entities   (filtered)
+#   totallyBogusParam -> 50 entities   (ignored — the whole page)
+
+# (c) The OpenAPI document declares neither spelling, nor any other query parameter
+#     this endpoint honours.
+curl -s -u $A "$B/api/openapi/openapi.json?path=/api/tracker/trackedEntities" | python3 -c "
+import sys,json
+ops=json.load(sys.stdin)['paths']['/api/tracker/trackedEntities/']
+print(sorted(q['name'] for q in ops['get']['parameters']))"
+# -> ['categoryOptionComboIdScheme', 'categoryOptionIdScheme', 'dataElementIdScheme',
+#     'idScheme', 'orgUnitIdScheme', 'programIdScheme', 'programStageIdScheme']
+#    No program, no trackedEntityType, no trackedEntities, no filter, no updatedAfter,
+#    no includeDeleted.
+```
+
+**Expected:** an unrecognised query parameter is refused, so a caller learns that the filter it
+asked for was not applied. Failing that, at minimum the near-miss spelling of a filter the
+endpoint does support is refused rather than dropped.
+
+**Actual:** unrecognised parameters are accepted and discarded with a `200` and nothing in the
+body saying so. The singular `trackedEntity=` is one of them, and it is the worst one: it is the
+obvious spelling, it is the spelling the sibling `/api/tracker/events` endpoint *does* honour
+(#91), and the parameter it near-misses is the only way to address one entity on this endpoint
+now that the item route refuses soft-deleted rows (#89). A caller that asks for one entity by
+UID gets a full page of other people's records and a `200`.
+
+Two entries in this file record the opposite belief and are wrong on this point: #91's *Expected*
+says `/api/tracker/trackedEntities` "refuses the singular `trackedEntity=` with `400 E1003`" — it
+does not; the E1003 in that observation came from the absent scope. #90's repro passes
+`trackedEntity=$TE` alongside no scope parameter and reads the result as a UID-addressed listing;
+with a scope added, that query returns the page rather than the entity. The finding #90 records
+still stands — an attribute-filtered search does drop soft-deleted rows — but its second `curl`
+should use `trackedEntities=`.
+
+**Impact:** a UID-scoped read that silently becomes an unscoped page is a disclosure shape, not
+merely a wrong answer: the caller believes it fetched one person and holds fifty. Any client that
+counts results will notice; any client that takes `instances[0]` will not, and will attribute one
+person's data to another. For an incremental syncer the same hole swallows `updatedAfter` and
+`includeDeleted` if either is ever misspelled — and #89 has already established that
+`includeDeleted` is the only way to see a deletion, so a typo there is silent permanent data loss
+in the consumer.
+
+**Workaround in this repo:** tracked-entity reads address one entity by the plural
+`trackedEntities=` or by the item route, never by the singular. The FHIR facade's
+`fetch_tracked_entity` in
+`packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/register/wire.py` uses the item route
+`GET /api/tracker/trackedEntities/{uid}` and so is unaffected. The measurement that surfaced
+this is written up in `docs/fhir/design/projection.md` section 3.4.
+
+**How to know it's fixed:** query (b) with `trackedEntity=` either returns one entity or answers
+a DHIS2 JSON error naming the parameter it did not recognise, and the OpenAPI document in (c)
+declares the query parameters the endpoint honours.
+
+**Verifier:** none yet.
