@@ -110,10 +110,19 @@ what lets a bare run count those apart from what generation itself found.
 
 ### FHIR R4 resource schemas
 
-The models every pre-built JSON document is serialised from - `Organization` and
-`Location` for the registry, `CodeSystem` and `ValueSet` for the option-set and
-category terminology, `ConceptMap` for both families' mappings back to DHIS2.
-Beside them are the resources a summary document is assembled out of -
+`dhis2w_fhir.r4` is the capture-facing surface over the R4 resource models, which
+`dhis2w_fhir_engine` owns and defines at
+[`dhis2w_fhir_engine.r4.resources`](api-dhis2w-fhir-engine.md#fhir-r4-resource-models). The
+engine is the FHIR foundation package, so one `Patient` and one `Bundle` serve the
+generator, the evaluator, and the server alike; this module re-exports that family
+under the path capture code imports it from, and every name below is the engine's own
+class object rather than a copy of it. `import dhis2w_fhir.r4` keeps working exactly as
+written, and a model built through it is an instance of the engine's class.
+
+That family covers the models every pre-built JSON document is serialised from -
+`Organization` and `Location` for the registry, `CodeSystem` and `ValueSet` for the
+option-set and category terminology, `ConceptMap` for both families' mappings back to
+DHIS2. Beside them are the resources a summary document is assembled out of -
 `Composition` and its flat `CompositionSection`, `Patient`, `Condition`,
 `AllergyIntolerance`, and `Observation`, with `Bundle` carrying the `identifier`
 and `timestamp` a document requires; see
@@ -122,6 +131,9 @@ and [the IPS working paper](design/ips.md).
 Every one is frozen, alias-aware, and closed to unknown keys, so
 `Model.model_validate(payload).model_dump_json(exclude_none=True, by_alias=True)`
 reproduces the input document key for key.
+
+The R4 primitive checks under `dhis2w_fhir.r4.primitives` stay this package's own, and
+arrive under the same `dhis2w_fhir.r4` name.
 
 ::: dhis2w_fhir.r4.schemas
 

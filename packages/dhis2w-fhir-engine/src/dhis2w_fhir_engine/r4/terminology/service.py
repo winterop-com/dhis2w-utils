@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+from ...ingest import ResourceInput, as_resource_dict
 from .models import (
     MemberOfRequest,
     MemberOfResponse,
@@ -100,13 +101,13 @@ class InMemoryTerminologyService(TerminologyService):
             if value_set.version:
                 self._value_sets[f"{value_set.url}|{value_set.version}"] = value_set
 
-    def add_value_set_from_json(self, json_data: dict[str, Any]) -> None:
-        """Add a value set from JSON data.
+    def add_value_set_from_json(self, json_data: ResourceInput) -> None:
+        """Add a value set given as a wire dict or a pydantic model of any R4 ValueSet shape.
 
         Args:
-            json_data: ValueSet as dictionary
+            json_data: ValueSet as a dictionary or a model
         """
-        value_set = ValueSet.model_validate(json_data)
+        value_set = ValueSet.model_validate(as_resource_dict(json_data))
         self.add_value_set(value_set)
 
     def load_value_set_file(self, path: Path | str) -> None:

@@ -10,11 +10,14 @@ Classes:
     MeasureEvaluator: Main class for evaluating measures
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from ..ingest import ResourceInput, as_resource_dict, as_resource_dicts
 
 if TYPE_CHECKING:
     from ..engine.cql.context import DataSource
@@ -413,10 +416,10 @@ class MeasureEvaluator:
 
     def evaluate_patient(
         self,
-        patient: dict[str, Any],
+        patient: ResourceInput,
         data_source: "DataSource | None" = None,
     ) -> PatientResult:
-        """Evaluate the measure for a single patient.
+        """Evaluate the measure for a single patient, given as a wire dict or a pydantic model.
 
         Args:
             patient: Patient resource
@@ -428,7 +431,8 @@ class MeasureEvaluator:
         if not self._library:
             raise ValueError("No measure loaded")
 
-        patient_id = patient.get("id", "unknown")
+        ingested = as_resource_dict(patient) or {}
+        patient_id = ingested.get("id", "unknown")
         result = PatientResult(patient_id=patient_id)
 
         # Update data source if provided
@@ -441,7 +445,7 @@ class MeasureEvaluator:
                 try:
                     value = self._evaluator.evaluate_definition(
                         population.definition,
-                        resource=patient,
+                        resource=ingested,
                     )
                     # Convert to boolean
                     if value is None:
@@ -460,7 +464,7 @@ class MeasureEvaluator:
                 try:
                     value = self._evaluator.evaluate_definition(
                         stratifier,
-                        resource=patient,
+                        resource=ingested,
                     )
                     result.stratifier_values[stratifier] = value
                 except Exception:
@@ -470,10 +474,10 @@ class MeasureEvaluator:
 
     def evaluate_population(
         self,
-        patients: list[dict[str, Any]],
+        patients: Sequence[ResourceInput],
         data_source: "DataSource | None" = None,
     ) -> MeasureReport:
-        """Evaluate the measure for a population of patients.
+        """Evaluate the measure for a population of patients, each a wire dict or a pydantic model.
 
         Args:
             patients: List of patient resources
@@ -501,7 +505,7 @@ class MeasureEvaluator:
                         report.period_end = interval.high
 
         # Evaluate each patient
-        for patient in patients:
+        for patient in as_resource_dicts(patients):
             patient_result = self.evaluate_patient(patient, data_source)
             report.patient_results.append(patient_result)
 

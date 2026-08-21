@@ -43,7 +43,9 @@ Five orthogonal axes of extension — extending one never forces edits to anothe
 - **Version subpackages** (`dhis2w_client.v{41,42,43}/`, `dhis2w_core.v{41,42,43}/plugins/`): each DHIS2 major has its own hand-written tree. The three trees start as mechanical copies of v42 (the canonical baseline) and diverge per-file as version-specific behaviour lands.
 - **Plugins** (`dhis2w-core/v{N}/plugins/<name>/`): each DHIS2 domain is a folder with `__init__.py` and `cli.py` always; `service.py` when the plugin has logic (grouping shells like `data` and `dev` only mount sub-apps); `models.py` when the plugin has view-models (small models may live inline in `service.py`); `mcp.py` optional with justification. Tests live outside the shipped package, grouped per domain at `packages/dhis2w-core/tests/<name>/` (one test tree parametrised over the three version trees — never per-tree test copies). Discovered automatically by iterating `dhis2w_core.v{N}.plugins.*` (today: v42); external plugins register via `importlib.metadata.entry_points(group="dhis2.plugins")`.
 - **Auth providers** (`dhis2w-client/v{N}/auth/`): `AuthProvider` Protocol. Ship Basic, PAT, OAuth2. Add more without touching `client.py`.
-- **FHIR version trees** (`dhis2w_fhir_engine.r4/`, later `r5/`): the evaluation engine's own version axis, parallel to the DHIS2 v41/v42/v43 split. The grammar, parser, AST, and evaluator are FHIR-version-neutral; everything bound to a release lives in a version subpackage and reaches the neutral core as a `FhirVersionBinding` value. A new FHIR release is a new subpackage exporting a `FhirVersionBinding` (and, where the wire shapes differ, its own data sources and measure report writer) — never an edit to the evaluator.
+- **FHIR version trees** (`dhis2w_fhir_engine.r4/`, later `r5/`): the evaluation engine's own version axis, parallel to the DHIS2 v41/v42/v43 split. The grammar, parser, AST, and evaluator are FHIR-version-neutral; everything bound to a release lives in a version subpackage and reaches the neutral core as a `FhirVersionBinding` value. A new FHIR release is a new subpackage exporting a `FhirVersionBinding` (and, where the wire shapes differ, its own data sources, resource models, and measure report writer) — never an edit to the evaluator.
+
+`dhis2w-fhir-engine` is the FHIR foundation of the workspace, not a leaf: `dhis2w-fhir` and `dhis2w-fhir-serve` both depend on it. It owns the R4 resource models at `dhis2w_fhir_engine.r4.resources` — `Patient`, `Bundle`, `QuestionnaireResponse`, `Composition`, `Extension`, and the rest — and `dhis2w_fhir.r4` is the capture-facing facade re-exporting them, so a name is defined once and imported from whichever package the caller already works in. The engine still carries no DHIS2 dependency: it evaluates FHIR-shaped JSON and reads DHIS2 nothing but the D2 extensions a document happens to carry. Its public entry points accept `dict | BaseModel` and dump a model once on entry (`by_alias`, `exclude_none`, `mode="json"`, in `dhis2w_fhir_engine.ingest`); evaluation below that boundary stays dict-based, so no model is ever threaded into a navigator.
 
 Dependency arrows (no cycles):
 
@@ -68,7 +70,9 @@ graph LR
     cli --> fhir
     mcp --> fhir
     fhir --> core
+    fhir --> fhirengine
     fhirserve --> fhir
+    fhirserve --> fhirengine
     bridge --> cli
     bench --> cli
     bench --> router

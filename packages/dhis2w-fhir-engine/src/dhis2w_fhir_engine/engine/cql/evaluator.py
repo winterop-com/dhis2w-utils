@@ -13,6 +13,7 @@ from antlr4.error.ErrorListener import ErrorListener  # type: ignore[import-unty
 from ...binding import FhirVersionBinding, resolve_binding
 from ...generated.cql.cqlLexer import cqlLexer
 from ...generated.cql.cqlParser import cqlParser
+from ...ingest import ResourceInput
 from ..exceptions import CQLError
 from .context import CQLContext, DataSource
 from .library import CQLLibrary, LibraryManager
@@ -262,7 +263,7 @@ class CQLEvaluator:
     def evaluate_definition(
         self,
         definition_name: str,
-        resource: dict[str, Any] | None = None,
+        resource: ResourceInput | None = None,
         parameters: dict[str, Any] | None = None,
         library: CQLLibrary | None = None,
     ) -> Any:
@@ -270,7 +271,7 @@ class CQLEvaluator:
 
         Args:
             definition_name: Name of the definition to evaluate
-            resource: Optional context resource (e.g., Patient)
+            resource: Optional context resource (e.g., Patient), as a wire dict or a pydantic model
             parameters: Optional parameter values
             library: Optional library (uses current library if not specified)
 
@@ -314,7 +315,7 @@ class CQLEvaluator:
     def evaluate_expression(
         self,
         expression: str,
-        resource: dict[str, Any] | None = None,
+        resource: ResourceInput | None = None,
         parameters: dict[str, Any] | None = None,
         library: CQLLibrary | None = None,
     ) -> Any:
@@ -322,7 +323,7 @@ class CQLEvaluator:
 
         Args:
             expression: CQL expression to evaluate
-            resource: Optional context resource
+            resource: Optional context resource, as a wire dict or a pydantic model
             parameters: Optional parameter values
             library: Optional library context for definition resolution
 
@@ -356,14 +357,14 @@ class CQLEvaluator:
 
     def evaluate_all_definitions(
         self,
-        resource: dict[str, Any] | None = None,
+        resource: ResourceInput | None = None,
         parameters: dict[str, Any] | None = None,
         library: CQLLibrary | None = None,
     ) -> dict[str, Any]:
         """Evaluate all definitions in a library.
 
         Args:
-            resource: Optional context resource
+            resource: Optional context resource, as a wire dict or a pydantic model
             parameters: Optional parameter values
             library: Optional library (uses current library if not specified)
 
@@ -603,12 +604,12 @@ def compile_library(source: str) -> CQLLibrary:
     return evaluator.compile(source)
 
 
-def evaluate(expression: str, resource: dict[str, Any] | None = None) -> Any:
+def evaluate(expression: str, resource: ResourceInput | None = None) -> Any:
     """Convenience function to evaluate a CQL expression.
 
     Args:
         expression: CQL expression
-        resource: Optional context resource
+        resource: Optional context resource, as a wire dict or a pydantic model
 
     Returns:
         Evaluation result

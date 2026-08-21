@@ -31,9 +31,14 @@ _RENDERED_WITHOUT_A_DECLARED_SURFACE = frozenset(
         "dhis2w_fhir.attributes",
         "dhis2w_fhir.config",
         "dhis2w_fhir.notes",
-        "dhis2w_fhir.r4.schemas",
     }
 )
+
+#: The rendered modules whose `__all__` re-exports another package's names rather than declaring this
+#: one's. `dhis2w_fhir.r4.schemas` is the capture-facing facade over `dhis2w_fhir_engine.r4.resources`,
+#: so its surface answers to the engine and is checked by `test_fhir_r4_facade.py`, not to
+#: `dhis2w_fhir.__all__` - the package root states capabilities, not the whole R4 resource vocabulary.
+_RENDERED_FACADES = frozenset({"dhis2w_fhir.r4.schemas"})
 
 #: The capabilities the library paper names as reachable in one import. Each is a name a caller
 #: writes down, not a module path it has to learn.
@@ -100,6 +105,8 @@ def test_every_stated_name_imports(name: str) -> None:
 @pytest.mark.parametrize("module_name", sorted(set(_rendered_modules()) - {"dhis2w_fhir"}))
 def test_every_rendered_module_has_its_surface_on_the_package(module_name: str) -> None:
     """A module the API reference renders exports its names through the package root, or declares none at all."""
+    if module_name in _RENDERED_FACADES:
+        return
     module = importlib.import_module(module_name)
     declared = getattr(module, "__all__", None)
     if declared is None:

@@ -11,6 +11,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
+from ...ingest import ResourceInput, as_resource_dict
 from ..context import EvaluationContext, ModelProvider
 
 if TYPE_CHECKING:
@@ -53,8 +54,8 @@ class CQLContext(EvaluationContext):
 
     def __init__(
         self,
-        resource: dict[str, Any] | None = None,
-        root_resource: dict[str, Any] | None = None,
+        resource: ResourceInput | None = None,
+        root_resource: ResourceInput | None = None,
         model: ModelProvider | None = None,
         now: datetime | None = None,
         reference_resolver: Callable[[str], dict[str, Any] | None] | None = None,
@@ -66,8 +67,8 @@ class CQLContext(EvaluationContext):
         """Initialize CQL evaluation context.
 
         Args:
-            resource: Current context resource (e.g., Patient)
-            root_resource: Root resource for nested evaluations
+            resource: Current context resource (e.g., Patient), as a wire dict or a pydantic model
+            root_resource: Root resource for nested evaluations, dict or model
             model: FHIR model provider for type information
             now: Fixed datetime for Today()/Now() functions
             reference_resolver: Callback to resolve FHIR references
@@ -240,10 +241,10 @@ class CQLContext(EvaluationContext):
 
     # Override child context creation
 
-    def child(self, resource: dict[str, Any] | None = None) -> "CQLContext":
-        """Create a child context for nested evaluations."""
+    def child(self, resource: ResourceInput | None = None) -> "CQLContext":
+        """Create a child context for nested evaluations, from a wire dict or a pydantic model."""
         child_ctx = CQLContext(
-            resource=resource or self.resource,
+            resource=as_resource_dict(resource) or self.resource,
             root_resource=self.root_resource,
             model=self.model,
             now=self.now,
@@ -302,12 +303,13 @@ class EncounterContext(CQLContext):
 
     def __init__(
         self,
-        patient: dict[str, Any] | None = None,
-        encounter: dict[str, Any] | None = None,
+        patient: ResourceInput | None = None,
+        encounter: ResourceInput | None = None,
         **kwargs: Any,
     ):
+        """Initialize an encounter-scoped context from wire dicts or pydantic models."""
         super().__init__(resource=encounter, **kwargs)
-        self._patient = patient
+        self._patient = as_resource_dict(patient)
 
     @property
     def patient(self) -> dict[str, Any] | None:

@@ -1,10 +1,14 @@
 # FHIR evaluation engine (`dhis2w_fhir_engine`)
 
 `dhis2w_fhir_engine` is the package behind the `d2w-fhir-engine` console script: FHIRPath, CQL, and
-ELM evaluation over FHIR data, with clinical quality measure evaluation on top. It is its own
-workspace member because it shares nothing with the rest of this repository - it has no DHIS2
-dependency and no web framework, and it evaluates expressions over FHIR-shaped JSON and returns
-values.
+ELM evaluation over FHIR data, with clinical quality measure evaluation on top, and the R4 resource
+models everything else in this repository reads FHIR through. It carries no DHIS2 dependency and no
+web framework: it evaluates expressions over FHIR-shaped JSON and returns values.
+
+It is the FHIR foundation of the workspace rather than a leaf of it. `dhis2w-fhir` and
+`dhis2w-fhir-serve` both depend on it, and `dhis2w_fhir.r4` is a facade re-exporting the models
+defined here - so `Patient` imported from either path is one class, and a document a generator built
+is a document an evaluator reads without a conversion step in between.
 
 The grammar, parser, AST, and evaluator layers know nothing about any particular FHIR release.
 FHIRPath is normative and CQL is 1.5, and neither names a version. Everything that does bind to a
@@ -37,6 +41,9 @@ The four guides that teach what these names do are
   (`InMemoryTerminologyService`, `ValidateCodeRequest`, `MemberOfRequest`, `SubsumesRequest`,
   `ValueSet`, `Coding`, `CodeableConcept`) - or against a real terminology server
   (`FHIRTerminologyService`).
+- Build or read an R4 resource as a typed, closed model, and hand it straight to an evaluator
+  (`Patient`, `Bundle`, `QuestionnaireResponse`, `Composition`, `Observation`, `Extension`,
+  `Reference`, `CodeableConcept`, `Coding`, and the rest of `dhis2w_fhir_engine.r4.resources`).
 - Bind the engine to a FHIR release, or ask which release it is bound to (`FhirVersionBinding`,
   `R4_BINDING`, `NEUTRAL_BINDING`, `default_binding`, `set_default_binding`, `BuiltinCqlLibrary`) -
   see [The FHIR version binding](501-version-binding.md).
@@ -165,6 +172,42 @@ The R4 facts the neutral core consumes, and the binding importing `dhis2w_fhir_e
 the default.
 
 ::: dhis2w_fhir_engine.r4.binding
+
+### FHIR R4: resource models
+
+The typed R4 resources: `Patient`, `Condition`, `AllergyIntolerance`, `Observation`, `Composition`
+and the document vocabulary; `Questionnaire`, `QuestionnaireResponse` and the capture vocabulary;
+`Bundle`, `CapabilityStatement`, `Parameters`, `OperationOutcome`; and the elements they are built
+from - `Extension`, `Reference`, `Coding`, `CodeableConcept`, `Identifier`, `Meta`, `Narrative`.
+
+Every model is closed (`extra="forbid"`) and frozen, and every optional field defaults to `None`, so
+`model_dump_json(exclude_none=True, by_alias=True)` reproduces the wire document key for key. The
+open `JsonResource` is the single exception, for a document carried through verbatim. `dhis2w_fhir.r4`
+re-exports this whole family for capture code; the terminology models in
+`dhis2w_fhir_engine.r4.terminology` are a separate, open family for the terminology-service
+operations, so `Coding`, `CodeableConcept`, and `ValueSet` exist in both places - import each from its
+own module.
+
+::: dhis2w_fhir_engine.r4.resources
+
+### The typed-model boundary
+
+Every public entry point that ingests a FHIR resource - `EvaluationContext` and the CQL contexts, the
+FHIRPath, CQL, and ELM evaluators, the data sources, `MeasureEvaluator` - accepts either the wire dict
+or a pydantic model of it. A model is dumped exactly once, here, and evaluation below the boundary
+reads plain dicts. The dump is a fresh structure, so nothing the engine does reaches back into the
+caller's model.
+
+```python
+from dhis2w_fhir_engine import FHIRPathEvaluator
+from dhis2w_fhir_engine.r4.resources import HumanName, Patient
+
+patient = Patient(id="child-1", gender="female", name=[HumanName(family="Kamara", given=["Aminata"])])
+FHIRPathEvaluator().evaluate("Patient.name.given", patient)
+# ['Aminata']
+```
+
+::: dhis2w_fhir_engine.ingest
 
 ### FHIR R4: data sources
 
