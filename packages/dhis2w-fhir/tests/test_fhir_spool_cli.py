@@ -230,3 +230,37 @@ def test_requeue_naming_nothing_at_all_says_what_it_needs(
     stderr = _through_the_funnel(["fhir", "requeue"], monkeypatch, capsys)
 
     assert "--all-rejected" in stderr
+
+
+def _write_attributed_receipt(directory: Path, response_id: str, submitted_by: str) -> None:
+    """One receipt the facade captured under `[serve] auth = "dhis2"`, stamped with who submitted it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    envelope = {
+        "response_id": response_id,
+        "received_at": "2026-08-08T11:00:00Z",
+        "form_kind": "aggregate",
+        "questionnaire": _QUESTIONNAIRE,
+        "submitted_by": submitted_by,
+        "warnings": [],
+        "response": {"resourceType": "QuestionnaireResponse", "id": response_id, "status": "completed"},
+    }
+    (directory / f"{response_id}.json").write_text(json.dumps(envelope, indent=2), encoding="utf-8")
+
+
+def test_the_listing_names_who_captured_a_receipt_when_one_names_anybody(spooled_project: Path) -> None:
+    """A DHIS2-posture facade records the submitter, and the listing is where an operator reads it back."""
+    _write_attributed_receipt(spooled_project / RECEIVED_RESPONSES_RELATIVE_PATH, "attributed-1", "clerk")
+
+    result = _runner.invoke(build_app(), ["fhir", "spool", str(spooled_project), "--details"])
+
+    assert result.exit_code == 0, result.output
+    assert "Captured by" in result.output
+    assert "clerk" in result.output
+
+
+def test_the_listing_leaves_the_column_out_where_no_receipt_names_anybody(spooled_project: Path) -> None:
+    """Every receipt a no-authentication facade wrote carries none, and a column of blanks says nothing."""
+    result = _runner.invoke(build_app(), ["fhir", "spool", str(spooled_project), "--details"])
+
+    assert result.exit_code == 0, result.output
+    assert "Captured by" not in result.output

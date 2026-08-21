@@ -8,8 +8,8 @@
 
 **You will be able to:**
 
-- decide who can reach the capture server, and understand why that is the
-  one setting to read twice
+- decide who can reach the capture server, and who it asks to identify
+  themselves - the two settings to read twice
 - change the port it listens on and read the refusal when the port is taken
 - turn strict code checking on, serve the data-entry screens, and choose the
   map backgrounds the screens offer (or offer none, for an air-gapped
@@ -41,27 +41,38 @@ Two things to know before the options:
     error: no compiled IG at ig/fsh-generated/resources - run `d2w fhir generate`, then `make sushi` in the project, and serve again.
     ```
 
-- The server has **no login**. Anyone who can reach it can read everything it
-  serves and submit forms to it. That is why `host` below is the option to
-  read most carefully. A `--live` run widens what "everything" means: that
-  mode answers questions about people - it searches the DHIS2 instance for a
-  person by identifier, returns the attribute values DHIS2 holds about them,
-  and, until you say otherwise, lists the people the instance holds a page at a
-  time. A default run serves only what the guide published and can answer no
-  such question, so an exposed live server is a materially different decision
-  from an exposed compiled one. How much of that a live run offers is
-  [`[serve.tracked_entities]`](#tracked_entities) below.
+- The server asks nobody who they are until you tell it to. `auth = "none"` -
+  the default - serves every caller who can reach it, so `host` and
+  [`auth`](#auth) are two halves of one decision: who can reach it, and who it
+  will answer. Binding anything but loopback while `auth` is unwritten is
+  refused at startup for exactly that reason. A `--live` run widens what a
+  caller can see: that mode answers questions about people - it searches the
+  DHIS2 instance for a person by identifier, returns the attribute values DHIS2
+  holds about them, and, until you say otherwise, lists the people the instance
+  holds a page at a time. A default run serves only what the guide published and
+  can answer no such question, so an exposed live server is a materially
+  different decision from an exposed compiled one. How much of that a live run
+  offers is [`[serve.tracked_entities]`](#tracked_entities) below.
+
+- **Every answer is read under the facade's own DHIS2 profile**, not the
+  caller's, whoever the caller turns out to be. Give that profile the rights the
+  guide needs and no more: DHIS2 skips its tracker ownership and access-level
+  model outright for a superuser, and writes no break-the-glass audit entry when
+  it does, so a facade running as an administrator reads past sharing,
+  ownership, and access levels with nothing in the audit trail to say so.
 
 ### `host`
 
 !!! warning "Read before you decide - this is the exposure switch"
     `host = "127.0.0.1"` means the server is reachable from this computer
     only. Anything else - your machine's network address, or the
-    every-network address `"0.0.0.0"` - opens it to other computers, and the
-    server has no login: this one line is its entire access control. Serving
-    a district office is a deliberate deployment - someone accountable puts
-    the server behind proper protection first. Changing this line to make an
-    error go away is never the fix.
+    every-network address `"0.0.0.0"` - opens it to other computers. Under the
+    default `auth = "none"` this one line is the server's entire access
+    control, which is why writing it without also writing [`auth`](#auth) is
+    refused. Serving a district office is a deliberate deployment - someone
+    accountable decides the posture and puts the server behind proper
+    protection first. Changing this line to make an error go away is never the
+    fix.
 
 **In plain words.** Which network face the server listens on: your own
 computer only (the default), or an address other machines can reach.
@@ -85,8 +96,9 @@ only from the computer it runs on. This is the posture to keep.
 
 **If you get it wrong:** an address the machine does not have makes the server
 fail at startup with a system error naming the address; nothing checks the
-value before that. The riskier mistake - opening it wide - produces no error
-at all, which is what the warning above is for.
+value before that. Opening it wide without stating a posture is refused before
+the socket opens, and the refusal names the line to write - see
+[`auth`](#auth).
 
 ### `port`
 
@@ -130,6 +142,115 @@ A non-number stops the run earlier:
 pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
 serve.port
   Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='eighty', input_type=str]
+```
+
+### `auth`
+
+**In plain words.** Who this server answers: everybody, anybody holding a token
+you issued, or anybody who can sign in to the DHIS2 instance behind it.
+
+**When you would change it.** The moment the server is reachable from another
+computer. `token` is the posture for a machine client - one shared secret, handed
+to whoever integrates. `dhis2` is the posture for people: the clerks filling in
+forms already have DHIS2 accounts, and this is how those accounts become their
+credentials for the facade. It needs `--live`, because checking a credential
+means asking the instance.
+
+**Example.**
+
+```toml
+[serve]
+host = "0.0.0.0"
+auth = "dhis2"
+```
+
+Every caller presents the DHIS2 username and password they would sign in to the
+instance with (or a DHIS2 personal access token as
+`Authorization: ApiToken <token>`), and this server checks it by reading
+`/api/me` on that instance as them. The username it gets back is recorded on
+every receipt that caller captures.
+
+The `token` posture takes its tokens from the environment, never from this file:
+
+```toml
+[serve]
+host = "0.0.0.0"
+auth = "token"
+```
+
+```bash
+export D2W_FHIR_SERVE_TOKENS='a-long-random-value,another-for-the-second-client'
+```
+
+Comma-separated. Rotating them is replacing the variable and restarting the
+server. They are secrets, and `fhir.toml` is a file projects commit - so a
+`token` posture with the variable unset is refused at startup rather than
+started as a server that accepts nobody.
+
+**Default:** the key is absent, which is not the same as `auth = "none"` -
+**If you leave it out:** the server serves every caller and binds loopback
+only. Binding any other interface with the key absent is refused:
+
+```text
+error: `0.0.0.0` is not a loopback interface, and this project's fhir.toml states no [serve] auth. Write the posture down before serving the facade where other hosts can reach it - add one line under [serve] in fhir.toml: auth = "none" to serve every caller, auth = "token" to take a static bearer token out of D2W_FHIR_SERVE_TOKENS, or auth = "dhis2" to have every caller present the DHIS2 credentials this facade checks against the instance. --auth states the same thing for one run.
+```
+
+`auth = "none"` written out passes that check. The difference is deliberate: an
+absent key is nobody's decision, a written one is somebody's.
+
+**If you get it wrong:** a value that is not one of the three stops the run
+before anything starts.
+
+```text
+serve.auth
+  Input should be 'none', 'token' or 'dhis2'
+```
+
+`"oauth2"` is among the values it will tell you it does not accept, and that is
+current rather than an oversight: DHIS2 2.43.1's own authorization server
+returns a 500 for any client its API creates (BUGS.md 96), so a project could
+state it and nothing would answer. The name is reserved for when that is fixed.
+
+**What it does not do.** It decides who may ask. It does not decide what the
+answer contains: a live run reads DHIS2 as the profile the server was started
+with, so what any caller can see is that profile's rights rather than their own.
+Give the facade a least-privilege DHIS2 user - see the note above the options.
+
+### `auth_scope`
+
+**In plain words.** How much of the server the posture covers: submissions only,
+or everything.
+
+**When you would change it.** `all` is for a server whose published guide is
+itself not public - a project whose Questionnaires name programs and data
+elements you would rather not hand out. `write` is right whenever the guide is
+publishable and only the captures need a name against them.
+
+**Example.**
+
+```toml
+[serve]
+auth = "token"
+auth_scope = "all"
+```
+
+Every address needs a token except `GET /metadata`, which stays open in every
+posture: a client has to be able to read how to authenticate to a server before
+it can. The capture UI's own files stay open too - a sign-in page nobody can
+load is a sign-in page nobody can use.
+
+**Default:** `"write"` - **If you leave it out:** credentials are asked for on
+`POST /QuestionnaireResponse` and nowhere else. That is the one address this
+facade changes anything at; every other POST it serves writes nothing -
+`$generate` drafts a response from a published form, `/evaluate` runs an
+expression over what is served, and a CDS Hooks call answers cards.
+
+**If you get it wrong:** a value that is neither stops the run before anything
+starts.
+
+```text
+serve.auth_scope
+  Input should be 'write' or 'all'
 ```
 
 ### `strict_codes`

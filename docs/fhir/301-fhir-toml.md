@@ -153,11 +153,14 @@ others - each has a warning box on its own page, and each is worth reading
 2. **[`organisation_units.max_level`](301-what-goes-in.md#max_level)** - the
    single biggest lever over how large the guide is and how long it takes to
    build. A national facility list at full depth is most of the build time.
-3. **[`serve.host`](301-serving.md#host)** - the switch between "the capture
-   server is visible only on this computer" and "everyone on the network can
-   reach it". The server has no login, so this line is its whole access
-   control. On a server started in live mode, what sits behind it includes the
-   people the DHIS2 instance holds - how much of that it offers is
+3. **[`serve.host`](301-serving.md#host)** and
+   **[`serve.auth`](301-serving.md#auth)** - who can reach the capture server,
+   and who it answers. The first is the switch between "visible only on this
+   computer" and "everyone on the network can reach it"; the second is whether
+   any of them is asked who they are, and under its default nobody is - which is
+   why binding anything but loopback with `auth` unwritten is refused at startup.
+   On a server started in live mode, what sits behind it includes the people the
+   DHIS2 instance holds - how much of that it offers is
    [`[serve.tracked_entities]`](301-serving.md#tracked_entities).
 
 ## Where the run tells you what it did

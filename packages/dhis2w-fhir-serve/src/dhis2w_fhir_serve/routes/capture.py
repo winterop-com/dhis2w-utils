@@ -19,6 +19,12 @@ copy byte-faithful to what the client sent.
 Nothing here talks to DHIS2. Accepting a capture means the submission was understood and kept,
 not that it has been written to an instance. Kept means durable: the receipt is fsynced and its
 directory entry with it before the 201 goes out, so a 201 is a promise that survives power loss.
+
+WHO SUBMITTED IT is stamped on the receipt where this run established anybody. Under
+`[serve] auth = "dhis2"` the check has already read `/api/me` as the caller, so the username DHIS2
+answered with is on the request and goes onto the envelope. Under every other posture there is no
+person to name and the field stays absent - a static token is not a submitter, and a server that
+authenticates nobody knows nobody.
 """
 
 from __future__ import annotations
@@ -31,6 +37,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from dhis2w_fhir_serve.auth import request_identity
 from dhis2w_fhir_serve.capability import QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE
 from dhis2w_fhir_serve.capture.index import CaptureIndexCache
 from dhis2w_fhir_serve.capture.naming import CaptureNaming
@@ -95,7 +102,7 @@ async def create_questionnaire_response(request: Request) -> Response:
             content=rejection_outcome(rejection.issues).model_dump(mode="json", exclude_none=True, by_alias=True),
             media_type=FHIR_JSON_MEDIA_TYPE,
         )
-    envelope = _receipt(validated)
+    envelope = _receipt(validated, request)
     # Off the event loop: the write is a temporary file, an fsync of it, a rename, and an fsync of
     # the directory - blocking work the facade must not do inline, since the point of the fsyncs is
     # that they wait for the device.
@@ -124,15 +131,17 @@ def capture_state(request: Request) -> CaptureState:
     return state
 
 
-def _receipt(validated: ValidatedCapture) -> StoredResponseEnvelope:
+def _receipt(validated: ValidatedCapture, request: Request) -> StoredResponseEnvelope:
     """Mint the receipt for one accepted submission, stamping the id it is served under onto the stored copy."""
     response_id = new_response_id()
     stored: dict[str, Any] = {**validated.response, "id": response_id}
+    identity = request_identity(request)
     return StoredResponseEnvelope(
         response_id=response_id,
         received_at=current_instant(),
         form_kind=validated.form_kind,
         questionnaire=validated.canonical,
+        submitted_by=None if identity is None else identity.username,
         warnings=tuple(warning.diagnostics or "" for warning in validated.warnings),
         response=stored,
     )

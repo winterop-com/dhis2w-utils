@@ -35,12 +35,26 @@ routers carry the `Accept` negotiation as a mount-time dependency - a client tha
 refused before any of them runs - and the three that answer plain JSON about this facade rather
 than FHIR resources out of it do not. See `dhis2w_fhir_serve.routes.negotiation`.
 
+WHICH ROUTERS ARE BEHIND THE AUTHENTICATION CHECK is decided here as well, and stated the same way:
+`ServeRouters.guarded` names them, and `[serve] auth_scope` is the whole of what decides the set.
+`write` guards the state-changing surface, which is one route - `POST /QuestionnaireResponse`, the
+create. Every other POST this facade serves writes nothing: `$generate` reads a published form and
+answers with a draft, `/evaluate` runs an expression over what is served, a CDS Hooks call answers
+cards, and `POST /` is a refusal on every posture. `all` guards everything except `/metadata`, which
+stays open because a client has to be able to read the posture it is expected to meet - a server
+that refuses to say how to authenticate to it is one nobody can authenticate to. The UI mounts stay
+open under both, for the same reason: a sign-in prompt has to be servable.
+
 All of that is stated as data by `serve_routers`, so an application mounting the facade beside its
-own routes gets the order, the split, and the capture choice as values rather than as three
-paragraphs it has to read. `register_routes` is a loop over what that function answers, and holds no
-router knowledge of its own.
+own routes gets the order, the split, the capture choice, and the guarded set as values rather than
+as four paragraphs it has to read. `register_routes` is a loop over what that function answers, and
+holds no router knowledge of its own - including the check itself, which is one dependency an
+embedding application is free to replace with its own over the same `guarded` set.
 """
 
+from typing import Any
+
+from dhis2w_fhir.config import ServeAuth, ServeAuthScope
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict
@@ -76,12 +90,32 @@ class ServeRouters(BaseModel):
     read: APIRouter
     """The catch-alls, named on their own because they mount last."""
 
+    guarded: tuple[APIRouter, ...] = ()
+    """The routers the authentication check belongs on, as objects also present in the fields above.
+
+    A subset rather than a fourth group: a router is mounted once, in the group whose requirement it
+    carries, and this names which of those mounts additionally take `Depends(require_authenticated)`.
+    Empty under `[serve] auth = "none"`, which is what makes the default posture cost a request
+    nothing. An application that authenticates its callers its own way mounts its own dependency over
+    exactly this set.
+    """
+
+    def is_guarded(self, router: APIRouter) -> bool:
+        """Whether one router carries the authentication check, compared by identity rather than by path."""
+        return any(router is guarded for guarded in self.guarded)
+
     def in_mount_order(self) -> tuple[APIRouter, ...]:
         """Every router, in the order a route table has to see them: fixed paths first, catch-alls last."""
         return (*self.fhir, *self.facade, self.read)
 
 
-def serve_routers(*, capture: bool = True, serve_ui: bool = False) -> ServeRouters:
+def serve_routers(
+    *,
+    capture: bool = True,
+    serve_ui: bool = False,
+    auth: ServeAuth = ServeAuth.NONE,
+    auth_scope: ServeAuthScope = ServeAuthScope.WRITE,
+) -> ServeRouters:
     """The facade's routers for one posture, with what mounting each group requires stated as data.
 
     `capture` picks which router claims `POST /QuestionnaireResponse` - the create route, or the
@@ -89,6 +123,11 @@ def serve_routers(*, capture: bool = True, serve_ui: bool = False) -> ServeRoute
     claims `GET /`: with the capture UI mounted, the shell serves it instead, and a router claiming
     the path in order to refuse it would take it away from the mount. Neither is a request-time
     question, which is why both are settled here.
+
+    `auth` and `auth_scope` fill `guarded`. `none` guards nothing. `write` guards the create route
+    and only the create route, and guards nothing at all on a server that receives nothing - putting
+    a 405 behind a credential would answer "who are you" where the honest answer is "this server
+    takes no submissions". `all` guards every router but `/metadata`.
 
     The routers are imported inside this function rather than at module scope: a route module reaches
     the serve context through `dhis2w_fhir_serve.routes.context`, which imports this package, so
@@ -108,47 +147,86 @@ def serve_routers(*, capture: bool = True, serve_ui: bool = False) -> ServeRoute
     from dhis2w_fhir_serve.routes.translate import router as translate_router
     from dhis2w_fhir_serve.routes.uiconfig import router as ui_config_router
 
+    submissions = capture_router if capture else capture_refusal_router
+    fhir = (metadata_router, submissions, build_root_router(serve_ui), translate_router, generate_router)
+    facade = (spool_router, ui_config_router, enrollments_router, evaluate_router, terminology_router, cds_router)
     return ServeRouters(
-        fhir=(
-            metadata_router,
-            capture_router if capture else capture_refusal_router,
-            build_root_router(serve_ui),
-            translate_router,
-            generate_router,
-        ),
-        facade=(
-            spool_router,
-            ui_config_router,
-            enrollments_router,
-            evaluate_router,
-            terminology_router,
-            cds_router,
-        ),
+        fhir=fhir,
+        facade=facade,
         read=read_router,
+        guarded=_guarded_routers(
+            auth=auth,
+            auth_scope=auth_scope,
+            capture=capture,
+            submissions=submissions,
+            conformance=metadata_router,
+            fhir=fhir,
+            facade=facade,
+            read=read_router,
+        ),
     )
 
 
-def register_routes(app: FastAPI, serve_ui: bool = False, capture: bool = True) -> None:
+def _guarded_routers(
+    *,
+    auth: ServeAuth,
+    auth_scope: ServeAuthScope,
+    capture: bool,
+    submissions: APIRouter,
+    conformance: APIRouter,
+    fhir: tuple[APIRouter, ...],
+    facade: tuple[APIRouter, ...],
+    read: APIRouter,
+) -> tuple[APIRouter, ...]:
+    """Which routers the authentication check belongs on, for one posture and one scope."""
+    if auth is ServeAuth.NONE:
+        return ()
+    if auth_scope is ServeAuthScope.ALL:
+        return (*(router for router in fhir if router is not conformance), *facade, read)
+    return (submissions,) if capture else ()
+
+
+def register_routes(
+    app: FastAPI,
+    serve_ui: bool = False,
+    capture: bool = True,
+    auth: ServeAuth = ServeAuth.NONE,
+    auth_scope: ServeAuthScope = ServeAuthScope.WRITE,
+    authentication: Any = None,
+) -> None:
     """Mount the facade's routes: fixed paths first, the read catch-alls next, the UI shell last.
 
     The UI mounts are this function's own and are not in `ServeRouters`: they are `StaticFiles`
     rather than routers, and their order requirement only makes sense inside this facade's own route
     table. See `dhis2w_fhir_serve.ui`.
+
+    `authentication` is the dependency the guarded routers carry, and defaults to
+    `dhis2w_fhir_serve.auth.require_authenticated`. An application that already knows who its callers
+    are passes its own callable here - the set it is mounted over is `ServeRouters.guarded`, which is
+    a value that application can read for itself.
+
+    The check is mounted AHEAD of the content negotiation on the FHIR routers it shares a mount with:
+    a caller this server will not answer learns that before it learns which media types the server
+    answers in.
     """
+    from dhis2w_fhir_serve.auth import require_authenticated
     from dhis2w_fhir_serve.ui import mount_ui_assets, mount_ui_shell
 
-    routers = serve_routers(capture=capture, serve_ui=serve_ui)
+    check = require_authenticated if authentication is None else authentication
+    routers = serve_routers(capture=capture, serve_ui=serve_ui, auth=auth, auth_scope=auth_scope)
     if serve_ui:
         mount_ui_assets(app)
     for router in routers.in_mount_order():
         accept_head_wherever_get_is_served(router)
     for router in routers.fhir:
-        app.include_router(router, dependencies=[Depends(require_json_is_acceptable)])
+        guard = [Depends(check)] if routers.is_guarded(router) else []
+        app.include_router(router, dependencies=[*guard, Depends(require_json_is_acceptable)])
     for router in routers.facade:
-        app.include_router(router)
+        app.include_router(router, dependencies=[Depends(check)] if routers.is_guarded(router) else [])
     # The read catch-alls claim every path of their shape, so they mount after every fixed path -
     # which is why the one FHIR router that could not join the group above is mounted on its own.
-    app.include_router(routers.read, dependencies=[Depends(require_json_is_acceptable)])
+    read_guard = [Depends(check)] if routers.is_guarded(routers.read) else []
+    app.include_router(routers.read, dependencies=[*read_guard, Depends(require_json_is_acceptable)])
     if serve_ui:
         mount_ui_shell(app)
 

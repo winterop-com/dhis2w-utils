@@ -177,6 +177,19 @@ class StoredResponseEnvelope(BaseModel):
 
     form_kind: str
     questionnaire: str
+    submitted_by: str | None = None
+    """The DHIS2 username the facade validated this submission under, or None when it validated none.
+
+    Set only under `[serve] auth = "dhis2"`, where a caller presents credentials the instance answers
+    for and the username DHIS2 gives back is who submitted. Under `none` there is nobody to name, and
+    under `token` a static token names nobody either.
+
+    FACADE-SIDE PROVENANCE, AND NOTHING MORE. It says who handed this receipt to this server. It does
+    not say who the values reach DHIS2 as: `d2w fhir forward` posts as the forwarding profile, and
+    `storedBy` on the instance is DHIS2's own stamp of that profile. The receipt is where "who
+    captured this" is answered, and the instance is where "who wrote this" is.
+    """
+
     warnings: tuple[str, ...] = ()
     response: dict[str, Any]
     """The QuestionnaireResponse as received, stamped with its `id` - the same escape hatch `StoreEntry.body` documents.

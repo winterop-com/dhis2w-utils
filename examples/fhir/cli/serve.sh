@@ -44,11 +44,16 @@ cat >> fhir.toml <<'TOML'
 host = "127.0.0.1"
 port = 8090
 strict_codes = false
+auth = "none"
 TOML
 
-# Serve it. The default binds loopback (the facade has no authentication) on port 8080,
-# [serve] port overrides that, and --port overrides both. Startup loads the project, the
-# store, and the response spool once.
+# `auth` is who this facade serves: none, token, or dhis2. An absent key serves every
+# caller on loopback and refuses any other interface at startup, naming the line to write -
+# so a project that means to bind 0.0.0.0 states the posture rather than defaulting into it.
+# `auth = "none"` written out is that statement. See docs/fhir/301-serving.md.
+
+# Serve it. The default binds loopback on port 8080, [serve] port overrides that, and
+# --port overrides both. Startup loads the project, the store, and the response spool once.
 d2w fhir serve --port "$PORT" &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
@@ -147,6 +152,16 @@ ls .serve/responses/received | wc -l
 # --live skips the compile entirely and builds the served resources off the instance at
 # startup, through one client closed before the first request. Same routes, same shapes.
 # d2w fhir serve --port "$PORT" --live
+
+# Static bearer tokens, out of the environment and never out of fhir.toml. A refused caller
+# gets 401 with WWW-Authenticate; `--auth-scope all` closes everything but /metadata.
+# D2W_FHIR_SERVE_TOKENS='a-long-random-value' d2w fhir serve --port "$PORT" --auth token
+
+# Or the caller's own DHIS2 credentials, checked with one GET /api/me against the instance
+# this run reads. Live only, and the validated username lands on every receipt they capture.
+# d2w fhir serve --port "$PORT" --live --auth dhis2
+# curl -u clerk:secret -X POST "${BASE}/QuestionnaireResponse" \
+#     -H 'Content-Type: application/fhir+json' --data-binary @load/response-1.json
 
 # Stop the server and clean up.
 kill "$SERVER_PID"

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dhis2w_fhir.config import FhirProject
-from dhis2w_fhir.r4 import CapabilityStatement
-from dhis2w_fhir_serve.capability import build_server_capability
+from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope
+from dhis2w_fhir.r4 import CapabilityStatement, CapabilityStatementSecurity
+from dhis2w_fhir_serve.capability import SECURITY_SERVICE_SYSTEM, build_server_capability
 from dhis2w_fhir_serve.metadata import build_metadata_body
 from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 from dhis2w_fhir_serve.register.surface import RegisterSurface
@@ -170,3 +170,63 @@ def test_capability_round_trips_through_the_r4_model(compiled_project: FhirProje
     assert revalidated.model_dump(exclude={"date"}) == capability.model_dump(exclude={"date"})
     assert "url" not in body
     assert "experimental" not in body
+
+
+def test_the_security_element_is_declared_in_every_posture_including_the_one_that_authenticates_nobody(
+    compiled_project: FhirProject,
+) -> None:
+    """An absent element would leave "authenticates nobody" and "did not say" indistinguishable."""
+    statement = _capability(compiled_project, FULL_SUMMARY)
+    security = statement.rest[0].security if statement.rest else None
+
+    assert security is not None
+    assert security.cors is False
+    assert security.service is None
+    assert "authenticates nobody" in (security.description or "")
+
+
+def test_the_token_posture_names_the_scheme_and_the_variable_but_never_a_token(
+    compiled_project: FhirProject,
+) -> None:
+    """A conformance document is public, so what it says about a credential is how to send one."""
+    security = _security(compiled_project, ServeAuth.TOKEN, ServeAuthScope.WRITE)
+
+    assert [concept.text for concept in security.service or []] == ["Bearer token"]
+    assert "D2W_FHIR_SERVE_TOKENS" in (security.description or "")
+    assert "Bearer <token>" in (security.description or "")
+
+
+def test_the_dhis2_posture_names_basic_by_its_r4_code_and_the_access_token_as_text(
+    compiled_project: FhirProject,
+) -> None:
+    """The value set has a code for one of the two schemes, and an extensible binding is for the other."""
+    security = _security(compiled_project, ServeAuth.DHIS2, ServeAuthScope.WRITE)
+    codings = [coding for concept in security.service or [] for coding in concept.coding or []]
+
+    assert [coding.code for coding in codings] == ["Basic"]
+    assert [coding.system for coding in codings] == [SECURITY_SERVICE_SYSTEM]
+    assert "DHIS2 personal access token" in [concept.text for concept in security.service or []]
+    assert "/api/me" in (security.description or "")
+
+
+def test_each_scope_says_how_much_of_the_surface_the_posture_covers(compiled_project: FhirProject) -> None:
+    """A client reading the document learns whether browsing needs a credential or only submitting does."""
+    write = _security(compiled_project, ServeAuth.TOKEN, ServeAuthScope.WRITE)
+    everything = _security(compiled_project, ServeAuth.TOKEN, ServeAuthScope.ALL)
+
+    assert "Every read" in (write.description or "")
+    assert "every interaction except reading this document" in (everything.description or "")
+
+
+def _security(project: FhirProject, posture: ServeAuth, scope: ServeAuthScope) -> CapabilityStatementSecurity:
+    """The `rest.security` one process declares, built the way `/metadata` builds it."""
+    statement = build_server_capability(
+        project=project,
+        store_summary=FULL_SUMMARY,
+        settings=ServeSettings(project_dir=project.project_root, auth=posture, auth_scope=scope),
+        register_surface=_register_surface(project),
+        server_version="9.9.9",
+    )
+    security = statement.rest[0].security if statement.rest else None
+    assert security is not None
+    return security

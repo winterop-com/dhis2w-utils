@@ -135,7 +135,9 @@ What each step is for:
    `Depends(require_json_is_acceptable)`, the facade routers do not, the read catch-alls mount after
    every fixed path your application serves - `/{resource_type}` claims any one-segment path, so your
    own `/health` mounts first or it is gone - and every router gets the HEAD sweep, or a liveness
-   probe asking `HEAD /metadata` reads a live facade as down.
+   probe asking `HEAD /metadata` reads a live facade as down. `ServeRouters.guarded` is the fourth
+   requirement, and the one an application usually answers itself: see
+   [bring your own authentication](#bring-your-own-authentication).
 4. **The error handlers.** Without `register_error_handlers`, every typed refusal the facade raises -
    `RegisterDisabledError`, `NotServedError`, `CaptureDisabledError` - is a 500 with no
    `OperationOutcome` in it.
@@ -200,6 +202,38 @@ facade = (evaluate_router, terminology_router, cds_router)
 routers = serve_routers(capture=settings.capture)
 ```
 
+#### Bring your own authentication
+
+`serve_routers` answers a fourth value beside the three collections: `guarded`, the routers the
+authentication check belongs on for the posture and scope it was called with. It is a subset of the
+routers already in `fhir`, `facade`, and `read`, compared by identity through `routers.is_guarded`,
+so a router is mounted once and the guard is one more dependency on that mount.
+
+`d2w fhir serve` mounts `dhis2w_fhir_serve.auth.require_authenticated` over it. An application that
+already knows who its callers are mounts its own dependency instead - the set is the same set, and
+nothing else about the facade changes:
+
+```python
+from dhis2w_fhir_serve import ServeRouters, serve_routers
+from fastapi import Depends, Request
+
+
+async def whoever_this_application_says(request: Request) -> None:
+    ...  # raise your own 401 here
+
+
+routers = serve_routers(capture=settings.capture, auth=settings.auth, auth_scope=settings.auth_scope)
+for router in routers.fhir:
+    guard = [Depends(whoever_this_application_says)] if routers.is_guarded(router) else []
+    application.include_router(router, dependencies=[*guard, Depends(require_json_is_acceptable)])
+```
+
+A dependency mounted this way that wants its captures attributed writes a
+`dhis2w_fhir_serve.auth.RequestIdentity` onto `request.state` under
+`dhis2w_fhir_serve.auth.REQUEST_IDENTITY_ATTRIBUTE`; the capture route reads it there and stamps the
+username onto the receipt. `register_routes` takes the same seam as its `authentication` argument for
+an application that wants the facade's own mounting and its own check.
+
 Two things stay outside this contract. The capture UI is not a router and is reached by running
 `create_app` with `settings.ui`; see [the UI boundary](design/library.md#35-the-ui-boundary-and-what-it-means-for-the-package-layout).
 And a facade served under a path is **mounted** rather than included under a prefix: every `fullUrl`,
@@ -246,6 +280,14 @@ handlers read is written and read back.
 ::: dhis2w_fhir_serve.routes.context
 
 ::: dhis2w_fhir_serve.routes.negotiation
+
+### Authentication
+
+Who the facade serves: the three postures `[serve] auth` picks between, the scope `[serve] auth_scope`
+covers, the startup refusals a posture this run could not honour meets before the socket opens, and
+the one dependency the guarded routers carry.
+
+::: dhis2w_fhir_serve.auth
 
 ### Resource store
 

@@ -9,6 +9,8 @@
  * models, field for field, in the wire's own spelling.
  */
 
+import type { AuthPosture, AuthScope } from '@/lib/auth'
+
 /** One raster layer the organisation-unit map offers under the boundaries. */
 export interface BasemapLayer {
     /** What the map's layer control calls it - the deployment's own word, never rewritten here. */
@@ -74,6 +76,29 @@ export interface TrackedEntitiesSettings {
 }
 
 /**
+ * How this run decides who is calling, as `/uiconfig` states it: the posture, and how much it covers.
+ *
+ * THE NAME AND NOTHING ELSE. No token, no realm, no username. `posture` is what a screen would draw a
+ * prompt from and `scope` is whether browsing needs a credential or only submitting does - and the
+ * sign-in gate reads neither of them from here, because this document is itself behind the check
+ * under `scope: 'all'`. It reads the posture off `/metadata`, which is open under every posture; see
+ * `lib/auth`. What this object is for is the Server page, which says what this process is - and
+ * `scope` is the one fact `/metadata` states only in prose.
+ */
+export interface AuthSettings {
+    posture: AuthPosture
+    scope: AuthScope
+}
+
+/** What a server stating nothing is read as: it authenticates nobody, so no prompt is invented. */
+export const NO_AUTHENTICATION: AuthSettings = { posture: 'none', scope: 'write' }
+
+/** How this run decides who is calling, with silence read as deciding nothing. */
+export function authSettings(config: UiConfig): AuthSettings {
+    return config.auth ?? NO_AUTHENTICATION
+}
+
+/**
  * The whole answer.
  *
  * `basemaps` empty means this run offers no tiles, which is a state rather than a gap: the layer
@@ -93,6 +118,7 @@ export interface UiConfig {
      * screen already renders that refusal; a Submit that is not there explains nothing to anybody.
      */
     capture?: boolean
+    auth?: AuthSettings
     basemaps: BasemapLayer[]
     dhis2_base_url: string | null
     tracked_entities?: TrackedEntitiesSettings | null

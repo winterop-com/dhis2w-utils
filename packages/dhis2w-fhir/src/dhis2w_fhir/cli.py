@@ -30,6 +30,8 @@ from dhis2w_fhir import (
     MALFORMED_RESPONSES_RELATIVE_PATH,
     GenerateReport,
     OverwritePosture,
+    ServeAuth,
+    ServeAuthScope,
     load_project,
 )
 from dhis2w_fhir.doctor import DEFAULT_ORACLE_SAMPLES
@@ -1174,12 +1176,34 @@ def serve_command(
         str | None,
         typer.Option(
             "--host",
-            help="Interface to bind, overriding `\\[serve] host`. The default is loopback: the facade has "
-            "no authentication, so reaching it from another host is a deliberate act.",
+            help="Interface to bind, overriding `\\[serve] host`. The default is loopback. Binding "
+            "anything else while neither --auth nor `\\[serve] auth` states a posture is refused: who "
+            "reaches this facade and who it answers are one decision.",
         ),
     ] = None,
     port: Annotated[
         int | None, typer.Option("--port", help="Port to listen on, overriding `\\[serve] port` (default 8080).")
+    ] = None,
+    auth: Annotated[
+        ServeAuth | None,
+        typer.Option(
+            "--auth",
+            help="Who this facade serves, overriding `\\[serve] auth`. `none` serves every caller; "
+            "`token` takes a static bearer token out of D2W_FHIR_SERVE_TOKENS; `dhis2` takes the "
+            "caller's own DHIS2 credentials and checks them against the instance this run reads, "
+            "which needs --live. Binding an interface other than loopback while neither this flag "
+            "nor fhir.toml states a posture is refused.",
+        ),
+    ] = None,
+    auth_scope: Annotated[
+        ServeAuthScope | None,
+        typer.Option(
+            "--auth-scope",
+            help="How much of the surface the posture covers, overriding `\\[serve] auth_scope`. "
+            "`write` asks for credentials on `POST /QuestionnaireResponse` and leaves every read "
+            "open; `all` asks for them everywhere except `/metadata`, which stays open so a client "
+            "can read the posture it has to meet.",
+        ),
     ] = None,
     strict_codes: Annotated[
         bool | None,
@@ -1226,13 +1250,15 @@ def serve_command(
 
     `--basemap` offers another tile layer on the organisation-unit map, and `--basemap none` offers none.
 
-    Host, port, strict codes, the UI, and the basemaps come from `\[serve]` in fhir.toml unless a flag overrides them.
+    `--auth` says who is served: `none`, `token` (D2W_FHIR_SERVE_TOKENS), or `dhis2` (the caller's own credentials).
+
+    Host, port, authentication, strict codes, the UI, and basemaps come from `\[serve]` unless a flag beats them.
 
     Two more `\[serve]` keys have no flag: `capture = false` serves the guide and receives nothing, and
     `spool_dir` says where the receipts live - the same directory `d2w fhir forward` drains.
     """
     try:
-        from dhis2w_fhir_serve import ServeSettings, configure_logging, create_app
+        from dhis2w_fhir_serve import ServeAuthConfigurationError, ServeSettings, configure_logging, create_app
     except ImportError as error:
         raise LookupError(_SERVE_PACKAGE_MISSING) from error
 
@@ -1251,7 +1277,11 @@ def serve_command(
             strict_codes=strict_codes,
             ui=ui,
             basemaps=basemap,
+            auth=auth,
+            auth_scope=auth_scope,
         )
+    except ServeAuthConfigurationError as error:
+        raise typer.BadParameter(str(error), param_hint="--auth") from error
     except ValueError as error:
         raise typer.BadParameter(str(error), param_hint="--basemap") from error
     settings = invocation.settings
@@ -1756,6 +1786,8 @@ def _write_forward_report(report: ForwardReport, generation: GenerationProfile) 
             lines.append(
                 f"- `{outcome.response_id}` ({outcome.questionnaire or 'no form'}) - {target} - {outcome.spool_path}"
             )
+            if outcome.submitted_by:
+                lines.append(f"    - captured by {outcome.submitted_by}")
             imported = outcome.import_outcome
             if imported is not None and imported.issues:
                 lines.extend(f"    - {issue.line}" for issue in imported.issues[:_REPORT_REASON_SAMPLE])
@@ -2047,6 +2079,10 @@ def _render_spool_state(report: SpoolStateReport, *, details: bool) -> None:
         console=STDERR_CONSOLE,
     )
     if details and report.receipts:
+        # The capture identity is a column only where there is one to show. Every receipt a
+        # no-authentication facade wrote carries none, and a column of empty cells in a table that
+        # already folds would cost the two columns that explain a row their width.
+        attributed = any(row.submitted_by for row in report.receipts)
         render_list(
             "receipts",
             [
@@ -2055,6 +2091,7 @@ def _render_spool_state(report: SpoolStateReport, *, details: bool) -> None:
                     "state": row.state.value,
                     "form": row.questionnaire.rsplit("/", 1)[-1] or row.questionnaire,
                     "received": row.received_at,
+                    "captured_by": row.submitted_by or "",
                     "reason": row.reason or "",
                 }
                 for row in report.receipts
@@ -2064,6 +2101,7 @@ def _render_spool_state(report: SpoolStateReport, *, details: bool) -> None:
                 ColumnSpec("State", "state", no_wrap=True),
                 ColumnSpec("Form", "form"),
                 ColumnSpec("Received", "received", no_wrap=True),
+                *([ColumnSpec("Captured by", "captured_by", no_wrap=True)] if attributed else []),
                 ColumnSpec("Why it is there", "reason"),
             ],
             console=STDERR_CONSOLE,

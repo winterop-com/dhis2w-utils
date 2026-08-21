@@ -140,7 +140,11 @@ def test_serve_launches_the_facade_on_the_requested_address(workdir: Path, recor
     project = _scaffold(workdir)
     _compile(project)
 
-    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--host", "0.0.0.0", "--port", "9123"])
+    # The posture rides along with the address: binding an interface other than loopback while
+    # neither the flag nor fhir.toml has stated one is refused, which is its own test below.
+    result = _runner.invoke(
+        build_app(), ["fhir", "serve", "project", "--host", "0.0.0.0", "--port", "9123", "--auth", "none"]
+    )
 
     assert result.exit_code == 0, result.output
     assert recorded_run.calls == 1
@@ -186,7 +190,7 @@ def test_serve_reads_its_address_from_the_project_config(workdir: Path, recorded
     """A `[serve]` table states once where this project is served, so a bare `serve` honours it."""
     project = _scaffold(workdir)
     _compile(project)
-    _write_serve_table(project, 'host = "0.0.0.0"\nport = 8090\nstrict_codes = true')
+    _write_serve_table(project, 'host = "0.0.0.0"\nport = 8090\nstrict_codes = true\nauth = "none"')
 
     result = _runner.invoke(build_app(), ["fhir", "serve", "project"])
 
@@ -195,6 +199,63 @@ def test_serve_reads_its_address_from_the_project_config(workdir: Path, recorded
     assert recorded_run.keyword_arguments["port"] == 8090
     assert recorded_run.application.state.settings.strict_codes is True
     assert "http://0.0.0.0:8090" in result.output
+
+
+def test_serve_refuses_a_non_loopback_address_while_no_posture_is_stated(
+    workdir: Path, recorded_run: _RecordedRun
+) -> None:
+    """The refusal is the one line a deployer meets before the socket opens, and it names what to write."""
+    project = _scaffold(workdir)
+    _compile(project)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--host", "0.0.0.0"])
+
+    assert result.exit_code != 0
+    assert 'auth = "none"' in result.output
+    assert recorded_run.calls == 0
+
+
+def test_serve_carries_the_posture_and_its_scope_into_the_settings(
+    workdir: Path, recorded_run: _RecordedRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--auth` and `--auth-scope` land on the settings the app factory was built from."""
+    monkeypatch.setenv("D2W_FHIR_SERVE_TOKENS", "a-deployment-token")
+    project = _scaffold(workdir)
+    _compile(project)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--auth", "token", "--auth-scope", "all"])
+
+    assert result.exit_code == 0, result.output
+    settings = recorded_run.application.state.settings
+    assert settings.auth.value == "token"
+    assert settings.auth_scope.value == "all"
+
+
+def test_serve_refuses_the_token_posture_with_no_tokens_in_the_environment(
+    workdir: Path, recorded_run: _RecordedRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A server that started with no tokens would refuse every caller after promising to accept some."""
+    monkeypatch.delenv("D2W_FHIR_SERVE_TOKENS", raising=False)
+    project = _scaffold(workdir)
+    _compile(project)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--auth", "token"])
+
+    assert result.exit_code != 0
+    assert "D2W_FHIR_SERVE_TOKENS" in result.output
+    assert recorded_run.calls == 0
+
+
+def test_serve_refuses_the_dhis2_posture_on_a_compiled_run(workdir: Path, recorded_run: _RecordedRun) -> None:
+    """A compiled guide has no instance behind it, so there is nobody to check a caller against."""
+    project = _scaffold(workdir)
+    _compile(project)
+
+    result = _runner.invoke(build_app(), ["fhir", "serve", "project", "--auth", "dhis2"])
+
+    assert result.exit_code != 0
+    assert "--live" in result.output
+    assert recorded_run.calls == 0
 
 
 def test_a_serve_flag_beats_the_table_and_the_table_beats_the_default(

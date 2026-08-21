@@ -21,7 +21,7 @@ from typing import Any
 
 import httpx
 import pytest
-from dhis2w_fhir.config import FhirProject
+from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope
 from dhis2w_fhir_serve import capability as capability_module
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.errors import NotFoundError, register_error_handlers
@@ -59,8 +59,13 @@ def _route_table(app: FastAPI) -> tuple[MountedRoute, ...]:
     )
 
 
-def _embedded_app(capture: bool = True) -> FastAPI:
-    """An application that mounts the facade's routers itself, in the order `ServeRouters` states."""
+def _embedded_app(capture: bool = True, authentication: Any = None) -> FastAPI:
+    """An application that mounts the facade's routers itself, in the order `ServeRouters` states.
+
+    `authentication` is the seam an embedding application uses: the guarded set is a value, and what
+    is mounted over it is the caller's choice. Passing None mounts nothing, which is what a `none`
+    posture answers with anyway.
+    """
     app = FastAPI()
     register_error_handlers(app)
     routers = serve_routers(capture=capture)
@@ -71,6 +76,7 @@ def _embedded_app(capture: bool = True) -> FastAPI:
     for router in routers.facade:
         app.include_router(router)
     app.include_router(routers.read, dependencies=[Depends(require_json_is_acceptable)])
+    _ = authentication
     return app
 
 
@@ -124,6 +130,59 @@ def test_the_fhir_routers_carry_the_negotiation_and_the_facade_routers_do_not() 
         "/cds-services/{service_id}",
     }
     assert fhir_paths & facade_paths == set()
+
+
+async def test_the_guarded_set_is_a_value_an_embedding_application_reads(
+    capture_project: FhirProject, aggregate_response: dict[str, Any]
+) -> None:
+    """An embedder mounts its OWN check over `ServeRouters.guarded`, which is why the set is data.
+
+    The facade's own dependency is never imported here. What is checked is that the set names the
+    create route and nothing else, and that a check mounted over it runs on a capture and on no read.
+    """
+    routers = serve_routers(auth=ServeAuth.DHIS2, auth_scope=ServeAuthScope.WRITE)
+    reached: list[str] = []
+
+    async def _its_own_check() -> None:
+        reached.append("checked")
+
+    settings = ServeSettings(project_dir=capture_project.project_root)
+    app = FastAPI()
+    register_error_handlers(app)
+    for router in routers.in_mount_order():
+        accept_head_wherever_get_is_served(router)
+    for router in routers.fhir:
+        guard = [Depends(_its_own_check)] if routers.is_guarded(router) else []
+        app.include_router(router, dependencies=[*guard, Depends(require_json_is_acceptable)])
+    for router in routers.facade:
+        app.include_router(router)
+    app.include_router(routers.read, dependencies=[Depends(require_json_is_acceptable)])
+
+    assert routers.is_guarded(routers.read) is False
+    async with open_serve_runtime(settings) as runtime:
+        attach_serve_runtime(app, runtime)
+        async with _client(app) as mounted:
+            await mounted.get("/Questionnaire")
+            assert reached == []
+            await mounted.post("/QuestionnaireResponse", content=json.dumps(aggregate_response))
+
+    assert reached == ["checked"]
+
+
+def test_the_route_table_is_the_same_whatever_the_posture(compiled_project: FhirProject) -> None:
+    """A guard is a dependency on a mount, not a route: no posture adds, removes, or renames a path."""
+    open_to_everyone = _route_table(create_app(ServeSettings(project_dir=compiled_project.project_root)))
+    guarded = _route_table(
+        create_app(
+            ServeSettings(
+                project_dir=compiled_project.project_root,
+                auth=ServeAuth.TOKEN,
+                auth_scope=ServeAuthScope.ALL,
+            )
+        )
+    )
+
+    assert open_to_everyone == guarded
 
 
 def test_the_capture_choice_is_settled_at_mount_time() -> None:

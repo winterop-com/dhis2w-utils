@@ -56,6 +56,12 @@ def create_app(settings: ServeSettings) -> FastAPI:
     `settings.capture` decides which router claims `POST /QuestionnaireResponse` - the create route,
     or the refusal that names the key. It is settled here, at build time, because it is what this
     server offers rather than something a request could be judged against.
+
+    `settings.auth` and `settings.auth_scope` decide which routers carry the authentication check,
+    which is settled at build time for the same reason. What the check then DOES is a request-time
+    question and lives in `dhis2w_fhir_serve.auth`; an application embedding the facade mounts its own
+    dependency over the same set. Nothing secret reaches this factory: the tokens a `token` posture
+    compares against are read from the environment by the check itself, never from the settings.
     """
     app = FastAPI(
         title=APPLICATION_TITLE,
@@ -68,7 +74,13 @@ def create_app(settings: ServeSettings) -> FastAPI:
     app.state.settings = settings
     app.add_middleware(RequestLogMiddleware)
     register_error_handlers(app)
-    register_routes(app, serve_ui=settings.ui, capture=settings.capture)
+    register_routes(
+        app,
+        serve_ui=settings.ui,
+        capture=settings.capture,
+        auth=settings.auth,
+        auth_scope=settings.auth_scope,
+    )
     return app
 
 

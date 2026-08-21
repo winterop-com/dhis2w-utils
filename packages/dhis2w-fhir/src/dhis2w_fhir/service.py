@@ -4777,6 +4777,14 @@ class ForwardOutcome(BaseModel):
     spool_path: str
     """Where the receipt sits now, relative to the project root - unmoved on a dry run and on a refusal."""
 
+    submitted_by: str | None = None
+    """The DHIS2 username the facade validated the capture under, carried through from the receipt.
+
+    Facade-side provenance and nothing more. The values this drain posts reach DHIS2 as the
+    forwarding profile, and `storedBy` on the instance is DHIS2's own stamp of that profile - so the
+    receipt is where "who captured this" is answered, and this field is that answer travelling.
+    """
+
 
 class ForwardReport(BaseModel):
     """The outcome of draining one project's capture spool into DHIS2, in the order it was drained.
@@ -5959,6 +5967,7 @@ def _collect_outcomes(
                 overwritten_values=overwritten.get(entry.response_id, ()),
                 overwrite_refused=refused_over_an_overwrite,
                 spool_path=_relative_path(path, project_root),
+                submitted_by=entry.submitted_by,
             )
         )
     return tuple(outcomes)
@@ -6062,6 +6071,9 @@ class SpoolReceiptRow(BaseModel):
     questionnaire: str
     form_kind: str
     received_at: str
+    submitted_by: str | None = None
+    """The DHIS2 username the facade validated the submission under, or None when it validated none."""
+
     reason: str | None = None
     """Why DHIS2 refused it, or why the translator would not convert it, off the report beside the file."""
 
@@ -6133,6 +6145,7 @@ def read_spool_state(project: FhirProject) -> SpoolStateReport:
             questionnaire=receipt.questionnaire,
             form_kind=receipt.form_kind,
             received_at=receipt.received_at,
+            submitted_by=receipt.submitted_by,
             reason=_receipt_reason(receipt),
         )
         for receipt in sorted(contents.receipts, key=lambda receipt: (receipt.received_at, receipt.response_id))

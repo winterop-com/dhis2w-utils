@@ -12,7 +12,22 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { refreshServerStatus, useServerStatus } from '@/hooks/use-server-status'
+import { useUiConfig } from '@/hooks/use-ui-config'
 import { declaredOperations } from '@/lib/fhir'
+import { authSettings } from '@/lib/uiconfig'
+
+/** What each posture is called on this page. Name the fact, not the config value. */
+const AUTHENTICATION_LABELS: Record<string, string> = {
+    none: 'Every caller is served',
+    token: 'A token this deployment issued',
+    dhis2: 'The DHIS2 credentials of whoever is calling',
+}
+
+/** What each scope is called. `write` is the default and covers the one state-changing address. */
+const SCOPE_LABELS: Record<string, string> = {
+    write: 'Required to submit a response; every read is open',
+    all: 'Required for every interaction except reading this document',
+}
 
 /**
  * What the server says about itself, read straight off `GET /metadata`.
@@ -34,6 +49,9 @@ export function Server() {
 
     const rest = capability?.rest?.[0]
     const operations = declaredOperations(capability)
+    // The posture comes off `/uiconfig` rather than off the document above, because the scope is a
+    // fact `/metadata` states only in prose - see `lib/uiconfig`.
+    const authentication = authSettings(useUiConfig().config)
 
     return (
         <>
@@ -72,6 +90,23 @@ export function Server() {
                                     <ReferenceRow key={canonical} canonical={canonical} />
                                 ))}
                             </dl>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base">Authentication</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                            <p>{AUTHENTICATION_LABELS[authentication.posture] ?? authentication.posture}</p>
+                            {authentication.posture !== 'none' && (
+                                <p className="text-muted-foreground">
+                                    {SCOPE_LABELS[authentication.scope] ?? authentication.scope}
+                                </p>
+                            )}
+                            {rest?.security?.description && (
+                                <p className="text-muted-foreground">{rest.security.description}</p>
+                            )}
                         </CardContent>
                     </Card>
 
