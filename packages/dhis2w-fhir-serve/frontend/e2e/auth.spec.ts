@@ -21,9 +21,16 @@ import { expect, test, type Page } from '@playwright/test'
  * `/api/me` request carries the CALLER's header rather than the runtime's, and holds the startup
  * refusals. Nothing in this file is the only proof of anything.
  *
+ * THE JWT POSTURE IS HERE ON THE SAME TERMS, and needs no identity provider to be running. What the
+ * browser does with that posture is draw a paste field headed with the issuer the conformance
+ * document named, and put what was pasted on the wire as a bearer token - none of which depends on
+ * the token being genuine. Whether a genuine token is accepted and a forged one refused is
+ * `test_serve_auth_jwt.py`'s claim, made there against real keys and real signatures.
+ *
  * THE CLAIM. A person opening this facade under the DHIS2 posture is asked who they are before any
  * page is drawn; what they type is sent as HTTP Basic on the next request; and the app is the app
- * again once the server accepts it.
+ * again once the server accepts it. Under the JWT posture they are told whose token to bring, and
+ * what they paste is what leaves the tab.
  */
 
 /** The aggregate form the fixture project publishes, which is what the gated capture answers. */
@@ -55,6 +62,34 @@ const DHIS2_SECURITY = {
         'Credentials are required to create a QuestionnaireResponse.',
 }
 
+/** The identity provider a JWT-posture server federates with, and one token a person pastes. */
+const ISSUER = 'https://idp.example.org/realms/health'
+const PASTED_TOKEN = 'eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIn0.e30.signature'
+const EXPECTED_BEARER = `Bearer ${PASTED_TOKEN}`
+
+/** Where a `jwt`-posture server states which issuer it takes tokens from - an extension on `security`. */
+const JWT_ISSUER_EXTENSION_URL =
+    'https://winterop-com.github.io/dhis2w-utils/fhir/StructureDefinition/serve-jwt-issuer'
+
+/** What a `jwt`-posture server declares in `rest.security` - `OAuth` by R4's code, plus the issuer. */
+const JWT_SECURITY = {
+    cors: false,
+    extension: [{ url: JWT_ISSUER_EXTENSION_URL, valueString: ISSUER }],
+    service: [
+        {
+            coding: [
+                {
+                    system: 'http://terminology.hl7.org/CodeSystem/restful-security-service',
+                    code: 'OAuth',
+                    display: 'OAuth',
+                },
+            ],
+            text: 'JWT bearer token',
+        },
+    ],
+    description: `Send a token from ${ISSUER}, as \`Authorization: Bearer <token>\`.`,
+}
+
 /** What the server answers a caller it does not know, on the one address a `write` scope guards. */
 const UNAUTHENTICATED_OUTCOME = {
     resourceType: 'OperationOutcome',
@@ -69,10 +104,20 @@ const UNAUTHENTICATED_OUTCOME = {
 
 /** Serve `/metadata` with the security element a DHIS2-posture server would carry. */
 async function serveDhis2Posture(page: Page): Promise<void> {
+    await servePosture(page, DHIS2_SECURITY)
+}
+
+/** Serve `/metadata` with the security element a JWT-posture server would carry, issuer and all. */
+async function serveJwtPosture(page: Page): Promise<void> {
+    await servePosture(page, JWT_SECURITY)
+}
+
+/** Answer `/metadata` from the real server, with one element rewritten to the posture under test. */
+async function servePosture(page: Page, security: unknown): Promise<void> {
     await page.route('**/metadata', async (route) => {
         const answered = await route.fetch()
         const statement = (await answered.json()) as { rest?: { security?: unknown }[] }
-        if (statement.rest?.[0]) statement.rest[0].security = DHIS2_SECURITY
+        if (statement.rest?.[0]) statement.rest[0].security = security
         await route.fulfill({
             status: 200,
             contentType: 'application/fhir+json',
@@ -99,7 +144,7 @@ const ACCEPTED_OUTCOME = {
  * credential, so it stops at the wire; the receipt reaching the spool is `capture.spec.ts`'s claim
  * and is made there against a server nothing has fulfilled.
  */
-async function guardTheCapture(page: Page, sent: string[]): Promise<void> {
+async function guardTheCapture(page: Page, sent: string[], accepted: string = EXPECTED_AUTHORIZATION): Promise<void> {
     await page.route('**/QuestionnaireResponse', async (route) => {
         if (route.request().method() !== 'POST') {
             await route.continue()
@@ -107,7 +152,7 @@ async function guardTheCapture(page: Page, sent: string[]): Promise<void> {
         }
         const credential = await route.request().headerValue('authorization')
         sent.push(credential ?? '')
-        const refused = credential !== EXPECTED_AUTHORIZATION
+        const refused = credential !== accepted
         await route.fulfill({
             status: refused ? 401 : 201,
             contentType: 'application/fhir+json',
@@ -174,4 +219,39 @@ test('a credential this server refuses brings the prompt back, wherever the refu
     await expect(page.getByText('This server did not accept those credentials.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
     expect(sent.at(-1)).toBe('Basic d3JvbmM6d3Jvbmc=')
+})
+
+
+test('a JWT-posture facade names the issuer to get a token from, and sends what was pasted', async ({ page }) => {
+    const sent: string[] = []
+    await serveJwtPosture(page)
+    await guardTheCapture(page, sent, EXPECTED_BEARER)
+
+    // Before signing in: one field, headed with the issuer, because a person told to bring a token
+    // cannot bring one without being told whose.
+    await page.goto('/#/forms')
+    await expect(page.getByText(`This server takes a token from ${ISSUER}`)).toBeVisible()
+    await expect(page.getByLabel('Token')).toBeVisible()
+    await expect(page.getByLabel('DHIS2 username')).toHaveCount(0)
+
+    // And the panel says whose business getting one is, and how long this tab keeps it.
+    await expect(page.getByText('identity provider')).toBeVisible()
+    await expect(page.getByText('this browser tab only')).toBeVisible()
+
+    await page.getByLabel('Token').fill(PASTED_TOKEN)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+
+    // After signing in: the page is drawn, and nobody is named - the name on a receipt is the claim
+    // the server read out of the token, never one this browser decided for itself.
+    await expect(page.getByText(`This server takes a token from ${ISSUER}`)).toHaveCount(0)
+    await expect(page.getByText(USERNAME)).toHaveCount(0)
+
+    // And a capture goes through, carrying exactly what was pasted, as a bearer token.
+    await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+    await page.getByRole('button', { name: 'Fill with test data' }).click()
+    await expect(page.getByText('Filled with test data')).toBeVisible()
+    await page.getByRole('button', { name: 'Submit' }).click()
+
+    await expect(page.getByText('The server accepted this submission')).toBeVisible()
+    expect(sent.at(-1)).toBe(EXPECTED_BEARER)
 })

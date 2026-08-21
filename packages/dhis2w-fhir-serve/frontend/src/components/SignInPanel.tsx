@@ -8,8 +8,8 @@ import {
     basicAuthorization,
     bearerAuthorization,
     signIn,
+    signInHeading,
     REFUSED_NOTICE,
-    SIGN_IN_HEADINGS,
     SIGN_IN_LABEL,
     SIGN_IN_NOTES,
     type AuthPosture,
@@ -26,15 +26,31 @@ import {
  * whether the server accepts it is answered by the next request, and a 401 brings this panel back
  * with `refused` set. That is one round trip rather than two, and it means there is no separate
  * "check my credentials" endpoint for this UI to depend on.
+ *
+ * THE JWT POSTURE DRAWS THE TOKEN FIELD AND NAMES THE ISSUER. It is a paste field rather than a sign-in
+ * form because this server has nowhere to send a username and a password: the token comes from an
+ * identity provider it does not run, and the panel says so rather than implying it could get one.
+ * The identity is left null for the same reason the deployment-token posture leaves it null - the
+ * name on the receipt is the claim the SERVER read out of the token, and a browser reading a name out
+ * of the token itself would be a browser asserting who somebody is.
  */
-export function SignInPanel({ posture, refused }: { posture: Exclude<AuthPosture, 'none'>; refused: boolean }) {
+export function SignInPanel({
+    posture,
+    issuer,
+    refused,
+}: {
+    posture: Exclude<AuthPosture, 'none'>
+    issuer: string | null
+    refused: boolean
+}) {
     const [token, setToken] = useState('')
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
+    const pastesAToken = posture === 'token' || posture === 'jwt'
 
     function submit(event: FormEvent<HTMLFormElement>): void {
         event.preventDefault()
-        if (posture === 'token') {
+        if (pastesAToken) {
             if (token.trim() === '') return
             signIn(bearerAuthorization(token.trim()), null)
             return
@@ -47,7 +63,7 @@ export function SignInPanel({ posture, refused }: { posture: Exclude<AuthPosture
         <div className="mx-auto w-full max-w-md py-10">
             <Card>
                 <CardHeader>
-                    <CardTitle>{SIGN_IN_HEADINGS[posture]}</CardTitle>
+                    <CardTitle>{signInHeading(posture, issuer)}</CardTitle>
                     <CardDescription>{SIGN_IN_NOTES[posture]}</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -57,7 +73,7 @@ export function SignInPanel({ posture, refused }: { posture: Exclude<AuthPosture
                         </p>
                     )}
                     <form className="grid gap-4" onSubmit={submit}>
-                        {posture === 'token' ? (
+                        {pastesAToken ? (
                             <div className="grid gap-2">
                                 <Label htmlFor="serve-token">Token</Label>
                                 <Input

@@ -27,11 +27,13 @@
        character by character rather than skimmed. */
     --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
-    /* The spool lifecycle, as colours. These four are the states a receipt can
-       be in on disk - see dhis2w_fhir_serve.spool and `d2w fhir forward`. */
+    /* The spool lifecycle, as colours. These are the states a receipt can be in
+       on disk - see dhis2w_fhir_serve.spool, `d2w fhir forward`, and
+       `d2w fhir withdraw` - plus the drain's own refusal of a queued one. */
     --color-status-received: var(--status-received);
     --color-status-forwarded: var(--status-forwarded);
     --color-status-rejected: var(--status-rejected);
+    --color-status-withdrawn: var(--status-withdrawn);
     --color-status-refused: var(--status-refused);
     /* QuestionnaireResponse.status, the two values the capture path writes. */
     --color-status-in-progress: var(--status-in-progress);
@@ -132,10 +134,12 @@
        receipt on disk is the normal resting state, not a warning. `refused`
        (the translator would not convert it) is amber because the fix is in the
        guide; `rejected` (DHIS2 said no) is the destructive hue because the fix
-       is in the data. */
+       is in the data. `withdrawn` is a muted violet, off the failure axis
+       entirely: nothing went wrong with it, it was taken back. */
     --status-received: oklch(0.55 0.11 240);
     --status-forwarded: oklch(0.6 0.14 155);
     --status-rejected: oklch(0.55 0.17 25);
+    --status-withdrawn: oklch(0.52 0.09 305);
     --status-refused: oklch(0.65 0.13 75);
     --status-in-progress: oklch(0.65 0.13 75);
     --status-completed: oklch(0.6 0.14 155);
@@ -181,6 +185,7 @@
     --status-received: oklch(0.72 0.14 240);
     --status-forwarded: oklch(0.72 0.16 155);
     --status-rejected: oklch(0.7 0.16 25);
+    --status-withdrawn: oklch(0.72 0.1 305);
     --status-refused: oklch(0.75 0.13 75);
     --status-in-progress: oklch(0.75 0.13 75);
     --status-completed: oklch(0.72 0.16 155);

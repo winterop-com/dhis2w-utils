@@ -7,6 +7,8 @@ answer - with one subdirectory per state:
     `received/`   captured, not yet forwarded - the queue.
     `forwarded/`  translated, posted, and accepted by DHIS2.
     `rejected/`   posted and refused; `<id>.report.json` beside it holds the import report saying why.
+    `withdrawn/`  it landed, and `d2w fhir withdraw` retracted it from DHIS2 afterwards;
+                  `<id>.report.json` beside it is the record of the delete rather than of an import.
 
 plus one directory that is not a state at all:
 
@@ -54,7 +56,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from dhis2w_fhir.service import ForwardImportOutcome
+from dhis2w_fhir.service import ForwardImportOutcome, WithdrawalRecord
 from dhis2w_fhir.spool import (
     QUARANTINE_REASON_SUFFIX,
     ForwardRefusalRecord,
@@ -80,6 +82,9 @@ FORWARDED_RESPONSES_RELATIVE_PATH = f"{SPOOL_RELATIVE_PATH}/forwarded"
 
 #: Where a receipt DHIS2 refused is moved to, beside the report saying why.
 REJECTED_RESPONSES_RELATIVE_PATH = f"{SPOOL_RELATIVE_PATH}/rejected"
+
+#: Where a receipt `d2w fhir withdraw` retracted from DHIS2 is moved to, beside the record of the delete.
+WITHDRAWN_RESPONSES_RELATIVE_PATH = f"{SPOOL_RELATIVE_PATH}/withdrawn"
 
 #: Where a file that does not read as a receipt is moved to. Not a lifecycle state - a holding pen.
 MALFORMED_RESPONSES_RELATIVE_PATH = f"{SPOOL_RELATIVE_PATH}/malformed"
@@ -127,13 +132,23 @@ logger = logging.getLogger(LOGGER_NAME)
 
 
 class ResponseLifecycle(StrEnum):
-    """Which of the spool's three directories a receipt currently sits in.
+    """Which of the spool's four directories a receipt currently sits in.
 
-    The states are the forwarder's, spelled from the reading side: a receipt is `received` until
-    `d2w fhir forward` drains it, and then it is whatever DHIS2 said. A response the translator
+    Three of the four are the forwarder's, spelled from the reading side: a receipt is `received`
+    until `d2w fhir forward` drains it, and then it is whatever DHIS2 said. A response the translator
     refused stays `received` and the next drain retries it - a committing drain leaves its refusal
     record beside the receipt, which is what `refusal_record` reads - except for the one refusal no
     change to the guide or the data could ever fix, which the forwarder files as `rejected`.
+
+    The fourth is an operator's, and it is the only one a receipt reaches without being posted again:
+    `d2w fhir withdraw` deletes from DHIS2 what a forwarded receipt landed and files the receipt under
+    `withdrawn/`, with the record of the delete beside it - which is what `withdrawal_record` reads.
+    It is terminal, because DHIS2 burns the UID it deletes.
+
+    The same four states as `dhis2w_fhir.spool.SpoolState`, which is the drain's own name for the
+    layout. Two enums for one directory tree, because the two packages read it for different reasons
+    and neither depends on the other's vocabulary; `tests/test_spool_directory.py` pins them level.
+
     `malformed/` is not here because nothing in it is a receipt: it is bytes that would not parse
     as one.
     """
@@ -141,6 +156,7 @@ class ResponseLifecycle(StrEnum):
     RECEIVED = "received"
     FORWARDED = "forwarded"
     REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
 
 
 #: The directory name each state is read from, and the order a listing counts them in.
@@ -148,6 +164,7 @@ LIFECYCLE_DIRECTORY_NAMES: dict[ResponseLifecycle, str] = {
     ResponseLifecycle.RECEIVED: "received",
     ResponseLifecycle.FORWARDED: "forwarded",
     ResponseLifecycle.REJECTED: "rejected",
+    ResponseLifecycle.WITHDRAWN: "withdrawn",
 }
 
 #: The directory quarantined files are held in, which is a sibling of the three state directories.
@@ -273,7 +290,7 @@ class ResponseSpool(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     directory: Path
-    """The spool root - the directory holding `received/`, `forwarded/`, `rejected/`, and `malformed/`."""
+    """The spool root - the four state directories, and `malformed/` beside them."""
 
     @classmethod
     def at(cls, project_root: Path, spool_dir: str = SPOOL_RELATIVE_PATH) -> ResponseSpool:
@@ -389,7 +406,9 @@ class ResponseSpool(BaseModel):
 
         Either drained state answers: `rejected/` holds why the payload was refused and `forwarded/`
         holds what the import counted. A receipt still in `received/` has no report because nothing
-        has been asked about it yet, and answers None like any receipt whose report is not there.
+        has been asked about it yet, and answers None like any receipt whose report is not there. A
+        withdrawn receipt is read through `withdrawal_record`, because the file beside it answers a
+        different question - what DHIS2 did when it was asked to let the object go.
 
         A report that will not parse answers None rather than raising: it is the diagnostic that got
         corrupted, not the receipt that got lost, so a listing still names the receipt and simply
@@ -402,6 +421,26 @@ class ResponseSpool(BaseModel):
             return ForwardImportOutcome.model_validate_json(path.read_text(encoding="utf-8"))
         except (OSError, ValidationError, ValueError):
             logger.warning("%s is not a readable import report; the receipt is listed without one", path)
+            return None
+
+    def withdrawal_record(self, response_id: str) -> WithdrawalRecord | None:
+        """What DHIS2 answered when `d2w fhir withdraw` asked it to take one receipt's event back.
+
+        The sidecar of a withdrawn receipt is not an import report: it names the event that was
+        deleted, the instant the delete was posted, and what the instance keeps afterwards - which is
+        a hidden copy rather than nothing. The import report that said what the receipt landed stays
+        in `forwarded/`, so the two answers to the two questions are two files.
+
+        Only a `withdrawn` receipt has one. A record that will not parse answers None, for the reason
+        `import_report` gives.
+        """
+        path = self.directory_for(ResponseLifecycle.WITHDRAWN) / f"{response_id}{IMPORT_REPORT_SUFFIX}"
+        if not path.is_file():
+            return None
+        try:
+            return WithdrawalRecord.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValidationError, ValueError):
+            logger.warning("%s is not a readable withdrawal record; the receipt is listed without one", path)
             return None
 
     def refusal_record(self, response_id: str) -> ForwardRefusalRecord | None:

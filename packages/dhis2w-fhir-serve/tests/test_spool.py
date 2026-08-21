@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 import pytest
-from dhis2w_fhir.service import ForwardImportIssue, ForwardImportOutcome
+from dhis2w_fhir.service import ForwardImportIssue, ForwardImportOutcome, WithdrawalRecord
 from dhis2w_fhir_serve.spool import (
     IMPORT_REPORT_SUFFIX,
     ORPHAN_TEMPORARY_FILE_AGE_SECONDS,
@@ -129,10 +129,11 @@ def test_a_forwarded_receipt_is_still_read_and_carries_its_state(tmp_path: Path)
 def test_counts_split_by_lifecycle(tmp_path: Path) -> None:
     """The per-state counts are the queue depth beside what became of everything else."""
     spool = ResponseSpool.at(tmp_path)
-    for response_id in ("queued", "sent", "refused"):
+    for response_id in ("queued", "sent", "refused", "retracted"):
         spool.save(make_envelope(response_id=response_id))
     drain(spool, "sent", ResponseLifecycle.FORWARDED)
     drain(spool, "refused", ResponseLifecycle.REJECTED)
+    drain(spool, "retracted", ResponseLifecycle.WITHDRAWN)
 
     counts = spool.count_by_lifecycle()
 
@@ -140,6 +141,7 @@ def test_counts_split_by_lifecycle(tmp_path: Path) -> None:
         ResponseLifecycle.RECEIVED: 1,
         ResponseLifecycle.FORWARDED: 1,
         ResponseLifecycle.REJECTED: 1,
+        ResponseLifecycle.WITHDRAWN: 1,
     }
 
 
@@ -233,6 +235,82 @@ def test_a_rejection_report_is_read_back_beside_its_receipt(tmp_path: Path) -> N
     assert found is not None
     assert found.status == "ERROR"
     assert found.issues[0].error_code == "E1120"
+
+
+def _withdrawal_record(event_uid: str = "EvTsupVis01") -> WithdrawalRecord:
+    """The sidecar `d2w fhir withdraw` writes into `withdrawn/` when DHIS2 takes the delete."""
+    return WithdrawalRecord(
+        status="OK",
+        deleted=1,
+        event_uid=event_uid,
+        withdrawn_at="2026-08-09T12:00:00Z",
+        received_at="2026-08-07T10:00:00Z",
+    )
+
+
+def test_a_withdrawn_receipt_reads_back_in_the_fourth_state(tmp_path: Path) -> None:
+    """`d2w fhir withdraw` renames the receipt into `withdrawn/`, and the facade reads it there."""
+    spool = ResponseSpool.at(tmp_path)
+    spool.save(make_envelope(response_id="retracted"))
+    drain(spool, "retracted", ResponseLifecycle.WITHDRAWN)
+
+    found = spool.get("retracted")
+
+    assert found is not None
+    assert found.lifecycle is ResponseLifecycle.WITHDRAWN
+    assert [receipt.response_id for receipt in spool.search().receipts] == ["retracted"]
+
+
+def test_a_withdrawal_record_is_read_back_beside_its_receipt(tmp_path: Path) -> None:
+    """The record says what DHIS2 answered the delete, and what the instance keeps afterwards."""
+    spool = ResponseSpool.at(tmp_path)
+    spool.save(make_envelope(response_id="retracted"))
+    drain(spool, "retracted", ResponseLifecycle.WITHDRAWN)
+    (spool.directory_for(ResponseLifecycle.WITHDRAWN) / f"retracted{IMPORT_REPORT_SUFFIX}").write_text(
+        _withdrawal_record().model_dump_json(indent=2, exclude_none=True), encoding="utf-8"
+    )
+
+    found = spool.withdrawal_record("retracted")
+
+    assert found is not None
+    assert found.event_uid == "EvTsupVis01"
+    assert found.withdrawn_at == "2026-08-09T12:00:00Z"
+    assert "hidden copy" in found.note
+
+
+def test_a_withdrawn_receipt_with_no_record_answers_none(tmp_path: Path) -> None:
+    """A receipt filed under `withdrawn/` with no sidecar is still withdrawn; it just says nothing more."""
+    spool = ResponseSpool.at(tmp_path)
+    spool.save(make_envelope(response_id="retracted"))
+    drain(spool, "retracted", ResponseLifecycle.WITHDRAWN)
+
+    assert spool.withdrawal_record("retracted") is None
+
+
+def test_an_unreadable_withdrawal_record_does_not_fail_the_listing(tmp_path: Path) -> None:
+    """A corrupt record is a lost diagnostic rather than a lost receipt, so the read answers absent."""
+    spool = ResponseSpool.at(tmp_path)
+    spool.save(make_envelope(response_id="retracted"))
+    drain(spool, "retracted", ResponseLifecycle.WITHDRAWN)
+    (spool.directory_for(ResponseLifecycle.WITHDRAWN) / f"retracted{IMPORT_REPORT_SUFFIX}").write_text(
+        "{not json", encoding="utf-8"
+    )
+
+    assert spool.withdrawal_record("retracted") is None
+    assert [receipt.response_id for receipt in spool.search().receipts] == ["retracted"]
+
+
+def test_a_forwarded_receipt_has_no_withdrawal_record(tmp_path: Path) -> None:
+    """The sidecar is read out of `withdrawn/` alone, so a forwarded receipt's import report is not one."""
+    spool = ResponseSpool.at(tmp_path)
+    spool.save(make_envelope(response_id="sent"))
+    drain(spool, "sent", ResponseLifecycle.FORWARDED)
+    (spool.directory_for(ResponseLifecycle.FORWARDED) / f"sent{IMPORT_REPORT_SUFFIX}").write_text(
+        ForwardImportOutcome(status="OK", created=1).model_dump_json(), encoding="utf-8"
+    )
+
+    assert spool.withdrawal_record("sent") is None
+    assert spool.import_report("sent", ResponseLifecycle.FORWARDED) is not None
 
 
 def test_a_report_file_is_not_mistaken_for_a_receipt(tmp_path: Path) -> None:

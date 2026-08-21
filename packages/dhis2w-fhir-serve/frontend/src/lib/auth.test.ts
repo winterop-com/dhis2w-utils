@@ -8,11 +8,16 @@ import {
     BEARER_TOKEN_SECURITY_TEXT,
     CREDENTIAL_STORAGE_KEY,
     IDENTITY_STORAGE_KEY,
+    issuerFromSecurity,
+    JWT_BEARER_TOKEN_SECURITY_TEXT,
+    JWT_ISSUER_EXTENSION_URL,
+    OAUTH_SECURITY_CODE,
     postureFromSecurity,
     reportUnauthenticated,
     SECURITY_SERVICE_SYSTEM,
     setAuthPosture,
     signIn,
+    signInHeading,
     signInIsRequired,
     signOut,
     storedAuthorization,
@@ -20,8 +25,24 @@ import {
     subscribeToAuth,
     SIGN_IN_HEADINGS,
     SIGN_IN_NOTES,
+    UNNAMED_ISSUER_HEADING,
     type AuthState,
 } from '@/lib/auth'
+
+/** The identity provider a `jwt`-posture server federates with, as it declares it. */
+const ISSUER = 'https://idp.example.org/realms/health'
+
+/** What the JWT posture declares - `OAuth` by its code, the scheme as text, and the issuer as an extension. */
+const JWT_SECURITY = {
+    cors: false,
+    extension: [{ url: JWT_ISSUER_EXTENSION_URL, valueString: ISSUER }],
+    service: [
+        {
+            coding: [{ system: SECURITY_SERVICE_SYSTEM, code: OAUTH_SECURITY_CODE }],
+            text: JWT_BEARER_TOKEN_SECURITY_TEXT,
+        },
+    ],
+}
 
 /** The `rest.security` a `none` posture declares: stated, and naming no scheme. */
 const NO_AUTHENTICATION = {
@@ -67,6 +88,32 @@ describe('reading the posture off a conformance document', () => {
 
     it('reads a scheme it does not know as authenticating nobody rather than guessing a prompt', () => {
         expect(postureFromSecurity({ service: [{ text: 'Kerberos' }] })).toBe('none')
+    })
+
+    it('reads a JWT bearer token as its own posture rather than as the deployment-token one', () => {
+        expect(postureFromSecurity(JWT_SECURITY)).toBe('jwt')
+    })
+
+    it('reads the OAuth code as the JWT posture even where the text was rewritten', () => {
+        expect(
+            postureFromSecurity({ service: [{ coding: [{ code: OAUTH_SECURITY_CODE }], text: 'Bearer token' }] }),
+        ).toBe('jwt')
+    })
+})
+
+describe('the issuer a JWT server names', () => {
+    it('is read off the extension the server states it in', () => {
+        expect(issuerFromSecurity(JWT_SECURITY)).toBe(ISSUER)
+    })
+
+    it('is null wherever no posture states one, so no issuer is invented', () => {
+        expect(issuerFromSecurity(TOKEN_SECURITY)).toBeNull()
+        expect(issuerFromSecurity(DHIS2_SECURITY)).toBeNull()
+        expect(issuerFromSecurity(undefined)).toBeNull()
+    })
+
+    it('is null for an extension that carries no value, rather than an empty name', () => {
+        expect(issuerFromSecurity({ extension: [{ url: JWT_ISSUER_EXTENSION_URL }] })).toBeNull()
     })
 })
 
@@ -148,6 +195,46 @@ describe('what the prompt says', () => {
         expect(SIGN_IN_NOTES.dhis2).toContain('this browser tab only')
         expect(SIGN_IN_NOTES.dhis2).toContain('records your username')
     })
+
+    it('names the identity provider a token has to come from', () => {
+        expect(signInHeading('jwt', ISSUER)).toBe(`This server takes a token from ${ISSUER}`)
+    })
+
+    it('asks for a token without inventing an issuer where none was declared', () => {
+        expect(signInHeading('jwt', null)).toBe(UNNAMED_ISSUER_HEADING)
+    })
+
+    it('ignores an issuer under the postures that have none', () => {
+        expect(signInHeading('token', ISSUER)).toBe(SIGN_IN_HEADINGS.token)
+        expect(signInHeading('dhis2', ISSUER)).toBe(SIGN_IN_HEADINGS.dhis2)
+    })
+
+    it('says getting the token is the provider\'s business, not this server\'s', () => {
+        expect(SIGN_IN_NOTES.jwt).toContain('identity provider')
+        expect(SIGN_IN_NOTES.jwt).toContain('this browser tab only')
+        expect(SIGN_IN_NOTES.jwt).toContain('records your username')
+    })
+})
+
+describe('what a JWT server asks of a tab', () => {
+    it('asks for a token whenever this tab holds none', () => {
+        expect(signInIsRequired(stateWith({ posture: 'jwt' }))).toBe(true)
+        expect(signInIsRequired(stateWith({ posture: 'jwt', authorization: 'Bearer x' }))).toBe(false)
+    })
+
+    it('holds the issuer beside the posture, because the prompt names it', () => {
+        setAuthPosture('jwt', ISSUER)
+
+        expect(authSnapshot().posture).toBe('jwt')
+        expect(authSnapshot().issuer).toBe(ISSUER)
+    })
+
+    it('sends a pasted token as a bearer token, naming nobody until the server reads the claim', () => {
+        signIn(bearerAuthorization('a.b.c'), null)
+
+        expect(storedAuthorization()).toBe('Bearer a.b.c')
+        expect(authSnapshot().identity).toBeNull()
+    })
 })
 
 describe('the shared store', () => {
@@ -167,5 +254,5 @@ describe('the shared store', () => {
 })
 
 function stateWith(over: Partial<AuthState>): AuthState {
-    return { posture: null, authorization: null, identity: null, refused: false, ...over }
+    return { posture: null, issuer: null, authorization: null, identity: null, refused: false, ...over }
 }

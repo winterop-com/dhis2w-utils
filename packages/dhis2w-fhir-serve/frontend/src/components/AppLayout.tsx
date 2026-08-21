@@ -349,7 +349,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                         that rendered first would fire its reads first. An unreachable server leaves
                         this empty and the status menu is what says so. */}
                     {asking && auth.posture !== null && auth.posture !== 'none' ? (
-                        <SignInPanel posture={auth.posture} refused={auth.refused} />
+                        <SignInPanel posture={auth.posture} issuer={auth.issuer} refused={auth.refused} />
                     ) : (
                         auth.posture !== null && children
                     )}

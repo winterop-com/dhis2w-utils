@@ -20,6 +20,12 @@ Nothing here talks to DHIS2. Accepting a capture means the submission was unders
 not that it has been written to an instance. Kept means durable: the receipt is fsynced and its
 directory entry with it before the 201 goes out, so a 201 is a promise that survives power loss.
 
+A CORRECTION OR A WITHDRAWAL IS REFUSED HERE where the project's dials are off. `[forward]
+corrections` and `[forward] withdrawals` are read off `fhir.toml` onto the capture state, and a
+submission carrying `status = "amended"` or `status = "entered-in-error"` against an off dial is
+answered 422 with the key named. With the dial on it is stored like any other receipt, status and
+all - see `dhis2w_fhir_serve.capture.validate`.
+
 WHO SUBMITTED IT is stamped on the receipt where this run established anybody. Under
 `[serve] auth = "dhis2"` the check has already read `/api/me` as the caller, so the username DHIS2
 answered with is on the request and goes onto the envelope. Under every other posture there is no
@@ -42,7 +48,7 @@ from dhis2w_fhir_serve.capability import QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE
 from dhis2w_fhir_serve.capture.index import CaptureIndexCache
 from dhis2w_fhir_serve.capture.naming import CaptureNaming
 from dhis2w_fhir_serve.capture.outcome import CaptureIssue, CaptureRejection, rejection_outcome, success_outcome
-from dhis2w_fhir_serve.capture.validate import ValidatedCapture, validate_response
+from dhis2w_fhir_serve.capture.validate import CaptureLifecyclePostures, ValidatedCapture, validate_response
 from dhis2w_fhir_serve.errors import FHIR_JSON_MEDIA_TYPE, CaptureDisabledError, UnsupportedMediaTypeError
 from dhis2w_fhir_serve.routes.context import serve_context
 from dhis2w_fhir_serve.spool import StoredResponseEnvelope, current_instant, new_response_id
@@ -74,12 +80,20 @@ async def refuse_questionnaire_response(request: Request) -> Response:
 
 
 class CaptureState(BaseModel):
-    """What a capture request needs beyond the serve context: the project's names, and its index cache."""
+    """What a capture request needs beyond the serve context: the project's names, dials, and index cache."""
 
     model_config = ConfigDict(frozen=True)
 
     naming: CaptureNaming
     indexes: CaptureIndexCache = Field(default_factory=CaptureIndexCache)
+    postures: CaptureLifecyclePostures = CaptureLifecyclePostures()
+    """Whether this project receives a submission that corrects, or one that retracts, a forwarded receipt.
+
+    A project-level fact read off `fhir.toml` exactly as the naming above is, and held here for the
+    same reason: it is settled once by the project and never by a request. `ServeSettings` carries
+    what the *run* was invoked with; these two are what the project says, and `d2w fhir forward`
+    reads the same keys out of the same file.
+    """
 
 
 @router.post(f"/{QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE}")
@@ -95,6 +109,7 @@ async def create_questionnaire_response(request: Request) -> Response:
             state.naming,
             context.store,
             context.settings.strict_codes,
+            state.postures,
         )
     except CaptureRejection as rejection:
         return JSONResponse(
@@ -126,7 +141,11 @@ def capture_state(request: Request) -> CaptureState:
     held: CaptureState | None = getattr(request.app.state, CAPTURE_STATE_ATTRIBUTE, None)
     if held is not None:
         return held
-    state = CaptureState(naming=CaptureNaming.from_project(serve_context(request).project))
+    project = serve_context(request).project
+    state = CaptureState(
+        naming=CaptureNaming.from_project(project),
+        postures=CaptureLifecyclePostures.from_project(project),
+    )
     setattr(request.app.state, CAPTURE_STATE_ATTRIBUTE, state)
     return state
 

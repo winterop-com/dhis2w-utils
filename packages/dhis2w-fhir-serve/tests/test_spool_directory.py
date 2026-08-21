@@ -135,4 +135,10 @@ def test_the_server_and_the_forwarder_resolve_one_directory(tmp_path: Path, spoo
     assert served.directory_for(ResponseLifecycle.RECEIVED) == drained.directory_for(SpoolState.RECEIVED)
     assert served.directory_for(ResponseLifecycle.FORWARDED) == drained.directory_for(SpoolState.FORWARDED)
     assert served.directory_for(ResponseLifecycle.REJECTED) == drained.directory_for(SpoolState.REJECTED)
+    assert served.directory_for(ResponseLifecycle.WITHDRAWN) == drained.directory_for(SpoolState.WITHDRAWN)
     assert served.malformed_directory == drained.malformed_directory
+
+
+def test_the_two_packages_name_the_same_four_states() -> None:
+    """The served lifecycle and the drain's state are one vocabulary spelled twice, and it has four words."""
+    assert [lifecycle.value for lifecycle in ResponseLifecycle] == [state.value for state in SpoolState]

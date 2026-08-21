@@ -4,7 +4,7 @@
  * WHY THIS IS NOT IN lib/fhir.ts. Everything in that module is an R4 resource
  * served as `application/fhir+json`. This is not: it is the receipt *envelope*
  * the facade records around each submission - when it was accepted, which DHIS2
- * form kind it was validated as, which of the spool's three directories the file
+ * form kind it was validated as, which of the spool's four directories the file
  * now sits in, and what DHIS2 said when it refused one. None of those are
  * QuestionnaireResponse elements, and the Python side argues the choice in full
  * in `dhis2w_fhir_serve.routes.spool`. Keeping the two type sets apart is what
@@ -19,14 +19,15 @@
  */
 
 /**
- * Which of the spool's three directories a receipt currently sits in.
+ * Which of the spool's four directories a receipt currently sits in.
  *
  * These are states of a *file*, and the whole reason the Responses page has a
  * reload button: `d2w fhir forward` renames receipts between the directories
  * from another process, so what this says can change with nothing happening in
- * the browser at all.
+ * the browser at all. `d2w fhir withdraw` is the second such process, and the
+ * state it files a receipt into is the one nothing moves it back out of.
  */
-export const RESPONSE_LIFECYCLES = ['received', 'forwarded', 'rejected'] as const
+export const RESPONSE_LIFECYCLES = ['received', 'forwarded', 'rejected', 'withdrawn'] as const
 
 /** One lifecycle state a stored receipt can be in. */
 export type ResponseLifecycle = (typeof RESPONSE_LIFECYCLES)[number]
@@ -36,6 +37,7 @@ export const LIFECYCLE_LABELS: Record<ResponseLifecycle, string> = {
     received: 'Received',
     forwarded: 'Forwarded',
     rejected: 'Rejected',
+    withdrawn: 'Withdrawn',
 }
 
 /** One line per state, for the filter tooltips and the empty-state prose. */
@@ -43,6 +45,8 @@ export const LIFECYCLE_HINTS: Record<ResponseLifecycle, string> = {
     received: 'Captured, not yet sent to DHIS2. `d2w fhir forward` sends it.',
     forwarded: 'Translated, posted, and accepted by DHIS2.',
     rejected: 'Posted and refused by DHIS2. The import report says why.',
+    withdrawn:
+        'Accepted by DHIS2, then withdrawn from it by `d2w fhir withdraw`. The instance keeps a hidden copy.',
 }
 
 /**
@@ -51,9 +55,10 @@ export const LIFECYCLE_HINTS: Record<ResponseLifecycle, string> = {
  * The tokens are declared in index.css and shared with the rest of the app -
  * `received` is the identity blue because a receipt on disk is the resting
  * state rather than a warning, `forwarded` is the success hue, `rejected` the
- * destructive one. Kept as full class strings rather than built by
- * interpolation: Tailwind scans source text for class names, and
- * `bg-status-${state}` is a name it never sees.
+ * destructive one, and `withdrawn` a muted violet: it is neither a failure nor
+ * a queue, it is a fact that has been taken back. Kept as full class strings
+ * rather than built by interpolation: Tailwind scans source text for class
+ * names, and `bg-status-${state}` is a name it never sees.
  */
 export const LIFECYCLE_TINTS: Record<ResponseLifecycle, { dot: string; badge: string }> = {
     received: {
@@ -67,6 +72,10 @@ export const LIFECYCLE_TINTS: Record<ResponseLifecycle, { dot: string; badge: st
     rejected: {
         dot: 'bg-status-rejected',
         badge: 'border-status-rejected/40 text-status-rejected bg-status-rejected/10',
+    },
+    withdrawn: {
+        dot: 'bg-status-withdrawn',
+        badge: 'border-status-withdrawn/40 text-status-withdrawn bg-status-withdrawn/10',
     },
 }
 
@@ -120,6 +129,26 @@ export interface SpoolImport {
     deleted: number
 }
 
+/**
+ * What DHIS2 answered when it was asked to take one receipt's event back.
+ *
+ * Written by `d2w fhir withdraw` beside the receipt it files under `withdrawn/`.
+ * The note is the record's own sentence and is rendered rather than rephrased:
+ * DHIS2 soft-deletes, so the row stays in the instance carrying its value and is
+ * gone from every ordinary read, and a screen that said "deleted" would be
+ * claiming more than the toolkit can stand behind.
+ */
+export interface SpoolWithdrawal {
+    /** The instant the withdrawal was posted. */
+    withdrawn_at: string
+    /** The DHIS2 event the withdrawal named. */
+    event_uid: string
+    /** What remains in the instance, in the record's own words. */
+    note: string
+    status?: string | null
+    deleted: number
+}
+
 /** One stored receipt: when it arrived, what it answers, where it is, and what DHIS2 said. */
 export interface SpoolResponseSummary {
     response_id: string
@@ -147,6 +176,8 @@ export interface SpoolResponseSummary {
     imported?: SpoolImport | null
     /** The last forward run's refusal, on a received row that has a record beside it. */
     refusal?: SpoolRefusal | null
+    /** What DHIS2 answered the retraction, on a withdrawn row whose record reads. */
+    withdrawal?: SpoolWithdrawal | null
 }
 
 /** How many receipts sit in each state - the queue depth, and what became of the rest. */
@@ -154,7 +185,9 @@ export interface SpoolCounts {
     received: number
     forwarded: number
     rejected: number
-    /** Files that do not read as receipts. Not a lifecycle state - a holding pen beside the three. */
+    /** Landed in DHIS2 and withdrawn from it afterwards. Terminal: nothing leaves this state. */
+    withdrawn: number
+    /** Files that do not read as receipts. Not a lifecycle state - a holding pen beside the four. */
     malformed: number
 }
 
@@ -184,7 +217,7 @@ export interface SpoolListing {
 /** An empty listing, so a page can render its table shell before the first answer arrives. */
 export const EMPTY_SPOOL: SpoolListing = {
     total: 0,
-    counts: { received: 0, forwarded: 0, rejected: 0, malformed: 0 },
+    counts: { received: 0, forwarded: 0, rejected: 0, withdrawn: 0, malformed: 0 },
     responses: [],
     malformed: [],
     self_url: '/spool',
@@ -311,6 +344,18 @@ export function rejectionSummary(rejection: SpoolRejection): string {
         : (rejection.message ?? rejection.status ?? 'DHIS2 gave no reason')
     const rest = rejection.issues.length - 1
     return rest > 0 ? `${head} (+${rest} more)` : head
+}
+
+/**
+ * The one line a withdrawn receipt is summarised by.
+ *
+ * The fact first - it was withdrawn from DHIS2, and when - then what the record
+ * says remains, verbatim. Nothing here paraphrases the note: the sentence is
+ * written once, in the package that posts the delete, so the terminal wording and
+ * the browser's wording cannot drift apart.
+ */
+export function withdrawalSummary(withdrawal: SpoolWithdrawal): string {
+    return `Withdrawn from DHIS2 at ${formatInstant(withdrawal.withdrawn_at)}. ${withdrawal.note}`
 }
 
 /** One DHIS2 error code, and how many refused receipts in a listing carry it. */
