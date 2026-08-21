@@ -148,3 +148,4 @@ url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 live = true                         # false refuses instead, naming generate and sushi -> 301-serving#live
 import = false                      # true makes a bare forward commit; false is the dry run -> 301-serving#import
 register_completeness = true        # false imports the values and marks no data set complete -> 301-serving#register_completeness
+overwrites = "allow"                # "refuse" leaves a response holding an already-sent value queued -> 301-serving#overwrites

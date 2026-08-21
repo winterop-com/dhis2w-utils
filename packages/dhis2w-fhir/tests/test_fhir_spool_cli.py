@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 from dhis2w_cli.main import build_app
-from dhis2w_fhir.service import ForwardImportRecord
+from dhis2w_fhir.service import OVERWRITE_REFUSAL_CATEGORY, ForwardImportRecord
 from dhis2w_fhir.spool import (
     IMPORT_REPORT_SUFFIX,
     MALFORMED_RESPONSES_RELATIVE_PATH,
@@ -117,10 +117,33 @@ def test_the_spool_listing_states_a_translator_refused_receipt(spooled_project: 
     result = _runner.invoke(build_app(), ["fhir", "spool", "--details"])
 
     assert result.exit_code == 0, result.output
-    assert "refused by the translator, still queued" in result.output
+    assert "refused by a drain, still queued" in result.output
     assert "the form declares no kind" in result.output
     assert "3 drains" in result.output
-    assert "queued receipt(s) were refused by the translator" in result.output
+    assert "queued receipt(s) were refused on the last run that posted" in result.output
+
+
+def test_the_spool_listing_states_an_overwrite_refused_receipt(spooled_project: Path) -> None:
+    """The listing reads the same sidecar whichever refusal filled it, so both refusals are one row shape."""
+    record = ForwardRefusalRecord(
+        refused_at="2026-08-17T12:00:00Z",
+        reasons=(
+            RefusalReason(
+                category=OVERWRITE_REFUSAL_CATEGORY,
+                element="De2aaaaaaaa",
+                reason="De2aaaaaaaa / 202607 / ImspTQPwCqd (sent by 0c81a28f, received 2026-08-08T09:00:00Z)",
+            ),
+        ),
+    )
+    destination = spooled_project / RECEIVED_RESPONSES_RELATIVE_PATH / f"queued-1{REFUSAL_RECORD_SUFFIX}"
+    destination.write_text(record.model_dump_json(indent=2, exclude_none=True), encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "spool", "--details"])
+
+    assert result.exit_code == 0, result.output
+    assert "refused by a drain, still queued" in result.output
+    assert "sent by 0c81a28f" in result.output
+    assert "1 drain," in result.output
 
 
 def test_the_spool_listing_answers_json_on_stdout(spooled_project: Path) -> None:

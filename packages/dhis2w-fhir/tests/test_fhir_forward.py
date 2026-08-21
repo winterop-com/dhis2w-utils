@@ -29,6 +29,7 @@ from dhis2w_fhir import (
     ForwardOutcomeKind,
     GenerateConfig,
     OptionSetIn,
+    OverwritePosture,
     QuestionnaireItemIn,
     QuestionnaireSourceIn,
     build_attribute_combo_artifacts,
@@ -77,7 +78,7 @@ from dhis2w_fhir.spool import (
     SpoolReadError,
     SpoolState,
 )
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 _BASE_URL = "https://dhis2.example"
 _CANONICAL = "http://example.org/fhir"
@@ -2781,3 +2782,211 @@ async def test_the_run_names_the_last_receipt_to_have_sent_a_value(forward_proje
 
     assert {value.previous_response_id for value in report.overwrites[0].values} == {"recapture1"}
     assert {value.previous_received_at for value in report.overwrites[0].values} == {"2026-08-09T10:00:00Z"}
+
+
+def _refusal_record(root: Path, response_id: str) -> ForwardRefusalRecord:
+    """The refusal record beside one queued receipt, read back the way a listing reads it."""
+    path = root / RECEIVED_RESPONSES_RELATIVE_PATH / f"{response_id}{REFUSAL_RECORD_SUFFIX}"
+    return ForwardRefusalRecord.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def _state_overwrite_posture(root: Path, posture: str) -> None:
+    """Put `[forward] overwrites` into the project's config, so the drain reads the dial off the file."""
+    (root / "fhir.toml").write_text(
+        f'{(root / "fhir.toml").read_text(encoding="utf-8")}\n[forward]\noverwrites = "{posture}"\n',
+        encoding="utf-8",
+    )
+
+
+def test_the_overwrite_dial_defaults_to_allow_and_parses_the_other_value_off_the_file(
+    forward_project: Path,
+) -> None:
+    """A project that states nothing posts and names, which is the owner's call stated as a default."""
+    assert load_project(forward_project).config.forward.overwrites is OverwritePosture.ALLOW
+
+    _state_overwrite_posture(forward_project, "refuse")
+
+    assert load_project(forward_project).config.forward.overwrites is OverwritePosture.REFUSE
+
+
+def test_a_value_outside_the_two_postures_is_refused_by_name(forward_project: Path) -> None:
+    """The dial names two postures, and a third spelling is a refusal rather than a silent fall-back."""
+    _state_overwrite_posture(forward_project, "reject")
+
+    with pytest.raises(ValidationError, match="overwrites"):
+        load_project(forward_project)
+
+
+@respx.mock
+async def test_the_default_posture_posts_the_value_and_names_it(forward_project: Path) -> None:
+    """`allow` is DHIS2's own last-write-wins semantics, stated as a posture rather than as an absence."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+
+    report = await _forward(forward_project, import_responses=True)
+
+    assert report.overwrite_posture is OverwritePosture.ALLOW
+    assert [overwrite.response_id for overwrite in report.overwrites] == ["recapture1"]
+    assert [outcome.response_id for outcome in report.accepted] == ["recapture1"]
+    assert report.overwrite_refused == ()
+    assert (forward_project / FORWARDED_RESPONSES_RELATIVE_PATH / "recapture1.json").is_file()
+
+
+@respx.mock
+async def test_refuse_leaves_the_receipt_queued_with_every_covered_value_written_beside_it(
+    forward_project: Path,
+) -> None:
+    """The refusal is the spool's own record, so what it names is what an operator decides on."""
+    _mock_instance()
+    original = _aggregate_document()
+    first = await _forward(forward_project, import_responses=True)
+    assert first.overwrites == ()
+    _write_receipt(forward_project, _recaptured(original, "recapture1"), received_at="2026-08-09T10:00:00Z")
+
+    report = await _forward(forward_project, import_responses=True, overwrites=OverwritePosture.REFUSE)
+
+    assert [outcome.response_id for outcome in report.overwrite_refused] == ["recapture1"]
+    assert [outcome.response_id for outcome in report.accepted] == []
+    assert report.translator_refused == ()
+    assert report.posted_count == 0
+    # The response was translated - it is what the run would not send, not what it could not read.
+    assert report.translated_count == 1
+    assert report.counts_line.startswith("1 spooled, 1 translated, 1 refused, 0 posted")
+
+    receipt = forward_project / RECEIVED_RESPONSES_RELATIVE_PATH / "recapture1.json"
+    assert receipt.is_file()
+    assert not (forward_project / FORWARDED_RESPONSES_RELATIVE_PATH / "recapture1.json").exists()
+    record = _refusal_record(forward_project, "recapture1")
+    assert record.attempt_count == 1
+    assert {reason.category for reason in record.reasons} == {service.OVERWRITE_REFUSAL_CATEGORY}
+    assert {reason.element for reason in record.reasons} == {"De2aaaaaaaa", "De3aaaaaaaa"}
+    assert original.id is not None
+    assert all(original.id in reason.reason for reason in record.reasons)
+    assert all(_RECEIVED_AT in reason.reason for reason in record.reasons)
+
+
+@respx.mock
+async def test_a_refused_response_is_refused_whole_rather_than_value_by_value(forward_project: Path) -> None:
+    """A payload posted in part would tear one submission across two postures, so no part of it is sent."""
+    _mock_instance()
+    original = _aggregate_document()
+    await _forward(forward_project, import_responses=True)
+    # This capture answers one question the first submission answered and one it did not, so its payload
+    # carries a covered value beside a fresh one.
+    partial = _recaptured(original, "recapture1", keep_link_ids={"De2aaaaaaaa"})
+    _write_receipt(forward_project, partial)
+    _write_receipt(forward_project, _recaptured(original, "recapture2", period="202608"))
+
+    report = await _forward(forward_project, import_responses=True, overwrites=OverwritePosture.REFUSE)
+
+    assert [outcome.response_id for outcome in report.overwrite_refused] == ["recapture1"]
+    assert len(report.overwrites[0].values) == 1
+    # The receipt that lands on no covered value is unaffected: the posture is about a payload, not a run.
+    assert [outcome.response_id for outcome in report.accepted] == ["recapture2"]
+
+
+@respx.mock
+async def test_a_later_drain_under_allow_posts_what_refuse_left_in_the_queue(forward_project: Path) -> None:
+    """The refusal is not terminal, so flipping the dial is the whole of the way forward."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+    await _forward(forward_project, import_responses=True, overwrites=OverwritePosture.REFUSE)
+
+    report = await _forward(forward_project, import_responses=True, overwrites=OverwritePosture.ALLOW)
+
+    assert [outcome.response_id for outcome in report.accepted] == ["recapture1"]
+    assert [overwrite.response_id for overwrite in report.overwrites] == ["recapture1"]
+    assert (forward_project / FORWARDED_RESPONSES_RELATIVE_PATH / "recapture1.json").is_file()
+    # The move that finally drains the receipt takes the refusal record with it - the import report
+    # is the answer about it now.
+    assert not (forward_project / RECEIVED_RESPONSES_RELATIVE_PATH / f"recapture1{REFUSAL_RECORD_SUFFIX}").exists()
+
+
+@respx.mock
+async def test_a_second_refusing_drain_counts_the_attempt_rather_than_starting_over(
+    forward_project: Path,
+) -> None:
+    """A receipt three drains have refused says three, whichever of the two refusals each one met."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+    await _forward(forward_project, import_responses=True, overwrites=OverwritePosture.REFUSE)
+
+    await _forward(forward_project, import_responses=True, overwrites=OverwritePosture.REFUSE)
+
+    assert _refusal_record(forward_project, "recapture1").attempt_count == 2
+
+
+@respx.mock
+async def test_a_dry_run_under_refuse_states_what_it_would_refuse_and_files_nothing(
+    forward_project: Path,
+) -> None:
+    """A dry run writes nothing at all, so the prediction is carried in the run rather than left on disk."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+
+    report = await _forward(forward_project, overwrites=OverwritePosture.REFUSE)
+
+    assert report.dry_run is True
+    assert [outcome.response_id for outcome in report.overwrite_refused] == ["recapture1"]
+    assert report.overwritten_value_count == 2
+    assert (forward_project / RECEIVED_RESPONSES_RELATIVE_PATH / "recapture1.json").is_file()
+    assert not (forward_project / RECEIVED_RESPONSES_RELATIVE_PATH / f"recapture1{REFUSAL_RECORD_SUFFIX}").exists()
+
+
+@respx.mock
+async def test_a_refused_response_claims_no_completeness(forward_project: Path) -> None:
+    """A completeness claim is about values that landed, and this response's values were never sent."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+
+    report = await _forward(forward_project, import_responses=True, overwrites=OverwritePosture.REFUSE)
+
+    assert report.completeness_outcomes == ()
+    assert report.completeness_line == ""
+
+
+@respx.mock
+async def test_the_dial_never_reaches_a_tracker_payload(three_event_project: Path) -> None:
+    """An event carries its own DHIS2 identity, so it collides rather than overwriting, whatever the dial says."""
+    _mock_instance()
+    await _forward(three_event_project, import_responses=True)
+    _fill_spool(three_event_project, _event_documents(2))
+
+    report = await _forward(three_event_project, import_responses=True, overwrites=OverwritePosture.REFUSE)
+
+    assert report.overwrite_refused == ()
+    assert len(report.accepted) == 2
+    assert report.overwrites == ()
+
+
+@respx.mock
+async def test_the_dial_comes_off_the_file_when_the_run_states_nothing(forward_project: Path) -> None:
+    """The resolution lives in `forward_responses`, so a project states the posture once and every drain honours it."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _state_overwrite_posture(forward_project, "refuse")
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+
+    report = await _forward(forward_project, import_responses=True)
+
+    assert report.overwrite_posture is OverwritePosture.REFUSE
+    assert [outcome.response_id for outcome in report.overwrite_refused] == ["recapture1"]
+
+
+@respx.mock
+async def test_a_stated_posture_outranks_the_file_in_either_direction(forward_project: Path) -> None:
+    """A flag is one run's decision and the table is the project's, and the run's wins - both ways round."""
+    _mock_instance()
+    await _forward(forward_project, import_responses=True)
+    _state_overwrite_posture(forward_project, "refuse")
+    _write_receipt(forward_project, _recaptured(_aggregate_document(), "recapture1"))
+
+    posted = await _forward(forward_project, import_responses=True, overwrites=OverwritePosture.ALLOW)
+
+    assert posted.overwrite_posture is OverwritePosture.ALLOW
+    assert [outcome.response_id for outcome in posted.accepted] == ["recapture1"]

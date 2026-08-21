@@ -25,9 +25,11 @@ is a withdrawal, which this toolchain does not build, so that one is filed to `r
 retried by every drain forever. Every other refusal has a fix in the guide or in the data, so leaving it
 in `received/` makes the next `d2w fhir forward` a retry with no bookkeeping at all. What a committing
 drain does leave behind is an `<id>.refusal.json` beside the receipt - when the drain saw it, how many
-drains have refused it, and why - so a listing can tell a receipt the translator keeps refusing from one
-no drain has touched. The marker is about the queue, so the move that finally drains the receipt deletes
-it: the import report supersedes it.
+drains have refused it, and why - so a listing can tell a receipt drains keep refusing from one no drain
+has touched. The same sidecar carries the other refusal a drain makes and leaves queued: a response
+whose aggregate values a forwarded receipt already sent, under `[forward] overwrites = "refuse"`. The
+marker is about the queue, so the move that finally drains the receipt deletes it: the import report
+supersedes it.
 
 The layout is duplicated rather than imported: `dhis2w-fhir` is a dependency of `dhis2w-fhir-serve`, so
 the arrow only points one way and the forwarder reads the files directly under the same conventions.
@@ -264,7 +266,7 @@ class SpoolReading(BaseModel):
 
 
 class RefusalReason(BaseModel):
-    """One reason a translator refused a spooled response, as the refusal record states it."""
+    """One reason a drain refused a spooled response, as the refusal record states it."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -274,7 +276,7 @@ class RefusalReason(BaseModel):
 
 
 class ForwardRefusalRecord(BaseModel):
-    """What the last committing drain wrote beside a receipt it refused to translate.
+    """What the last committing drain wrote beside a receipt it refused to send.
 
     The receipt itself never moves and is never rewritten - see the module docstring - so this
     sidecar is the whole of the drain's mark on the queue: when it last looked, how many drains
@@ -296,7 +298,7 @@ class ForwardRefusalRecord(BaseModel):
         """The record as the one line a listing row shows: the first reason, or the bare fact."""
         if self.reasons:
             return self.reasons[0].reason
-        return "the translator refused this response"
+        return "a forward run refused this response"
 
 
 class SpooledReceipt(BaseModel):

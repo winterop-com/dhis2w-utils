@@ -24,7 +24,7 @@ from dhis2w_core.profile import Profile, resolve
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
-from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, load_project
+from dhis2w_fhir.config import FhirProject, GenerateConfig, NoFhirProjectError, OverwritePosture, load_project
 from dhis2w_fhir.conversion.artifacts import (
     BoundQuestionUids,
     CompiledArtifacts,
@@ -4484,10 +4484,13 @@ _UNVERIFIABLE_IN_DRY_RUN_REASON = (
 class ForwardOutcomeKind(StrEnum):
     """What became of one spooled response in a forward run."""
 
-    #: The translator would not read the response whole, so it never reached DHIS2. The receipt stays
-    #: in `received/` for the next drain to retry - a committing drain writes its refusal record
-    #: beside it so the listing can say so - unless the refusal is one nothing can fix - see
-    #: `TERMINAL_REFUSAL_CATEGORIES` - in which case an import files it to `rejected/`.
+    #: The response never reached DHIS2, and the receipt stays in `received/` for the next drain to
+    #: retry - a committing drain writing its refusal record beside it so the listing can say so.
+    #: Two things refuse a response. The translator would not read it whole, which is the ordinary
+    #: case, and is terminal where the refusal is one nothing can fix - see
+    #: `TERMINAL_REFUSAL_CATEGORIES` - in which case an import files it to `rejected/` instead. Or
+    #: the drain runs under `[forward] overwrites = "refuse"` and the payload holds an aggregate
+    #: value a forwarded receipt already sent, which `ForwardOutcome.overwrite_refused` says.
     REFUSED = "refused"
 
     #: DHIS2 took the payload - imported it, or validated it on a dry run.
@@ -4511,6 +4514,11 @@ class ForwardOutcomeKind(StrEnum):
 #: this toolchain imports - see `docs/fhir/design/data-lifecycle.md`. Every other refusal has a fix
 #: somewhere, so every other refusal stays in the queue.
 TERMINAL_REFUSAL_CATEGORIES = frozenset({ConversionRefusalCategory.ENTERED_IN_ERROR_IS_A_DELETION})
+
+#: What the refusal record beside an overwrite-refused receipt calls the refusal. A category of its
+#: own rather than a `ConversionRefusalCategory`, because the translator read this response whole -
+#: what refused it is the spool's own record of what this project has already sent.
+OVERWRITE_REFUSAL_CATEGORY = "overwrite-refused"
 
 #: What the sidecar of a terminally refused receipt states in place of a DHIS2 answer. DHIS2 was
 #: never asked, so the status is the forwarder's own word for what happened.
@@ -4755,7 +4763,15 @@ class ForwardOutcome(BaseModel):
 
     Carried only where DHIS2 took the payload, because a payload the instance refused replaced
     nothing. A dry run carries them as the prediction they are: what an import of this spool would
-    replace, stated while there is still something to be done about it.
+    replace, stated while there is still something to be done about it. Under
+    `[forward] overwrites = "refuse"` they are what the drain refused over, and nothing was sent.
+    """
+
+    overwrite_refused: bool = False
+    """Whether the drain would not post this payload because it holds a value an earlier submission sent.
+
+    Only ever true under `[forward] overwrites = "refuse"`, and only of an aggregate payload. The
+    values it was refused over are `overwritten_values`, and the receipt is still in the queue.
     """
 
     spool_path: str
@@ -4780,6 +4796,9 @@ class ForwardReport(BaseModel):
     coded_answer_mode: CodedAnswerMode
     register_completeness: bool = True
     """Whether the run registered completeness for the `completed` aggregate responses DHIS2 took."""
+
+    overwrite_posture: OverwritePosture = OverwritePosture.ALLOW
+    """What the run did with an aggregate value a forwarded receipt already sent - post it, or refuse it."""
 
     spooled: int = 0
     outcomes: tuple[ForwardOutcome, ...] = ()
@@ -4808,8 +4827,21 @@ class ForwardReport(BaseModel):
 
     @property
     def refused(self) -> tuple[ForwardOutcome, ...]:
-        """Every response the translator would not read whole, which is every response that stayed put."""
+        """Every response this run would not send, which is every response that stayed put in the queue."""
         return tuple(outcome for outcome in self.outcomes if outcome.kind == ForwardOutcomeKind.REFUSED)
+
+    @property
+    def translator_refused(self) -> tuple[ForwardOutcome, ...]:
+        """Every response the translator would not read whole, which is the refusal a guide or a fix answers."""
+        return tuple(outcome for outcome in self.refused if not outcome.overwrite_refused)
+
+    @property
+    def overwrite_refused(self) -> tuple[ForwardOutcome, ...]:
+        """Every response this run would not send because it holds a value an earlier submission already sent.
+
+        Empty under `[forward] overwrites = "allow"`, which posts such a value and names it.
+        """
+        return tuple(outcome for outcome in self.refused if outcome.overwrite_refused)
 
     @property
     def accepted(self) -> tuple[ForwardOutcome, ...]:
@@ -4833,8 +4865,12 @@ class ForwardReport(BaseModel):
 
     @property
     def translated_count(self) -> int:
-        """How many responses produced a payload."""
-        return self.spooled - len(self.refused)
+        """How many responses produced a payload.
+
+        An overwrite-refused response produced one and was then not sent, so it counts as translated
+        and as refused both - the two numbers answer different questions about the same receipt.
+        """
+        return self.spooled - len(self.translator_refused)
 
     @property
     def posted_count(self) -> int:
@@ -4850,6 +4886,11 @@ class ForwardReport(BaseModel):
         read no further to know the spool still holds work. The unverifiable clause is stated the same
         way - only by a dry run that had any, since only a dry run can produce the outcome - and the
         mode rides the posted count, so a committed line can never claim a dry run.
+
+        The refused count is every response that stayed in the queue, whether the translator would
+        not read it or the run would not overwrite what it holds. One number, because the operator
+        reading this line is asking how much of the spool is still waiting; which refusal each one
+        met is the report's business, not the summary's.
         """
         posted = f"{self.posted_count:,} posted (validate only)" if self.dry_run else f"{self.posted_count:,} posted"
         line = (
@@ -4978,16 +5019,17 @@ async def forward_responses(
     import_responses: bool | None = None,
     coded_answer_mode: CodedAnswerMode | None = None,
     register_completeness: bool | None = None,
+    overwrites: OverwritePosture | None = None,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
 ) -> ForwardReport:
     """Drain a project's capture spool into DHIS2: translate every receipt, post it, and file what it became.
 
-    THE THREE DIALS ARE RESOLVED HERE, so the CLI and the MCP tool cannot resolve them differently.
-    `import_responses`, `register_completeness`, and `coded_answer_mode` are each None for "the
-    caller stated nothing", and each falls to what `fhir.toml` says - `[forward] import`,
-    `[forward] register_completeness`, and `[serve] strict_codes` - which in turn fall to the
-    defaults those keys carry.
+    THE FOUR DIALS ARE RESOLVED HERE, so the CLI and the MCP tool cannot resolve them differently.
+    `import_responses`, `register_completeness`, `overwrites`, and `coded_answer_mode` are each None
+    for "the caller stated nothing", and each falls to what `fhir.toml` says - `[forward] import`,
+    `[forward] register_completeness`, `[forward] overwrites`, and `[serve] strict_codes` - which in
+    turn fall to the defaults those keys carry.
 
     A **dry run is the default**. Every payload still goes to the real endpoint against the real
     instance, under that endpoint's own validate-only mode - `dryRun=true` for `/api/dataValueSets`,
@@ -5040,7 +5082,17 @@ async def forward_responses(
     separate the two - and this run therefore says which is which, off the spool's own record of what
     each forwarded receipt landed. The run names the value, the receipt that sent it before, and when
     that receipt arrived, and it says the same thing on a dry run, where it is a prediction there is
-    still time to act on. Nothing is refused over it: the run reports, and the operator decides.
+    still time to act on.
+
+    `overwrites` decides what the run then does about it. `"allow"` - the default - posts the value
+    and names it, which is DHIS2's own last-write-wins semantics stated as a chosen posture: the
+    instance holds what the newest submission carried, and the run is what says so. `"refuse"` posts
+    no payload holding such a value at all. The refusal is per response and never per value - a
+    payload half posted would tear one submission across two postures - and it is not terminal: the
+    receipt stays in `received/` with an `<id>.refusal.json` naming every covered value and the
+    receipt that sent it, so `d2w fhir spool` shows it as refused-but-queued and the next drain
+    posts it once the dial is flipped or `d2w fhir requeue` has been used. A dry run under `"refuse"`
+    states what it would refuse and files nothing, exactly as it moves nothing.
 
     `coded_answer_mode` defaults to what `[serve] strict_codes` says, so a project that captures
     strictly forwards strictly without stating it twice.
@@ -5063,6 +5115,7 @@ async def forward_responses(
     forward_config = project.config.forward
     importing = import_responses if import_responses is not None else forward_config.import_responses
     registering = register_completeness if register_completeness is not None else forward_config.register_completeness
+    posture = overwrites if overwrites is not None else forward_config.overwrites
     with drain_lock(spool_layout(project)):
         return await _drain_spool(
             profile,
@@ -5070,6 +5123,7 @@ async def forward_responses(
             mode=mode,
             import_responses=importing,
             register_completeness=registering,
+            overwrites=posture,
             reporter=reporter,
             client=client,
         )
@@ -5082,6 +5136,7 @@ async def _drain_spool(
     mode: CodedAnswerMode,
     import_responses: bool,
     register_completeness: bool,
+    overwrites: OverwritePosture,
     reporter: ProgressReporter | None,
     client: Dhis2Client | None = None,
 ) -> ForwardReport:
@@ -5114,6 +5169,7 @@ async def _drain_spool(
             dry_run=dry_run,
             coded_answer_mode=mode,
             register_completeness=register_completeness,
+            overwrite_posture=overwrites,
             unreadable_artifacts=() if compiled is None else compiled.unreadable_resources,
             quarantined=reading.quarantined,
         )
@@ -5154,11 +5210,16 @@ async def _drain_spool(
             dry_run=dry_run,
             moving=import_responses,
             overwrite_index=overwrite_index,
+            overwrites=overwrites,
             progress=progress,
         )
         stopped_note = f", stopped: {posted.stopped.reason}" if posted.stopped is not None else ""
+        refused_note = (
+            f", {len(posted.overwrite_refused):,} refused as an overwrite" if posted.overwrite_refused else ""
+        )
         progress.complete(
-            f"{len(posted.imports):,} payload(s) posted{' (validate only)' if dry_run else ''}{stopped_note}"
+            f"{len(posted.imports):,} payload(s) posted{' (validate only)' if dry_run else ''}"
+            f"{refused_note}{stopped_note}"
         )
 
         progress.step("completeness", "registering the completed reports")
@@ -5169,6 +5230,7 @@ async def _drain_spool(
             posted.imports,
             dry_run=dry_run,
             registering=register_completeness,
+            overwrite_refused=posted.overwrite_refused,
             progress=progress,
         )
         progress.complete(_completeness_completion(completeness, dry_run=dry_run, registering=register_completeness))
@@ -5185,12 +5247,14 @@ async def _drain_spool(
         filed=filed,
         minted_enrollments=minted_enrollments,
         overwritten=posted.overwritten,
+        overwrite_refused=posted.overwrite_refused,
     )
     report = ForwardReport(
         project_root=project.project_root,
         dry_run=dry_run,
         coded_answer_mode=mode,
         register_completeness=register_completeness,
+        overwrite_posture=overwrites,
         spooled=len(spooled),
         outcomes=outcomes,
         unreadable_artifacts=artifacts.unreadable_resources,
@@ -5300,6 +5364,9 @@ class _PostedPayloads(BaseModel):
     overwritten: dict[str, tuple[OverwrittenValue, ...]] = Field(default_factory=dict)
     """Per receipt, the values it sent that an earlier submission had already sent; absent where it sent none."""
 
+    overwrite_refused: frozenset[str] = frozenset()
+    """Which receipts the pass would not post at all, because `overwrites = "refuse"` and they held one."""
+
     filing_issues: tuple[ForwardFilingIssue, ...] = ()
     stopped: ForwardStop | None = None
 
@@ -5312,6 +5379,7 @@ async def _post_translations(
     dry_run: bool,
     moving: bool,
     overwrite_index: ForwardedCellIndex,
+    overwrites: OverwritePosture,
     progress: _StepAnnouncer,
 ) -> _PostedPayloads:
     """Post every translated payload one at a time, filing each receipt as soon as DHIS2 answers about it.
@@ -5346,6 +5414,13 @@ async def _post_translations(
     reading is taken before the post and kept only where DHIS2 took the payload - a refused payload
     replaced nothing - and each taken payload then joins the index, so two captures of one value
     inside a single drain are the same finding as two captures a week apart.
+
+    **Under `overwrites = "refuse"` such a payload is not sent at all, and the whole response is what
+    is refused.** A payload holding one covered value among ten fresh ones is still one submission,
+    and posting the nine while refusing the one would tear a single form across two postures and
+    leave the instance holding a report nobody filled in. So the response is refused whole, it keeps
+    its place in `received/`, and a committing run writes the refusal record beside it. Nothing joins
+    the index either: a payload that was never sent landed nothing.
     """
     translated = sorted(
         ((entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused),
@@ -5354,32 +5429,46 @@ async def _post_translations(
     imports: dict[str, ForwardImportOutcome] = {}
     filed: dict[str, Path] = {}
     overwritten: dict[str, tuple[OverwrittenValue, ...]] = {}
+    refused: set[str] = set()
     issues: list[ForwardFilingIssue] = []
+    refused_at = _utc_instant()
     for posted, (entry, result) in enumerate(translated, start=1):
         cells = aggregate_cells(result.data_value_set) if result.data_value_set is not None else ()
         already_sent = overwrite_index.already_sent(cells)
-        try:
-            imported = await _post_result(client, result, dry_run=dry_run)
-        except (Dhis2ApiError, httpx.HTTPError) as error:
-            return _PostedPayloads(
-                imports=imports,
-                filed=filed,
-                overwritten=overwritten,
-                filing_issues=tuple(issues),
-                stopped=_forward_stop(entry, error),
-            )
-        imports[entry.response_id] = imported
-        if cells and not imported.is_rejected:
-            if already_sent:
-                overwritten[entry.response_id] = already_sent
-            overwrite_index.record(
-                cells, ForwardedSubmission(response_id=entry.response_id, received_at=entry.received_at)
-            )
-        if moving:
-            _file_now(entry, imported, result.target_kind, cells, filed, issues)
+        if already_sent and overwrites is OverwritePosture.REFUSE:
+            overwritten[entry.response_id] = already_sent
+            refused.add(entry.response_id)
+            _record_overwrite_refusal(entry, already_sent, refused_at=refused_at, moving=moving)
+        else:
+            try:
+                imported = await _post_result(client, result, dry_run=dry_run)
+            except (Dhis2ApiError, httpx.HTTPError) as error:
+                return _PostedPayloads(
+                    imports=imports,
+                    filed=filed,
+                    overwritten=overwritten,
+                    overwrite_refused=frozenset(refused),
+                    filing_issues=tuple(issues),
+                    stopped=_forward_stop(entry, error),
+                )
+            imports[entry.response_id] = imported
+            if cells and not imported.is_rejected:
+                if already_sent:
+                    overwritten[entry.response_id] = already_sent
+                overwrite_index.record(
+                    cells, ForwardedSubmission(response_id=entry.response_id, received_at=entry.received_at)
+                )
+            if moving:
+                _file_now(entry, imported, result.target_kind, cells, filed, issues)
         if posted % _POST_TICK_INTERVAL == 0 or posted == len(translated):
             progress.tick(_post_caption(posted, len(translated), dry_run=dry_run))
-    return _PostedPayloads(imports=imports, filed=filed, overwritten=overwritten, filing_issues=tuple(issues))
+    return _PostedPayloads(
+        imports=imports,
+        filed=filed,
+        overwritten=overwritten,
+        overwrite_refused=frozenset(refused),
+        filing_issues=tuple(issues),
+    )
 
 
 def _file_now(
@@ -5487,6 +5576,37 @@ def _record_refusals(spooled: Sequence[SpooledResponse], conversion: ConversionR
         )
 
 
+def _record_overwrite_refusal(
+    entry: SpooledResponse, values: Sequence[OverwrittenValue], *, refused_at: str, moving: bool
+) -> None:
+    """Write the refusal record beside one receipt this committing drain would not overwrite with.
+
+    The same sidecar a translator refusal writes, under a category of its own, because the receipt
+    ends in the same place: still in `received/`, still drainable, and now carrying the reason. Each
+    value it was refused over is a reason of its own, naming the cell, the receipt that sent it, and
+    when that receipt arrived - which is what an operator needs to decide between flipping the dial
+    and going back to the earlier submission. The attempt count carries over from whatever record was
+    already there, so a receipt three drains have refused says three whichever refusal it met.
+
+    A dry run writes nothing, exactly as it moves nothing: it says what it would refuse and leaves
+    the queue as it found it.
+    """
+    if not moving:
+        return
+    previous = read_refusal_record(entry.path.parent, entry.response_id)
+    record_refusal(
+        entry,
+        ForwardRefusalRecord(
+            refused_at=refused_at,
+            attempt_count=1 if previous is None else previous.attempt_count + 1,
+            reasons=tuple(
+                RefusalReason(category=OVERWRITE_REFUSAL_CATEGORY, element=value.cell.data_element, reason=value.line)
+                for value in values
+            ),
+        ),
+    )
+
+
 def _utc_instant() -> str:
     """The current instant as a FHIR `instant` - UTC, seconds precision, `Z`-suffixed."""
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -5511,6 +5631,7 @@ async def _register_completeness(
     *,
     dry_run: bool,
     registering: bool,
+    overwrite_refused: frozenset[str],
     progress: _StepAnnouncer,
 ) -> dict[str, ForwardCompletenessOutcome]:
     """Register the data set complete for every `completed` aggregate response DHIS2 has just taken.
@@ -5528,6 +5649,9 @@ async def _register_completeness(
     A refusal is recorded and does not change what the response became. The values are imported and
     stay imported; unwinding them over a failed second write would turn one refused claim into a lost
     report. The next run is the retry: registering a tuple twice is an update, not a conflict.
+
+    A response the run refused as an overwrite claims nothing at all, on a dry run as much as on an
+    import: it was never sent, so there is no report for a completeness claim to be about.
     """
     claims = [
         (entry, result)
@@ -5537,6 +5661,8 @@ async def _register_completeness(
     outcomes: dict[str, ForwardCompletenessOutcome] = {}
     posted = 0
     for entry, result in claims:
+        if entry.response_id in overwrite_refused:
+            continue
         claim = result.completeness
         if claim is None:
             outcomes[entry.response_id] = ForwardCompletenessOutcome(kind=ForwardCompletenessKind.NOT_CLAIMED)
@@ -5803,6 +5929,7 @@ def _collect_outcomes(
     filed: dict[str, Path],
     minted_enrollments: frozenset[str],
     overwritten: dict[str, tuple[OverwrittenValue, ...]],
+    overwrite_refused: frozenset[str],
 ) -> tuple[ForwardOutcome, ...]:
     """Pair every receipt with what DHIS2 said about it, and with where the run left its file.
 
@@ -5816,7 +5943,8 @@ def _collect_outcomes(
     outcomes: list[ForwardOutcome] = []
     for entry, result in zip(spooled, conversion.results, strict=True):
         imported = imports.get(entry.response_id)
-        kind = _outcome_kind(result, imported, minted_enrollments)
+        refused_over_an_overwrite = entry.response_id in overwrite_refused
+        kind = _outcome_kind(result, imported, minted_enrollments, refused_over_an_overwrite)
         path = filed.get(entry.response_id, entry.path)
         outcomes.append(
             ForwardOutcome(
@@ -5829,6 +5957,7 @@ def _collect_outcomes(
                 import_outcome=imported,
                 completeness=completeness.get(entry.response_id),
                 overwritten_values=overwritten.get(entry.response_id, ()),
+                overwrite_refused=refused_over_an_overwrite,
                 spool_path=_relative_path(path, project_root),
             )
         )
@@ -5855,14 +5984,18 @@ def _outcome_kind(
     result: ConversionResult,
     imported: ForwardImportOutcome | None,
     minted_enrollments: frozenset[str],
+    overwrite_refused: bool,
 ) -> ForwardOutcomeKind:
     """Which of the five states one receipt ended in.
 
     A translated receipt with no import answer is one the drain stopped short of, not one the
     translator refused: the two are different facts about different failures, and calling the first
-    the second would report a healthy receipt as unreadable and hide that the run ended early.
+    the second would report a healthy receipt as unreadable and hide that the run ended early. A
+    receipt the run would not overwrite with is the same state as a translator refusal - it stayed
+    in the queue and DHIS2 was never asked - so it is graded the same, and the outcome says which
+    refusal it met.
     """
-    if result.is_refused:
+    if result.is_refused or overwrite_refused:
         return ForwardOutcomeKind.REFUSED
     if imported is None:
         return ForwardOutcomeKind.NOT_POSTED
@@ -5911,7 +6044,7 @@ class SpoolStateCounts(BaseModel):
     """Files in `malformed/`, which are not receipts - they are bytes that would not read as one."""
 
     refused_in_queue: int = 0
-    """Of the received receipts, how many the last committing drain refused to translate."""
+    """Of the received receipts, how many the last committing drain refused and left in the queue."""
 
     @property
     def total(self) -> int:
@@ -5950,7 +6083,7 @@ class SpoolStateReport(BaseModel):
             f"{self.counts.received:,} received, {self.counts.forwarded:,} forwarded, {self.counts.rejected:,} rejected"
         )
         if self.counts.refused_in_queue:
-            line = f"{line} ({self.counts.refused_in_queue:,} of the received refused by the translator)"
+            line = f"{line} ({self.counts.refused_in_queue:,} of the received refused by a drain)"
         return f"{line}, {self.counts.malformed:,} malformed" if self.counts.malformed else line
 
 

@@ -1475,13 +1475,16 @@ Everything this section used to hold has shipped, and a roadmap states what is
 next rather than what happened - section 2 is where the built surface is
 described, and the git history is where it was built. What is left:
 
-- **Decision D8, which is blocking.** A drain now names the values a previous
-  submission already sent, on the terminal, in the report, and in a dry run
-  before anything changes. Whether an *unmarked* aggregate overwrite should be
-  **refused** rather than only reported is the owner's call, and the corrections
-  and withdrawals slices follow from the answer either way. See
-  [Corrections and withdrawals](data-lifecycle.md), which carries the twelve
-  slices and their order.
+- **The corrections and withdrawals slices, now unblocked.** A drain names the
+  values a previous submission already sent - on the terminal, in the report,
+  and in a dry run before anything changes - and `[forward] overwrites` decides
+  what it does about them: `"allow"`, the default, posts the value and names it,
+  which is DHIS2's own last-write-wins semantics taken as a posture rather than
+  inherited by omission; `"refuse"` sends no payload holding one and leaves the
+  response queued with every covered cell written down beside it. That was
+  decision D8, and nothing waits on it now. See
+  [Corrections and withdrawals](data-lifecycle.md), which carries the slices and
+  their order; `[forward] corrections` and `[forward] withdrawals` are next.
 
 - **Authentication for the served facade.** There is none, and the
   CapabilityStatement declares no `rest.security`, so a client cannot discover

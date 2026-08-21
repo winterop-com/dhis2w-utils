@@ -693,8 +693,8 @@ symptom is a value you know a person holds finding nobody.
 ## Forwarding it: the `[forward]` section { #forward }
 
 `d2w fhir forward` is the other half of the loop the capture server opens - see
-[Forward captures into DHIS2](201-forward.md). Three options in `fhir.toml`
-belong to it, and each has a command-line flag that outranks it for one run:
+[Forward captures into DHIS2](201-forward.md). Four options in `fhir.toml`
+belong to it, and each but `live` has a command-line flag that outranks it for one run:
 **flag beats table beats default**, the same order the rest of `[serve]`
 follows. Which folder a drain reads is not here - it is
 [`[serve] spool_dir`](#spool_dir), because the server is what writes it.
@@ -796,6 +796,50 @@ still in progress imports its figures and marks nothing, whatever this key says.
 unrecognisable stops the run with a printout naming
 `forward.register_completeness`. `--register-completeness` and
 `--no-register-completeness` override it either way for one run.
+
+### `overwrites`
+
+**In plain words.** What a drain does when a figure it is about to send is one
+a form this project already forwarded sent - the same data element, category
+option combo, period, organisation unit, and reporting dimension. `"allow"` -
+the default - sends it, and the run names every figure it replaced along with
+the form that sent it before. `"refuse"` sends nothing at all: any form
+carrying such a figure stays in the queue with the covered figures written down
+beside it.
+
+**When you would change it.** Turn it to `"refuse"` in a deployment where
+forwarded figures must only change through a declared correction that somebody
+reviews - or while two capture clients are running against one instance and
+nobody has decided yet which of them is authoritative. Leave it at `"allow"`
+where a clerk re-entering a month they got wrong is the ordinary case, which is
+what DHIS2 itself expects: the server keeps the newest figure for a cell
+whatever a client does, and this is the toolkit agreeing with the platform it
+writes into rather than inventing a stricter rule on top.
+
+**Example.**
+
+```toml
+[forward]
+overwrites = "refuse"
+```
+
+A form carrying a figure an earlier submission already sent is refused whole -
+never in part, because a form posted half-way would land a report nobody filled
+in. It stays in `.serve/responses/received/` with `<id>.refusal.json` beside it
+naming each covered figure, and `d2w fhir spool` lists it as refused and still
+queued. Running `d2w fhir forward --import --overwrites allow` sends it.
+
+**Default:** `"allow"` - **If you leave it out:** every figure an earlier
+submission already sent is sent again and named in the run report, and nothing
+is refused over it. That is what a drain has always done; the key is what lets
+a deployment say otherwise.
+
+**If you get it wrong:** the two values are `"allow"` and `"refuse"`, quoted.
+Anything else - `"reject"`, `"off"`, a bare `false` - stops the run with a
+printout naming `forward.overwrites`. `--overwrites allow` and
+`--overwrites refuse` override it either way for one run. The key reaches
+aggregate figures only: tracker records carry their own DHIS2 identity, so they
+collide rather than overwrite, and no setting here changes that.
 
 Next: [The capture contract](401-capture-contract.md) - the integrate tier
 starts with what a valid submission carries. Or back to

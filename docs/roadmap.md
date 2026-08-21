@@ -280,10 +280,12 @@ toolchain could lose data without saying so. Alongside it the examples collapsed
 per-version trees into one version-neutral tree that `make verify-examples` executes, and
 the documentation gained a directory per feature surface.
 
-**One decision is blocking, and it is the owner's**: whether an *unmarked* aggregate
-overwrite should be refused outright rather than only reported (decision D8 in the [FHIR
-roadmap](fhir/design/roadmap.md)). The corrections and withdrawals slices follow from the
-answer either way.
+**What a drain does about an unmarked aggregate overwrite is `[forward] overwrites`**
+(decision D8 in the [FHIR roadmap](fhir/design/roadmap.md)). `"allow"` - the default - posts
+the value and names it, which is DHIS2's own last-write-wins semantics taken as a posture
+rather than inherited by omission; `"refuse"` sends no payload holding one and leaves the
+response in the queue with every covered cell written down beside it. The corrections and
+withdrawals slices are unblocked.
 
 The natural next direction is one of:
 

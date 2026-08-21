@@ -202,7 +202,7 @@ class SpoolResponseSummary(BaseModel):
     """What DHIS2 counted for this receipt, on a forwarded row that has a readable report beside it."""
 
     refusal: SpoolRefusal | None = None
-    """The last committing drain's translator refusal, on a received row that has a record beside it."""
+    """The last committing drain's refusal, on a received row that has a record beside it."""
 
 
 class SpoolCounts(BaseModel):

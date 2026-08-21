@@ -310,7 +310,10 @@ It works, and because `importCount` reports `updated:1` for creates and correcti
 > sends a value a forwarded receipt already sent names the value, the receipt that sent it first,
 > and when that receipt arrived - on the terminal, under `--details`, in its own section of the
 > written report, and in `--json`. A dry run states it as the prediction it is, which is the most
-> useful moment for it. Nothing is refused over it: D8 is still the owner's to answer.
+> useful moment for it. What the drain then *does* about it is `[forward] overwrites` (D8):
+> `"allow"` - the default - posts the value and names it, which is DHIS2's own last-write-wins
+> semantics stated as a chosen posture; `"refuse"` posts no payload holding one at all and
+> leaves the response in the queue with every covered cell written down beside it.
 
 ### 2.3 What silently duplicates
 
@@ -384,7 +387,7 @@ toggle. No amend, revise, resubmit, retract, void, or prefill-from-receipt.
 
 | Path | A second receipt for the same real-world fact | Result today |
 | --- | --- | --- |
-| aggregate values | same `(dataSet, period, orgUnit, dataElement, categoryOptionCombo)` | **corrected in place**; DHIS2 says nothing about it, and the run names every value it replaced |
+| aggregate values | same `(dataSet, period, orgUnit, dataElement, categoryOptionCombo)` | **corrected in place**; DHIS2 says nothing about it, and the run names every value it replaced. `[forward] overwrites = "refuse"` leaves the response in the queue instead |
 | aggregate completeness | same tuple | re-registered as `updated`; documented as safe |
 | tracker event | new receipt, so a new derived UID | **a duplicate event is created** |
 | registration | `$generate` mints fresh UIDs | **a duplicate person and enrollment** |
@@ -392,8 +395,9 @@ toggle. No amend, revise, resubmit, retract, void, or prefill-from-receipt.
 | `status: "amended"` | - | collapses to `COMPLETED`, forwarded as a brand-new event |
 | `status: "entered-in-error"` | - | refused as terminal and filed to `rejected/`; nothing is withdrawn from DHIS2 |
 
-Aggregate corrections work, and every one of them is now named in the run that makes it. Tracker
-corrections are impossible. Withdrawal does not exist.
+Aggregate corrections work, every one of them is named in the run that makes it, and a deployment
+that wants them blocked rather than reported has a dial for that. Tracker corrections are
+impossible. Withdrawal does not exist.
 
 ---
 
@@ -526,33 +530,39 @@ submission that landed.
 The docstring at `spool.py:65` that today explains why there are three states gets rewritten
 to explain why there are four, rather than left to rot beside a fourth it denies.
 
-### 3.8 Two dials, both off
+### 3.8 The dials
 
 Per the standing directive - keep `fhir.toml` in mind and expand it as needed, because not
-everyone wants a full round trip - each capability arrives behind its own dial, and both
-default to off. `ForwardConfig` (`packages/dhis2w-fhir/src/dhis2w_fhir/config.py:381`) has
-exactly one field today, `live`, and is `frozen=True, extra="forbid"`, so a new key must be
-modelled and not merely written into the TOML.
+everyone wants a full round trip - each capability arrives behind its own dial. The two
+correction and withdrawal dials default to off; the overwrite dial defaults to `"allow"`.
+`ForwardConfig` (`packages/dhis2w-fhir/src/dhis2w_fhir/config.py`) is `frozen=True,
+extra="forbid"`, so a new key must be modelled and not merely written into the TOML.
 
 ```toml
 [forward]
 live = true
-corrections = "off"    # "off" | "amend"
-withdrawals = "off"    # "off" | "retract"
+overwrites = "allow"   # "allow" | "refuse"  -- built
+corrections = "off"    # "off" | "amend"     -- unbuilt
+withdrawals = "off"    # "off" | "retract"   -- unbuilt
 ```
 
-The precedent to copy is `[serve] strict_codes` (`config.py:352`): a configured default that
-the forwarder reads and a per-invocation CLI flag can override. With a dial off, the facade
-**refuses the corresponding status at capture time with a 422 `OperationOutcome` naming the
-config key**, rather than accepting a submission the forwarder will never act on.
+The precedent to copy is `[serve] strict_codes` (`config.py`): a configured default that
+the forwarder reads and a per-invocation CLI flag can override. With a correction or
+withdrawal dial off, the facade **refuses the corresponding status at capture time with a 422
+`OperationOutcome` naming the config key**, rather than accepting a submission the forwarder
+will never act on.
 
-One honesty note about the corrections dial. It governs *marked* corrections. It does not,
-on its own, stop the accidental aggregate overwrite described in section 2.2, because that
-path carries no marker at all - a plain second capture of the same tuple. Making that path
-visible is slice 2, which is built: a drain names every aggregate value it sends that a
-forwarded receipt already sent, and the receipt that sent it. Whether an unmarked overwrite
-should also be *refused* outright while `corrections = "off"` remains a question for the
-owner (decision D8).
+The two families of dial govern different things, and the difference is the whole reason there
+are three keys rather than two. `corrections` and `withdrawals` govern a *marked* submission -
+one that says what it is amending. `overwrites` governs an *unmarked* one: the accidental
+aggregate overwrite of section 2.2, which carries no marker at all and is simply a second
+capture of the same tuple. Making that path visible is slice 2, which is built; deciding what
+a drain does about it is `overwrites` (D8), which is built too. `"allow"` posts the value and
+names it - DHIS2's own last-write-wins semantics, chosen rather than inherited by default.
+`"refuse"` posts no payload holding one and leaves the response queued with the covered cells
+recorded beside it, which is the posture for a deployment where forwarded data changes only
+through a declared correction. Once `corrections` ships, a marked correction is what a
+`"refuse"` deployment routes its changes through.
 
 ---
 
@@ -568,12 +578,13 @@ event leg does not. Registrations come after both, and the cascade comes last.
 | --- | --- | --- | --- |
 | 1 | **[SHIPPED] Name the current behaviour.** Docs and `features.md`: aggregate re-capture overwrites in place, tracker re-capture duplicates, a receipt cannot be withdrawn, and `d2w data tracker delete` is the raw escape hatch. No code. | - | The worst problem is that none of this is written down. |
 | 2 | **[SHIPPED] Report aggregate overwrites.** When a drain posts an aggregate cell a prior forwarded receipt already covered, say so in the run report. Spool-local; no wire change, no config. | 1 | Turns a silent clobber into a visible one. DHIS2 cannot tell us, so the spool must. |
-| 3 | **Both dials, defaulting off.** `[forward] corrections` and `[forward] withdrawals` on `ForwardConfig`, matching CLI flags, and capture-time 422 refusals naming the key. | - | Control ships before capability. |
+| 2a | **[SHIPPED] Decide what a drain does about an overwrite.** `[forward] overwrites` on `ForwardConfig`, `"allow"` by default, with `--overwrites` overriding it for one run. `"refuse"` sends no payload holding an already-sent cell and leaves the response queued with a refusal record naming each. | 2 | Slice 2 made the overwrite visible; this is the posture a deployment takes about it (D8). |
+| 3 | **Both correction dials, defaulting off.** `[forward] corrections` and `[forward] withdrawals` on `ForwardConfig`, matching CLI flags, and capture-time 422 refusals naming the key. | - | Control ships before capability. |
 | 4 | **Withdraw an event, CLI only.** `d2w fhir withdraw <response-id>`: read the receipt, recompute `receipt_event_uid`, post `importStrategy=DELETE`, write the sidecar, move the receipt to `withdrawn/`. | 3 | The smallest slice that delivers real capability - one object, no cascade, no wire-contract change. Introduces the fourth state. |
 | 5 | **`basedOn` on the wire.** Parse it, resolve the chain to its root, refuse an `amended` or `entered-in-error` receipt whose `basedOn` names nothing this spool forwarded. No strategy change yet. | 3 | The correction is recorded and validated before it is applied. |
 | 6 | **Tracker event corrections.** Derive the event UID from the `basedOn` root, post `importStrategy=UPDATE`, require a complete value set. | 5 | The one genuinely new mechanism in the whole plan. |
 | 7 | **Withdraw an event through the facade.** Accept `entered-in-error` submissions; the forwarder translates. Calls slice 4's service layer. | 4, 5 | Where the design actually lands for withdrawals. |
-| 8 | **Aggregate corrections.** Widen `AGGREGATE_REQUIRED_STATUS` to admit `amended`. The forward path needs no change at all. | 2, 5 | The cheapest real capability, because DHIS2 already does the work - but it needs slice 2's visibility first. |
+| 8 | **Aggregate corrections.** Widen `AGGREGATE_REQUIRED_STATUS` to admit `amended`. The forward path needs no change at all, beyond a marked correction passing an `overwrites = "refuse"` drain that an unmarked one does not. | 2a, 5 | The cheapest real capability, because DHIS2 already does the work - but it needs slice 2's visibility and slice 2a's posture first. |
 | 9 | **Aggregate withdrawals.** With the read-before-delete guard that events do not need. | 4, 8 | Deliberately after events despite being technically easier, because of the phantom-tombstone hazard. |
 | 10 | **Capture UI: amend and withdraw from a receipt.** A control on `ResponseDetail` that prefills a new form from the receipt and submits it with the right status and `basedOn`. | 6, 7 | Pure frontend once the server legs exist. |
 | 11 | **Registration corrections.** Tracked entity and enrollment through the top-level `enrollments` key, minding BUGS.md #73. | 6 | Client-minted UIDs, `CREATE_AND_UPDATE`, and a known hazard - late for good reason. |
@@ -587,8 +598,8 @@ longer exist. **Do not ship this until the spool can mark collaterally-withdrawn
 Until it can, the honest answer to "withdraw this person" is that the toolkit does not do
 that, and `d2w data tracker delete` is the deliberate, prompted escape hatch.
 
-Slices 1 through 3 are documentation, reporting, and configuration. They could land in a
-single batch and they carry no wire risk at all.
+Slices 1 through 3 are documentation, reporting, and configuration. They carry no wire risk
+at all - 1, 2, and 2a have shipped, and 3 could land beside them.
 
 ---
 
@@ -613,12 +624,18 @@ contains, listed so that disagreeing with one is easy.
 - **D6 - The fourth spool state is `withdrawn/`**, and it applies to the original receipt.
 - **D7 - The spool is documented as the provenance guarantee**, in place of DHIS2's audit
   trail, which the toolkit does not rely on.
-- **D8 - What happens to an unmarked aggregate overwrite while `corrections = "off"`.** Slice
-  2 is built, so the visibility half is settled: every such cell is named, with the receipt
-  that covered it and when that receipt arrived, on a dry run as well as on an import. The
-  open question is unchanged and still the owner's - whether a drain should also *refuse* to
-  post an aggregate cell a prior forwarded receipt already covered, or continue to let it
-  through as it does today.
+- **D8 - What happens to an unmarked aggregate overwrite is `[forward] overwrites`, and it
+  defaults to `"allow"`.** Both halves are built. Visibility: every such cell is named, with
+  the receipt that covered it and when that receipt arrived, on a dry run as well as on an
+  import. Posture: `"allow"` posts the cell and names it, which is DHIS2's own last-write-wins
+  semantics adopted deliberately rather than inherited by omission - the platform underneath
+  keeps the newest number whatever a client does, and the common case is a clerk re-entering a
+  month they got wrong. `"refuse"` sends no payload holding such a cell at all; the response is
+  refused whole and non-terminally, staying in `received/` with a refusal record naming every
+  covered cell, the receipt that sent it, and when that receipt arrived, so
+  `d2w fhir spool` shows it as refused-but-queued and a later drain under `"allow"` posts it.
+  The refusal is per response rather than per cell, because a payload posted in part would tear
+  one submission across two postures. The dial reaches aggregate cells alone.
 - **D9 - Whether slice 12 is ever built.** Enrollment and tracked-entity withdrawal is
   designed and deliberately unscheduled, because of the collateral-receipt problem.
 - **D10 - Whether the MCP read-only gate gains a destructive tier.** Today
