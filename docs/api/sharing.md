@@ -53,7 +53,7 @@ async with Dhis2Client(url, auth) as client:
 - `user`, `userGroup`, `userRole`
 - `dashboard`, `visualization`, `map`, `report`, `eventChart`, `eventReport`
 
-DHIS2 returns 400 on unknown types — if you get that, check the resource's schema at `/api/schemas/{type}` (the sharing endpoint uses the same names).
+DHIS2 returns 409 `Conflict` with `Type <name> is not supported.` for anything the sharing endpoint will not serve. Status and message are identical whether the type does not exist at all or exists but has no sharing, so the response alone does not tell the two apart. Check `/api/schemas/{type}` to find out which you hit: a 404 means the name is wrong (the sharing endpoint uses the same singular names as the schema), and a 200 carrying `"shareable": false` means the type is real but has no sharing block — `organisationUnit` is the one people try most often.
 
 ## Why this exists
 

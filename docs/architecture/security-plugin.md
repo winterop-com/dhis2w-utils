@@ -183,7 +183,14 @@ state:
 - `d2w security whoami` — authenticated user, roles, and authority count from
   `/api/me` (typed `Me` already exists in `dhis2w-client`).
 - `d2w security authorities` — the current user's effective authorities from
-  `/api/me/authorities`.
+  `/api/me/authorization`. That is the endpoint the DHIS2 Web API documentation
+  gives for this list, and it is the one the command reads. `/api/me/authorities`
+  answers the same list on 2.43.1 — both are declared in the instance's OpenAPI
+  document, both return an identical array, and both have a `/{authority}`
+  sibling that answers `true` or `false` — but only
+  `/api/me/authorization` appears anywhere in the documentation. Reading the
+  undocumented spelling buys nothing and takes on a name upstream never promised
+  to keep.
 - `d2w security password-policy --lint` — turn `settings` into pass/warn checks
   against a baseline (min length, expiry set, lockout on) — a thin sibling of the
   `doctor` probe model.
