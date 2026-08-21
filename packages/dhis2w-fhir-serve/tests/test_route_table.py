@@ -113,7 +113,16 @@ def test_the_fhir_routers_carry_the_negotiation_and_the_facade_routers_do_not() 
     facade_paths = {route.path for router in routers.facade for route in router.routes if isinstance(route, APIRoute)}
 
     assert "/metadata" in fhir_paths
-    assert facade_paths == {"/spool", "/uiconfig", "/tracked-entities/{tracked_entity_uid}/enrollments"}
+    assert facade_paths == {
+        "/spool",
+        "/uiconfig",
+        "/tracked-entities/{tracked_entity_uid}/enrollments",
+        "/evaluate",
+        "/terminology/validate-code",
+        "/terminology/lookup",
+        "/cds-services",
+        "/cds-services/{service_id}",
+    }
     assert fhir_paths & facade_paths == set()
 
 

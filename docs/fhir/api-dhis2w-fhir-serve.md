@@ -31,6 +31,13 @@ so anything cached would be stale within seconds of a drain.
   (`open_live_client`, `build_live_store`, `build_store`).
 - Translate a concept through the ConceptMaps a project publishes, with no server running
   (`find_translations`, `TranslateRequest`, `TranslationMatch`).
+- Run one FHIRPath expression, CQL library, or ELM library over a resource and read what the parser
+  and the evaluator said about it (`evaluate_source`, `EvaluationLanguage`, `EvaluationOutcome`,
+  `EvaluationResult`, `EvaluationDiagnostic`, `json_safe`, `syntax_diagnostic`).
+- Ask what a code means in the vocabularies one project publishes, with no server running
+  (`load_terminology`, `TerminologyState`, `LookedUpCode`, `ValidatedCode`, `ConceptProperty`).
+- Answer a CDS Hooks invocation with cards built from a CQL library (`CdsService`, `CdsDiscovery`,
+  `CdsHookRequest`, `CdsHookResponse`, `CdsCard`, `CqlLibraryHookContext`).
 - Page through the receipts a facade holds the way `GET /spool` pages through them (`page_of`,
   `SpoolCursor`, `SpoolPage`, `requested_page_size`, `requested_cursor`).
 - Load a project's served resources without an HTTP server (`load_compiled_store`, `ResourceStore`,
@@ -132,6 +139,66 @@ What each step is for:
 4. **The error handlers.** Without `register_error_handlers`, every typed refusal the facade raises -
    `RegisterDisabledError`, `NotServedError`, `CaptureDisabledError` - is a 500 with no
    `OperationOutcome` in it.
+
+### Pick what you mount
+
+`serve_routers` answers every router this facade has, and an embedding application rarely wants all
+of them. The two collections it answers - `fhir` and `facade` - are what you narrow, and the route
+modules are where each router is imported from:
+
+```python
+from dhis2w_fhir_serve.metadata import router as metadata_router
+from dhis2w_fhir_serve.routes.capture import refusal_router as capture_refusal_router
+from dhis2w_fhir_serve.routes.capture import router as capture_router
+from dhis2w_fhir_serve.routes.cds import router as cds_router
+from dhis2w_fhir_serve.routes.enrollments import router as enrollments_router
+from dhis2w_fhir_serve.routes.evaluate import router as evaluate_router
+from dhis2w_fhir_serve.routes.spool import router as spool_router
+from dhis2w_fhir_serve.routes.terminology import router as terminology_router
+```
+
+Five named picks, each a pair of tuples in place of `routers.fhir` and `routers.facade` in the loop
+above. Every one of them still mounts `serve_routers().read` last, still wants the HEAD sweep, and
+still needs `register_error_handlers` - those three are not part of the choice.
+
+**Capture only.** Receive submissions, and publish the forms they answer.
+
+```python
+fhir = (metadata_router, capture_router)
+facade = (spool_router,)
+```
+
+**Capture and register.** The same, plus who the submissions are about. The register itself claims no
+router - `GET /Patient` is the read catch-all dispatching to it - so what this pick adds beyond the
+one above is the enrollment listing a stage form picks from. Live runs only.
+
+```python
+fhir = (metadata_router, capture_router)
+facade = (spool_router, enrollments_router)
+```
+
+**Read-only guide server.** Publish the guide and receive nothing. The refusal router claims
+`POST /QuestionnaireResponse` so the address answers 405 naming `[serve] capture = false`, rather
+than falling through to a 405 that says nothing.
+
+```python
+fhir = (metadata_router, capture_refusal_router)
+facade = ()
+```
+
+**Evaluate playground.** The guide, and the three surfaces that run over it: FHIRPath, CQL, and ELM
+evaluation, this guide's own vocabularies, and CDS Hooks.
+
+```python
+fhir = (metadata_router,)
+facade = (evaluate_router, terminology_router, cds_router)
+```
+
+**The full facade.** Every line above, in one call.
+
+```python
+routers = serve_routers(capture=settings.capture)
+```
 
 Two things stay outside this contract. The capture UI is not a router and is reached by running
 `create_app` with `settings.ui`; see [the UI boundary](design/library.md#35-the-ui-boundary-and-what-it-means-for-the-package-layout).
@@ -284,6 +351,43 @@ concept. The matching itself is a pure function over the maps a store holds, so 
 loaded store answers the same question with no server running.
 
 ::: dhis2w_fhir_serve.routes.translate
+
+### Evaluating an expression
+
+`POST /evaluate` - one FHIRPath expression, CQL library, or ELM library run over one resource this
+facade serves, answering typed results and real diagnostics: a parse failure at the line and column
+the parser stopped on, a per-define refusal in the define's own row. The engine layer is a pure
+function over FHIR-shaped JSON, so a caller with a loaded store evaluates the same expression with no
+server running. The sandbox is closed by construction - no library path is ever passed to the engine
+and ELM is parsed to a dict before the engine sees it, so an expression reaches the supplied context
+and nothing else.
+
+::: dhis2w_fhir_serve.evaluation
+
+::: dhis2w_fhir_serve.routes.evaluate
+
+### This guide's vocabularies
+
+`GET /terminology/validate-code` and `GET /terminology/lookup` - is this code in that published value
+set, and what is this code called. It answers about the CodeSystems and ValueSets **this project
+publishes** and is not a general terminology server: a SNOMED CT or LOINC code is answered "this
+server publishes no code system under that url". Membership goes to the engine's in-memory
+terminology service, so the composition rules are the engine's; the code systems are indexed here,
+because that service takes none through its public surface.
+
+::: dhis2w_fhir_serve.terminology
+
+::: dhis2w_fhir_serve.routes.terminology
+
+### CDS Hooks
+
+`GET /cds-services` and `POST /cds-services/{id}` - the discovery document and one service, which
+evaluates a caller-supplied CQL library (or a Library this guide publishes) over the resources the
+hook prefetched and answers one card per define that resolves to true or to a message. There is no
+feedback endpoint, no suggestions, and no second service; each would mean an EHR state this facade
+does not hold.
+
+::: dhis2w_fhir_serve.routes.cds
 
 ### Conformance
 

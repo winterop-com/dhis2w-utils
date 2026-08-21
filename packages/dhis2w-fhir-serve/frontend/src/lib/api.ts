@@ -43,6 +43,13 @@
  * through this guard, because the reason for the guard is the SPA fallback, and
  * that applies to every path alike.
  *
+ * `/evaluate` is the fourth, and the same shape for a fourth reason: it answers
+ * what a parser said about the character it stopped on, and FHIR has nowhere to
+ * put a line and a column. `/terminology/*` and `/cds-services` are guarded
+ * beside it because this server claims them ahead of the static mount, whether
+ * or not this bundle ever calls them - a guard that let a path through would be
+ * a guard that let a typo land on the SPA shell.
+ *
  * WHY NO QUERY LIBRARY. There is no react-query, swr, or zustand in this app on
  * purpose. The server answers whole Bundles off a store loaded once at startup,
  * so there is nothing to cache that the server is not already caching, and no
@@ -51,6 +58,7 @@
  * `useSyncExternalStore`.
  */
 
+import type { EvaluationOutcome } from '@/lib/evaluate'
 import {
     REGISTER_IDENTIFIER_SEARCH_PARAMETER,
     type Bundle,
@@ -71,9 +79,10 @@ export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
  * Every lowercase path `d2w fhir serve` claims ahead of the UI mount.
  *
  * Kept as a list rather than only a regex so the set is greppable from the
- * Python side: this must stay equal to `/metadata`, `/spool`, `/uiconfig`, and
- * the `/tracked-entities/{uid}/enrollments` listing. The vite dev-server proxy
- * in vite.config.ts proxies the same list.
+ * Python side: this must stay equal to `/metadata`, `/spool`, `/uiconfig`, the
+ * `/tracked-entities/{uid}/enrollments` listing, `/evaluate`, the two
+ * `/terminology/*` reads, and `/cds-services`. The vite dev-server proxy in
+ * vite.config.ts proxies the same list.
  *
  * The FHIR resource types are not in it, and cannot be. The read catch-all
  * answers `/{ResourceType}` for the types the store holds, and the register
@@ -83,7 +92,15 @@ export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
  * and a type this server does not serve comes back as its own OperationOutcome
  * saying so, which is a better answer than a client-side refusal guessing.
  */
-export const GUARDED_PATH_SEGMENTS = ['metadata', 'spool', 'uiconfig', 'tracked-entities'] as const
+export const GUARDED_PATH_SEGMENTS = [
+    'metadata',
+    'spool',
+    'uiconfig',
+    'tracked-entities',
+    'evaluate',
+    'terminology',
+    'cds-services',
+] as const
 
 /** How FHIR spells a resource type: an initial capital, then letters, and nothing else. */
 export const RESOURCE_TYPE_PATTERN_SOURCE = '[A-Z][A-Za-z]*'
@@ -339,6 +356,25 @@ export async function readTrackedEntityEnrollments(trackedEntityUid: string): Pr
  */
 export async function readUiConfig(): Promise<UiConfig> {
     return readJson<UiConfig>('/uiconfig')
+}
+
+/**
+ * Ask the server to evaluate one expression over one resource it serves.
+ *
+ * Plain `application/json`, not FHIR: the answer carries typed results and the line and column a
+ * parser stopped on, neither of which a `Parameters` resource has anywhere to put.
+ *
+ * A bad expression is not a failure of this call. It answers 200 with its diagnostics, exactly as
+ * `$translate` answers a concept its maps say nothing about, so a caller reads the outcome rather
+ * than catching. What throws is a request this facade cannot serve at all - a stored resource it
+ * does not hold, a register it does not publish - which arrives as an OperationOutcome.
+ */
+export async function evaluateExpression(request: Record<string, unknown>): Promise<EvaluationOutcome> {
+    return readJson<EvaluationOutcome>('/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+    })
 }
 
 /** How many receipts one page of the spool walk asks for - the server's own ceiling per request. */

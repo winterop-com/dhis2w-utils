@@ -50,6 +50,17 @@ from dhis2w_fhir_serve.errors import (
     outcome,
     register_error_handlers,
 )
+from dhis2w_fhir_serve.evaluation import (
+    FHIRPATH_RESULT_NAME,
+    DiagnosticKind,
+    EvaluationDiagnostic,
+    EvaluationLanguage,
+    EvaluationOutcome,
+    EvaluationResult,
+    evaluate_source,
+    json_safe,
+    syntax_diagnostic,
+)
 from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.log import RequestLogMiddleware, configure_logging
 from dhis2w_fhir_serve.metadata import build_metadata_body
@@ -73,11 +84,31 @@ from dhis2w_fhir_serve.register.wire import (
     search_tracked_entities,
 )
 from dhis2w_fhir_serve.routes import ServeRouters, accept_head_wherever_get_is_served, register_routes, serve_routers
+from dhis2w_fhir_serve.routes.cds import (
+    CDS_SERVICE_PATH,
+    CDS_SERVICES_PATH,
+    CQL_LIBRARY_SERVICE_HOOK,
+    CQL_LIBRARY_SERVICE_ID,
+    CdsCard,
+    CdsCardSource,
+    CdsDiscovery,
+    CdsHookRequest,
+    CdsHookResponse,
+    CdsService,
+    CqlLibraryHookContext,
+)
 from dhis2w_fhir_serve.routes.context import live_client, serve_context
 from dhis2w_fhir_serve.routes.enrollments import (
     TRACKED_ENTITY_ENROLLMENTS_PATH,
     TrackedEntityEnrollment,
     TrackedEntityEnrollments,
+)
+from dhis2w_fhir_serve.routes.evaluate import (
+    EVALUATE_PATH,
+    EvaluationRequest,
+    InlineResourceContext,
+    RegisteredEntityContext,
+    StoredResourceContext,
 )
 from dhis2w_fhir_serve.routes.negotiation import require_json_is_acceptable
 from dhis2w_fhir_serve.routes.spool import (
@@ -89,6 +120,7 @@ from dhis2w_fhir_serve.routes.spool import (
     SpoolRejectionIssue,
     SpoolResponseSummary,
 )
+from dhis2w_fhir_serve.routes.terminology import CODE_LOOKUP_PATH, VALIDATE_CODE_PATH
 from dhis2w_fhir_serve.routes.translate import TranslateRequest, TranslationMatch, find_translations
 from dhis2w_fhir_serve.runtime import (
     ServeContext,
@@ -137,13 +169,33 @@ from dhis2w_fhir_serve.synthesize import (
     generate_response,
     resolve_period_type,
 )
+from dhis2w_fhir_serve.terminology import (
+    ConceptProperty,
+    LookedUpCode,
+    LookupCodeSystem,
+    LookupConcept,
+    LookupConceptProperty,
+    LookupValueSet,
+    LookupValueSetCompose,
+    LookupValueSetInclude,
+    TerminologyState,
+    ValidatedCode,
+    load_terminology,
+)
 from dhis2w_fhir_serve.ui import UiBundleMissingError
 
 __all__ = [
+    "CDS_SERVICES_PATH",
+    "CDS_SERVICE_PATH",
+    "CODE_LOOKUP_PATH",
     "COMPILED_RESOURCES_RELATIVE_PATH",
     "COUNT_PARAMETER",
+    "CQL_LIBRARY_SERVICE_HOOK",
+    "CQL_LIBRARY_SERVICE_ID",
     "DEFAULT_PERIOD_TYPE",
     "DEFAULT_STRICT_CODES",
+    "EVALUATE_PATH",
+    "FHIRPATH_RESULT_NAME",
     "FHIR_JSON_MEDIA_TYPE",
     "FORWARDED_RESPONSES_RELATIVE_PATH",
     "GENERATED_STATUS",
@@ -159,6 +211,7 @@ __all__ = [
     "TOTAL_PAGES_PARAMETER",
     "TRACKED_ENTITY_ENROLLMENTS_PATH",
     "TRACKED_ENTITY_FIELDS",
+    "VALIDATE_CODE_PATH",
     "AmbiguousCodingError",
     "BadOperationError",
     "BadSearchError",
@@ -169,12 +222,34 @@ __all__ = [
     "CaptureNaming",
     "CaptureQuestion",
     "CaptureRejection",
+    "CdsCard",
+    "CdsCardSource",
+    "CdsDiscovery",
+    "CdsHookRequest",
+    "CdsHookResponse",
+    "CdsService",
     "CodingResolver",
     "CodingResolverSet",
     "CompiledIgMissingError",
+    "ConceptProperty",
+    "CqlLibraryHookContext",
     "DateWindow",
+    "DiagnosticKind",
+    "EvaluationDiagnostic",
+    "EvaluationLanguage",
+    "EvaluationOutcome",
+    "EvaluationRequest",
+    "EvaluationResult",
     "IdentifierToken",
+    "InlineResourceContext",
     "ListingCursor",
+    "LookedUpCode",
+    "LookupCodeSystem",
+    "LookupConcept",
+    "LookupConceptProperty",
+    "LookupValueSet",
+    "LookupValueSetCompose",
+    "LookupValueSetInclude",
     "MethodNotAllowedError",
     "NoPublishedSubjectTypeError",
     "NotFoundError",
@@ -186,6 +261,7 @@ __all__ = [
     "RegisterListingDisabledError",
     "RegisterListingPage",
     "RegisterSurface",
+    "RegisteredEntityContext",
     "RequestLogMiddleware",
     "ResolvedCoding",
     "ResourceStore",
@@ -210,7 +286,9 @@ __all__ = [
     "StoreEntry",
     "StoreSummary",
     "StoredReceipt",
+    "StoredResourceContext",
     "StoredResponseEnvelope",
+    "TerminologyState",
     "TrackedEntityEnrollment",
     "TrackedEntityEnrollments",
     "TrackedEntityIndex",
@@ -222,6 +300,7 @@ __all__ = [
     "UnresolvableCodingError",
     "UpstreamError",
     "ValidatedCapture",
+    "ValidatedCode",
     "accept_head_wherever_get_is_served",
     "attach_serve_runtime",
     "build_capture_index",
@@ -234,12 +313,15 @@ __all__ = [
     "create_app",
     "current_instant",
     "draw_seed",
+    "evaluate_source",
     "fetch_tracked_entity",
     "find_translations",
     "generate_response",
+    "json_safe",
     "list_tracked_entities",
     "live_client",
     "load_compiled_store",
+    "load_terminology",
     "new_response_id",
     "open_live_client",
     "open_serve_runtime",
@@ -250,14 +332,15 @@ __all__ = [
     "register_routes",
     "registered_entity_for",
     "rejection_outcome",
-    "require_json_is_acceptable",
     "requested_cursor",
     "requested_page_size",
+    "require_json_is_acceptable",
     "resolve_period_type",
     "search_tracked_entities",
     "serve_context",
     "serve_routers",
     "server_version",
     "success_outcome",
+    "syntax_diagnostic",
     "validate_response",
 ]
