@@ -213,6 +213,7 @@ nav:
           - The IPS document: fhir/design/ips.md
           - Harmonization: fhir/design/harmonization.md
           - The library surface: fhir/design/library.md
+          - The materialized projection: fhir/design/projection.md
   - Query language:
       - Introduction: query/index.md
       - d2ql tutorial: query/d2ql-tutorial.md
