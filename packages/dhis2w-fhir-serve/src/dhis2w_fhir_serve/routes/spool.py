@@ -182,6 +182,9 @@ class SpoolResponseSummary(BaseModel):
     questionnaire_id: str | None = None
     """The last segment of that canonical - the id the form is served under, for joining to a title."""
 
+    submitted_by: str | None = None
+    """The DHIS2 username the facade validated this submission under, or None when it validated none."""
+
     status: str | None = None
     authored: str | None = None
     answer_count: int = 0
@@ -317,6 +320,7 @@ def _summary(
         lifecycle=receipt.lifecycle,
         form_kind=receipt.form_kind,
         questionnaire=receipt.questionnaire,
+        submitted_by=receipt.submitted_by,
         questionnaire_id=_last_segment(receipt.questionnaire),
         warnings=receipt.warnings,
         rejection=SpoolRejection.from_outcome(report) if report is not None and rejected else None,

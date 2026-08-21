@@ -14,13 +14,16 @@ import {
     Users,
 } from 'lucide-react'
 
+import { SignInPanel } from '@/components/SignInPanel'
 import { StatusMenu } from '@/components/StatusMenu'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useAuth } from '@/hooks/use-auth'
 import { useSidebar } from '@/hooks/use-sidebar'
 import { useUiConfig } from '@/hooks/use-ui-config'
+import { signInIsRequired, signOut, SIGN_OUT_LABEL } from '@/lib/auth'
 import { REGISTER_TITLE, registerTitle, trackedEntitySettings, type UiConfig } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
@@ -108,7 +111,12 @@ export function offeredNavItems(settings: UiConfig): NavItem[] {
 export function AppLayout({ children }: { children: ReactNode }) {
     const { collapsed, toggle } = useSidebar()
     const { pathname } = useLocation()
-    const { config } = useUiConfig()
+    const auth = useAuth()
+    // The sign-in panel takes the place of the page, and the page's own reads never run: a request
+    // this server would answer 401 to is one a browser may put its own credential dialog over, so
+    // the app asks first and reaches nothing until it has an answer. See `lib/auth`.
+    const asking = signInIsRequired(auth)
+    const { config } = useUiConfig(auth.posture !== null && !asking)
     const current = pathname.replace(/^\//, '')
     // The rail is drawn from what this run offers; the header title reads the whole table, so a
     // detail route is still named by its section while the settings are still in flight.
@@ -287,6 +295,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
                         <div className="flex-1" />
 
+                        {auth.identity !== null && (
+                            <span className="text-muted-foreground hidden text-xs sm:inline">
+                                {auth.identity}
+                            </span>
+                        )}
+                        {auth.authorization !== null && (
+                            <Button variant="ghost" size="sm" onClick={signOut}>
+                                {SIGN_OUT_LABEL}
+                            </Button>
+                        )}
                         <StatusMenu />
                         <ThemeToggle />
                     </div>
@@ -327,7 +345,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     here exactly as they did when the document scrolled; pages that claim the
                     height (the organisation-units browser) fit inside it and scroll nothing. */}
                 <main className="flex w-full min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 md:px-8">
-                    {children}
+                    {/* Nothing is drawn until the posture is known, for the reason above: a page
+                        that rendered first would fire its reads first. An unreachable server leaves
+                        this empty and the status menu is what says so. */}
+                    {asking && auth.posture !== null && auth.posture !== 'none' ? (
+                        <SignInPanel posture={auth.posture} refused={auth.refused} />
+                    ) : (
+                        auth.posture !== null && children
+                    )}
                 </main>
             </div>
         </div>

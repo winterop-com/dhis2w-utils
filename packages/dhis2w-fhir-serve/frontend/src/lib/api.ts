@@ -69,6 +69,7 @@ import {
     type QuestionnaireResponse,
 } from '@/lib/fhir'
 import { PATIENT_COUNT_PARAMETER, PATIENT_PAGE_PARAMETER, type PatientEnrollments } from '@/lib/patients'
+import { reportUnauthenticated, storedAuthorization } from '@/lib/auth'
 import type { SpoolListing } from '@/lib/spool'
 import type { UiConfig } from '@/lib/uiconfig'
 
@@ -130,10 +131,11 @@ export interface ApiConfiguration {
  * The live configuration.
  *
  * Same-origin with no token is not a placeholder - it is the shipped case. The
- * facade has no authentication of its own and binds loopback by default, so the
- * UI it serves reaches it by relative path. `configureApi` exists for the two
- * cases that are not that: a UI running under `pnpm dev` against a server on
- * another port, and a deployment that has put a token-checking proxy in front.
+ * default posture serves every caller and binds loopback, so the UI it serves
+ * reaches it by relative path. `configureApi` exists for the two cases that are
+ * not that: a UI running under `pnpm dev` against a server on another port, and
+ * a deployment that has put a token-checking proxy in front. What a person
+ * signed in with is `lib/auth`'s, held per tab and attached by `apiFetch`.
  */
 let configuration: ApiConfiguration = { baseUrl: '', token: null }
 
@@ -182,18 +184,35 @@ export function outcomeMessage(outcome: OperationOutcome | null): string | null 
 }
 
 /**
- * `fetch` against the served FHIR surface, with the token attached and the path guarded.
+ * `fetch` against the served FHIR surface, with the credential attached and the path guarded.
  *
  * The Accept header is set here rather than per call, because every route on
  * this server answers `application/fhir+json` - including its errors, which are
  * OperationOutcomes.
+ *
+ * THE CREDENTIAL IS THIS TAB'S, when it holds one: `lib/auth` keeps the whole
+ * `Authorization` value, which is `Basic ...` under the DHIS2 posture and
+ * `Bearer ...` under the token posture. `configureApi({token})` stays for the
+ * case it was always for - something in front of this server wanting a bearer
+ * token - and the signed-in credential wins over it, because a person who signed
+ * in is a more specific answer than a deployment default.
+ *
+ * A 401 IS RECORDED AS IT PASSES. One choke point means one place where "this
+ * server does not know who you are" becomes a prompt, whichever read or write
+ * met it. The response is still returned and still raised by the caller, so a
+ * page renders the server's own OperationOutcome as it renders every other
+ * refusal.
  */
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
     if (!GUARDED_PATH_PATTERN.test(path)) throw new UnguardedPathError(path)
     const headers = new Headers(init.headers)
     if (!headers.has('Accept')) headers.set('Accept', FHIR_JSON_MEDIA_TYPE)
-    if (configuration.token) headers.set('Authorization', `Bearer ${configuration.token}`)
-    return fetch(`${configuration.baseUrl}${path}`, { ...init, headers })
+    const credential = storedAuthorization()
+    if (credential) headers.set('Authorization', credential)
+    else if (configuration.token) headers.set('Authorization', `Bearer ${configuration.token}`)
+    const response = await fetch(`${configuration.baseUrl}${path}`, { ...init, headers })
+    if (response.status === 401) reportUnauthenticated()
+    return response
 }
 
 /**

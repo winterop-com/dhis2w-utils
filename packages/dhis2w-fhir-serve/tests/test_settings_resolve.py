@@ -18,9 +18,10 @@ from typing import Any
 
 import pytest
 from dhis2w_client.profile import NoProfileError, Profile
-from dhis2w_fhir.config import BasemapSource, FhirProject, load_fhir_config
+from dhis2w_fhir.config import BasemapSource, FhirProject, ServeAuth, ServeAuthScope, load_fhir_config
 from dhis2w_fhir.service import GenerationProfile
 from dhis2w_fhir_serve import settings as settings_module
+from dhis2w_fhir_serve.auth import SERVE_TOKENS_VARIABLE
 from dhis2w_fhir_serve.settings import ServeInvocation, ServeSettings
 from dhis2w_fhir_serve.store import CompiledIgMissingError
 from pydantic import BaseModel, ConfigDict
@@ -118,12 +119,51 @@ class PrecedenceCase(BaseModel):
         return f"{self.dial}-neither"
 
 
+#: A `[serve]` table that binds every interface and says who is served, which is the pair a
+#: deployment writes together - the address alone is refused.
+OPEN_TO_EVERYONE_TABLE = "[serve]\nhost = '0.0.0.0'\nauth = 'none'\n"
+
 #: Every dial with a flag and a table key, over all four ways the two can be stated.
 PRECEDENCE_CASES = [
     PrecedenceCase(dial="host", table="", stated={}, expected="127.0.0.1"),
-    PrecedenceCase(dial="host", table="[serve]\nhost = '0.0.0.0'\n", stated={}, expected="0.0.0.0"),
-    PrecedenceCase(dial="host", table="", stated={"host": "10.0.0.1"}, expected="10.0.0.1"),
-    PrecedenceCase(dial="host", table="[serve]\nhost = '0.0.0.0'\n", stated={"host": "10.0.0.1"}, expected="10.0.0.1"),
+    # Every host case but the default binds an interface other than loopback, which is refused unless
+    # the posture is written down - so each of the three states it, which is what a deployment does.
+    PrecedenceCase(dial="host", table=OPEN_TO_EVERYONE_TABLE, stated={}, expected="0.0.0.0"),
+    PrecedenceCase(dial="host", table="", stated={"host": "10.0.0.1", "auth": ServeAuth.NONE}, expected="10.0.0.1"),
+    PrecedenceCase(
+        dial="host",
+        table=OPEN_TO_EVERYONE_TABLE,
+        stated={"host": "10.0.0.1"},
+        expected="10.0.0.1",
+    ),
+    PrecedenceCase(dial="auth", table="", stated={}, expected=ServeAuth.NONE),
+    PrecedenceCase(dial="auth", table="[serve]\nauth = 'token'\n", stated={}, expected=ServeAuth.TOKEN),
+    PrecedenceCase(dial="auth", table="", stated={"auth": ServeAuth.TOKEN}, expected=ServeAuth.TOKEN),
+    PrecedenceCase(
+        dial="auth",
+        table="[serve]\nauth = 'token'\n",
+        stated={"auth": ServeAuth.NONE},
+        expected=ServeAuth.NONE,
+    ),
+    PrecedenceCase(dial="auth_scope", table="", stated={}, expected=ServeAuthScope.WRITE),
+    PrecedenceCase(
+        dial="auth_scope",
+        table="[serve]\nauth_scope = 'all'\n",
+        stated={},
+        expected=ServeAuthScope.ALL,
+    ),
+    PrecedenceCase(
+        dial="auth_scope",
+        table="",
+        stated={"auth_scope": ServeAuthScope.ALL},
+        expected=ServeAuthScope.ALL,
+    ),
+    PrecedenceCase(
+        dial="auth_scope",
+        table="[serve]\nauth_scope = 'all'\n",
+        stated={"auth_scope": ServeAuthScope.WRITE},
+        expected=ServeAuthScope.WRITE,
+    ),
     PrecedenceCase(dial="port", table="", stated={}, expected=8080),
     PrecedenceCase(dial="port", table="[serve]\nport = 9000\n", stated={}, expected=9000),
     PrecedenceCase(dial="port", table="", stated={"port": 7000}, expected=7000),
@@ -161,6 +201,16 @@ PRECEDENCE_CASES = [
         expected=["Mirror"],
     ),
 ]
+
+
+@pytest.fixture(autouse=True)
+def deployment_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A `token` posture is refused with its variable unset, so the precedence rows that state one set it.
+
+    The refusal itself is `test_serve_auth.py`'s subject. Here the question is only which of the flag
+    and the table wins, and a run that could not start would answer neither.
+    """
+    monkeypatch.setenv(SERVE_TOKENS_VARIABLE, "a-deployment-token")
 
 
 def _resolved_dial(invocation: ServeInvocation, dial: str) -> Any:

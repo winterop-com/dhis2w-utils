@@ -322,6 +322,36 @@ class TrackedEntitiesConfig(BaseModel):
         return self
 
 
+class ServeAuth(StrEnum):
+    """How the served facade decides who is calling it - the `[serve] auth` posture.
+
+    Three postures ship. `oauth2` is the name reserved for the fourth and is deliberately not a
+    value here: DHIS2 2.43.1's own authorization server 500s for any client the API creates
+    (BUGS.md 96), so a project could state it and nothing would answer. A posture that parses and
+    then refuses is worse than one that is not offered, so the reservation lives in this docstring
+    and in `docs/fhir/301-serving.md` rather than in the enum.
+    """
+
+    #: Every caller is served. The default, and the posture the loopback demo runs in.
+    NONE = "none"
+
+    #: A static bearer token out of `D2W_FHIR_SERVE_TOKENS`, compared in constant time.
+    TOKEN = "token"
+
+    #: The caller's own DHIS2 credentials, checked against the instance this run reads.
+    DHIS2 = "dhis2"
+
+
+class ServeAuthScope(StrEnum):
+    """How much of the served surface one `[serve] auth` posture covers."""
+
+    #: The state-changing surface only: `POST /QuestionnaireResponse`. Reads stay open.
+    WRITE = "write"
+
+    #: Everything but `/metadata`, which stays open so a client can read the posture it must meet.
+    ALL = "all"
+
+
 class ServeConfig(BaseModel):
     """How `d2w fhir serve` runs this project - the `[serve]` table of `fhir.toml`.
 
@@ -363,12 +393,22 @@ class ServeConfig(BaseModel):
     all, whether they can be listed rather than only searched for, and how a listing is paged. It is
     the one part of this table that says what a live run will tell a client about the instance behind
     it.
+
+    `auth` is who the facade serves, and `auth_scope` is how much of it the posture covers. The key
+    is `ServeAuth | None` rather than `ServeAuth` because absence is a third state this table has to
+    be able to tell apart: a project that never wrote the key is served on loopback with no
+    authentication, and refused on any other interface, so that binding the world is a sentence
+    somebody wrote rather than a default nobody read. `auth = "none"` written out is that sentence.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     host: str = "127.0.0.1"
     port: int = 8080
+    auth: ServeAuth | None = None
+    """The posture, or None when this project's table states none - see the note above on absence."""
+
+    auth_scope: ServeAuthScope = ServeAuthScope.WRITE
     strict_codes: bool = False
     capture: bool = True
     ui: bool = False

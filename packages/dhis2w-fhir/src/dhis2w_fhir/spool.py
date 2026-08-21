@@ -241,6 +241,14 @@ class SpooledResponse(BaseModel):
     received_at: str
     form_kind: str
     questionnaire: str
+    submitted_by: str | None = None
+    """The DHIS2 username the facade validated the submission under, or None when it validated none.
+
+    Facade-side provenance. It says who handed this receipt to `d2w fhir serve`, and says nothing
+    about the identity the values reach DHIS2 under - a drain posts as the forwarding profile, and
+    `storedBy` on the instance is DHIS2's own stamp of that profile.
+    """
+
     layout: SpoolLayout
     """The spool this receipt came off, which is the one that files it - see `SpoolLayout`."""
 
@@ -315,6 +323,9 @@ class SpooledReceipt(BaseModel):
     received_at: str
     form_kind: str
     questionnaire: str
+    submitted_by: str | None = None
+    """The DHIS2 username the facade validated this submission under, or None when it validated none."""
+
     state: SpoolState
     path: Path
 
@@ -671,6 +682,7 @@ def _read_receipt(path: Path, layout: SpoolLayout) -> SpooledResponse:
         received_at=str(raw.get("received_at") or ""),
         form_kind=str(raw.get("form_kind") or ""),
         questionnaire=str(raw.get("questionnaire") or response.questionnaire or ""),
+        submitted_by=_submitted_by(raw),
         layout=layout,
         path=path,
         response=response,
@@ -688,9 +700,16 @@ def _read_envelope(path: Path, state: SpoolState) -> SpooledReceipt:
         received_at=str(raw.get("received_at") or ""),
         form_kind=str(raw.get("form_kind") or ""),
         questionnaire=str(raw.get("questionnaire") or ""),
+        submitted_by=_submitted_by(raw),
         state=state,
         path=path,
     )
+
+
+def _submitted_by(raw: dict[str, object]) -> str | None:
+    """The username on one receipt envelope, or None when it carries none or carries something else."""
+    stated = raw.get("submitted_by")
+    return stated if isinstance(stated, str) and stated != "" else None
 
 
 def _read_envelope_body(path: Path) -> dict[str, object]:

@@ -16,6 +16,8 @@
  * rules testable without a server.
  */
 
+import type { CapabilitySecurity } from '@/lib/auth'
+
 /** A coded value: the system that defines the code, the code, and its display. */
 export interface Coding {
     system?: string
@@ -543,6 +545,7 @@ export interface CapabilityStatementResource {
 export interface CapabilityStatementRest {
     mode: string
     documentation?: string
+    security?: CapabilitySecurity
     resource?: CapabilityStatementResource[]
     operation?: CapabilityStatementOperation[]
 }

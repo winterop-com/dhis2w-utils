@@ -21,12 +21,17 @@ export interface UiConfigState {
  *
  * `loading` still matters: the map is built once against these settings, so it waits for the read
  * to land rather than constructing a tile-less map and rebuilding it a moment later.
+ *
+ * `enabled` is what the shell holds the read back with while it does not yet know who this server
+ * serves. `/uiconfig` is behind the check under `[serve] auth_scope = "all"`, so reading it before a
+ * credential is in hand would be sending a request this server answers 401 to - see `lib/auth`.
  */
-export function useUiConfig(): UiConfigState {
+export function useUiConfig(enabled: boolean = true): UiConfigState {
     const [config, setConfig] = useState<UiConfig>(DEFAULT_UI_CONFIG)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        if (!enabled) return
         let cancelled = false
         readUiConfig()
             .then((read) => {
@@ -42,7 +47,7 @@ export function useUiConfig(): UiConfigState {
         return () => {
             cancelled = true
         }
-    }, [])
+    }, [enabled])
 
     return { config, loading }
 }

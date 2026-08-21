@@ -20,7 +20,7 @@ then a SUSHI run (see [Build and publish the guide](201-build-and-publish.md))
 **You will be able to:**
 
 - start `d2w fhir serve` in both of its modes and know which one you want
-- set the port, host, and coded-answer strictness once, in `[serve]`
+- set the port, host, coded-answer strictness, and who is served once, in `[serve]`
 - read a stored capture back and say precisely what it is - a receipt
 - find the spool on disk and read the queue depth off it
 
@@ -140,8 +140,10 @@ invocation, so it is stated once:
 
 ```toml
 [serve]
-host = "127.0.0.1"          # loopback: the facade has no authentication
+host = "127.0.0.1"          # loopback: only this machine reaches the facade
 port = 8080                 # a local dev DHIS2 commonly owns 8080; 8090 is the usual way out
+auth = "none"               # none | token | dhis2 - who this facade serves
+auth_scope = "write"        # write gates submissions; all gates everything but /metadata
 strict_codes = false        # true refuses an answer whose code is outside the served terminology
 capture = true              # false serves the guide and receives nothing - the viewer posture
 ui = false                  # true also serves the capture UI at /
@@ -199,6 +201,115 @@ entry beside them; `basemaps = []` offers None alone, which is the posture of
 a deployment that must reach no origin but this server. Every `[serve]` key,
 the basemap policy included, is covered in
 [Configure serving](301-serving.md).
+
+## Who the facade serves
+
+`[serve] auth` is the posture, and there are three:
+
+| Posture | What a caller presents | Where the answer comes from |
+| --- | --- | --- |
+| `none` | Nothing | Every caller is served. The default. |
+| `token` | `Authorization: Bearer <token>` | The values of `D2W_FHIR_SERVE_TOKENS`, compared in constant time. |
+| `dhis2` | The DHIS2 credentials they would sign in to the instance with | One `GET /api/me` against that instance, as them. Needs `--live`. |
+
+`[serve] auth_scope` says how much of the surface the posture covers. `write` -
+the default - asks for credentials on `POST /QuestionnaireResponse`, which is
+the one address this facade changes anything at, and leaves every read, both
+operations, `/metadata`, and the capture UI open. `all` asks for them
+everywhere except `/metadata`, which stays open in every posture because a
+client has to be able to read how to authenticate to a server before it can.
+
+Every posture declares itself. `GET /metadata` carries `rest.security` whether
+this server authenticates everybody, somebody, or nobody - so a client reads
+what it must present rather than discovering it from a refusal, and the `none`
+posture says in words that it serves every caller.
+
+### An absent key binds loopback and nothing else
+
+A project that has never written `auth` is served on loopback and refused
+anywhere else:
+
+```
+error: `0.0.0.0` is not a loopback interface, and this project's fhir.toml states no
+[serve] auth. Write the posture down before serving the facade where other hosts can
+reach it - add one line under [serve] in fhir.toml: auth = "none" to serve every caller,
+auth = "token" to take a static bearer token out of D2W_FHIR_SERVE_TOKENS, or
+auth = "dhis2" to have every caller present the DHIS2 credentials this facade checks
+against the instance. --auth states the same thing for one run.
+```
+
+`auth = "none"` written out passes that check, and the difference between the
+two is the whole point: an absent key is nobody's decision, and a written one
+is somebody's. The refusal comes before the socket opens, so it is a line in a
+terminal rather than an endpoint the world reached.
+
+### `token`: one shared secret, out of the environment
+
+```bash
+export D2W_FHIR_SERVE_TOKENS='a-long-random-value,another-for-the-second-client'
+d2w fhir serve --auth token
+```
+
+Comma-separated, and never in `fhir.toml` - that file is committed. Rotating
+is replacing the variable and restarting the process; the tokens are read once
+and a running server holds what it started with. The posture names no person,
+so a receipt captured under it records no submitter. A server started with the
+variable unset is refused rather than left promising to accept tokens it does
+not hold.
+
+### `dhis2`: the caller's own DHIS2 credentials
+
+```bash
+d2w fhir serve --live --auth dhis2
+```
+
+A caller sends what they would send DHIS2 - a username and password as HTTP
+Basic, or a DHIS2 personal access token as `Authorization: ApiToken <token>` -
+and this facade checks it with one `GET /api/me` against the same instance the
+live run reads, in a request carrying **their** header and never the server's
+own. The username DHIS2 answers with becomes the request identity, and the
+capture route records it on the receipt. An answer is reused for about a
+minute, keyed by a hash of the header, so a page of requests costs one round
+trip rather than one each.
+
+The posture needs an instance, so it is refused on a compiled run, which has
+none.
+
+```bash
+curl -u clerk:secret -X POST http://127.0.0.1:8390/QuestionnaireResponse \
+    -H 'Content-Type: application/fhir+json' --data-binary @response.json
+```
+
+### Attribution is facade-side provenance
+
+Under `dhis2`, the receipt carries `submitted_by` - the DHIS2 username this
+facade validated the submission under. `d2w fhir spool --details` shows it as
+a **Captured by** column when any receipt has one, and the forward report
+carries it through.
+
+**That is who handed the submission over, and not who wrote the data.**
+`d2w fhir forward` posts as the forwarding profile, and `storedBy` on the
+instance is DHIS2's own stamp of that profile. The receipt is where "who
+captured this" is answered; the instance is where "who wrote this" is.
+
+### What this wave of authentication does and does not do
+
+Authentication here gates **who may ask**. It does not change whose rights the
+answers are read under: on a live run every read still goes to DHIS2 as the
+facade's own configured profile, so what a caller can see is scoped by that
+profile's rights rather than by their own. Where that profile is an
+administrator - the common demo posture - DHIS2 skips its tracker ownership and
+access-level model for superusers entirely and does not write the
+break-the-glass audit entry, so those reads pass sharing, ownership, and access
+levels at once with nothing in the audit trail to distinguish them. **Give the
+facade a least-privilege DHIS2 user, never an administrator.** Passing the
+caller's own credentials through to DHIS2 on proxied reads, so the instance
+applies its own rules per caller, is the next wave.
+
+`oauth2` is the name reserved for the posture after that. It is deliberately
+not a value `[serve] auth` accepts today: DHIS2 2.43.1's authorization server
+returns a 500 for any client its API creates (BUGS.md 96), so a project could
+state it and nothing would answer.
 
 ## Serving with a profile also links the screens back to the instance
 
@@ -448,9 +559,10 @@ the scaffold gitignores it, and the IG publisher never renders it.
 
 ## What this server is not
 
-- **No authentication.** That is why the default bind is `127.0.0.1`.
-  Exposing the facade beyond loopback with `--host` is a deliberate act, and
-  puts the endpoint behind something that authenticates.
+- **Not an authorisation server.** `[serve] auth` establishes who is calling;
+  it grants nobody more or less of what this facade serves, and on a live run
+  the answers are read under the facade's own DHIS2 profile rather than the
+  caller's. See [Who the facade serves](#who-the-facade-serves).
 - **One process, one project.** No clustering, no shared state. The spool
   assumes a single writing process, which is what `d2w fhir serve` is.
 - **No batch and no transaction.** `POST /` is where FHIR posts a Bundle of

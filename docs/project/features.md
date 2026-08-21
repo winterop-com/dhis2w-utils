@@ -289,7 +289,10 @@ d2w fhir            FHIR IG generation (SUSHI/FSH + pre-built JSON, package dhis
                         --live builds the store off the instance at startup,
                         --strict-codes/--no-strict-codes governs codes outside
                         the served terminology, --ui adds the browser capture
-                        UI, and host/port/strict codes fall back to the [serve]
+                        UI, --auth none|token|dhis2 with --auth-scope write|all
+                        says who is served and how much of the surface the
+                        posture covers, and host/port/authentication/strict
+                        codes fall back to the [serve]
                         table of fhir.toml - where capture and spool_dir carry
                         no flag, capture=false being the viewer posture and
                         spool_dir naming the receipt tree; ConceptMap
@@ -1265,7 +1268,48 @@ bound to loopback by default that loads the project once at startup.
   from the very Python vocabulary its FSH template renders and gated dict-equal
   against the SUSHI-compiled pair.
 - **The profile is the root `d2w -p`**, resolved before the start banner.
-- **Configuration.** `host`, `port`, `strict_codes`, `capture`, `ui`, and
+- **Authentication is `[serve] auth`, in three postures.** `none` - the default -
+  serves every caller. `token` takes `Authorization: Bearer <token>` and compares
+  it against `D2W_FHIR_SERVE_TOKENS` with `hmac.compare_digest`; the tokens come
+  from the environment and never from `fhir.toml`, and rotating them is replacing
+  the variable and restarting. `dhis2` takes the caller's own DHIS2 credentials -
+  HTTP Basic, or a personal access token as `Authorization: ApiToken <token>` -
+  and validates them with one `GET /api/me` against the same instance the live
+  run reads, in a fresh request carrying the caller's header and never the
+  runtime's client, cached about a minute against a hash of that header. The
+  validated username becomes the request identity. `oauth2` is reserved and
+  deliberately not accepted: DHIS2 2.43.1's authorization server 500s for any
+  client its API creates (BUGS.md 96).
+- **`[serve] auth_scope` says how much the posture covers.** `write` - the
+  default - guards `POST /QuestionnaireResponse` and nothing else, which is the
+  facade's whole state-changing surface: `$generate`, `/evaluate`, and a CDS
+  Hooks call are POSTs that write nothing. `all` guards every router but
+  `/metadata`, which stays open in every posture so a client can read the posture
+  it has to meet; the capture UI's own files stay open too.
+- **Three startup refusals, in `ServeSettings.resolve`** beside the sibling
+  preflights, so `d2w fhir serve` and an embedder meet the same ones: binding an
+  interface other than loopback while neither the run nor `fhir.toml` has stated
+  a posture (the message names the fhir.toml line to write), the `token` posture
+  with `D2W_FHIR_SERVE_TOKENS` unset, and the `dhis2` posture on a compiled run,
+  which has no instance to check anybody against.
+- **`/metadata` declares `rest.security` in every posture**, `none` included, so
+  a client never infers an absence: the DHIS2 posture names `Basic` by its code
+  in R4's `restful-security-service` value set and the personal access token as
+  text, the token posture states its scheme as text, and the `none` posture says
+  in words that every caller is served.
+- **The check is one FastAPI dependency**, mounted over the routers
+  `ServeRouters.guarded` names. An embedding application reads that set and
+  mounts its own dependency in its place, writing a `RequestIdentity` onto
+  `request.state` if it wants captures attributed; `register_routes` takes the
+  same seam as its `authentication` argument.
+- **Attribution.** Under `dhis2`, the validated username lands on the receipt as
+  `submitted_by`; `d2w fhir spool --details` shows it as a **Captured by** column
+  when any receipt has one, and the forward report carries it through. It is
+  facade-side provenance and says nothing about the identity DHIS2 stores: a
+  drain posts as the forwarding profile, and `storedBy` is DHIS2's own stamp of
+  that profile.
+- **Configuration.** `host`, `port`, `auth`, `auth_scope`, `strict_codes`,
+  `capture`, `ui`, and
   `spool_dir` fall back to the `[serve]` table of `fhir.toml`, which
   `make serve` / `make serve-live` / `make serve-ui` read too, with flags
   beating the table beating the defaults and `--strict-codes` /
@@ -1598,6 +1642,23 @@ endpoint it is served from with no URL to configure. It is a React 19 +
 TypeScript + Tailwind v4 + shadcn/ui app under
 `packages/dhis2w-fhir-serve/frontend/`, built into the Python package and
 shipped inside the wheel.
+
+#### Signing in
+
+- **The shell reads the posture off `/metadata` before it draws a page**, because
+  that is the one document open under every posture. A `none` posture renders
+  nothing new; a `token` posture asks for one field and a `dhis2` posture for a
+  DHIS2 username and password, in place of the page rather than over it - so the
+  app never sends a request this server would answer 401 to, and a browser never
+  gets the chance to open a credential dialog of its own over ours.
+- **The credential is the whole `Authorization` value, in `sessionStorage`**, per
+  tab: closing the tab ends the session and a second tab signs in on its own. The
+  one function in the app that reaches the network attaches it and records any
+  401 that comes back, so a refusal anywhere - a read, a listing, a submission -
+  drops the credential and asks again, naming that the credentials were not
+  accepted. The header names whoever is signed in and offers Sign out.
+- **The Server page states the posture and its scope**, off `/uiconfig`'s `auth`,
+  beside the `rest.security` description the conformance document carries.
 
 #### Overview
 

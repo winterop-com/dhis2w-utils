@@ -949,11 +949,24 @@ class CapabilityStatementResource(BackboneElement):
     operation: list[CapabilityStatementOperation] | None = None
 
 
+class CapabilityStatementSecurity(BackboneElement):
+    """`CapabilityStatement.rest.security` - how the endpoint decides who is calling it.
+
+    `service` draws on R4's `restful-security-service` value set, which is extensible: a scheme the
+    value set has no code for is stated as `CodeableConcept.text`, which is what the binding is for.
+    """
+
+    cors: bool | None = None
+    service: list[CodeableConcept] | None = None
+    description: str | None = None
+
+
 class CapabilityStatementRest(BackboneElement):
     """`CapabilityStatement.rest` - the RESTful behaviour of one end of the conversation."""
 
     mode: Literal["client", "server"] | None = None
     documentation: str | None = None
+    security: CapabilityStatementSecurity | None = None
     resource: list[CapabilityStatementResource] | None = None
     operation: list[CapabilityStatementOperation] | None = None
 

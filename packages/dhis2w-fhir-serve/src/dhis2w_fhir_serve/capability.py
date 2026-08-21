@@ -40,6 +40,13 @@ entry, so each is declared exactly when the store holds that type: no ConceptMap
 it is a custom operation, deliberately not SDC's `$populate`. `$translate` conforms to R4's own
 ConceptMap definition and names it.
 
+`rest.security` is declared in EVERY posture, `none` included. A conformance document that carries
+the element only where there is something to protect leaves a client unable to tell "this server
+authenticates nobody" from "this server did not say", and those are opposite facts. So the `none`
+posture gets a statement of its own, in words: this server serves every caller. `/metadata` itself is
+never behind the check, whatever `[serve] auth_scope` says, because a client has to be able to read
+the posture it is expected to meet.
+
 The register's entries are the ones that are not about the store at all. They are answered from the
 DHIS2 instance per request, and which resource types they are is the published `D2TET_CM`'s to say -
 one entry per FHIR resource the map takes an in-scope tracked entity type onto. They are declared
@@ -54,6 +61,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from dhis2w_fhir.config import ServeAuth, ServeAuthScope
 from dhis2w_fhir.foundation import (
     CAPTURE_SERVER_READ_RESOURCE_TYPES,
     GENERATE_OPERATION_CODE,
@@ -68,7 +76,10 @@ from dhis2w_fhir.r4 import (
     CapabilityStatementResource,
     CapabilityStatementRest,
     CapabilityStatementSearchParam,
+    CapabilityStatementSecurity,
     CapabilityStatementSoftware,
+    CodeableConcept,
+    Coding,
 )
 
 from dhis2w_fhir_serve.spool import current_instant
@@ -163,6 +174,40 @@ _VIEWER_REST_DOCUMENTATION = (
     "it has already received."
 )
 
+#: R4's own code system for the schemes a `rest.security` may name.
+SECURITY_SERVICE_SYSTEM = "http://terminology.hl7.org/CodeSystem/restful-security-service"
+
+#: The one code in that system this facade uses. The DHIS2 posture takes a username and a password
+#: over HTTP Basic, which is exactly what `Basic` names; the static-token posture takes a scheme the
+#: value set has no code for, so it is stated as text, which an extensible binding is for.
+BASIC_SECURITY_CODE = "Basic"
+BEARER_TOKEN_SECURITY_TEXT = "Bearer token"
+DHIS2_PERSONAL_ACCESS_TOKEN_SECURITY_TEXT = "DHIS2 personal access token"
+
+#: What each posture says about itself. The `none` statement exists so an absence is never inferred.
+NO_AUTHENTICATION_DESCRIPTION = (
+    "This server authenticates nobody: every caller is served. It binds a loopback interface unless "
+    "the project it serves states `[serve] auth` in its fhir.toml."
+)
+TOKEN_AUTHENTICATION_DESCRIPTION = (
+    "Send `Authorization: Bearer <token>`, with one of the tokens this deployment holds in the "
+    "environment variable D2W_FHIR_SERVE_TOKENS. The tokens name no person: a receipt captured under "
+    "this posture records no submitter."
+)
+DHIS2_AUTHENTICATION_DESCRIPTION = (
+    "Send the credentials you would sign in to the DHIS2 instance behind this server with - a "
+    "username and password as HTTP Basic, or a DHIS2 personal access token as "
+    "`Authorization: ApiToken <token>`. This server checks them by reading `/api/me` on that "
+    "instance as you, and records the username it gets back on every receipt you capture."
+)
+
+#: What each scope adds about how much of the surface the posture covers.
+WRITE_SCOPE_DESCRIPTION = (
+    "Credentials are required to create a QuestionnaireResponse. Every read, every search, this "
+    "document, and both operations are served without them."
+)
+ALL_SCOPE_DESCRIPTION = "Credentials are required for every interaction except reading this document."
+
 
 def build_server_capability(
     project: FhirProject,
@@ -210,10 +255,42 @@ def build_server_capability(
             CapabilityStatementRest(
                 mode="server",
                 documentation=_REST_DOCUMENTATION if settings.capture else _VIEWER_REST_DOCUMENTATION,
+                security=build_security(settings.auth, settings.auth_scope),
                 resource=resources,
             )
         ],
     )
+
+
+def build_security(posture: ServeAuth, scope: ServeAuthScope) -> CapabilityStatementSecurity:
+    """State how this process decides who is calling, in every posture including the one that does not.
+
+    `cors` is false in all three because this facade sends no cross-origin headers at all: the capture
+    UI it serves is same-origin with it, and a browser page from anywhere else is a deployment
+    decision for whatever sits in front of this server.
+    """
+    if posture is ServeAuth.NONE:
+        return CapabilityStatementSecurity(cors=False, description=NO_AUTHENTICATION_DESCRIPTION)
+    stated = TOKEN_AUTHENTICATION_DESCRIPTION if posture is ServeAuth.TOKEN else DHIS2_AUTHENTICATION_DESCRIPTION
+    covered = WRITE_SCOPE_DESCRIPTION if scope is ServeAuthScope.WRITE else ALL_SCOPE_DESCRIPTION
+    return CapabilityStatementSecurity(
+        cors=False,
+        service=_security_services(posture),
+        description=f"{stated} {covered}",
+    )
+
+
+def _security_services(posture: ServeAuth) -> list[CodeableConcept]:
+    """The schemes one posture accepts, coded where R4's value set has a code and stated as text where not."""
+    if posture is ServeAuth.TOKEN:
+        return [CodeableConcept(text=BEARER_TOKEN_SECURITY_TEXT)]
+    return [
+        CodeableConcept(
+            coding=[Coding(system=SECURITY_SERVICE_SYSTEM, code=BASIC_SECURITY_CODE, display=BASIC_SECURITY_CODE)],
+            text=BASIC_SECURITY_CODE,
+        ),
+        CodeableConcept(text=DHIS2_PERSONAL_ACCESS_TOKEN_SECURITY_TEXT),
+    ]
 
 
 def _register_resources(

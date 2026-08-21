@@ -30,8 +30,13 @@ FHIR_JSON_MEDIA_TYPE = "application/fhir+json"
 IssueSeverity = Literal["fatal", "error", "warning", "information"]
 """The `OperationOutcome.issue.severity` values the facade uses."""
 
-IssueCode = Literal["invalid", "not-found", "not-supported", "exception", "processing"]
-"""The `OperationOutcome.issue.code` values the facade uses."""
+IssueCode = Literal["invalid", "not-found", "not-supported", "exception", "processing", "login"]
+"""The `OperationOutcome.issue.code` values the facade uses.
+
+`login` is R4's own code for "the user or system was not able to be authenticated", which is what a
+401 off `dhis2w_fhir_serve.auth` means. It is a child of `security` in the issue-type hierarchy, and
+the child says the actual thing.
+"""
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -45,6 +50,15 @@ class ServeError(Exception):
     def __init__(self, diagnostics: str) -> None:
         super().__init__(diagnostics)
         self.diagnostics = diagnostics
+
+    def response_headers(self) -> dict[str, str]:
+        """The headers this refusal has to carry beyond the body, which for almost every one is none.
+
+        A `dict[str, str]` because HTTP headers are the boundary, and the one refusal that overrides
+        this is `dhis2w_fhir_serve.auth.UnauthenticatedError`: RFC 9110 requires a 401 to name the
+        challenge a client should meet.
+        """
+        return {}
 
 
 class NotFoundError(ServeError):
@@ -283,6 +297,7 @@ def outcome(
     code: IssueCode,
     diagnostics: str,
     expression: tuple[str, ...] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     """Build the OperationOutcome response one failed interaction answers with."""
     body = OperationOutcome(
@@ -299,6 +314,7 @@ def outcome(
         status_code=status_code,
         content=body.model_dump(mode="json", exclude_none=True, by_alias=True),
         media_type=FHIR_JSON_MEDIA_TYPE,
+        headers=headers,
     )
 
 
@@ -313,7 +329,9 @@ def register_error_handlers(app: FastAPI) -> None:
 async def _handle_serve_error(request: Request, exception: Exception) -> Response:
     """Answer a raised `ServeError` with the status and issue code it names."""
     error = exception if isinstance(exception, ServeError) else ServeError(str(exception))
-    return outcome(error.status_code, "error", error.issue_code, error.diagnostics)
+    return outcome(
+        error.status_code, "error", error.issue_code, error.diagnostics, headers=error.response_headers() or None
+    )
 
 
 async def _handle_validation_error(request: Request, exception: Exception) -> Response:

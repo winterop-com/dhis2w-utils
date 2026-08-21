@@ -370,8 +370,10 @@ starting /home/you/my-ig on http://127.0.0.1:8091 as a FHIR endpoint (ctrl-c to 
 INFO dhis2w_fhir_serve loaded the compiled IG at /home/you/my-ig: 2803 resources across 14 types, 0 stored responses
 ```
 
-It binds loopback, because the facade has no authentication - reaching it from
-another host is a deliberate act. The port is worth stating on this instance:
+It binds loopback, and by default it asks nobody who they are - so reaching it
+from another host is a deliberate act, and one this server refuses until
+[`[serve] auth`](301-serving.md#auth) says who it serves. The port is worth
+stating on this instance:
 `[serve] port` defaults to 8080, which is where the DHIS2 you just read from is
 listening. Now any FHIR client can read what you published:
 

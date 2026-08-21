@@ -9,6 +9,8 @@ from dhis2w_fhir.config import (
     DEFAULT_BASEMAPS,
     BasemapSource,
     FhirProject,
+    ServeAuth,
+    ServeAuthScope,
     TrackedEntitiesConfig,
     basemaps_from_options,
 )
@@ -16,6 +18,7 @@ from dhis2w_fhir.service import GenerationProfile, resolve_generation_profile
 from dhis2w_fhir.spool import SPOOL_RELATIVE_PATH
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir_serve.auth import preflight_auth
 from dhis2w_fhir_serve.capture.validate import DEFAULT_STRICT_CODES
 from dhis2w_fhir_serve.store import COMPILED_RESOURCES_RELATIVE_PATH, CompiledIgMissingError
 
@@ -60,6 +63,12 @@ class ServeSettings(BaseModel):
     hundred DHIS2 instances a guide was generated from. The profile's NAME and its credentials stay
     here and never reach a browser - see `dhis2w_fhir_serve.routes.uiconfig`.
 
+    `auth` is who this facade serves and `auth_scope` is how much of it the posture covers. Both are
+    resolved values rather than the table read back, because a flag may state either - and the
+    posture's NAME is the one part of it that crosses to a browser, through `/uiconfig`. No token, no
+    password, and no header ever reaches these settings: `dhis2w_fhir_serve.auth.AuthState` holds what
+    a check needs, on the application, for exactly that reason.
+
     `tracked_entities` is the register this run serves - whether the instance's tracked entities are
     answered for at all, whether they can be listed, and how a listing is paged. It comes off
     `[serve.tracked_entities]` and no flag overrides it, because every value in it says what this
@@ -73,6 +82,8 @@ class ServeSettings(BaseModel):
     project_dir: Path
     live: bool = False
     profile: str | None = None
+    auth: ServeAuth = ServeAuth.NONE
+    auth_scope: ServeAuthScope = ServeAuthScope.WRITE
     strict_codes: bool = DEFAULT_STRICT_CODES
     capture: bool = True
     ui: bool = False
@@ -93,6 +104,8 @@ class ServeSettings(BaseModel):
         ui: bool | None = None,
         basemaps: list[str] | None = None,
         profile: str | None = None,
+        auth: ServeAuth | None = None,
+        auth_scope: ServeAuthScope | None = None,
     ) -> ServeInvocation:
         """Resolve one invocation of the facade: a stated dial wins, then `[serve]`, then this model's defaults.
 
@@ -122,12 +135,30 @@ class ServeSettings(BaseModel):
         The compiled guide is checked last, and only when the store is the one on disk: a project
         that has never run SUSHI has nothing to serve, and refusing here says so in one line rather
         than answering every read with a 404.
+
+        THE AUTH POSTURE IS PREFLIGHTED HERE TOO, and for the same reason every other refusal is: a
+        server that starts and then cannot honour what it was asked for is a failure nobody reads
+        until somebody meets it. Three refusals, in `dhis2w_fhir_serve.auth.preflight_auth`: an
+        interface other than loopback while neither this run nor fhir.toml has stated a posture, the
+        `token` posture with its environment variable unset, and the `dhis2` posture on a run that
+        reads a compiled guide and so has no instance to check anybody against. Whether the posture
+        was STATED is what the first of those turns on - `auth = "none"` written down is a decision,
+        an absent key is not - so a stated flag counts as much as a stated table key, and only the
+        two of them being silent is silence.
         """
         serve_config = project.config.serve
         stated_basemaps = list(basemaps or [])
         # The refusals are ordered as a reader meets them: a value this run stated and cannot mean
         # is answered before a profile is looked up, and both before the guide on disk is counted.
         resolved_basemaps = basemaps_from_options(stated_basemaps) if stated_basemaps else list(serve_config.basemaps)
+        resolved_host = host if host is not None else serve_config.host
+        resolved_auth = auth if auth is not None else serve_config.auth
+        preflight_auth(
+            posture=resolved_auth if resolved_auth is not None else ServeAuth.NONE,
+            host=resolved_host,
+            live=live,
+            stated=auth is not None or serve_config.auth is not None,
+        )
         generation = _resolved_generation(project, profile, required=live)
         if not live and not any((project.ig_directory / COMPILED_RESOURCES_RELATIVE_PATH).glob("*.json")):
             raise CompiledIgMissingError
@@ -136,6 +167,8 @@ class ServeSettings(BaseModel):
                 project_dir=project.project_root,
                 live=live,
                 profile=profile,
+                auth=resolved_auth if resolved_auth is not None else ServeAuth.NONE,
+                auth_scope=auth_scope if auth_scope is not None else serve_config.auth_scope,
                 strict_codes=strict_codes if strict_codes is not None else serve_config.strict_codes,
                 capture=serve_config.capture,
                 ui=ui if ui is not None else serve_config.ui,
@@ -144,7 +177,7 @@ class ServeSettings(BaseModel):
                 dhis2_base_url=None if generation is None else generation.profile.base_url,
                 tracked_entities=serve_config.tracked_entities,
             ),
-            host=host if host is not None else serve_config.host,
+            host=resolved_host,
             port=port if port is not None else serve_config.port,
             generation=generation,
         )

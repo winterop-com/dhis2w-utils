@@ -172,7 +172,7 @@ facade. `DIRECTORY` defaults to `.`.
 | Flag | Default | Effect |
 | --- | --- | --- |
 | `--live` | off | Build the served resources off a DHIS2 instance at startup instead of reading the compiled IG. Also skips the compiled-IG preflight. |
-| `--host` | `127.0.0.1` | Interface to bind. Loopback by default: the facade has no authentication. |
+| `--host` | `127.0.0.1` | Interface to bind. Loopback by default; anything else needs `[serve] auth` stated. |
 | `--port` | `8080` | Port to listen on. |
 | (profile) | the root `d2w -p` | The DHIS2 profile the `--live` store reads from - the root flag, `DHIS2_PROFILE`, then the `profile` key of fhir.toml. `--live` resolves it before the start banner. |
 | `--strict-codes` | off | Refuse a received answer whose code is outside the served terminology, instead of recording a warning. |

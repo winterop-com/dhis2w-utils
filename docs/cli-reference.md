@@ -10019,7 +10019,9 @@ Received QuestionnaireResponses are stored as receipts, so reading one back says
 
 `--basemap` offers another tile layer on the organisation-unit map, and `--basemap none` offers none.
 
-Host, port, strict codes, the UI, and the basemaps come from `[serve]` in fhir.toml unless a flag overrides them.
+`--auth` says who is served: `none`, `token` (D2W_FHIR_SERVE_TOKENS), or `dhis2` (the caller&#x27;s own credentials).
+
+Host, port, authentication, strict codes, the UI, and basemaps come from `[serve]` unless a flag beats them.
 
 Two more `[serve]` keys have no flag: `capture = false` serves the guide and receives nothing, and
 `spool_dir` says where the receipts live - the same directory `d2w fhir forward` drains.
@@ -10037,8 +10039,10 @@ $ d2w fhir serve [OPTIONS] [directory]
 **Options**:
 
 * `--live`: Build the served resources from a DHIS2 instance at startup instead of reading the compiled IG off disk. The store is a snapshot of the instance the server started against, and the one client that built it stays open for the life of the process, because the register routes read the instance per request.
-* `--host <str>`: Interface to bind, overriding `[serve] host`. The default is loopback: the facade has no authentication, so reaching it from another host is a deliberate act.
+* `--host <str>`: Interface to bind, overriding `[serve] host`. The default is loopback. Binding anything else while neither --auth nor `[serve] auth` states a posture is refused: who reaches this facade and who it answers are one decision.
 * `--port <int>`: Port to listen on, overriding `[serve] port` (default 8080).
+* `--auth <none|token|dhis2>`: Who this facade serves, overriding `[serve] auth`. `none` serves every caller; `token` takes a static bearer token out of D2W_FHIR_SERVE_TOKENS; `dhis2` takes the caller&#x27;s own DHIS2 credentials and checks them against the instance this run reads, which needs --live. Binding an interface other than loopback while neither this flag nor fhir.toml states a posture is refused.
+* `--auth-scope <write|all>`: How much of the surface the posture covers, overriding `[serve] auth_scope`. `write` asks for credentials on `POST /QuestionnaireResponse` and leaves every read open; `all` asks for them everywhere except `/metadata`, which stays open so a client can read the posture it has to meet.
 * `--strict-codes / --no-strict-codes`: Refuse a received answer whose code is outside the served terminology, overriding `[serve] strict_codes`. The default records the drift as a warning and stores the submission, because an option added to the instance since the IG was built is a fact about the instance, not a client mistake.
 * `--ui / --no-ui`: Serve the capture UI at `/` alongside the FHIR routes, overriding `[serve] ui`. The bundle is mounted around them and shadows none of them; a checkout that has never run `make build-frontend` is refused rather than served blank.
 * `--basemap <str>`: Raster tile layer the capture UI&#x27;s organisation-unit map offers under the boundaries, overriding `[serve.basemaps]` (default: OpenStreetMap&#x27;s standard tiles). Repeat it to offer several: `Name=https://.../{z}/{x}/{y}.png`, or a bare template named after its host. The map&#x27;s layer control always carries a None entry beside them, and `--basemap none` offers nothing else - which is what an air-gapped deployment wants, the tiles being the only thing in the UI that reaches an origin other than this server.

@@ -25,8 +25,18 @@ ahead of `/{resource_type}`, which would otherwise claim it and answer that this
 serve the resource type `uiconfig`. `dhis2w_fhir_serve.routes.spool` argues that choice in full;
 this module inherits it rather than restating it.
 
+THE AUTHENTICATION POSTURE IS HERE FOR THE SAME REASON `capture` is: it is a fact about how this
+process was started that a screen has to act on, and the screen's alternative is parsing a
+conformance document to decide which prompt to draw. THE NAME AND NOTHING ELSE crosses - `none`,
+`token`, or `dhis2`, plus how much of the surface the posture covers. No token, no realm, no
+username, no DHIS2 address beyond the one this document already carries. The sign-in gate in the
+capture UI reads the posture off `/metadata` instead, because `/metadata` is open in every scope and
+this document is not: under `[serve] auth_scope = "all"` a caller with no credentials is refused
+here, which is the correct answer and a useless one to draw a prompt from.
+
 WHAT IT DELIBERATELY DOES NOT CARRY. Not the profile's name, not the credentials it holds, not the
-host and port this process listens on, not `live`, not `strict_codes`. Those describe the process to
+host and port this process listens on, not `live`, not `strict_codes`, and nothing an authentication
+posture holds beyond its name. Those describe the process to
 whoever runs it, and a browser that could read them would be a browser that leaks them. The
 instance's address is the one fact about the profile that crosses, because it is the fact the links
 are made of - and it crosses without whatever userinfo somebody wrote into it, since a password in
@@ -39,7 +49,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit, urlunsplit
 
-from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, BasemapSource
+from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, BasemapSource, ServeAuth, ServeAuthScope
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.requests import Request
@@ -145,6 +155,20 @@ class TrackedEntitiesUiConfig(BaseModel):
     """One entry per FHIR resource type served, empty when this process serves none."""
 
 
+class AuthUiConfig(BaseModel):
+    """How this process decides who is calling, as a screen has to name it - the posture, never a secret.
+
+    `posture` is what decides which prompt the capture UI draws: `token` a field for one of this
+    deployment's tokens, `dhis2` a DHIS2 username and password, `none` nothing at all. `scope` is what
+    decides whether browsing this server needs a credential or only submitting does.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    posture: ServeAuth = ServeAuth.NONE
+    scope: ServeAuthScope = ServeAuthScope.WRITE
+
+
 class UiConfig(BaseModel):
     """What the capture UI may know about how this facade was started.
 
@@ -163,11 +187,16 @@ class UiConfig(BaseModel):
     `tracked_entities` is None on the same terms: a server that says nothing about its register is
     one a screen must assume nothing about, and reads exactly as `enabled = false` does. This
     process always states it, because it always knows.
+
+    `auth` is always stated, and a document that omitted it would be read as `none` - which is the
+    right reading of silence for a screen, and the reason the sign-in gate does not learn the posture
+    here. See this module's own note.
     """
 
     model_config = ConfigDict(frozen=True)
 
     capture: bool = True
+    auth: AuthUiConfig = Field(default_factory=AuthUiConfig)
     basemaps: list[BasemapLayer] = Field(default_factory=list)
     dhis2_base_url: str | None = None
     tracked_entities: TrackedEntitiesUiConfig | None = None
@@ -180,6 +209,7 @@ async def read_ui_config(request: Request) -> UiConfig:
     settings = context.settings
     return UiConfig(
         capture=settings.capture,
+        auth=AuthUiConfig(posture=settings.auth, scope=settings.auth_scope),
         basemaps=basemap_layers(settings.basemaps),
         dhis2_base_url=public_instance_url(settings.dhis2_base_url),
         tracked_entities=tracked_entities_config(live=settings.live, surface=context.register_surface),
