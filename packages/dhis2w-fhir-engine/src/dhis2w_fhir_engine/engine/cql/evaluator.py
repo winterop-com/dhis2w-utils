@@ -7,7 +7,7 @@ CQL expressions and libraries against FHIR data.
 from pathlib import Path
 from typing import Any
 
-from antlr4 import CommonTokenStream, InputStream  # type: ignore[import-untyped]
+from antlr4 import CommonTokenStream, InputStream, Token  # type: ignore[import-untyped]
 from antlr4.error.ErrorListener import ErrorListener  # type: ignore[import-untyped]
 
 from ...binding import FhirVersionBinding, resolve_binding
@@ -29,6 +29,21 @@ from .visitor import CQLEvaluatorVisitor
 # Import ELM serializer (lazy import to avoid circular dependency)
 ELMSerializer = None
 ELMLibrary = None
+
+
+def require_end_of_input(parser: cqlParser) -> None:
+    """Refuse an expression the parser stopped short of the end of.
+
+    The `expression` rule is not anchored at EOF, so ANTLR happily parses `1 +` as `1` and leaves the
+    `+` unread. Reading the token the parser stopped on turns that silence into a syntax error with a
+    position, spelled the way the listener spells one so a caller reads both the same way.
+    """
+    token: Any = parser.getCurrentToken()
+    if token is None or token.type == Token.EOF:
+        return
+    raise CQLError(
+        f"Syntax error at line {token.line}:{token.column}: extraneous input '{token.text}' expecting end of expression"
+    )
 
 
 class CQLErrorListener(ErrorListener):
@@ -564,7 +579,7 @@ class CQLEvaluator:
             raise CQLError(f"Failed to parse library: {e}") from e
 
     def _parse_expression(self, expression: str) -> cqlParser.ExpressionContext:
-        """Parse a single CQL expression."""
+        """Parse a single CQL expression, which must be the whole of the text it was given."""
         if expression in self._expression_cache:
             return self._expression_cache[expression]
 
@@ -578,6 +593,7 @@ class CQLEvaluator:
             parser.addErrorListener(CQLErrorListener())
 
             tree: cqlParser.ExpressionContext = parser.expression()
+            require_end_of_input(parser)
             self._expression_cache[expression] = tree
             return tree
 

@@ -829,6 +829,8 @@ class TestTypeOperators:
             ({"type": "ToLong", "operand": string("42")}, 42),
             ({"type": "ToDecimal", "operand": string("2.5")}, Decimal("2.5")),
             ({"type": "ToDecimal", "operand": NULL}, None),
+            ({"type": "ToDecimal", "operand": string("x")}, None),
+            ({"type": "ToDecimal", "operand": string("1.2.3")}, None),
             ({"type": "ToString", "operand": integer(5)}, "5"),
             ({"type": "ToString", "operand": NULL}, None),
             ({"type": "ToDateTime", "operand": integer(1)}, None),
@@ -1602,3 +1604,42 @@ class TestDispatch:
         definition = library.get_definition("One")
         assert definition is not None
         assert visitor.evaluate(definition.expression) == 1
+
+
+class TestQueryRelationships:
+    """A query's `With` relationship is a semi-join and its `Without` relationship the anti-join.
+
+    Both carry a `suchThat` condition, so the relationship's own type is the only thing that says
+    which join it is.
+    """
+
+    @staticmethod
+    def _query(relationship_type: str) -> dict[str, Any]:
+        """Build `from {1, 2, 3} O <relationship> {1, 3} K such that O = K return all O`."""
+        return {
+            "type": "Query",
+            "source": [{"alias": "O", "expression": elm_list(integer(1), integer(2), integer(3))}],
+            "relationship": [
+                {
+                    "type": relationship_type,
+                    "alias": "K",
+                    "expression": elm_list(integer(1), integer(3)),
+                    "suchThat": {
+                        "type": "Equal",
+                        "operand": [{"type": "AliasRef", "name": "O"}, {"type": "AliasRef", "name": "K"}],
+                    },
+                }
+            ],
+            "return": {"expression": {"type": "AliasRef", "name": "O"}, "distinct": False},
+        }
+
+    def test_with_keeps_the_rows_that_match(self, visitor: ELMExpressionVisitor) -> None:
+        assert visitor.evaluate(self._query("With")) == [1, 3]
+
+    def test_without_keeps_the_rows_that_do_not_match(self, visitor: ELMExpressionVisitor) -> None:
+        assert visitor.evaluate(self._query("Without")) == [2]
+
+    def test_a_relationship_with_no_type_is_read_as_with(self, visitor: ELMExpressionVisitor) -> None:
+        node = self._query("With")
+        del node["relationship"][0]["type"]
+        assert visitor.evaluate(node) == [1, 3]

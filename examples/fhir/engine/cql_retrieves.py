@@ -37,7 +37,7 @@ define "Every Dose": [Immunization]
 define "Every Weight": [Observation]
 define "Dose Count": Count([Immunization])
 define "Children With A Dose":
-    distinct ([Immunization] I return I.patient.reference)
+    [Immunization] I return I.patient.reference
 """
 
 PER_PERSON_LIBRARY = """
@@ -82,6 +82,8 @@ def main() -> None:
     print(f"  [Immunization]  -> {_identifiers(unscoped.evaluate_definition('Every Dose'))}")
     print(f"  [Observation]   -> {_identifiers(unscoped.evaluate_definition('Every Weight'))}")
     print(f"  Count([Immunization]) -> {unscoped.evaluate_definition('Dose Count')}")
+    # Four doses, three children: `return` is CQL's distinct-by-default qualifier, so the repeated
+    # reference collapses without a `distinct` around it. `return all` is what keeps duplicates.
     print(f"  children reached by a dose -> {unscoped.evaluate_definition('Children With A Dose')}")
     print()
 

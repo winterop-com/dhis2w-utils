@@ -20,6 +20,7 @@ from dhis2w_fhir_engine.engine.cql import (
     CQLTuple,
     InMemoryLibraryResolver,
 )
+from dhis2w_fhir_engine.engine.exceptions import CQLError
 from dhis2w_fhir_engine.engine.types import Quantity
 
 
@@ -366,6 +367,58 @@ class TestSortClause:
         assert evaluator.evaluate_expression("({3, 1, 2}) N return N sort by 5 desc") == [3, 1, 2]
 
 
+class TestSortByExpression:
+    """`sort by <expression>` evaluates the expression against each element and orders by the answer."""
+
+    def test_sort_by_this_orders_the_elements_themselves(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("({3, 1, 2}) N return N sort by $this") == [1, 2, 3]
+
+    def test_sort_by_this_descending(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("({3, 1, 2}) N return N sort by $this desc") == [3, 2, 1]
+
+    def test_sort_by_a_tuple_element(self, evaluator: CQLEvaluator) -> None:
+        result = evaluator.evaluate_expression(
+            "({Tuple { n: 3 }, Tuple { n: 1 }, Tuple { n: 2 }}) T return T sort by n"
+        )
+        assert [tuple_value.elements["n"] for tuple_value in result] == [1, 2, 3]
+
+    def test_sort_by_a_tuple_element_descending(self, evaluator: CQLEvaluator) -> None:
+        result = evaluator.evaluate_expression(
+            "({Tuple { n: 3 }, Tuple { n: 1 }, Tuple { n: 2 }}) T return T sort by n desc"
+        )
+        assert [tuple_value.elements["n"] for tuple_value in result] == [3, 2, 1]
+
+    def test_sort_by_a_resource_element(self) -> None:
+        source = RecordingDataSource(
+            {
+                "Observation": [
+                    {"resourceType": "Observation", "id": "o2", "issued": "2024-02-01"},
+                    {"resourceType": "Observation", "id": "o1", "issued": "2024-01-01"},
+                    {"resourceType": "Observation", "id": "o3", "issued": "2024-03-01"},
+                ]
+            }
+        )
+        evaluator = CQLEvaluator(data_source=source)
+        evaluator.compile("""
+            library Sorted version '1.0'
+            using FHIR version '4.0.1'
+            define Ordered: [Observation] O return O sort by issued
+        """)
+        assert [row["id"] for row in evaluator.evaluate_definition("Ordered")] == ["o1", "o2", "o3"]
+
+    def test_two_sort_keys_break_ties_left_to_right(self, evaluator: CQLEvaluator) -> None:
+        result = evaluator.evaluate_expression(
+            "({Tuple { a: 2, b: 1 }, Tuple { a: 1, b: 2 }, Tuple { a: 1, b: 1 }}) T return T sort by a, b"
+        )
+        assert [(row.elements["a"], row.elements["b"]) for row in result] == [(1, 1), (1, 2), (2, 1)]
+
+    def test_sort_by_an_expression_puts_nulls_last(self, evaluator: CQLEvaluator) -> None:
+        result = evaluator.evaluate_expression(
+            "({Tuple { n: 3 }, Tuple { m: 9 }, Tuple { n: 1 }}) T return T sort by n"
+        )
+        assert [row.elements.get("n") for row in result] == [1, 3, None]
+
+
 class TestReturnClause:
     """`return`, `return all`, and `return distinct`."""
 
@@ -381,6 +434,49 @@ class TestReturnClause:
             CQLTuple(elements={"value": 1, "doubled": 2}),
             CQLTuple(elements={"value": 2, "doubled": 4}),
         ]
+
+
+class TestReturnDistinct:
+    """`distinct` is CQL's default return qualifier, and `all` is what keeps duplicates."""
+
+    def test_return_distinct_drops_repeated_values(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("({1, 2, 2, 3, 3, 3}) N return distinct N") == [1, 2, 3]
+
+    def test_a_bare_return_is_distinct(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("({1, 2, 2, 3, 3, 3}) N return N") == [1, 2, 3]
+
+    def test_return_all_is_the_only_form_that_keeps_duplicates(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("({1, 2, 2, 3, 3, 3}) N return all N") == [1, 2, 2, 3, 3, 3]
+
+    def test_distinct_keeps_the_first_occurrence_order(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("({'b', 'a', 'b', 'c', 'a'}) S return distinct S") == ["b", "a", "c"]
+
+    def test_distinct_folds_a_shaped_expression(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("({1, 2, 3, 4}) N return distinct N mod 2") == [1, 0]
+
+    def test_distinct_folds_repeated_tuples(self, evaluator: CQLEvaluator) -> None:
+        result = evaluator.evaluate_expression("({Tuple { a: 1 }, Tuple { a: 1 }, Tuple { a: 2 }}) T return distinct T")
+        assert result == [CQLTuple(elements={"a": 1}), CQLTuple(elements={"a": 2})]
+
+    def test_distinct_folds_repeated_codes(self, evaluator: CQLEvaluator) -> None:
+        evaluator.compile("""
+            library Codes version '1.0'
+            codesystem SNOMED: 'http://snomed.info/sct'
+            code Headache: '25064002' from SNOMED
+            define Repeated: {Headache, Headache}
+            define Folded: Repeated C return distinct C
+        """)
+        assert evaluator.evaluate_definition("Folded") == [CQLCode(code="25064002", system="http://snomed.info/sct")]
+
+    def test_distinct_collapses_repeated_nulls_to_one(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("({null, null, null}) N return distinct N") == [None]
+
+    def test_distinct_keeps_a_boolean_apart_from_an_integer(self, evaluator: CQLEvaluator) -> None:
+        result = evaluator.evaluate_expression("({1, 2}) N return distinct (if N = 1 then true else 1)")
+        assert result == [True, 1]
+
+    def test_distinct_runs_before_sort(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("({3, 1, 3, 2}) N return distinct N sort asc") == [1, 2, 3]
 
 
 class TestAggregateClause:
@@ -567,6 +663,83 @@ class TestRetrieve:
             define Active: [Condition] C where C.clinicalStatus = 'active' return C.id
         """)
         assert evaluator.evaluate_definition("Active") == ["c1"]
+
+
+class TestRetrieveTerminologyIsResolved:
+    """A retrieve whose terminology resolves to nothing is refused, never widened to the whole type."""
+
+    def test_an_undeclared_valueset_is_refused(self) -> None:
+        source = RecordingDataSource({"Condition": [{"resourceType": "Condition", "id": "c1"}]})
+        evaluator = CQLEvaluator(data_source=source)
+        evaluator.compile("""
+            library Retrieves version '1.0'
+            using FHIR version '4.0.1'
+            valueset Diabetes: 'http://example.org/vs/diabetes'
+            define Widened: [Condition: Hypertension]
+        """)
+
+        with pytest.raises(CQLError, match="Hypertension"):
+            evaluator.evaluate_definition("Widened")
+        assert source.calls == []
+
+    def test_a_retrieve_with_no_library_at_all_is_refused(self, evaluator: CQLEvaluator) -> None:
+        with pytest.raises(CQLError, match="Diabetes"):
+            evaluator.evaluate_expression("[Condition: Diabetes]")
+
+    def test_a_declared_valueset_still_resolves(self) -> None:
+        source = RecordingDataSource()
+        evaluator = CQLEvaluator(data_source=source)
+        evaluator.compile("""
+            library Retrieves version '1.0'
+            using FHIR version '4.0.1'
+            valueset Diabetes: 'http://example.org/vs/diabetes'
+            define Narrowed: [Condition: Diabetes]
+        """)
+
+        evaluator.evaluate_definition("Narrowed")
+        assert source.calls == [
+            RetrieveCall(
+                resource_type="Condition",
+                code_path="code",
+                codes=None,
+                valueset="http://example.org/vs/diabetes",
+            )
+        ]
+
+    def test_a_definition_holding_codes_resolves(self) -> None:
+        source = RecordingDataSource()
+        evaluator = CQLEvaluator(data_source=source)
+        evaluator.compile("""
+            library Retrieves version '1.0'
+            using FHIR version '4.0.1'
+            codesystem SNOMED: 'http://snomed.info/sct'
+            code Headache: '25064002' from SNOMED
+            define Wanted: {Headache}
+            define Narrowed: [Condition: Wanted]
+        """)
+
+        evaluator.evaluate_definition("Narrowed")
+        assert source.calls == [
+            RetrieveCall(
+                resource_type="Condition",
+                code_path="code",
+                codes=[CQLCode(code="25064002", system="http://snomed.info/sct")],
+                valueset=None,
+            )
+        ]
+
+    def test_a_string_where_a_terminology_reference_belongs_is_refused(self) -> None:
+        source = RecordingDataSource({"Observation": [{"resourceType": "Observation", "id": "o1"}]})
+        evaluator = CQLEvaluator(data_source=source)
+        evaluator.compile("""
+            library Retrieves version '1.0'
+            using FHIR version '4.0.1'
+            define Bare: [Observation: 'x']
+        """)
+
+        with pytest.raises(CQLError, match="terminology reference"):
+            evaluator.evaluate_definition("Bare")
+        assert source.calls == []
 
 
 class TestExternalConstants:

@@ -41,6 +41,9 @@ INTERVAL_EXPRESSIONS: tuple[tuple[str, str], ...] = (
     ("Interval[@2024-01-01, @2024-03-31] during Interval[@2024-01-01, @2024-12-31]", "a quarter inside a year"),
     ("Interval[1, 3] before Interval[5, 9]", "one interval wholly before another"),
     ("Interval[1, 5] overlaps Interval[4, 9]", "two intervals sharing at least one point"),
+    ("Interval[1, 10] includes Interval[2, 9]", "one interval wholly inside another"),
+    ("Interval[1, 10] properly includes Interval[2, 9]", "properly: included, and strictly smaller"),
+    ("Interval[1, 10] properly includes Interval[1, 10]", "no interval properly includes itself"),
     ("Interval[1, 5] intersect Interval[4, 9]", "the part they share, as an interval"),
     ("duration in days between @2024-01-01 and @2024-01-15", "the distance between two dates"),
 )

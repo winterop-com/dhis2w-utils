@@ -1873,6 +1873,7 @@ class TestQuerySort:
     """Test query sort clause."""
 
     def test_query_sort_asc(self) -> None:
+        """A bare `return` is distinct, so the repeated 1 is one element by the time it is sorted."""
         lib = compile_library("""
             library Test
             define Numbers: {3, 1, 4, 1, 5}
@@ -1881,13 +1882,38 @@ class TestQuerySort:
         evaluator = CQLEvaluator()
         evaluator._current_library = lib
         result = evaluator.evaluate_definition("Sorted")
+        assert result == [1, 3, 4, 5]
+
+    def test_query_sort_asc_return_all(self) -> None:
+        """`return all` keeps the duplicate, so both 1s are sorted into place."""
+        lib = compile_library("""
+            library Test
+            define Numbers: {3, 1, 4, 1, 5}
+            define Sorted: from Numbers N return all N sort asc
+        """)
+        evaluator = CQLEvaluator()
+        evaluator._current_library = lib
+        result = evaluator.evaluate_definition("Sorted")
         assert result == [1, 1, 3, 4, 5]
 
     def test_query_sort_desc(self) -> None:
+        """A bare `return` is distinct, so the repeated 1 is one element by the time it is sorted."""
         lib = compile_library("""
             library Test
             define Numbers: {3, 1, 4, 1, 5}
             define Sorted: from Numbers N return N sort desc
+        """)
+        evaluator = CQLEvaluator()
+        evaluator._current_library = lib
+        result = evaluator.evaluate_definition("Sorted")
+        assert result == [5, 4, 3, 1]
+
+    def test_query_sort_desc_return_all(self) -> None:
+        """`return all` keeps the duplicate, so both 1s are sorted into place."""
+        lib = compile_library("""
+            library Test
+            define Numbers: {3, 1, 4, 1, 5}
+            define Sorted: from Numbers N return all N sort desc
         """)
         evaluator = CQLEvaluator()
         evaluator._current_library = lib

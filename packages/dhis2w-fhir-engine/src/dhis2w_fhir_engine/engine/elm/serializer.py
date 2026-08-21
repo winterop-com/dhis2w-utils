@@ -22,6 +22,8 @@ from antlr4 import CommonTokenStream, InputStream  # type: ignore[import-untyped
 from ...generated.cql.cqlLexer import cqlLexer
 from ...generated.cql.cqlParser import cqlParser
 from ...generated.cql.cqlVisitor import cqlVisitor
+from ..cql.evaluator import require_end_of_input
+from .exceptions import ELMValidationError
 from .loader import ELMLoader
 from .models.library import ELMLibrary
 
@@ -118,12 +120,13 @@ class ELMSerializer(cqlVisitor):
         return library_context
 
     def _parse_expression(self, expression: str) -> cqlParser.ExpressionContext:
-        """Parse a single CQL expression."""
+        """Parse a single CQL expression, which must be the whole of the text it was given."""
         input_stream = InputStream(expression)
         lexer = cqlLexer(input_stream)
         token_stream = CommonTokenStream(lexer)
         parser = cqlParser(token_stream)
         expression_context: cqlParser.ExpressionContext = parser.expression()
+        require_end_of_input(parser)
         return expression_context
 
     def _visit_node(self, tree: Any) -> dict[str, Any]:
@@ -1309,14 +1312,29 @@ class ELMSerializer(cqlVisitor):
         """Serialize query source clause."""
         sources = []
         for source in _child_contexts(ctx.aliasedQuerySource()):
-            query_source = source.querySource()
             alias = self._get_identifier_text(source.alias().identifier())
-
-            source_expr = self._visit_node(query_source)
-
-            sources.append({"alias": alias, "expression": source_expr})
+            sources.append({"alias": alias, "expression": self._serialize_query_source(source.querySource())})
 
         return sources
+
+    def _serialize_query_source(self, ctx: Any) -> dict[str, Any] | None:
+        """Serialize a query source, dispatching at the child that carries it.
+
+        `querySource: retrieve | qualifiedIdentifierExpression | '(' expression ')'` wraps its
+        alternatives in a context of its own, so the source is reached through that wrapper.
+        """
+        if ctx is None:
+            return None
+        retrieve = ctx.retrieve()
+        if retrieve is not None:
+            return self._visit_node(retrieve)
+        qualified = ctx.qualifiedIdentifierExpression()
+        if qualified is not None:
+            return {"type": "ExpressionRef", "name": self._get_identifier_text(qualified)}
+        expression = ctx.expression()
+        if expression is not None:
+            return self._visit_node(expression)
+        return None
 
     def _serialize_let_clause(self, ctx: cqlParser.LetClauseContext) -> list[dict[str, Any]]:
         """Serialize let clause."""
@@ -1328,7 +1346,13 @@ class ELMSerializer(cqlVisitor):
         return lets
 
     def _serialize_inclusion_clause(self, ctx: Any) -> dict[str, Any]:
-        """Serialize with/without clause."""
+        """Serialize with/without clause.
+
+        `queryInclusionClause: withClause | withoutClause` wraps the clause in a context of its own,
+        so the clause the query carries is reached through that wrapper.
+        """
+        if isinstance(ctx, cqlParser.QueryInclusionClauseContext):
+            ctx = ctx.withClause() or ctx.withoutClause()
         if isinstance(ctx, cqlParser.WithClauseContext):
             return self._serialize_with_clause(ctx)
         elif isinstance(ctx, cqlParser.WithoutClauseContext):
@@ -1338,10 +1362,9 @@ class ELMSerializer(cqlVisitor):
     def _serialize_with_clause(self, ctx: cqlParser.WithClauseContext) -> dict[str, Any]:
         """Serialize with clause."""
         source = ctx.aliasedQuerySource()
-        query_source = source.querySource()
         alias = self._get_identifier_text(source.alias().identifier())
 
-        source_expr = self._visit_node(query_source)
+        source_expr = self._serialize_query_source(source.querySource())
         such_that = self._visit_node(ctx.expression()) if ctx.expression() else None
 
         result: dict[str, Any] = {"type": "With", "alias": alias, "expression": source_expr}
@@ -1352,10 +1375,9 @@ class ELMSerializer(cqlVisitor):
     def _serialize_without_clause(self, ctx: cqlParser.WithoutClauseContext) -> dict[str, Any]:
         """Serialize without clause."""
         source = ctx.aliasedQuerySource()
-        query_source = source.querySource()
         alias = self._get_identifier_text(source.alias().identifier())
 
-        source_expr = self._visit_node(query_source)
+        source_expr = self._serialize_query_source(source.querySource())
         such_that = self._visit_node(ctx.expression()) if ctx.expression() else None
 
         result: dict[str, Any] = {"type": "Without", "alias": alias, "expression": source_expr}
@@ -1364,13 +1386,16 @@ class ELMSerializer(cqlVisitor):
         return result
 
     def _serialize_return_clause(self, ctx: cqlParser.ReturnClauseContext) -> dict[str, Any]:
-        """Serialize return clause."""
+        """Serialize return clause, stating the qualifier the clause carries.
+
+        `returnClause: 'return' ('all' | 'distinct')? expression` - the qualifier is the middle child,
+        and `distinct` is the default, so only `all` needs stating.
+        """
         expr = self._visit_node(ctx.expression())
         result: dict[str, Any] = {"expression": expr}
 
-        # Check for distinct
-        if "distinct" in ctx.getText().lower():
-            result["distinct"] = True
+        qualifier = ctx.getChild(1).getText().lower() if ctx.getChildCount() > 2 else ""
+        result["distinct"] = qualifier != "all"
 
         return result
 
@@ -1437,7 +1462,12 @@ class ELMSerializer(cqlVisitor):
             if code_path:
                 result["codePath"] = self._get_identifier_text(code_path)
 
-            term = self._visit_node(term_ctx)
+            term = self.visitTerminology(term_ctx)
+            if term is not None and term.get("type") == "Literal":
+                raise ELMValidationError(
+                    f"the retrieve [{ctx.getText().strip('[]')}] filters on a literal where a "
+                    "terminology reference belongs - name a valueset, code, or concept the library declares"
+                )
             if term:
                 result["codes"] = term
 
@@ -1452,10 +1482,20 @@ class ELMSerializer(cqlVisitor):
     # =========================================================================
 
     def visitTerminology(self, ctx: Any) -> dict[str, Any] | None:
-        """Visit terminology reference."""
+        """Visit terminology reference, dispatching at the child that carries the reference.
+
+        `terminology: qualifiedIdentifierExpression | expression` - a named reference becomes a
+        `ValueSetRef`, anything else is serialized as the expression it is.
+        """
         if ctx is None:
             return None
-        return self._visit_node(ctx)
+        qualified = ctx.qualifiedIdentifierExpression()
+        if qualified is not None:
+            return self.visitValueSetRef(qualified)
+        expression = ctx.expression()
+        if expression is not None:
+            return self._visit_node(expression)
+        return None
 
     def visitCodeSystemRef(self, ctx: Any) -> dict[str, Any]:
         """Visit code system reference."""

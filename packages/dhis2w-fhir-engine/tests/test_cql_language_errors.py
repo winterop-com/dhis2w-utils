@@ -196,6 +196,29 @@ class TestSyntaxErrors:
             evaluator.compile("library Broken version '1.0'\ndefine X: 1 +")
 
 
+class TestExpressionRunsToTheEnd:
+    """An expression is the whole of the text it was given; anything left over is a syntax error."""
+
+    @pytest.mark.parametrize(
+        "expression",
+        ["1 +", "1 2", "1 + 2 garbage", "{1, 2} }", "Interval[1, 2] ]"],
+    )
+    def test_trailing_text_is_refused(self, evaluator: CQLEvaluator, expression: str) -> None:
+        with pytest.raises(CQLError, match="Syntax error"):
+            evaluator.evaluate_expression(expression)
+
+    def test_the_refusal_names_the_position_and_the_offending_text(self, evaluator: CQLEvaluator) -> None:
+        with pytest.raises(CQLError) as raised:
+            evaluator.evaluate_expression("1 + 2 garbage")
+        assert str(raised.value) == ("Syntax error at line 1:6: extraneous input 'garbage' expecting end of expression")
+
+    def test_a_whole_expression_still_evaluates(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("1 + 2") == 3
+
+    def test_surrounding_whitespace_is_not_trailing_text(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("  1 + 2\n") == 3
+
+
 class TestUnresolvedNames:
     """Unknown identifiers and functions evaluate to null rather than raising."""
 
