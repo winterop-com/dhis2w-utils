@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import base64
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -40,8 +40,10 @@ from dhis2w_fhir_serve.routes import serve_routers
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool, StoredResponseEnvelope
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 
-from conftest import BASE_URL
+#: The facade's own address in in-process requests, matching the suite's conftest.
+BASE_URL = "http://serve.test"
 
 #: The instance a `dhis2` posture checks its callers against, and the credentials one caller sends.
 INSTANCE_URL = "https://play.example.org/dhis"
@@ -98,7 +100,7 @@ def deployment_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def dhis2_identity() -> respx.MockRouter:
+def dhis2_identity() -> Iterator[respx.MockRouter]:
     """The instance answering `GET /api/me` for a caller it knows, with every other call unmocked."""
     with respx.mock(base_url=INSTANCE_URL, assert_all_called=False) as router:
         router.get("/api/me").mock(
@@ -228,7 +230,7 @@ def test_every_configured_token_is_compared_even_after_one_matches() -> None:
     try:
         assert matches_a_serve_token("first-token", ("first-token", "second-token", "third-token")) is True
     finally:
-        auth_module.hmac.compare_digest = original  # type: ignore[assignment]
+        auth_module.hmac.compare_digest = original
 
     assert comparisons == 3
 
@@ -373,7 +375,9 @@ def test_the_guarded_set_under_write_is_the_create_route_alone() -> None:
     """One route is state-changing, and the set is stated as data rather than as a paragraph."""
     routers = serve_routers(auth=ServeAuth.TOKEN, auth_scope=ServeAuthScope.WRITE)
 
-    assert [route.path for router in routers.guarded for route in router.routes] == ["/QuestionnaireResponse"]
+    assert [route.path for router in routers.guarded for route in router.routes if isinstance(route, APIRoute)] == [
+        "/QuestionnaireResponse"
+    ]
 
 
 def test_a_server_that_receives_nothing_guards_nothing_under_write() -> None:
@@ -386,7 +390,7 @@ def test_a_server_that_receives_nothing_guards_nothing_under_write() -> None:
 def test_the_guarded_set_under_all_is_everything_but_the_conformance_document() -> None:
     """The one document a caller must be able to read is the one that says how to authenticate."""
     routers = serve_routers(auth=ServeAuth.TOKEN, auth_scope=ServeAuthScope.ALL)
-    guarded = {route.path for router in routers.guarded for route in router.routes}
+    guarded = {route.path for router in routers.guarded for route in router.routes if isinstance(route, APIRoute)}
 
     assert "/metadata" not in guarded
     assert {"/QuestionnaireResponse", "/spool", "/uiconfig", "/{resource_type}"} <= guarded
