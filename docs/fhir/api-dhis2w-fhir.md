@@ -47,6 +47,10 @@ surface.
   are the two predicates the report's error grade and the generate refusal share, so a
   caller can ask the same question either command asks; `display_code` renders a DHIS2 code
   for human eyes the way the report does.
+- Ask the same question of the files a build publishes, with no instance behind it
+  (`check_publishable_artifacts`, returning an `ArtifactCheckReport` of `ArtifactFinding`s).
+  It reads a project's compiled resources, pre-built JSON, and FSH sources through those same
+  two predicates, which is what `d2w fhir check-artifacts` and `make build` run.
 - Run the conformance chain in process, or grade one phase of it on its own (`run_doctor`,
   `DoctorOptions`, `DoctorReport`, `render_doctor_markdown`, `phase_evidence`,
   `resolve_doctor_profile`, and the graders `grade`, `grade_capture`, `grade_forward`,

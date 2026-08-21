@@ -9935,6 +9935,7 @@ $ d2w fhir [OPTIONS] COMMAND [ARGS]...
 
 * `init`: Scaffold a dockerized SUSHI IG project...
 * `validate`: Check the instance&#x27;s codes for...
+* `check-artifacts`: Refuse the build before it begins: scan...
 * `serve`: Serve the project&#x27;s IG as a FHIR read and...
 * `forward`: Drain the capture spool into DHIS2 -...
 * `spool`: List the capture spool - how many receipts...
@@ -10004,6 +10005,37 @@ $ d2w fhir validate [OPTIONS]
 * `--details`: List every finding individually instead of the rolled-up category counts.
 * `--fail / --no-fail`: Exit 1 when errors are found.  [default: fail]
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
+* `--help`: Show this message and exit.
+
+### `d2w fhir check-artifacts`
+
+Refuse the build before it begins: scan the artifacts on disk for what aborts the IG publisher.
+
+`d2w fhir generate` refuses a run whose selected DHIS2 names or codes carry a `&lt;`. A build reads
+no such gate - it publishes whatever `ig/fsh-generated/` and `ig/input/` hold - so output written
+before the gate existed, output from an older pinned toolchain, and hand-authored FSH all reach
+the publisher, and cost its full run before failing in its final pass.
+
+This is that refusal applied to the files themselves, through the very predicates the generate
+gate uses. It names the file, the resource, the element, and the value, so what comes back is the
+object rather than the page the publisher happened to die on.
+
+No connection, no profile, no compile - the artifacts are the whole input, so it answers in
+seconds. Exit 1 when anything is found, which is what `make build` runs it for.
+
+**Usage**:
+
+```console
+$ d2w fhir check-artifacts [OPTIONS] [directory]
+```
+
+**Arguments**:
+
+* `directory`: Project to scan (default: the nearest fhir.toml, walking up from the working directory).
+
+**Options**:
+
+* `--fail / --no-fail`: Exit 1 when findings are found.  [default: fail]
 * `--help`: Show this message and exit.
 
 ### `d2w fhir serve`

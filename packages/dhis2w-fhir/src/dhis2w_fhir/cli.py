@@ -1044,6 +1044,93 @@ def _render_finding_rollup(report: FhirValidationReport) -> None:
     )
 
 
+#: How many characters of an offending value the terminal carries before it is cut. A DHIS2 name is
+#: short; a narrative-bound string is not, and one runaway row must not push the remedy off screen.
+_ARTIFACT_VALUE_WIDTH = 60
+
+
+@app.command("check-artifacts")
+def check_artifacts_command(
+    directory: Annotated[
+        Path | None,
+        typer.Argument(
+            file_okay=False,
+            help="Project to scan (default: the nearest fhir.toml, walking up from the working directory).",
+        ),
+    ] = None,
+    fail: Annotated[bool, typer.Option("--fail/--no-fail", help="Exit 1 when findings are found.")] = True,
+) -> None:
+    """Refuse the build before it begins: scan the artifacts on disk for what aborts the IG publisher.
+
+    `d2w fhir generate` refuses a run whose selected DHIS2 names or codes carry a `<`. A build reads
+    no such gate - it publishes whatever `ig/fsh-generated/` and `ig/input/` hold - so output written
+    before the gate existed, output from an older pinned toolchain, and hand-authored FSH all reach
+    the publisher, and cost its full run before failing in its final pass.
+
+    This is that refusal applied to the files themselves, through the very predicates the generate
+    gate uses. It names the file, the resource, the element, and the value, so what comes back is the
+    object rather than the page the publisher happened to die on.
+
+    No connection, no profile, no compile - the artifacts are the whole input, so it answers in
+    seconds. Exit 1 when anything is found, which is what `make build` runs it for.
+    """
+    from dhis2w_fhir.validation.artifacts import check_publishable_artifacts
+
+    project = load_project(directory)
+    report = check_publishable_artifacts(project)
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+        if report.finding_count and fail:
+            raise typer.Exit(code=1)
+        return
+    render_detail(
+        "fhir check-artifacts",
+        [
+            DetailRow("project", str(project.project_root)),
+            DetailRow("json files", str(report.json_file_count)),
+            DetailRow("fsh files", str(report.fsh_file_count)),
+            DetailRow("findings", str(report.finding_count)),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    for unreadable in report.unreadable_files:
+        _hint("note", f"{unreadable} is not readable as a JSON object; nothing in it was checked")
+    if report.findings:
+        render_list(
+            "build-aborting artifacts",
+            [
+                {
+                    "file": finding.file,
+                    "resource": finding.resource_id,
+                    "field": finding.field,
+                    "value": _truncate(finding.value, _ARTIFACT_VALUE_WIDTH),
+                    "remedy": finding.remedy,
+                }
+                for finding in report.findings
+            ],
+            [
+                ColumnSpec("File", "file"),
+                ColumnSpec("Resource", "resource", no_wrap=True),
+                ColumnSpec("Field", "field", no_wrap=True),
+                ColumnSpec("Value", "value"),
+                ColumnSpec("What to do", "remedy"),
+            ],
+            console=STDERR_CONSOLE,
+        )
+        for message in report.messages:
+            _hint("note", f"what it costs: {message}")
+    else:
+        _hint("ok", f"{report.file_count} publishable file(s) scanned; nothing the IG publisher aborts on")
+    if report.finding_count and fail:
+        _hint(
+            "error",
+            f"{report.finding_count} build-aborting artifact(s) found; exiting 1 before the publisher runs "
+            "(--no-fail to suppress)",
+            style="red",
+        )
+        raise typer.Exit(code=1)
+
+
 #: What a caller is told when the serve extra is not installed. `LookupError` renders through the
 #: CLI error funnel as a one-line message, which is what an install instruction wants to be.
 _SERVE_PACKAGE_MISSING = (

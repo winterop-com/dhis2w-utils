@@ -32,6 +32,11 @@ update:  ## Update the project to the current d2w: move the toolchain pin, sync,
 validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (writes md/csv/pdf; exit 1 on errors)
 	$(D2W) fhir validate
 
+.PHONY: check
+
+check:  ## Scan the artifacts on disk for what aborts the IG publisher (offline, seconds, exit 1 on findings)
+	$(D2W) fhir check-artifacts
+
 cache-init:  ## Ensure the shared package-cache volume is writable by the publisher user
 	docker run --rm -u root -v $(CACHE_VOLUME):/home/publisher/.fhir --entrypoint sh $(DOCKER_IMAGE) -c "mkdir -p /home/publisher/.fhir/packages && chown -R 1001:1001 /home/publisher/.fhir"
 
@@ -40,6 +45,12 @@ sushi: cache-init  ## Compile FSH to FHIR resources
 		$(DOCKER_IMAGE) sushi .
 
 build: cache-init  ## Run the full IG publisher
+# The scan first, and a finding stops the build here. A DHIS2 name or code carrying '<' survives every
+# pass of the publisher and kills the last one, after every resource has already been rendered - hours
+# spent to be told a page failed to parse. Reading the same files the publisher reads answers in
+# seconds and names the object. Generation carries the same gate, but a build publishes what is on
+# disk: output written before the gate, output from an older toolchain pin, and hand-authored FSH.
+	$(MAKE) check
 	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
 		$(DOCKER_IMAGE) \
 		java -Xmx$(JAVA_HEAP) -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx $(TX_SERVER)

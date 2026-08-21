@@ -271,6 +271,14 @@ all. The fix is in DHIS2 - rename the object - or leave it out of the selection.
 `examples/fhir/igs/refused-names/` is a working exhibit of both commands on one
 poisoned selection.
 
+**A build reads neither of them.** `make build` publishes whatever
+`ig/fsh-generated/` and `ig/input/` hold, so artifacts written before this gate
+existed, artifacts from a generate an older lock pinned, and hand-authored FSH
+all reach the publisher without ever passing it. `d2w fhir check-artifacts` is
+the same refusal applied to those files, through the same two predicates, and
+it is what `make build` runs first - see [The build refuses before it
+begins](201-build-and-publish.md#the-build-refuses-before-it-begins).
+
 ## Read the notes
 
 Each target raises aggregate notes - a selection entry that matched nothing,
