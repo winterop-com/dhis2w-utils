@@ -19,10 +19,11 @@ from typing import Any
 import httpx
 import pytest
 from dhis2w_client import BasicAuth, Dhis2Client
-from dhis2w_fhir.config import FhirProject
+from dhis2w_fhir.config import FhirProject, ServeAuth
 from dhis2w_fhir_serve import runtime as runtime_module
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.errors import register_error_handlers
+from dhis2w_fhir_serve.passthrough import FACADE_PROVENANCE_HEADER
 from dhis2w_fhir_serve.routes import register_routes
 from dhis2w_fhir_serve.runtime import ServeContext, ServeRuntime, attach_serve_runtime, open_serve_runtime
 from dhis2w_fhir_serve.settings import ServeSettings
@@ -34,6 +35,9 @@ BASE_URL = "http://serve.test"
 
 #: The one element two builds of the same statement disagree about, because each is stamped when built.
 STAMPED_ELEMENT = "date"
+
+#: The instance a live run reads, and the one a `dhis2` posture opens its pass-through pool against.
+INSTANCE_URL = "https://play.example.org/dhis"
 
 
 @pytest.fixture
@@ -176,10 +180,53 @@ async def test_attaching_places_both_names_the_handlers_read(settings: ServeSett
 
         assert embedded.state.context is runtime.context
         assert embedded.state.live_client is None
+        assert embedded.state.caller_client is None
 
 
-def test_a_runtime_names_the_pair_a_facade_holds(tmp_path: Path) -> None:
-    """`ServeContext` is what is served and the client is what it is served over: the runtime is both."""
+def test_a_runtime_names_what_a_facade_holds(tmp_path: Path) -> None:
+    """`ServeContext` is what is served, and the two connections are what it is served over."""
     fields = set(ServeRuntime.model_fields)
 
-    assert fields == {"context", "live_client"}
+    assert fields == {"context", "live_client", "caller_client"}
+
+
+async def test_the_pass_through_connection_is_opened_only_for_the_dhis2_posture(
+    compiled_project: FhirProject, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing else forwards anybody's credential, so nothing else opens the pool that would carry one."""
+    client = Dhis2Client(base_url=INSTANCE_URL, auth=BasicAuth(username="a", password="b"))
+
+    async def _live_store(project: FhirProject, settings: ServeSettings, live: Dhis2Client) -> ResourceStore:
+        return ResourceStore(entries=())
+
+    monkeypatch.setattr(runtime_module, "build_live_store", _live_store)
+
+    async with open_serve_runtime(_live_settings(compiled_project, ServeAuth.TOKEN), client=client) as runtime:
+        assert runtime.caller_client is None
+
+
+async def test_the_pass_through_connection_is_open_inside_the_context_and_closed_after(
+    compiled_project: FhirProject, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Its lifetime is the runtime's, exactly as the client's is - and it carries no credential of its own."""
+    client = Dhis2Client(base_url=INSTANCE_URL, auth=BasicAuth(username="a", password="b"))
+
+    async def _live_store(project: FhirProject, settings: ServeSettings, live: Dhis2Client) -> ResourceStore:
+        return ResourceStore(entries=())
+
+    monkeypatch.setattr(runtime_module, "build_live_store", _live_store)
+
+    async with open_serve_runtime(_live_settings(compiled_project, ServeAuth.DHIS2), client=client) as runtime:
+        pool = runtime.caller_client
+        assert pool is not None
+        assert str(pool.base_url) == f"{INSTANCE_URL}/"
+        assert pool.auth is None
+        assert "authorization" not in pool.headers
+        assert pool.headers[FACADE_PROVENANCE_HEADER].startswith("dhis2w-fhir-serve/")
+
+    assert pool.is_closed
+
+
+def _live_settings(project: FhirProject, posture: ServeAuth) -> ServeSettings:
+    """A live run under one posture, against the instance the `dhis2` posture would check callers with."""
+    return ServeSettings(project_dir=project.project_root, live=True, auth=posture, dhis2_base_url=INSTANCE_URL)

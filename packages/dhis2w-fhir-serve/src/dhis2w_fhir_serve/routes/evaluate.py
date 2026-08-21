@@ -21,7 +21,9 @@ engine calls themselves.
 THE REGISTERED CONTEXT IS LIVE-ONLY, and refuses the way every other register route refuses: the
 config first (`[serve.tracked_entities] enabled`), then the missing instance, then a guide that
 publishes no registration form, then a resource type the register does not serve. That order is
-`dhis2w_fhir_serve.routes.register`'s and the reasons are its.
+`dhis2w_fhir_serve.routes.register`'s and the reasons are its. It is read the way the register is
+read, too: under `[serve] auth = "dhis2"` the entity comes back under the CALLER'S own DHIS2
+authorization, so an expression can only ever run over a person its caller may see.
 
 A BAD EXPRESSION IS 200. An expression that will not parse, a library whose define refuses, a define
 name the library does not declare - each answers 200 with the diagnostic saying so, because the
@@ -51,13 +53,13 @@ from dhis2w_fhir_serve.errors import (
     UpstreamError,
 )
 from dhis2w_fhir_serve.evaluation import EvaluationLanguage, EvaluationOutcome, evaluate_source
+from dhis2w_fhir_serve.passthrough import register_reader
 from dhis2w_fhir_serve.register.projection import registered_entity_for
 from dhis2w_fhir_serve.register.wire import fetch_tracked_entity, upstream_refusal_text
-from dhis2w_fhir_serve.routes.context import live_client, serve_context
+from dhis2w_fhir_serve.routes.context import serve_context
 
 if TYPE_CHECKING:
-    from dhis2w_client import Dhis2Client
-
+    from dhis2w_fhir_serve.passthrough import RegisterReader
     from dhis2w_fhir_serve.register.surface import RegisterSurface
 
 #: Where an evaluation is asked for. One lowercase segment, so no FHIR resource type can collide.
@@ -161,9 +163,9 @@ async def _registered(request: Request, context: RegisteredEntityContext) -> dic
     over FHIR documents, so a model handed in would be one this function parsed and the evaluator
     immediately re-read.
     """
-    client, surface = _live_register(request, context.resource_type)
+    reader, surface = await _live_register(request, context.resource_type)
     try:
-        entity = await fetch_tracked_entity(client, context.tracked_entity_uid)
+        entity = await fetch_tracked_entity(reader, context.tracked_entity_uid)
     except Dhis2ClientError as error:
         raise UpstreamError(
             f"the DHIS2 instance did not answer the tracked entity read: {upstream_refusal_text(error)}"
@@ -174,16 +176,16 @@ async def _registered(request: Request, context: RegisteredEntityContext) -> dic
     return registered.model_dump(mode="json", exclude_none=True, by_alias=True)
 
 
-def _live_register(request: Request, resource_type: str) -> tuple[Dhis2Client, RegisterSurface]:
-    """The client and the surface a register context is read through, refusing in the register's own order."""
+async def _live_register(request: Request, resource_type: str) -> tuple[RegisterReader, RegisterSurface]:
+    """The reader and the surface a register context is read through, refusing in the register's own order."""
     surface = serve_context(request).register_surface
     if not surface.tracked_entities.enabled:
         raise RegisterDisabledError(resource_type)
-    client = live_client(request)
-    if client is None:
+    reader = await register_reader(request)
+    if reader is None:
         raise NotServedFromCompiledIgError(resource_type)
     if not surface.serves_tracked_entities():
         raise NoPublishedSubjectTypeError(resource_type)
     if not surface.tracked_entity_type_uids_for(resource_type):
         raise NotServedError(resource_type)
-    return client, surface
+    return reader, surface

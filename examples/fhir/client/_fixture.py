@@ -123,7 +123,10 @@ _CONTEXT_CACHE_FILENAME = "conversion-context.json"
 _PROJECT_MARKER_FILENAME = ".fixture-complete"
 
 #: Where a started facade's own output goes, so a failure has something to quote.
-_FACADE_LOG_FILENAME = "facade.log"
+_FACADE_LOG_FILENAME = "facade-{auth}.log"
+
+#: The posture a facade runs under unless an example asks for another one.
+DEFAULT_FACADE_POSTURE = "none"
 
 #: How long a started facade is given to answer `/metadata` before the fixture calls it a failure.
 _FACADE_STARTUP_SECONDS = 180.0
@@ -143,8 +146,8 @@ _HTTP_OK = 200
 #: project while holding the lock would otherwise be a thread waiting on itself.
 _BUILD_LOCK = threading.RLock()
 
-_facade_base_url: str | None = None
-_facade_process: subprocess.Popen[bytes] | None = None
+_facade_base_urls: dict[str, str] = {}
+_facade_processes: list[subprocess.Popen[bytes]] = []
 
 
 class FixtureError(RuntimeError):
@@ -203,17 +206,25 @@ def capture_store() -> Any:
         return _run_coroutine(build())
 
 
-def served_facade() -> str:
-    """Base URL of a facade serving that project, started on first use and stopped at exit."""
-    global _facade_base_url
+def served_facade(*, auth: str = DEFAULT_FACADE_POSTURE) -> str:
+    """Base URL of a facade serving that project, started on first use and stopped at exit.
 
+    `auth` is the `[serve] auth` posture the facade runs under, and one facade is started per
+    posture asked for. The default serves every caller, which is what all but one example wants;
+    `auth="dhis2"` is the posture that reads the register as whoever asks, so the example about
+    that gets a server of its own rather than bending everybody else's.
+
+    An operator-supplied facade answers for the default posture only. A facade somebody else
+    started has whatever posture they gave it, and asking a posture-none server to prove
+    pass-through would fail in a way that reads as a bug in the feature.
+    """
     override = os.environ.get(FACADE_ENVIRONMENT_VARIABLE, "").strip()
-    if override:
+    if override and auth == DEFAULT_FACADE_POSTURE:
         return override.rstrip("/")
     with _BUILD_LOCK:
-        if _facade_base_url is None:
-            _facade_base_url = _start_facade(example_project())
-        return _facade_base_url
+        if auth not in _facade_base_urls:
+            _facade_base_urls[auth] = _start_facade(example_project(), auth)
+        return _facade_base_urls[auth]
 
 
 def aggregate_form_id() -> str:
@@ -348,10 +359,8 @@ async def _read_value_types(client: Any, bound: Any) -> dict[str, str]:
     return value_types
 
 
-def _start_facade(project_root: Path) -> str:
+def _start_facade(project_root: Path, auth: str) -> str:
     """Start `d2w fhir serve --live` on a free port, wait for it to answer, and register its shutdown."""
-    global _facade_process
-
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
     command = [
@@ -367,11 +376,13 @@ def _start_facade(project_root: Path) -> str:
         "--port",
         str(port),
         "--no-ui",
+        "--auth",
+        auth,
     ]
     # Both streams go to a file rather than a pipe. A live run narrates every step it takes, and a
     # pipe nobody drains fills its buffer and blocks the server mid-startup - so the log is a file
     # the fixture reads only when it has something to explain.
-    log_path = project_root / _FACADE_LOG_FILENAME
+    log_path = project_root / _FACADE_LOG_FILENAME.format(auth=auth)
     log_handle = log_path.open("wb")
     try:
         process = subprocess.Popen(command, stdout=log_handle, stderr=subprocess.STDOUT)
@@ -383,8 +394,8 @@ def _start_facade(project_root: Path) -> str:
         ) from error
     finally:
         log_handle.close()
-    _facade_process = process
-    atexit.register(_stop_facade)
+    _facade_processes.append(process)
+    atexit.register(_stop_facades)
     _await_facade(process, base_url, log_path)
     return base_url
 
@@ -406,7 +417,7 @@ def _await_facade(process: subprocess.Popen[bytes], base_url: str, log_path: Pat
         if response.status_code == _HTTP_OK:
             return
         time.sleep(_FACADE_POLL_SECONDS)
-    _stop_facade()
+    _stop_facades()
     raise FixtureError(
         f"`d2w fhir serve` did not answer /metadata within {int(_FACADE_STARTUP_SECONDS)}s. A live run reads "
         f"the whole instance at startup, so a slow DHIS2 is the usual cause; set {FACADE_ENVIRONMENT_VARIABLE} "
@@ -423,20 +434,18 @@ def _facade_log_tail(log_path: Path) -> str:
     return "\n".join(text.splitlines()[-4:]) or "no output"
 
 
-def _stop_facade() -> None:
-    """Stop the facade this process started, by its own process id and no other."""
-    global _facade_process
-
-    process = _facade_process
-    _facade_process = None
-    if process is None or process.poll() is not None:
-        return
-    process.terminate()
-    try:
-        process.wait(timeout=_FACADE_SHUTDOWN_SECONDS)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=_FACADE_SHUTDOWN_SECONDS)
+def _stop_facades() -> None:
+    """Stop every facade this process started, by their own process ids and no others."""
+    running, _facade_processes[:] = list(_facade_processes), []
+    for process in running:
+        if process.poll() is not None:
+            continue
+        process.terminate()
+        try:
+            process.wait(timeout=_FACADE_SHUTDOWN_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=_FACADE_SHUTDOWN_SECONDS)
 
 
 def _free_port() -> int:

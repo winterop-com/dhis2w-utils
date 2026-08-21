@@ -16,6 +16,7 @@ without.
 
 from __future__ import annotations
 
+import base64
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -25,11 +26,13 @@ import pytest
 import respx
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile
-from dhis2w_fhir.config import FhirProject, TrackedEntitiesConfig
+from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope, TrackedEntitiesConfig
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.capability import build_server_capability
+from dhis2w_fhir_serve.passthrough import FACADE_PROVENANCE_HEADER, open_pass_through_client
 from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 from dhis2w_fhir_serve.register.surface import RegisterSurface
+from dhis2w_fhir_serve.runtime import facade_provenance
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import load_compiled_store
 from fastapi import FastAPI
@@ -573,3 +576,219 @@ def _capability(project: FhirProject, *, live: bool, tracked_entities: TrackedEn
         ),
         server_version="9.9.9",
     )
+
+
+# ---------------------------------------------------------------------------------------------
+# Credential pass-through: under `auth = "dhis2"` the register is read as the caller, not as the facade.
+# ---------------------------------------------------------------------------------------------
+
+
+#: Two callers, and the credentials the runtime's own profile would have sent in their place.
+_CALLER_BASIC = f"Basic {base64.b64encode(b'clerk:secret').decode('ascii')}"
+_OTHER_CALLER_BASIC = f"Basic {base64.b64encode(b'nurse:secret').decode('ascii')}"
+_RUNTIME_BASIC = f"Basic {base64.b64encode(b'admin:district').decode('ascii')}"
+
+
+@pytest.fixture
+async def pass_through_facade(
+    capture_project: FhirProject,
+    patient_profile: Profile,
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncIterator[httpx.AsyncClient]:
+    """The same facade under `auth = "dhis2"`: the runtime's client beside the pool a caller's header rides.
+
+    The runtime's client is booby-trapped rather than merely observed. Every assertion below could be
+    written as "the outgoing header was the caller's", and every one of them would still pass if a
+    second read had gone out as the facade - so the connection that must not be used raises when it is.
+    """
+
+    async def _never_the_runtime(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        raise AssertionError("a register read under the `dhis2` posture never runs on the runtime's client")
+
+    with respx.mock:
+        respx.get(f"{_HOST}/api/system/info").mock(return_value=httpx.Response(200, json=_SYSTEM_INFO))
+        respx.get(f"{_HOST}/api/me").mock(return_value=httpx.Response(200, json={"username": "clerk"}))
+        app: FastAPI = create_app(
+            ServeSettings(
+                project_dir=capture_project.project_root,
+                auth=ServeAuth.DHIS2,
+                auth_scope=ServeAuthScope.ALL,
+                dhis2_base_url=_HOST,
+            )
+        )
+        async with (
+            app.router.lifespan_context(app),
+            open_client(patient_profile) as dhis2,
+            open_pass_through_client(_HOST, provenance=facade_provenance()) as pool,
+        ):
+            monkeypatch.setattr(dhis2, "get_raw", _never_the_runtime)
+            app.state.live_client = dhis2
+            app.state.caller_client = pool
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(transport=transport, base_url=_BASE_URL) as http:
+                yield http
+
+
+async def test_a_register_read_carries_the_callers_own_header_and_never_the_runtimes(
+    pass_through_facade: httpx.AsyncClient,
+) -> None:
+    """The whole wave in one assertion: DHIS2 is asked as the person who asked this server."""
+    read = _read_route(_entity())
+
+    answered = await pass_through_facade.get(f"/Patient/{_PERSON_UID}", headers={"Authorization": _CALLER_BASIC})
+
+    assert answered.status_code == 200
+    sent = read.calls.last.request
+    assert sent.headers["authorization"] == _CALLER_BASIC
+    assert sent.headers["authorization"] != _RUNTIME_BASIC
+
+
+async def test_a_search_and_a_listing_carry_it_too(pass_through_facade: httpx.AsyncClient) -> None:
+    """Every register read is a read on somebody's behalf, so every one of them is forwarded."""
+    _read_route(None, _NATIONAL_ID)
+    search = _search_route(_entity())
+
+    await pass_through_facade.get(
+        f"/Patient?identifier={_NATIONAL_ID_SYSTEM}|{_NATIONAL_ID}", headers={"Authorization": _CALLER_BASIC}
+    )
+    await pass_through_facade.get("/Patient?_count=5", headers={"Authorization": _OTHER_CALLER_BASIC})
+
+    forwarded = [call.request.headers["authorization"] for call in search.calls]
+    assert forwarded == [_CALLER_BASIC, _OTHER_CALLER_BASIC]
+
+
+async def test_the_enrollment_listing_is_read_as_the_caller(pass_through_facade: httpx.AsyncClient) -> None:
+    """The picker's feed is one person's episodes, so it is answered under that person's own reader."""
+    read = _read_route(_entity())
+
+    answered = await pass_through_facade.get(
+        f"/tracked-entities/{_PERSON_UID}/enrollments", headers={"Authorization": _CALLER_BASIC}
+    )
+
+    assert answered.status_code == 200
+    assert read.calls.last.request.headers["authorization"] == _CALLER_BASIC
+
+
+async def test_an_evaluation_over_a_registered_entity_is_read_as_the_caller(
+    pass_through_facade: httpx.AsyncClient,
+) -> None:
+    """An expression may only ever run over a person its caller may see, which is DHIS2's call to make."""
+    read = _read_route(_entity())
+
+    answered = await pass_through_facade.post(
+        "/evaluate",
+        json={
+            "language": "fhirpath",
+            "source": "Patient.id",
+            "context": {"kind": "registered", "tracked_entity_uid": _PERSON_UID},
+        },
+        headers={"Authorization": _CALLER_BASIC},
+    )
+
+    assert answered.status_code == 200
+    assert read.calls.last.request.headers["authorization"] == _CALLER_BASIC
+
+
+async def test_the_read_names_the_facade_and_never_the_caller_in_a_header_of_its_own(
+    pass_through_facade: httpx.AsyncClient,
+) -> None:
+    """One breadcrumb, naming the software: the caller's own header already carries who they are."""
+    read = _read_route(_entity())
+
+    await pass_through_facade.get(f"/Patient/{_PERSON_UID}", headers={"Authorization": _CALLER_BASIC})
+
+    sent = read.calls.last.request
+    assert sent.headers[FACADE_PROVENANCE_HEADER].startswith("dhis2w-fhir-serve/")
+    assert "clerk" not in str(sent.headers)
+
+
+async def test_what_dhis2_hides_stays_hidden_rather_than_becoming_a_facade_verdict(
+    pass_through_facade: httpx.AsyncClient,
+) -> None:
+    """DHIS2 answers 404 for a tracked entity a caller may not see, and 404 is what the caller is told."""
+    _read_route(None)
+
+    answered = await pass_through_facade.get(f"/Patient/{_PERSON_UID}", headers={"Authorization": _CALLER_BASIC})
+
+    assert answered.status_code == 404
+    assert answered.json()["issue"][0]["code"] == "not-found"
+
+
+async def test_a_refusal_dhis2_did_send_is_carried_rather_than_turned_into_a_facade_failure(
+    pass_through_facade: httpx.AsyncClient,
+) -> None:
+    """A 403 is about the caller, and a 502 would say this server could not reach an instance that answered."""
+    respx.get(f"{_HOST}/api/tracker/trackedEntities/{_PERSON_UID}").mock(
+        return_value=httpx.Response(403, json={"httpStatusCode": 403, "message": "no"})
+    )
+
+    answered = await pass_through_facade.get(f"/Patient/{_PERSON_UID}", headers={"Authorization": _CALLER_BASIC})
+
+    assert answered.status_code == 403
+    assert answered.json()["issue"][0]["code"] == "forbidden"
+
+
+async def test_two_callers_are_two_upstream_reads_and_neither_is_answered_from_the_others(
+    pass_through_facade: httpx.AsyncClient,
+) -> None:
+    """Nothing on this path is cached, because one caller's page is never another caller's page."""
+    read = _read_route(_entity())
+
+    await pass_through_facade.get(f"/Patient/{_PERSON_UID}", headers={"Authorization": _CALLER_BASIC})
+    await pass_through_facade.get(f"/Patient/{_PERSON_UID}", headers={"Authorization": _OTHER_CALLER_BASIC})
+
+    assert read.call_count == 2
+    assert [call.request.headers["authorization"] for call in read.calls] == [_CALLER_BASIC, _OTHER_CALLER_BASIC]
+
+
+async def test_a_register_read_presenting_no_credential_is_refused_rather_than_read_as_the_facade(
+    pass_through_facade: httpx.AsyncClient,
+) -> None:
+    """There is nobody to answer as, and answering as the facade is the read this posture exists to stop."""
+    read = _read_route(_entity())
+
+    answered = await pass_through_facade.get(f"/Patient/{_PERSON_UID}")
+
+    assert answered.status_code == 401
+    assert answered.headers["www-authenticate"].startswith("Basic ")
+    assert read.call_count == 0
+
+
+#: The two postures that name no DHIS2 user, and what a caller presents under each.
+_RUNTIME_READING_POSTURES = ((ServeAuth.NONE, None), (ServeAuth.TOKEN, "Bearer a-deployment-token"))
+
+
+@pytest.fixture(params=_RUNTIME_READING_POSTURES, ids=["none", "token"])
+async def runtime_reading_facade(
+    request: pytest.FixtureRequest,
+    capture_project: FhirProject,
+    patient_profile: Profile,
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncIterator[httpx.AsyncClient]:
+    """The facade under a posture that names nobody, which is what makes the register the runtime's read."""
+    posture, presented = request.param
+    monkeypatch.setenv("D2W_FHIR_SERVE_TOKENS", "a-deployment-token")
+    with respx.mock:
+        respx.get(f"{_HOST}/api/system/info").mock(return_value=httpx.Response(200, json=_SYSTEM_INFO))
+        app: FastAPI = create_app(
+            ServeSettings(project_dir=capture_project.project_root, auth=posture, auth_scope=ServeAuthScope.ALL)
+        )
+        async with app.router.lifespan_context(app), open_client(patient_profile) as dhis2:
+            app.state.live_client = dhis2
+            transport = httpx.ASGITransport(app=app)
+            headers = {} if presented is None else {"Authorization": presented}
+            async with httpx.AsyncClient(transport=transport, base_url=_BASE_URL, headers=headers) as http:
+                yield http
+
+
+async def test_a_posture_that_names_nobody_reads_the_register_over_the_runtimes_own_client(
+    runtime_reading_facade: httpx.AsyncClient,
+) -> None:
+    """Pass-through is the `dhis2` posture's. `none` and `token` name no DHIS2 user to read as."""
+    read = _read_route(_entity())
+
+    answered = await runtime_reading_facade.get(f"/Patient/{_PERSON_UID}")
+
+    assert answered.status_code == 200
+    assert read.calls.last.request.headers["authorization"] == _RUNTIME_BASIC
+    assert FACADE_PROVENANCE_HEADER.lower() not in read.calls.last.request.headers

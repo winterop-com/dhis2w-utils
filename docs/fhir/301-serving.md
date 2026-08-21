@@ -54,12 +54,22 @@ Two things to know before the options:
   different decision from an exposed compiled one. How much of that a live run
   offers is [`[serve.tracked_entities]`](#tracked_entities) below.
 
-- **Every answer is read under the facade's own DHIS2 profile**, not the
-  caller's, whoever the caller turns out to be. Give that profile the rights the
-  guide needs and no more: DHIS2 skips its tracker ownership and access-level
-  model outright for a superuser, and writes no break-the-glass audit entry when
-  it does, so a facade running as an administrator reads past sharing,
-  ownership, and access levels with nothing in the audit trail to say so.
+- **Who an answer is read as depends on `auth`.** Under
+  [`auth = "dhis2"`](#auth) a register read is answered under the *caller's* own
+  DHIS2 authorization - this server forwards their credentials to the instance,
+  and DHIS2 decides per caller. Under `none` and `token` there is no caller to
+  read as, so every answer is read under the facade's own DHIS2 profile,
+  whoever asked.
+
+- **Give the facade profile the rights the guide needs and no more**, in every
+  posture. The startup store build, the instance address `/uiconfig` hands the
+  capture screens, and `d2w fhir forward`'s drain all run as that profile in
+  every posture, because none of them acts on behalf of a caller. And DHIS2
+  skips its tracker ownership and access-level model outright for a superuser,
+  writing no break-the-glass audit entry when it does - so a facade running as
+  an administrator reads past sharing, ownership, and access levels with
+  nothing in the audit trail to say so. Under `none` and `token` that profile
+  is what answers every caller.
 
 ### `host`
 
@@ -168,7 +178,9 @@ Every caller presents the DHIS2 username and password they would sign in to the
 instance with (or a DHIS2 personal access token as
 `Authorization: ApiToken <token>`), and this server checks it by reading
 `/api/me` on that instance as them. The username it gets back is recorded on
-every receipt that caller captures.
+every receipt that caller captures - and every register read that caller makes
+is sent to the instance under the same credentials, so each of them sees exactly
+the people DHIS2 lets them see.
 
 The `token` posture takes its tokens from the environment, never from this file:
 
@@ -211,10 +223,30 @@ current rather than an oversight: DHIS2 2.43.1's own authorization server
 returns a 500 for any client its API creates (BUGS.md 96), so a project could
 state it and nothing would answer. The name is reserved for when that is fixed.
 
-**What it does not do.** It decides who may ask. It does not decide what the
-answer contains: a live run reads DHIS2 as the profile the server was started
-with, so what any caller can see is that profile's rights rather than their own.
-Give the facade a least-privilege DHIS2 user - see the note above the options.
+**What each posture decides about the answer.** `none` and `token` decide who
+may ask and nothing more: a live run reads DHIS2 as the profile the server was
+started with, so what any caller sees is that profile's rights rather than their
+own. `dhis2` decides both. Every register read it answers - the tracked entity
+read, identifier search, the listing and its counts, the enrollment listing, and
+`/evaluate`'s registered context - is sent to DHIS2 carrying the caller's own
+`Authorization` header, so DHIS2's sharing, organisation unit scopes, ownership,
+and access levels answer per caller, and this server applies no rule of its own.
+What DHIS2 hides it hides: a tracked entity a caller may not see is a 404 here
+because it is a 404 there. Each forwarded read also carries one header of this
+server's own, `X-DHIS2W-Facade`, naming the software and version the read
+arrived through - provenance for the DHIS2 access log, and never the username,
+which the caller's own header already carries.
+
+A register read that presents no credential is refused with a 401 rather than
+answered as the facade, even under `auth_scope = "write"`, which leaves reads
+unguarded otherwise: there is nobody to answer as. A read that presents one is
+answered, whichever scope is in force - the credential is checked on the spot,
+through the same brief cache the guarded addresses use.
+
+The startup store build, the instance address `/uiconfig` hands the screens, and
+`d2w fhir forward`'s drain stay on the facade's own profile in every posture,
+because none of them acts on behalf of a caller - so give that profile the
+rights the guide needs and no more. See the notes above the options.
 
 ### `auth_scope`
 
@@ -244,6 +276,12 @@ load is a sign-in page nobody can use.
 facade changes anything at; every other POST it serves writes nothing -
 `$generate` drafts a response from a published form, `/evaluate` runs an
 expression over what is served, and a CDS Hooks call answers cards.
+
+Under [`auth = "dhis2"`](#auth) the register is the exception to that, and not
+by this key's doing: a read of it is answered under the caller's own DHIS2
+authorization, so it asks for credentials in either scope. `write` still leaves
+every read of the *published guide* open - the Questionnaires, the code lists,
+`/metadata` - because those are the same documents for everybody.
 
 **If you get it wrong:** a value that is neither stops the run before anything
 starts.

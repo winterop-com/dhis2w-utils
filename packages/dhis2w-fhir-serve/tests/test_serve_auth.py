@@ -8,6 +8,10 @@ Two things are checked here that are not about one request at all. The startup r
 `ServeSettings.resolve`, so a posture a run could not honour is a line before the socket opens rather
 than a 401 on every caller; and the DHIS2 validator is checked against `respx` for the one property
 that matters most - the header that leaves this process is the CALLER'S, never the runtime's.
+
+The last section is the same property one layer down, on the reads themselves: what
+`CallerCredentialReader` puts on the wire, and which DHIS2 verdicts it carries back as they stand.
+The register routes that use it are exercised end to end in `test_register.py`.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from typing import Any
 import httpx
 import pytest
 import respx
+from dhis2w_client.errors import Dhis2ApiError, Dhis2ClientError
 from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope, load_fhir_config
 from dhis2w_fhir_serve import auth as auth_module
 from dhis2w_fhir_serve.app import create_app
@@ -37,6 +42,12 @@ from dhis2w_fhir_serve.auth import (
     preflight_auth,
     read_serve_tokens,
     validate_with_dhis2,
+)
+from dhis2w_fhir_serve.passthrough import (
+    FACADE_PROVENANCE_HEADER,
+    CallerCredentialReader,
+    UpstreamRefusalError,
+    open_pass_through_client,
 )
 from dhis2w_fhir_serve.routes import serve_routers
 from dhis2w_fhir_serve.settings import ServeSettings
@@ -606,3 +617,112 @@ async def test_the_posture_crosses_to_the_capture_ui_by_name_and_nothing_else_do
 
     assert body["auth"] == {"posture": "token", "scope": "write"}
     assert DEPLOYMENT_TOKENS not in str(body)
+
+
+# ---------------------------------------------------------------------------------------------
+# The pass-through read: whose credentials leave this process, and whose verdict comes back.
+# ---------------------------------------------------------------------------------------------
+
+
+#: One DHIS2 path a register read asks for, and the provenance the facade names itself with.
+TRACKER_PATH = "/api/tracker/trackedEntities/PLoWmEuLJl2"
+FACADE_PROVENANCE = "dhis2w-fhir-serve/9.9.9"
+
+
+@asynccontextmanager
+async def _reader(header_value: str = CALLER_BASIC) -> AsyncGenerator[CallerCredentialReader]:
+    """One caller's reader over the credential-free pool a running facade would hold open."""
+    async with open_pass_through_client(INSTANCE_URL, provenance=FACADE_PROVENANCE) as pool:
+        yield CallerCredentialReader(connection=pool, authorization=header_value)
+
+
+async def test_a_pass_through_read_carries_the_callers_header_and_the_facades_name() -> None:
+    """The two headers a read adds: whose credentials it runs under, and what it arrived through."""
+    with respx.mock(base_url=INSTANCE_URL) as router:
+        route = router.get(TRACKER_PATH).mock(return_value=httpx.Response(200, json={"trackedEntity": "PLoWmEuLJl2"}))
+        async with _reader() as reader:
+            answered = await reader.get_raw(TRACKER_PATH, {"fields": "trackedEntity"})
+
+    sent = route.calls.last.request
+    assert answered == {"trackedEntity": "PLoWmEuLJl2"}
+    assert sent.headers["authorization"] == CALLER_BASIC
+    assert sent.headers["authorization"] != RUNTIME_BASIC
+    assert sent.headers[FACADE_PROVENANCE_HEADER] == FACADE_PROVENANCE
+    assert sent.url.params["fields"] == "trackedEntity"
+
+
+async def test_the_pool_itself_carries_no_credential_to_fall_back_to() -> None:
+    """A request that somehow arrived without a caller's header is anonymous, never the facade."""
+    with respx.mock(base_url=INSTANCE_URL) as router:
+        route = router.get(TRACKER_PATH).mock(return_value=httpx.Response(200, json={}))
+        async with open_pass_through_client(INSTANCE_URL, provenance=FACADE_PROVENANCE) as pool:
+            await pool.get(TRACKER_PATH)
+
+    assert pool.auth is None
+    assert "authorization" not in route.calls.last.request.headers
+
+
+async def test_the_credential_stays_out_of_the_readers_own_repr() -> None:
+    """A model that reaches a log line or a traceback frame prints no password."""
+    async with _reader() as reader:
+        printed = repr(reader)
+
+    assert "secret" not in printed
+    assert CALLER_BASIC not in printed
+
+
+@pytest.mark.parametrize(("status", "issue"), [(401, "login"), (403, "forbidden")])
+async def test_a_verdict_about_the_caller_is_carried_rather_than_replaced(status: int, issue: str) -> None:
+    """DHIS2 answered clearly and the answer was about the caller: a 502 would say neither."""
+    with respx.mock(base_url=INSTANCE_URL) as router:
+        router.get(TRACKER_PATH).mock(return_value=httpx.Response(status, json={"message": "no"}))
+        async with _reader() as reader:
+            with pytest.raises(UpstreamRefusalError) as refused:
+                await reader.get_raw(TRACKER_PATH)
+
+    assert refused.value.status_code == status
+    assert refused.value.issue_code == issue
+    assert ("WWW-Authenticate" in refused.value.response_headers()) is (status == 401)
+
+
+async def test_a_verdict_about_the_instance_stays_the_refusal_the_register_already_reads() -> None:
+    """A 404 is how a read says nobody is there, and a 400 naming an absent type is how a surface finds nothing."""
+    with respx.mock(base_url=INSTANCE_URL) as router:
+        router.get(TRACKER_PATH).mock(
+            return_value=httpx.Response(404, json={"httpStatusCode": 404, "message": "not found"})
+        )
+        async with _reader() as reader:
+            with pytest.raises(Dhis2ApiError) as refused:
+                await reader.get_raw(TRACKER_PATH)
+
+    assert refused.value.status_code == 404
+    assert isinstance(refused.value.body, dict)
+    assert refused.value.body["message"] == "not found"
+
+
+async def test_an_unreachable_instance_is_a_failure_to_read_rather_than_an_empty_answer() -> None:
+    """The routes answer 502 to this, which is what "this server could not reach DHIS2" means."""
+    with respx.mock(base_url=INSTANCE_URL) as router:
+        router.get(TRACKER_PATH).mock(side_effect=httpx.ConnectError("no route"))
+        async with _reader() as reader:
+            with pytest.raises(Dhis2ClientError):
+                await reader.get_raw(TRACKER_PATH)
+
+
+async def test_a_body_that_is_not_json_is_refused_rather_than_read_as_no_results() -> None:
+    """A 200 carrying HTML is a proxy or a sign-in page standing in for the API, and hiding it would be worse."""
+    with respx.mock(base_url=INSTANCE_URL) as router:
+        router.get(TRACKER_PATH).mock(return_value=httpx.Response(200, html="<html>sign in</html>"))
+        async with _reader() as reader:
+            with pytest.raises(Dhis2ApiError) as refused:
+                await reader.get_raw(TRACKER_PATH)
+
+    assert "non-JSON" in refused.value.message
+
+
+async def test_an_empty_body_is_an_empty_answer_the_way_the_client_reads_one() -> None:
+    """DHIS2 answers some reads with nothing at all, and the register reads that as no fields rather than a failure."""
+    with respx.mock(base_url=INSTANCE_URL) as router:
+        router.get(TRACKER_PATH).mock(return_value=httpx.Response(200, content=b""))
+        async with _reader() as reader:
+            assert await reader.get_raw(TRACKER_PATH) == {}

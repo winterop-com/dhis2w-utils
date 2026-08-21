@@ -14,6 +14,12 @@ being answered. A `Specimen` is searched by the same identifier grammar, paged b
 and projected by the same rule as a `Patient` - see `dhis2w_fhir_serve.register.projection` for why
 that projection states no resource-specific element for any of them.
 
+**Whose data this is depends on who asked.** Under `[serve] auth = "dhis2"` every read below carries
+the CALLER'S own `Authorization` header to the instance, so DHIS2's sharing, organisation-unit
+scopes, ownership, and access levels decide what comes back, per caller, and this module applies no
+rule of its own. Under `none` and `token` the reads run over the runtime's client and answer with
+that profile's rights. `dhis2w_fhir_serve.passthrough` is where that is decided and why.
+
 **Live mode only.** The default mode serves a compiled guide and holds no DHIS2 client, so there is
 no instance to ask; it answers a `not-supported` OperationOutcome saying so, and `/metadata`
 declares none of these types, which is the same fact stated ahead of the request. A live process
@@ -91,6 +97,7 @@ from dhis2w_fhir_serve.errors import (
     UnsupportedSearchParameterError,
     UpstreamError,
 )
+from dhis2w_fhir_serve.passthrough import register_reader
 from dhis2w_fhir_serve.register.listing import (
     COUNT_PARAMETER,
     PAGE_PARAMETER,
@@ -101,7 +108,7 @@ from dhis2w_fhir_serve.register.listing import (
 )
 from dhis2w_fhir_serve.register.projection import registered_entity_for
 from dhis2w_fhir_serve.register.wire import fetch_tracked_entity, search_tracked_entities, upstream_refusal_text
-from dhis2w_fhir_serve.routes.context import live_client, serve_context
+from dhis2w_fhir_serve.routes.context import serve_context
 from dhis2w_fhir_serve.routes.read import (
     HonoredParameter,
     alternatives,
@@ -114,9 +121,9 @@ from dhis2w_fhir_serve.routes.read import (
 from dhis2w_fhir_serve.store import IdentifierToken
 
 if TYPE_CHECKING:
-    from dhis2w_client import Dhis2Client
     from dhis2w_client.generated.v42.oas import TrackerTrackedEntity
 
+    from dhis2w_fhir_serve.passthrough import RegisterReader
     from dhis2w_fhir_serve.register.surface import RegisterSurface
 
 #: The one search parameter the facade answers a register lookup on.
@@ -130,7 +137,7 @@ def register_resource_types(request: Request) -> tuple[str, ...]:
 
 async def search_register(request: Request, resource_type: str) -> Response:
     """Answer the entities an identifier names, or - naming none - one page of the register."""
-    client, surface = _live_lookup(request, resource_type)
+    reader, surface = await _live_lookup(request, resource_type)
     honored: list[HonoredParameter] = []
     tokens: list[IdentifierToken] = []
     for name, raw in request.query_params.multi_items():
@@ -141,8 +148,8 @@ async def search_register(request: Request, resource_type: str) -> Response:
     _require_answerable_parameters(request, resource_type, searching=bool(tokens))
     service_base = base_url(request)
     if not tokens:
-        return await _listing_response(request, client, surface, resource_type, service_base)
-    entities = await _matching_entities(client, surface, resource_type, tokens)
+        return await _listing_response(request, reader, surface, resource_type, service_base)
+    entities = await _matching_entities(reader, surface, resource_type, tokens)
     entries = _entries(entities, surface, resource_type, service_base)
     cap = requested_entry_cap(request.query_params.get(COUNT_PARAMETER))
     return bundle_response(service_base, resource_type, tuple(honored), entries, cap)
@@ -172,8 +179,8 @@ def _require_answerable_parameters(request: Request, resource_type: str, searchi
 
 async def read_registered_entity(request: Request, resource_type: str, tracked_entity_uid: str) -> Response:
     """Answer one entity by its DHIS2 tracked entity UID, which is what a search result links to."""
-    client, surface = _live_lookup(request, resource_type)
-    entity = await _read(client, tracked_entity_uid)
+    reader, surface = await _live_lookup(request, resource_type)
+    entity = await _read(reader, tracked_entity_uid)
     if entity is None or not _is_served_as(entity, surface, resource_type):
         raise NotFoundError(resource_type, tracked_entity_uid)
     registered = registered_entity_for(entity, surface.index, resource_type)
@@ -193,40 +200,45 @@ def _is_served_as(entity: TrackerTrackedEntity, surface: RegisterSurface, resour
     return entity.trackedEntityType in surface.tracked_entity_type_uids_for(resource_type)
 
 
-def _live_lookup(request: Request, resource_type: str) -> tuple[Dhis2Client, RegisterSurface]:
-    """The client and the surface a lookup runs against, refusing every way this process serves neither.
+async def _live_lookup(request: Request, resource_type: str) -> tuple[RegisterReader, RegisterSurface]:
+    """The reader and the surface a lookup runs against, refusing every way this process serves neither.
 
     The config comes first: a project whose `[serve.tracked_entities]` serves nothing serves nothing
     however the process was started, so telling its operator to restart with `--live` would be advice
     that changes nothing. The resource comes last, because "this server does not serve `Specimen`" is
     only true of a process that serves the register at all.
+
+    `register_reader` is where the posture is answered, and under `dhis2` it is also where a request
+    carrying no credential is refused: what comes back is read as the caller, so a request with
+    nobody to be is a 401 rather than a page read as the facade. It sits between the two because
+    authenticating a caller comes before telling them what this guide publishes.
     """
     surface = serve_context(request).register_surface
     if not surface.tracked_entities.enabled:
         raise RegisterDisabledError(resource_type)
-    client = live_client(request)
-    if client is None:
+    reader = await register_reader(request)
+    if reader is None:
         raise NotServedFromCompiledIgError(resource_type)
     if not surface.serves_tracked_entities():
         raise NoPublishedSubjectTypeError(resource_type)
     if not surface.tracked_entity_type_uids_for(resource_type):
         raise NotServedError(resource_type)
-    return client, surface
+    return reader, surface
 
 
 async def _listing_response(
-    request: Request, client: Dhis2Client, surface: RegisterSurface, resource_type: str, service_base: str
+    request: Request, reader: RegisterReader, surface: RegisterSurface, resource_type: str, service_base: str
 ) -> Response:
     """Answer one page of the register, or refuse the whole listing when the project serves none."""
     if not surface.serves_listing():
         raise RegisterListingDisabledError(resource_type)
     if requested_entry_cap(request.query_params.get(COUNT_PARAMETER)) == 0:
-        return await _register_size_response(client, surface, resource_type, service_base)
+        return await _register_size_response(reader, surface, resource_type, service_base)
     count = _requested_count(request, surface)
     cursor = _requested_cursor(request)
     try:
         page = await read_listing_page(
-            client,
+            reader,
             tracked_entity_type_uids=surface.tracked_entity_type_uids_for(resource_type),
             cursor=cursor,
             count=count,
@@ -245,7 +257,7 @@ async def _listing_response(
 
 
 async def _register_size_response(
-    client: Dhis2Client, surface: RegisterSurface, resource_type: str, service_base: str
+    reader: RegisterReader, surface: RegisterSurface, resource_type: str, service_base: str
 ) -> Response:
     """Answer `_count=0` with how large the register is and nobody in it.
 
@@ -255,7 +267,7 @@ async def _register_size_response(
     """
     try:
         total = await count_listing_total(
-            client, tracked_entity_type_uids=surface.tracked_entity_type_uids_for(resource_type)
+            reader, tracked_entity_type_uids=surface.tracked_entity_type_uids_for(resource_type)
         )
     except Dhis2ClientError as error:
         raise UpstreamError(
@@ -321,7 +333,7 @@ def _entries(
 
 
 async def _matching_entities(
-    client: Dhis2Client,
+    reader: RegisterReader,
     surface: RegisterSurface,
     resource_type: str,
     tokens: tuple[IdentifierToken, ...] | list[IdentifierToken],
@@ -329,35 +341,35 @@ async def _matching_entities(
     """Fold every token's matches into one result set, in the order they were found, once per entity."""
     found: dict[str, TrackerTrackedEntity] = {}
     for token in tokens:
-        for entity in await _entities_for_token(client, surface, resource_type, token):
+        for entity in await _entities_for_token(reader, surface, resource_type, token):
             if entity.trackedEntity is not None and _is_served_as(entity, surface, resource_type):
                 found.setdefault(entity.trackedEntity, entity)
     return list(found.values())
 
 
 async def _entities_for_token(
-    client: Dhis2Client, surface: RegisterSurface, resource_type: str, token: IdentifierToken
+    reader: RegisterReader, surface: RegisterSurface, resource_type: str, token: IdentifierToken
 ) -> list[TrackerTrackedEntity]:
     """Answer one identifier token: a UID read, one attribute search, or every key at once for a bare value."""
     if token.system == surface.index.tracked_entity_system:
-        entity = await _read(client, token.value)
+        entity = await _read(reader, token.value)
         return [] if entity is None else [entity]
     if token.system is not None:
         attribute = surface.attribute_for_system(token.system)
         if attribute is None:
             return []
-        return await _search(client, surface, resource_type, attribute.attribute_uid, token.value)
-    entity = await _read(client, token.value)
+        return await _search(reader, surface, resource_type, attribute.attribute_uid, token.value)
+    entity = await _read(reader, token.value)
     found = [] if entity is None else [entity]
     for attribute in surface.search_attributes:
-        found.extend(await _search(client, surface, resource_type, attribute.attribute_uid, token.value))
+        found.extend(await _search(reader, surface, resource_type, attribute.attribute_uid, token.value))
     return found
 
 
-async def _read(client: Dhis2Client, tracked_entity_uid: str) -> TrackerTrackedEntity | None:
+async def _read(reader: RegisterReader, tracked_entity_uid: str) -> TrackerTrackedEntity | None:
     """Read one entity, turning a DHIS2 failure into the outcome that says the instance failed."""
     try:
-        return await fetch_tracked_entity(client, tracked_entity_uid)
+        return await fetch_tracked_entity(reader, tracked_entity_uid)
     except Dhis2ClientError as error:
         raise UpstreamError(
             f"the DHIS2 instance did not answer the tracked entity read: {upstream_refusal_text(error)}"
@@ -365,7 +377,7 @@ async def _read(client: Dhis2Client, tracked_entity_uid: str) -> TrackerTrackedE
 
 
 async def _search(
-    client: Dhis2Client, surface: RegisterSurface, resource_type: str, attribute_uid: str, value: str
+    reader: RegisterReader, surface: RegisterSurface, resource_type: str, attribute_uid: str, value: str
 ) -> list[TrackerTrackedEntity]:
     """Search every tracked entity type this resource covers for one attribute value, one type per query."""
     found: list[TrackerTrackedEntity] = []
@@ -373,7 +385,7 @@ async def _search(
         try:
             found.extend(
                 await search_tracked_entities(
-                    client,
+                    reader,
                     tracked_entity_type_uid=tracked_entity_type_uid,
                     attribute_uid=attribute_uid,
                     value=value,

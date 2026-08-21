@@ -16,6 +16,11 @@ built live, leaving closes it, and a caller that already holds an authenticated 
 keeps ownership of it. It rides beside the served context rather than on it, for the reason
 `dhis2w_fhir_serve.routes.context` gives - a Pydantic model of what a facade serves is not the place
 for a live HTTP connection - and `ServeRuntime` is the name for the pair.
+
+A live run under `[serve] auth = "dhis2"` opens a second connection to the same instance, and this
+one carries no credential: it is the pool a register read sends the CALLER'S own `Authorization`
+over, so DHIS2 decides per caller what comes back. `dhis2w_fhir_serve.passthrough` states why, and
+opens it; the lifespan owns it exactly as it owns the client, so both close when the process unwinds.
 """
 
 from __future__ import annotations
@@ -24,15 +29,21 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from importlib.metadata import version
 from typing import TYPE_CHECKING, Any
 
+import httpx
 from dhis2w_client import Dhis2Client
-from dhis2w_fhir.config import FhirProject, load_project
+from dhis2w_fhir.config import FhirProject, ServeAuth, load_project
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.metadata import build_metadata_body
+from dhis2w_fhir_serve.passthrough import open_pass_through_client
 from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 from dhis2w_fhir_serve.register.surface import RegisterSurface
-from dhis2w_fhir_serve.routes.context import LIVE_CLIENT_ATTRIBUTE, SERVE_CONTEXT_ATTRIBUTE
+from dhis2w_fhir_serve.routes.context import (
+    CALLER_CLIENT_ATTRIBUTE,
+    LIVE_CLIENT_ATTRIBUTE,
+    SERVE_CONTEXT_ATTRIBUTE,
+)
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool
 from dhis2w_fhir_serve.store import ResourceStore, load_compiled_store
@@ -76,6 +87,13 @@ class ServeRuntime(BaseModel):
     context: ServeContext
     live_client: Dhis2Client | None = None
 
+    caller_client: httpx.AsyncClient | None = None
+    """The credential-free pool a register read forwards one caller's `Authorization` over.
+
+    None in every posture but `dhis2`, and in every mode but live, because nothing else forwards
+    anybody's credential - see `dhis2w_fhir_serve.passthrough`.
+    """
+
 
 @asynccontextmanager
 async def open_serve_runtime(
@@ -89,6 +107,12 @@ async def open_serve_runtime(
     refused rather than ignored: `live` is what says this facade reads an instance, and a client
     beside `live = False` is two statements that disagree.
 
+    A live run under the `dhis2` posture opens the credential-free pool beside it, which is what a
+    register read forwards the caller's own header over. It is opened here, rather than lazily at
+    the first request, because it is the connection that decides whose rights an answer is read
+    under: a process that could not open it should refuse to serve rather than discover that on a
+    caller's behalf.
+
     Nothing here is retried and nothing is defaulted. `CompiledIgMissingError` from a project that
     has never been built, or an unreachable instance, propagates out and the server refuses to
     start, rather than serving an empty guide that reads to a client as a project that published
@@ -101,6 +125,11 @@ async def open_serve_runtime(
         live = client
         if settings.live and live is None:
             live = await connections.enter_async_context(open_live_client(project, settings))
+        caller = None
+        if live is not None and settings.auth is ServeAuth.DHIS2 and settings.dhis2_base_url is not None:
+            caller = await connections.enter_async_context(
+                open_pass_through_client(settings.dhis2_base_url, provenance=facade_provenance())
+            )
         store = await build_store(settings, project, live)
         spool = ResponseSpool.at(project.project_root, settings.spool_dir)
         register_surface = RegisterSurface.resolve(
@@ -122,6 +151,7 @@ async def open_serve_runtime(
                 ),
             ),
             live_client=live,
+            caller_client=caller,
         )
 
 
@@ -130,11 +160,12 @@ def attach_serve_runtime(app: FastAPI, runtime: ServeRuntime) -> None:
 
     This is the whole of what an application mounting the facade's routers must promise them. The
     state is the application's rather than the request's because one project, one store, and one
-    spool are properties of the process, and the two names it writes are the two
+    spool are properties of the process, and the three names it writes are the three
     `dhis2w_fhir_serve.routes.context` reads back.
     """
     setattr(app.state, SERVE_CONTEXT_ATTRIBUTE, runtime.context)
     setattr(app.state, LIVE_CLIENT_ATTRIBUTE, runtime.live_client)
+    setattr(app.state, CALLER_CLIENT_ATTRIBUTE, runtime.caller_client)
 
 
 async def build_store(settings: ServeSettings, project: FhirProject, client: Dhis2Client | None) -> ResourceStore:
@@ -155,3 +186,8 @@ async def build_store(settings: ServeSettings, project: FhirProject, client: Dhi
 def server_version() -> str:
     """The installed version of this package, as the app and its CapabilityStatement report it."""
     return version(DISTRIBUTION_NAME)
+
+
+def facade_provenance() -> str:
+    """What a pass-through read names itself as to the instance: this software, and its version."""
+    return f"{DISTRIBUTION_NAME}/{server_version()}"

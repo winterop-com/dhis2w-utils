@@ -56,7 +56,7 @@ from dhis2w_fhir_serve.register.wire import (
 )
 
 if TYPE_CHECKING:
-    from dhis2w_client import Dhis2Client
+    from dhis2w_fhir_serve.passthrough import RegisterReader
 
 #: The search parameter carrying the cursor, and the FHIR-defined one carrying the page size.
 PAGE_PARAMETER = "page"
@@ -132,7 +132,7 @@ class RegisterListingPage(BaseModel):
 
 
 async def read_listing_page(
-    client: Dhis2Client,
+    reader: RegisterReader,
     *,
     tracked_entity_type_uids: tuple[str, ...],
     cursor: ListingCursor,
@@ -149,13 +149,13 @@ async def read_listing_page(
     read: TrackedEntitiesPage | None = None
     while type_index < len(tracked_entity_type_uids):
         read = await list_tracked_entities(
-            client,
+            reader,
             tracked_entity_type_uid=tracked_entity_type_uids[type_index],
             page=upstream_page,
             page_size=count,
         )
         if read.trackedEntities:
-            total = await _searchset_total(client, read, tracked_entity_type_uids, cursor)
+            total = await _searchset_total(reader, read, tracked_entity_type_uids, cursor)
             reached = ListingCursor(
                 type_index=type_index, upstream_page=upstream_page, searchset_total=cursor.searchset_total
             )
@@ -164,19 +164,19 @@ async def read_listing_page(
                 cursor=reached,
                 total=total,
                 next_cursor=_next_cursor(reached, read, count, len(tracked_entity_type_uids), total),
-                previous_cursor=await _previous_cursor(client, reached, tracked_entity_type_uids, count, total),
+                previous_cursor=await _previous_cursor(reader, reached, tracked_entity_type_uids, count, total),
             )
         type_index += 1
         upstream_page = 1
-    total = None if read is None else await _searchset_total(client, read, tracked_entity_type_uids, cursor)
+    total = None if read is None else await _searchset_total(reader, read, tracked_entity_type_uids, cursor)
     return RegisterListingPage(
         cursor=cursor,
         total=total,
-        previous_cursor=await _previous_cursor(client, cursor, tracked_entity_type_uids, count, total),
+        previous_cursor=await _previous_cursor(reader, cursor, tracked_entity_type_uids, count, total),
     )
 
 
-async def count_listing_total(client: Dhis2Client, *, tracked_entity_type_uids: tuple[str, ...]) -> int | None:
+async def count_listing_total(reader: RegisterReader, *, tracked_entity_type_uids: tuple[str, ...]) -> int | None:
     """How many tracked entities the whole listing holds, counted without carrying any of them back.
 
     DHIS2 counts one type at a time, so this is one count-only request per type in scope, summed. A
@@ -185,7 +185,7 @@ async def count_listing_total(client: Dhis2Client, *, tracked_entity_type_uids: 
     """
     counted = 0
     for tracked_entity_type_uid in tracked_entity_type_uids:
-        total = await count_tracked_entities(client, tracked_entity_type_uid=tracked_entity_type_uid)
+        total = await count_tracked_entities(reader, tracked_entity_type_uid=tracked_entity_type_uid)
         if total is None:
             return None
         counted += total
@@ -193,7 +193,7 @@ async def count_listing_total(client: Dhis2Client, *, tracked_entity_type_uids: 
 
 
 async def _searchset_total(
-    client: Dhis2Client,
+    reader: RegisterReader,
     page: TrackedEntitiesPage,
     tracked_entity_type_uids: tuple[str, ...],
     cursor: ListingCursor,
@@ -210,7 +210,7 @@ async def _searchset_total(
         return None if page.pager is None else page.pager.total
     if cursor.searchset_total is not None:
         return cursor.searchset_total
-    return await count_listing_total(client, tracked_entity_type_uids=tracked_entity_type_uids)
+    return await count_listing_total(reader, tracked_entity_type_uids=tracked_entity_type_uids)
 
 
 def _next_cursor(
@@ -240,7 +240,7 @@ def _next_cursor(
 
 
 async def _previous_cursor(
-    client: Dhis2Client,
+    reader: RegisterReader,
     cursor: ListingCursor,
     tracked_entity_type_uids: tuple[str, ...],
     count: int,
@@ -260,7 +260,7 @@ async def _previous_cursor(
         )
     for preceding in range(min(cursor.type_index, len(tracked_entity_type_uids)) - 1, -1, -1):
         page_count = await count_tracked_entity_pages(
-            client, tracked_entity_type_uid=tracked_entity_type_uids[preceding], page_size=count
+            reader, tracked_entity_type_uid=tracked_entity_type_uids[preceding], page_size=count
         )
         if page_count > 0:
             return ListingCursor(type_index=preceding, upstream_page=page_count, searchset_total=carried)

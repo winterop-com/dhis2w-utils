@@ -198,13 +198,21 @@ DHIS2_AUTHENTICATION_DESCRIPTION = (
     "Send the credentials you would sign in to the DHIS2 instance behind this server with - a "
     "username and password as HTTP Basic, or a DHIS2 personal access token as "
     "`Authorization: ApiToken <token>`. This server checks them by reading `/api/me` on that "
-    "instance as you, and records the username it gets back on every receipt you capture."
+    "instance as you, and records the username it gets back on every receipt you capture. Reads of "
+    "the register are answered under your own DHIS2 authorization: this server forwards your "
+    "credentials to the instance, so DHIS2's sharing, organisation unit scopes, ownership, and "
+    "access levels decide what you see."
 )
 
 #: What each scope adds about how much of the surface the posture covers.
 WRITE_SCOPE_DESCRIPTION = (
     "Credentials are required to create a QuestionnaireResponse. Every read, every search, this "
     "document, and both operations are served without them."
+)
+DHIS2_WRITE_SCOPE_DESCRIPTION = (
+    "Credentials are required to create a QuestionnaireResponse, and to read or search the register, "
+    "which is answered under the credentials of whoever asks. This document, every read of the "
+    "published guide, and both operations are served without them."
 )
 ALL_SCOPE_DESCRIPTION = "Credentials are required for every interaction except reading this document."
 
@@ -272,12 +280,25 @@ def build_security(posture: ServeAuth, scope: ServeAuthScope) -> CapabilityState
     if posture is ServeAuth.NONE:
         return CapabilityStatementSecurity(cors=False, description=NO_AUTHENTICATION_DESCRIPTION)
     stated = TOKEN_AUTHENTICATION_DESCRIPTION if posture is ServeAuth.TOKEN else DHIS2_AUTHENTICATION_DESCRIPTION
-    covered = WRITE_SCOPE_DESCRIPTION if scope is ServeAuthScope.WRITE else ALL_SCOPE_DESCRIPTION
+    covered = _scope_description(posture, scope)
     return CapabilityStatementSecurity(
         cors=False,
         service=_security_services(posture),
         description=f"{stated} {covered}",
     )
+
+
+def _scope_description(posture: ServeAuth, scope: ServeAuthScope) -> str:
+    """How much of the surface a posture covers, with the one line the `dhis2` posture makes untrue.
+
+    `write` leaves reads open, and under every other posture that is the whole of it. Under `dhis2`
+    a register read is answered under the caller's own DHIS2 authorization, so it asks for
+    credentials in either scope - saying "every read is served without them" would be a promise this
+    server does not keep.
+    """
+    if scope is not ServeAuthScope.WRITE:
+        return ALL_SCOPE_DESCRIPTION
+    return DHIS2_WRITE_SCOPE_DESCRIPTION if posture is ServeAuth.DHIS2 else WRITE_SCOPE_DESCRIPTION
 
 
 def _security_services(posture: ServeAuth) -> list[CodeableConcept]:
