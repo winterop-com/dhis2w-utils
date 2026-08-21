@@ -9939,6 +9939,7 @@ $ d2w fhir [OPTIONS] COMMAND [ARGS]...
 * `forward`: Drain the capture spool into DHIS2 -...
 * `spool`: List the capture spool - how many receipts...
 * `requeue`: Move receipts DHIS2 refused back into the...
+* `withdraw`: Retract from DHIS2 the events named...
 * `doctor`: Run the whole FHIR toolchain against this...
 * `generate`: Generate the whole IG source from DHIS2...
 
@@ -10055,10 +10056,14 @@ Drain the capture spool into DHIS2 - translate every received response and post 
 DRY RUN IS THE DEFAULT. Every payload is posted to the real instance under the endpoint&#x27;s own
 validate-only mode, so DHIS2&#x27;s rules decide the answer and nothing is written; `--import` commits.
 
-The posture comes from `[forward]` in fhir.toml - `import`, `register_completeness`, and
-`overwrites` - unless a flag here overrides it for this run, and from the defaults above when the
-file states none. Which spool is drained is `[serve] spool_dir`, the same key the server writes
-receipts under.
+The posture comes from `[forward]` in fhir.toml - `import`, `register_completeness`,
+`overwrites`, `corrections`, and `withdrawals` - unless a flag here overrides it for this run,
+and from the defaults above when the file states none. Which spool is drained is
+`[serve] spool_dir`, the same key the server writes receipts under.
+
+`corrections` and `withdrawals` are the deployment&#x27;s posture towards a submission that names what
+it amends or retracts, and the run states them rather than acting on them: a drain imports, and
+`d2w fhir withdraw` is what reads `withdrawals`.
 
 An imported response moves from the spool&#x27;s received/ to forwarded/, a DHIS2-rejected one to
 rejected/ beside a report, and a translator-refused one stays put - fix and forward again.
@@ -10099,6 +10104,8 @@ $ d2w fhir forward [OPTIONS] [directory]
 * `--strict-codes / --no-strict-codes`: Refuse a coded answer whose code is outside the served terminology, overriding `[serve] strict_codes`. Lenient resolves the DHIS2 option UID and code too, and notes it.
 * `--register-completeness / --no-register-completeness`: Register the data set complete for every aggregate response whose status is `completed`, once DHIS2 has taken its values, overriding `[forward] register_completeness`. On by default - the response said it was finished.
 * `--overwrites <allow|refuse>`: What to do with an aggregate value a forwarded receipt already sent, overriding `[forward] overwrites`. `allow` - the default - posts it and names it; `refuse` leaves the whole response in the queue with the covered values written down beside it.
+* `--corrections <off|amend>`: Whether this deployment accepts a submission that names the receipt it corrects, overriding `[forward] corrections`. Off by default. Stated by the run rather than acted on by it - a drain imports, and a correction lands on the corrected receipt&#x27;s identity.
+* `--withdrawals <off|retract>`: Whether this deployment retracts what it forwarded, overriding `[forward] withdrawals`. Off by default, and read by `d2w fhir withdraw` rather than by the drain, which never deletes anything.
 * `--details`: Print every response&#x27;s outcome instead of writing them to the report.
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
@@ -10156,6 +10163,48 @@ $ d2w fhir requeue [OPTIONS] [response_ids]...
 
 * `--directory <directory>`: Project directory (default: current directory).  [default: .]
 * `--all-rejected`: Move every receipt DHIS2 refused back into the queue.
+* `--help`: Show this message and exit.
+
+### `d2w fhir withdraw`
+
+Retract from DHIS2 the events named forwarded receipts landed, and file each receipt as withdrawn.
+
+WITHDRAWAL IS TERMINAL. DHIS2 burns the UID of a tracker object it deletes and refuses it under
+every import strategy afterwards, so a withdrawn receipt can never be forwarded again. What
+remains in the instance is a hidden copy of the event carrying its values, which no ordinary read
+returns - not the nothing that the word &quot;deleted&quot; implies.
+
+DRY RUN IS THE DEFAULT. The delete goes to the real instance under the tracker endpoint&#x27;s own
+validate-only mode, so DHIS2 answers whether it would take it while nothing is written; `--import`
+commits.
+
+`[forward] withdrawals` gates the whole command and is off unless this project says otherwise -
+a project that publishes forms and forwards them is not thereby one that reaches back into what
+DHIS2 already holds. `--withdrawals retract` states it for one run.
+
+The receipt is never rewritten. Its file moves from forwarded/ to withdrawn/ with a sidecar
+holding what DHIS2 answered the delete, and the import report that recorded what it landed stays
+in forwarded/, because that document is still true of that import.
+
+Only a receipt in forwarded/ that landed a single event can be withdrawn, and every id is checked
+before anything is posted. `d2w data aggregate delete` and `d2w data tracker delete` are the raw
+escape hatches for the other kinds, outside the FHIR path.
+
+**Usage**:
+
+```console
+$ d2w fhir withdraw [OPTIONS] {response_ids}...
+```
+
+**Arguments**:
+
+* `response_ids...`: Forwarded receipt ids to retract from DHIS2.  [required]
+
+**Options**:
+
+* `--directory <directory>`: Project directory (default: current directory).  [default: .]
+* `--import / --dry-run`: Delete the events in DHIS2 and file the receipts under withdrawn/. The default is a dry run: the delete goes to the real endpoint under its own validate-only mode, and nothing is written and nothing moves.  [default: dry-run]
+* `--withdrawals <off|retract>`: Whether this project retracts what it forwarded, overriding `[forward] withdrawals`. Off by default, and `retract` is what this command requires.
 * `--help`: Show this message and exit.
 
 ### `d2w fhir doctor`

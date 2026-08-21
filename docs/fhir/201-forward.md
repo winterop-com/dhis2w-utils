@@ -69,8 +69,10 @@ run the same command with `--import`.
 
 Three things decide how a drain behaves before you type anything: whether it
 writes, whether a finished aggregate form also marks its data set complete,
-and what it does with a figure a previous submission already sent. Each is
-settled the same way - **the flag, then the project, then the default**:
+and what it does with a figure a previous submission already sent. Two more
+say what this deployment does about a submission that names what it corrects
+or retracts. Each is settled the same way - **the flag, then the project, then
+the default**:
 
 | Stated where | Writes to DHIS2 | Marks data sets complete | Meets a figure already sent |
 | --- | --- | --- | --- |
@@ -86,6 +88,36 @@ A project whose drains are routine states `import = true` once and stops
 typing the flag; a run that means to check rather than to write says
 `--dry-run` and gets a check whatever the file says. All three keys are
 documented in full at [`[forward]`](301-serving.md#forward).
+
+The other two settle the same way, and they are about a **marked** submission
+rather than an unmarked one. `overwrites` above is about a second capture of
+the same aggregate report, which says nothing about the first and simply
+replaces it. These two are about a submission that names the receipt it amends
+or retracts:
+
+| Stated where | Accepts a correction | Retracts what it forwarded |
+| --- | --- | --- |
+| `--corrections off` / `--corrections amend` | that, for this run | - |
+| `--withdrawals off` / `--withdrawals retract` | - | that, for this run |
+| `[forward] corrections` in `fhir.toml` | that, for every bare run | - |
+| `[forward] withdrawals` | - | that, for every bare run |
+| nothing at all | `off` | `off` |
+
+**Both are off unless a project says otherwise.** A project that publishes
+forms and forwards them is not thereby a project that lets a submitter reach
+back into what DHIS2 already holds, so turning one on is a sentence somebody
+wrote rather than a default nobody read. A drain acts on neither - it imports -
+and states each in `--details` and in `--json` wherever a project has turned
+one on, so a deployment can see its own dial being read. `d2w fhir withdraw` is
+the command that acts on `withdrawals`:
+
+```console
+$ d2w fhir withdraw 69d35bd781cb4d81a741d89d5ef258e0
+error: this project does not withdraw what it forwarded: `[forward] withdrawals` is
+`off`. Set `withdrawals = "retract"` in fhir.toml, or pass `--withdrawals retract`
+for one run. Withdrawal is terminal - DHIS2 burns the UID it deletes and the receipt
+can never be forwarded again.
+```
 
 ## What one run does
 
@@ -275,16 +307,21 @@ every value in the envelope was refused, and even under `dryRun=true`
 (`BUGS.md` 76, 77) - so the claim is made in a call of its own, after the
 values are known to have landed.
 
-## The three states a receipt can end in
+## The four states a receipt can end in
 
 ```
 .serve/responses/
   received/    captured, not yet forwarded  - the queue; <id>.refusal.json marks one a drain refused
   forwarded/   DHIS2 accepted it, and <id>.report.json says what it counted
   rejected/    DHIS2 refused it, and <id>.report.json says why
+  withdrawn/   it landed, and `d2w fhir withdraw` took it back out of DHIS2 afterwards
   malformed/   a file that no longer reads as a receipt, and <file>.reason.json says what stopped it
   .drain.lock  held by the drain that is running, if one is
 ```
+
+Three of the four are the drain's. The fourth is an operator's, and it is the
+only state a receipt reaches without being posted again - see [Withdraw what
+you forwarded](#withdraw-what-you-forwarded).
 
 `malformed/` is a holding pen rather than a state: nothing in it is a
 receipt. A file that will not parse - truncated, hand-edited, half-copied - is
@@ -292,7 +329,7 @@ moved there with its reason written beside it, and the run that met it carries
 on with everything else. The run names it, and so does `d2w fhir spool`. One
 unreadable file costs one receipt, not the drain.
 
-Both drained states carry the report. A rejection needs one to say why it
+Three states carry a report. A rejection needs one to say why it
 was refused; an acceptance needs one because "DHIS2 took it" is not the
 whole answer either - the import counts are what say how much of it landed,
 and an accepted receipt that ignored every value changed nothing in the
@@ -366,6 +403,7 @@ $ d2w fhir spool
   refused by a drain, still queued    1
   accepted by DHIS2                   26
   refused by DHIS2                    1
+  withdrawn from DHIS2                0
   unreadable files                    0
 
 note: 1 receipt(s) were refused by DHIS2; fix the instance or the data and
@@ -615,27 +653,178 @@ version, and it is a posture rather than a feature:
 | --- | --- |
 | Fix an aggregate value | Capture and forward the same data set, period, and organisation unit again. DHIS2 replaces the values in place, and the run names every value it replaced and the receipt that sent it before - see [Values a previous submission already sent](#values-a-previous-submission-already-sent). |
 | Fix a tracker event or a registration | Not available. A second capture is a second receipt, so it derives a new event UID and DHIS2 creates a **duplicate** rather than replacing anything. Re-forwarding the *same* receipt is the case DHIS2 refuses, with `E1030`. |
-| Withdraw a submission | Not available. There is no fourth spool state, and nothing deletes from DHIS2. `d2w data tracker delete` is the raw escape hatch, outside the FHIR path and behind a confirmation prompt. |
+| Take back an event you forwarded | `d2w fhir withdraw <receipt id>`, once the project states `[forward] withdrawals = "retract"` - see [Withdraw what you forwarded](#withdraw-what-you-forwarded) below. |
+| Take back an aggregate report or a registration | Not available. `d2w data aggregate delete` and `d2w data tracker delete` are the raw escape hatches, outside the FHIR path and behind a confirmation prompt. |
 
-The capture contract already carries the two lifecycle words this will
-eventually be built on, and both currently do something other than what the
-word promises: a response whose status is `amended` is collapsed to
-`COMPLETED` and forwarded as a brand-new record, and one whose status is
-`entered-in-error` is refused by the translator and **filed to `rejected/`**
-with a sidecar naming the doctrine. Neither is a way to correct or retract
-anything today. The design that turns them into one is in the lifecycle
-document, along with why withdrawal is the hard half - DHIS2 permanently burns
-a deleted tracker UID.
+The capture contract carries two lifecycle words this will eventually be built
+on, and both currently do something other than what the word promises: a
+response whose status is `amended` is collapsed to `COMPLETED` and forwarded as
+a brand-new record, and one whose status is `entered-in-error` is refused by
+the translator and **filed to `rejected/`** with a sidecar naming the doctrine.
+Neither is a way to correct or retract anything through the facade. The design
+that turns them into one is in the lifecycle document.
 
 Filing that one rather than leaving it in the queue is the whole of what
 separates a terminal refusal from an ordinary one. Every other refusal has a
 fix somewhere - in the guide, in `fhir.toml`, in the data - so the receipt
-stays in `received/` and the next run is the retry. `entered-in-error` asks
-for a withdrawal, withdrawal is unbuilt, and no change to the guide and no
-change to the instance would ever make that response convert; a receipt that
-can never succeed is retried by every drain for the rest of the project's life
-unless something files it. `d2w fhir requeue` brings it back for an operator
-who wants it tried again.
+stays in `received/` and the next run is the retry. A drain imports, and
+`entered-in-error` asks for a deletion; no change to the guide and no change to
+the instance would ever make that response convert, and a receipt that can
+never succeed is retried by every drain for the rest of the project's life
+unless something files it. Taking back what a *forwarded* receipt landed is
+`d2w fhir withdraw`, which names that receipt rather than this one.
+`d2w fhir requeue` brings the refused one back for an operator who wants it
+tried again.
+
+## Withdraw what you forwarded
+
+`d2w fhir withdraw` deletes from DHIS2 the event a forwarded receipt landed,
+and files the receipt under `withdrawn/`. It needs no compiled guide and reads
+no metadata: an event's DHIS2 UID is derived from the receipt's own id, so the
+object to delete is arithmetic on a file this project already holds.
+
+**Withdrawal is terminal.** DHIS2 burns the UID of a tracker object it deletes
+and refuses it under every import strategy afterwards, so a withdrawn receipt
+can never be forwarded again - and a correction can therefore never be
+delete-then-recreate. What remains in the instance is a hidden copy of the
+event carrying its values, which no ordinary read returns. That is what the
+tool says, rather than the bare word "deleted", which would promise more than
+DHIS2 does.
+
+The dial comes first, because control ships before capability:
+
+```toml
+[forward]
+withdrawals = "retract"   # "off" | "retract" -- off unless a project says otherwise
+```
+
+**A dry run is the default here too**, and for a terminal act it is the one
+rehearsal worth having: the delete goes to the real tracker endpoint under
+`importMode=VALIDATE`, so DHIS2 answers whether it would take it while nothing
+is deleted and no receipt moves.
+
+```console
+$ d2w fhir withdraw 956321ed41a4413ca931663c667a8c46
+dry run: DRY RUN - every delete was posted to DHIS2 under the tracker endpoint's own
+validate-only mode (importMode=VALIDATE). Nothing was deleted from the instance and no
+receipt moved. Re-run with --import to commit.
+                                fhir withdraw
+┌─────────────────┬───────────────────────────────────────────────────────────┐
+│profile          │ local_basic (--profile/DHIS2_PROFILE)                     │
+│project          │ /home/anna/withdraw-demo                                  │
+│mode             │ DRY RUN (validate only)                                   │
+│named            │ 1                                                         │
+│refused by DHIS2 │ 0                                                         │
+└─────────────────┴───────────────────────────────────────────────────────────┘
+                                  receipts (1)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
+┃Receipt                          ┃ Outcome       ┃ Event       ┃ Form        ┃ DHIS2 said          ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━┩
+│956321ed41a4413ca931663c667a8c46 │ would-retract │ pUsdj6o996z │ EVTsupVis01 │ 0 deleted, 0 ignored│
+└─────────────────────────────────┴───────────────┴─────────────┴─────────────┴─────────────────────┘
+ok: 1 receipt(s) would be withdrawn
+```
+
+`--import` commits, and the receipt moves:
+
+```console
+$ d2w fhir withdraw --import 956321ed41a4413ca931663c667a8c46
+                                  receipts (1)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
+┃Receipt                          ┃ Outcome   ┃ Event       ┃ Form        ┃ DHIS2 said          ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━┩
+│956321ed41a4413ca931663c667a8c46 │ retracted │ pUsdj6o996z │ EVTsupVis01 │ 1 deleted, 0 ignored│
+└─────────────────────────────────┴───────────┴─────────────┴─────────────┴─────────────────────┘
+note: This DHIS2 instance keeps a hidden copy of each withdrawn event; none of them
+appears in reports any more. The UIDs are burned, so those receipts can never be
+forwarded again
+ok: 1 receipt(s) withdrawn
+```
+
+The spool listing counts the fourth state, and reads the record of the delete
+back for the reason column:
+
+```console
+$ d2w fhir spool --details
+┌─────────────────────────────────┬───────────────────────────────────────────┐
+│project                          │ /home/anna/withdraw-demo                  │
+│not yet sent to DHIS2            │ 0                                         │
+│refused by a drain, still queued │ 0                                         │
+│accepted by DHIS2                │ 0                                         │
+│refused by DHIS2                 │ 0                                         │
+│withdrawn from DHIS2             │ 1                                         │
+│unreadable files                 │ 0                                         │
+└─────────────────────────────────┴───────────────────────────────────────────┘
+                                  receipts (1)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃Receipt                          ┃ State     ┃ Form        ┃ Received             ┃ Why it is     ┃
+┃                                 ┃           ┃             ┃                      ┃ there         ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│956321ed41a4413ca931663c667a8c46 │ withdrawn │ EVTsupVis01 │ 2026-08-21T19:09:20Z │ withdrawn at  │
+│                                 │           │             │                      │ 2026-08-21T19:│
+│                                 │           │             │                      │ 09:28Z; event │
+│                                 │           │             │                      │ pUsdj6o996z no│
+│                                 │           │             │                      │ longer appears│
+│                                 │           │             │                      │ in reports    │
+└─────────────────────────────────┴───────────┴─────────────┴──────────────────────┴───────────────┘
+```
+
+### What is on disk afterwards
+
+The receipt file is never rewritten - the withdrawal is a state it moves into,
+exactly as forwarding is. Two records end up naming it, and they answer
+different questions:
+
+```console
+$ find .serve/responses -type f -name '*.json' | sort
+.serve/responses/forwarded/956321ed41a4413ca931663c667a8c46.report.json
+.serve/responses/withdrawn/956321ed41a4413ca931663c667a8c46.json
+.serve/responses/withdrawn/956321ed41a4413ca931663c667a8c46.report.json
+```
+
+`forwarded/<id>.report.json` says what DHIS2 did with the payload when it took
+it, and it stays where it is because that is still true of that import.
+`withdrawn/<id>.report.json` says what it did when it was asked to let go:
+
+```json
+{
+  "status": "OK",
+  "deleted": 1,
+  "issues": [],
+  "event_uid": "pUsdj6o996z",
+  "withdrawn_at": "2026-08-21T19:09:28Z",
+  "received_at": "2026-08-21T19:09:20Z",
+  "note": "Withdrawn. This DHIS2 instance keeps a hidden copy of the event; it no longer appears in reports. The UID is burned, so this receipt can never be forwarded again."
+}
+```
+
+The burn is DHIS2's own rule, and it is easy to see:
+
+```console
+$ curl -s -u ... -X POST 'http://localhost:8080/api/tracker?importStrategy=CREATE&async=false' \
+    -H 'Content-Type: application/json' \
+    -d '{"events":[{"event":"pUsdj6o996z", ...}]}'
+{"errorCode": "E1082",
+ "message": "Event: `pUsdj6o996z` is already deleted and cannot be modified."}
+```
+
+### What it refuses, and when
+
+Every id is checked before anything is posted, so a run of five never leaves
+you working out which two it reached.
+
+| The receipt | What happens |
+| --- | --- |
+| in `received/` or `rejected/` | Refused by name. Nothing landed, so there is nothing to take back. |
+| an aggregate report or a registration | Refused by name, with the kind it is. Deleting an aggregate tuple that was never written materialises a tombstone that blocks its data element for ever, and deleting a registration cascades into events other receipts named - each needs a guard the event leg does not. |
+| already withdrawn | Refused by name: it is no longer a forwarded receipt of this project. |
+| an event DHIS2 will not delete | Named as `refused`, and the receipt **stays in `forwarded/`** with the import report that says what it landed. The run exits 1. |
+
+A whole worked run is at
+[`examples/fhir/cli/withdraw.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/withdraw.sh),
+and the three `[forward]` postures a project takes towards data that already
+reached DHIS2 are read back in
+[`examples/fhir/client/read_forward_dials.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/read_forward_dials.py).
 
 ## When the instance stops answering
 

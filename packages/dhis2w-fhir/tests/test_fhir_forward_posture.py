@@ -16,7 +16,14 @@ from pathlib import Path
 import pytest
 from dhis2w_core.profile import resolve
 from dhis2w_fhir import load_project, service
-from dhis2w_fhir.config import FHIR_CONFIG_FILENAME, ForwardConfig, UnknownFhirConfigKeyError, load_fhir_config
+from dhis2w_fhir.config import (
+    FHIR_CONFIG_FILENAME,
+    CorrectionPosture,
+    ForwardConfig,
+    UnknownFhirConfigKeyError,
+    WithdrawalPosture,
+    load_fhir_config,
+)
 
 _BASE_URL = "https://dhis2.example"
 
@@ -59,7 +66,12 @@ def _state_forward_table(root: Path, table: str) -> None:
 
 
 async def _drain(
-    root: Path, *, import_responses: bool | None = None, register_completeness: bool | None = None
+    root: Path,
+    *,
+    import_responses: bool | None = None,
+    register_completeness: bool | None = None,
+    corrections: CorrectionPosture | None = None,
+    withdrawals: WithdrawalPosture | None = None,
 ) -> service.ForwardReport:
     """One drain of the project's empty spool, stating what the caller stated and nothing else."""
     return await service.forward_responses(
@@ -67,6 +79,8 @@ async def _drain(
         load_project(root),
         import_responses=import_responses,
         register_completeness=register_completeness,
+        corrections=corrections,
+        withdrawals=withdrawals,
     )
 
 
@@ -134,3 +148,48 @@ def test_a_misspelled_key_is_answered_with_the_name_the_file_takes(posture_proje
         load_fhir_config(posture_project / FHIR_CONFIG_FILENAME)
 
     assert "did you mean 'import'?" in str(refusal.value)
+
+
+async def test_a_project_that_states_nothing_neither_corrects_nor_withdraws(posture_project: Path) -> None:
+    """Both marked-submission dials are off unless a project says otherwise - control before capability."""
+    report = await _drain(posture_project)
+
+    assert report.correction_posture is CorrectionPosture.OFF
+    assert report.withdrawal_posture is WithdrawalPosture.OFF
+
+
+async def test_the_table_states_the_two_marked_submission_postures(posture_project: Path) -> None:
+    """A deployment that accepts corrections and retractions states it once, and every run reads it."""
+    _state_forward_table(posture_project, 'corrections = "amend"\nwithdrawals = "retract"')
+    report = await _drain(posture_project)
+
+    assert report.correction_posture is CorrectionPosture.AMEND
+    assert report.withdrawal_posture is WithdrawalPosture.RETRACT
+
+
+async def test_a_stated_marked_submission_flag_outranks_the_table(posture_project: Path) -> None:
+    """The same order the sibling dials resolve in: the run's word, then the file, then the default."""
+    _state_forward_table(posture_project, 'corrections = "amend"\nwithdrawals = "retract"')
+    report = await _drain(posture_project, corrections=CorrectionPosture.OFF, withdrawals=WithdrawalPosture.OFF)
+
+    assert report.correction_posture is CorrectionPosture.OFF
+    assert report.withdrawal_posture is WithdrawalPosture.OFF
+
+
+def test_the_two_marked_submission_keys_take_only_the_words_they_declare(posture_project: Path) -> None:
+    """The value vocabulary is part of the decision, so a third word is a refusal rather than a guess."""
+    _state_forward_table(posture_project, 'corrections = "amend"\nwithdrawals = "retract"')
+    config = load_fhir_config(posture_project / FHIR_CONFIG_FILENAME)
+
+    assert config.forward.corrections is CorrectionPosture.AMEND
+    assert config.forward.withdrawals is WithdrawalPosture.RETRACT
+
+    _state_forward_table(posture_project, 'withdrawals = "delete"')
+    with pytest.raises(ValueError, match="withdrawals"):
+        load_fhir_config(posture_project / FHIR_CONFIG_FILENAME)
+
+
+def test_the_defaults_are_what_the_keys_carry() -> None:
+    """A `ForwardConfig` nobody configured is the posture the paper settled: neither dial is on."""
+    assert ForwardConfig().corrections is CorrectionPosture.OFF
+    assert ForwardConfig().withdrawals is WithdrawalPosture.OFF

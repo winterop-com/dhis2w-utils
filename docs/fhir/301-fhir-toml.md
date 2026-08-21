@@ -249,6 +249,8 @@ the file refuses.
 | `[forward]` | [`live`](301-serving.md#live) | `true` | what a drain reads when the project holds no compiled guide |
 | `[forward]` | [`register_completeness`](301-serving.md#register_completeness) | `true` | whether a finished aggregate form also marks its data set complete |
 | `[forward]` | [`overwrites`](301-serving.md#overwrites) | `"allow"` | whether a figure a previous submission already sent is sent again and named, or the form left in the queue |
+| `[forward]` | [`corrections`](201-forward.md#where-a-runs-posture-comes-from) | `"off"` | whether this deployment accepts a submission that names the receipt it amends |
+| `[forward]` | [`withdrawals`](201-forward.md#withdraw-what-you-forwarded) | `"off"` | whether `d2w fhir withdraw` may take back from DHIS2 what a forwarded receipt landed |
 
 What the generated output itself looks like from the inside - the identifier
 families, the code-list structures - is the integrate-tier's territory:

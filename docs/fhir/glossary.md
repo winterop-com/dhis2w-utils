@@ -512,10 +512,10 @@ register and the enrollment listing need live.
 
 **the spool**
 : The directory at `.serve/responses` where a served facade files everything it
-captured, one file per submission, in three subdirectories that *are* the
-lifecycle: `received/`, `forwarded/`, `rejected/`. The directory is the index -
-nothing is cached, because a forward run is a separate process moving files
-while the server is up.
+captured, one file per submission, in four subdirectories that *are* the
+lifecycle: `received/`, `forwarded/`, `rejected/`, and `withdrawn/`. The
+directory is the index - nothing is cached, because a forward run is a separate
+process moving files while the server is up.
 
 **receipt**
 : One spooled submission - the response byte-faithfully as it arrived, plus the
@@ -525,8 +525,9 @@ in, which is what makes a forward run a pure rename.
 
 **sidecar**
 : The `<id>.report.json` written beside a drained receipt: in `forwarded/` it
-says what the import counted, in `rejected/` it says why DHIS2 refused. Every
-import writes one.
+says what the import counted, in `rejected/` it says why DHIS2 refused, and in
+`withdrawn/` it says what DHIS2 answered when `d2w fhir withdraw` asked for the
+event back. Every import writes one.
 
 **forward / drain**
 : `d2w fhir forward` reads the spool, converts every received response into the

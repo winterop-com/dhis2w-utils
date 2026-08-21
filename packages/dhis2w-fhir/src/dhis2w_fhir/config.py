@@ -465,6 +465,30 @@ class OverwritePosture(StrEnum):
     REFUSE = "refuse"
 
 
+class CorrectionPosture(StrEnum):
+    """Whether this deployment accepts a submission that amends one it already forwarded."""
+
+    #: Amendment is not something this deployment does. A submission that declares itself a
+    #: correction is refused, and forwarded data changes only through whatever `overwrites` allows.
+    OFF = "off"
+
+    #: A submission carrying `status = "amended"` and naming the receipt it corrects is a correction,
+    #: and the identity it lands on is the corrected receipt's rather than its own.
+    AMEND = "amend"
+
+
+class WithdrawalPosture(StrEnum):
+    """Whether this deployment retracts from DHIS2 what one of its forwarded receipts landed."""
+
+    #: Nothing this project forwarded is retracted. `d2w fhir withdraw` refuses, naming this key.
+    OFF = "off"
+
+    #: A forwarded receipt can be retracted, which deletes the object it landed in DHIS2 and files
+    #: the receipt under `withdrawn/`. Terminal: DHIS2 burns the UID, so the receipt never forwards
+    #: again - see `docs/fhir/design/data-lifecycle.md`.
+    RETRACT = "retract"
+
+
 class ForwardConfig(BaseModel):
     """How `d2w fhir forward` drains this project's spool - the `[forward]` table of `fhir.toml`.
 
@@ -502,7 +526,17 @@ class ForwardConfig(BaseModel):
     only through a declared correction. The dial reaches aggregate values alone - a tracker event
     carries its own DHIS2 identity, so it collides rather than overwriting.
 
-    A flag on the command line wins over all four keys for one run, and either key wins over these
+    `corrections` and `withdrawals` are the other half of the same question, and they govern a
+    *marked* submission where `overwrites` governs an unmarked one. A correction says which receipt
+    it corrects; an overwrite says nothing and is simply a second capture of the same tuple. Both
+    default to `"off"`, because a deployment that publishes forms and forwards them is not thereby a
+    deployment that lets a submitter reach back into what DHIS2 already holds. `corrections =
+    "amend"` accepts a submission that names the receipt it amends and lands on that receipt's own
+    DHIS2 identity; `withdrawals = "retract"` is what `d2w fhir withdraw` requires before it deletes
+    anything. Withdrawal is terminal - DHIS2 burns the UID it deletes, so the withdrawn receipt can
+    never be forwarded again - which is why the capability is stated rather than assumed.
+
+    A flag on the command line wins over all six keys for one run, and either key wins over these
     defaults - the same order `[serve]` states for its own dials.
     """
 
@@ -512,6 +546,8 @@ class ForwardConfig(BaseModel):
     import_responses: bool = Field(default=False, alias="import")
     register_completeness: bool = True
     overwrites: OverwritePosture = OverwritePosture.ALLOW
+    corrections: CorrectionPosture = CorrectionPosture.OFF
+    withdrawals: WithdrawalPosture = WithdrawalPosture.OFF
 
 
 class FhirProjectConfig(BaseModel):
