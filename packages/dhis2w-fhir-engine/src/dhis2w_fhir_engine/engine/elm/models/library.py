@@ -4,12 +4,24 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dhis2w_fhir_engine.engine.elm.models.types import ELMTypeSpecifier
 
 if TYPE_CHECKING:
     pass
+
+#: The library members ELM carries as `{"def": [...]}` wrappers rather than as bare arrays.
+LIBRARY_DEF_SECTIONS = (
+    "usings",
+    "includes",
+    "parameters",
+    "codeSystems",
+    "valueSets",
+    "codes",
+    "concepts",
+    "contexts",
+)
 
 
 class ELMIdentifier(BaseModel):
@@ -198,6 +210,14 @@ class ELMLibrary(BaseModel):
     contexts: list[ELMContextDef] = Field(default_factory=list)
     statements: ELMStatements | None = None
     annotation: list[ELMAnnotation] = Field(default_factory=list)
+
+    @field_validator(*LIBRARY_DEF_SECTIONS, mode="before")
+    @classmethod
+    def unwrap_def_section(cls, value: Any) -> Any:
+        """Read a header section written either as ELM's `{"def": [...]}` wrapper or as a bare list."""
+        if isinstance(value, dict):
+            return value.get("def", [])
+        return value
 
     def get_definition(self, name: str) -> ELMDefinition | None:
         """Get a definition by name."""

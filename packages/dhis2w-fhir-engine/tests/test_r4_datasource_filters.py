@@ -7,6 +7,7 @@ import pytest
 from dhis2w_fhir_engine.binding import FhirVersionBinding
 from dhis2w_fhir_engine.engine.cql import CQLCode, PatientContext
 from dhis2w_fhir_engine.engine.cql.types import CQLConcept, CQLInterval
+from dhis2w_fhir_engine.engine.exceptions import CQLError
 from dhis2w_fhir_engine.engine.types import FHIRDate, FHIRDateTime
 from dhis2w_fhir_engine.r4 import BundleDataSource, InMemoryDataSource, PatientBundleDataSource
 from dhis2w_fhir_engine.r4.binding import R4_BINDING
@@ -283,6 +284,33 @@ class TestInMemoryRetrieve:
         retrieved = data_source.retrieve("Observation", code_path="code", valueset="http://example.org/vs/vitals")
 
         assert [r["id"] for r in retrieved] == ["o2"]
+
+    def test_a_valueset_nothing_expanded_is_refused(self) -> None:
+        data_source = InMemoryDataSource()
+        data_source.add_resources([observation("o1", "1234-5"), observation("o2", "9999-9")])
+
+        with pytest.raises(CQLError) as refusal:
+            data_source.retrieve("Observation", code_path="code", valueset="http://example.org/vs/vitals")
+
+        assert "http://example.org/vs/vitals" in str(refusal.value)
+        assert "add_valueset" in str(refusal.value)
+        assert "Observation" in str(refusal.value)
+
+    def test_a_valueset_nothing_expanded_is_refused_even_without_a_code_path(self) -> None:
+        data_source = InMemoryDataSource()
+        data_source.add_resources([observation("o1", "1234-5")])
+
+        with pytest.raises(CQLError):
+            data_source.retrieve("Observation", valueset="http://example.org/vs/vitals")
+
+    def test_a_valueset_expanded_to_no_codes_matches_nothing(self) -> None:
+        data_source = InMemoryDataSource()
+        data_source.add_resources([observation("o1", "1234-5"), observation("o2", "9999-9")])
+        data_source.add_valueset("http://example.org/vs/vitals", [])
+
+        retrieved = data_source.retrieve("Observation", code_path="code", valueset="http://example.org/vs/vitals")
+
+        assert retrieved == []
 
     def test_a_date_range_filter_narrows_the_result(self) -> None:
         data_source = InMemoryDataSource()

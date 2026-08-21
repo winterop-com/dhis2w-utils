@@ -13,6 +13,7 @@ from dhis2w_fhir_engine.engine.elm.evaluator import ELMEvaluator
 from dhis2w_fhir_engine.engine.elm.exceptions import ELMExecutionError, ELMReferenceError, ELMValidationError
 from dhis2w_fhir_engine.engine.elm.loader import ELMLoader
 from dhis2w_fhir_engine.engine.elm.models.library import ELMLibrary
+from dhis2w_fhir_engine.engine.elm.serializer import serialize_to_elm_json
 from dhis2w_fhir_engine.engine.elm.visitor import ELMExpressionVisitor
 
 ELM_TYPE = "{urn:hl7-org:elm-types:r1}"
@@ -919,6 +920,78 @@ class TestLoader:
         assert info["id"] == "Unknown"
         assert info["version"] is None
         assert info["definitions"] == 0
+
+
+class TestHeaderSectionShapes:
+    """Header sections arrive as ELM's `{"def": [...]}` wrapper or as a plain list, and both load."""
+
+    WRAPPED_LIBRARY = {
+        "library": {
+            "identifier": {"id": "Header", "version": "1.0"},
+            "usings": {"def": [{"localIdentifier": "FHIR", "uri": "http://hl7.org/fhir", "version": "4.0.1"}]},
+            "includes": {"def": [{"localIdentifier": "Helpers", "path": "Helpers", "version": "4.0.1"}]},
+            "parameters": {"def": [{"name": "Threshold"}]},
+            "codeSystems": {"def": [{"name": "LOINC", "id": "http://loinc.org"}]},
+            "valueSets": {"def": [{"name": "VS", "id": "http://example.org/vs"}]},
+            "codes": {"def": [{"name": "C", "id": "1", "codeSystem": {"name": "LOINC"}}]},
+            "concepts": {"def": [{"name": "K", "code": [{"name": "C"}]}]},
+            "contexts": {"def": [{"name": "Patient"}]},
+            "statements": {"def": [{"name": "One", "expression": integer(1)}]},
+        }
+    }
+
+    def test_every_wrapped_header_section_loads(self) -> None:
+        library = ELMLoader.parse(self.WRAPPED_LIBRARY)
+
+        assert [using.localIdentifier for using in library.usings] == ["FHIR"]
+        assert [include.localIdentifier for include in library.includes] == ["Helpers"]
+        assert [parameter.name for parameter in library.parameters] == ["Threshold"]
+        assert [code_system.name for code_system in library.codeSystems] == ["LOINC"]
+        assert [value_set.name for value_set in library.valueSets] == ["VS"]
+        assert [code.name for code in library.codes] == ["C"]
+        assert [concept.name for concept in library.concepts] == ["K"]
+        assert [context.name for context in library.contexts] == ["Patient"]
+
+    def test_a_wrapper_holding_no_entries_loads_as_an_empty_section(self) -> None:
+        library = ELMLoader.parse({"library": {"identifier": {"id": "Bare"}, "usings": {"def": []}, "codes": {}}})
+
+        assert library.usings == []
+        assert library.codes == []
+
+    def test_a_plain_list_header_section_loads(self) -> None:
+        library = ELMLoader.parse(
+            {"library": {"identifier": {"id": "Plain"}, "usings": [{"localIdentifier": "FHIR", "uri": "u"}]}}
+        )
+
+        assert [using.localIdentifier for using in library.usings] == ["FHIR"]
+
+    def test_a_serialized_library_with_every_header_section_loads_back(self) -> None:
+        source = """
+            library Header version '1.0'
+            using FHIR version '4.0.1'
+            include FHIRHelpers version '4.0.1'
+            parameter Threshold Integer default 3
+            codesystem SNOMED: 'http://snomed.info/sct'
+            valueset "Vaccines": 'http://example.org/fhir/ValueSet/vaccines'
+            code "Measles": '836383007' from SNOMED display 'Measles vaccine'
+            concept "Measles Concept": { "Measles" } display 'Measles'
+            context Patient
+            define One: 1
+        """
+        elm_json = serialize_to_elm_json(source)
+
+        library = ELMLoader.load_json(elm_json)
+
+        assert library.identifier.id == "Header"
+        assert [using.localIdentifier for using in library.usings] == ["FHIR"]
+        assert [include.localIdentifier for include in library.includes] == ["FHIRHelpers"]
+        assert [parameter.name for parameter in library.parameters] == ["Threshold"]
+        assert [code_system.name for code_system in library.codeSystems] == ["SNOMED"]
+        assert [value_set.name for value_set in library.valueSets] == ["Vaccines"]
+        assert [code.name for code in library.codes] == ["Measles"]
+        assert [concept.name for concept in library.concepts] == ["Measles Concept"]
+        assert [context.name for context in library.contexts] == ["Patient"]
+        assert library.get_definition("One") is not None
 
 
 class TestLibraryLookups:

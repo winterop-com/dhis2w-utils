@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..binding import FhirVersionBinding
 from ..engine.cql.types import CQLCode, CQLConcept, CQLInterval
+from ..engine.exceptions import CQLError
 from ..ingest import ResourceInput, as_resource_dict, as_resource_dicts
 from .binding import R4_BINDING
 
@@ -197,8 +198,9 @@ class FHIRDataSource:
                     if vs_code.code == code and vs_code.system == system:
                         return True
 
-        # If no codes specified, any coded value matches
-        return not codes and not valueset_codes
+        # With no criteria at all, any coded value matches. A valueset that expands to no codes is a
+        # criterion nothing satisfies, not the absence of one.
+        return not codes and valueset_codes is None
 
     def _matches_date_range(
         self,
@@ -325,6 +327,24 @@ class InMemoryDataSource(FHIRDataSource):
         """
         self._valuesets[url] = codes
 
+    def _required_valueset_codes(self, valueset: str | None, resource_type: str) -> list[CQLCode] | None:
+        """The codes a retrieve's valueset expands to, refusing a valueset nothing ever expanded.
+
+        A URL with no expansion behind it cannot narrow anything, and letting the retrieve run
+        unnarrowed turns a question about one set of codes into a question about every resource of
+        that type - the same silent widening the engine refuses when a name resolves to nothing.
+        """
+        if valueset is None:
+            return None
+        codes = self.get_valueset_codes(valueset)
+        if codes is None:
+            raise CQLError(
+                f"the retrieve [{resource_type}] is scoped to the valueset '{valueset}', which this data "
+                f"source holds no expansion for - call add_valueset('{valueset}', [...]) with the codes "
+                "the valueset contains before evaluating"
+            )
+        return codes
+
     def get_valueset_codes(self, url: str) -> list[CQLCode] | None:
         """Get the codes in a valueset.
 
@@ -386,12 +406,10 @@ class InMemoryDataSource(FHIRDataSource):
                 patient_ref = f"Patient/{patient_id}"
                 resources = [r for r in resources if self._get_patient_reference(r) == patient_ref]
 
+        valueset_codes = self._required_valueset_codes(valueset, resource_type)
+
         # Apply code filtering
         if code_path and (codes or valueset):
-            valueset_codes = None
-            if valueset:
-                valueset_codes = self.get_valueset_codes(valueset)
-
             resources = [r for r in resources if self._matches_code(r, code_path, codes, valueset_codes)]
 
         # Apply date filtering

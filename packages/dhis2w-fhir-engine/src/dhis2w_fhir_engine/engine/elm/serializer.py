@@ -30,6 +30,9 @@ from .models.library import ELMLibrary
 # ELM type URN prefix
 ELM_TYPE_PREFIX = "{urn:hl7-org:elm-types:r1}"
 
+#: The functions ELM models as an AggregateExpression, which carries its list under `source`.
+AGGREGATE_FUNCTIONS = frozenset({"Count", "Sum", "Avg", "Min", "Max"})
+
 
 def _elm_type(type_name: str) -> str:
     """Create an ELM type URN."""
@@ -58,6 +61,22 @@ class ELMSerializer(cqlVisitor):
         self._library_name: str | None = None
         self._library_version: str | None = None
         self._current_context: str = "Patient"
+        self._alias_scopes: list[set[str]] = []
+        self._let_scopes: list[set[str]] = []
+
+    # =========================================================================
+    # Query Scope
+    # =========================================================================
+
+    def _reference_node(self, name: str) -> dict[str, Any]:
+        """The ELM reference a name resolves to: an alias, a query let, or a library definition."""
+        for scope in reversed(self._alias_scopes):
+            if name in scope:
+                return {"type": "AliasRef", "name": name}
+        for scope in reversed(self._let_scopes):
+            if name in scope:
+                return {"type": "QueryLetRef", "name": name}
+        return {"type": "ExpressionRef", "name": name}
 
     def serialize_library(self, source: str) -> dict[str, Any]:
         """Serialize CQL source to ELM dictionary.
@@ -869,7 +888,7 @@ class ELMSerializer(cqlVisitor):
     def visitMemberInvocation(self, ctx: cqlParser.MemberInvocationContext) -> dict[str, Any]:
         """Visit member invocation (identifier reference)."""
         name = self._get_identifier_text(ctx.referentialIdentifier())
-        return {"type": "ExpressionRef", "name": name}
+        return self._reference_node(name)
 
     def visitFunctionInvocation(self, ctx: cqlParser.FunctionInvocationContext) -> dict[str, Any]:
         """Visit function invocation."""
@@ -1046,6 +1065,11 @@ class ELMSerializer(cqlVisitor):
         # No-arg functions
         if name in ["Today", "Now", "TimeOfDay"]:
             return {"type": name}
+
+        # An ELM aggregate names the list it folds `source`, not `operand`, so a reader of the ELM
+        # finds the list where the schema says it is.
+        if name in AGGREGATE_FUNCTIONS:
+            return {"type": name, "source": args[0] if args else None}
 
         # Check function maps
         if name in unary_functions:
@@ -1270,38 +1294,49 @@ class ELMSerializer(cqlVisitor):
         """Visit query."""
         result: dict[str, Any] = {"type": "Query"}
 
-        # Process source clause; the grammar makes it mandatory in a query.
-        source_clause = cast(cqlParser.SourceClauseContext, ctx.sourceClause())
-        result["source"] = self._serialize_source_clause(source_clause)
+        # The source aliases name rows, not library definitions, so the whole query serializes inside
+        # a scope that resolves those names to AliasRef. A source clause binds its aliases one at a
+        # time, because a later source may be written in terms of an earlier one.
+        self._alias_scopes.append(set())
+        self._let_scopes.append(set())
+        try:
+            # Process source clause; the grammar makes it mandatory in a query.
+            source_clause = cast(cqlParser.SourceClauseContext, ctx.sourceClause())
+            result["source"] = self._serialize_source_clause(source_clause)
 
-        # Process let clause
-        let_clause = ctx.letClause()
-        if let_clause:
-            result["let"] = self._serialize_let_clause(let_clause)
+            # Process let clause
+            let_clause = ctx.letClause()
+            if let_clause:
+                result["let"] = self._serialize_let_clause(let_clause)
 
-        # Process relationship clauses (with/without)
-        relationships = []
-        for inclusion in _child_contexts(ctx.queryInclusionClause()):
-            relationships.append(self._serialize_inclusion_clause(inclusion))
-        if relationships:
-            result["relationship"] = relationships
+            # Process relationship clauses (with/without)
+            relationships = []
+            for inclusion in _child_contexts(ctx.queryInclusionClause()):
+                relationships.append(self._serialize_inclusion_clause(inclusion))
+            if relationships:
+                result["relationship"] = relationships
 
-        # Process where clause
-        where_clause = ctx.whereClause()
-        if where_clause:
-            result["where"] = self._visit_node(where_clause.expression())
+            # Process where clause
+            where_clause = ctx.whereClause()
+            if where_clause:
+                result["where"] = self._visit_node(where_clause.expression())
 
-        # Process return clause
-        return_clause = ctx.returnClause()
-        if return_clause:
-            result["return"] = self._serialize_return_clause(return_clause)
+            # Process return clause
+            return_clause = ctx.returnClause()
+            if return_clause:
+                result["return"] = self._serialize_return_clause(return_clause)
 
-        # Process aggregate clause
-        aggregate_clause = ctx.aggregateClause()
-        if aggregate_clause:
-            result["aggregate"] = self._serialize_aggregate_clause(aggregate_clause)
+            # Process aggregate clause
+            aggregate_clause = ctx.aggregateClause()
+            if aggregate_clause:
+                result["aggregate"] = self._serialize_aggregate_clause(aggregate_clause)
 
-        # Process sort clause
+        finally:
+            self._let_scopes.pop()
+            self._alias_scopes.pop()
+
+        # The sort clause runs over the query's result rather than over its sources, so the aliases
+        # are out of scope by the time a sort names a column.
         sort_clause = ctx.sortClause()
         if sort_clause:
             result["sort"] = self._serialize_sort_clause(sort_clause)
@@ -1313,7 +1348,10 @@ class ELMSerializer(cqlVisitor):
         sources = []
         for source in _child_contexts(ctx.aliasedQuerySource()):
             alias = self._get_identifier_text(source.alias().identifier())
-            sources.append({"alias": alias, "expression": self._serialize_query_source(source.querySource())})
+            expression = self._serialize_query_source(source.querySource())
+            if self._alias_scopes:
+                self._alias_scopes[-1].add(alias)
+            sources.append({"alias": alias, "expression": expression})
 
         return sources
 
@@ -1330,7 +1368,7 @@ class ELMSerializer(cqlVisitor):
             return self._visit_node(retrieve)
         qualified = ctx.qualifiedIdentifierExpression()
         if qualified is not None:
-            return {"type": "ExpressionRef", "name": self._get_identifier_text(qualified)}
+            return self._reference_node(self._get_identifier_text(qualified))
         expression = ctx.expression()
         if expression is not None:
             return self._visit_node(expression)
@@ -1342,6 +1380,10 @@ class ELMSerializer(cqlVisitor):
         for let_item in _child_contexts(ctx.letClauseItem()):
             name = self._get_identifier_text(let_item.identifier())
             expr = self._visit_node(let_item.expression())
+            # A let binds its name only after its own expression, which is why the scope grows here
+            # and not before the loop.
+            if self._let_scopes:
+                self._let_scopes[-1].add(name)
             lets.append({"identifier": name, "expression": expr})
         return lets
 
@@ -1365,7 +1407,7 @@ class ELMSerializer(cqlVisitor):
         alias = self._get_identifier_text(source.alias().identifier())
 
         source_expr = self._serialize_query_source(source.querySource())
-        such_that = self._visit_node(ctx.expression()) if ctx.expression() else None
+        such_that = self._such_that(alias, ctx)
 
         result: dict[str, Any] = {"type": "With", "alias": alias, "expression": source_expr}
         if such_that:
@@ -1378,12 +1420,23 @@ class ELMSerializer(cqlVisitor):
         alias = self._get_identifier_text(source.alias().identifier())
 
         source_expr = self._serialize_query_source(source.querySource())
-        such_that = self._visit_node(ctx.expression()) if ctx.expression() else None
+        such_that = self._such_that(alias, ctx)
 
         result: dict[str, Any] = {"type": "Without", "alias": alias, "expression": source_expr}
         if such_that:
             result["suchThat"] = such_that
         return result
+
+    def _such_that(self, alias: str, ctx: Any) -> dict[str, Any] | None:
+        """Serialize a relationship's such-that condition with the relationship alias in scope."""
+        expression = ctx.expression()
+        if not expression:
+            return None
+        self._alias_scopes.append({alias})
+        try:
+            return self._visit_node(expression)
+        finally:
+            self._alias_scopes.pop()
 
     def _serialize_return_clause(self, ctx: cqlParser.ReturnClauseContext) -> dict[str, Any]:
         """Serialize return clause, stating the qualifier the clause carries.
@@ -1405,10 +1458,16 @@ class ELMSerializer(cqlVisitor):
 
         result: dict[str, Any] = {"identifier": name}
 
-        # The grammar gives an aggregate clause exactly one accumulator expression.
+        # The grammar gives an aggregate clause exactly one accumulator expression. The accumulator
+        # is bound per iteration the way a source alias is, so it resolves as one inside that
+        # expression - and only there, since the starting value is evaluated before any accumulation.
         expression_ctx = ctx.expression()
         if expression_ctx:
-            result["expression"] = self._visit_node(expression_ctx)
+            self._alias_scopes.append({name})
+            try:
+                result["expression"] = self._visit_node(expression_ctx)
+            finally:
+                self._alias_scopes.pop()
 
         # The starting value is a separate clause holding a literal, a quantity, or an expression.
         starting_clause = ctx.startingClause()
@@ -1526,6 +1585,11 @@ class ELMSerializer(cqlVisitor):
         source = self._visit_node(ctx.expressionTerm())
         index = self._visit_node(ctx.expression())
         return {"type": "Indexer", "operand": [source, index]}
+
+    def visitTimeBoundaryExpressionTerm(self, ctx: cqlParser.TimeBoundaryExpressionTermContext) -> dict[str, Any]:
+        """Visit an interval boundary (`start of` / `end of`)."""
+        boundary = "Start" if ctx.getChild(0).getText().lower() == "start" else "End"
+        return {"type": boundary, "operand": self._visit_node(ctx.expressionTerm())}
 
     # =========================================================================
     # This/Context Expressions

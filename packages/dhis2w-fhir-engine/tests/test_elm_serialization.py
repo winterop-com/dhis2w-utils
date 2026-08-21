@@ -9,6 +9,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir_engine.engine.cql.context import CQLContext
+from dhis2w_fhir_engine.engine.cql.evaluator import CQLEvaluator
 from dhis2w_fhir_engine.engine.cql.types import CQLInterval, CQLTuple
 from dhis2w_fhir_engine.engine.elm.evaluator import ELMEvaluator
 from dhis2w_fhir_engine.engine.elm.serializer import (
@@ -45,6 +46,11 @@ def serializer() -> ELMSerializer:
 def visitor() -> ELMExpressionVisitor:
     """A visitor for evaluating serialized expressions."""
     return ELMExpressionVisitor(CQLContext())
+
+
+def _alias(name: str) -> dict[str, str]:
+    """The ELM node a query alias reference serializes to."""
+    return {"type": "AliasRef", "name": name}
 
 
 def statement(elm: dict[str, Any], name: str) -> dict[str, Any]:
@@ -387,6 +393,20 @@ class TestExpressionShapes:
         self, serializer: ELMSerializer, expression: str, node_type: str
     ) -> None:
         assert serializer.serialize_expression(expression)["type"] == node_type
+
+    @pytest.mark.parametrize("name", ["Count", "Sum", "Avg", "Min", "Max"])
+    def test_an_aggregate_names_its_list_source(self, serializer: ELMSerializer, name: str) -> None:
+        elm = serializer.serialize_expression(f"{name}({{1, 2}})")
+        assert elm["source"]["type"] == "List"
+        assert "operand" not in elm
+
+    @pytest.mark.parametrize(("expression", "node_type"), [("start of", "Start"), ("end of", "End")])
+    def test_an_interval_boundary_is_its_own_node(
+        self, serializer: ELMSerializer, expression: str, node_type: str
+    ) -> None:
+        elm = serializer.serialize_expression(f"{expression} Interval[1, 10]")
+        assert elm["type"] == node_type
+        assert elm["operand"]["type"] == "Interval"
 
     @pytest.mark.parametrize(
         ("expression", "node_type"),
@@ -818,6 +838,50 @@ class TestQuerySerialization:
         sort_items = self.query("return N sort by N asc")["sort"]["by"]
         assert sort_items[0]["direction"] == "asc"
 
+    def test_a_source_alias_is_referenced_as_an_alias(self) -> None:
+        assert self.query("where N > 1")["where"]["operand"][0] == {"type": "AliasRef", "name": "N"}
+
+    def test_a_return_clause_references_the_alias(self) -> None:
+        assert self.query("return N * 2")["return"]["expression"]["operand"][0] == {"type": "AliasRef", "name": "N"}
+
+    def test_a_property_reads_through_the_alias(self) -> None:
+        source = "library Test\nusing FHIR version '4.0.1'\ndefine Q: from [Patient] P where P.gender = 'female'"
+        query = statement(serialize_to_elm(source), "Q")["expression"]
+        assert query["where"]["operand"][0] == {"type": "Property", "path": "gender", "source": _alias("P")}
+
+    def test_a_let_binding_is_referenced_as_a_query_let(self) -> None:
+        query = self.query("let d: N * 2 where d > 2 return d")
+        assert query["let"][0]["expression"]["operand"][0] == _alias("N")
+        assert query["where"]["operand"][0] == {"type": "QueryLetRef", "name": "d"}
+        assert query["return"]["expression"] == {"type": "QueryLetRef", "name": "d"}
+
+    def test_an_aggregate_reads_the_accumulator_and_the_alias(self) -> None:
+        aggregate = self.query("aggregate T starting 0: T + N")["aggregate"]
+        assert aggregate["expression"]["operand"] == [_alias("T"), _alias("N")]
+
+    def test_a_definition_outside_a_query_stays_an_expression_reference(self) -> None:
+        source = "library Test\ndefine N: 1\ndefine Q: from { 1, 2 } N return N\ndefine After: N"
+        elm = serialize_to_elm(source)
+        assert statement(elm, "After")["expression"] == {"type": "ExpressionRef", "name": "N"}
+
+    def test_a_relationship_alias_is_in_scope_only_in_its_such_that(self) -> None:
+        source = (
+            "library Test\ndefine A: { 1, 2 }\ndefine B: { 2 }\ndefine Q: from A x with B y such that x = y return x"
+        )
+        query = statement(serialize_to_elm(source), "Q")["expression"]
+        relationship = query["relationship"][0]
+        assert relationship["expression"] == {"type": "ExpressionRef", "name": "B"}
+        assert relationship["suchThat"]["operand"] == [_alias("x"), _alias("y")]
+        assert query["return"]["expression"] == _alias("x")
+
+    def test_a_nested_query_sees_both_aliases(self) -> None:
+        source = (
+            "library Test\ndefine Outer: { 1, 2 }\ndefine Inner: { 3 }\n"
+            "define Q: from Outer N return (from Inner M return M + N)"
+        )
+        inner = statement(serialize_to_elm(source), "Q")["expression"]["return"]["expression"]
+        assert inner["return"]["expression"]["operand"] == [_alias("M"), _alias("N")]
+
     def test_relationship_clauses_are_recorded(self) -> None:
         source = (
             "library Test\ndefine A: { 1, 2 }\ndefine B: { 2 }\ndefine Q: from A x with B y such that x = y return x"
@@ -908,6 +972,64 @@ class TestLibraryRoundTrip:
             "Flag": False,
             "Chosen": "a",
         }
+
+    @pytest.mark.parametrize(
+        ("clause", "expected"),
+        [
+            ("where N > 2", [3, 4]),
+            ("return N * 2", [2, 4, 6, 8]),
+            ("where N > 1 return N + 10", [12, 13, 14]),
+            ("let d: N * 10 where d > 25 return d", [30, 40]),
+            ("aggregate T starting 0: T + N", 10),
+        ],
+    )
+    def test_a_query_answers_the_same_from_cql_and_from_elm(self, clause: str, expected: Any) -> None:
+        source = f"library RoundTrip\ndefine Numbers: {{ 1, 2, 3, 4 }}\ndefine Q: from Numbers N {clause}"
+
+        from_cql = CQLEvaluator()
+        from_cql.compile(source)
+        from_elm = ELMEvaluator()
+        from_elm.load(serialize_to_elm_json(source))
+
+        assert from_elm.evaluate_definition("Q") == expected
+        assert from_elm.evaluate_definition("Q") == from_cql.evaluate_definition("Q")
+
+    @pytest.mark.parametrize(
+        ("expression", "expected"),
+        [
+            ("Count({ 1, 2, 3 })", 3),
+            ("Sum({ 1, 2, 3 })", 6),
+            ("Max({ 1, 5, 3 })", 5),
+            ("start of Interval[1, 10]", 1),
+            ("end of Interval[1, 10]", 10),
+        ],
+    )
+    def test_an_expression_answers_the_same_from_cql_and_from_elm(self, expression: str, expected: Any) -> None:
+        source = f"library RoundTrip\ndefine Answer: {expression}"
+
+        from_cql = CQLEvaluator()
+        from_cql.compile(source)
+        from_elm = ELMEvaluator()
+        from_elm.load(serialize_to_elm_json(source))
+
+        assert from_elm.evaluate_definition("Answer") == expected
+        assert from_elm.evaluate_definition("Answer") == from_cql.evaluate_definition("Answer")
+
+    def test_a_relationship_query_answers_the_same_from_cql_and_from_elm(self) -> None:
+        source = """
+            library RoundTrip
+            define Left: { 1, 2, 3 }
+            define Right: { 2, 3 }
+            define Q: from Left x with Right y such that x = y return x
+        """
+
+        from_cql = CQLEvaluator()
+        from_cql.compile(source)
+        from_elm = ELMEvaluator()
+        from_elm.load(serialize_to_elm_json(source))
+
+        assert from_elm.evaluate_definition("Q") == [2, 3]
+        assert from_elm.evaluate_definition("Q") == from_cql.evaluate_definition("Q")
 
     def test_private_definitions_are_skipped_after_a_round_trip(self) -> None:
         source = """
