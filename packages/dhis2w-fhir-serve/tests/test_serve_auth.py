@@ -13,8 +13,10 @@ that matters most - the header that leaves this process is the CALLER'S, never t
 from __future__ import annotations
 
 import base64
+import hmac
 import json
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncGenerator, Iterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -85,7 +87,8 @@ def _settings(project: FhirProject, posture: ServeAuth, scope: ServeAuthScope) -
     )
 
 
-async def _client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
+@asynccontextmanager
+async def _client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient]:
     """An in-process client over one facade, with its lifespan run around the body."""
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
@@ -210,7 +213,7 @@ def test_a_presented_token_is_compared_with_hmac_compare_digest(monkeypatch: pyt
         compared.append((left, right))
         return left == right
 
-    monkeypatch.setattr(auth_module.hmac, "compare_digest", _record)
+    monkeypatch.setattr(hmac, "compare_digest", _record)
 
     assert matches_a_serve_token("second-token", ("first-token", "second-token")) is True
     assert compared == [("second-token", "first-token"), ("second-token", "second-token")]
@@ -219,18 +222,18 @@ def test_a_presented_token_is_compared_with_hmac_compare_digest(monkeypatch: pyt
 def test_every_configured_token_is_compared_even_after_one_matches() -> None:
     """Returning on the first hit would make the time a request takes name which token was sent."""
     comparisons = 0
-    original = auth_module.hmac.compare_digest
+    original = hmac.compare_digest
 
     def _count(left: str, right: str) -> bool:
         nonlocal comparisons
         comparisons += 1
         return bool(original(left, right))
 
-    auth_module.hmac.compare_digest = _count  # type: ignore[assignment]
+    hmac.compare_digest = _count  # type: ignore[assignment]
     try:
         assert matches_a_serve_token("first-token", ("first-token", "second-token", "third-token")) is True
     finally:
-        auth_module.hmac.compare_digest = original
+        hmac.compare_digest = original
 
     assert comparisons == 3
 
@@ -257,7 +260,7 @@ async def test_the_token_posture_answers_a_capture_only_for_a_token_it_holds(
     app = create_app(_settings(receiving_project, ServeAuth.TOKEN, ServeAuthScope.WRITE))
     body = json.dumps(aggregate_response)
 
-    async for http in _client(app):
+    async with _client(app) as http:
         anonymous = await http.post("/QuestionnaireResponse", content=body)
         wrong = await http.post(
             "/QuestionnaireResponse", content=body, headers={"Authorization": f"Bearer {WRONG_TOKEN}"}
@@ -279,7 +282,7 @@ async def test_a_credential_in_the_wrong_scheme_is_refused_by_the_token_posture(
     """`Basic` is not what this posture takes, and the refusal says which scheme is."""
     app = create_app(_settings(receiving_project, ServeAuth.TOKEN, ServeAuthScope.WRITE))
 
-    async for http in _client(app):
+    async with _client(app) as http:
         refused = await http.post(
             "/QuestionnaireResponse",
             content=json.dumps(aggregate_response),
@@ -296,7 +299,8 @@ async def test_a_token_capture_records_no_submitter(
     """A static token names nobody, so the receipt names nobody - which is the honest receipt."""
     app = create_app(_settings(receiving_project, ServeAuth.TOKEN, ServeAuthScope.WRITE))
 
-    async for http in _client(app):
+    listing: dict[str, Any] = {}
+    async with _client(app) as http:
         created = await http.post(
             "/QuestionnaireResponse",
             content=json.dumps(aggregate_response),
@@ -325,7 +329,7 @@ async def test_the_write_scope_leaves_every_read_open(
     """Reads, the conformance document, and the facade's own listings are served without a credential."""
     app = create_app(_settings(serving_project, ServeAuth.TOKEN, ServeAuthScope.WRITE))
 
-    async for http in _client(app):
+    async with _client(app) as http:
         assert (await http.get(path)).status_code == 200
 
 
@@ -336,9 +340,11 @@ async def test_the_all_scope_closes_everything_but_the_conformance_document(
     """`/metadata` stays open so a client can read the posture it is expected to meet."""
     app = create_app(_settings(serving_project, ServeAuth.TOKEN, ServeAuthScope.ALL))
 
-    async for http in _client(app):
+    answered: httpx.Response | None = None
+    async with _client(app) as http:
         answered = await http.get(path)
 
+    assert answered is not None
     assert answered.status_code == (200 if path == "/metadata" else 401)
 
 
@@ -349,7 +355,7 @@ async def test_the_all_scope_serves_the_same_reads_once_a_credential_arrives(
     app = create_app(_settings(serving_project, ServeAuth.TOKEN, ServeAuthScope.ALL))
     headers = {"Authorization": "Bearer first-token"}
 
-    async for http in _client(app):
+    async with _client(app) as http:
         for path in OPEN_UNDER_WRITE:
             assert (await http.get(path, headers=headers)).status_code == 200
 
@@ -360,13 +366,16 @@ async def test_the_write_scope_guards_the_create_and_nothing_else_that_posts(
     """`$generate` and `/evaluate` are POSTs that write nothing, so a write scope leaves both open."""
     app = create_app(_settings(serving_project, ServeAuth.TOKEN, ServeAuthScope.WRITE))
 
-    async for http in _client(app):
+    generated: httpx.Response | None = None
+    evaluated: httpx.Response | None = None
+    async with _client(app) as http:
         generated = await http.post("/Questionnaire/d2-pr-anc-visit-q/$generate")
         evaluated = await http.post(
             "/evaluate",
             json={"expression": "1 + 1", "language": "fhirpath", "context": {"kind": "inline", "resource": {}}},
         )
 
+    assert generated is not None and evaluated is not None
     assert generated.status_code != 401
     assert evaluated.status_code != 401
 
@@ -461,7 +470,7 @@ async def test_the_instance_is_read_once_for_a_run_of_requests_inside_the_cache_
     app = create_app(_settings(receiving_project, ServeAuth.DHIS2, ServeAuthScope.WRITE))
     body = json.dumps(aggregate_response)
 
-    async for http in _client(app):
+    async with _client(app) as http:
         for _ in range(3):
             answered = await http.post("/QuestionnaireResponse", content=body, headers={"Authorization": CALLER_BASIC})
             assert answered.status_code == 201
@@ -481,7 +490,7 @@ async def test_the_cached_answer_expires_and_the_instance_is_read_again(
     readings = iter([0.0, auth_module.CREDENTIAL_CACHE_SECONDS + 1.0])
     monkeypatch.setattr(auth_module, "current_monotonic", lambda: next(readings))
 
-    async for http in _client(app):
+    async with _client(app) as http:
         for _ in range(2):
             answered = await http.post("/QuestionnaireResponse", content=body, headers={"Authorization": CALLER_BASIC})
             assert answered.status_code == 201
@@ -514,7 +523,8 @@ async def test_two_callers_do_not_share_one_cached_identity(
                 httpx.Response(200, json={"username": "nurse"}),
             ]
         )
-        async for http in _client(app):
+        listing: dict[str, Any] = {}
+        async with _client(app) as http:
             await http.post("/QuestionnaireResponse", content=body, headers={"Authorization": CALLER_BASIC})
             await http.post("/QuestionnaireResponse", content=body, headers={"Authorization": other})
             listing = (await http.get("/spool")).json()
@@ -528,7 +538,7 @@ async def test_the_validated_username_lands_on_the_receipt(
     """Attribution is the receipt saying who handed this submission over, which nothing else records."""
     app = create_app(_settings(receiving_project, ServeAuth.DHIS2, ServeAuthScope.WRITE))
 
-    async for http in _client(app):
+    async with _client(app) as http:
         created = await http.post(
             "/QuestionnaireResponse",
             content=json.dumps(aggregate_response),
@@ -547,7 +557,7 @@ async def test_a_bearer_token_is_refused_by_the_dhis2_posture(
     """DHIS2 takes Basic and its own personal access tokens, and the refusal names both."""
     app = create_app(_settings(receiving_project, ServeAuth.DHIS2, ServeAuthScope.WRITE))
 
-    async for http in _client(app):
+    async with _client(app) as http:
         refused = await http.post(
             "/QuestionnaireResponse",
             content=json.dumps(aggregate_response),
@@ -576,7 +586,7 @@ async def test_the_none_posture_serves_every_caller(
     """The default is what it always was, and a capture under it records no submitter."""
     app = create_app(_settings(receiving_project, ServeAuth.NONE, ServeAuthScope.ALL))
 
-    async for http in _client(app):
+    async with _client(app) as http:
         created = await http.post("/QuestionnaireResponse", content=json.dumps(aggregate_response))
         assert created.status_code == 201
         assert (await http.get("/metadata")).status_code == 200
@@ -591,7 +601,7 @@ async def test_the_posture_crosses_to_the_capture_ui_by_name_and_nothing_else_do
     """A screen draws the right prompt from the name; a token on this document would be a leaked token."""
     app = create_app(_settings(serving_project, ServeAuth.TOKEN, ServeAuthScope.WRITE))
 
-    async for http in _client(app):
+    async with _client(app) as http:
         body = (await http.get("/uiconfig")).json()
 
     assert body["auth"] == {"posture": "token", "scope": "write"}
