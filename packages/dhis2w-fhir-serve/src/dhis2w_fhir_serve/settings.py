@@ -9,6 +9,7 @@ from dhis2w_fhir.config import (
     DEFAULT_BASEMAPS,
     BasemapSource,
     FhirProject,
+    SearchConfig,
     ServeAuth,
     ServeAuthScope,
     TrackedEntitiesConfig,
@@ -75,6 +76,10 @@ class ServeSettings(BaseModel):
     facade tells a client about the subjects the instance holds, which is a decision the project
     makes once rather than per invocation. Which FHIR resources those subjects are served as is not
     stated here at all: the published `D2TET_CM` says that, and the register reads the artifact.
+
+    `search` is what answers a register search - the `NameSearchIndex` backend behind every lookup.
+    It comes off `[serve.search]` and no flag overrides it, for the reason `tracked_entities` states:
+    which searches this server answers is its contract rather than a property of one invocation.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -91,6 +96,7 @@ class ServeSettings(BaseModel):
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
     dhis2_base_url: str | None = None
     tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)
+    search: SearchConfig = Field(default_factory=SearchConfig)
 
     @classmethod
     def resolve(
@@ -176,6 +182,7 @@ class ServeSettings(BaseModel):
                 basemaps=resolved_basemaps,
                 dhis2_base_url=None if generation is None else generation.profile.base_url,
                 tracked_entities=serve_config.tracked_entities,
+                search=serve_config.search,
             ),
             host=resolved_host,
             port=port if port is not None else serve_config.port,

@@ -143,6 +143,24 @@ def test_the_one_ui_name_the_surface_keeps_is_the_refusal() -> None:
     assert from_ui == {UI_EXCEPTION}
 
 
+def test_the_projection_seams_are_importable_in_one_import() -> None:
+    """What somebody putting another backend behind a register search needs: the Protocols and the factory."""
+    from dhis2w_fhir_serve import (
+        Dhis2NameSearchIndex,
+        NameMatch,
+        NameMatches,
+        NameQuery,
+        NameSearchIndex,
+        ProjectionStore,
+        build_name_search_index,
+    )
+
+    assert isinstance(Dhis2NameSearchIndex, type)
+    assert {NameMatch, NameMatches, NameQuery} != set()
+    assert {NameSearchIndex, ProjectionStore} != set()
+    assert callable(build_name_search_index)
+
+
 def test_the_composition_contract_is_importable_in_one_import() -> None:
     """What an embedding application needs: a runtime, the state, the routers, and the error handlers."""
     from dhis2w_fhir_serve import (

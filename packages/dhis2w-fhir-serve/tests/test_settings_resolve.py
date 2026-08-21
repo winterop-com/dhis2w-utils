@@ -18,7 +18,14 @@ from typing import Any
 
 import pytest
 from dhis2w_client.profile import NoProfileError, Profile
-from dhis2w_fhir.config import BasemapSource, FhirProject, ServeAuth, ServeAuthScope, load_fhir_config
+from dhis2w_fhir.config import (
+    BasemapSource,
+    FhirProject,
+    SearchBackend,
+    ServeAuth,
+    ServeAuthScope,
+    load_fhir_config,
+)
 from dhis2w_fhir.service import GenerationProfile
 from dhis2w_fhir_serve import settings as settings_module
 from dhis2w_fhir_serve.auth import SERVE_TOKENS_VARIABLE
@@ -251,6 +258,17 @@ def test_the_tracked_entities_table_is_carried_across(tmp_path: Path) -> None:
     assert invocation.settings.tracked_entities.enabled is True
     assert invocation.settings.tracked_entities.listing is False
     assert invocation.settings.tracked_entities.tracked_entity_types == ["nEenWmSyUEp"]
+
+
+def test_the_search_backend_is_carried_across_and_defaults_to_the_instance(tmp_path: Path) -> None:
+    """What answers a register search is the project's statement too, and its default is today's behaviour."""
+    stating_table = tmp_path / "stated"
+    stating_table.mkdir()
+    silent = ServeSettings.resolve(_project(tmp_path))
+    stated = ServeSettings.resolve(_project(stating_table, '[serve.search]\nbackend = "dhis2"\n'))
+
+    assert silent.settings.search.backend is SearchBackend.DHIS2
+    assert stated.settings.search.backend is SearchBackend.DHIS2
 
 
 def test_a_live_run_is_a_property_of_the_invocation(tmp_path: Path, resolved_profile: GenerationProfile) -> None:

@@ -56,6 +56,10 @@ so anything cached would be stale within seconds of a drain.
   `PublishedTrackedEntityType`, `RegisterSurface`, `ServedRegister`, `registered_entity_for`,
   `search_tracked_entities`, `fetch_tracked_entity`, `TrackedEntityEnrollment`,
   `TrackedEntityEnrollments`).
+- Put something other than the DHIS2 instance behind a register search, or hold a copy of an
+  instance as FHIR resources (`NameSearchIndex`, `NameQuery`, `NameMatch`, `NameMatches`,
+  `Dhis2NameSearchIndex`, `build_name_search_index`, `ProjectionStore`, `ProjectedResource`,
+  `ProjectionBatch`, `ProjectionCursor`).
 
 ## Worked example - load a store and read one resource
 
@@ -371,6 +375,25 @@ otherwise defines - each module docstring states why.
 ::: dhis2w_fhir_serve.register.listing
 
 ::: dhis2w_fhir_serve.routes.register
+
+### The projection seams
+
+**Reach for these when you are putting something other than the DHIS2 instance behind a register
+search, or holding a copy of an instance as FHIR resources.** `NameSearchIndex` is what every
+register search runs through: it answers with tracked entity identifiers and scores and never with
+records, so the record behind a match is read back live, under the caller's own credentials, and
+DHIS2 authorizes each disclosure exactly as it does today. `ProjectionStore` is the durable document
+backend beside it, written by a sync and by nothing else. One backend ships - `Dhis2NameSearchIndex`,
+the instance itself, which is what `[serve.search] backend = "dhis2"` selects and what a server that
+states no `[serve.search]` runs. It improves nothing over the search a live run has always run, and
+proving the seam is its whole job. The design is
+[the materialized projection](design/projection.md), sections 7 and 9.
+
+::: dhis2w_fhir_serve.projection.base
+
+::: dhis2w_fhir_serve.projection.dhis2_names
+
+::: dhis2w_fhir_serve.projection.factory
 
 ### Enrollment listing
 

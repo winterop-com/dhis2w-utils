@@ -127,6 +127,11 @@ page_size_limit = 100               # the largest page anyone may ask for; a big
 # (absent = the attributes DHIS2 declares unique or searchable). -> 301-serving#tracked_entities-search_attributes
 # search_attributes = ["lZGmxYbs97q"]
 
+[serve.search]
+# What answers a search for a person. The instance itself today: one exact-match query per key
+# while the caller waits. No command-line flag overrides this table. -> 301-serving#search
+backend = "dhis2"                   # the DHIS2 instance answers every search -> 301-serving#search-backend
+
 # The map backgrounds the organisation unit map offers - the one outbound call. The screens'
 # layer control lists these in order, opens on the first, and always carries a None entry
 # beside them, so drawing the boundaries on a plain canvas is a click. `basemaps = []` offers

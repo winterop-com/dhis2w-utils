@@ -8,6 +8,8 @@ from dhis2w_fhir.config import (
     GenerateConfig,
     IgConfig,
     NoFhirProjectError,
+    SearchBackend,
+    SearchConfig,
     ServeConfig,
     TrackedEntitiesConfig,
     UnknownFhirConfigKeyError,
@@ -314,6 +316,57 @@ def test_the_tracked_entities_table_parses_off_fhir_toml(tmp_path: Path) -> None
     assert tracked_entities.page_size_limit == 50
     assert tracked_entities.tracked_entity_types == ["nEenWmSyUEp"]
     assert tracked_entities.search_attributes == ["lZGmxYbs97q"]
+
+
+def test_the_search_table_answers_a_lookup_from_the_instance_by_default() -> None:
+    """An absent `[serve.search]` is the search a live run has always run: the instance itself, exactly."""
+    assert ServeConfig().search.backend is SearchBackend.DHIS2
+    assert SearchConfig().backend is SearchBackend.DHIS2
+
+
+def test_the_search_table_parses_off_fhir_toml(tmp_path: Path) -> None:
+    """What answers a register search is project config, so it loads off the document like the rest."""
+    path = _write(tmp_path, after='\n[serve.search]\nbackend = "dhis2"\n')
+
+    assert load_fhir_config(path).serve.search == SearchConfig(backend=SearchBackend.DHIS2)
+
+
+def test_a_backend_this_server_holds_no_index_for_is_refused_by_name(tmp_path: Path) -> None:
+    """`"index"` arrives with the OpenSearch backend; until then the key refuses it and says where it refused.
+
+    A value that parses and then finds nothing to run on is worse than one the file turns down, so
+    the refusal is pydantic's own report, naming `serve.search.backend` and the words it accepts.
+    """
+    path = _write(tmp_path, after='\n[serve.search]\nbackend = "index"\n')
+
+    with pytest.raises(ValidationError) as refused:
+        load_fhir_config(path)
+
+    assert refused.value.errors()[0]["loc"] == ("serve", "search", "backend")
+    assert "'dhis2'" in str(refused.value)
+
+
+def test_a_misspelled_key_in_the_search_table_gets_the_same_treatment(tmp_path: Path) -> None:
+    """`[serve.search]` declares its full key set like every other table, so a typo is named and placed."""
+    path = _write(tmp_path, after='\n[serve.search]\nbackends = "dhis2"\n')
+
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+
+    assert raised.value.diagnostics == (
+        "fhir.toml: unknown key 'backends' in [serve.search]\n  did you mean 'backend'?",
+    )
+
+
+def test_the_search_table_survives_a_config_round_trip(tmp_path: Path) -> None:
+    """The table writes to fhir.toml and loads back off it, the way every `[serve]` sub-table does."""
+    path = tmp_path / "fhir.toml"
+    config = _make_config()
+    config.serve = ServeConfig(search=SearchConfig(backend=SearchBackend.DHIS2))
+
+    write_fhir_config(path, config)
+
+    assert load_fhir_config(path).serve.search == SearchConfig(backend=SearchBackend.DHIS2)
 
 
 def test_a_page_carries_at_least_one_tracked_entity() -> None:

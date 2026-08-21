@@ -194,6 +194,19 @@ types and which attributes the two surfaces work over. Every default there is
 "offer it", so a project writes the table when it wants less - and a live server
 on an instance holding real records is exactly the case for wanting less.
 
+A second live-only table says how a lookup is answered rather than what may be
+looked up: `[serve.search]`. Its one key, `backend`, names what a register
+search runs through, and `"dhis2"` - the default, and what a project that writes
+no table gets - is the DHIS2 instance itself, asked one exact-match query per
+search key while somebody waits. The reason the key exists before there is a
+second value for it is the shape it forces: a search answers with tracked entity
+identifiers, and the record behind a match is then read back live, under the
+credentials the request runs as, so DHIS2 authorizes every record this server
+hands out whatever found it. A search index can therefore sit behind that key
+without this server deciding on the instance's behalf who may see whom. `"index"`
+arrives with the OpenSearch backend and is refused until then, naming the key it
+was refused at.
+
 The table has one more setting, `basemaps` - the raster tile layers the
 capture UI's organisation-unit map offers under the boundaries. The screens'
 layer control lists them, opens on the first, and always carries a **None**
