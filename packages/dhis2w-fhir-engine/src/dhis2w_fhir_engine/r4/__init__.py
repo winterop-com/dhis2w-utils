@@ -2,8 +2,13 @@
 
 The grammars, parsers, AST, and evaluators one level up are version-neutral. This subpackage owns the
 R4 facts they consume — resource-type element paths, canonical profile URLs, FHIRHelpers 4.0.1 — plus
-the R4 data sources, measure evaluation, and terminology service. A later FHIR release lands as a
-sibling subpackage exporting its own `FhirVersionBinding`.
+the R4 data sources, measure evaluation, terminology service, and resource models. A later FHIR
+release lands as a sibling subpackage exporting its own `FhirVersionBinding`.
+
+The resource models live in `dhis2w_fhir_engine.r4.resources` and are imported from that module by
+name rather than re-exported here: `Coding`, `CodeableConcept`, and `ValueSet` name a closed resource
+model there and an open terminology-service model in `dhis2w_fhir_engine.r4.terminology`, and one
+package-level name for two different families would be a name that answers the wrong question.
 """
 
 from .binding import FHIR_VERSION, R4_BINDING, STRUCTURE_DEFINITION_BASE

@@ -7,6 +7,20 @@ FHIRPath is normative and CQL is 1.5, and neither names a version. Everything th
 release lives under `dhis2w_fhir_engine.r4` and reaches the neutral core as a value, so a later
 release lands as a sibling subpackage instead of a fork of the engine.
 
+It also owns the R4 resource models at `dhis2w_fhir_engine.r4.resources` — `Patient`, `Bundle`,
+`QuestionnaireResponse`, `Composition`, `Extension`, and the rest. Every one is closed, frozen, and
+alias-aware, so `model_dump_json(exclude_none=True, by_alias=True)` reproduces the wire document key
+for key. The evaluators, the data sources, and the measure evaluator all accept either a wire dict or
+one of these models: a model is dumped once on entry and evaluation reads dicts from there on.
+
+```python
+from dhis2w_fhir_engine import FHIRPathEvaluator
+from dhis2w_fhir_engine.r4.resources import HumanName, Patient
+
+FHIRPathEvaluator().evaluate("Patient.name.family", Patient(name=[HumanName(family="Kamara")]))
+# ['Kamara']
+```
+
 The package depends on `antlr4-python3-runtime`, `pydantic`, `typer`, and `rich`. It has no DHIS2
 dependency and no web framework: it evaluates expressions over FHIR-shaped JSON and returns values.
 

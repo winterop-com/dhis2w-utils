@@ -9,10 +9,12 @@ Classes:
     BundleDataSource: Data source backed by a FHIR Bundle
 """
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..binding import FhirVersionBinding
 from ..engine.cql.types import CQLCode, CQLConcept, CQLInterval
+from ..ingest import ResourceInput, as_resource_dict, as_resource_dicts
 from .binding import R4_BINDING
 
 if TYPE_CHECKING:
@@ -280,34 +282,38 @@ class InMemoryDataSource(FHIRDataSource):
         # Expanded valuesets: {"http://example.org/vs": [CQLCode, ...]}
         self._valuesets: dict[str, list[CQLCode]] = {}
 
-    def add_resource(self, resource: dict[str, Any]) -> None:
-        """Add a resource to the data source.
+    def add_resource(self, resource: ResourceInput) -> None:
+        """Add a resource to the data source, given as a wire dict or a pydantic model.
 
         Args:
             resource: FHIR resource to add
         """
-        resource_type = resource.get("resourceType")
+        ingested = as_resource_dict(resource)
+        if ingested is None:
+            return
+
+        resource_type = ingested.get("resourceType")
         if not resource_type:
             return
 
         if resource_type not in self._resources:
             self._resources[resource_type] = []
 
-        self._resources[resource_type].append(resource)
+        self._resources[resource_type].append(ingested)
 
         # Index by ID
-        resource_id = resource.get("id")
+        resource_id = ingested.get("id")
         if resource_id:
             ref = f"{resource_type}/{resource_id}"
-            self._by_id[ref] = resource
+            self._by_id[ref] = ingested
 
-    def add_resources(self, resources: list[dict[str, Any]]) -> None:
-        """Add multiple resources to the data source.
+    def add_resources(self, resources: Sequence[ResourceInput]) -> None:
+        """Add several resources to the data source, each a wire dict or a pydantic model.
 
         Args:
             resources: List of FHIR resources to add
         """
-        for resource in resources:
+        for resource in as_resource_dicts(resources):
             self.add_resource(resource)
 
     def add_valueset(self, url: str, codes: list[CQLCode]) -> None:
@@ -412,8 +418,8 @@ class BundleDataSource(FHIRDataSource):
     Extracts resources from a FHIR Bundle and provides retrieval.
     """
 
-    def __init__(self, bundle: dict[str, Any] | None = None, binding: FhirVersionBinding | None = None) -> None:
-        """Initialize with an optional bundle.
+    def __init__(self, bundle: ResourceInput | None = None, binding: FhirVersionBinding | None = None) -> None:
+        """Initialize with an optional bundle, given as a wire dict or a pydantic model.
 
         Args:
             bundle: FHIR Bundle resource
@@ -422,21 +428,25 @@ class BundleDataSource(FHIRDataSource):
         super().__init__(binding)
         self._in_memory = InMemoryDataSource(self._binding)
 
-        if bundle:
+        if bundle is not None:
             self.load_bundle(bundle)
 
-    def load_bundle(self, bundle: dict[str, Any]) -> None:
-        """Load resources from a FHIR Bundle.
+    def load_bundle(self, bundle: ResourceInput) -> None:
+        """Load resources from a FHIR Bundle, given as a wire dict or a pydantic model.
 
         Args:
             bundle: FHIR Bundle resource
         """
-        if bundle.get("resourceType") != "Bundle":
-            # Single resource
-            self._in_memory.add_resource(bundle)
+        ingested = as_resource_dict(bundle)
+        if ingested is None:
             return
 
-        entries = bundle.get("entry", [])
+        if ingested.get("resourceType") != "Bundle":
+            # Single resource
+            self._in_memory.add_resource(ingested)
+            return
+
+        entries = ingested.get("entry", [])
         for entry in entries:
             resource = entry.get("resource")
             if resource:
@@ -522,8 +532,8 @@ class PatientBundleDataSource(BundleDataSource):
     Automatically sets up patient context from the bundle.
     """
 
-    def __init__(self, bundle: dict[str, Any] | None = None, binding: FhirVersionBinding | None = None) -> None:
-        """Initialize with an optional patient bundle.
+    def __init__(self, bundle: ResourceInput | None = None, binding: FhirVersionBinding | None = None) -> None:
+        """Initialize with an optional patient bundle, given as a wire dict or a pydantic model.
 
         Args:
             bundle: FHIR Bundle containing patient and related resources
@@ -532,7 +542,7 @@ class PatientBundleDataSource(BundleDataSource):
         super().__init__(bundle, binding)
         self._patient: dict[str, Any] | None = None
 
-        if bundle:
+        if bundle is not None:
             self._extract_patient()
 
     def _extract_patient(self) -> None:

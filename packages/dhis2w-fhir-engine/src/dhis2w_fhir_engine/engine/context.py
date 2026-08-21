@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from ..binding import FhirVersionBinding, resolve_binding
+from ..ingest import ResourceInput, as_resource_dict
 
 
 class TerminologyProvider(Protocol):
@@ -44,8 +45,8 @@ class EvaluationContext:
 
     def __init__(
         self,
-        resource: dict[str, Any] | None = None,
-        root_resource: dict[str, Any] | None = None,
+        resource: ResourceInput | None = None,
+        root_resource: ResourceInput | None = None,
         model: ModelProvider | None = None,
         now: datetime | None = None,
         reference_resolver: Callable[[str], dict[str, Any] | None] | None = None,
@@ -55,16 +56,16 @@ class EvaluationContext:
         """Initialize evaluation context.
 
         Args:
-            resource: Current resource (%resource)
-            root_resource: Root resource for nested evaluations (%rootResource)
+            resource: Current resource (%resource), as a wire dict or a pydantic model
+            root_resource: Root resource for nested evaluations (%rootResource), dict or model
             model: FHIR model provider for type information
             now: Fixed datetime for today()/now() functions (useful for testing)
             reference_resolver: Callback to resolve FHIR references
             terminology_provider: Provider for terminology operations (memberOf, subsumes)
             fhir_binding: FHIR version binding; the installed default is used when omitted
         """
-        self.resource = resource
-        self.root_resource = root_resource or resource
+        self.resource = as_resource_dict(resource)
+        self.root_resource = as_resource_dict(root_resource) or self.resource
         self.model = model
         self.now = now
         self.reference_resolver = reference_resolver
@@ -154,13 +155,13 @@ class EvaluationContext:
         """Get a custom function override if registered."""
         return self._function_overrides.get(name)
 
-    def child(self, resource: dict[str, Any] | None = None) -> "EvaluationContext":
-        """Create a child context, optionally with a new resource.
+    def child(self, resource: ResourceInput | None = None) -> "EvaluationContext":
+        """Create a child context, optionally with a new resource given as a wire dict or a pydantic model.
 
         Useful for nested evaluations while preserving parent context.
         """
         child_ctx = EvaluationContext(
-            resource=resource or self.resource,
+            resource=as_resource_dict(resource) or self.resource,
             root_resource=self.root_resource,
             model=self.model,
             now=self.now,

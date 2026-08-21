@@ -15,6 +15,7 @@ from dhis2w_fhir_engine.engine.elm.exceptions import ELMExecutionError, ELMRefer
 from dhis2w_fhir_engine.engine.elm.loader import ELMLoader
 from dhis2w_fhir_engine.engine.elm.models.library import ELMDefinition, ELMFunctionDef, ELMLibrary
 from dhis2w_fhir_engine.engine.elm.visitor import ELMExpressionVisitor
+from dhis2w_fhir_engine.ingest import ResourceInput
 
 
 class ELMEvaluator:
@@ -175,7 +176,7 @@ class ELMEvaluator:
     def evaluate_definition(
         self,
         definition_name: str,
-        resource: dict[str, Any] | None = None,
+        resource: ResourceInput | None = None,
         parameters: dict[str, Any] | None = None,
         library: ELMLibrary | None = None,
     ) -> Any:
@@ -183,7 +184,7 @@ class ELMEvaluator:
 
         Args:
             definition_name: Name of the definition to evaluate.
-            resource: Optional context resource (e.g., Patient FHIR resource).
+            resource: Optional context resource (e.g., Patient), as a wire dict or a pydantic model.
             parameters: Optional parameter values.
             library: Optional library (uses current library if not specified).
 
@@ -211,7 +212,7 @@ class ELMEvaluator:
     def _evaluate_definition_impl(
         self,
         definition: ELMDefinition,
-        resource: dict[str, Any] | None,
+        resource: ResourceInput | None,
         parameters: dict[str, Any] | None,
         library: ELMLibrary,
     ) -> Any:
@@ -219,7 +220,7 @@ class ELMEvaluator:
 
         Args:
             definition: The definition to evaluate.
-            resource: Optional context resource.
+            resource: Optional context resource, as a wire dict or a pydantic model.
             parameters: Optional parameter values.
             library: The containing library.
 
@@ -266,7 +267,7 @@ class ELMEvaluator:
         self,
         func: ELMFunctionDef,
         args: list[Any],
-        resource: dict[str, Any] | None,
+        resource: ResourceInput | None,
         parameters: dict[str, Any] | None,
         library: ELMLibrary,
     ) -> Any:
@@ -275,7 +276,7 @@ class ELMEvaluator:
         Args:
             func: The function definition.
             args: Function arguments.
-            resource: Optional context resource.
+            resource: Optional context resource, as a wire dict or a pydantic model.
             parameters: Optional parameter values.
             library: The containing library.
 
@@ -321,7 +322,7 @@ class ELMEvaluator:
 
     def evaluate_all_definitions(
         self,
-        resource: dict[str, Any] | None = None,
+        resource: ResourceInput | None = None,
         parameters: dict[str, Any] | None = None,
         library: ELMLibrary | None = None,
         include_private: bool = False,
@@ -329,7 +330,7 @@ class ELMEvaluator:
         """Evaluate all definitions in an ELM library.
 
         Args:
-            resource: Optional context resource.
+            resource: Optional context resource, as a wire dict or a pydantic model.
             parameters: Optional parameter values.
             library: Optional library (uses current library if not specified).
             include_private: Whether to include private definitions.

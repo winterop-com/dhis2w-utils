@@ -134,10 +134,12 @@ plugin exists in three version trees (v41, v42, v43). The version-neutral
 **fhir** plugin ships as its own `dhis2w-fhir` package and mounts through
 the external entry-point mechanism.
 
-One row of the table is not a `d2w` plugin. **fhir-engine** is a standalone
-package with a console script of its own and no DHIS2 dependency at all. It sits
-beside **fhir** because that is where a reader looking for the FHIR surface will
-look, and it is named as a package rather than a plugin in its own row.
+One row of the table is not a `d2w` plugin. **fhir-engine** is a package with a
+console script of its own and no DHIS2 dependency at all, and it is what the
+FHIR packages read FHIR through - it owns the R4 resource models `dhis2w-fhir`
+and `dhis2w-fhir-serve` both import. It sits beside **fhir** because that is
+where a reader looking for the FHIR surface will look, and it is named as a
+package rather than a plugin in its own row.
 
 | Plugin | Domain |
 | --- | --- |
@@ -155,7 +157,7 @@ look, and it is named as a package rather than a plugin in its own row.
 | **datastore** | Key-value store: namespaces, keys, get/set/delete on `/api/dataStore` + `/api/userDataStore`. |
 | **files** | Documents + fileResources: upload, download, list. |
 | **fhir** | FHIR Implementation Guide generation, serving, capture, and forwarding (packages `dhis2w-fhir` + `dhis2w-fhir-serve`). See [FHIR IG Toolchain](#fhir-ig-toolchain). |
-| **fhir-engine** | FHIRPath, CQL, and ELM evaluation over FHIR data, with clinical quality measure evaluation (package `dhis2w-fhir-engine`). See [FHIR Evaluation Engine](#fhir-evaluation-engine). |
+| **fhir-engine** | FHIRPath, CQL, and ELM evaluation over FHIR data, the R4 resource models the FHIR packages read through, and clinical quality measure evaluation (package `dhis2w-fhir-engine`). See [FHIR Evaluation Engine](#fhir-evaluation-engine). |
 | **messaging** | Message conversations: list, get, send, reply, mark read/unread, ticket-workflow priority/status/assignment. |
 | **maintenance** | Background tasks, cache clear, data-integrity checks, soft-delete cleanup, validation runs, predictor runs, analytics-table rebuild. |
 | **doctor** | Health probes: ~100+ metadata checks, DHIS2 data-integrity checks, BUGS.md workaround drift detection. |
@@ -2466,8 +2468,24 @@ its own test run.
 It ships the console script `d2w-fhir-engine` with `fhirpath`, `cql`, and `elm`
 sub-apps over the same engine.
 
+It owns the R4 resource models at `dhis2w_fhir_engine.r4.resources`: `Patient`,
+`Bundle`, `QuestionnaireResponse`, `Composition`, `Extension`, and the rest.
+Every model is closed, frozen, and alias-aware, so
+`model_dump_json(exclude_none=True, by_alias=True)` reproduces the wire document
+key for key. `dhis2w_fhir.r4` is the capture-facing facade re-exporting that
+family, so a name is defined once and imported from whichever package a caller
+already works in.
+
+Every entry point that ingests a resource - the evaluation contexts, the
+FHIRPath, CQL, and ELM evaluators, the data sources, the measure evaluator -
+accepts either the wire dict or a pydantic model of it. A model is dumped once
+on entry and evaluation reads dicts from there on, so nothing the engine does
+reaches back into the caller's model.
+
 It has no DHIS2 dependency and no web-framework dependency: it evaluates
-expressions over FHIR-shaped JSON and returns values.
+expressions over FHIR-shaped JSON and returns values. It is the FHIR foundation
+of the workspace rather than a leaf of it - `dhis2w-fhir` and `dhis2w-fhir-serve`
+both depend on it.
 
 - [`dhis2w_fhir_engine` API reference](../fhir/api-dhis2w-fhir-engine.md) - the
   importable surface, module by module.
@@ -2618,15 +2636,17 @@ dhis2w-browser --------+---------------------+
 dhis2w-cli --------> dhis2w-fhir -----> dhis2w-core
 dhis2w-mcp --------> dhis2w-fhir            |
 dhis2w-fhir-serve -> dhis2w-fhir            |
-                       |                     |
+       |               |                     |
+       +---------------+---> dhis2w-fhir-engine
+                       |
               (optional [serve] extra)
 
 dhis2w-codegen        workspace-only generator
-dhis2w-fhir-engine    standalone; no dhis2w-* dependency
 ```
 
 No dependency cycles. `dhis2w-client` is standalone, and so is
-`dhis2w-fhir-engine`: it evaluates expressions over FHIR-shaped JSON and imports
-nothing else in this workspace. Browser automation and the FHIR serving facade are
-always optional.
+`dhis2w-fhir-engine`: it depends on nothing else in this workspace, and both
+`dhis2w-fhir` and `dhis2w-fhir-serve` depend on it for the R4 resource models
+and for FHIRPath and CQL evaluation. Browser automation and the FHIR serving
+facade are always optional.
 

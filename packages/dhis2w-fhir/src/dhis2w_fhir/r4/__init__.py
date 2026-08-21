@@ -1,4 +1,8 @@
-"""FHIR R4 resource schemas for the artifacts this package emits and serves, plus the R4 primitive checks."""
+"""The FHIR R4 surface capture code imports: the resource models the engine owns, plus the R4 primitive checks.
+
+`dhis2w_fhir_engine.r4.resources` defines the models and `dhis2w_fhir.r4.schemas` re-exports them; the
+primitive checks in `dhis2w_fhir.r4.primitives` are this package's own. Both arrive here under one name.
+"""
 
 from __future__ import annotations
 

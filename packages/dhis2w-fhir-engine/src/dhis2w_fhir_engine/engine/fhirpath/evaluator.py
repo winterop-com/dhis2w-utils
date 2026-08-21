@@ -7,6 +7,7 @@ from antlr4.error.ErrorListener import ErrorListener  # type: ignore[import-unty
 
 from ...generated.fhirpath.fhirpathLexer import fhirpathLexer
 from ...generated.fhirpath.fhirpathParser import fhirpathParser
+from ...ingest import ResourceInput, as_evaluation_input
 from ..context import EvaluationContext
 from ..exceptions import FHIRPathError
 from .visitor import FHIRPathEvaluatorVisitor
@@ -37,14 +38,14 @@ class FHIRPathEvaluator:
     def evaluate(
         self,
         expression: str,
-        resource: dict[str, Any] | list[Any] | None = None,
+        resource: ResourceInput | list[Any] | None = None,
         context: EvaluationContext | None = None,
     ) -> list[Any]:
         """Evaluate a FHIRPath expression against a resource.
 
         Args:
             expression: FHIRPath expression to evaluate
-            resource: FHIR resource (dict) or collection to evaluate against
+            resource: FHIR resource - a wire dict, a pydantic model, or a collection of either
             context: Optional evaluation context (overrides instance context)
 
         Returns:
@@ -56,18 +57,21 @@ class FHIRPathEvaluator:
         # Parse expression
         tree = self._parse(expression)
 
+        # A pydantic model becomes the wire document once, here at the boundary
+        ingested = as_evaluation_input(resource)
+
         # Build context
         ctx = context or self._context
         if ctx is None:
-            ctx = EvaluationContext(resource=resource) if isinstance(resource, dict) else EvaluationContext()
+            ctx = EvaluationContext(resource=ingested) if isinstance(ingested, dict) else EvaluationContext()
 
         # Build input collection
-        if resource is None:
+        if ingested is None:
             input_collection = []
-        elif isinstance(resource, list):
-            input_collection = resource
+        elif isinstance(ingested, list):
+            input_collection = ingested
         else:
-            input_collection = [resource]
+            input_collection = [ingested]
 
         # Evaluate
         visitor = FHIRPathEvaluatorVisitor(ctx, input_collection)
@@ -76,14 +80,14 @@ class FHIRPathEvaluator:
     def evaluate_boolean(
         self,
         expression: str,
-        resource: dict[str, Any] | list[Any] | None = None,
+        resource: ResourceInput | list[Any] | None = None,
         context: EvaluationContext | None = None,
     ) -> bool | None:
         """Evaluate a FHIRPath expression and return a boolean result.
 
         Args:
             expression: FHIRPath expression to evaluate
-            resource: FHIR resource or collection
+            resource: FHIR resource or collection, as wire dicts or pydantic models
             context: Optional evaluation context
 
         Returns:
@@ -109,14 +113,14 @@ class FHIRPathEvaluator:
     def evaluate_single(
         self,
         expression: str,
-        resource: dict[str, Any] | list[Any] | None = None,
+        resource: ResourceInput | list[Any] | None = None,
         context: EvaluationContext | None = None,
     ) -> Any | None:
         """Evaluate a FHIRPath expression expecting a single result.
 
         Args:
             expression: FHIRPath expression to evaluate
-            resource: FHIR resource or collection
+            resource: FHIR resource or collection, as wire dicts or pydantic models
             context: Optional evaluation context
 
         Returns:
@@ -136,7 +140,7 @@ class FHIRPathEvaluator:
     def check(
         self,
         expression: str,
-        resource: dict[str, Any] | list[Any] | None = None,
+        resource: ResourceInput | list[Any] | None = None,
         context: EvaluationContext | None = None,
     ) -> bool:
         """Check if a FHIRPath expression returns a truthy result.
@@ -145,7 +149,7 @@ class FHIRPathEvaluator:
 
         Args:
             expression: FHIRPath expression to evaluate
-            resource: FHIR resource or collection
+            resource: FHIR resource or collection, as wire dicts or pydantic models
             context: Optional evaluation context
 
         Returns:
