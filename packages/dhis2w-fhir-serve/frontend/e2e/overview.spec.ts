@@ -3,7 +3,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 /**
  * The Overview: the root route, and whether its numbers are the server's numbers.
  *
- * WHAT IS WORTH PROVING HERE is not that three cards render - it is that the count on a tile is
+ * WHAT IS WORTH PROVING HERE is not that the cards render - it is that the count on a tile is
  * the count `GET /spool` reports, and that clicking one lands on the Responses table already
  * narrowed to that state. A dashboard whose headline number is computed from a different read
  * than the page it links to is the classic way this kind of screen goes quietly wrong.
@@ -48,7 +48,7 @@ async function tileCount(page: Page, lifecycle: string): Promise<number> {
     return Number(await page.getByTestId(`spool-${lifecycle}-count`).innerText())
 }
 
-test('the three tiles carry the counts the spool reports', async ({ page, request }) => {
+test('the tiles carry the counts the spool reports', async ({ page, request }) => {
     await captureOne(request, 301)
 
     const before = await spoolCounts(request)
@@ -65,10 +65,11 @@ test('the three tiles carry the counts the spool reports', async ({ page, reques
     expect(received).toBeLessThanOrEqual(after.received)
     expect(received).toBeGreaterThan(0)
 
-    // Nothing in this project can be forwarded or rejected: draining the spool needs a DHIS2
-    // instance, and there is none behind the fixture server.
+    // Nothing in this project can be forwarded, rejected, or withdrawn: reaching any of those
+    // states needs a DHIS2 instance, and there is none behind the fixture server.
     expect(await tileCount(page, 'forwarded')).toBe(0)
     expect(await tileCount(page, 'rejected')).toBe(0)
+    expect(await tileCount(page, 'withdrawn')).toBe(0)
 
     // The received tile is the one that is a task, and says so.
     await expect(page.getByRole('link', { name: /^Received/ })).toContainText('not yet sent to DHIS2')

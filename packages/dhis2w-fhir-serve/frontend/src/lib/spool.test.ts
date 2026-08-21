@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
     EMPTY_SPOOL,
+    LIFECYCLE_HINTS,
+    LIFECYCLE_LABELS,
     LIFECYCLE_TINTS,
     RESPONSE_LIFECYCLES,
     captureContext,
@@ -9,8 +11,10 @@ import {
     lifecyclesPresent,
     rejectionSummary,
     topRejectionCause,
+    withdrawalSummary,
     type SpoolListing,
     type SpoolResponseSummary,
+    type SpoolWithdrawal,
 } from '@/lib/spool'
 
 /**
@@ -37,9 +41,9 @@ function summary(overrides: Partial<SpoolResponseSummary> = {}): SpoolResponseSu
 }
 
 describe('the lifecycle vocabulary', () => {
-    it('names the three states the spool has directories for', () => {
+    it('names the four states the spool has directories for', () => {
         // The order is the order of the loop itself, and the filter renders in it.
-        expect([...RESPONSE_LIFECYCLES]).toEqual(['received', 'forwarded', 'rejected'])
+        expect([...RESPONSE_LIFECYCLES]).toEqual(['received', 'forwarded', 'rejected', 'withdrawn'])
     })
 
     it('gives every state a tint, as full class names Tailwind can see', () => {
@@ -48,6 +52,19 @@ describe('the lifecycle vocabulary', () => {
             expect(tint.dot).toBe(`bg-status-${lifecycle}`)
             expect(tint.badge).toContain(`text-status-${lifecycle}`)
         }
+    })
+
+    it('gives every state a label and a hint, so no filter renders a blank tooltip', () => {
+        for (const lifecycle of RESPONSE_LIFECYCLES) {
+            expect(LIFECYCLE_LABELS[lifecycle]).not.toBe('')
+            expect(LIFECYCLE_HINTS[lifecycle]).not.toBe('')
+        }
+    })
+
+    it('says of a withdrawal what remains rather than that something was deleted', () => {
+        expect(LIFECYCLE_LABELS.withdrawn).toBe('Withdrawn')
+        expect(LIFECYCLE_HINTS.withdrawn).toContain('hidden copy')
+        expect(LIFECYCLE_HINTS.withdrawn).not.toContain('deleted')
     })
 })
 
@@ -269,8 +286,49 @@ describe('lifecyclesPresent', () => {
         const listing: SpoolListing = {
             ...EMPTY_SPOOL,
             total: 3,
-            counts: { received: 2, forwarded: 0, rejected: 1, malformed: 0 },
+            counts: { received: 2, forwarded: 0, rejected: 1, withdrawn: 0, malformed: 0 },
         }
         expect(lifecyclesPresent(listing)).toEqual(['received', 'rejected'])
+    })
+
+    it('reports the fourth state once a receipt has been withdrawn', () => {
+        const listing: SpoolListing = {
+            ...EMPTY_SPOOL,
+            total: 2,
+            counts: { received: 0, forwarded: 1, rejected: 0, withdrawn: 1, malformed: 0 },
+        }
+        expect(lifecyclesPresent(listing)).toEqual(['forwarded', 'withdrawn'])
+    })
+})
+
+/** One withdrawal record, as `d2w fhir withdraw` writes it beside the receipt it files. */
+function withdrawal(overrides: Partial<SpoolWithdrawal> = {}): SpoolWithdrawal {
+    return {
+        withdrawn_at: '2026-08-18T08:30:00Z',
+        event_uid: 'EvTsupVis01',
+        note: 'Withdrawn. This DHIS2 instance keeps a hidden copy of the event; it no longer appears in reports.',
+        status: 'OK',
+        deleted: 1,
+        ...overrides,
+    }
+}
+
+describe('withdrawalSummary', () => {
+    it('states the fact, then when, then what the record says remains', () => {
+        const stated = withdrawalSummary(withdrawal())
+        expect(stated.startsWith('Withdrawn from DHIS2 at ')).toBe(true)
+        expect(stated).toContain(formatInstant('2026-08-18T08:30:00Z'))
+        expect(stated).toContain('keeps a hidden copy')
+    })
+
+    it('renders the note as written rather than paraphrasing it', () => {
+        const stated = 'Withdrawn. The aggregate cells this receipt landed are gone from every ordinary read.'
+        expect(withdrawalSummary(withdrawal({ note: stated }))).toContain(stated)
+    })
+
+    it('reads the instant in the wall clock it was written in, like every other one on screen', () => {
+        expect(withdrawalSummary(withdrawal({ withdrawn_at: '2026-01-02T23:45:00Z' }))).toContain(
+            formatInstant('2026-01-02T23:45:00Z'),
+        )
     })
 })

@@ -657,12 +657,18 @@ version, and it is a posture rather than a feature:
 | Take back an aggregate report or a registration | Not available. `d2w data aggregate delete` and `d2w data tracker delete` are the raw escape hatches, outside the FHIR path and behind a confirmation prompt. |
 
 The capture contract carries two lifecycle words this will eventually be built
-on, and both currently do something other than what the word promises: a
-response whose status is `amended` is collapsed to `COMPLETED` and forwarded as
-a brand-new record, and one whose status is `entered-in-error` is refused by
-the translator and **filed to `rejected/`** with a sidecar naming the doctrine.
-Neither is a way to correct or retract anything through the facade. The design
-that turns them into one is in the lifecycle document.
+on, and a project says whether it receives them at all. `[forward] corrections`
+and `[forward] withdrawals` are off unless a project sets them, and while a dial
+is off the facade refuses the matching status **at capture**, with a 422 naming
+the key - rather than storing a submission no drain would act on. Where a
+project turns one on, the submission is stored like any other receipt and waits
+in `received/`, and what a drain does with it today is still what it did before
+the marker existed: a response whose status is `amended` is collapsed to
+`COMPLETED` and forwarded as a brand-new record, and one whose status is
+`entered-in-error` is refused by the translator and **filed to `rejected/`**
+with a sidecar naming the doctrine. Neither is yet a way to correct or retract
+anything through the facade. The design that turns them into one is in the
+lifecycle document.
 
 Filing that one rather than leaving it in the queue is the whole of what
 separates a terminal refusal from an ordinary one. Every other refusal has a

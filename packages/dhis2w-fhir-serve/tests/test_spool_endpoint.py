@@ -1,10 +1,11 @@
 """`GET /spool`: the receipt envelopes with their lifecycle, re-read from disk on every request.
 
-Two things are under test that nothing else covers. First, that the listing is a *live* view: the
-forwarder moves files between the spool's three directories while this server runs, so a listing
+Three things are under test that nothing else covers. First, that the listing is a *live* view: the
+forwarder moves files between the spool's four directories while this server runs, so a listing
 answered from anything loaded at startup would keep reporting a queue that never empties. Second,
 that a rejection carries the import report the forwarder left beside it - "rejected" with nothing
-next to it is the one row a person cannot act on.
+next to it is the one row a person cannot act on. Third, that a receipt `d2w fhir withdraw` retracted
+is answered for by its own state and the record of the delete, rather than by silence.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from typing import Any
 import httpx
 import pytest
 from dhis2w_fhir.config import FhirProject
-from dhis2w_fhir.service import ForwardImportIssue, ForwardImportOutcome
+from dhis2w_fhir.service import ForwardImportIssue, ForwardImportOutcome, WithdrawalRecord
 from dhis2w_fhir.spool import ForwardRefusalRecord, RefusalReason
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.settings import ServeSettings
@@ -74,7 +75,7 @@ async def test_spool_lists_every_receipt_newest_first(client: httpx.AsyncClient)
     body = response.json()
     assert body["total"] == 3
     assert [row["response_id"] for row in body["responses"]] == ["receipt-newest", "receipt-middle", "receipt-oldest"]
-    assert body["counts"] == {"received": 3, "forwarded": 0, "rejected": 0, "malformed": 0}
+    assert body["counts"] == {"received": 3, "forwarded": 0, "rejected": 0, "withdrawn": 0, "malformed": 0}
 
 
 async def test_the_listing_states_the_form_the_receipt_answered(client: httpx.AsyncClient) -> None:
@@ -96,13 +97,13 @@ async def test_the_listing_re_reads_the_directory_on_every_request(
     it renames files under this one.
     """
     before = (await client.get("/spool")).json()
-    assert before["counts"] == {"received": 3, "forwarded": 0, "rejected": 0, "malformed": 0}
+    assert before["counts"] == {"received": 3, "forwarded": 0, "rejected": 0, "withdrawn": 0, "malformed": 0}
 
     drain(compiled_project, "receipt-oldest", ResponseLifecycle.FORWARDED)
     drain(compiled_project, "receipt-middle", ResponseLifecycle.REJECTED)
 
     after = (await client.get("/spool")).json()
-    assert after["counts"] == {"received": 1, "forwarded": 1, "rejected": 1, "malformed": 0}
+    assert after["counts"] == {"received": 1, "forwarded": 1, "rejected": 1, "withdrawn": 0, "malformed": 0}
     assert {row["response_id"]: row["lifecycle"] for row in after["responses"]} == {
         "receipt-newest": "received",
         "receipt-oldest": "forwarded",
@@ -185,6 +186,84 @@ async def test_a_receipt_no_drain_has_refused_states_no_refusal(client: httpx.As
     assert all(row["refusal"] is None for row in body["responses"])
 
 
+def write_withdrawal(project: FhirProject, response_id: str, record: WithdrawalRecord) -> None:
+    """Leave the record of the delete beside a withdrawn receipt, as `move_to_withdrawn` does."""
+    directory = ResponseSpool.at(project.project_root).directory_for(ResponseLifecycle.WITHDRAWN)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{response_id}{IMPORT_REPORT_SUFFIX}").write_text(
+        record.model_dump_json(indent=2, exclude_none=True) + "\n", encoding="utf-8"
+    )
+
+
+async def test_a_withdrawn_receipt_is_counted_in_the_fourth_state(
+    client: httpx.AsyncClient, compiled_project: FhirProject
+) -> None:
+    """`d2w fhir withdraw` files a receipt under `withdrawn/`, and the listing names that state."""
+    drain(compiled_project, "receipt-oldest", ResponseLifecycle.WITHDRAWN)
+
+    body = (await client.get("/spool")).json()
+
+    assert body["counts"] == {"received": 2, "forwarded": 0, "rejected": 0, "withdrawn": 1, "malformed": 0}
+    row = next(row for row in body["responses"] if row["response_id"] == "receipt-oldest")
+    assert row["lifecycle"] == "withdrawn"
+    assert body["total"] == 3
+
+
+async def test_a_withdrawn_row_carries_what_dhis2_answered_the_delete(
+    client: httpx.AsyncClient, compiled_project: FhirProject
+) -> None:
+    """The record beside the receipt is rolled up onto the row: the event, when, and what the instance keeps."""
+    drain(compiled_project, "receipt-oldest", ResponseLifecycle.WITHDRAWN)
+    write_withdrawal(
+        compiled_project,
+        "receipt-oldest",
+        WithdrawalRecord(
+            status="OK",
+            deleted=1,
+            event_uid="EvTsupVis01",
+            withdrawn_at="2026-08-18T08:30:00Z",
+            received_at="2026-08-01T09:00:00Z",
+        ),
+    )
+
+    body = (await client.get("/spool")).json()
+
+    row = next(row for row in body["responses"] if row["response_id"] == "receipt-oldest")
+    assert row["withdrawal"]["withdrawn_at"] == "2026-08-18T08:30:00Z"
+    assert row["withdrawal"]["event_uid"] == "EvTsupVis01"
+    assert row["withdrawal"]["deleted"] == 1
+    assert "hidden copy" in row["withdrawal"]["note"]
+    # The record is a sidecar, never a receipt, and it is the withdrawn row's alone.
+    assert body["total"] == 3
+    assert all(entry["withdrawal"] is None for entry in body["responses"] if entry["response_id"] != "receipt-oldest")
+
+
+async def test_a_withdrawn_receipt_with_no_record_is_still_listed(
+    client: httpx.AsyncClient, compiled_project: FhirProject
+) -> None:
+    """The state is the directory, so a receipt whose record is missing still reads as withdrawn."""
+    drain(compiled_project, "receipt-oldest", ResponseLifecycle.WITHDRAWN)
+
+    body = (await client.get("/spool")).json()
+
+    row = next(row for row in body["responses"] if row["response_id"] == "receipt-oldest")
+    assert row["lifecycle"] == "withdrawn"
+    assert row["withdrawal"] is None
+    assert row["imported"] is None
+
+
+async def test_a_withdrawn_receipt_still_reads_back_as_fhir(
+    client: httpx.AsyncClient, compiled_project: FhirProject
+) -> None:
+    """The receipt is what a client was handed at capture, and a retraction from DHIS2 does not expire it."""
+    drain(compiled_project, "receipt-oldest", ResponseLifecycle.WITHDRAWN)
+
+    read = await client.get("/QuestionnaireResponse/receipt-oldest")
+
+    assert read.status_code == 200
+    assert read.json()["id"] == "receipt-oldest"
+
+
 async def test_a_rejection_with_an_unreadable_report_is_still_listed(
     client: httpx.AsyncClient, compiled_project: FhirProject
 ) -> None:
@@ -206,7 +285,7 @@ async def test_an_empty_spool_lists_nothing(bare_client: httpx.AsyncClient) -> N
 
     assert body == {
         "total": 0,
-        "counts": {"received": 0, "forwarded": 0, "rejected": 0, "malformed": 0},
+        "counts": {"received": 0, "forwarded": 0, "rejected": 0, "withdrawn": 0, "malformed": 0},
         "responses": [],
         "malformed": [],
         "self_url": "http://serve.test/spool?_count=50&page=bzBuMA",

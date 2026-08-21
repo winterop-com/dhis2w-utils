@@ -828,7 +828,8 @@ $ curl -s localhost:8389/spool | jq '{total, counts}'
   "counts": {
     "received": 0,
     "forwarded": 703,
-    "rejected": 284
+    "rejected": 284,
+    "withdrawn": 0
   }
 }
 $ curl -s localhost:8389/spool | jq '.responses[0]'

@@ -151,9 +151,53 @@ own side and posts once, on the submit that finishes it. Re-posting the same
 response later is how a correction is made; the spool keeps both receipts, and
 [the data lifecycle](201-forward.md) is where that story continues.
 
-**The other four kinds take any R4 status**, and it is carried through to the
-receipt as sent. On an event or tracker-event response it maps onto the DHIS2
-event status - [Forward](201-forward.md) has that table.
+**The other four kinds take any R4 status this project receives**, and it is
+carried through to the receipt as sent. On an event or tracker-event response it
+maps onto the DHIS2 event status - [Forward](201-forward.md) has that table.
+
+### Two statuses are a decision this project makes
+
+R4 spells a correction and a withdrawal on the response itself, and neither is a
+shape a form can admit or refuse: they are statements about a receipt this
+project already sent to DHIS2, so whether they are received at all is a
+deployment's call. Each has its own key in `fhir.toml`, and both default to off.
+
+| Status | What it says | Key | Off (the default) | On |
+| --- | --- | --- | --- | --- |
+| `amended` | this submission corrects one this project forwarded | `[forward] corrections` | 422, naming the key | `"amend"` receives it |
+| `entered-in-error` | this submission retracts one this project forwarded | `[forward] withdrawals` | 422, naming the key | `"retract"` receives it |
+
+With the dial off the refusal happens at capture, before anything is stored:
+
+```console
+$ curl -s -X POST localhost:8389/QuestionnaireResponse \
+    -H 'Content-Type: application/fhir+json' --data-binary @amended.json
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"business-rule","diagnostics":"`amended` says this submission corrects one this project already forwarded, and this project receives no corrections: `[forward] corrections` in fhir.toml is `off`, and a project that receives them sets it to `amend`","expression":["QuestionnaireResponse.status"]}]}
+```
+
+Refusing here rather than spooling is the honest answer: a receipt accepted and
+then never forwarded would tell a client "kept" about a fact that never reaches
+the instance. The check runs before the profile invariants, so a client that
+sent a correction is told that one thing rather than a list of form rules it
+cannot act on.
+
+The aggregate contract is unaffected either way: it pins `completed` for the
+reason above, so an `amended` aggregate response is refused by that rule and
+names it, dial or no dial. Admitting `amended` there is a later slice.
+
+With the dial on the submission is stored like any other receipt, its status
+preserved on the stored copy, and it waits in `received/` for a drain. What a
+drain then does with a marked receipt is being built slice by slice - the plan,
+and what each slice already delivers, is
+[the data lifecycle design](design/data-lifecycle.md).
+
+Turning either on is two lines:
+
+```toml
+[forward]
+corrections = "amend"
+withdrawals = "retract"
+```
 
 `authored` is the moment the capture was made. It is `1..1` on the event,
 registration, tracker-event, and person-only contracts and graded as an R4
@@ -418,6 +462,11 @@ leniency has nothing to be lenient about: a `valueCoding` carrying **no code**,
 a coding drawn from **a different system than the form declares**, and a code
 that **matches more than one option** in the served terminology - a server
 cannot pick between two.
+
+`--strict-codes` says nothing about the two lifecycle statuses above: `amended`
+and `entered-in-error` are read against `[forward] corrections` and
+`[forward] withdrawals`, which are a project's posture rather than a run's
+strictness, and a lenient facade refuses them exactly as a strict one does.
 
 **What is never checked at all**: whether the subject exists, whether a `unique`
 attribute's value is already taken, whether the Location a response names is one

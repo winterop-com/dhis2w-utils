@@ -123,7 +123,7 @@ function SpoolPulse({
         <section className="space-y-3">
             <SectionHeading
                 title="Spool"
-                description="Every receipt this server stored, by which of the spool's three directories its file is in."
+                description="Every receipt this server stored, by which of the spool's four directories its file is in."
             />
             <PageState
                 loading={loading}
@@ -131,7 +131,7 @@ function SpoolPulse({
                 empty={total === 0}
                 emptyRender={<NothingCaptured />}
             >
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {RESPONSE_LIFECYCLES.map((lifecycle) => (
                         <StatTile
                             key={lifecycle}
@@ -153,7 +153,7 @@ function SpoolPulse({
  * is the number and nothing else - no delta, no sparkline, because the spool keeps no history and
  * a trend drawn over data that does not exist is a lie. `received` is set at hero size and given
  * the only tinted border on the page: it is the one number that means work is pending, and the
- * other two are what already happened. Values take the font's proportional figures rather than
+ * other three are what already happened. Values take the font's proportional figures rather than
  * `tabular-nums`, which makes a large standalone number read loose.
  */
 function StatTile({
@@ -204,6 +204,7 @@ function subtitleFor(
 ): string {
     if (lifecycle === 'received') return 'not yet sent to DHIS2'
     if (lifecycle === 'forwarded') return 'accepted by DHIS2'
+    if (lifecycle === 'withdrawn') return 'withdrawn from DHIS2 after it landed'
     if (counts.rejected === 0 || cause === null) return 'refused by DHIS2'
     const message = cause.message === null ? null : generalisedCauseMessage(cause.message)
     // DHIS2's own words ride in quotes after the code, so the splice reads as a citation

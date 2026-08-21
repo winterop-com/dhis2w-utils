@@ -343,21 +343,25 @@ retract belongs to an operator rather than to a submitter, and it is `d2w fhir w
 The drain's own state enum carries the fourth state that route files into:
 
 ```python
-class ResponseLifecycle(StrEnum):    # dhis2w_fhir_serve.spool - what the facade serves
+class ResponseLifecycle(StrEnum):  # dhis2w_fhir_serve.spool - what the facade serves
     RECEIVED = "received"
     FORWARDED = "forwarded"
     REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
 
-class SpoolState(StrEnum):           # dhis2w_fhir.spool - what the drain and the withdrawal file
+
+class SpoolState(StrEnum):  # dhis2w_fhir.spool - what the drain and the withdrawal file
     RECEIVED = "received"
     FORWARDED = "forwarded"
     REJECTED = "rejected"
     WITHDRAWN = "withdrawn"
 ```
 
-The two enums are the same layout read by two packages, and the served one is a slice behind:
-a withdrawn receipt is counted by `d2w fhir spool` and is not yet a lifecycle the facade
-answers about. Closing that is the serve-side half of section 3.7.
+The two enums are the same layout read by two packages, and they name the same four states. A
+withdrawn receipt is counted by `d2w fhir spool` and by `GET /spool` alike, the listing row
+carries the record of the delete, and the capture UI states it - the serve-side half of section
+3.7. `packages/dhis2w-fhir-serve/tests/test_spool_directory.py` asserts the two vocabularies
+level, so a fifth state added to one package fails until the other has it too.
 
 > **Status note.** The heading above states what the *facade* does, and that is still true: no
 > submission withdraws anything. What is built is the operator's route. `d2w fhir requeue` is
@@ -365,7 +369,10 @@ answers about. Closing that is the serve-side half of section 3.7.
 > `rejected/` rather than retried forever, and `d2w fhir withdraw <response id>` deletes the
 > event a forwarded receipt landed and files that receipt under `withdrawn/` - the fourth state
 > of section 3.7, gated on `[forward] withdrawals` and off unless a project says otherwise.
-> `basedOn`, supersession, and a withdrawal that arrives as a submission are still unbuilt.
+> What the facade now does about a submission that *declares* itself a correction or a withdrawal
+> is refuse it where the dial is off, naming the key (section 3.8), and receive it into the spool
+> where the dial is on. `basedOn`, supersession, and a drain that acts on a marked receipt are
+> still unbuilt.
 
 **`entered-in-error` is a terminal refusal, and the receipt is filed.** The translator still
 refuses it, under its own `entered-in-error-is-a-deletion` category, because retracting an
@@ -403,13 +410,15 @@ toggle. No amend, revise, resubmit, retract, void, or prefill-from-receipt.
 | tracker event | new receipt, so a new derived UID | **a duplicate event is created** |
 | registration | `$generate` mints fresh UIDs | **a duplicate person and enrollment** |
 | replay of an identical body | the same client-minted UIDs | 409 to `rejected/`, no automatic retry; `d2w fhir requeue` is the operator putting it back |
-| `status: "amended"` | - | collapses to `COMPLETED`, forwarded as a brand-new event |
-| `status: "entered-in-error"` | - | refused as terminal and filed to `rejected/`; nothing is withdrawn from DHIS2 |
+| `status: "amended"` | - | refused at capture with a 422 naming `[forward] corrections`, unless the project sets it to `"amend"`; where it does, the receipt is spooled and a drain still collapses it to `COMPLETED` |
+| `status: "entered-in-error"` | - | refused at capture with a 422 naming `[forward] withdrawals`, unless the project sets it to `"retract"`; where it does, the receipt is spooled and a drain still files it to `rejected/` as terminal |
 
 Aggregate corrections work, every one of them is named in the run that makes it, and a deployment
 that wants them blocked rather than reported has a dial for that. Tracker corrections are
 impossible. Withdrawal is an operator's command over a forwarded receipt - `d2w fhir withdraw`,
-behind `[forward] withdrawals` - and not yet anything a submission can ask for.
+behind `[forward] withdrawals` - and not yet anything a submission can ask for: a project with the
+dial on *receives* a marked submission and keeps it, and what a drain does with the marker is the
+slices that follow.
 
 ---
 
@@ -546,9 +555,18 @@ receipt is never rewritten, and the import report that said what it landed stays
 `forwarded/` - two answers to two questions. A dry run is the default, because a terminal act
 is the one that most deserves a rehearsal.
 
-The served facade's own `ResponseLifecycle` states three, so a withdrawn receipt is counted by
-`d2w fhir spool` and is not yet a lifecycle `GET /spool` answers about. That is the remaining
-half of this section.
+The served facade names the same four. `ResponseLifecycle` carries `WITHDRAWN`, `GET /spool`
+counts it and lists the row, and `ResponseSpool.withdrawal_record` reads the record beside the
+receipt - which is the one sidecar that is not an import report, so it is read out of `withdrawn/`
+by its own accessor rather than parsed as the report it is not. The receipt itself still reads
+back at `GET /QuestionnaireResponse/{id}`: retracting data from an instance does not unsay a
+submission, and an id a client was handed at capture must not expire on a schedule nothing told it.
+
+The capture UI states the same fact in the same words. The Responses filter and the Overview tile
+carry a fourth state, the receipt page renders the record's own note rather than a paraphrase of
+it - *"Withdrawn. This DHIS2 instance keeps a hidden copy of the event; it no longer appears in
+reports."* - and the page still shows every answer the receipt carries. One sentence, written where
+the delete is posted, shown in the terminal and in the browser alike, so the two cannot drift.
 
 ### 3.8 The dials
 
@@ -562,22 +580,32 @@ extra="forbid"`, so a new key must be modelled and not merely written into the T
 [forward]
 live = true
 overwrites = "allow"   # "allow" | "refuse"
-corrections = "off"    # "off" | "amend"     -- the key is read; the correction path is unbuilt
-withdrawals = "off"    # "off" | "retract"   -- read by `d2w fhir withdraw`
+corrections = "off"    # "off" | "amend"     -- gates capture; the drain's correction path is unbuilt
+withdrawals = "off"    # "off" | "retract"   -- gates capture and `d2w fhir withdraw`
 ```
 
 All three are on `ForwardConfig`, resolved in `forward_responses` in the order every dial
 resolves - the flag, then the table, then the default - with `--overwrites`, `--corrections`,
 and `--withdrawals` on `d2w fhir forward`. `withdrawals` is what `d2w fhir withdraw` requires
 before it posts anything. `corrections` is stated by a run rather than acted on by one, which
-is what "control ships before capability" amounts to on this side of the facade.
+is what "control ships before capability" amounts to on the drain side of the facade.
 
 The precedent to copy is `[serve] strict_codes` (`config.py`): a configured default that
 the forwarder reads and a per-invocation CLI flag can override. With a correction or
 withdrawal dial off, the facade **refuses the corresponding status at capture time with a 422
 `OperationOutcome` naming the config key**, rather than accepting a submission the forwarder
-will never act on. That refusal is the serve package's half and is unbuilt; the keys, the
-flags, and the gate on `d2w fhir withdraw` are the drain package's half and are built.
+will never act on. Both halves are built: the keys, the flags, and the gate on
+`d2w fhir withdraw` in the drain package, and the capture-time refusal in the serve package -
+`CaptureLifecyclePostures` reads the two keys off `fhir.toml` onto the capture state, and the
+refusal runs before the profile invariants so a client that sent a correction is told the one
+thing that decided the request. A run's `--strict-codes` says nothing about either: strictness
+is a property of a run, and these two are a property of the project.
+
+With a dial on, capture *receives* the submission and stores it like any other receipt, status
+preserved on the stored copy. That is deliberately all it does: the marked receipt waits in
+`received/`, and the strategy a drain then takes from the marker is slices 5 through 9. A dial on
+is a deployment saying it accepts these submissions, not a claim that DHIS2 has been told anything
+about them.
 
 The two families of dial govern different things, and the difference is the whole reason there
 are three keys rather than two. `corrections` and `withdrawals` govern a *marked* submission -
@@ -606,9 +634,9 @@ event leg does not. Registrations come after both, and the cascade comes last.
 | 1 | **[SHIPPED] Name the current behaviour.** Docs and `features.md`: aggregate re-capture overwrites in place, tracker re-capture duplicates, a receipt cannot be withdrawn, and `d2w data tracker delete` is the raw escape hatch. No code. | - | The worst problem is that none of this is written down. |
 | 2 | **[SHIPPED] Report aggregate overwrites.** When a drain posts an aggregate cell a prior forwarded receipt already covered, say so in the run report. Spool-local; no wire change, no config. | 1 | Turns a silent clobber into a visible one. DHIS2 cannot tell us, so the spool must. |
 | 2a | **[SHIPPED] Decide what a drain does about an overwrite.** `[forward] overwrites` on `ForwardConfig`, `"allow"` by default, with `--overwrites` overriding it for one run. `"refuse"` sends no payload holding an already-sent cell and leaves the response queued with a refusal record naming each. | 2 | Slice 2 made the overwrite visible; this is the posture a deployment takes about it (D8). |
-| 3 | **[SHIPPED, less the capture-time refusal] Both correction dials, defaulting off.** `[forward] corrections` and `[forward] withdrawals` are on `ForwardConfig` with `--corrections` and `--withdrawals` on `d2w fhir forward`, resolved in `forward_responses` and stated by the run. The capture-time 422 naming the key is the serve package's half and is unbuilt. | - | Control ships before capability. |
-| 4 | **[SHIPPED] Withdraw an event, CLI only.** `d2w fhir withdraw <response-id>` reads the forwarded receipt, recomputes `receipt_event_uid`, posts `importStrategy=DELETE`, writes the record beside `withdrawn/`, and moves the receipt in after it. Dry run by default. `d2w fhir spool` counts the fourth state; the served facade's own lifecycle does not yet name it. | 3 | The smallest slice that delivers real capability - one object, no cascade, no wire-contract change. Introduces the fourth state. |
-| 5 | **`basedOn` on the wire.** Parse it, resolve the chain to its root, refuse an `amended` or `entered-in-error` receipt whose `basedOn` names nothing this spool forwarded. No strategy change yet. | 3 | The correction is recorded and validated before it is applied. |
+| 3 | **[SHIPPED] Both correction dials, defaulting off.** `[forward] corrections` and `[forward] withdrawals` are on `ForwardConfig` with `--corrections` and `--withdrawals` on `d2w fhir forward`, resolved in `forward_responses` and stated by the run. The facade reads the same two keys at capture: an `amended` or `entered-in-error` submission is refused with a 422 naming the key while the dial is off, and stored like any other receipt where it is on. | - | Control ships before capability. |
+| 4 | **[SHIPPED] Withdraw an event, CLI only.** `d2w fhir withdraw <response-id>` reads the forwarded receipt, recomputes `receipt_event_uid`, posts `importStrategy=DELETE`, writes the record beside `withdrawn/`, and moves the receipt in after it. Dry run by default. `d2w fhir spool` and `GET /spool` both count the fourth state, the listing row carries the record of the delete, and the capture UI states what the instance keeps. | 3 | The smallest slice that delivers real capability - one object, no cascade, no wire-contract change. Introduces the fourth state. |
+| 5 | **`basedOn` on the wire.** Parse it, resolve the chain to its root, refuse an `amended` or `entered-in-error` receipt whose `basedOn` names nothing this spool forwarded - a second capture-time check, on top of slice 3's, for the submissions a dial-on project now receives. No strategy change yet. | 3 | The correction is recorded and validated before it is applied. |
 | 6 | **Tracker event corrections.** Derive the event UID from the `basedOn` root, post `importStrategy=UPDATE`, require a complete value set. | 5 | The one genuinely new mechanism in the whole plan. |
 | 7 | **Withdraw an event through the facade.** Accept `entered-in-error` submissions; the forwarder translates. Calls slice 4's service layer. | 4, 5 | Where the design actually lands for withdrawals. |
 | 8 | **Aggregate corrections.** Widen `AGGREGATE_REQUIRED_STATUS` to admit `amended`. The forward path needs no change at all, beyond a marked correction passing an `overwrites = "refuse"` drain that an unmarked one does not. | 2a, 5 | The cheapest real capability, because DHIS2 already does the work - but it needs slice 2's visibility and slice 2a's posture first. |
