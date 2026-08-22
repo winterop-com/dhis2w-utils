@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -27,33 +29,53 @@ import { cn } from '@/lib/utils'
  */
 export function EvaluateReference({
     language,
-    examples,
+    examplesByLanguage,
     chosen,
     onLoad,
 }: {
     language: EvaluationLanguage
-    /** Every example on offer for this language, generic and guide-built alike. */
-    examples: EvaluationExample[]
+    /** Every example on offer, per language, generic and guide-built alike - the browser shows all three. */
+    examplesByLanguage: Record<EvaluationLanguage, EvaluationExample[]>
     /** Which one is loaded, so the list can mark it rather than leaving the reader to remember. */
     chosen: string
     onLoad: (example: EvaluationExample) => void
 }) {
-    const reference = languageReference(language)
+    // All three references stay on the bar whatever the editor speaks: a reader writing FHIRPath
+    // still gets to read what CQL answers without touching the language picker. Changing the
+    // language moves an open reference tab to the new language's own, and leaves Examples alone.
+    const [tab, setTab] = useState('examples')
+    useEffect(() => {
+        setTab((current) => (current === 'examples' ? current : language))
+    }, [language])
     return (
-        <Tabs defaultValue="examples" className="gap-3">
+        <Tabs value={tab} onValueChange={setTab} className="gap-3">
             <TabsList>
                 <TabsTrigger value="examples">Examples</TabsTrigger>
-                <TabsTrigger value="reference">{reference.title}</TabsTrigger>
+                {REFERENCE_LANGUAGES.map((candidate) => (
+                    <TabsTrigger key={candidate} value={candidate}>
+                        {languageReference(candidate).title}
+                    </TabsTrigger>
+                ))}
             </TabsList>
             <TabsContent value="examples">
-                <ExampleBrowser examples={examples} chosen={chosen} onLoad={onLoad} />
+                <ExampleBrowser
+                    language={language}
+                    examplesByLanguage={examplesByLanguage}
+                    chosen={chosen}
+                    onLoad={onLoad}
+                />
             </TabsContent>
-            <TabsContent value="reference">
-                <ReferenceBody reference={reference} />
-            </TabsContent>
+            {REFERENCE_LANGUAGES.map((candidate) => (
+                <TabsContent key={candidate} value={candidate}>
+                    <ReferenceBody reference={languageReference(candidate)} />
+                </TabsContent>
+            ))}
         </Tabs>
     )
 }
+
+/** The three languages the panel documents, in the order the picker offers them. */
+const REFERENCE_LANGUAGES: EvaluationLanguage[] = ['fhirpath', 'cql', 'elm']
 
 /**
  * Every example, on its shelf, each one a button that loads it.
@@ -63,6 +85,44 @@ export function EvaluateReference({
  * three in a row otherwise has no way to tell which of them is in the box.
  */
 function ExampleBrowser({
+    language,
+    examplesByLanguage,
+    chosen,
+    onLoad,
+}: {
+    language: EvaluationLanguage
+    examplesByLanguage: Record<EvaluationLanguage, EvaluationExample[]>
+    chosen: string
+    onLoad: (example: EvaluationExample) => void
+}) {
+    // The editor's own language leads; the other two follow under their names, because an example
+    // is a door into its language - loading one switches the editor over, context and all.
+    const ordered = [language, ...REFERENCE_LANGUAGES.filter((candidate) => candidate !== language)]
+    const total = ordered.reduce((count, candidate) => count + examplesByLanguage[candidate].length, 0)
+    return (
+        <div className="space-y-5" data-testid="evaluate-examples">
+            <p className="text-muted-foreground text-xs">
+                {total} examples across the three languages, each one runnable as it stands. Choosing one
+                replaces what is in the editor, and one from another language brings its language along.
+            </p>
+            {ordered.map((candidate) => (
+                <section key={candidate} className="space-y-4">
+                    <h2 className="border-b pb-1 text-xs font-semibold">
+                        {languageReference(candidate).title}
+                    </h2>
+                    <LanguageShelves
+                        examples={examplesByLanguage[candidate]}
+                        chosen={chosen}
+                        onLoad={onLoad}
+                    />
+                </section>
+            ))}
+        </div>
+    )
+}
+
+/** One language's examples, shelf by shelf. */
+function LanguageShelves({
     examples,
     chosen,
     onLoad,
@@ -73,11 +133,7 @@ function ExampleBrowser({
 }) {
     const shelves = exampleGroups(examples)
     return (
-        <div className="space-y-4" data-testid="evaluate-examples">
-            <p className="text-muted-foreground text-xs">
-                {examples.length} examples, each one runnable as it stands. Choosing one replaces what is
-                in the editor.
-            </p>
+        <div className="space-y-4">
             {shelves.map((shelf) => (
                 <section key={shelf.group} className="space-y-1">
                     <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">

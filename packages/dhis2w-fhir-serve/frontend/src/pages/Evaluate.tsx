@@ -154,6 +154,18 @@ export function Evaluate() {
     const presets = useMemo(() => guidePresets(form.language, served), [form.language, served])
     const offered = useMemo(() => [...generic, ...presets], [generic, presets])
 
+    // The panel browses all three languages whatever the editor speaks; the current one leads.
+    const examplesByLanguage = useMemo(
+        () =>
+            Object.fromEntries(
+                (['fhirpath', 'cql', 'elm'] as const).map((candidate) => [
+                    candidate,
+                    [...genericExamples(candidate), ...guidePresets(candidate, served)],
+                ]),
+            ) as Record<EvaluationLanguage, EvaluationExample[]>,
+        [served],
+    )
+
     const load = useCallback((example: EvaluationExample) => {
         setChosenExample(example.id)
         setForm(example.form)
@@ -330,7 +342,7 @@ export function Evaluate() {
                             <CardContent className="show-scrollbars max-h-[calc(100vh-8rem)] overflow-y-auto py-6">
                                 <EvaluateReference
                                     language={form.language}
-                                    examples={offered}
+                                    examplesByLanguage={examplesByLanguage}
                                     chosen={chosenExample}
                                     onLoad={load}
                                 />
