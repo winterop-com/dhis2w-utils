@@ -134,6 +134,19 @@ class NamingConfig(BaseModel):
         return _validate_fsh_token(value, allow_empty=False)
 
 
+class HostileNamePosture(StrEnum):
+    """What a generate run does with a DHIS2 name the IG publisher's own build cannot survive."""
+
+    #: Publish every name byte-true and refuse the run when one of the gated names carries '<'. The
+    #: name is then changed in DHIS2, or the selection narrowed, before a build is spent on it.
+    REFUSE = "refuse"
+
+    #: Publish the wording the rewrite produces - "5 to < 15 years" becomes "5 to under 15 years" -
+    #: and note every name the guide states differently from the instance. DHIS2 is never modified,
+    #: and every emitted identifier stays exactly as it is.
+    SUBSTITUTE = "substitute"
+
+
 class GenerateConfig(BaseModel):
     """Generation behaviour - the `[generate]` table of `fhir.toml`.
 
@@ -144,6 +157,12 @@ class GenerateConfig(BaseModel):
     person-only registration form - a form that creates a person and enrols them in nothing.
     Empty, `tracked_entity_forms` publishes one form per type the selected tracker programs
     track; the other three publish everything of their kind the instance holds.
+
+    `hostile_names` is what the run does with a DHIS2 name carrying `<`, which the IG publisher
+    writes into a page it strict-parses and then dies on. Unset, the run asks on a terminal and
+    refuses without one, so a script is never left hanging on a question; `"refuse"` answers it
+    with today's refusal and `"substitute"` publishes the rewritten wording. `d2w fhir generate
+    --substitute-hostile-names` and `--refuse-hostile-names` answer it for one run.
 
     `timezone` is the IANA zone the instance's zone-less timestamps are wall-clock readings in
     (BUGS.md #62). Naming it turns every emitted `dateTime` into the numeric offset that zone
@@ -161,6 +180,7 @@ class GenerateConfig(BaseModel):
 
     identifier_system_base: str = "http://dhis2.org/fhir"
     concept_code_source: Literal["id", "code"] = "id"
+    hostile_names: HostileNamePosture | None = None
     timezone: str | None = None
     locales: list[str] = Field(default_factory=list)
     naming: NamingConfig = Field(default_factory=NamingConfig)

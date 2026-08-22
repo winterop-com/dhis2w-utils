@@ -97,7 +97,8 @@ def build_identifier_code_system_artifacts(
 def _build_code_system(
     profile: _IdentifierSystemProfile, identifiers: list[_TargetedIdentifier], *, ig_status: IgStatus
 ) -> CodeSystem:
-    """Build one namespace's CodeSystem: every targeted identifier, enumerated and marked complete."""
+    """Build one namespace's CodeSystem: every targeted identifier, enumerated once and marked complete."""
+    concepts = _distinct_concepts(identifiers)
     return CodeSystem(
         id=profile.code_system_id,
         url=profile.url,
@@ -108,9 +109,25 @@ def _build_code_system(
         experimental=experimental_for_status(ig_status),
         caseSensitive=True,
         content="complete",
-        count=len(identifiers),
-        concept=[CodeSystemConcept(code=entry.code, display=entry.display) for entry in identifiers],
+        count=len(concepts),
+        concept=concepts,
     )
+
+
+def _distinct_concepts(identifiers: list[_TargetedIdentifier]) -> list[CodeSystemConcept]:
+    """One concept per identifier, the first display a code was seen under winning, in the order given.
+
+    A namespace is enumerated off every map that targets it, and two DHIS2 objects legitimately
+    share one code across the sets they belong to - two option sets both holding a `Preeclampsia`
+    option, say. One code is one concept: the IG publisher anchors a concept row by its code, so a
+    code stated twice yields two rows carrying one anchor id, which its own QA pass reports as a
+    duplicate anchor on the rendered page. The invariant is enforced here, at the one place a
+    concept list is built, rather than left to each caller's gathering step.
+    """
+    concepts: dict[str, CodeSystemConcept] = {}
+    for entry in identifiers:
+        concepts.setdefault(entry.code, CodeSystemConcept(code=entry.code, display=entry.display))
+    return list(concepts.values())
 
 
 def _targeted_identifiers(concept_maps: list[ConceptMap]) -> dict[str, list[_TargetedIdentifier]]:

@@ -59,6 +59,7 @@ from dhis2w_fhir.conversion.schemas import (
 )
 from dhis2w_fhir.conversion.translator import translate_responses
 from dhis2w_fhir.foundation import build_foundation_artifacts
+from dhis2w_fhir.hostile_names import HostileNameGate
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.names import StemResolution, StemSubject, code_or_uid
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, aggregate_generate_note, generate_note, pluralize
@@ -560,6 +561,16 @@ class _CodedObject(BaseModel):
     def emitted_code(self) -> str:
         """The identifier value the object really emits - its DHIS2 code, or the UID standing in for it."""
         return code_or_uid(self.code, self.uid)
+
+
+def _screening_gate(gate: HostileNameGate | None) -> HostileNameGate:
+    """The gate one run screens its DHIS2 names through: the caller's, or one that rewrites nothing.
+
+    A caller that hands none is a caller that never asked for a rewrite - a library build, a live
+    serve, a forward - so the names reach the emitters exactly as DHIS2 states them and the
+    build-aborting refusal below acts on them unchanged.
+    """
+    return gate if gate is not None else HostileNameGate()
 
 
 def _refuse_build_aborting_objects(objects: list[_CodedObject]) -> None:
@@ -1164,11 +1175,15 @@ async def generate_option_sets(
     *,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
+    gate: HostileNameGate | None = None,
 ) -> GenerateReport:
     """Generate a CodeSystem/ValueSet pair per option set into `terminology/`, plus its ConceptMap.
 
     `client` is a connection the caller already holds open, which the run reads through and leaves
     open; with none, the profile opens one for the length of the call.
+
+    `gate` is what the run does with a DHIS2 name the IG publisher's build cannot survive; with
+    none, every name is published exactly as DHIS2 states it.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
@@ -1183,6 +1198,7 @@ async def generate_option_sets(
         sources = await _closure_sources(client, config)
         attribute_codes = await resolve_attribute_code_index(client)
     inputs = _selected_option_sets([_option_set_input(model) for model in models], sources, config, notes)
+    inputs = _screening_gate(gate).screen(inputs, notes)
     progress.complete(f"{len(inputs):,} option set(s)")
     return _emit_option_sets(
         project, option_sets=inputs, attribute_codes=attribute_codes, notes=notes, progress=progress
@@ -1262,11 +1278,15 @@ async def generate_categories(
     *,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
+    gate: HostileNameGate | None = None,
 ) -> GenerateReport:
     """Generate one pre-built CodeSystem and ValueSet document per configured category into `categories/`.
 
     `client` is a connection the caller already holds open, which the run reads through and leaves
     open; with none, the profile opens one for the length of the call.
+
+    `gate` is what the run does with a DHIS2 name the IG publisher's build cannot survive; with
+    none, every name is published exactly as DHIS2 states it.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
@@ -1275,6 +1295,7 @@ async def generate_categories(
     async with _instance_connection(profile, client) as client:
         inputs = await _fetch_categories(client, config, notes)
         attribute_codes = await resolve_attribute_code_index(client)
+    inputs = _screening_gate(gate).screen(inputs, notes)
     progress.complete(f"{len(inputs):,} categor{'y' if len(inputs) == 1 else 'ies'}")
     return _emit_categories(project, categories=inputs, attribute_codes=attribute_codes, notes=notes, progress=progress)
 
@@ -1442,25 +1463,35 @@ async def generate_questionnaires(
     *,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
+    gate: HostileNameGate | None = None,
 ) -> GenerateReport:
     """Generate one Questionnaire FSH file per selected data set, event program, and tracker program stage.
 
     `client` is a connection the caller already holds open, which the run reads through and leaves
     open; with none, the profile opens one for the length of the call.
+
+    `gate` is what the run does with a DHIS2 name the IG publisher's build cannot survive. It
+    screens the forms and the categories before a single identity is planned off them, so the
+    question text, the data dictionary concepts, and the combo vocabularies all read one
+    projection.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
+    screening = _screening_gate(gate)
     notes: list[GenerateNote] = []
     progress.step(_FETCH_LABEL, "fetching the questionnaire targets")
     async with _instance_connection(profile, client) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
-        option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
         attribute_codes = await resolve_attribute_code_index(client)
         # The categories the run publishes, read in this target's own fetch phase: the combo
         # vocabularies decompose every option combo into them, so the concept codes and the
         # CodeSystem canonicals a coding names come from the very selection the category target
         # emits rather than from a shape guessed off the combo.
         categories = await _fetch_categories(client, config, notes)
+        screening.decide(sources, categories)
+        sources = screening.screen(sources, notes)
+        categories = screening.screen(categories, notes)
+        option_set_plan = await _fetch_option_set_identity_plan(client, config, sources, screening)
         # The questionnaire surface resolves before the registry read, so a `source = "code"`
         # refusal names this target's own offenders rather than the registry's.
         stem_plan = plan_questionnaire_stems(sources, config.naming.source)
@@ -1598,14 +1629,19 @@ async def generate_examples(
     *,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
+    gate: HostileNameGate | None = None,
 ) -> GenerateReport:
     """Generate one `Usage: #example` QuestionnaireResponse per configured example into `examples/`.
 
     `client` is a connection the caller already holds open, which the run reads through and leaves
     open; with none, the profile opens one for the length of the call.
+
+    `gate` is what the run does with a DHIS2 name the IG publisher's build cannot survive; with
+    none, every name is published exactly as DHIS2 states it.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
+    screening = _screening_gate(gate)
     notes: list[GenerateNote] = []
     if config.examples.per_target <= 0:
         return await _emit_examples(
@@ -1624,7 +1660,10 @@ async def generate_examples(
     async with _instance_connection(profile, client) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_sets = await _fetch_example_option_sets(client, sources)
-        option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
+        screening.decide(sources, option_sets)
+        sources = screening.screen(sources, notes)
+        option_sets = screening.screen(option_sets, notes)
+        option_set_plan = await _fetch_option_set_identity_plan(client, config, sources, screening)
         organisation_unit_stems = await _fetch_published_organisation_unit_stems(client, config)
         progress.complete(f"{len(sources):,} questionnaire target(s), {len(option_sets):,} bound option set(s)")
         return await _emit_examples(
@@ -1768,7 +1807,7 @@ async def generate_load_set(
     async with open_client(profile) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         option_sets = await _fetch_example_option_sets(client, sources)
-        option_set_plan = await _fetch_option_set_identity_plan(client, config, sources)
+        option_set_plan = await _fetch_option_set_identity_plan(client, config, sources, HostileNameGate())
         organisation_unit_stems = await _fetch_published_organisation_unit_stems(client, config)
         root_uid = await _root_organisation_unit_uid(client)
         assignments = await _fetch_load_set_assignments(client, sources)
@@ -2459,11 +2498,15 @@ async def generate_organisation_units(
     *,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
+    gate: HostileNameGate | None = None,
 ) -> GenerateReport:
     """Generate the profiles and terminology into `organization/`, and the instance registry into `registry/`.
 
     `client` is a connection the caller already holds open, which the run reads through and leaves
     open; with none, the profile opens one for the length of the call.
+
+    `gate` is what the run does with a DHIS2 name the IG publisher's build cannot survive; with
+    none, every name is published exactly as DHIS2 states it.
     """
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
     tally = GeometryTally()
@@ -2472,6 +2515,8 @@ async def generate_organisation_units(
     async with _instance_connection(profile, client) as client:
         organisation_units = await _fetch_organisation_units(client, project.config.generate, tally, today, progress)
         attribute_codes = await resolve_attribute_code_index(client)
+    notes = tally.to_notes()
+    organisation_units = _screening_gate(gate).screen(organisation_units, notes)
     progress.complete(f"{len(organisation_units):,} organisation unit(s)")
     return _emit_organisation_units(
         project,
@@ -2480,7 +2525,7 @@ async def generate_organisation_units(
         stems=plan_organisation_unit_stems(
             organisation_unit_stem_subjects(organisation_units), project.config.generate.naming.source
         ),
-        notes=tally.to_notes(),
+        notes=notes,
         progress=progress,
     )
 
@@ -2576,14 +2621,19 @@ async def generate_pages(
     *,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
+    gate: HostileNameGate | None = None,
 ) -> GenerateReport:
     """Generate the narrative site pages and the per-artifact intros into `ig/input/pagecontent/`.
 
     `client` is a connection the caller already holds open, which the run reads through and leaves
     open; with none, the profile opens one for the length of the call.
+
+    `gate` is what the run does with a DHIS2 name the IG publisher's build cannot survive; with
+    none, every name is published exactly as DHIS2 states it.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_TARGET_STEPS)
+    screening = _screening_gate(gate)
     notes: list[GenerateNote] = []
     tally = GeometryTally()
     today = datetime.now(tz=UTC).date()
@@ -2597,6 +2647,10 @@ async def generate_pages(
         )
         organisation_units = await _fetch_organisation_units(client, config, tally, today, progress)
     option_sets = _selected_option_sets([_option_set_input(model) for model in models], sources, config, notes)
+    screening.decide(sources, option_sets, organisation_units)
+    sources = screening.screen(sources, notes)
+    option_sets = screening.screen(option_sets, notes)
+    organisation_units = screening.screen(organisation_units, notes)
     progress.complete(f"{len(sources):,} questionnaire target(s), {len(organisation_units):,} organisation unit(s)")
     return _emit_pages(
         project,
@@ -2679,6 +2733,7 @@ async def generate_full(
     *,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
+    gate: HostileNameGate | None = None,
 ) -> GenerateFullReport:
     """Generate every target off one connected client and one pass over the instance's metadata.
 
@@ -2693,12 +2748,16 @@ async def generate_full(
 
     `client` is a connection the caller already holds open, which the run reads through and leaves
     open; with none, the profile opens one for the length of the call.
+
+    `gate` is what the run does with a DHIS2 name the IG publisher's build cannot survive. The
+    whole run screens through one gate, so a run that asks asks once, over the count the whole
+    instance read holds rather than the first target's share of it.
     """
     config = project.config.generate
     progress = _StepAnnouncer(reporter, GENERATE_FULL_STEPS)
     progress.step(_FETCH_LABEL, "fetching instance metadata")
     async with _instance_connection(profile, client) as client:
-        inputs = await fetch_live_ig_inputs(client, config, progress=progress)
+        inputs = await fetch_live_ig_inputs(client, config, progress=progress, gate=gate)
         progress.complete(
             f"{len(inputs.sources):,} questionnaire target(s), {len(inputs.option_sets):,} option set(s), "
             f"{len(inputs.categories):,} categor{'y' if len(inputs.categories) == 1 else 'ies'}, "
@@ -2841,7 +2900,11 @@ class LiveIgInputs(BaseModel):
 
 
 async def fetch_live_ig_inputs(
-    client: Dhis2Client, config: GenerateConfig, *, progress: _StepAnnouncer | None = None
+    client: Dhis2Client,
+    config: GenerateConfig,
+    *,
+    progress: _StepAnnouncer | None = None,
+    gate: HostileNameGate | None = None,
 ) -> LiveIgInputs:
     """Read the whole instance side of one IG build over a single client, in the generate targets' own projections.
 
@@ -2855,8 +2918,15 @@ async def fetch_live_ig_inputs(
     Every collection is read exactly once. The option-set identity plan is assigned off the same
     unfiltered read the terminology projection came from rather than a second narrower request,
     since a slug is decided by the UID and the name the first read already carries.
+
+    `gate` is what the run does with a DHIS2 name the IG publisher's build cannot survive. This is
+    the choke point every target of a full run inherits: the four projections are screened here,
+    before a single identity, stem, or decomposition is planned off them, so the guide states one
+    name for one DHIS2 object wherever it publishes it. A caller handing no gate - a live serve, a
+    live forward - reads every name exactly as DHIS2 states it.
     """
     steps = progress if progress is not None else _StepAnnouncer()
+    screening = _screening_gate(gate)
     source_notes: list[GenerateNote] = []
     option_set_notes: list[GenerateNote] = []
     category_notes: list[GenerateNote] = []
@@ -2872,15 +2942,23 @@ async def fetch_live_ig_inputs(
     )
     fetched_option_sets = [_option_set_input(model) for model in option_set_models]
     option_sets = _selected_option_sets(fetched_option_sets, sources, config, option_set_notes)
-    option_set_plan = _option_set_identity_plan(fetched_option_sets, config, sources)
     steps.tick("reading categories")
     categories = await _fetch_categories(client, config, category_notes)
     organisation_units = await _fetch_organisation_units(client, config, tally, today, steps)
+    geometry_notes = tally.to_notes()
+    # The one screening a full run takes: the answer is settled over every projection at once, so
+    # a run that asks states the whole instance read's count, and each projection then carries its
+    # rewrites into the notes of the target that owns it.
+    screening.decide(sources, option_sets, categories, organisation_units)
+    sources = screening.screen(sources, source_notes)
+    option_sets = screening.screen(option_sets, option_set_notes)
+    categories = screening.screen(categories, category_notes)
+    organisation_units = screening.screen(organisation_units, geometry_notes)
+    option_set_plan = _option_set_identity_plan(screening.screen(fetched_option_sets, []), config, sources)
     steps.tick("reading the attribute-code join")
     attribute_codes = await resolve_attribute_code_index(client)
     steps.tick("reading the organisation-unit assignments")
     assignments = await fetch_assignment_index(client, sources)
-    geometry_notes = tally.to_notes()
     # W-2: the identity stems resolve at the fetch/plan level, so a `source = "code"` refusal
     # raises here - before any target writes a file - and every consumer reads one resolution.
     questionnaire_stems = plan_questionnaire_stems(sources, config.naming.source)
@@ -3019,7 +3097,7 @@ def _selected_option_sets(
 
 
 async def _fetch_option_set_identity_plan(
-    client: Dhis2Client, config: GenerateConfig, sources: list[QuestionnaireSourceIn]
+    client: Dhis2Client, config: GenerateConfig, sources: list[QuestionnaireSourceIn], gate: HostileNameGate
 ) -> OptionSetIdentityPlan:
     """Assign the option-set identities for one generate run, off the very selection the terminology target emits.
 
@@ -3028,6 +3106,10 @@ async def _fetch_option_set_identity_plan(
     selection. The projection is narrower than the terminology target's because a slug is
     decided by the UID and the name alone. The selection notes belong to the terminology
     target's report, so they are not raised a second time here.
+
+    The names are screened before a slug is read off them, so a form binding an `answerValueSet`
+    names the ValueSet the terminology target really writes. The rewrite notes belong to that
+    target's report too, which is why none is kept here.
     """
     models = await client.resources.option_sets.list(
         fields=_OPTION_SET_IDENTITY_FIELDS,
@@ -3035,7 +3117,7 @@ async def _fetch_option_set_identity_plan(
         paging=False,
     )
     inputs = [OptionSetIn(uid=model.id or "", name=model.name or model.id or "") for model in models]
-    return option_set_identities(_selected_option_sets(inputs, sources, config, []), config)
+    return option_set_identities(gate.screen(_selected_option_sets(inputs, sources, config, []), []), config)
 
 
 def _option_set_identity_plan(

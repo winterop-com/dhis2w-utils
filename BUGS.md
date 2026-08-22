@@ -5745,3 +5745,95 @@ nothing today and would cost the next caller a parse error.
 `/api/tracker/enrollments` does.
 
 **Verifier:** none yet.
+
+---
+
+## HL7 IG publisher defects
+
+Not DHIS2. One entry, filed here because it is the upstream defect that shapes what
+`d2w fhir generate` may publish, and because the repro is metadata a DHIS2 instance
+legitimately holds. Numbers continue the global sequence.
+
+### 103. The IG publisher writes a resource's `title` / `text` / `display` into its final markdown pass without escaping `<`, and dies re-parsing the page it just wrote
+
+**Version observed:** HL7 `fhir-ig-publisher` 2.3.2 (`publisher.jar`, `releases/latest` as of
+2026-08), FHIR R4, running against a guide generated from DHIS2 2.42 metadata.
+
+**What a caller is trying to do.** Publish a guide whose resource names come from a national DHIS2
+instance. DHIS2 names carry `<` legitimately and everywhere: an age band is `5 to < 15 years,
+Female`, a disaggregation cell is `Male, <15y`, an indicator is `Mortality < 5 years by gender`.
+None of that is a defect in the instance, and a guide that repeats its instance's names byte for
+byte is the guide people asked for.
+
+**Repro.** Any R4 resource whose `title`, `item.text`, or `concept.display` holds a bare `<`,
+published through a normal build:
+
+```bash
+mkdir -p ig/input/resources
+cat > ig/input/resources/CodeSystem-repro.json <<'JSON'
+{
+  "resourceType": "CodeSystem",
+  "id": "repro",
+  "url": "http://example.org/fhir/CodeSystem/repro",
+  "name": "Repro_CS",
+  "title": "Age bands",
+  "status": "draft",
+  "content": "complete",
+  "concept": [ { "code": "band-1", "display": "5 to < 15 years, Female" } ]
+}
+JSON
+
+# then, from the IG root
+java -Xmx4g -jar publisher.jar ig.ini -ig .
+```
+
+**Expected.** The publisher HTML-escapes the strings it writes into the pages it generates, the way
+it escapes the same strings everywhere else in the run, and the build finishes. A `<` in a display
+name is data, not markup: no other pass in the run treats it as markup.
+
+**Actual.** The build runs to completion - every resource validated, every page rendered, "Checking
+Output HTML" passed - and then dies in the final markdown pass:
+
+```text
+Publishing Content Failed: Unable to process page CodeSystem-repro.html
+Caused by: org.hl7.fhir.exceptions.FHIRFormatError: Unable to Parse HTML - node 'p' has
+  unexpected content: ... last text = '5 to '
+  at org.hl7.fhir.igtools.publisher.utils.AIProcessor.produceMDForResource(...)
+```
+
+Three things make this expensive rather than merely wrong:
+
+1. **It is the last pass.** On a national guide that is hours of validation and rendering spent
+   before the failure, every time.
+2. **The message names a page, not the object.** `CodeSystem-repro.html` is what the publisher was
+   writing; which of the several hundred DHIS2 objects on that page carried the character is left to
+   the reader.
+3. **Earlier passes do not see it.** The same string passes FHIR validation and passes the
+   publisher's own "Checking Output HTML" step, so nothing before the end of the run reports it.
+
+The same character in an `identifier[].value` fails a little earlier and a little differently -
+`Unable to Parse HTML - node 'td' has unexpected content`, from the identifier table cell, which the
+publisher also writes raw. A `>` and a bare `&` are tolerated by the parse and render as a malformed
+page rather than an aborted build, so `<` is the one character seen to be fatal.
+
+**Workaround applied in this repo.** Three, at three distances from the publisher:
+
+- `d2w fhir generate` refuses a run whose selected DHIS2 names or codes carry `<`, naming the object
+  before a file is written - `_refuse_build_aborting_objects` and its siblings in
+  `packages/dhis2w-fhir/src/dhis2w_fhir/service.py`, over the
+  `build_aborting_name` / `build_aborting_code` predicates in
+  `packages/dhis2w-fhir/src/dhis2w_fhir/validation/__init__.py`.
+- `d2w fhir generate --substitute-hostile-names` publishes the name in wording the publisher
+  survives instead - `5 to under 15 years, Female` - leaving DHIS2 and every emitted identifier
+  untouched: `packages/dhis2w-fhir/src/dhis2w_fhir/validation/substitution.py` and
+  `packages/dhis2w-fhir/src/dhis2w_fhir/hostile_names.py`. This exists because refusing is the wrong
+  answer for an instance whose age bands are all named this way.
+- `d2w fhir check-artifacts` applies the same predicates to the files already on disk, which is what
+  `make build` runs first:
+  `packages/dhis2w-fhir/src/dhis2w_fhir/validation/artifacts.py`.
+
+**How to know it's fixed:** a guide holding the repro CodeSystem builds to completion, and the
+rendered page shows `5 to &lt; 15 years, Female`. The refusal and the rewrite both become optional
+at that point.
+
+**Verifier:** none yet.

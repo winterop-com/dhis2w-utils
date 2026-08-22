@@ -279,6 +279,62 @@ the same refusal applied to those files, through the same two predicates, and
 it is what `make build` runs first - see [The build refuses before it
 begins](201-build-and-publish.md#the-build-refuses-before-it-begins).
 
+## Answer the hostile-name question
+
+Refusing is one answer, and for many instances it is the wrong one. DHIS2 names
+carry `<` legitimately: an age band is called `5 to < 15 years, Female` and a
+disaggregation cell is called `Male, <15y`. Renaming several hundred of those in
+a production instance to publish a guide is not a fix - it is the guide's problem
+pushed onto the people who run the instance.
+
+So a run has three outcomes, and you choose which:
+
+| Outcome | How you get it | What happens |
+| --- | --- | --- |
+| Refuse | `--refuse-hostile-names`, or `hostile_names = "refuse"` | The run writes nothing and names the object, exactly as above. |
+| Ask | neither flag, no dial, and a terminal | The names are shown with their rewrites and you answer yes or no. |
+| Substitute | `--substitute-hostile-names`, or `hostile_names = "substitute"` | The guide publishes the rewritten wording, and every rewrite is noted. |
+
+A flag beats the `fhir.toml` dial, and the dial beats the question. With no
+terminal to ask on - a script, a CI job - the run never hangs on a prompt: it
+prints the same block, names the two flags, and leaves every name as DHIS2
+states it.
+
+The rewrite is wording, not escaping. `<` becomes the word it stands for, so a
+reader of the guide reads a sentence:
+
+| DHIS2 name | Published name |
+| --- | --- |
+| `5 to < 15 years, Female` | `5 to under 15 years, Female` |
+| `Male, <15y` | `Male, under 15y` |
+| `Age <= 5` | `Age at most 5` |
+
+**Nothing else moves.** DHIS2 is never written to. No code, no UID, and no
+identifier value is touched - only names - so the ConceptMaps still take a
+published concept back to the DHIS2 object it came from, byte for byte. A DHIS2
+*code* carrying `<` still refuses the run whichever answer you give, because a
+code is an identifier a consumer joins on and a renamed identifier is a
+different identifier.
+
+Every rewritten name lands in the notes as a `name-substitution` note - one per
+distinct DHIS2 name, however many resources carry it - so the notes report is the
+record of where the guide and the instance say different words:
+
+```text
+note: the DHIS2 name '5 to < 15 years, Female' carries '<', which the IG
+publisher's build cannot survive; the guide publishes '5 to under 15 years,
+Female' and DHIS2 keeps the name it holds
+```
+
+Substitution reaches further than the refusal does. The refusal reads the names
+of the objects a selection publishes and the questions they ask; the rewrite
+reads every name the emission publishes, which also covers a DHIS2 form name and
+the cell names of a disaggregation. Those two reach a Questionnaire's question
+text and the data dictionary's concept displays without passing any refusal - one
+national selection generated cleanly and then handed the publisher 738 of them.
+Under `refuse` that class is caught by `d2w fhir check-artifacts`, before you
+spend a build on it; under `substitute` it never reaches the disk.
+
 ## Read the notes
 
 Each target raises aggregate notes - a selection entry that matched nothing,

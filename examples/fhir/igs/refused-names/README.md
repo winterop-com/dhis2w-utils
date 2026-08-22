@@ -88,15 +88,32 @@ the two and validate names both. Deselect `YNZyaJHiHYq` and generate refuses on
 
 ## The fix, and why it is not in this directory
 
-The fix is in DHIS2: rename the object. There is no configuration that makes a
-`<` publishable, and none is wanted - a guide that escaped the name would
+One fix is in DHIS2: rename the object, and the guide keeps repeating its
+instance byte for byte. Nothing escapes the name - a guide that escaped it would
 publish a title the instance does not hold.
 
 Where the name cannot be renamed - upstream demo metadata, a production instance
-under change control, a name a ministry actually uses - the answer is to leave
-the object out of the selection. That is what every other guide in this catalog
-does, and it is why each of them names its option sets and its categories
-explicitly rather than taking the instance-wide default.
+under change control, a name a ministry actually uses - there are two answers.
+Leave the object out of the selection, which is what every other guide in this
+catalog does and why each of them names its option sets and its categories
+explicitly rather than taking the instance-wide default. Or publish the name in
+the wording it stands for:
+
+```console
+$ uv run --project ../../../.. d2w fhir generate --substitute-hostile-names
+note: the DHIS2 name '<1y' carries '<', which the IG publisher's build cannot
+survive; the guide publishes 'under 1y' and DHIS2 keeps the name it holds
+```
+
+That is the answer for an instance whose age bands are all named this way -
+`<1y`, `<5`, `Vitamin A given to < 5y` - where renaming them is a change to a
+production instance made to satisfy a publisher. DHIS2 is never written to, and
+names only: no code, UID, or identifier value moves, so the ConceptMaps still
+take every published concept back to the object it came from. `[generate]
+hostile_names = "substitute"` is the same answer, standing, for one project;
+this guide deliberately states neither, so it stays the refusal exhibit. The
+whole picture is in [Answer the hostile-name
+question](https://winterop-com.github.io/dhis2w-utils/fhir/201-generate/#answer-the-hostile-name-question).
 
 `d2w fhir validate` is the command that tells you which objects those are,
 before you have spent anything on a build. It is the CI gate for the same
