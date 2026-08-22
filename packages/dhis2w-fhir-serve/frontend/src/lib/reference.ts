@@ -288,6 +288,10 @@ const CQL_REFERENCE: LanguageReference = {
                 { name: 'overlaps / meets / starts / ends', meaning: 'How two intervals sit against each other' },
                 { name: 'properly includes / properly included in', meaning: 'Containment that refuses the equal case' },
                 { name: 'within 3 days of', meaning: 'Proximity, at a stated quantity' },
+                {
+                    name: 'P.birthDate < @2000-01-01',
+                    meaning: 'A date read off a FHIR resource arrives as text and is read as a date where a date is expected, so no conversion is written',
+                },
                 { name: 'duration in days between A and B', meaning: 'Whole units between two values' },
                 { name: 'difference in days between A and B', meaning: 'Boundaries crossed between two values' },
                 { name: 'collapse / expand', meaning: 'Merge overlapping intervals / break one into per-unit intervals' },

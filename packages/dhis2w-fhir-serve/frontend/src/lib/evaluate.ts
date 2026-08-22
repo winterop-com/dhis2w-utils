@@ -276,6 +276,202 @@ export const EXAMPLE_CLINICAL_BUNDLE = JSON.stringify(
 )
 
 /**
+ * A household and the records one clinic holds about it, for the examples that ask a realistic Bundle.
+ *
+ * WHY A SECOND BUNDLE, AND A LARGER ONE. The clinical Bundle above is built so that a filter leaves
+ * rows behind; this one is built so that a QUESTION has an answer. A mother and her child, thirteen
+ * entries between them: two identifiers on the mother, her name in Latin script and in the script her
+ * family writes it in, six Observations across three codes with dates spread over a year, three doses
+ * of one vaccine numbered in the order they were given, the Condition the anaemia reading led to, and
+ * the visit all of it was recorded at. Latest-by-date, values above a threshold, doses counted,
+ * everyone named - each of those is a question somebody asks of real data, and none of them can be
+ * asked of a single Patient.
+ *
+ * Still generic: no DHIS2 in it, so every example built on it runs against any served guide, including
+ * one that publishes nothing at all.
+ */
+export const EXAMPLE_HOUSEHOLD_BUNDLE = JSON.stringify(
+    {
+        resourceType: 'Bundle',
+        type: 'collection',
+        entry: [
+            {
+                resource: {
+                    resourceType: 'Patient',
+                    id: 'selam',
+                    active: true,
+                    gender: 'female',
+                    birthDate: '1991-07-14',
+                    identifier: [
+                        { system: 'http://example.org/national-id', value: 'NID-4471-2290' },
+                        { system: 'http://example.org/medical-record', value: 'MRN-00714' },
+                    ],
+                    name: [
+                        { use: 'official', given: ['Selam'], family: 'Tadesse' },
+                        { use: 'usual', given: ['ሰላም'], family: 'ታደሰ' },
+                    ],
+                    telecom: [{ system: 'phone', value: '+251911234567' }],
+                    address: [{ city: 'Hawassa', country: 'ET' }],
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Patient',
+                    id: 'dawit',
+                    active: true,
+                    gender: 'male',
+                    birthDate: '2023-02-08',
+                    identifier: [{ system: 'http://example.org/medical-record', value: 'MRN-00902' }],
+                    name: [
+                        { use: 'official', given: ['Dawit'], family: 'Tadesse' },
+                        { use: 'usual', given: ['ዳዊት'], family: 'ታደሰ' },
+                    ],
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Encounter',
+                    id: 'visit-may',
+                    status: 'finished',
+                    class: { system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode', code: 'AMB', display: 'ambulatory' },
+                    subject: { reference: 'Patient/selam' },
+                    period: { start: '2024-05-06T08:30:00Z', end: '2024-05-06T09:15:00Z' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'weight-jan',
+                    status: 'final',
+                    subject: { reference: 'Patient/selam' },
+                    effectiveDateTime: '2024-01-15T09:05:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
+                    valueQuantity: { value: 58.2, unit: 'kg' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'weight-may',
+                    status: 'final',
+                    subject: { reference: 'Patient/selam' },
+                    encounter: { reference: 'Encounter/visit-may' },
+                    effectiveDateTime: '2024-05-06T08:40:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
+                    valueQuantity: { value: 61.0, unit: 'kg' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'weight-sep',
+                    status: 'final',
+                    subject: { reference: 'Patient/selam' },
+                    effectiveDateTime: '2024-09-23T10:10:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
+                    valueQuantity: { value: 63.4, unit: 'kg' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'weight-dawit',
+                    status: 'final',
+                    subject: { reference: 'Patient/dawit' },
+                    effectiveDateTime: '2024-06-02T11:00:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
+                    valueQuantity: { value: 9.8, unit: 'kg' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'temperature-may',
+                    status: 'final',
+                    subject: { reference: 'Patient/selam' },
+                    encounter: { reference: 'Encounter/visit-may' },
+                    effectiveDateTime: '2024-05-06T08:45:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '8310-5', display: 'Body temperature' }] },
+                    valueQuantity: { value: 38.6, unit: 'Cel' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'haemoglobin-may',
+                    status: 'final',
+                    subject: { reference: 'Patient/selam' },
+                    encounter: { reference: 'Encounter/visit-may' },
+                    effectiveDateTime: '2024-05-06T09:00:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '718-7', display: 'Haemoglobin' }] },
+                    valueQuantity: { value: 10.4, unit: 'g/dL' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Condition',
+                    id: 'anaemia',
+                    subject: { reference: 'Patient/selam' },
+                    encounter: { reference: 'Encounter/visit-may' },
+                    recordedDate: '2024-05-06',
+                    onsetDateTime: '2024-05-06',
+                    clinicalStatus: {
+                        coding: [
+                            {
+                                system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+                                code: 'active',
+                            },
+                        ],
+                    },
+                    code: { coding: [{ system: 'http://snomed.info/sct', code: '271737000', display: 'Anaemia' }] },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Immunization',
+                    id: 'penta-1',
+                    status: 'completed',
+                    patient: { reference: 'Patient/dawit' },
+                    occurrenceDateTime: '2023-03-22',
+                    vaccineCode: {
+                        coding: [{ system: 'http://hl7.org/fhir/sid/cvx', code: '110', display: 'DTaP-hepatitis B-IPV' }],
+                    },
+                    protocolApplied: [{ series: 'Pentavalent', doseNumberPositiveInt: 1 }],
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Immunization',
+                    id: 'penta-2',
+                    status: 'completed',
+                    patient: { reference: 'Patient/dawit' },
+                    occurrenceDateTime: '2023-04-19',
+                    vaccineCode: {
+                        coding: [{ system: 'http://hl7.org/fhir/sid/cvx', code: '110', display: 'DTaP-hepatitis B-IPV' }],
+                    },
+                    protocolApplied: [{ series: 'Pentavalent', doseNumberPositiveInt: 2 }],
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Immunization',
+                    id: 'penta-3',
+                    status: 'completed',
+                    patient: { reference: 'Patient/dawit' },
+                    occurrenceDateTime: '2023-05-17',
+                    vaccineCode: {
+                        coding: [{ system: 'http://hl7.org/fhir/sid/cvx', code: '110', display: 'DTaP-hepatitis B-IPV' }],
+                    },
+                    protocolApplied: [{ series: 'Pentavalent', doseNumberPositiveInt: 3 }],
+                },
+            },
+        ],
+    },
+    null,
+    2,
+)
+
+/**
  * One filled-in capture form, for the examples about what a submission actually says.
  *
  * The shape this facade receives all day: a QuestionnaireResponse with answers on it, some of them
@@ -393,6 +589,11 @@ function elmString(value: string): unknown {
 /** One ELM boolean. */
 function elmBoolean(value: boolean): unknown {
     return { type: 'Literal', valueType: '{urn:hl7-org:elm-types:r1}Boolean', value: String(value) }
+}
+
+/** One ELM `Retrieve`, which is what a CQL retrieve compiles to - a type named as a FHIR url. */
+function elmRetrieve(resourceType: string): unknown {
+    return { type: 'Retrieve', dataType: `{http://hl7.org/fhir}${resourceType}` }
 }
 
 /**
@@ -571,6 +772,92 @@ const FHIRPATH_SEEDS: ExampleSeed[] = [
         group: 'Reading a Bundle',
         source: 'Bundle.entry.resource.ofType(Condition).subject.reference',
         context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+
+    // Ask a Bundle: the questions a person asks of a register rather than of a record.
+    {
+        id: 'fhirpath-household-observations',
+        label: 'Every Observation the household Bundle holds, as it stands',
+        group: 'Ask a Bundle',
+        source: 'Bundle.entry.resource.ofType(Observation)',
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-count',
+        label: 'How many Observations were recorded in all',
+        group: 'Ask a Bundle',
+        source: 'Bundle.entry.resource.ofType(Observation).count()',
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-codes',
+        label: 'Each thing that was measured, named once',
+        group: 'Ask a Bundle',
+        source: 'Bundle.entry.resource.ofType(Observation).code.coding.display.distinct()',
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-weights',
+        label: 'Every weight recorded, whoever it was measured on',
+        group: 'Ask a Bundle',
+        source: "Bundle.entry.resource.ofType(Observation).where(code.coding.code = '29463-7').valueQuantity.value",
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-above-threshold',
+        label: 'The weights above sixty kilograms',
+        group: 'Ask a Bundle',
+        source: "Bundle.entry.resource.ofType(Observation).where(code.coding.code = '29463-7' and valueQuantity.value > 60).valueQuantity.value",
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-latest-weight',
+        label: 'The most recent weight, by the date it was taken',
+        group: 'Ask a Bundle',
+        source: "Bundle.entry.resource.ofType(Observation).where(code.coding.code = '29463-7').sort(-effectiveDateTime).first().valueQuantity.value",
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-names',
+        label: 'Everyone the Bundle holds, by name',
+        group: 'Ask a Bundle',
+        source: "Bundle.entry.resource.ofType(Patient).name.where(use = 'official').select(given.join(' ') & ' ' & family)",
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-native-script',
+        label: 'The same names, in the script the family writes them in',
+        group: 'Ask a Bundle',
+        source: "Bundle.entry.resource.ofType(Patient).name.where(use = 'usual').select(given.join(' ') & ' ' & family)",
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-identifiers',
+        label: 'Every identifier the Bundle holds for a person',
+        group: 'Ask a Bundle',
+        source: 'Bundle.entry.resource.ofType(Patient).identifier.value',
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-doses',
+        label: 'Which doses of the vaccine were given, in order',
+        group: 'Ask a Bundle',
+        source: 'Bundle.entry.resource.ofType(Immunization).protocolApplied.doseNumberPositiveInt',
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-visit-day',
+        label: 'What was measured on the day of the visit',
+        group: 'Ask a Bundle',
+        source: 'Bundle.entry.resource.ofType(Observation).where(effectiveDateTime.toDate() = @2024-05-06).code.coding.display',
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'fhirpath-household-conditions',
+        label: 'Who the Bundle records a Condition about',
+        group: 'Ask a Bundle',
+        source: 'Bundle.entry.resource.ofType(Condition).subject.reference',
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
     },
 
     // A filled-in form: the document this facade actually receives.
@@ -844,6 +1131,124 @@ const CQL_SEEDS: ExampleSeed[] = [
         context: inline(EXAMPLE_CLINICAL_BUNDLE),
     },
 
+    // A population in a Bundle: the shape a measure is actually written in.
+    {
+        id: 'cql-household-people',
+        label: 'Everyone the household Bundle holds, and how many',
+        group: 'A population in a Bundle',
+        source: cql(`
+        library Household version '1.0'
+        using FHIR version '4.0.1'
+
+        define People: [Patient]
+        define HowMany: Count([Patient])
+        define Names: [Patient] P return P.name[0].given[0]
+        `),
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'cql-household-one-person',
+        label: 'One person, and the readings that are hers',
+        group: 'A population in a Bundle',
+        source: cql(`
+        library Household version '1.0'
+        using FHIR version '4.0.1'
+
+        define Mother: singleton from ([Patient] P where P.id = 'selam')
+        define HerWeights:
+          [Observation] O
+            where O.subject.reference = 'Patient/selam'
+              and O.code.coding[0].code = '29463-7'
+            return O.value.value
+        define HowManyReadings: Count(HerWeights)
+        `),
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'cql-household-born-after',
+        label: 'The children, from a birth date compared without a conversion',
+        group: 'A population in a Bundle',
+        source: cql(`
+        library Household version '1.0'
+        using FHIR version '4.0.1'
+
+        // A FHIR birthDate arrives as text and is read as a date where a date is expected,
+        // so the comparison is written the way it would be said.
+        define Children: [Patient] P where P.birthDate > @2020-01-01
+        define ChildNames: Children C return C.name[0].given[0]
+        define HowManyChildren: Count(Children)
+        `),
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'cql-household-date-window',
+        label: 'The readings taken inside one period',
+        group: 'A population in a Bundle',
+        source: cql(`
+        library Household version '1.0'
+        using FHIR version '4.0.1'
+
+        define SecondQuarter: Interval[@2024-04-01T00:00:00, @2024-06-30T23:59:59]
+
+        define InTheQuarter:
+          [Observation] O
+            where O.effective in SecondQuarter
+            return O.id
+        define HowMany: Count(InTheQuarter)
+        `),
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'cql-household-doses',
+        label: 'How many doses of the vaccine the child received',
+        group: 'A population in a Bundle',
+        source: cql(`
+        library Household version '1.0'
+        using FHIR version '4.0.1'
+
+        define Doses: [Immunization] I return all I.protocolApplied[0].doseNumberPositiveInt
+        define HowManyDoses: Count([Immunization])
+        define WholeSeries: Count([Immunization]) >= 3
+        `),
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'cql-household-exists',
+        label: 'Whether anyone ran a fever, and the first visit on record',
+        group: 'A population in a Bundle',
+        source: cql(`
+        library Household version '1.0'
+        using FHIR version '4.0.1'
+
+        define Febrile:
+          exists ([Observation] O
+            where O.code.coding[0].code = '8310-5'
+              and O.value.value > 38.0)
+
+        define FirstVisit: First([Encounter] E return E.period.start)
+        define NoProcedures: not exists [Procedure]
+        `),
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'cql-household-highest-weight',
+        label: 'The largest weight recorded, out of everyone',
+        group: 'A population in a Bundle',
+        source: cql(`
+        library Household version '1.0'
+        using FHIR version '4.0.1'
+
+        define Weights:
+          [Observation] O
+            where O.code.coding[0].code = '29463-7'
+            return all O.value.value
+
+        define Heaviest: Max(Weights)
+        define Average: Avg(Weights)
+        `),
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+
     // Terminology, and the two ways it is refused.
     {
         id: 'cql-terminology-declared',
@@ -1003,6 +1408,36 @@ const ELM_SEEDS: ExampleSeed[] = [
             },
         ]),
         context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'elm-household-counts',
+        label: 'A compiled library counting what a Bundle holds',
+        group: 'A compiled library over a Bundle',
+        source: elm('Household', [
+            { name: 'HowManyPeople', expression: { type: 'Count', source: elmRetrieve('Patient') } },
+            { name: 'HowManyDoses', expression: { type: 'Count', source: elmRetrieve('Immunization') } },
+            { name: 'AnyObservations', expression: { type: 'Exists', operand: elmRetrieve('Observation') } },
+        ]),
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
+    },
+    {
+        id: 'elm-household-query',
+        label: 'A compiled query, reading one element off everyone',
+        group: 'A compiled library over a Bundle',
+        source: elm('Household', [
+            {
+                name: 'BirthDates',
+                expression: {
+                    type: 'Query',
+                    source: [{ alias: 'P', expression: elmRetrieve('Patient') }],
+                    return: {
+                        expression: { type: 'Property', path: 'birthDate', source: { type: 'AliasRef', name: 'P' } },
+                        distinct: true,
+                    },
+                },
+            },
+        ]),
+        context: inline(EXAMPLE_HOUSEHOLD_BUNDLE),
     },
     {
         id: 'elm-no-identifier',
