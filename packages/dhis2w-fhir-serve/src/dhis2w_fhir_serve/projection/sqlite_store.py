@@ -157,6 +157,7 @@ class SqliteProjectionStore:
                         resource_type=resource.resource_type,
                         resource_id=resource.resource_id,
                         updated_at=resource.cursor.updated_at,
+                        tracked_entity_type_uid=resource.tracked_entity_type_uid,
                         body=json.dumps(resource.body, ensure_ascii=False, sort_keys=True),
                     )
                 )
@@ -271,16 +272,41 @@ def _matching_ids(query: ProjectionQuery) -> Any:
     A query naming no identifier selects the whole resource type, which is the listing. A query
     naming identifiers selects whoever holds one of them - under one of the named systems where the
     token said which key it was, and under any system where it did not.
+
+    A query naming tracked entity types narrows either of those to the types it names, which is what
+    `_tag` asks of a resource served over several of them. It narrows through the resource table in
+    both cases, because the type is a fact about the resource rather than about one identifier of it.
     """
     if not query.identifiers:
-        return select(ProjectedResourceRow.resource_id).where(ProjectedResourceRow.resource_type == query.resource_type)
+        return _narrowed(
+            select(ProjectedResourceRow.resource_id).where(ProjectedResourceRow.resource_type == query.resource_type),
+            query,
+        )
     matched = select(ProjectedIdentifierRow.resource_id).where(
         ProjectedIdentifierRow.resource_type == query.resource_type,
         ProjectedIdentifierRow.value.in_(query.identifiers),
     )
     if query.identifier_systems:
         matched = matched.where(ProjectedIdentifierRow.system.in_(query.identifier_systems))
+    if query.tracked_entity_type_uids:
+        matched = matched.where(
+            ProjectedIdentifierRow.resource_id.in_(
+                _narrowed(
+                    select(ProjectedResourceRow.resource_id).where(
+                        ProjectedResourceRow.resource_type == query.resource_type
+                    ),
+                    query,
+                )
+            )
+        )
     return matched.distinct()
+
+
+def _narrowed(statement: Any, query: ProjectionQuery) -> Any:
+    """Narrow one selection over the resource table to the tracked entity types a query names."""
+    if not query.tracked_entity_type_uids:
+        return statement
+    return statement.where(ProjectedResourceRow.tracked_entity_type_uid.in_(query.tracked_entity_type_uids))
 
 
 def _identifiers_of(body: dict[str, Any]) -> list[tuple[str, str]]:
@@ -323,5 +349,6 @@ def _projected(row: ProjectedResourceRow, cursor: ProjectionCursor) -> Projected
         resource_type=row.resource_type,
         resource_id=row.resource_id,
         cursor=ProjectionCursor(updated_at=row.updated_at) if row.updated_at is not None else cursor,
+        tracked_entity_type_uid=row.tracked_entity_type_uid,
         body=body if isinstance(body, dict) else {},
     )

@@ -106,6 +106,13 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # The withdrawal story binds the same port and makes two committing writes
         # of its own: one creates an event in the instance, the other deletes it.
         "fhir/cli/withdraw.sh",
+        # Creates three tracked entity types, a tracked entity attribute, three
+        # registration programmes, and a tracked entity apiece on the instance,
+        # then removes all of it - including a `d2w maintenance cleanup
+        # tracked-entities` purge, which hard-removes every soft-deleted tracked
+        # entity on the instance and not only this script's. Writes plus a
+        # purge is not a batch pass.
+        "fhir/cli/registers_many_types.sh",
         # `d2w fhir doctor` runs the whole chain — scaffold, generate,
         # dockerized compile, serve, capture, forward — in one command.
         # Minutes per run, for the same compile reason as its siblings.

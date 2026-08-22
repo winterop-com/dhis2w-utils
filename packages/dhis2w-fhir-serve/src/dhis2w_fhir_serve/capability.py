@@ -127,9 +127,8 @@ GENERATE_DOCUMENTATION = (
 )
 
 
-def register_documentation(resource_type: str, tracked_entity_type_labels: tuple[str, ...]) -> str:
+def register_documentation(resource_type: str, over: str) -> str:
     """What one register entry says it answers, and over which of the instance's tracked entity types."""
-    over = ", ".join(tracked_entity_type_labels)
     return (
         f"One DHIS2 tracked entity per {resource_type}, read from the instance at request time, over the "
         f"tracked entity types this guide publishes as {resource_type}: {over}. Identity only - the tracked "
@@ -158,6 +157,20 @@ PROJECTION_DOCUMENTATION = (
     "is on the page and DHIS2 decides who you may see; a read of one entity by its id is answered "
     "from the instance and is as of now. A projection-served searchset states no total, because how "
     "many of its rows you may see is the instance's to say one read at a time."
+)
+
+#: What the `_tag` search parameter means on a register, and why it is the parameter for the job.
+#:
+#: A registered resource states its DHIS2 tracked entity type as a `meta.tag`, so R4's own token
+#: search over `meta.tag` is how a caller asks one resource about one of the types it is served over -
+#: no parameter this server invented, and no fact the resource does not already carry.
+TAG_SEARCH_DOCUMENTATION = (
+    "Which DHIS2 tracked entity type the entities are, for a resource served over several of them: "
+    "`_tag={system}|{uid}` naming the tracked entity type system this guide publishes, or `_tag={uid}` "
+    "naming the type UID alone. Several tags widen the search the way several identifiers do. It "
+    "narrows the listing and the identifier search alike, and rides the `next` and `previous` links "
+    "of a listing so a walk stays inside the type it started in. A tag naming a type this resource is "
+    "not served over matches nothing."
 )
 
 #: What the `_content` search parameter means here, and the one thing it deliberately does not claim.
@@ -449,6 +462,15 @@ def _register_resources(
                         "no system is searched across every one of them."
                     ),
                 ),
+                CapabilityStatementSearchParam(
+                    name="_tag",
+                    type="token",
+                    documentation=(
+                        f"{TAG_SEARCH_DOCUMENTATION} The system is "
+                        f"`{index.tracked_entity_type_system}`, and the types this resource is served "
+                        f"over are {_type_labels(register)}."
+                    ),
+                ),
                 *(
                     [
                         CapabilityStatementSearchParam(
@@ -466,15 +488,21 @@ def _register_resources(
     ]
 
 
+def _type_labels(register: ServedRegister) -> str:
+    """The tracked entity types one resource is served over, named the way the instance names them."""
+    return ", ".join(
+        published.uid if published.name is None else f"{published.name} ({published.uid})"
+        for published in register.tracked_entity_types
+    )
+
+
 def _register_documentation(
     settings: ServeSettings, register_surface: RegisterSurface, register: ServedRegister
 ) -> str:
     """What one register entry says this server answers: what a hit is, how it pages, where it came from."""
-    labels = tuple(
-        published.uid if published.name is None else f"{published.name} ({published.uid})"
-        for published in register.tracked_entity_types
+    stated = (
+        f"{register_documentation(register.resource_type, _type_labels(register))} {IDENTIFIER_UNION_DOCUMENTATION}"
     )
-    stated = f"{register_documentation(register.resource_type, labels)} {IDENTIFIER_UNION_DOCUMENTATION}"
     listing = LISTING_DOCUMENTATION if register_surface.serves_listing() else LISTING_OFF_DOCUMENTATION
     if settings.search.backend is not SearchBackend.PROJECTION:
         return f"{stated} {listing}"

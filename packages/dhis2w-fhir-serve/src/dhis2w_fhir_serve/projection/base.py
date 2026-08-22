@@ -106,6 +106,16 @@ class ProjectedResource(BaseModel):
     resource_id: str
     cursor: ProjectionCursor = Field(default_factory=ProjectionCursor)
 
+    tracked_entity_type_uid: str | None = None
+    """Which DHIS2 tracked entity type this resource is, where the entity it came from stated one.
+
+    One FHIR resource type is served over every tracked entity type the published map takes onto it,
+    so `resource_type` alone cannot answer "which of these are fridges" - two types both published as
+    `Device` are one register and two kinds of thing. The document already states it as a `meta.tag`
+    (`register.projection`); this is the same fact as a column, so a page narrowed to one type is one
+    indexed query rather than a page read and then thinned.
+    """
+
     body: dict[str, Any] = Field(default_factory=dict)
     """The FHIR document verbatim.
 
@@ -156,6 +166,14 @@ class ProjectionQuery(BaseModel):
     Two questions FHIR spells with one parameter. `identifier=<system>|<value>` says which key the
     value is, and `identifier=<value>` says the caller does not know - so a query naming systems is
     the first and a query naming none is the second, and neither is a filter the other can express.
+    """
+
+    tracked_entity_type_uids: tuple[str, ...] = ()
+    """Which tracked entity types the answer is narrowed to; empty asks about every type held.
+
+    This is what `_tag` on a register search becomes. Narrowing in the store rather than after it is
+    what keeps a narrowed page a full page: thinning a page of the whole resource down to one type
+    would hand back a short page with more of that type still behind it.
     """
 
     offset: int = 0

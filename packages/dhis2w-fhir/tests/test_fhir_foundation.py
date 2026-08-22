@@ -410,7 +410,7 @@ the whole point of the form."
 * extension contains
     D2OrganisationUnit named D2OrganisationUnit 1..1 and
     D2FormType named D2FormType 1..1
-* extension[D2OrganisationUnit] ^short = "The DHIS2 organisation unit the person is registered at, \
+* extension[D2OrganisationUnit] ^short = "The DHIS2 organisation unit the subject is registered at, \
 which becomes the organisation unit of the tracked entity."
 * extension[D2FormType] ^short = "The DHIS2 form kind this response answers."
 * extension[D2FormType].valueCode = #tracked-entity (exactly)

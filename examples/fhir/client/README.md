@@ -70,6 +70,7 @@ Posting a response at a running facade, and reading what comes back.
 | [`read_capture_refusal.py`](read_capture_refusal.py) | A refused capture: the 422, its issues, and the FHIRPath each one locates itself with |
 | [`find_person_by_identifier.py`](find_person_by_identifier.py) | Resolving a person to a DHIS2 UID through the register a live facade serves |
 | [`read_register_as_yourself.py`](read_register_as_yourself.py) | A facade under `auth = "dhis2"`: the register read under the caller's own DHIS2 authorization, and the 401 a read with no credential gets |
+| [`register_any_type.py`](register_any_type.py) | Every register a facade serves, walked off `/metadata` with no resource type written down - the type names behind each one, and the tag each resource carries |
 
 ## Summarise a record
 
