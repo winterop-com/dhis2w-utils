@@ -14,7 +14,7 @@ Usage:
 Env (all optional — fall back to seeded Sierra Leone UIDs):
     PROGRAM_UID       default IpHINAT79UW (Child Programme)
     EVENT_PROGRAM_UID default EVTsupVis01 (Supervision visit)
-    TET_NAME          default "Person (Play)"
+    TET_NAME          default "Person"
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ async def main() -> None:
     """Enumerate TETs, list entities + events against both program kinds."""
     program_uid = os.environ.get("PROGRAM_UID", "IpHINAT79UW")
     event_program_uid = os.environ.get("EVENT_PROGRAM_UID", "EVTsupVis01")
-    tet_name = os.environ.get("TET_NAME", "Person (Play)")
+    tet_name = os.environ.get("TET_NAME", "Person")
 
     server = build_server()
     async with Client(server) as client:

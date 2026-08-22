@@ -296,7 +296,7 @@ FORM_TRANSLATIONS: list[ObjectTranslations] = [
     ObjectTranslations(
         collection="trackedEntityAttributes",
         uid="w75KJ2mc4zz",
-        label="First name (Play)",
+        label="First name",
         translations=_translations(name={"lo": "ຊື່", "fr": "Prenom"}),
     ),
 ]

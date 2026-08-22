@@ -2884,7 +2884,7 @@
     "flat_items": [
       {
         "uid": "w75KJ2mc4zz",
-        "name": "First name (Play)",
+        "name": "First name",
         "code": "MMD_PER_NAM",
         "description": "First name",
         "translations": [
@@ -2911,7 +2911,7 @@
       },
       {
         "uid": "zDhUuAYrxNC",
-        "name": "Last name (Play)",
+        "name": "Last name",
         "description": "Last name",
         "translations": [],
         "value_type": "TEXT",
@@ -3238,7 +3238,7 @@
     "flat_items": [
       {
         "uid": "w75KJ2mc4zz",
-        "name": "First name (Play)",
+        "name": "First name",
         "code": "MMD_PER_NAM",
         "description": "First name",
         "translations": [
@@ -3265,7 +3265,7 @@
       },
       {
         "uid": "zDhUuAYrxNC",
-        "name": "Last name (Play)",
+        "name": "Last name",
         "description": "Last name",
         "translations": [],
         "value_type": "TEXT",
@@ -3280,7 +3280,7 @@
       },
       {
         "uid": "cejWyOfXge6",
-        "name": "Gender (Play)",
+        "name": "Gender",
         "description": "Gender",
         "translations": [],
         "value_type": "TEXT",
@@ -3296,7 +3296,7 @@
       },
       {
         "uid": "lZGmxYbs97q",
-        "name": "Unique ID (Play)",
+        "name": "Unique ID",
         "code": "MMD_PER_ID",
         "description": "Unique identiifer",
         "translations": [],
@@ -4829,7 +4829,7 @@
   },
   {
     "uid": "nEenWmSyUEp",
-    "name": "Person (Play)",
+    "name": "Person",
     "description": "Person",
     "translations": [],
     "kind": "tracked-entity",
@@ -4840,7 +4840,7 @@
     "flat_items": [
       {
         "uid": "w75KJ2mc4zz",
-        "name": "First name (Play)",
+        "name": "First name",
         "code": "MMD_PER_NAM",
         "description": "First name",
         "translations": [
@@ -4867,7 +4867,7 @@
       },
       {
         "uid": "zDhUuAYrxNC",
-        "name": "Last name (Play)",
+        "name": "Last name",
         "description": "Last name",
         "translations": [],
         "value_type": "TEXT",
@@ -4910,7 +4910,7 @@
       },
       {
         "uid": "lZGmxYbs97q",
-        "name": "Unique ID (Play)",
+        "name": "Unique ID",
         "code": "MMD_PER_ID",
         "description": "Unique identiifer",
         "translations": [],

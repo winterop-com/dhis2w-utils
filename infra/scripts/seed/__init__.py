@@ -13,9 +13,12 @@ Orchestration:
    keyed by DHIS2 resource name.
 2. `import_metadata_bundle(client, bundle)` — POST to `/api/metadata` in
    a single request. DHIS2's importer handles the dependency graph.
-3. `import_data_values(client)` — stream the gzipped aggregate data
+3. `resolve_tracked_entity_names(client, bundle)` — keep the tracked
+   entity type + attribute names DHIS2 users read, clearing any built-in
+   that holds one of them out of the way first.
+4. `import_data_values(client)` — stream the gzipped aggregate data
    values via `client.data_values.stream`.
-4. `import_tracker(client)` — POST the tracker payload.
+5. `import_tracker(client)` — POST the tracker payload.
 """
 
 from __future__ import annotations
@@ -25,8 +28,12 @@ from .event_program import build_event_program
 from .fhir_attributes import seed_fhir_attributes
 from .fhir_variations import seed_fhir_variations, seed_form_translations
 from .loader import (
+    ANC_PERSON_IDENTIFIER_BASE,
     FIXTURE_DIR,
+    PLAY_PERSON_IDENTIFIER_BASE,
     SIERRA_LEONE_ROOT_UID,
+    NameLadderResult,
+    SuffixedName,
     assign_admin_to_sierra_leone,
     attach_admin_to_datasets_and_programs,
     import_core_metadata,
@@ -37,6 +44,8 @@ from .loader import (
     import_post_viz_metadata,
     import_tracker,
     load_metadata,
+    person_identifier,
+    resolve_tracked_entity_names,
     seed_play,
 )
 from .maps import build_dashboard_maps
@@ -44,8 +53,12 @@ from .visualizations import build_dashboard_visualizations
 from .workspace_fixtures import build_workspace_fixtures
 
 __all__ = [
+    "ANC_PERSON_IDENTIFIER_BASE",
     "FIXTURE_DIR",
+    "PLAY_PERSON_IDENTIFIER_BASE",
     "SIERRA_LEONE_ROOT_UID",
+    "NameLadderResult",
+    "SuffixedName",
     "assign_admin_to_sierra_leone",
     "attach_admin_to_datasets_and_programs",
     "build_dashboard_maps",
@@ -60,6 +73,8 @@ __all__ = [
     "import_post_viz_metadata",
     "import_tracker",
     "load_metadata",
+    "person_identifier",
+    "resolve_tracked_entity_names",
     "seed_anc_program",
     "seed_fhir_attributes",
     "seed_fhir_variations",

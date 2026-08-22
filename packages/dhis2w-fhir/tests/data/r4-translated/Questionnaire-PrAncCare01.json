@@ -83,10 +83,10 @@
         {
           "code": "w75KJ2mc4zz",
           "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
-          "display": "First name (Play)"
+          "display": "First name"
         }
       ],
-      "text": "First name (Play)",
+      "text": "First name",
       "_text": {
         "extension": [
           {
@@ -135,10 +135,10 @@
         {
           "code": "zDhUuAYrxNC",
           "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
-          "display": "Last name (Play)"
+          "display": "Last name"
         }
       ],
-      "text": "Last name (Play)",
+      "text": "Last name",
       "type": "string",
       "extension": [
         {

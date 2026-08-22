@@ -187,7 +187,7 @@ include_ids = ["EVTsupVis01"]       # Supervision visit
 include_ids = ["IpHINAT79UW"]       # Child Programme - registration + one per stage
 
 [generate.tracked_entity_forms]
-include_ids = ["nEenWmSyUEp"]       # Person (Play) - register a person, no program
+include_ids = ["nEenWmSyUEp"]       # Person - register a person, no program
 
 [generate.option_sets]
 include_ids = ["OsVaccType1"]       # Vaccine type

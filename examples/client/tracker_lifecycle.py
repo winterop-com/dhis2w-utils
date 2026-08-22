@@ -21,7 +21,7 @@ Usage:
 Env (all optional — fall back to seeded Sierra Leone UIDs):
     PROGRAM_UID   tracker program UID (default IpHINAT79UW, Child Programme)
     ORG_UNIT_UID  OU UID in admin's capture scope (default ImspTQPwCqd)
-    TET_UID       TrackedEntityType UID (default nEenWmSyUEp, Person (Play))
+    TET_UID       TrackedEntityType UID (default nEenWmSyUEp, Person)
 """
 
 from __future__ import annotations

@@ -364,7 +364,7 @@ function namedPart(parts: ParametersParameter[], name: string): ParametersParame
  * How many of a resource's own codes a query matches - the deep half of the listing filter.
  *
  * The listing rows are systems, but the thing a user often remembers is a code inside one:
- * searching "first" should surface the CodeSystem holding the concept "First name (Play)"
+ * searching "first" should surface the CodeSystem holding the concept "First name"
  * rather than answer nothing because no system is *titled* first. CodeSystems count matching
  * concepts (code and display), ConceptMaps matching mapping rows (source and target codes and
  * displays), and enumerated ValueSet compositions their stated concepts; a ValueSet that only
