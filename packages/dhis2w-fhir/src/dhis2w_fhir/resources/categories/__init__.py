@@ -75,6 +75,7 @@ from dhis2w_fhir.resources.categories.schemas import (
     CategoryIdentityPlan,
     CategoryIn,
 )
+from dhis2w_fhir.resources.identifier_terminology import build_identifier_code_system_artifacts
 from dhis2w_fhir.resources.option_sets import (
     CONCEPT_MAP_DIRECTORY,
     build_concepts,
@@ -96,6 +97,7 @@ __all__ = [
     "build_category_artifacts",
     "build_category_concept_map_artifacts",
     "build_category_concept_maps",
+    "build_category_identifier_artifacts",
     "category_concept_map_file_prefix",
     "category_fsh_name",
     "category_identities",
@@ -300,6 +302,27 @@ def build_category_concept_map_artifacts(
         _json_artifact(CONCEPT_MAP_DIRECTORY, f"ConceptMap-{concept_map.id}", concept_map)
         for concept_map in build_category_concept_maps(categories, config, canonical, ig_status=ig_status)
     ]
+
+
+def build_category_identifier_artifacts(
+    categories: list[CategoryIn],
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    ig_status: IgStatus,
+) -> list[JsonArtifact]:
+    """Build one complete `categories/CodeSystem-<id>.json` per identifier namespace the maps target.
+
+    The category maps target `<base>/id/category-option` and `<base>/id/category-option-code`, which
+    the foundation declares as NamingSystems and nothing more. Enumerating them here is what keeps
+    the publisher from asking a terminology server about every mapped category option in turn.
+    """
+    return build_identifier_code_system_artifacts(
+        CATEGORY_DIRECTORY,
+        build_category_concept_maps(categories, config, canonical, ig_status=ig_status),
+        config,
+        ig_status=ig_status,
+    )
 
 
 def category_concept_map_file_prefix(config: GenerateConfig) -> str:

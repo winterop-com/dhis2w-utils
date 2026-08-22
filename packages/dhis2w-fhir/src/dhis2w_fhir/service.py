@@ -78,11 +78,13 @@ from dhis2w_fhir.resources.attribute_combos import (
     attribute_combo_concept_map_file_prefix,
     build_attribute_combo_artifacts,
     build_attribute_combo_concept_map_artifacts,
+    build_attribute_combo_identifier_artifacts,
 )
 from dhis2w_fhir.resources.categories import (
     CATEGORY_DIRECTORY,
     build_category_artifacts,
     build_category_concept_map_artifacts,
+    build_category_identifier_artifacts,
     category_concept_map_file_prefix,
 )
 from dhis2w_fhir.resources.categories.decomposition import build_category_decomposition
@@ -106,6 +108,7 @@ from dhis2w_fhir.resources.option_sets import (
     TERMINOLOGY_DIRECTORY,
     build_option_set_artifacts,
     build_option_set_concept_map_artifacts,
+    build_option_set_identifier_artifacts,
     option_set_concept_map_file_prefix,
     option_set_identities,
 )
@@ -1219,7 +1222,15 @@ def _emit_option_sets(
         project.config.ig.canonical,
         ig_status=project.config.ig.status,
     )
-    sync = sync_json_artifacts(project.resources_directory, TERMINOLOGY_DIRECTORY, build.artifacts)
+    identifier_systems = build_option_set_identifier_artifacts(
+        option_sets,
+        project.config.generate,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+    )
+    sync = sync_json_artifacts(
+        project.resources_directory, TERMINOLOGY_DIRECTORY, [*build.artifacts, *identifier_systems]
+    )
     concept_map_sync = sync_json_artifacts(
         project.resources_directory,
         CONCEPT_MAP_DIRECTORY,
@@ -1301,7 +1312,13 @@ def _emit_categories(
         project.config.ig.canonical,
         ig_status=project.config.ig.status,
     )
-    sync = sync_json_artifacts(project.resources_directory, CATEGORY_DIRECTORY, build.artifacts)
+    identifier_systems = build_category_identifier_artifacts(
+        categories,
+        project.config.generate,
+        project.config.ig.canonical,
+        ig_status=project.config.ig.status,
+    )
+    sync = sync_json_artifacts(project.resources_directory, CATEGORY_DIRECTORY, [*build.artifacts, *identifier_systems])
     concept_map_sync = sync_json_artifacts(
         project.resources_directory,
         CONCEPT_MAP_DIRECTORY,
@@ -1530,7 +1547,14 @@ def _emit_questionnaires(
     ]
     json_syncs = [
         sync_json_artifacts(project.resources_directory, ASSIGNMENT_DIRECTORY, assignment_build.artifacts),
-        sync_json_artifacts(project.resources_directory, ATTRIBUTE_COMBO_DIRECTORY, attribute_combo_build.artifacts),
+        sync_json_artifacts(
+            project.resources_directory,
+            ATTRIBUTE_COMBO_DIRECTORY,
+            [
+                *attribute_combo_build.artifacts,
+                *build_attribute_combo_identifier_artifacts(sources, generate, canonical, ig_status=ig_status),
+            ],
+        ),
         sync_json_artifacts(
             project.resources_directory,
             CONCEPT_MAP_DIRECTORY,

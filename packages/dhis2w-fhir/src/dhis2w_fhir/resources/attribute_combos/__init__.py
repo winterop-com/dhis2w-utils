@@ -62,6 +62,7 @@ from dhis2w_fhir.resources.attribute_combos.schemas import (
     AttributeComboIn,
     AttributeComboPlan,
 )
+from dhis2w_fhir.resources.identifier_terminology import build_identifier_code_system_artifacts
 from dhis2w_fhir.resources.option_sets import (
     CONCEPT_MAP_DIRECTORY,
     build_concepts,
@@ -91,6 +92,7 @@ __all__ = [
     "build_attribute_combo_artifacts",
     "build_attribute_combo_concept_map_artifacts",
     "build_attribute_combo_concept_maps",
+    "build_attribute_combo_identifier_artifacts",
     "max_attribute_combo_slug_length",
 ]
 
@@ -336,6 +338,27 @@ def build_attribute_combo_concept_map_artifacts(
         _json_artifact(CONCEPT_MAP_DIRECTORY, f"ConceptMap-{concept_map.id}", concept_map)
         for concept_map in build_attribute_combo_concept_maps(sources, config, canonical, ig_status=ig_status)
     ]
+
+
+def build_attribute_combo_identifier_artifacts(
+    sources: list[QuestionnaireSourceIn],
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    ig_status: IgStatus,
+) -> list[JsonArtifact]:
+    """Build one complete `attribute-option-combos/CodeSystem-<id>.json` per identifier namespace the maps target.
+
+    The combo maps target `<base>/id/category-option-combo` and its code twin, which the foundation
+    declares as NamingSystems and nothing more. Enumerating them here is what keeps the publisher
+    from asking a terminology server about every mapped option combo in turn.
+    """
+    return build_identifier_code_system_artifacts(
+        ATTRIBUTE_COMBO_DIRECTORY,
+        build_attribute_combo_concept_maps(sources, config, canonical, ig_status=ig_status),
+        config,
+        ig_status=ig_status,
+    )
 
 
 def attribute_combo_concept_map_file_prefix(config: GenerateConfig) -> str:

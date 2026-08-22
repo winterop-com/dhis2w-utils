@@ -16,17 +16,30 @@ publisher:
 {% endif %}
 
 # The publisher writes every resource as JSON, XML and Turtle, plus a rendered page per
-# format, plus a spreadsheet per conformance resource. A DHIS2-derived IG publishes
-# thousands of instances, so the extra formats cost far more build time than they earn -
-# on a national registry the spreadsheet pass alone is most of the build - and JSON is
-# what consumers and the tooling read.
+# format. A DHIS2-derived IG publishes thousands of instances, so the two extra formats
+# cost more build time than they earn, and JSON is what consumers and the tooling read.
+# The spreadsheet pass has no switch: `excludexls` is not a parameter the publisher knows,
+# and the pass it looks like it would skip takes about two seconds on a national guide.
 # SUSHI recurses into sub-folders of input/resources, the IG Publisher does not. The
 # pre-built JSON d2w writes lands two levels down, so each sub-folder is declared as a
 # path-resource glob to put those resources in the ImplementationGuide.
 parameters:
   excludexml: "true"
   excludettl: "true"
-  excludexls: "true"
+# The DHIS2 identifier namespaces the generated ConceptMaps target. Each is published twice: as a
+# NamingSystem saying the URL identifies DHIS2 objects, and as a CodeSystem listing the identifiers
+# this guide's maps actually name, so the publisher validates a mapped identifier out of the guide
+# instead of asking a terminology server about every row. A canonical resource whose URL is not
+# under the IG's own canonical has to be declared here or the publisher calls it a mismatch, and the
+# parameter takes no patterns - one line per namespace, spelled out. These follow
+# `[generate] identifier_system_base`; change that in fhir.toml and these six change with it.
+  special-url:
+    - {{ identifier_system_base }}/id/option
+    - {{ identifier_system_base }}/id/option-code
+    - {{ identifier_system_base }}/id/category-option
+    - {{ identifier_system_base }}/id/category-option-code
+    - {{ identifier_system_base }}/id/category-option-combo
+    - {{ identifier_system_base }}/id/category-option-combo-code
   path-resource:
     - input/resources/registry/*
     - input/resources/terminology/*

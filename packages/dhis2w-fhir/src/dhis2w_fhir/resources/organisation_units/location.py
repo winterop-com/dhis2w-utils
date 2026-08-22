@@ -110,7 +110,16 @@ def _level_extension(organisation_unit: OrganisationUnitIn, urls: OrganisationUn
 
 
 def _boundary_extensions(organisation_unit: OrganisationUnitIn) -> list[Extension]:
-    """The `location-boundary-geojson` extension carrying the unit's GeoJSON Feature, empty without geometry."""
+    """The `location-boundary-geojson` extension carrying the unit's GeoJSON Feature, empty without geometry.
+
+    The attachment states its `contentType` because R4 invariant `att-1` requires one wherever
+    `Attachment.data` is present - the element is optional on its own, but not beside data. The
+    field binds to the IETF BCP 13 media types, which the IG publisher can only check against a
+    terminology server: an offline build (`-tx n/a`) reports one unvalidatable-code error per unit
+    carrying geometry and completes anyway. Dropping the field trades those for one `att-1`
+    violation per unit, on every build rather than only the offline ones - which is why the field
+    stays. `docs/fhir/201-troubleshooting.md` carries the measurement.
+    """
     if organisation_unit.boundary_geojson is None:
         return []
     payload = organisation_unit.boundary_geojson.encode("utf-8")

@@ -72,6 +72,7 @@ from dhis2w_fhir.r4 import (
     ValueSetCompose,
     ValueSetInclude,
 )
+from dhis2w_fhir.resources.identifier_terminology import build_identifier_code_system_artifacts
 from dhis2w_fhir.resources.option_sets.schemas import (
     ConceptAssignment,
     ConceptAssignmentPlan,
@@ -97,6 +98,7 @@ __all__ = [
     "build_option_set_artifacts",
     "build_option_set_concept_map_artifacts",
     "build_option_set_concept_maps",
+    "build_option_set_identifier_artifacts",
     "code_system_canonical",
     "concept_assignments",
     "concept_map_canonical",
@@ -368,6 +370,29 @@ def build_option_set_concept_map_artifacts(
         _json_artifact(CONCEPT_MAP_DIRECTORY, f"ConceptMap-{concept_map.id}", concept_map)
         for concept_map in build_option_set_concept_maps(option_sets, config, canonical, ig_status=ig_status)
     ]
+
+
+def build_option_set_identifier_artifacts(
+    option_sets: list[OptionSetIn],
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    ig_status: IgStatus,
+) -> list[JsonArtifact]:
+    """Build one complete `terminology/CodeSystem-<id>.json` per identifier namespace the maps target.
+
+    The option-set maps target `<base>/id/option` and `<base>/id/option-code`, both of which the
+    foundation declares as a NamingSystem and nothing else. A NamingSystem answers no
+    `$validate-code`, so without these the publisher asks a terminology server about every mapped
+    identifier one request at a time. They belong to this family because its maps are what name
+    them, and they land in the directory this family owns outright.
+    """
+    return build_identifier_code_system_artifacts(
+        TERMINOLOGY_DIRECTORY,
+        build_option_set_concept_maps(option_sets, config, canonical, ig_status=ig_status),
+        config,
+        ig_status=ig_status,
+    )
 
 
 def option_set_concept_map_file_prefix(config: GenerateConfig) -> str:
