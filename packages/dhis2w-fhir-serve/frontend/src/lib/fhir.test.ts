@@ -504,7 +504,7 @@ describe('the form-kind vocabulary', () => {
     it('names each kind, and never leaves one to render as its code', () => {
         expect(FORM_TYPE_LABELS.tracker).toBe('Tracker registration')
         expect(FORM_TYPE_LABELS['tracker-event']).toBe('Tracker program stage')
-        expect(FORM_TYPE_LABELS['tracked-entity']).toBe('Person registration')
+        expect(FORM_TYPE_LABELS['tracked-entity']).toBe('Registration')
         for (const kind of FORM_TYPES) expect(FORM_TYPE_LABELS[kind], kind).not.toBe('')
     })
 

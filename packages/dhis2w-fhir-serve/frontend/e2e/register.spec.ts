@@ -554,7 +554,7 @@ test.describe('a person-only registration form', () => {
         await page.getByTestId('forms-people').getByRole('row').filter({ hasText: 'Person' }).first().click()
         await expect(page).toHaveURL(new RegExp(`#/forms/${PERSON_FORM}$`))
 
-        await expect(page.getByText('Person registration')).toBeVisible()
+        await expect(page.getByText('Registration', { exact: true })).toBeVisible()
         // Nothing about an enrollment, because this form enrols nobody: no "Answering for" picker,
         // and none of the read-only enrollment facts a tracker registration states.
         await expect(page.getByLabel('Answering for')).toHaveCount(0)
@@ -568,7 +568,12 @@ test.describe('a person-only registration form', () => {
         await expect(page.getByText('The server accepted this submission')).toBeVisible()
         await expect(page).toHaveURL(/#\/responses$/)
 
-        const listed = page.getByRole('row').filter({ hasText: 'Person registration' }).first()
+        // Exact text, not a substring: the kind badge reads "Registration", and a substring match
+        // would take the "Tracker registration" row this file captures a few tests earlier.
+        const listed = page
+            .getByRole('row')
+            .filter({ has: page.getByText('Registration', { exact: true }) })
+            .first()
         await expect(listed).toBeVisible()
         await listed.click()
 
