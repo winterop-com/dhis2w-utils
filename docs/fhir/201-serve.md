@@ -251,6 +251,38 @@ this server authenticates everybody, somebody, or nobody - so a client reads
 what it must present rather than discovering it from a refusal, and the `none`
 posture says in words that it serves every caller.
 
+### Checking a credential without spending one
+
+Wherever a posture is configured, `GET /whoami` names whoever is calling:
+
+```console
+$ curl -su clerk:the-right-password http://127.0.0.1:8080/whoami
+{"posture":"dhis2","username":"clerk","name":"clerk"}
+```
+
+It carries the authentication check under **both** scopes, so it gives a verdict
+on a credential without doing anything with it - which under `write`, where every
+read is open, is otherwise only discoverable by making a submission. Wrong
+credentials answer 401 with the same OperationOutcome every other refusal on this
+facade carries. `username` is the DHIS2 username under `dhis2`, the claim
+`[serve.jwt] username_claim` names under `jwt` - the same value a receipt is
+stamped with - and null under `token`, which names a deployment rather than a
+person. Under `auth = "none"` the path is absent and answers 404: a server that
+checks nobody has nobody to name. It is what the capture UI's sign-in panel asks
+before it holds on to anything.
+
+### The DHIS2 posture's 401 names `xBasic`
+
+The refusal a `dhis2`-posture facade gives carries
+`WWW-Authenticate: xBasic realm="d2w fhir serve", charset="UTF-8"`, not `Basic`.
+A browser that meets `Basic` on a request a page made opens its own credential
+dialog and never hands the response back, so a capture screen's Submit sits
+pending forever instead of rendering the refusal the server sent it. The scheme
+callers **send** is untouched - HTTP Basic, or `Authorization: ApiToken <token>`
+- and a command-line client reads the status and the OperationOutcome exactly as
+it always did. The header says the same thing to every caller rather than
+changing shape depending on which ones look like browsers.
+
 ### An absent key binds loopback and nothing else
 
 A project that has never written `auth` is served on loopback and refused

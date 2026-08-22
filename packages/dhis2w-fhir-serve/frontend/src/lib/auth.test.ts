@@ -25,6 +25,8 @@ import {
     subscribeToAuth,
     SIGN_IN_HEADINGS,
     SIGN_IN_NOTES,
+    SIGN_IN_REFUSALS,
+    SIGN_IN_UNREACHABLE,
     UNNAMED_ISSUER_HEADING,
     type AuthState,
 } from '@/lib/auth'
@@ -141,12 +143,47 @@ describe('the credential this tab holds', () => {
         expect(authSnapshot().identity).toBeNull()
     })
 
-    it('is gone once signed out', () => {
-        signIn(bearerAuthorization('a-token'), null)
+    it('is gone once signed out, storage and snapshot alike', () => {
+        signIn(basicAuthorization('clerk', 'secret'), 'clerk')
         signOut()
 
+        expect(sessionStorage.getItem(CREDENTIAL_STORAGE_KEY)).toBeNull()
+        expect(sessionStorage.getItem(IDENTITY_STORAGE_KEY)).toBeNull()
         expect(storedAuthorization()).toBeNull()
+        expect(storedIdentity()).toBeNull()
         expect(authSnapshot().authorization).toBeNull()
+        expect(authSnapshot().identity).toBeNull()
+    })
+
+    it('asks who this is again the moment it is signed out, which is what the control is for', () => {
+        setAuthPosture('dhis2')
+        signIn(basicAuthorization('clerk', 'secret'), 'clerk')
+        expect(signInIsRequired(authSnapshot())).toBe(false)
+
+        signOut()
+
+        expect(signInIsRequired(authSnapshot())).toBe(true)
+    })
+
+    it('tells every listener it was signed out, so the shell that drew the header redraws it', () => {
+        setAuthPosture('dhis2')
+        signIn(basicAuthorization('clerk', 'secret'), 'clerk')
+        const seen: (string | null)[] = []
+        const stop = subscribeToAuth(() => seen.push(authSnapshot().identity))
+
+        signOut()
+        stop()
+
+        expect(seen).toEqual([null])
+    })
+
+    it('publishes a new snapshot object, which is what a subscribed component compares on', () => {
+        signIn(basicAuthorization('clerk', 'secret'), 'clerk')
+        const before = authSnapshot()
+
+        signOut()
+
+        expect(authSnapshot()).not.toBe(before)
     })
 
     it('is dropped when the server refuses it, rather than signed with again', () => {
@@ -213,6 +250,20 @@ describe('what the prompt says', () => {
         expect(SIGN_IN_NOTES.jwt).toContain('identity provider')
         expect(SIGN_IN_NOTES.jwt).toContain('this browser tab only')
         expect(SIGN_IN_NOTES.jwt).toContain('records your username')
+    })
+
+    it('names DHIS2 as the thing that refused a username and password, since it is', () => {
+        expect(SIGN_IN_REFUSALS.dhis2).toBe('DHIS2 did not accept this username and password.')
+    })
+
+    it('names this server as the thing that refused a token, since it is', () => {
+        expect(SIGN_IN_REFUSALS.token).toBe('This server did not accept this token.')
+        expect(SIGN_IN_REFUSALS.jwt).toBe('This server did not accept this token.')
+    })
+
+    it('says an unreachable server checked nothing, which is not the same as refusing', () => {
+        expect(SIGN_IN_UNREACHABLE).toContain('could not be reached')
+        expect(SIGN_IN_UNREACHABLE).not.toContain('accept')
     })
 })
 

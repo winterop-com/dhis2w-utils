@@ -26,6 +26,13 @@ header and NEVER the runtime's client. The facade's own credentials are not a fa
 second attempt: a caller who cannot read `/api/me` cannot use this facade. The username DHIS2 answers
 with becomes the request identity, and the capture route stamps it onto the receipt.
 
+ITS REFUSAL NAMES `xBasic`, AND THAT IS NOT A TYPO. A browser meeting `WWW-Authenticate: Basic` on
+a request a page made opens its own credential dialog and never hands the response back, so a
+capture screen's Submit would sit pending forever instead of rendering the refusal it was written
+to render. `BROWSER_SAFE_BASIC_SCHEME` is what the challenge says instead; the scheme callers SEND
+is untouched, and every non-browser client reads the status and the OperationOutcome as it always
+did.
+
 THE VALIDATION IS CACHED, BRIEFLY, BY A HASH OF THE HEADER. Without a cache every request to a gated
 route would cost a round trip to DHIS2, which would make the facade slower than the instance it
 fronts. The key is `sha256` of the header value rather than the header itself, so the process holds
@@ -83,6 +90,17 @@ if TYPE_CHECKING:
 AUTHORIZATION_HEADER = "authorization"
 BASIC_SCHEME = "Basic"
 DHIS2_PERSONAL_ACCESS_TOKEN_SCHEME = "ApiToken"
+
+#: What the DHIS2 posture's 401 names itself as, which is deliberately not the scheme it takes.
+#:
+#: A browser meeting `WWW-Authenticate: Basic` on a `fetch` does not hand the response to the page:
+#: it opens its own credential dialog over the application and leaves the request pending, so the
+#: refusal a capture screen was written to render never arrives and the submission appears to hang
+#: forever. The one-character prefix is the long-standing convention for saying "HTTP Basic, and
+#: keep your dialog to yourself" - RFC 9110 leaves an unregistered scheme name to the client to
+#: ignore, which is exactly the behaviour a page wants. The request scheme is untouched: callers
+#: still send `Authorization: Basic <base64>`, and `_expected` still says so.
+BROWSER_SAFE_BASIC_SCHEME = "xBasic"
 
 #: The scheme the token posture takes, and the environment variable its values come from.
 BEARER_SCHEME = "Bearer"
@@ -247,9 +265,15 @@ def challenge_for(posture: ServeAuth, issuer: str | None = None) -> str:
     the authorization server a bearer token should come from, so it rides in `error_description`,
     which is the one place a client is allowed to read prose from - and it is the fact a caller
     holding no token most needs.
+
+    THE DHIS2 POSTURE NAMES `xBasic` RATHER THAN `Basic`, for every caller alike - see
+    `BROWSER_SAFE_BASIC_SCHEME`. It is stated once here rather than decided per request off `Accept`
+    or off a user agent, because a refusal whose shape depends on who is reading it is a refusal
+    nobody can reason about, and the header's audience is a browser either way: a command-line client
+    reads the status and the OperationOutcome, both of which are unchanged.
     """
     if posture is ServeAuth.DHIS2:
-        return f'{BASIC_SCHEME} realm="{AUTHENTICATION_REALM}", charset="UTF-8"'
+        return f'{BROWSER_SAFE_BASIC_SCHEME} realm="{AUTHENTICATION_REALM}", charset="UTF-8"'
     if posture is ServeAuth.JWT and issuer is not None:
         return f'{BEARER_SCHEME} realm="{AUTHENTICATION_REALM}", error_description="a token from {issuer}"'
     return f'{BEARER_SCHEME} realm="{AUTHENTICATION_REALM}"'

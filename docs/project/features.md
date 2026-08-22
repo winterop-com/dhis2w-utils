@@ -1387,6 +1387,21 @@ bound to loopback by default that loads the project once at startup.
   Hooks call are POSTs that write nothing. `all` guards every router but
   `/metadata`, which stays open in every posture so a client can read the posture
   it has to meet; the capture UI's own files stay open too.
+- **`GET /whoami` names the caller, and carries the check under every scope.**
+  Mounted only where a posture is configured - under `auth = "none"` the path is
+  absent and answers 404, because a server that checks nobody has nobody to name.
+  It answers `{posture, username, name}`: the DHIS2 username under `dhis2`, the
+  `[serve.jwt] username_claim` claim under `jwt`, and no username at all under
+  `token`, which names a deployment rather than a person. Wrong credentials meet
+  the same 401 and the same OperationOutcome every other refusal carries. It is
+  what gives a verdict on a credential without spending one, which under the
+  default `write` scope is otherwise only discoverable by making a submission.
+- **The `dhis2` posture's 401 challenges with `xBasic`, not `Basic`.** A browser
+  meeting `WWW-Authenticate: Basic` on a request a page made opens its own
+  credential dialog and leaves the request pending, so the capture UI would hang
+  on Submit instead of rendering the refusal. The scheme callers **send** is
+  unchanged, and the header reads the same for every caller rather than shifting
+  by `Accept` or user agent.
 - **`dhis2` forwards the caller's credentials on every register read.** The
   tracked entity read, the identifier search, the register listing and its
   counts, the enrollment listing, and `/evaluate`'s registered context are sent
@@ -1908,12 +1923,27 @@ shipped inside the wheel.
   DHIS2 username and password, in place of the page rather than over it - so the
   app never sends a request this server would answer 401 to, and a browser never
   gets the chance to open a credential dialog of its own over ours.
+- **Submitting the panel asks `GET /whoami` with what was typed, and stores
+  nothing until the server names the caller.** A wrong password is refused at the
+  prompt - "DHIS2 did not accept this username and password." under the DHIS2
+  posture, "This server did not accept this token." under the other two - with
+  the fields still there to try again with. A server that could not be reached
+  says so in its own sentence, because credentials that were never checked are
+  not credentials that were rejected. Without the check the default `write` scope
+  leaves every read open, so the first thing that would refuse a wrong password
+  is a submission somebody spent minutes filling in.
+- **The name that is kept is the server's, never what was typed.** `/whoami`
+  answers the DHIS2 instance's own spelling of the username under `dhis2` and the
+  claim the server read out of the token under `jwt`; the token posture names
+  nobody, and the header names nobody for it.
 - **The credential is the whole `Authorization` value, in `sessionStorage`**, per
   tab: closing the tab ends the session and a second tab signs in on its own. The
   one function in the app that reaches the network attaches it and records any
-  401 that comes back, so a refusal anywhere - a read, a listing, a submission -
-  drops the credential and asks again, naming that the credentials were not
-  accepted. The header names whoever is signed in and offers Sign out.
+  401 that comes back, so a credential that goes stale after signing in - a
+  password changed, an account disabled - is refused at the next read, listing, or
+  submission, dropped rather than signed with again, and the prompt returns with
+  the same sentence. The header names whoever is signed in and offers **Sign
+  out**, which forgets the credential and the name and asks again.
 - **The Server page states the posture and its scope**, off `/uiconfig`'s `auth`,
   beside the `rest.security` description the conformance document carries.
 

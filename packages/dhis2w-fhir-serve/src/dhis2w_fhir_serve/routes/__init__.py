@@ -2,11 +2,17 @@
 
 `/{resource_type}` and `/{resource_type}/{resource_id}` match any path of their shape, so the
 read router mounts last and every router carrying a fixed path mounts ahead of it. `/metadata`,
-`/spool`, `/uiconfig`, `/evaluate`, and `/cds-services` are one-segment fixed paths and all sit in
-that group, as do the deeper fixed paths under them - the `/tracked-entities/{uid}/enrollments`
-listing, `/terminology/validate-code` and `/terminology/lookup`, and one service's
-`/cds-services/{id}`. FHIR resource types are PascalCase, so a lowercase segment can never be one
-the read router should have claimed, whichever depth it sits at.
+`/spool`, `/uiconfig`, `/whoami`, `/evaluate`, and `/cds-services` are one-segment fixed paths and
+all sit in that group, as do the deeper fixed paths under them - the
+`/tracked-entities/{uid}/enrollments` listing, `/terminology/validate-code` and
+`/terminology/lookup`, and one service's `/cds-services/{id}`. FHIR resource types are PascalCase,
+so a lowercase segment can never be one the read router should have claimed, whichever depth it
+sits at.
+
+`/whoami` is the one path a posture adds rather than a scope guards. Every other route is mounted by
+every run and the posture only decides which of them carry the check; that one answers who the
+caller is, so under `auth = "none"` there is nobody to answer about and the route is absent.
+`dhis2w_fhir_serve.routes.whoami` argues it.
 
 The register's resource types are the exception that needs no mount of its own. They are FHIR
 resource types answered from the DHIS2 instance rather than from the store, but which types they are
@@ -43,7 +49,8 @@ answers with a draft, `/evaluate` runs an expression over what is served, a CDS 
 cards, and `POST /` is a refusal on every posture. `all` guards everything except `/metadata`, which
 stays open because a client has to be able to read the posture it is expected to meet - a server
 that refuses to say how to authenticate to it is one nobody can authenticate to. The UI mounts stay
-open under both, for the same reason: a sign-in prompt has to be servable.
+open under both, for the same reason: a sign-in prompt has to be servable. `/whoami` is guarded under
+both scopes, because a credential check that answered without checking would be no check at all.
 
 All of that is stated as data by `serve_routers`, so an application mounting the facade beside its
 own routes gets the order, the split, the capture choice, and the guarded set as values rather than
@@ -146,10 +153,23 @@ def serve_routers(
     from dhis2w_fhir_serve.routes.terminology import router as terminology_router
     from dhis2w_fhir_serve.routes.translate import router as translate_router
     from dhis2w_fhir_serve.routes.uiconfig import router as ui_config_router
+    from dhis2w_fhir_serve.routes.whoami import router as whoami_router
 
     submissions = capture_router if capture else capture_refusal_router
     fhir = (metadata_router, submissions, build_root_router(serve_ui), translate_router, generate_router)
-    facade = (spool_router, ui_config_router, enrollments_router, evaluate_router, terminology_router, cds_router)
+    # `/whoami` exists only where a posture does: a server that checks nobody has nobody to name, and
+    # it leads the group because it is the one router that answers about the caller rather than about
+    # what is served. See `dhis2w_fhir_serve.routes.whoami`.
+    naming = (whoami_router,) if auth is not ServeAuth.NONE else ()
+    facade = (
+        *naming,
+        spool_router,
+        ui_config_router,
+        enrollments_router,
+        evaluate_router,
+        terminology_router,
+        cds_router,
+    )
     return ServeRouters(
         fhir=fhir,
         facade=facade,
@@ -160,6 +180,7 @@ def serve_routers(
             capture=capture,
             submissions=submissions,
             conformance=metadata_router,
+            naming=naming,
             fhir=fhir,
             facade=facade,
             read=read_router,
@@ -174,16 +195,22 @@ def _guarded_routers(
     capture: bool,
     submissions: APIRouter,
     conformance: APIRouter,
+    naming: tuple[APIRouter, ...],
     fhir: tuple[APIRouter, ...],
     facade: tuple[APIRouter, ...],
     read: APIRouter,
 ) -> tuple[APIRouter, ...]:
-    """Which routers the authentication check belongs on, for one posture and one scope."""
+    """Which routers the authentication check belongs on, for one posture and one scope.
+
+    `naming` is in the set under both scopes, which is the one thing `/whoami` needs to be worth
+    asking: a route that answered "nobody" where `write` leaves the reads open would turn a wrong
+    password into a shrug, and the address exists to give a verdict on a credential.
+    """
     if auth is ServeAuth.NONE:
         return ()
     if auth_scope is ServeAuthScope.ALL:
         return (*(router for router in fhir if router is not conformance), *facade, read)
-    return (submissions,) if capture else ()
+    return (*naming, submissions) if capture else naming
 
 
 def register_routes(

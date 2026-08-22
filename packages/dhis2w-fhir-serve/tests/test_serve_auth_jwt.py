@@ -61,6 +61,7 @@ from dhis2w_fhir_serve.passthrough import (
     open_pass_through_client,
     register_reader,
 )
+from dhis2w_fhir_serve.routes.whoami import WHOAMI_PATH
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool, StoredResponseEnvelope
 from fastapi import FastAPI
@@ -593,6 +594,34 @@ async def test_the_verifier_is_on_the_application_by_the_time_a_request_arrives(
     assert isinstance(held, JwtVerifier)
     assert held.jwks_uri == JWKS_URL
     assert held.held is not None
+
+
+@pytest.mark.parametrize("scope", [ServeAuthScope.WRITE, ServeAuthScope.ALL])
+async def test_whoami_names_the_claim_this_server_read_out_of_the_token(
+    serving_project: FhirProject, published_issuer: respx.MockRouter, issuer: IssuerFixture, scope: ServeAuthScope
+) -> None:
+    """The same value a receipt is stamped with, answered on its own so a client can check a token."""
+    app = create_app(_jwt_settings(serving_project, auth_scope=scope))
+
+    async with _client(app) as http:
+        named = await http.get(WHOAMI_PATH, headers={"Authorization": f"Bearer {issuer.sign()}"})
+
+    assert named.status_code == 200
+    assert named.json() == {"posture": "jwt", "username": CALLER, "name": CALLER}
+
+
+async def test_whoami_refuses_a_token_this_issuer_did_not_sign(
+    serving_project: FhirProject, published_issuer: respx.MockRouter, issuer: IssuerFixture
+) -> None:
+    """A forged token is refused here exactly as it is anywhere else, and told whose token to bring."""
+    app = create_app(_jwt_settings(serving_project))
+
+    async with _client(app) as http:
+        refused = await http.get(WHOAMI_PATH, headers={"Authorization": f"Bearer {issuer.sign(key=issuer.imposter)}"})
+
+    assert refused.status_code == 401
+    assert refused.json()["issue"][0]["code"] == "login"
+    assert ISSUER in refused.headers["www-authenticate"]
 
 
 def test_an_identity_under_this_posture_names_the_person_the_claim_named() -> None:

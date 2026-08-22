@@ -27,7 +27,7 @@
  * the guard. Everything else on this surface is answered from a store loaded
  * once at startup.
  *
- * THREE PATHS HERE ARE NOT FHIR. `/spool` answers plain JSON, not
+ * FIVE PATHS HERE ARE NOT FHIR. `/spool` answers plain JSON, not
  * `application/fhir+json`: it serves the receipt *envelopes* - when the facade
  * accepted each submission, which of its three lifecycle directories the file
  * now sits in, and what DHIS2 said when it refused one - and none of those are
@@ -43,7 +43,13 @@
  * through this guard, because the reason for the guard is the SPA fallback, and
  * that applies to every path alike.
  *
- * `/evaluate` is the fourth, and the same shape for a fourth reason: it answers
+ * `/whoami` is the fourth, and the one path here that is about the caller rather
+ * than about anything served: it answers who this server just decided the caller
+ * is, and it is what the sign-in panel asks before it holds on to a credential.
+ * A server in the `none` posture serves no such path at all, which is why nothing
+ * outside the panel reaches for it.
+ *
+ * `/evaluate` is the fifth, and the same shape for a fifth reason: it answers
  * what a parser said about the character it stopped on, and FHIR has nowhere to
  * put a line and a column. `/terminology/*` and `/cds-services` are guarded
  * beside it because this server claims them ahead of the static mount, whether
@@ -69,7 +75,7 @@ import {
     type QuestionnaireResponse,
 } from '@/lib/fhir'
 import { PATIENT_COUNT_PARAMETER, PATIENT_PAGE_PARAMETER, type PatientEnrollments } from '@/lib/patients'
-import { reportUnauthenticated, storedAuthorization } from '@/lib/auth'
+import { reportUnauthenticated, storedAuthorization, type AuthenticatedCaller } from '@/lib/auth'
 import type { SpoolListing } from '@/lib/spool'
 import type { UiConfig } from '@/lib/uiconfig'
 
@@ -97,11 +103,22 @@ export const GUARDED_PATH_SEGMENTS = [
     'metadata',
     'spool',
     'uiconfig',
+    'whoami',
     'tracked-entities',
     'evaluate',
     'terminology',
     'cds-services',
 ] as const
+
+/**
+ * Where the server names whoever is calling, which is how a credential is checked before it is kept.
+ *
+ * A fixed path rather than something discovered off `/metadata` or `/uiconfig`: this bundle is
+ * served same-origin by the very process that answers it, so the two are one deployment and there is
+ * nothing for a discovery step to resolve. The Python side spells the same string in
+ * `dhis2w_fhir_serve.routes.whoami`.
+ */
+export const WHOAMI_PATH = '/whoami'
 
 /** How FHIR spells a resource type: an initial capital, then letters, and nothing else. */
 export const RESOURCE_TYPE_PATTERN_SOURCE = '[A-Z][A-Za-z]*'
@@ -203,16 +220,63 @@ export function outcomeMessage(outcome: OperationOutcome | null): string | null 
  * page renders the server's own OperationOutcome as it renders every other
  * refusal.
  */
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function apiFetch(path: string, init: RequestInit = {}, signing: SigningOptions = {}): Promise<Response> {
     if (!GUARDED_PATH_PATTERN.test(path)) throw new UnguardedPathError(path)
     const headers = new Headers(init.headers)
     if (!headers.has('Accept')) headers.set('Accept', FHIR_JSON_MEDIA_TYPE)
-    const credential = storedAuthorization()
+    const credential = signing.authorization ?? storedAuthorization()
     if (credential) headers.set('Authorization', credential)
     else if (configuration.token) headers.set('Authorization', `Bearer ${configuration.token}`)
     const response = await fetch(`${configuration.baseUrl}${path}`, { ...init, headers })
-    if (response.status === 401) reportUnauthenticated()
+    if (response.status === 401 && signing.reportsRefusal !== false) reportUnauthenticated()
     return response
+}
+
+/** How one request is signed, for the single caller that signs with something this tab does not hold. */
+export interface SigningOptions {
+    /** The `Authorization` value to use in place of what this tab holds, if any. */
+    authorization?: string
+    /** Whether a 401 on this request opens the sign-in prompt. Defaults to true. */
+    reportsRefusal?: boolean
+}
+
+/** What asking the server who a credential belongs to answered. */
+export type CredentialCheck =
+    | { outcome: 'accepted'; username: string | null }
+    | { outcome: 'refused' }
+    | { outcome: 'unreachable' }
+
+/**
+ * Ask the server to name the caller one credential belongs to, without this tab keeping it.
+ *
+ * WHY IT DOES NOT REPORT ITS OWN 401. Every other request routes a refusal through
+ * `reportUnauthenticated`, which drops the stored credential and opens the prompt - the right
+ * behaviour for a read or a submission that met one. This call IS the prompt asking, with a
+ * credential nothing has stored yet, so reporting it would clear a session somebody else's typing
+ * has nothing to do with and put the panel's own message underneath a second one saying the same
+ * thing. The panel renders the verdict itself.
+ *
+ * THREE OUTCOMES, NOT TWO. A refusal and an unreachable server are different sentences to a person
+ * at a keyboard: one means retype the password, the other means the password was never looked at.
+ * Anything the server answers that is neither 200 nor 401 is read as unreachable, which is the
+ * honest reading - a 502 from something in front of this facade says nothing about the credential.
+ */
+export async function checkCredential(authorization: string): Promise<CredentialCheck> {
+    let response: Response
+    try {
+        response = await apiFetch(
+            WHOAMI_PATH,
+            { cache: 'no-store' },
+            { authorization, reportsRefusal: false },
+        )
+    } catch {
+        return { outcome: 'unreachable' }
+    }
+    if (response.status === 401) return { outcome: 'refused' }
+    if (!response.ok) return { outcome: 'unreachable' }
+    const caller = (await response.json().catch(() => null)) as AuthenticatedCaller | null
+    if (caller === null) return { outcome: 'unreachable' }
+    return { outcome: 'accepted', username: caller.username ?? null }
 }
 
 /**

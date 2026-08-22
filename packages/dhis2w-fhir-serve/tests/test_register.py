@@ -28,6 +28,7 @@ from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile
 from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope, TrackedEntitiesConfig
 from dhis2w_fhir_serve.app import create_app
+from dhis2w_fhir_serve.auth import challenge_for
 from dhis2w_fhir_serve.capability import build_server_capability
 from dhis2w_fhir_serve.passthrough import FACADE_PROVENANCE_HEADER, open_pass_through_client
 from dhis2w_fhir_serve.projection.base import IndexedName, NameMatch, NameMatches, NameQuery
@@ -831,7 +832,7 @@ async def test_a_register_read_presenting_no_credential_is_refused_rather_than_r
     answered = await pass_through_facade.get(f"/Patient/{_PERSON_UID}")
 
     assert answered.status_code == 401
-    assert answered.headers["www-authenticate"].startswith("Basic ")
+    assert answered.headers["www-authenticate"] == challenge_for(ServeAuth.DHIS2)
     assert read.call_count == 0
 
 
