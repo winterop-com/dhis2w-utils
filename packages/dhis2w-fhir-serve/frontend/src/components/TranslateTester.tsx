@@ -132,7 +132,7 @@ export function TranslateTester({
                     )}
                     <Button type="submit" disabled={running || entered.trim() === ''}>
                         {running ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-                        Translate
+                        Resolve
                     </Button>
                 </form>
 
