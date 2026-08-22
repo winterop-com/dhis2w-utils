@@ -15,6 +15,7 @@ import { PageState } from '@/components/PageState'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     Table,
     TableBody,
@@ -669,10 +670,17 @@ function RawResource({ resource }: { resource: QuestionnaireResponse }) {
     const [shown, setShown] = useState(false)
     return (
         <section className="space-y-2">
-            <Button variant="outline" size="sm" aria-expanded={shown} onClick={() => setShown(!shown)}>
-                {shown ? <ChevronDown className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
-                Raw QuestionnaireResponse
-            </Button>
+            {/* The label names the document, because that is what opens; the tooltip says what the
+                document is, for a reader who has never met the word. */}
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" aria-expanded={shown} onClick={() => setShown(!shown)}>
+                        {shown ? <ChevronDown className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
+                        Raw QuestionnaireResponse
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>The receipt exactly as this server stored it</TooltipContent>
+            </Tooltip>
             {shown && (
                 <CodeBlock
                     value={JSON.stringify(resource, null, 2)}
