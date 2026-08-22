@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { useCallback } from 'react'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { PageHeader, PageState } from '@/components/PageState'
 import { PatientSearchControl } from '@/components/PatientSearch'
@@ -20,6 +20,7 @@ import { useTrackedEntityNaming, type TrackedEntityNaming } from '@/hooks/use-tr
 import { useUiConfig } from '@/hooks/use-ui-config'
 import {
     patientLeadValue,
+    REGISTER_QUERY_PARAMETER,
     trackedEntityAttributeLabel,
     trackedEntityTypeLabel,
     type PatientProjection,
@@ -121,10 +122,37 @@ export function TrackedEntities() {
     return <RegisterBrowser settings={settings} />
 }
 
-/** The reads themselves, past the gate - so no hook runs on a server that offers no register. */
+/**
+ * The reads themselves, past the gate - so no hook runs on a server that offers no register.
+ *
+ * WHAT IS BEING SEARCHED FOR RIDES THE URL (`#/tracked-entities?q=<value>`), for the same reason the
+ * selected organisation unit does: it is a state of this screen rather than a document of its own,
+ * and holding it in the query string makes a search a link that can be sent, reloaded, and arrived
+ * at from somewhere else. The command palette is the first caller of that last one - it hands the
+ * value over rather than running a search of its own, so which parameter this server answers and how
+ * long to wait for the typing to stop stay decided in exactly one place.
+ *
+ * `replace` on every keystroke, so typing an identifier value leaves one history entry rather than
+ * one per character - Back goes to the page before this one, not to the search half-typed.
+ */
 function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
     const naming = useTrackedEntityNaming()
-    const [typed, setTyped] = useState('')
+    const [parameters, setParameters] = useSearchParams()
+    const typed = parameters.get(REGISTER_QUERY_PARAMETER) ?? ''
+    const setTyped = useCallback(
+        (next: string) => {
+            setParameters(
+                (current) => {
+                    const updated = new URLSearchParams(current)
+                    if (next === '') updated.delete(REGISTER_QUERY_PARAMETER)
+                    else updated.set(REGISTER_QUERY_PARAMETER, next)
+                    return updated
+                },
+                { replace: true },
+            )
+        },
+        [setParameters],
+    )
     // The box drives every section, so `usePatientSearch` runs once per resource inside the sections
     // themselves; this instance is the one whose state the box renders - errors and the empty answer
     // included - and it asks about the first resource, which is the one a person-only run has.

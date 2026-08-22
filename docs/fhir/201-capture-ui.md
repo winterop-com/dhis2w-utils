@@ -28,6 +28,8 @@ a checkout needs `make build-frontend` once.
 - read a receipt back joined to the questions it answers
 - follow a receipt's lifecycle from the browser while `d2w fhir forward`
   runs in a terminal
+- reach any page, form, or receipt from the command palette on Cmd+K, and
+  pick which of the five themes the screens are painted in
 
 ## Serve it
 
@@ -679,7 +681,69 @@ so JSON gets its own grammar and brace matching, and FHIRPath and CQL get
 keywords, strings, comments, and date literals told apart from one another. The
 same rendering paints the JSON results underneath, the receipt page's **Raw
 QuestionnaireResponse**, and the Server page's **Raw CapabilityStatement**, in
-whichever theme the toggle is on.
+whichever theme and on whichever ground the header is set to.
+
+## Getting anywhere: Cmd+K
+
+**Cmd+K** on a Mac, **Ctrl+K** everywhere else, opens a command palette over
+whatever page you are on - and the magnifying glass in the header opens the same
+thing for anyone who was never told about the chord. Type, and it narrows:
+
+- **Pages** - every page this run offers, under the name this run gives it. A
+  server with no DHIS2 instance behind it offers no register, so no register row
+  is on the list either.
+- **Forms** - every Questionnaire the served guide publishes, by title, with the
+  id it is served under beneath. Choosing one opens the form.
+- **Responses** - the newest few receipts at rest, and the ones a typed id
+  prefix names once you have typed two characters or more. It matches the START
+  of a receipt id, which is what a `d2w fhir forward` run prints and what you
+  have in hand when you come looking; filtering and counting receipts is the
+  Responses page's job, not this one's.
+- **The register** - typing two characters or more offers **Look up "..." in
+  Person** (or in whatever this instance calls what it tracks), which opens the
+  register with that identifier value already searched for. The search rides the
+  address, `#/tracked-entities?q=...`, so the result is a link you can send.
+- **Appearance** - the five themes below, and the switch between the light
+  ground and the dark one.
+- **Session** - **Sign out**, when this tab holds a credential.
+
+**Nothing in the palette changes what this server holds.** Every action moves
+you, repaints the app, or ends the session. Submitting a form, forwarding a
+receipt and withdrawing one all stay where they are - two keystrokes is the
+wrong distance from an irreversible act.
+
+**One chord, and no second one.** No action here has a shortcut of its own, and
+none will: these servers get run from Nordic keyboards among others, where the
+bracket, brace, pipe and backslash keys need Alt to reach at all, and a binding
+over any of them is one half the room cannot press.
+
+## Themes
+
+The header carries two controls, because they are two questions. The moon or sun
+switches between the **light ground and the dark one**; the palette icon beside
+it picks the **theme** - which set of colours the app spends inside whichever
+ground is up. Every theme is designed for both, and the choice is remembered in
+this browser and applied before the first paint, so a reload never flashes one
+theme under another.
+
+| Theme | What it looks like |
+| --- | --- |
+| **Clinical** | Near-achromatic surfaces and one clinical blue. The default - the app as it has always looked. |
+| **Indigo** | Deep blue surfaces under a violet identity. |
+| **Paper** | Warm surfaces and an ink blue, the way a printed form reads. |
+| **Contrast** | The widest separation this app has between text and the surface under it: achromatic surfaces reaching both ends, muted text most of the way back to the foreground, and borders that are lines rather than hints. |
+| **Terminal** | Phosphor green, and a ground to match. |
+
+A theme repaints everything the app draws from a token, the source colours in
+the Evaluate editors and the organisation-unit map's boundary tiers included.
+Nothing else moves: the type, the spacing, and the corner radii are one design
+and stay put, so a theme is a palette rather than a second app.
+
+**Terminal is the one theme that moves a status colour**, and it says so here
+because a spool colour is a fact rather than a decoration: its identity is the
+phosphor green, so **Forwarded** and **Completed** move to a cyan rather than
+sit in the same green as **Received**. The rest of the lifecycle keeps the
+colours it has in every theme.
 
 ## Opening an identity in DHIS2
 

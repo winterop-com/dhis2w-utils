@@ -1513,9 +1513,9 @@ bound to loopback by default that loads the project once at startup.
 - **The source boxes are CodeMirror 6 editors**, not textareas: JSON is read by
   its own grammar with brace matching, and FHIRPath and CQL by stream
   tokenisers this project writes, so keywords, strings, comments, and date
-  literals are told apart in both palettes. The colours are CSS tokens declared
-  beside every other palette in `index.css`, so the theme toggle repaints the
-  editor with nothing re-created. The editor is deferred behind `React.lazy`
+  literals are told apart on both grounds. The colours are CSS tokens declared
+  beside every other palette in `index.css`, so a theme change or a switch of
+  ground repaints the editor with nothing re-created. The editor is deferred behind `React.lazy`
   into its own chunk, so a client that only fills forms in never downloads it.
   The same read-only renderer paints the JSON results, the receipt page's
   **Raw QuestionnaireResponse**, and the Server page's **Raw
@@ -2250,7 +2250,7 @@ control per R4 item type.
 - **A layers control** in the corner stack lists each configured layer plus
   **None** and swaps the raster source in place on a choice, so the camera, the
   selection, and the popup survive a switch and the boundaries restyle for the
-  ground they land on. Tiles are muted per theme through `raster-brightness-max`
+  ground they land on. Tiles are muted per ground through `raster-brightness-max`
   / `-contrast` / `-saturation` / `-opacity` so they read as ground rather than
   glare, with MapLibre's own attribution control fed the OpenStreetMap credit
   the tile policy requires - and no credit invented for a source the server
@@ -2261,9 +2261,10 @@ control per R4 item type.
   `Location.position` winning the dedupe when a unit states its coordinates
   twice, leaving the unreadable count for payloads that are genuinely neither.
 - **The selection is lit in amber**: a two-hue encoding, the `--map-selection`
-  pair against the identity-blue subtree wash over a neutral context tier, with
-  the colours read from the live CSS custom properties so the map is the same
-  product in both themes, and a surface-coloured casing under each stroke so
+  pair against the identity-coloured subtree wash over a neutral context tier,
+  with the colours read from the live CSS custom properties so the map is the
+  same product in every theme and on both grounds, and a surface-coloured
+  casing under each stroke so
   the ramp keeps its validated contrast over a busy basemap.
 - **A zoom-aware click model**: a left-click on a shape opens a popup naming
   the unit, its level, its parent, and what sits below, with an Open action
@@ -2295,6 +2296,13 @@ On a live run that serves them, `/tracked-entities` is a page over the register
 the instance holds, headed by the register's own name where one type is served:
 an identifier search and a paged listing on one page, with a detail route at
 `/tracked-entities/{resourceType}/{uid}`.
+
+- **What is being searched for rides the query string** (`?q=<value>`), the way
+  the selected organisation unit does - so a search is a link that can be sent,
+  reloaded, and arrived at from elsewhere. The command palette is the first
+  thing to arrive from elsewhere: it hands the value over rather than running a
+  search of its own. Typing into the box replaces the entry rather than pushing
+  one, so Back leaves the page instead of unwinding the keystrokes.
 
 - **Gated into the navigation** by the `tracked_entities` block `GET /uiconfig`
   carries beside the `capture` flag - `enabled`, `listing`, and `registers` -
@@ -2359,6 +2367,71 @@ an identifier search and a paged listing on one page, with a detail route at
 - **The address is the base url of the profile the serve run resolved**, served
   on `/uiconfig` with any userinfo stripped - so a run that resolved no profile
   carries no links at all, rather than a link that goes nowhere.
+
+#### Command palette
+
+- **Cmd+K on macOS, Ctrl+K everywhere else**, plus a magnifying-glass button in
+  the header for anyone who was never told about the chord. One binding and no
+  second: nothing here carries a shortcut of its own, because a chord over the
+  bracket, brace, pipe or backslash keys is one a Nordic keyboard cannot press
+  without Alt.
+- **Pages, forms, receipts, the register, appearance, and the session**, on
+  shelves in that order. The pages are the shell's own navigation table mapped
+  onto the palette, so what the rail offers and what the palette reaches cannot
+  drift; the forms are every published Questionnaire by title with its served id
+  beneath; the receipts are the newest few at rest and the ones a typed id
+  **prefix** names, capped, because an id is what a forward run prints and what
+  somebody has in hand.
+- **A register lookup hands its value to the register page in the URL**
+  (`#/tracked-entities?q=...`) rather than running a search of its own, under
+  the register's own threshold - so which parameter this server answers and how
+  long to wait for the typing to stop stay decided in one place, and the result
+  is a link that can be sent. The register page reads the value out of the query
+  string, and writes what is typed into it back with `replace`.
+- **Nothing in it changes what the server holds.** Every action navigates,
+  repaints, or ends the session; submitting, forwarding, and withdrawing all
+  stay on their own screens.
+- **It reads nothing until it is opened.** The Questionnaire search runs once
+  per tab (a served guide cannot change under a running server) and the spool is
+  re-read on each open, over whatever the last read produced - so the rows are
+  there instantly and no page load carries the cost.
+- **The action list is a pure function** (`lib/palette.ts`) of what this run
+  offers, so the claim that the palette reaches every page is asserted rather
+  than believed.
+
+#### Themes
+
+- **Five designed themes, each complete on both grounds**: **Clinical** (the
+  default - near-achromatic surfaces and one clinical blue), **Indigo** (deep
+  blue surfaces under a violet identity), **Paper** (warm surfaces and an ink
+  blue), **Contrast** (the widest separation between text and its surface), and
+  **Terminal** (phosphor green, and a ground to match).
+- **Theme and mode are two axes and stay two controls.** next-themes owns light
+  or dark as a `dark` class; `lib/theme.ts` owns the theme as `data-theme` on the
+  same element. The header carries a picker beside the light/dark toggle, and
+  the palette carries both.
+- **Applied before the first paint** by an inline script in `index.html` reading
+  the same `localStorage` key the module writes, so a reload never flashes one
+  theme under another. The two copies of the theme-name list are kept in step by
+  a test that reads `index.html`.
+- **Every theme states the whole palette** - surfaces, identity, the spool's
+  lifecycle colours, and the `.tok-*` source colours the CodeMirror editors are
+  painted from - hung off `html[data-theme]` for the light ground and
+  `html.dark[data-theme]` for the dark one, so the dark block outranks its light
+  sibling by specificity rather than by source order. A unit test reads
+  `index.css` and fails a theme that leaves a token behind; a Playwright case
+  paints every token pair into a canvas and puts it through the WCAG contrast
+  formula, on all five themes and both grounds.
+- **Geometry is not a theme axis**: no theme redeclares `--radius`, so the whole
+  surface still rescales from one number.
+- **Terminal moves one status colour and says so**: its identity is the phosphor
+  green, so `forwarded` and `completed` become a cyan rather than share the
+  identity's hue with `received`. Every other theme keeps the lifecycle colours
+  unchanged, and `--map-selection` stays an amber pair in all five so a selected
+  organisation unit is never a stronger shade of the wash beneath it.
+- **The organisation-unit map follows both axes.** It watches `<html>` for the
+  class and the attribute, and rebuilds its layers from the tokens on either -
+  a theme change repaints the boundaries with nothing reloaded.
 
 #### Mounting and coverage
 

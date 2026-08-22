@@ -12,6 +12,13 @@ import { defineConfig } from 'vitest/config'
  *
  * Deliberately separate from vite.config.ts so tests do not load the React and
  * Tailwind plugins.
+ *
+ * `css.include` names index.css and nothing else. A stylesheet is normally
+ * stubbed to an empty string here, which is right for every component that
+ * imports one - but the theme test reads index.css AS TEXT (`?raw`) to check
+ * that each of the five themes states the whole palette, and a stub would make
+ * that test pass over nothing. Naming the one file keeps the stub everywhere
+ * else. Nothing is compiled: the raw query hands back the source bytes.
  */
 export default defineConfig({
     resolve: {
@@ -19,6 +26,7 @@ export default defineConfig({
     },
     test: {
         environment: 'node',
+        css: { include: [/index\.css/] },
         include: ['src/**/*.test.ts'],
     },
 })

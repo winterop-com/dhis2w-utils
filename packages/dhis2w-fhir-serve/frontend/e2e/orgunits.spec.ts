@@ -537,7 +537,7 @@ test('the theme reaches the renderer, not just the stylesheet', async ({ page })
     await expect(map).toHaveAttribute('data-map-ready', 'true', { timeout: 15_000 })
     await expect(map).toHaveAttribute('data-map-theme', 'light')
 
-    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    await page.getByRole('button', { name: 'Switch to dark mode' }).click()
 
     // The canvas is painted from resolved token values rather than from CSS, so a theme change has
     // to be pushed into the renderer - and this is the assertion that it was.

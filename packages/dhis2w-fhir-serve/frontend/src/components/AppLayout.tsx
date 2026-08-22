@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
     ClipboardList,
@@ -14,8 +14,10 @@ import {
     Users,
 } from 'lucide-react'
 
+import { CommandPalette, PaletteButton } from '@/components/CommandPalette'
 import { SignInPanel } from '@/components/SignInPanel'
 import { StatusMenu } from '@/components/StatusMenu'
+import { ThemePicker } from '@/components/ThemePicker'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -24,6 +26,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useSidebar } from '@/hooks/use-sidebar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { signInIsRequired, signOut, SIGN_OUT_LABEL } from '@/lib/auth'
+import { type PalettePage } from '@/lib/palette'
 import { REGISTER_TITLE, registerTitle, trackedEntitySettings, type UiConfig } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
@@ -107,6 +110,17 @@ export function offeredNavItems(settings: UiConfig): NavItem[] {
     return offered.map((item) => (item.naming === undefined ? item : Object.assign({}, item, item.naming(settings))))
 }
 
+/**
+ * The same entries as the command palette needs them: a path, a name, and a line.
+ *
+ * The icon and the two server-dependent callbacks are dropped here rather than carried into
+ * lib/palette.ts, which holds no React at all - see `PalettePage`. This is the one place the two
+ * shapes meet, so the palette and the rail can never lead to different sets of pages.
+ */
+export function palettePages(settings: UiConfig): PalettePage[] {
+    return offeredNavItems(settings).map((item) => ({ path: item.path, label: item.label, hint: item.hint }))
+}
+
 /** Sidebar shell: collapsible navigation rail, status header, page content. */
 export function AppLayout({ children }: { children: ReactNode }) {
     const { collapsed, toggle } = useSidebar()
@@ -139,6 +153,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
     // reached, or the last item looks permanently grayed out.
     const mobileNavRef = useRef<HTMLElement>(null)
     const [navOverflows, setNavOverflows] = useState(false)
+    // Held here rather than inside the palette, because the header's button opens the same dialog
+    // the shortcut does. The palette is mounted only once there is a page to navigate to: while the
+    // sign-in panel is up there is nowhere to go, and its reads would be requests this server
+    // answers 401 to.
+    const [paletteOpen, setPaletteOpen] = useState(false)
+    const registered = trackedEntitySettings(config)
+    const paletteOffered = !asking && auth.posture !== null
+    // Rebuilt only when the settings that name the pages change, so the palette's own memo over this
+    // list is not defeated by a fresh array on every keystroke into its box.
+    const paletteReachablePages = useMemo(() => palettePages(config), [config])
     useEffect(() => {
         const element = mobileNavRef.current
         if (!element) return
@@ -305,8 +329,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                 {SIGN_OUT_LABEL}
                             </Button>
                         )}
+                        {paletteOffered && (
+                            <PaletteButton
+                                onOpen={() => {
+                                    setPaletteOpen(true)
+                                }}
+                            />
+                        )}
                         <StatusMenu />
                         <ThemeToggle />
+                        <ThemePicker />
                     </div>
 
                     {/* The sidebar is hidden below md, so navigation moves
@@ -355,6 +387,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     )}
                 </main>
             </div>
+
+            {paletteOffered && (
+                <CommandPalette
+                    open={paletteOpen}
+                    onOpenChange={setPaletteOpen}
+                    pages={paletteReachablePages}
+                    register={registered.enabled ? registerTitle(registered) : null}
+                    signedIn={auth.authorization !== null}
+                />
+            )}
         </div>
     )
 }

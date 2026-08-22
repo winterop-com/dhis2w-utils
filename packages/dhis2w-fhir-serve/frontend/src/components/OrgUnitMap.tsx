@@ -261,6 +261,11 @@ export function OrgUnitMap({
     // an empty scene. `data-map-ready` is what a browser test waits for instead of guessing.
     const [painted, setPainted] = useState(false)
     const [dark, setDark] = useState(() => isDarkTheme())
+    // Bumped whenever anything on <html> that decides a token changes - the light/dark class, or the
+    // theme attribute beside it. The class alone is not enough: switching from Clinical to Terminal
+    // repaints every token this map reads while `dark` stays exactly as it was, so a repaint keyed
+    // on `dark` would leave the boundaries in the previous theme's colours until the ground flipped.
+    const [palettePainting, setPalettePainting] = useState(0)
     // The same fact as a ref, for the layer switch: it needs the current theme to build a muted
     // raster layer, but must not re-run when the theme alone changes.
     const darkNow = useRef(dark)
@@ -296,12 +301,19 @@ export function OrgUnitMap({
     // The attribution control, which exists only while a layer that needs crediting is up.
     const attribution = useRef<AttributionControl | null>(null)
 
-    // The theme is a class on <html>, set by next-themes. Watching the attribute rather than
-    // calling useTheme keeps this component usable outside the provider - and it is the resolved
-    // class that the CSS custom properties actually hang off, which is what the style reads.
+    // Both palette axes live on <html>: the light/dark class next-themes writes, and the
+    // `data-theme` attribute lib/theme.ts writes. Watching the element rather than calling either
+    // hook keeps this component usable outside both providers - and it is the resolved class and
+    // attribute that the CSS custom properties actually hang off, which is what the style reads.
     useEffect(() => {
-        const observer = new MutationObserver(() => setDark(isDarkTheme()))
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+        const observer = new MutationObserver(() => {
+            setDark(isDarkTheme())
+            setPalettePainting((painting) => painting + 1)
+        })
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class', 'data-theme'],
+        })
         return () => observer.disconnect()
     }, [])
 
@@ -439,9 +451,10 @@ export function OrgUnitMap({
         syncAttributionControl(instance, attribution, basemap)
     }, [ready, basemap])
 
-    // The layers are (re)built whenever the theme changes, because every paint value is a token
-    // and a token means something different under `.dark`. Rebuilding rather than patching each
-    // paint property keeps one description of the encoding instead of two.
+    // The layers are (re)built whenever the palette changes - either axis of it, which is what
+    // `palettePainting` counts - because every paint value is a token and a token means something
+    // different under another theme or the other ground. Rebuilding rather than patching each paint
+    // property keeps one description of the encoding instead of two.
     useEffect(() => {
         const instance = map.current
         const element = container.current
@@ -460,7 +473,7 @@ export function OrgUnitMap({
             instance.setSky(globeSky(palette))
         }
         setPainted(true)
-    }, [ready, dark, basemap, shapes, markers])
+    }, [ready, dark, palettePainting, basemap, shapes, markers])
 
     useEffect(() => {
         const instance = map.current
