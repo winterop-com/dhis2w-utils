@@ -35,6 +35,12 @@ The two are not exclusive. A deployment often serves the guide from
 `d2w fhir serve` for discovery and reads, and receives its own traffic on its own
 route, both built from the same published artifacts.
 
+There is a third posture between them: take the facade as a library, in your own
+process, with no port bound at all. [Embed the facade](401-embed-the-facade.md)
+is that one - `create_app` over an ASGI transport, the spool and the projection
+as local storage, and the facade's routers mounted inside your own application
+behind your own authentication.
+
 ## The ladder
 
 Between those two postures there is a ladder, and each level buys back exactly

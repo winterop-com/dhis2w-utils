@@ -25,6 +25,11 @@ capture, the receipt, and `/spool` end to end. Point it at your own facade with
 The rest of that directory is the library path: `generate_ig.py` builds a guide
 from Python and `forward_spool.py` drains one.
 
+**Every endpoint on this page answers the same way with no server running.**
+[Embed the facade](401-embed-the-facade.md) builds the application in your own
+process and drives it over an ASGI transport, which is the posture for a caller
+that wants the FHIR surface as a library rather than as an address.
+
 Every response body on this page is real output from a running facade. The
 compiled-store examples run against a project served on port 8389; the
 register and enrollment examples, which exist only under `--live`, against a

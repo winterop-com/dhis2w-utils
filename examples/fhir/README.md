@@ -42,7 +42,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 
 ## [`client/`](client/README.md) — the Python library path
 
-Thirty-four examples with [their own README](client/README.md), grouped into five readings:
+Forty-one examples with [their own README](client/README.md), grouped into seven readings:
 
 | Group | What it answers |
 | --- | --- |
@@ -50,7 +50,9 @@ Thirty-four examples with [their own README](client/README.md), grouped into fiv
 | Read a form | What does a published `Questionnaire` tell me before I fill anything? |
 | Convert to DHIS2 | What does my response become on the DHIS2 wire, and why would that be refused? |
 | Send and verify | How do I post it, and what comes back? |
+| Summarise a record | How do I read one person's record back out and assemble it into a FHIR document? |
 | Drive the toolchain | Generating, serving, and draining from Python rather than the command line |
+| Embed the facade | How do I run the facade inside my own process — no server, no port, no UI? |
 
 **Every one runs in `make verify-examples`**, because [`client/_fixture.py`](client/_fixture.py) stands up what each needs: a scaffolded project, a translation context built live off the instance, and a `d2w fhir serve --live` facade on a port the operating system picks, stopped at exit. `D2W_FHIR_EXAMPLE_PROJECT` and `D2W_FHIR_EXAMPLE_FACADE` point the fixture at your own instead - and the verify suite sets exactly those two before its loop, standing the project and the facade up once so every FHIR client example of a batch pass shares one instead of each booting its own.
 

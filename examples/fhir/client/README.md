@@ -94,6 +94,19 @@ Generating, serving, and draining from Python, rather than from the command line
 | [`complex_facade.py`](complex_facade.py) | Facade ladder, level three: the real spool primitives — a receipt written durably, `201` before DHIS2 is asked, a background drain that retries, and a receipt readable by id |
 | [`advanced_facade.py`](advanced_facade.py) | Facade ladder, level four: tracker routing, the coded-answer dial as configuration, values an earlier receipt already sent named before the post, and a small `/metadata` — then run `d2w fhir serve` |
 
+## Embed the facade
+
+The headless path: `dhis2w-fhir-serve` as a library in your own process — no server, no port, no UI,
+no `d2w` command. The narrative is [Embed the facade](../../../docs/fhir/401-embed-the-facade.md).
+
+| File | Shows |
+| --- | --- |
+| [`embed_the_facade.py`](embed_the_facade.py) | `create_app` driven over an ASGI transport: `/metadata` and the published forms read as function calls, with no socket bound |
+| [`capture_headless.py`](capture_headless.py) | A capture taken in-process: `$generate`, POST, the receipt read back, and the spool file it left on disk |
+| [`forward_headless.py`](forward_headless.py) | The drain from inside the same process: the caller's own DHIS2 connection handed in, and every dial stated as an argument rather than read from `[forward]` |
+| [`projection_local_store.py`](projection_local_store.py) | The local storage layer: `run_sync` into the project's SQLite projection, then the watermark, a page, an identifier search, and membership read back through `ProjectionStore` |
+| [`embed_in_fastapi.py`](embed_in_fastapi.py) | The facade's routers mounted inside a caller's own FastAPI application, guarded by the caller's own authentication dependency |
+
 ## The fixture
 
 Every example reads [`_fixture.py`](_fixture.py), which stands up three things once and shares them:
