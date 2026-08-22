@@ -8,6 +8,7 @@ import { PageState } from '@/components/PageState'
 import { TranslateTester } from '@/components/TranslateTester'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import {
     Table,
@@ -241,15 +242,22 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                                 />
                                             ))}
                                             <TableCell>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    aria-label={`Show the DHIS2 mapping for ${concept.code}`}
-                                                    onClick={() => setAsked(concept.code)}
-                                                >
-                                                    Show DHIS2 mapping
-                                                    <ArrowRight aria-hidden />
-                                                </Button>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            aria-label={`Details for ${concept.code}`}
+                                                            onClick={() => setAsked(concept.code)}
+                                                        >
+                                                            Details
+                                                            <ArrowRight aria-hidden />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        What this code maps to in DHIS2
+                                                    </TooltipContent>
+                                                </Tooltip>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -500,15 +508,22 @@ function MappingGroup({
                                     )}
                                 </TableCell>
                                 <TableCell>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        aria-label={`Show the DHIS2 mapping for ${row.code}, through this map`}
-                                        onClick={() => onAsk(row.code)}
-                                    >
-                                        Show DHIS2 mapping
-                                        <ArrowRight aria-hidden />
-                                    </Button>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                aria-label={`Details for ${row.code}`}
+                                                onClick={() => onAsk(row.code)}
+                                            >
+                                                Details
+                                                <ArrowRight aria-hidden />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            What this code maps to in DHIS2
+                                        </TooltipContent>
+                                    </Tooltip>
                                 </TableCell>
                             </TableRow>
                         ))}

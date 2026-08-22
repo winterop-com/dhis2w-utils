@@ -182,7 +182,7 @@ test('the $translate tester answers with the DHIS2 identifiers a concept maps on
     await page.goto('/#/terminology/CodeSystem/d2-os-OsSymptom01-cs')
 
     await page.getByRole('textbox', { name: 'Concept code' }).fill('OpFever0001')
-    // Exact, because every concept row carries a "Show DHIS2 mapping" button of its own.
+    // Exact, because every concept row carries a "Details" button of its own.
     await page.getByRole('button', { name: 'Look up', exact: true }).click()
 
     const answer = page.getByTestId('translate-result')
@@ -228,7 +228,7 @@ test('a mapping row asks the server about its own concept', async ({ page }) => 
     await page
         .getByRole('row')
         .filter({ has: page.getByRole('cell', { name: 'COUGH', exact: true }) })
-        .getByRole('button', { name: 'Show the DHIS2 mapping for OpCough0001, through this map' })
+        .getByRole('button', { name: 'Details for OpCough0001', exact: true })
         .click()
 
     // Clicking a row asks the running server, so both mappings come back - the option uid and

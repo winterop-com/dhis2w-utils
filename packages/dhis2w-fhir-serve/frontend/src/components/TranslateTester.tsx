@@ -86,7 +86,7 @@ export function TranslateTester({
                 <div className="space-y-1">
                     <h3 className="text-base font-semibold">What a code maps to in DHIS2</h3>
                     <p className="text-muted-foreground text-sm">
-                        Type a concept code - or press Show DHIS2 mapping on any row above - and the
+                        Type a concept code - or press Details on any row above - and the
                         published maps answer with the DHIS2 option uid and code it stands for.
                         On the wire this is the{' '}
                         <code className="font-mono">$translate</code> operation - the same one{' '}
