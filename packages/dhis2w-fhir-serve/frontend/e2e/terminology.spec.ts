@@ -228,7 +228,7 @@ test('a mapping row asks the server about its own concept', async ({ page }) => 
     await page
         .getByRole('row')
         .filter({ has: page.getByRole('cell', { name: 'COUGH', exact: true }) })
-        .getByRole('button', { name: 'What OpCough0001 is in DHIS2, through the published maps' })
+        .getByRole('button', { name: 'What OpCough0001 is in DHIS2, through this map' })
         .click()
 
     // Clicking a row asks the running server, so both mappings come back - the option uid and
