@@ -244,10 +244,10 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    aria-label={`What ${concept.code} is in DHIS2, through the published maps`}
+                                                    aria-label={`Show the DHIS2 mapping for ${concept.code}`}
                                                     onClick={() => setAsked(concept.code)}
                                                 >
-                                                    In DHIS2 terms
+                                                    Show DHIS2 mapping
                                                     <ArrowRight aria-hidden />
                                                 </Button>
                                             </TableCell>
@@ -503,10 +503,10 @@ function MappingGroup({
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        aria-label={`What ${row.code} is in DHIS2, through this map`}
+                                        aria-label={`Show the DHIS2 mapping for ${row.code}, through this map`}
                                         onClick={() => onAsk(row.code)}
                                     >
-                                        In DHIS2 terms
+                                        Show DHIS2 mapping
                                         <ArrowRight aria-hidden />
                                     </Button>
                                 </TableCell>
