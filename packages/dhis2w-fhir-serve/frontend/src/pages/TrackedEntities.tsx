@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table'
 import { useRegisterListing } from '@/hooks/use-register-listing'
 import { usePatientSearch } from '@/hooks/use-patient-search'
+import { useRegisterSearchKey } from '@/hooks/use-register-search-support'
 import { useTrackedEntityNaming, type TrackedEntityNaming } from '@/hooks/use-tracked-entity-naming'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import {
@@ -127,7 +128,12 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
     // The box drives every section, so `usePatientSearch` runs once per resource inside the sections
     // themselves; this instance is the one whose state the box renders - errors and the empty answer
     // included - and it asks about the first resource, which is the one a person-only run has.
-    const search = usePatientSearch(typed, true, settings.registers[0]?.resource ?? '')
+    const leadResource = settings.registers[0]?.resource ?? ''
+    // The box is one control over every section, so its words follow the first register's declaration.
+    // Which parameter a server answers is a property of how that server was started rather than of one
+    // resource type, so a run declaring `_content` declares it for every register it publishes.
+    const searchKey = useRegisterSearchKey(leadResource)
+    const search = usePatientSearch(typed, true, leadResource, searchKey)
     const people = servesPeopleOnly(settings)
 
     return (
@@ -135,7 +141,13 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
             <RegisterHeader title={registerTitle(settings)} people={people} />
 
             <div className="mb-8 max-w-2xl">
-                <PatientSearchControl controlId="patients-search" typed={typed} onTyped={setTyped} state={search} />
+                <PatientSearchControl
+                    controlId="patients-search"
+                    typed={typed}
+                    onTyped={setTyped}
+                    state={search}
+                    searchKey={searchKey}
+                />
             </div>
 
             <div className="space-y-10">
@@ -212,8 +224,9 @@ function RegisterSection({
     headed: boolean
 }) {
     const navigate = useNavigate()
-    const search = usePatientSearch(typed, true, register.resource)
-    const { page, loading, error, showNext, showPrevious } = useRegisterListing(register.resource, listing)
+    const searchKey = useRegisterSearchKey(register.resource)
+    const search = usePatientSearch(typed, true, register.resource, searchKey)
+    const { page, loading, error, asOf, showNext, showPrevious } = useRegisterListing(register.resource, listing)
     const words = register.resource === PEOPLE_RESOURCE_TYPE ? PEOPLE_WORDS : TRACKED_ENTITY_WORDS
     // A search is on screen from the moment one is worth sending, which is the same rule that
     // decides whether a request goes at all - so a table never shows a page of everything under a
@@ -243,6 +256,10 @@ function RegisterSection({
         </Card>
     )
 
+    // How old the rows are, from whichever read produced the ones on screen. A facade that asks DHIS2
+    // itself states nothing here, because there is nothing to say about an answer read a moment ago.
+    const stated = searching ? search.asOf : asOf
+
     return (
         <section className="space-y-3">
             {headed && <h2 className="text-base font-semibold">{registerSectionTitle(register)}</h2>}
@@ -254,6 +271,11 @@ function RegisterSection({
                 </>
             ) : (
                 everything
+            )}
+            {stated !== null && (
+                <p className="text-muted-foreground text-xs" data-testid="register-as-of">
+                    {stated}
+                </p>
             )}
         </section>
     )

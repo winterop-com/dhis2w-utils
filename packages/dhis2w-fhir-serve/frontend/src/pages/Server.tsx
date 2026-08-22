@@ -1,7 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 
+import { CodeBlock } from '@/components/CodeEditor'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
     Table,
@@ -13,7 +16,7 @@ import {
 } from '@/components/ui/table'
 import { refreshServerStatus, useServerStatus } from '@/hooks/use-server-status'
 import { useUiConfig } from '@/hooks/use-ui-config'
-import { declaredOperations } from '@/lib/fhir'
+import { declaredOperations, type CapabilityStatement } from '@/lib/fhir'
 import { authSettings } from '@/lib/uiconfig'
 
 /** What each posture is called on this page. Name the fact, not the config value. */
@@ -188,9 +191,39 @@ export function Server() {
                             </Table>
                         </div>
                     </div>
+
+                    {capability !== null && <RawCapability capability={capability} />}
                 </div>
             </PageState>
         </>
+    )
+}
+
+/**
+ * The conformance document itself, behind a toggle.
+ *
+ * The same escape hatch the receipt page carries, for the same reason: everything above is a reading
+ * of this document, and a reading can be wrong in a way that is invisible until the bytes are on
+ * screen. It matters more here than anywhere else in the app, because this document IS the contract -
+ * a caller writing against this server has to be able to see exactly what it declares, and the tables
+ * above show the parts a browser needed rather than the whole of it.
+ */
+function RawCapability({ capability }: { capability: CapabilityStatement }) {
+    const [shown, setShown] = useState(false)
+    return (
+        <section className="space-y-2">
+            <Button variant="outline" size="sm" aria-expanded={shown} onClick={() => setShown(!shown)}>
+                {shown ? <ChevronDown className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
+                Raw CapabilityStatement
+            </Button>
+            {shown && (
+                <CodeBlock
+                    value={JSON.stringify(capability, null, 2)}
+                    testId="raw-capability-statement"
+                    maxHeight="32rem"
+                />
+            )}
+        </section>
     )
 }
 

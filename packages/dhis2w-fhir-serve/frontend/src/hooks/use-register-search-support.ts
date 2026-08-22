@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 
 import { readCapabilityStatement } from '@/lib/api'
-import { type CapabilityStatement, declaresRegisterSearch } from '@/lib/fhir'
+import {
+    declaresRegisterSearch,
+    registerSearchKey,
+    REGISTER_IDENTIFIER_SEARCH_PARAMETER,
+    type CapabilityStatement,
+    type RegisterSearchKey,
+} from '@/lib/fhir'
 
 /**
  * Whether this server publishes a search over one register, in the three states a control tells apart.
@@ -61,4 +67,33 @@ export function useRegisterSearchSupport(resource: string): RegisterSearchSuppor
     }, [resource])
 
     return support
+}
+
+/**
+ * Which search parameter this server answers a lookup over one register on.
+ *
+ * The same conformance document, read for a second fact: a project keeping a synced copy of the DHIS2
+ * instance declares `_content` beside `identifier`, and a search over it matches any part of any value
+ * a record holds rather than only the values that name it. Reading it here rather than trying
+ * `_content` and falling back on a 400 is the same argument `useRegisterSearchSupport` makes: a box
+ * whose behaviour is discovered from a refusal is a box that has already refused once.
+ *
+ * `identifier` while the document is in flight, and `identifier` for a server that declares neither -
+ * which is what every facade searching DHIS2 directly answers, and what the box has always sent.
+ */
+export function useRegisterSearchKey(resource: string): RegisterSearchKey {
+    const [key, setKey] = useState<RegisterSearchKey>(REGISTER_IDENTIFIER_SEARCH_PARAMETER)
+
+    useEffect(() => {
+        let cancelled = false
+        void readCapability().then((capability) => {
+            if (cancelled) return
+            setKey(registerSearchKey(capability, resource))
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [resource])
+
+    return key
 }

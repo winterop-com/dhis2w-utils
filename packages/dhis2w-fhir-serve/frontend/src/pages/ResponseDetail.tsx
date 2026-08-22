@@ -10,6 +10,7 @@ import {
     Undo2,
 } from 'lucide-react'
 
+import { CodeBlock } from '@/components/CodeEditor'
 import { PageState } from '@/components/PageState'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
 import { Badge } from '@/components/ui/badge'
@@ -647,8 +648,9 @@ function WithdrawalSection({ withdrawal }: { withdrawal: SpoolWithdrawal }) {
                 Withdrawn from DHIS2
             </h3>
             <p className="text-muted-foreground text-sm">{withdrawalSummary(withdrawal)}</p>
-            <dl className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border p-4 text-xs sm:grid-cols-4">
-                <Fact label="Withdrawn" value={formatInstant(withdrawal.withdrawn_at)} />
+            {/* The instant is not in this grid: the line above it already states when the withdrawal
+                happened, and a fact stated in prose and repeated in a cell is one fact twice. */}
+            <dl className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border p-4 text-xs sm:grid-cols-3">
                 <Fact label="Event" value={withdrawal.event_uid} mono />
                 <Fact label="Status" value={withdrawal.status ?? 'not stated'} />
                 <Fact label="Deleted" value={String(withdrawal.deleted)} />
@@ -672,9 +674,11 @@ function RawResource({ resource }: { resource: QuestionnaireResponse }) {
                 Raw QuestionnaireResponse
             </Button>
             {shown && (
-                <pre className="show-scrollbars bg-muted/40 max-h-96 overflow-auto rounded-lg border p-4 font-mono text-xs">
-                    {JSON.stringify(resource, null, 2)}
-                </pre>
+                <CodeBlock
+                    value={JSON.stringify(resource, null, 2)}
+                    testId="raw-questionnaire-response"
+                    maxHeight="24rem"
+                />
             )}
         </section>
     )

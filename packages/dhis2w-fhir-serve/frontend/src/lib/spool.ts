@@ -347,15 +347,29 @@ export function rejectionSummary(rejection: SpoolRejection): string {
 }
 
 /**
+ * The word a withdrawal note opens with, which the line around it has already said.
+ *
+ * The note is written for a terminal, where it stands alone and has to name what happened before it
+ * says what remains. In a line that already states the withdrawal and its instant, that opening word
+ * is the same fact a second time - so it is dropped, and only the opening word is dropped. Anything
+ * the note goes on to say is the record's own and is rendered as written.
+ */
+const WITHDRAWAL_NOTE_RESTATEMENT = /^withdrawn[.:]?\s+/i
+
+/**
  * The one line a withdrawn receipt is summarised by.
  *
- * The fact first - it was withdrawn from DHIS2, and when - then what the record
- * says remains, verbatim. Nothing here paraphrases the note: the sentence is
- * written once, in the package that posts the delete, so the terminal wording and
- * the browser's wording cannot drift apart.
+ * The fact first - it was withdrawn from DHIS2, and when - then what the record says remains. Nothing
+ * here paraphrases the note: the sentence is written once, in the package that posts the delete, so
+ * the terminal wording and the browser's wording cannot drift apart. What is removed is the note's
+ * own opening restatement, because this line has already said it: "Withdrawn from DHIS2 at 10:04.
+ * Withdrawn. This DHIS2 instance keeps a hidden copy" states the withdrawal twice in two casings,
+ * which is one fact wearing two costumes.
  */
 export function withdrawalSummary(withdrawal: SpoolWithdrawal): string {
-    return `Withdrawn from DHIS2 at ${formatInstant(withdrawal.withdrawn_at)}. ${withdrawal.note}`
+    const remains = withdrawal.note.replace(WITHDRAWAL_NOTE_RESTATEMENT, '')
+    const stated = `Withdrawn from DHIS2 at ${formatInstant(withdrawal.withdrawn_at)}.`
+    return remains === '' ? stated : `${stated} ${remains}`
 }
 
 /** One DHIS2 error code, and how many refused receipts in a listing carry it. */

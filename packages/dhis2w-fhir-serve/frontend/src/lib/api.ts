@@ -73,6 +73,7 @@ import {
     type Parameters,
     type Patient,
     type QuestionnaireResponse,
+    type RegisterSearchKey,
 } from '@/lib/fhir'
 import { PATIENT_COUNT_PARAMETER, PATIENT_PAGE_PARAMETER, type PatientEnrollments } from '@/lib/patients'
 import { reportUnauthenticated, storedAuthorization, type AuthenticatedCaller } from '@/lib/auth'
@@ -384,8 +385,52 @@ export async function postQuestionnaireResponse(
  * `FhirRequestError` carrying the server's own words. Callers ask `/metadata` first and never offer
  * the control at all in that case; the refusal is what a race against a restart reads as.
  */
-export async function searchRegister(resource: string, identifier: string): Promise<Bundle<Patient>> {
-    return searchResources<Patient>(resource, { [REGISTER_IDENTIFIER_SEARCH_PARAMETER]: identifier })
+export async function searchRegister(
+    resource: string,
+    query: string,
+    key: RegisterSearchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
+): Promise<RegisterAnswer> {
+    return readRegisterBundle(resource, { [key]: query })
+}
+
+/**
+ * The header a projection-served answer states its own age on.
+ *
+ * `dhis2w_fhir_serve.projection.serving` spells the same string. The value is the instant the sync
+ * last read the DHIS2 instance, on the instance's own clock, or the word `never` for a copy nothing
+ * has filled yet.
+ */
+export const PROJECTION_AS_OF_HEADER = 'X-DHIS2W-Projection-As-Of'
+
+/**
+ * One register answer: the Bundle, and how old the copy that answered it is.
+ *
+ * WHY THE HEADER TRAVELS WITH THE BODY. A register search under the projection backend is answered
+ * from a synced copy of the DHIS2 instance rather than from the instance, and how stale that copy is
+ * is a fact about every row on the page - so it cannot be read later, out of band, by a component
+ * that happens to want it. It arrives with the rows or it is not known. `null` is the ordinary case:
+ * a facade searching DHIS2 directly states no such header, because its answer is as old as the
+ * request.
+ */
+export interface RegisterAnswer {
+    bundle: Bundle<Patient>
+    projectionAsOf: string | null
+}
+
+/** One register read, with the projection's own statement of when it was last filled. */
+async function readRegisterBundle(
+    resource: string,
+    parameters: Record<string, string>,
+): Promise<RegisterAnswer> {
+    const query = new URLSearchParams(parameters).toString()
+    const path = `/${resource}${query ? `?${query}` : ''}`
+    const response = await apiFetch(path, { cache: 'no-store' })
+    const body: unknown = await response.json().catch(() => null)
+    if (!response.ok) throw new FhirRequestError(response.status, body as OperationOutcome | null, path)
+    return {
+        bundle: body as Bundle<Patient>,
+        projectionAsOf: response.headers.get(PROJECTION_AS_OF_HEADER),
+    }
 }
 
 /**
@@ -403,10 +448,10 @@ export async function listRegister(
     resource: string,
     pageToken: string | null,
     count: number,
-): Promise<Bundle<Patient>> {
+): Promise<RegisterAnswer> {
     const parameters: Record<string, string> = { [PATIENT_COUNT_PARAMETER]: String(count) }
     if (pageToken !== null) parameters[PATIENT_PAGE_PARAMETER] = pageToken
-    return searchResources<Patient>(resource, parameters)
+    return readRegisterBundle(resource, parameters)
 }
 
 /** One tracked entity the DHIS2 instance holds, under the FHIR resource its type is registered as. */

@@ -182,7 +182,11 @@ test('the receipt route is deep-linkable and shows the raw resource on demand', 
     await expect(page.getByText('generated from seed 43')).toBeVisible()
 
     await page.getByRole('button', { name: 'Raw QuestionnaireResponse' }).click()
-    await expect(page.getByText('"resourceType": "QuestionnaireResponse"')).toBeVisible()
+    // The document is rendered by the shared source viewer, so the assertion is on that block's
+    // own text rather than on a bare `<pre>`: one element holds the whole document either way.
+    await expect(page.getByTestId('raw-questionnaire-response')).toContainText(
+        '"resourceType": "QuestionnaireResponse"',
+    )
 })
 
 test('a keyboard user opens a receipt the same way', async ({ page, request }) => {

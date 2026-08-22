@@ -84,10 +84,19 @@ export interface EvaluationForm {
     context: EvaluationContextChoice
 }
 
-/** One worked example: what it is called, and the whole form it loads. */
+/**
+ * One worked example: what it is called, which shelf it sits on, and the whole form it loads.
+ *
+ * `label` is what the example ANSWERS rather than what it demonstrates - "The email address on the
+ * record", not "the where() function" - because a reader picking from a list of two dozen is looking
+ * for a question like theirs, not for a feature name. `group` is the shelf, and it is what turns two
+ * dozen into something a person reads: retrieves together, intervals together, refusals together.
+ */
 export interface EvaluationExample {
     id: string
     label: string
+    /** The heading this example sits under in the picker and in the reference panel. */
+    group: string
     form: EvaluationForm
 }
 
@@ -143,6 +152,161 @@ export const EXAMPLE_BUNDLE = JSON.stringify(
     2,
 )
 
+/**
+ * A larger Bundle, for the examples that need something to count, filter, and compare.
+ *
+ * Three people, four Observations with values on them, two Conditions and an Immunization - enough
+ * that a `where` clause leaves some rows behind and an aggregate answers a number nobody could have
+ * guessed from one record. Still generic: no DHIS2 in it, so every example built on it runs against
+ * any served guide, including one that publishes nothing at all.
+ */
+export const EXAMPLE_CLINICAL_BUNDLE = JSON.stringify(
+    {
+        resourceType: 'Bundle',
+        type: 'collection',
+        entry: [
+            {
+                resource: {
+                    resourceType: 'Patient',
+                    id: 'p1',
+                    active: true,
+                    gender: 'female',
+                    birthDate: '1990-04-11',
+                    name: [{ given: ['Amara'], family: 'Okonkwo' }],
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Patient',
+                    id: 'p2',
+                    active: true,
+                    gender: 'male',
+                    birthDate: '2019-09-02',
+                    name: [{ given: ['Tomas'], family: 'Bergstrom' }],
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Patient',
+                    id: 'p3',
+                    active: false,
+                    gender: 'female',
+                    birthDate: '1954-01-30',
+                    name: [{ given: ['Ingrid'], family: 'Halvorsen' }],
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'o1',
+                    status: 'final',
+                    subject: { reference: 'Patient/p1' },
+                    effectiveDateTime: '2024-03-04T09:00:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
+                    valueQuantity: { value: 61.5, unit: 'kg' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'o2',
+                    status: 'final',
+                    subject: { reference: 'Patient/p2' },
+                    effectiveDateTime: '2024-03-11T09:00:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
+                    valueQuantity: { value: 14.2, unit: 'kg' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'o3',
+                    status: 'final',
+                    subject: { reference: 'Patient/p3' },
+                    effectiveDateTime: '2024-07-19T09:00:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
+                    valueQuantity: { value: 70.0, unit: 'kg' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Observation',
+                    id: 'o4',
+                    status: 'preliminary',
+                    subject: { reference: 'Patient/p1' },
+                    effectiveDateTime: '2024-09-30T09:00:00Z',
+                    code: { coding: [{ system: 'http://loinc.org', code: '8310-5', display: 'Body temperature' }] },
+                    valueQuantity: { value: 38.4, unit: 'Cel' },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Condition',
+                    id: 'c1',
+                    subject: { reference: 'Patient/p1' },
+                    recordedDate: '2024-03-04',
+                    code: { coding: [{ system: 'http://snomed.info/sct', code: '386661006', display: 'Fever' }] },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Condition',
+                    id: 'c2',
+                    subject: { reference: 'Patient/p3' },
+                    recordedDate: '2023-11-20',
+                    code: { coding: [{ system: 'http://snomed.info/sct', code: '73211009', display: 'Diabetes' }] },
+                },
+            },
+            {
+                resource: {
+                    resourceType: 'Immunization',
+                    id: 'i1',
+                    status: 'completed',
+                    patient: { reference: 'Patient/p2' },
+                    occurrenceDateTime: '2020-06-15',
+                    vaccineCode: {
+                        coding: [{ system: 'http://snomed.info/sct', code: '396429000', display: 'Measles vaccine' }],
+                    },
+                },
+            },
+        ],
+    },
+    null,
+    2,
+)
+
+/**
+ * One filled-in capture form, for the examples about what a submission actually says.
+ *
+ * The shape this facade receives all day: a QuestionnaireResponse with answers on it, some of them
+ * inside a group. Reading one with FHIRPath is the nearest thing this screen has to a DHIS2 question,
+ * and it needs no instance behind it - the document carries everything the expression touches.
+ */
+export const EXAMPLE_RESPONSE = JSON.stringify(
+    {
+        resourceType: 'QuestionnaireResponse',
+        id: 'example',
+        status: 'completed',
+        authored: '2024-05-06T11:20:00Z',
+        questionnaire: 'Questionnaire/anc-visit',
+        item: [
+            { linkId: 'weight', text: 'Weight in kilograms', answer: [{ valueDecimal: 61.5 }] },
+            { linkId: 'fever', text: 'Fever reported', answer: [{ valueBoolean: true }] },
+            { linkId: 'visit-date', text: 'Date of visit', answer: [{ valueDate: '2024-05-06' }] },
+            {
+                linkId: 'household',
+                text: 'Household',
+                item: [
+                    { linkId: 'people', text: 'People in the household', answer: [{ valueInteger: 5 }] },
+                    { linkId: 'water', text: 'Improved water source', answer: [{ valueBoolean: false }] },
+                ],
+            },
+        ],
+    },
+    null,
+    2,
+)
+
 /** A compiled library, written out as the JSON another CQL compiler would have emitted. */
 export const EXAMPLE_ELM = JSON.stringify(
     {
@@ -184,95 +348,707 @@ function stored(resourceType: string, resourceId: string): EvaluationContextChoi
     return { ...NO_CONTEXT, kind: 'stored', resourceType, resourceId }
 }
 
+/** One example before it is a form: the fields that differ, with the rest filled in below. */
+interface ExampleSeed {
+    id: string
+    label: string
+    group: string
+    source: string
+    context: EvaluationContextChoice
+}
+
+/** A CQL library written as a block, with the leading indentation of this file taken back off. */
+function cql(source: string): string {
+    return source
+        .split('\n')
+        .map((line) => line.replace(/^ {8}/, ''))
+        .join('\n')
+        .trim()
+}
+
+/** One ELM library, written out as the JSON another CQL compiler would have emitted. */
+function elm(name: string, definitions: { name: string; expression: unknown }[]): string {
+    return JSON.stringify(
+        {
+            library: {
+                identifier: { id: name, version: '1.0' },
+                statements: { def: definitions.map((definition) => ({ ...definition, context: 'Unfiltered' })) },
+            },
+        },
+        null,
+        2,
+    )
+}
+
+/** One ELM integer, in the spelling ELM writes every literal in - a type name and a string. */
+function elmInteger(value: number): unknown {
+    return { type: 'Literal', valueType: '{urn:hl7-org:elm-types:r1}Integer', value: String(value) }
+}
+
+/** One ELM string. */
+function elmString(value: string): unknown {
+    return { type: 'Literal', valueType: '{urn:hl7-org:elm-types:r1}String', value }
+}
+
+/** One ELM boolean. */
+function elmBoolean(value: boolean): unknown {
+    return { type: 'Literal', valueType: '{urn:hl7-org:elm-types:r1}Boolean', value: String(value) }
+}
+
+/**
+ * One ELM `If` node, with its two branches under the names ELM gives them.
+ *
+ * Built through a record rather than an object literal because `then` as a literal key makes an
+ * object a lint tool reads as a promise. It is not one: it is a document, and ELM's element is
+ * called `then`, so the name is kept and the construction is moved here once.
+ */
+function elmConditional(condition: unknown, whenTrue: unknown, whenFalse: unknown): unknown {
+    // `then` is ELM's own element name for the branch taken, and this object is a document being
+    // written rather than anything that will be awaited. The rule exists to stop an accidental
+    // thenable; here the name is the format's, so it is kept and the rule is answered once.
+    // oxlint-disable-next-line unicorn/no-thenable
+    return { type: 'If', condition, then: whenTrue, else: whenFalse }
+}
+
+/**
+ * Every FHIRPath example, on five shelves.
+ *
+ * The first is what the screen opens with, so it is the one that has to teach: a short expression
+ * over a resource a reader can see in full, answering something obviously right. Everything after it
+ * is arranged by the question it answers rather than by the feature it happens to use.
+ */
+const FHIRPATH_SEEDS: ExampleSeed[] = [
+    // Reading one record: the path is the whole expression, and the answer is a collection.
+    {
+        id: 'fhirpath-given-names',
+        label: 'The given names on a Patient',
+        group: 'Reading one record',
+        source: 'Patient.name.given',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-family-name',
+        label: 'The family name',
+        group: 'Reading one record',
+        source: 'Patient.name.family',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-active',
+        label: 'Whether the record is active',
+        group: 'Reading one record',
+        source: 'Patient.active',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-birth-date',
+        label: 'The birth date, and whether the record states one',
+        group: 'Reading one record',
+        source: 'Patient.birthDate.exists()',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-telecom-email',
+        label: 'The email address, out of every way of reaching the person',
+        group: 'Reading one record',
+        source: "Patient.telecom.where(system = 'email').value",
+        context: inline(EXAMPLE_PATIENT),
+    },
+
+    // Counting and picking: what turns a collection into one value.
+    {
+        id: 'fhirpath-count-given',
+        label: 'How many given names the record carries',
+        group: 'Counting and picking',
+        source: 'Patient.name.given.count()',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-first-given',
+        label: 'The first given name alone',
+        group: 'Counting and picking',
+        source: 'Patient.name.given.first()',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-last-given',
+        label: 'The last given name alone',
+        group: 'Counting and picking',
+        source: 'Patient.name.given.last()',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-distinct-types',
+        label: 'Each resource type in a Bundle, named once',
+        group: 'Counting and picking',
+        source: 'Bundle.entry.resource.resourceType.distinct()',
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+
+    // Text and dates: the two kinds of value a DHIS2 attribute usually holds.
+    {
+        id: 'fhirpath-upper-family',
+        label: 'The family name in capitals',
+        group: 'Text and dates',
+        source: 'Patient.name.family.upper()',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-full-name',
+        label: 'The whole name as one string',
+        group: 'Text and dates',
+        source: "Patient.name.select(given.join(' ') & ' ' & family)",
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-birth-year',
+        label: 'The year of birth alone',
+        group: 'Text and dates',
+        source: 'Patient.birthDate.year()',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-family-prefix',
+        label: 'The first few letters of the family name',
+        group: 'Text and dates',
+        source: 'Patient.name.family.substring(0, 4)',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-born-before',
+        label: 'Active, and born before 1900',
+        group: 'Text and dates',
+        source: 'Patient.active and Patient.birthDate < @1900-01-01',
+        context: inline(EXAMPLE_PATIENT),
+    },
+    {
+        id: 'fhirpath-name-starts',
+        label: 'Whether the family name starts with a given letter',
+        group: 'Text and dates',
+        source: "Patient.name.family.startsWith('Love')",
+        context: inline(EXAMPLE_PATIENT),
+    },
+
+    // Reading a Bundle: several resources at once, which is what a search answers with.
+    {
+        id: 'fhirpath-bundle-types',
+        label: 'Every resource type in a Bundle',
+        group: 'Reading a Bundle',
+        source: 'Bundle.entry.resource.resourceType',
+        context: inline(EXAMPLE_BUNDLE),
+    },
+    {
+        id: 'fhirpath-bundle-observations',
+        label: 'Only the Observations, and what each one measured',
+        group: 'Reading a Bundle',
+        source: 'Bundle.entry.resource.ofType(Observation).code.coding.display',
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'fhirpath-bundle-final',
+        label: 'The final Observations, not the preliminary ones',
+        group: 'Reading a Bundle',
+        source: "Bundle.entry.resource.ofType(Observation).where(status = 'final').id",
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'fhirpath-bundle-weights',
+        label: 'Every weight the Bundle records',
+        group: 'Reading a Bundle',
+        source: "Bundle.entry.resource.ofType(Observation).where(code.coding.code = '29463-7').valueQuantity.value",
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'fhirpath-bundle-active-people',
+        label: 'The people the Bundle holds who are still active',
+        group: 'Reading a Bundle',
+        source: 'Bundle.entry.resource.ofType(Patient).where(active = true).name.family',
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'fhirpath-bundle-subjects',
+        label: 'Who each Condition is about',
+        group: 'Reading a Bundle',
+        source: 'Bundle.entry.resource.ofType(Condition).subject.reference',
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+
+    // A filled-in form: the document this facade actually receives.
+    {
+        id: 'fhirpath-response-answers',
+        label: 'Every question a submission answered',
+        group: 'A filled-in form',
+        source: 'QuestionnaireResponse.descendants().linkId',
+        context: inline(EXAMPLE_RESPONSE),
+    },
+    {
+        id: 'fhirpath-response-one-answer',
+        label: 'What one question was answered with',
+        group: 'A filled-in form',
+        source: "QuestionnaireResponse.item.where(linkId = 'weight').answer.valueDecimal",
+        context: inline(EXAMPLE_RESPONSE),
+    },
+    {
+        id: 'fhirpath-response-nested',
+        label: 'An answer inside a group of questions',
+        group: 'A filled-in form',
+        source: "QuestionnaireResponse.descendants().where(linkId = 'people').answer.valueInteger",
+        context: inline(EXAMPLE_RESPONSE),
+    },
+    {
+        id: 'fhirpath-response-unanswered',
+        label: 'The questions that carry no answer at all',
+        group: 'A filled-in form',
+        source: 'QuestionnaireResponse.descendants().where(answer.empty()).linkId',
+        context: inline(EXAMPLE_RESPONSE),
+    },
+    {
+        id: 'fhirpath-response-completed',
+        label: 'Whether the submission was completed rather than left in progress',
+        group: 'A filled-in form',
+        source: "QuestionnaireResponse.status = 'completed'",
+        context: inline(EXAMPLE_RESPONSE),
+    },
+
+    // Arithmetic: an expression with no resource under it at all.
+    {
+        id: 'fhirpath-arithmetic',
+        label: 'Arithmetic, over no resource at all',
+        group: 'Arithmetic, over nothing',
+        source: '(2 + 3) * 4',
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'fhirpath-string-join',
+        label: 'Three strings joined into one',
+        group: 'Arithmetic, over nothing',
+        source: "('one' | 'two' | 'three').join(', ')",
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'fhirpath-today',
+        label: 'Today, as the server reads its own clock',
+        group: 'Arithmetic, over nothing',
+        source: 'today()',
+        context: { ...NO_CONTEXT },
+    },
+]
+
+/**
+ * Every CQL example, on five shelves.
+ *
+ * The refusals are a shelf of their own and are examples on purpose: an unresolved valueset is the
+ * mistake this engine is loudest about, and meeting it once here - with the whole refusal on screen -
+ * is cheaper than meeting it for the first time in a measure nobody can explain.
+ */
+const CQL_SEEDS: ExampleSeed[] = [
+    // The library itself: what the header lines are for.
+    {
+        id: 'cql-retrieve-people',
+        label: 'Everyone a Bundle holds',
+        group: 'The library, line by line',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define People: [Patient]
+        define HasCondition: exists [Condition]
+        `),
+        context: inline(EXAMPLE_BUNDLE),
+    },
+    {
+        id: 'cql-arithmetic',
+        label: 'Arithmetic, over no data at all',
+        group: 'The library, line by line',
+        source: cql(`
+        library Example version '1.0'
+
+        define Sum: 1 + 2 * 3
+        define Greeting: 'hello'
+        `),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'cql-define-reads-define',
+        label: 'One define reading another',
+        group: 'The library, line by line',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define People: [Patient]
+        define HowMany: Count(People)
+        define AnyAtAll: HowMany > 0
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'cql-parameter',
+        label: 'A parameter with a default the library states itself',
+        group: 'The library, line by line',
+        source: cql(`
+        library Example version '1.0'
+
+        parameter Threshold Integer default 20
+
+        define Threshold20: Threshold
+        define Over: 25 > Threshold
+        `),
+        context: { ...NO_CONTEXT },
+    },
+
+    // Retrieves: how a library reaches data.
+    {
+        id: 'cql-retrieve-observations',
+        label: 'Every Observation the Bundle holds',
+        group: 'Retrieves',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define Measurements: [Observation]
+        define HowMany: Count([Observation])
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'cql-retrieve-exists',
+        label: 'Whether the Bundle holds an Immunization at all',
+        group: 'Retrieves',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define Vaccinated: exists [Immunization]
+        define NoProcedures: not exists [Procedure]
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'cql-retrieve-empty',
+        label: 'A retrieve for a type the data holds none of',
+        group: 'Retrieves',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define Encounters: [Encounter]
+        define HowMany: Count([Encounter])
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+
+    // Queries: the clauses that narrow a retrieve.
+    {
+        id: 'cql-query-where',
+        label: 'The people born before a given date',
+        group: 'Queries',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        // A FHIR date arrives as text, so it is converted before it is compared.
+        define Older:
+          [Patient] P
+            where ToDate(P.birthDate) < @1980-01-01
+            return P.id
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'cql-query-sort',
+        label: 'Every weight recorded, largest first',
+        group: 'Queries',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define Weights:
+          [Observation] O
+            where O.code.coding[0].code = '29463-7'
+            return O.value.value
+            sort descending
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'cql-query-return-all',
+        label: 'A return that keeps its duplicates, because it said all',
+        group: 'Queries',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define Statuses: [Observation] O return all O.status
+        define Deduplicated: [Observation] O return O.status
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+
+    // Lists, intervals, and the temporal vocabulary.
+    {
+        id: 'cql-list-aggregate',
+        label: 'A list added up, and its largest member',
+        group: 'Lists and intervals',
+        source: cql(`
+        library Example version '1.0'
+
+        define Total: Sum({ 1, 2, 3, 4 })
+        define Biggest: Max({ 4, 9, 2 })
+        define HowMany: Count({ 4, 9, 2 })
+        `),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'cql-interval-membership',
+        label: 'Whether a date falls inside a period',
+        group: 'Lists and intervals',
+        source: cql(`
+        library Example version '1.0'
+
+        define Year2024: Interval[@2024-01-01, @2024-12-31]
+        define Midsummer: @2024-06-21 during Year2024
+        define NewYearsEve2023: @2023-12-31 during Year2024
+        `),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'cql-interval-boundaries',
+        label: 'Where a period begins, where it ends, and how wide it is',
+        group: 'Lists and intervals',
+        source: cql(`
+        library Example version '1.0'
+
+        define Quarter: Interval[@2024-01-01, @2024-03-31]
+        define Opens: start of Quarter
+        define Closes: end of Quarter
+        define Days: duration in days between start of Quarter and end of Quarter
+        `),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'cql-interval-observations',
+        label: 'The Conditions recorded inside one period',
+        group: 'Lists and intervals',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define Year2024: Interval[@2024-01-01, @2024-12-31]
+
+        define Recent:
+          [Condition] C
+            where ToDate(C.recordedDate) during Year2024
+            return C.id
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+
+    // Terminology, and the two ways it is refused.
+    {
+        id: 'cql-terminology-declared',
+        label: 'A codesystem and a code the library declares',
+        group: 'Terminology, and what it refuses',
+        source: cql(`
+        library Example version '1.0'
+
+        codesystem "SNOMED": 'http://snomed.info/sct'
+        code "Fever": '386661006' from "SNOMED" display 'Fever'
+
+        define TheCode: "Fever"
+        `),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'cql-terminology-undeclared',
+        label: 'A retrieve naming terminology the library never declared, refused',
+        group: 'Terminology, and what it refuses',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define MeaslesCases: [Condition: "Measles Codes"]
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'cql-terminology-unexpanded',
+        label: 'A valueset the data holds no expansion for, refused',
+        group: 'Terminology, and what it refuses',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        valueset "Fevers": 'http://example.org/ValueSet/fevers'
+
+        define Febrile: [Condition: "Fevers"]
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+    {
+        id: 'cql-string-in-terminology',
+        label: 'A bare string where a terminology reference belongs, refused',
+        group: 'Terminology, and what it refuses',
+        source: cql(`
+        library Example version '1.0'
+        using FHIR version '4.0.1'
+
+        define Fevers: [Condition: '386661006']
+        `),
+        context: inline(EXAMPLE_CLINICAL_BUNDLE),
+    },
+]
+
+/**
+ * Every ELM example.
+ *
+ * ELM is not a language anybody writes by hand, and these do not pretend otherwise: what they teach
+ * is the SHAPE a compiled library arrives in, so a reader posting the output of another compiler
+ * knows what this endpoint is reading. Each is small enough to see whole - one library, one or two
+ * statements, one expression tree - and each answers a value that could not have come from anywhere
+ * else.
+ */
+const ELM_SEEDS: ExampleSeed[] = [
+    {
+        id: 'elm-sum',
+        label: 'A compiled library that adds two numbers',
+        group: 'The shape of a compiled library',
+        source: EXAMPLE_ELM,
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'elm-two-statements',
+        label: 'Two statements in one library',
+        group: 'The shape of a compiled library',
+        source: elm('Example', [
+            { name: 'Answer', expression: elmInteger(42) },
+            { name: 'Greeting', expression: elmString('hello') },
+        ]),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'elm-comparison',
+        label: 'A comparison, which answers a boolean',
+        group: 'The shape of a compiled library',
+        source: elm('Example', [
+            { name: 'Greater', expression: { type: 'Greater', operand: [elmInteger(7), elmInteger(3)] } },
+            { name: 'Stated', expression: elmBoolean(true) },
+        ]),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'elm-conditional',
+        label: 'A conditional, with only the taken branch evaluated',
+        group: 'Expressions, one node at a time',
+        source: elm('Example', [
+            {
+                name: 'Verdict',
+                expression: elmConditional(
+                    { type: 'Greater', operand: [elmInteger(5), elmInteger(2)] },
+                    elmString('larger'),
+                    elmString('smaller'),
+                ),
+            },
+        ]),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'elm-list-count',
+        label: 'A list, and the count of what is in it',
+        group: 'Expressions, one node at a time',
+        source: elm('Example', [
+            {
+                name: 'Numbers',
+                expression: { type: 'List', element: [elmInteger(3), elmInteger(1), elmInteger(4)] },
+            },
+            {
+                name: 'HowMany',
+                expression: {
+                    type: 'Count',
+                    source: { type: 'List', element: [elmInteger(3), elmInteger(1), elmInteger(4)] },
+                },
+            },
+        ]),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'elm-nested-arithmetic',
+        label: 'Arithmetic nested two levels deep',
+        group: 'Expressions, one node at a time',
+        source: elm('Example', [
+            {
+                name: 'Total',
+                expression: {
+                    type: 'Multiply',
+                    operand: [
+                        { type: 'Add', operand: [elmInteger(2), elmInteger(3)] },
+                        elmInteger(4),
+                    ],
+                },
+            },
+        ]),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'elm-string-concatenate',
+        label: 'Two strings concatenated',
+        group: 'Expressions, one node at a time',
+        source: elm('Example', [
+            {
+                name: 'Line',
+                expression: {
+                    type: 'Concatenate',
+                    operand: [elmString('Ward '), elmString('B')],
+                },
+            },
+        ]),
+        context: { ...NO_CONTEXT },
+    },
+    {
+        id: 'elm-no-identifier',
+        label: 'A library carrying no identifier, refused',
+        group: 'What a library has to carry',
+        source: JSON.stringify({ library: { statements: { def: [{ name: 'Answer' }] } } }, null, 2),
+        context: { ...NO_CONTEXT },
+    },
+]
+
+/** The seeds of one language, in the order the picker offers them. */
+function seedsFor(language: EvaluationLanguage): ExampleSeed[] {
+    if (language === 'fhirpath') return FHIRPATH_SEEDS
+    return language === 'cql' ? CQL_SEEDS : ELM_SEEDS
+}
+
 /**
  * The examples that run against any served guide, because they carry their own data.
  *
  * The first of each language is what the screen opens with, so it is the one that has to teach: a
  * short expression over a resource a reader can see in full, answering something obviously right.
+ * Everything after it is on a shelf named for the kind of question it answers, because a flat list of
+ * two dozen is a list nobody reads to the bottom of.
  */
 export function genericExamples(language: EvaluationLanguage): EvaluationExample[] {
-    if (language === 'fhirpath') {
-        return [
-            {
-                id: 'fhirpath-given-names',
-                label: 'The given names on a Patient',
-                form: {
-                    language,
-                    source: 'Patient.name.given',
-                    expressionName: '',
-                    context: inline(EXAMPLE_PATIENT),
-                },
-            },
-            {
-                id: 'fhirpath-born-before',
-                label: 'Active, and born before 1900',
-                form: {
-                    language,
-                    source: 'Patient.active and Patient.birthDate < @1900-01-01',
-                    expressionName: '',
-                    context: inline(EXAMPLE_PATIENT),
-                },
-            },
-            {
-                id: 'fhirpath-bundle-types',
-                label: 'Every resource type in a Bundle',
-                form: {
-                    language,
-                    source: 'Bundle.entry.resource.resourceType',
-                    expressionName: '',
-                    context: inline(EXAMPLE_BUNDLE),
-                },
-            },
-        ]
-    }
-    if (language === 'cql') {
-        return [
-            {
-                id: 'cql-retrieve-people',
-                label: 'Everyone a Bundle holds',
-                form: {
-                    language,
-                    source: [
-                        "library Example version '1.0'",
-                        "using FHIR version '4.0.1'",
-                        '',
-                        'define People: [Patient]',
-                        'define HasCondition: exists [Condition]',
-                    ].join('\n'),
-                    expressionName: '',
-                    context: inline(EXAMPLE_BUNDLE),
-                },
-            },
-            {
-                id: 'cql-arithmetic',
-                label: 'Arithmetic, over no data at all',
-                form: {
-                    language,
-                    source: [
-                        "library Example version '1.0'",
-                        '',
-                        'define Sum: 1 + 2 * 3',
-                        "define Greeting: 'hello'",
-                    ].join('\n'),
-                    expressionName: '',
-                    context: { ...NO_CONTEXT },
-                },
-            },
-        ]
-    }
-    return [
-        {
-            id: 'elm-sum',
-            label: 'A compiled library that adds two numbers',
-            form: {
-                language,
-                source: EXAMPLE_ELM,
-                expressionName: '',
-                context: { ...NO_CONTEXT },
-            },
-        },
-    ]
+    return seedsFor(language).map((seed) => ({
+        id: seed.id,
+        label: seed.label,
+        group: seed.group,
+        form: { language, source: seed.source, expressionName: '', context: seed.context },
+    }))
 }
+
+/** The shelves one language's examples sit on, in the order they were declared. */
+export function exampleGroups(examples: readonly EvaluationExample[]): { group: string; examples: EvaluationExample[] }[] {
+    const shelves: { group: string; examples: EvaluationExample[] }[] = []
+    for (const example of examples) {
+        const shelf = shelves.find((candidate) => candidate.group === example.group)
+        if (shelf === undefined) shelves.push({ group: example.group, examples: [example] })
+        else shelf.examples.push(example)
+    }
+    return shelves
+}
+
+/** What the picker calls the shelf built from resources this particular server was found to hold. */
+export const GUIDE_PRESET_GROUP = 'This guide’s own resources'
 
 /**
  * The examples built from what this particular server holds, one per resource it was found to have.
@@ -286,6 +1062,7 @@ export function guidePresets(language: EvaluationLanguage, served: ServedResourc
     return served.map((resource) => ({
         id: `guide-${language}-${resource.resourceType}-${resource.resourceId}`,
         label: presetLabel(language, resource),
+        group: GUIDE_PRESET_GROUP,
         form: {
             language,
             source: presetSource(language, resource.resourceType),

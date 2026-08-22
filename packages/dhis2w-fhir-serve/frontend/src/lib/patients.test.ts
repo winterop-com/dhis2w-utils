@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import registrationFixture from '@/lib/__fixtures__/questionnaire-PrAncCare01.json'
+import { formatInstant } from '@/lib/spool'
 import type { Bundle, CodeSystem, Patient, Questionnaire } from '@/lib/fhir'
 import {
     enrollmentStatusLabel,
@@ -10,12 +11,14 @@ import {
     subjectExistsExtensionUrl,
     marksAnExistingSubject,
     MINIMUM_PATIENT_SEARCH_LENGTH,
+    NOTHING_SYNCED,
     pageTokenOf,
     patientIdentifierValue,
     patientLeadValue,
     patientPage,
     patientProjection,
     patientSearchQuery,
+    projectionAsOfLine,
     PATIENT_SEARCH_DEBOUNCE_MS,
     trackedEntityAttributeLabel,
     trackedEntityAttributeNames,
@@ -448,5 +451,51 @@ describe('what a register listing reads out of the dictionary', () => {
         // The renderer's answer is still the uid; what changed is that a caller can now tell that
         // the uid is a fallback rather than a value this instance holds.
         expect(patientLeadValue(unnamed)).toBe(unnamed.trackedEntityUid)
+    })
+})
+
+/** The OperationOutcome a projection-served searchset carries beside its matches. */
+const outcome = (diagnostics: string) => ({
+    resourceType: 'OperationOutcome' as const,
+    issue: [{ severity: 'information' as const, code: 'informational', diagnostics }],
+})
+
+describe('how old a register answer says it is', () => {
+    it('says nothing at all when the answer came from the DHIS2 instance itself', () => {
+        expect(projectionAsOfLine(null, null)).toBeNull()
+    })
+
+    it('states the instant off the header, in the wall clock every other instant is read in', () => {
+        const stated = projectionAsOfLine('2026-08-21T16:46:57', null)
+        expect(stated).toContain('Answered from the synced copy of this DHIS2 instance, as of ')
+        expect(stated).toContain(formatInstant('2026-08-21T16:46:57'))
+    })
+
+    it('states the instant once, not twice, when the outcome says it too', () => {
+        const stated = projectionAsOfLine(
+            '2026-08-21T16:46:57',
+            outcome("served from this project's materialized projection, as of 2026-08-21T16:46:57"),
+        )
+        expect(stated).not.toContain('materialized projection')
+        expect(stated?.match(/2026/g) ?? []).toHaveLength(1)
+    })
+
+    it('falls back to the server’s own sentence for a copy nothing has filled yet', () => {
+        const nothing = "this project's materialized projection holds nothing yet: no sync has read the instance."
+        expect(projectionAsOfLine(NOTHING_SYNCED, outcome(nothing))).toBe(nothing)
+    })
+
+    it('falls back to the same sentence when the header never arrived but the outcome did', () => {
+        const said = 'served from a synced copy of the DHIS2 instance.'
+        expect(projectionAsOfLine(null, outcome(said))).toBe(said)
+    })
+
+    it('says nothing for an outcome carrying no diagnostics to say', () => {
+        expect(
+            projectionAsOfLine(NOTHING_SYNCED, {
+                resourceType: 'OperationOutcome',
+                issue: [{ severity: 'information', code: 'informational' }],
+            }),
+        ).toBeNull()
     })
 })

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { listRegister } from '@/lib/api'
-import { NO_PATIENT_PAGE, PATIENT_PAGE_SIZE, patientPage, type PatientPage } from '@/lib/patients'
+import { bundleOutcome } from '@/lib/fhir'
+import {
+    NO_PATIENT_PAGE,
+    PATIENT_PAGE_SIZE,
+    patientPage,
+    projectionAsOfLine,
+    type PatientPage,
+} from '@/lib/patients'
 
 /** One page of the listing, and the two moves that are available from it. */
 export interface RegisterListingState {
@@ -9,6 +16,8 @@ export interface RegisterListingState {
     loading: boolean
     /** The refusal the server stated, already reduced to its message. */
     error: string | null
+    /** How old the copy that answered is, when it was a synced one - see `projectionAsOfLine`. */
+    asOf: string | null
     /** Ask for the page the current one's `next` link names; does nothing when it names none. */
     showNext: () => void
     /** Ask for the page the current one's `previous` link names; does nothing when it names none. */
@@ -40,27 +49,31 @@ export function useRegisterListing(resource: string, enabled: boolean): Register
     const [page, setPage] = useState<PatientPage>(NO_PATIENT_PAGE)
     const [loading, setLoading] = useState(enabled)
     const [error, setError] = useState<string | null>(null)
+    const [asOf, setAsOf] = useState<string | null>(null)
 
     useEffect(() => {
         if (!enabled) {
             setPage(NO_PATIENT_PAGE)
             setLoading(false)
             setError(null)
+            setAsOf(null)
             return
         }
         let cancelled = false
         setLoading(true)
         setError(null)
         listRegister(resource, token, PATIENT_PAGE_SIZE)
-            .then((bundle) => {
+            .then((answer) => {
                 if (cancelled) return
-                setPage(patientPage(bundle))
+                setPage(patientPage(answer.bundle))
+                setAsOf(projectionAsOfLine(answer.projectionAsOf, bundleOutcome(answer.bundle)))
                 setLoading(false)
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
                 setPage(NO_PATIENT_PAGE)
                 setError(failure instanceof Error ? failure.message : String(failure))
+                setAsOf(null)
                 setLoading(false)
             })
         return () => {
@@ -76,5 +89,5 @@ export function useRegisterListing(resource: string, enabled: boolean): Register
         setToken((current) => page.previous ?? current)
     }, [page.previous])
 
-    return { page, loading, error, showNext, showPrevious }
+    return { page, loading, error, asOf, showNext, showPrevious }
 }
