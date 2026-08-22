@@ -188,6 +188,7 @@ nav:
       - 401 - Integrate and extend:
           - The capture contract: fhir/401-capture-contract.md
           - Consume the FHIR API: fhir/401-consume-the-fhir-api.md
+          - Embed the facade: fhir/401-embed-the-facade.md
           - Build your own facade: fhir/401-build-your-own-facade.md
           - Identifiers and extensions: fhir/401-identifiers-and-extensions.md
           - Terminology and ConceptMaps: fhir/401-terminology-and-conceptmaps.md
