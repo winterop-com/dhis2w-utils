@@ -14,6 +14,7 @@ import {
     attributeOptionCombosOf,
     attributeOptionComboOf,
     bundleLink,
+    bundleOutcome,
     bundleResources,
     canonicalId,
     conceptDisplay,
@@ -31,7 +32,9 @@ import {
     incidentAtOf,
     operationNames,
     programOf,
+    isMatchEntry,
     questionCount,
+    registerSearchKey,
     registersAPerson,
     servedIgLabel,
     trackedEntityOf,
@@ -758,5 +761,148 @@ describe('a person-only form’s tracked entity type', () => {
     it('reads nothing off a form that names a program instead', () => {
         expect(trackedEntityTypeOf(servedForm('PsAncVisit1'))).toBeNull()
         expect(trackedEntityTypeOf({ resourceType: 'Questionnaire', status: 'draft' })).toBeNull()
+    })
+})
+
+/** The register entry a run over a synced copy of the instance declares: both parameters. */
+const projectionRegister = (type: string) => ({
+    type,
+    interaction: [{ code: 'read' }, { code: 'search-type' }],
+    searchParam: [
+        { name: 'identifier', type: 'token' },
+        { name: '_content', type: 'string' },
+    ],
+})
+
+/** One Patient, as the register serves one. */
+const registeredPerson = (id: string) => ({ resourceType: 'Patient' as const, id })
+
+describe('which parameter a register search is sent under', () => {
+    /** One statement carrying whatever register entries a case is about, beside the compiled ones. */
+    const withRegisters = (...entries: Record<string, unknown>[]): CapabilityStatement => ({
+        ...metadata,
+        rest: [
+            {
+                ...metadata.rest![0],
+                resource: [
+                    ...(metadata.rest?.[0].resource ?? []),
+                    ...entries.map((entry) => entry as unknown as ReturnType<typeof liveRegister>),
+                ],
+            },
+        ],
+    })
+
+    it('is identifier on a facade that asks the DHIS2 instance itself', () => {
+        expect(registerSearchKey(withRegisters(liveRegister('Patient')), 'Patient')).toBe('identifier')
+    })
+
+    it('is _content where the statement declares it, because that is the wider question', () => {
+        expect(registerSearchKey(withRegisters(projectionRegister('Patient')), 'Patient')).toBe('_content')
+    })
+
+    it('is decided per register, so one declaring it does not speak for another', () => {
+        const statement = withRegisters(projectionRegister('Patient'), liveRegister('Specimen'))
+        expect(registerSearchKey(statement, 'Patient')).toBe('_content')
+        expect(registerSearchKey(statement, 'Specimen')).toBe('identifier')
+    })
+
+    it('is identifier for a register the statement never named at all', () => {
+        expect(registerSearchKey(withRegisters(projectionRegister('Patient')), 'Device')).toBe('identifier')
+    })
+
+    it('is identifier while the conformance document is still in flight', () => {
+        expect(registerSearchKey(null, 'Patient')).toBe('identifier')
+    })
+
+    it('is still identifier on a compiled run, which declares no register at all', () => {
+        expect(registerSearchKey(metadata, 'Patient')).toBe('identifier')
+    })
+})
+
+describe('which entries of a searchset are rows', () => {
+    const person = registeredPerson
+
+    /** The OperationOutcome a projection-served searchset carries beside its matches. */
+    const asOfOutcome = {
+        resourceType: 'OperationOutcome' as const,
+        issue: [
+            {
+                severity: 'information' as const,
+                code: 'informational',
+                diagnostics:
+                    "served from this project's materialized projection of the DHIS2 instance, as of " +
+                    '2026-08-21T16:46:57 on the instance’s own clock.',
+            },
+        ],
+    }
+
+    /** A projection-served searchset: two matches, then the outcome the server appends last. */
+    const projectionAnswer: Bundle = {
+        resourceType: 'Bundle' as const,
+        type: 'searchset',
+        entry: [
+            { resource: person('TeAda000001'), search: { mode: 'match' } },
+            { resource: person('TeAda000002'), search: { mode: 'match' } },
+            { resource: asOfOutcome, search: { mode: 'outcome' } },
+        ],
+    }
+
+    it('never makes a row of the outcome entry, so nobody is shown as an empty person', () => {
+        const rows = bundleResources(projectionAnswer)
+        expect(rows).toHaveLength(2)
+        expect(rows.map((row) => (row as { resourceType: string }).resourceType)).toEqual([
+            'Patient',
+            'Patient',
+        ])
+    })
+
+    it('counts only the matches, so "Showing N people" is not inflated by one', () => {
+        const matches = (projectionAnswer.entry ?? []).filter((entry) => entry.search?.mode === 'match')
+        expect(bundleResources(projectionAnswer)).toHaveLength(matches.length)
+        expect(matches).toHaveLength(2)
+    })
+
+    it('reads an entry that states no mode at all as a match, which is what R4 says it is', () => {
+        const plain: Bundle = {
+            resourceType: 'Bundle',
+            type: 'searchset',
+            entry: [{ resource: person('TeAda000001') }, { resource: person('TeAda000002') }],
+        }
+        expect(bundleResources(plain)).toHaveLength(2)
+    })
+
+    it('drops an include entry as well, because it is not one of the things searched for', () => {
+        const withInclude: Bundle = {
+            resourceType: 'Bundle',
+            type: 'searchset',
+            entry: [
+                { resource: person('TeAda000001'), search: { mode: 'match' } },
+                { resource: person('TeAda000002'), search: { mode: 'include' } },
+            ],
+        }
+        expect(bundleResources(withInclude)).toHaveLength(1)
+    })
+
+    it('tells one entry from another by its mode alone', () => {
+        expect(isMatchEntry({ resource: person('a') })).toBe(true)
+        expect(isMatchEntry({ resource: person('a'), search: { mode: 'match' } })).toBe(true)
+        expect(isMatchEntry({ resource: person('a'), search: { mode: 'outcome' } })).toBe(false)
+        expect(isMatchEntry({ resource: person('a'), search: {} })).toBe(true)
+    })
+
+    it('hands the outcome back whole, so what it says can be read rather than thrown away', () => {
+        expect(bundleOutcome(projectionAnswer)?.issue[0].diagnostics).toContain(
+            'materialized projection',
+        )
+    })
+
+    it('finds no outcome in a searchset that carries none', () => {
+        const matchesOnly: Bundle = {
+            resourceType: 'Bundle',
+            type: 'searchset',
+            entry: [{ resource: person('TeAda000001'), search: { mode: 'match' } }],
+        }
+        expect(bundleOutcome(matchesOnly)).toBeNull()
+        expect(bundleOutcome(undefined)).toBeNull()
     })
 })

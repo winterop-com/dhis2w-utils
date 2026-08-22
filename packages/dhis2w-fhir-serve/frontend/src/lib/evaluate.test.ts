@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import {
     EXAMPLE_BUNDLE,
+    EXAMPLE_CLINICAL_BUNDLE,
     EXAMPLE_ELM,
     EXAMPLE_PATIENT,
+    EXAMPLE_RESPONSE,
+    GUIDE_PRESET_GROUP,
     NO_CONTEXT,
     caretUnder,
+    exampleGroups,
     cellText,
     diagnosticHeadline,
     elementFor,
@@ -63,7 +67,102 @@ describe('the generic examples', () => {
     it('pastes resources that are the JSON they claim to be', () => {
         expect(JSON.parse(EXAMPLE_PATIENT).resourceType).toBe('Patient')
         expect(JSON.parse(EXAMPLE_BUNDLE).resourceType).toBe('Bundle')
+        expect(JSON.parse(EXAMPLE_CLINICAL_BUNDLE).resourceType).toBe('Bundle')
+        expect(JSON.parse(EXAMPLE_RESPONSE).resourceType).toBe('QuestionnaireResponse')
         expect(JSON.parse(EXAMPLE_ELM).library.identifier.id).toBe('Example')
+    })
+
+    it('offers a dozen or more for every language, because one of each teaches nothing', () => {
+        for (const language of LANGUAGES) {
+            expect(genericExamples(language).length).toBeGreaterThanOrEqual(6)
+        }
+        expect(genericExamples('fhirpath').length).toBeGreaterThanOrEqual(12)
+        expect(genericExamples('cql').length).toBeGreaterThanOrEqual(12)
+    })
+
+    it('names every example once, so loading one by id can only load one', () => {
+        const seen = new Set<string>()
+        for (const language of LANGUAGES) {
+            for (const example of genericExamples(language)) {
+                expect(seen.has(example.id)).toBe(false)
+                seen.add(example.id)
+            }
+        }
+    })
+
+    it('puts every example on a named shelf, so the picker has something to group by', () => {
+        for (const language of LANGUAGES) {
+            for (const example of genericExamples(language)) {
+                expect(example.group.trim()).not.toBe('')
+            }
+        }
+    })
+
+    it('pastes a context that is one JSON object, wherever it pastes one at all', () => {
+        for (const language of LANGUAGES) {
+            for (const example of genericExamples(language)) {
+                if (example.form.context.kind !== 'inline') continue
+                const parsed: unknown = JSON.parse(example.form.context.resource)
+                expect(typeof parsed).toBe('object')
+                expect(Array.isArray(parsed)).toBe(false)
+            }
+        }
+    })
+
+    it('writes every ELM example as the JSON the endpoint parses before the engine sees it', () => {
+        for (const example of genericExamples('elm')) {
+            // Every one has to be a JSON object - including the one that is an example OF a refusal,
+            // which is refused for having no identifier rather than for being unreadable.
+            const parsed = JSON.parse(example.form.source) as Record<string, unknown>
+            expect(typeof parsed).toBe('object')
+            expect(Object.keys(parsed)).toContain('library')
+        }
+    })
+
+    it('writes every CQL example as a library, because a bare expression is not one', () => {
+        for (const example of genericExamples('cql')) {
+            expect(example.form.source.startsWith('library ')).toBe(true)
+        }
+    })
+
+    it('asks for every define, so an example never opens narrowed to one a reader did not choose', () => {
+        for (const language of LANGUAGES) {
+            for (const example of genericExamples(language)) {
+                expect(example.form.expressionName).toBe('')
+            }
+        }
+    })
+})
+
+describe('the shelves the examples sit on', () => {
+    it('keeps every example, on the shelf it named', () => {
+        for (const language of LANGUAGES) {
+            const examples = genericExamples(language)
+            const shelves = exampleGroups(examples)
+            expect(shelves.flatMap((shelf) => shelf.examples)).toHaveLength(examples.length)
+            for (const shelf of shelves) {
+                for (const example of shelf.examples) expect(example.group).toBe(shelf.group)
+            }
+        }
+    })
+
+    it('names each shelf once, in the order it was first declared', () => {
+        const shelves = exampleGroups(genericExamples('fhirpath'))
+        const names = shelves.map((shelf) => shelf.group)
+        expect(new Set(names).size).toBe(names.length)
+        expect(names[0]).toBe(genericExamples('fhirpath')[0].group)
+    })
+
+    it('puts the guide presets on their own shelf, under the generic ones', () => {
+        const examples = [
+            ...genericExamples('fhirpath'),
+            ...guidePresets('fhirpath', [
+                { resourceType: 'Questionnaire', resourceId: 'q1', title: 'Antenatal care' },
+            ]),
+        ]
+        const shelves = exampleGroups(examples)
+        expect(shelves.at(-1)?.group).toBe(GUIDE_PRESET_GROUP)
+        expect(shelves.at(-1)?.examples).toHaveLength(1)
     })
 })
 

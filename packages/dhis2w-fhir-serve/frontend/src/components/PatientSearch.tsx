@@ -6,17 +6,77 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { usePatientSearch, type PatientSearchState } from '@/hooks/use-patient-search'
+import { useRegisterSearchKey } from '@/hooks/use-register-search-support'
+import { REGISTER_CONTENT_SEARCH_PARAMETER, REGISTER_IDENTIFIER_SEARCH_PARAMETER, type RegisterSearchKey } from '@/lib/fhir'
 import { patientLeadValue, type PatientProjection } from '@/lib/patients'
+
+/**
+ * What the box is called and what it says about itself, per the search this server answers.
+ *
+ * One shape, two fillings, because the two searches answer different questions and a box that
+ * described the wider one while sending the narrower would be lying about what a blank result means.
+ * Which one is on offer is `/metadata`'s to state; see `lib/fhir.registerSearchKey`.
+ */
+interface SearchWords {
+    /** The label above the box, which is what a person is being asked for. */
+    label: string
+    /** What the box searches, said in full - the one sentence this control exists to keep honest. */
+    hint: string
+    /** What the box says before anything has been typed. */
+    prompt: string
+    /** What it says when the server answered and held nobody. */
+    empty: string
+}
+
+/**
+ * The identifier search: every key at once, and none of them a name.
+ *
+ * The server answers a bare value by trying the tracked entity uid and the value of every attribute
+ * DHIS2 declares unique, and folding the matches. That is exactly right for a person holding a card,
+ * who does not know which of the instance's attributes the number on it is a value of.
+ */
+const IDENTIFIER_WORDS: SearchWords = {
+    label: 'Identifier value',
+    hint:
+        'Searches the identifier values this DHIS2 instance holds - the tracked entity uid, and the ' +
+        'values of the attributes DHIS2 declares unique. Not names: DHIS2 states no attribute that ' +
+        'means one, so this server serves none.',
+    prompt: 'Type an identifier value to search.',
+    empty: 'This DHIS2 instance holds nobody under that identifier value.',
+}
+
+/**
+ * The content search, which this server answers only where the project keeps a synced copy to search.
+ *
+ * Wider than the identifier search in the one way that matters at a desk: it matches part of any
+ * value a record holds, so the fragment on a card that is not a unique attribute's value still finds
+ * somebody. It is still not a name search, and the copy says so for the same reason the server spells
+ * the parameter `_content` rather than `name` - DHIS2 states no attribute that means a name, and
+ * neither this server nor this box will pick one to be it.
+ */
+const CONTENT_WORDS: SearchWords = {
+    label: 'Any value a record holds',
+    hint:
+        'Searches every value this DHIS2 instance holds for a person - the identifier values and the ' +
+        'other tracked entity attribute values alike - matching any part of one, upper and lower case ' +
+        'alike. Which of those values is a name is not something DHIS2 states, so this server does not ' +
+        'single one out.',
+    prompt: 'Type any part of a value to search.',
+    empty: 'This DHIS2 instance holds nobody under that value.',
+}
+
+/** What the box says, for the search this server declared. */
+export function searchWords(key: RegisterSearchKey): SearchWords {
+    return key === REGISTER_CONTENT_SEARCH_PARAMETER ? CONTENT_WORDS : IDENTIFIER_WORDS
+}
 
 /**
  * The box a person is looked up in, and the four things it can say about what it found.
  *
- * WHAT IT SEARCHES, AND WHY IT SAYS SO. The server answers a bare identifier value by trying every
- * key at once - the tracked entity uid, and the value of every attribute DHIS2 declares unique -
- * and folding the matches. That is exactly right for a person holding a card, who does not know
- * which of the instance's attributes the number on it is a value of; and it is worth stating,
- * because the one thing this box does not search is names. It cannot: DHIS2 has no attribute that
- * means a name, so the served projection carries none.
+ * WHAT IT SEARCHES, AND WHY IT SAYS SO. Two searches, and the words follow whichever one this server
+ * declared - `searchWords` above holds both, with the argument for each. The rule they share is the
+ * one this whole register is built on: nothing here calls anything a name, because DHIS2 states no
+ * attribute that means one.
  *
  * THE CONTROL IS SEPARATE FROM WHAT IS DONE WITH A MATCH, because the same search sits on two
  * surfaces that answer different questions with it: a capture form chooses the person a submission
@@ -30,6 +90,7 @@ export function PatientSearchControl({
     typed,
     onTyped,
     state,
+    searchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
     children,
 }: {
     /** The id the label and the input find each other by; each mount needs its own. */
@@ -38,17 +99,16 @@ export function PatientSearchControl({
     onTyped: (next: string) => void
     /** What the search is currently answering, from `usePatientSearch`. */
     state: PatientSearchState
+    /** The parameter this server declared for the register, which is what the words follow. */
+    searchKey?: RegisterSearchKey
     /** The matches, rendered however the surface around this box renders a person. */
     children?: ReactNode
 }) {
+    const words = searchWords(searchKey)
     return (
         <div className="grid gap-2">
-            <Label htmlFor={controlId}>Identifier value</Label>
-            <p className="text-muted-foreground text-sm">
-                Searches the identifier values this DHIS2 instance holds - the tracked entity uid,
-                and the values of the attributes DHIS2 declares unique. Not names: DHIS2 states no
-                attribute that means one, so this server serves none.
-            </p>
+            <Label htmlFor={controlId}>{words.label}</Label>
+            <p className="text-muted-foreground text-sm">{words.hint}</p>
             <div className="flex items-center gap-2">
                 <div className="relative w-full max-w-md">
                     <Search
@@ -59,7 +119,7 @@ export function PatientSearchControl({
                         id={controlId}
                         type="search"
                         className="pl-8"
-                        placeholder="Identifier value"
+                        placeholder={words.label}
                         value={typed}
                         onChange={(event) => onTyped(event.target.value)}
                     />
@@ -75,12 +135,10 @@ export function PatientSearchControl({
                 </p>
             )}
             {state.error === null && state.query === null && (
-                <p className="text-muted-foreground text-xs">Type an identifier value to search.</p>
+                <p className="text-muted-foreground text-xs">{words.prompt}</p>
             )}
             {state.error === null && state.query !== null && !state.searching && state.results.length === 0 && (
-                <p className="text-muted-foreground text-xs">
-                    This DHIS2 instance holds nobody under that identifier value.
-                </p>
+                <p className="text-muted-foreground text-xs">{words.empty}</p>
             )}
 
             {children}
@@ -113,10 +171,17 @@ export function PatientSearch({
     onChoose: (patient: PatientProjection) => void
 }) {
     const [typed, setTyped] = useState('')
-    const search = usePatientSearch(typed, enabled, resource)
+    const searchKey = useRegisterSearchKey(resource)
+    const search = usePatientSearch(typed, enabled, resource, searchKey)
 
     return (
-        <PatientSearchControl controlId={controlId} typed={typed} onTyped={setTyped} state={search}>
+        <PatientSearchControl
+            controlId={controlId}
+            typed={typed}
+            onTyped={setTyped}
+            state={search}
+            searchKey={searchKey}
+        >
             {search.results.length > 0 && (
                 <ul data-testid="patient-search-results" className="grid gap-1">
                     {search.results.map((patient) => (

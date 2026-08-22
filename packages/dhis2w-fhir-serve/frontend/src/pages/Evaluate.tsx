@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Play } from 'lucide-react'
+import { BookOpen, Loader2, Play } from 'lucide-react'
 
+import { CodeBlock, CodeEditor, type EditorLanguage } from '@/components/CodeEditor'
+import { EvaluateReference } from '@/components/EvaluateReference'
 import { PageHeader } from '@/components/PageState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,7 +26,6 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { evaluateExpression, searchResources } from '@/lib/api'
 import {
@@ -32,6 +33,7 @@ import {
     cellText,
     diagnosticHeadline,
     evaluationRequest,
+    exampleGroups,
     genericExamples,
     guidePresets,
     matchSummary,
@@ -48,6 +50,7 @@ import {
     type ServedResource,
 } from '@/lib/evaluate'
 import { trackedEntitySettings } from '@/lib/uiconfig'
+import { cn } from '@/lib/utils'
 
 /** The three languages, in the order the picker offers them, each under the name its own community uses. */
 const LANGUAGES: { value: EvaluationLanguage; label: string }[] = [
@@ -68,12 +71,30 @@ const PRESET_RESOURCE_TYPES = ['Questionnaire', 'CodeSystem', 'ValueSet', 'Conce
 const PRESET_LIMIT = 1
 
 /**
+ * How each source language is coloured.
+ *
+ * ELM is JSON and is read by the JSON grammar, brace matching and all; the other two are read by the
+ * stream tokenisers in `lib/codelang.ts`. One mapping, so the editor and any read-only rendering of
+ * the same source cannot disagree about which language it is.
+ */
+export function editorLanguage(language: EvaluationLanguage): EditorLanguage {
+    if (language === 'elm') return 'json'
+    return language === 'cql' ? 'cql' : 'fhirpath'
+}
+
+/**
  * A place to run an expression and see what this server answers.
  *
  * WHY THE SCREEN OPENS FULL. An expression box that opens empty teaches nothing: FHIRPath and CQL
  * are both languages a reader is meeting for the first time here, and an empty box plus an empty
  * context is two blanks to fill before anything happens at all. So the first generic example is
  * already loaded when the page arrives, and pressing Evaluate is the first thing a reader can do.
+ *
+ * WHY THE REFERENCE IS OPEN BESIDE IT. The second thing a reader does is wonder what else they could
+ * have written, and the answer to that is a list of what this engine implements rather than a search
+ * engine. So the panel opens with the screen, holding the examples on one tab and the language's own
+ * vocabulary on the other, and the button in the toolbar folds it away for somebody who already knows.
+ * `lib/reference.ts` states why the subset is ours rather than the specification's.
  *
  * TWO KINDS OF EXAMPLE IN ONE MENU. The generic ones carry their own data and run identically
  * against any served guide, including one that publishes nothing. The presets underneath are built
@@ -97,6 +118,7 @@ export function Evaluate() {
     const [outcome, setOutcome] = useState<EvaluationOutcome | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [running, setRunning] = useState(false)
+    const [referenceShown, setReferenceShown] = useState(true)
 
     // What this guide holds, read once: one resource per type the presets know how to ask about.
     // A type this server does not serve answers a refusal, which is not an error here - it is the
@@ -129,6 +151,7 @@ export function Evaluate() {
 
     const generic = useMemo(() => genericExamples(form.language), [form.language])
     const presets = useMemo(() => guidePresets(form.language, served), [form.language, served])
+    const offered = useMemo(() => [...generic, ...presets], [generic, presets])
 
     const load = useCallback((example: EvaluationExample) => {
         setChosenExample(example.id)
@@ -171,122 +194,149 @@ export function Evaluate() {
                 description="Run a FHIRPath expression, a CQL library, or a compiled ELM library against what this server serves. Pick an example to start with; every one of them runs as it stands."
             />
 
-            <div className="space-y-6">
-                <Card>
-                    <CardContent className="space-y-4 py-6">
-                        <div className="flex flex-wrap items-end gap-3">
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="evaluate-language">Language</Label>
-                                <Select
-                                    value={form.language}
-                                    onValueChange={(value) => pickLanguage(value as EvaluationLanguage)}
-                                >
-                                    <SelectTrigger id="evaluate-language" className="w-40">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {LANGUAGES.map((language) => (
-                                            <SelectItem key={language.value} value={language.value}>
-                                                {language.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="evaluate-example">Example</Label>
-                                <Select
-                                    value={chosenExample}
-                                    onValueChange={(value) => {
-                                        const picked = [...generic, ...presets].find(
-                                            (example) => example.id === value,
-                                        )
-                                        if (picked !== undefined) load(picked)
-                                    }}
-                                >
-                                    <SelectTrigger id="evaluate-example" className="w-80">
-                                        <SelectValue placeholder="Pick an example" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            <SelectLabel>Works on any served guide</SelectLabel>
-                                            {generic.map((example) => (
-                                                <SelectItem key={example.id} value={example.id}>
-                                                    {example.label}
+            <div
+                className={cn(
+                    'grid items-start gap-6',
+                    referenceShown && 'lg:grid-cols-[minmax(0,1fr)_22rem]',
+                )}
+            >
+                <div className="min-w-0 space-y-6">
+                    <Card>
+                        <CardContent className="space-y-4 py-6">
+                            <div className="flex flex-wrap items-end gap-3">
+                                <div className="grid gap-1.5">
+                                    <Label htmlFor="evaluate-language">Language</Label>
+                                    <Select
+                                        value={form.language}
+                                        onValueChange={(value) => pickLanguage(value as EvaluationLanguage)}
+                                    >
+                                        <SelectTrigger id="evaluate-language" className="w-40">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {LANGUAGES.map((language) => (
+                                                <SelectItem key={language.value} value={language.value}>
+                                                    {language.label}
                                                 </SelectItem>
                                             ))}
-                                        </SelectGroup>
-                                        {presets.length > 0 && (
-                                            <SelectGroup>
-                                                <SelectLabel>This guide&rsquo;s own resources</SelectLabel>
-                                                {presets.map((example) => (
-                                                    <SelectItem key={example.id} value={example.id}>
-                                                        {example.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectGroup>
-                                        )}
-                                    </SelectContent>
-                                </Select>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="grid gap-1.5">
+                                    <Label htmlFor="evaluate-example">Example</Label>
+                                    <Select
+                                        value={chosenExample}
+                                        onValueChange={(value) => {
+                                            const picked = offered.find((example) => example.id === value)
+                                            if (picked !== undefined) load(picked)
+                                        }}
+                                    >
+                                        <SelectTrigger id="evaluate-example" className="w-80">
+                                            <SelectValue placeholder="Pick an example" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {exampleGroups(offered).map((shelf) => (
+                                                <SelectGroup key={shelf.group}>
+                                                    <SelectLabel>{shelf.group}</SelectLabel>
+                                                    {shelf.examples.map((example) => (
+                                                        <SelectItem key={example.id} value={example.id}>
+                                                            {example.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectGroup>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {form.language !== 'fhirpath' && (
+                                    <div className="grid gap-1.5">
+                                        <Label htmlFor="evaluate-define">Define to answer</Label>
+                                        <Input
+                                            id="evaluate-define"
+                                            className="w-56 font-mono"
+                                            placeholder="every define"
+                                            value={form.expressionName}
+                                            onChange={(event) =>
+                                                setForm({ ...form, expressionName: event.target.value })
+                                            }
+                                        />
+                                    </div>
+                                )}
+
+                                <Button type="button" onClick={run} disabled={running || notReady !== null}>
+                                    {running ? (
+                                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                                    ) : (
+                                        <Play className="size-4" aria-hidden />
+                                    )}
+                                    Evaluate
+                                </Button>
+
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    aria-expanded={referenceShown}
+                                    onClick={() => setReferenceShown(!referenceShown)}
+                                >
+                                    <BookOpen className="size-4" aria-hidden />
+                                    Reference
+                                </Button>
                             </div>
 
-                            {form.language !== 'fhirpath' && (
-                                <div className="grid gap-1.5">
-                                    <Label htmlFor="evaluate-define">Define to answer</Label>
-                                    <Input
-                                        id="evaluate-define"
-                                        className="w-56 font-mono"
-                                        placeholder="every define"
-                                        value={form.expressionName}
-                                        onChange={(event) =>
-                                            setForm({ ...form, expressionName: event.target.value })
-                                        }
-                                    />
-                                </div>
-                            )}
+                            <div className="grid gap-1.5">
+                                <Label id="evaluate-source-label">Source</Label>
+                                <CodeEditor
+                                    value={form.source}
+                                    onChange={(source) => setForm({ ...form, source })}
+                                    language={editorLanguage(form.language)}
+                                    labelId="evaluate-source-label"
+                                    testId="evaluate-source"
+                                    lineNumbersShown={form.language !== 'fhirpath'}
+                                    minHeight="9rem"
+                                />
+                            </div>
 
-                            <Button type="button" onClick={run} disabled={running || notReady !== null}>
-                                {running ? (
-                                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                                ) : (
-                                    <Play className="size-4" aria-hidden />
-                                )}
-                                Evaluate
-                            </Button>
-                        </div>
-
-                        <div className="grid gap-1.5">
-                            <Label htmlFor="evaluate-source">Source</Label>
-                            <Textarea
-                                id="evaluate-source"
-                                className="min-h-32 font-mono text-xs"
-                                value={form.source}
-                                onChange={(event) => setForm({ ...form, source: event.target.value })}
+                            <ContextPicker
+                                form={form}
+                                onChange={setForm}
+                                registerOffered={registerOffered}
+                                registerResource={registerResource}
                             />
-                        </div>
 
-                        <ContextPicker
-                            form={form}
-                            onChange={setForm}
-                            registerOffered={registerOffered}
-                            registerResource={registerResource}
-                        />
-
-                        {notReady !== null && <p className="text-muted-foreground text-sm">{notReady}</p>}
-                    </CardContent>
-                </Card>
-
-                {refusal !== null && (
-                    <Card>
-                        <CardContent className="space-y-1 py-6">
-                            <p className="text-sm font-medium">The server refused this evaluation</p>
-                            <p className="text-muted-foreground font-mono text-xs break-words">{refusal}</p>
+                            {notReady !== null && <p className="text-muted-foreground text-sm">{notReady}</p>}
                         </CardContent>
                     </Card>
-                )}
 
-                {outcome !== null && refusal === null && <Answer outcome={outcome} source={form.source} />}
+                    {refusal !== null && (
+                        <Card>
+                            <CardContent className="space-y-1 py-6">
+                                <p className="text-sm font-medium">The server refused this evaluation</p>
+                                <p className="text-muted-foreground font-mono text-xs break-words">{refusal}</p>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {outcome !== null && refusal === null && (
+                        <Answer outcome={outcome} source={form.source} />
+                    )}
+                </div>
+
+                {referenceShown && (
+                    <aside className="min-w-0 lg:sticky lg:top-6">
+                        <Card>
+                            <CardContent className="show-scrollbars max-h-[calc(100vh-8rem)] overflow-y-auto py-6">
+                                <EvaluateReference
+                                    language={form.language}
+                                    examples={offered}
+                                    chosen={chosenExample}
+                                    onLoad={load}
+                                />
+                            </CardContent>
+                        </Card>
+                    </aside>
+                )}
             </div>
         </>
     )
@@ -333,14 +383,14 @@ function ContextPicker({
 
             {context.kind === 'inline' && (
                 <div className="grid gap-1.5">
-                    <Label htmlFor="evaluate-resource">Context resource</Label>
-                    <Textarea
-                        id="evaluate-resource"
-                        className="min-h-32 font-mono text-xs"
+                    <Label id="evaluate-resource-label">Context resource</Label>
+                    <CodeEditor
                         value={context.resource}
-                        onChange={(event) =>
-                            onChange({ ...form, context: { ...context, resource: event.target.value } })
-                        }
+                        onChange={(resource) => onChange({ ...form, context: { ...context, resource } })}
+                        language="json"
+                        labelId="evaluate-resource-label"
+                        testId="evaluate-context-resource"
+                        minHeight="9rem"
                     />
                 </div>
             )}
@@ -424,7 +474,14 @@ function Answer({ outcome, source }: { outcome: EvaluationOutcome; source: strin
     )
 }
 
-/** One diagnostic, shown at the line it names - with the line itself and a caret under the column. */
+/**
+ * One diagnostic, shown at the line it names - with the line itself and a caret under the column.
+ *
+ * The one place on this screen that stays a plain `<pre>` rather than becoming a highlighted block:
+ * what makes it readable is that the caret sits under the character the parser stopped on, and that
+ * only holds while the two lines share one metric and neither of them wraps. Colour would buy nothing
+ * here and a wrapped line would cost the whole point.
+ */
 function Diagnostic({ diagnostic, source }: { diagnostic: EvaluationDiagnostic; source: string }) {
     const line = sourceLine(source, diagnostic.line)
     return (
@@ -494,9 +551,7 @@ function ResultCard({ result }: { result: EvaluationResultRow }) {
                 )}
 
                 {result.refusal === null && shape === 'json' && (
-                    <pre className="show-scrollbars bg-muted max-h-96 overflow-auto rounded-md p-3 font-mono text-xs">
-                        {JSON.stringify(result.values, null, 2)}
-                    </pre>
+                    <CodeBlock value={JSON.stringify(result.values, null, 2)} testId="evaluate-result-json" />
                 )}
             </CardContent>
         </Card>

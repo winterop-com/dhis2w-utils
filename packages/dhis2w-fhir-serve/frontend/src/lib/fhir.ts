@@ -917,10 +917,55 @@ export function generateSeedOf(response: QuestionnaireResponse): string | null {
     return identifier.value ?? null
 }
 
-/** Pull the resources out of a search Bundle, dropping entries that carry none. */
+/**
+ * The search mode an entry carries when it is one of the things the search was about.
+ *
+ * R4 defines three - `match`, `include`, `outcome` - and leaves the element optional, so an entry
+ * stating no mode at all is a match by omission. That reading is the whole of the rule below.
+ */
+export const MATCH_SEARCH_MODE = 'match'
+
+/**
+ * Whether one Bundle entry is a result rather than something the searchset carries beside its results.
+ *
+ * WHY THIS EXISTS. A searchset is not a list of results: it is a list of results plus whatever the
+ * server needed to say about them. The projection backend appends an `outcome` entry - an
+ * OperationOutcome naming when the synced copy last read the DHIS2 instance - and R4 lets any server
+ * append `include` entries for resources a result referred to. Neither is a row, and a reader that
+ * took every entry as one would show an empty person for the outcome and count it in "Showing N
+ * people". So the mode is checked once, here, and every caller that turns a Bundle into rows goes
+ * through `bundleResources`.
+ *
+ * ABSENT COUNTS AS A MATCH, because R4 says so: `search.mode` is 0..1, and a server that answers a
+ * plain searchset without stating a mode per entry has still answered with matches. Reading absence
+ * as "not a match" would empty every listing this server answers from its store.
+ */
+export function isMatchEntry<T>(entry: BundleEntry<T>): boolean {
+    const mode = entry.search?.mode
+    return mode === undefined || mode === MATCH_SEARCH_MODE
+}
+
+/** Pull the matched resources out of a search Bundle, dropping entries that are not results. */
 export function bundleResources<T>(bundle: Bundle<T> | undefined): T[] {
     if (!bundle?.entry) return []
-    return bundle.entry.flatMap((entry) => (entry.resource ? [entry.resource] : []))
+    return bundle.entry.flatMap((entry) => (entry.resource && isMatchEntry(entry) ? [entry.resource] : []))
+}
+
+/**
+ * The OperationOutcome a searchset carries beside its results, or null when it carries none.
+ *
+ * The other half of the rule above: an `outcome` entry is dropped from the rows precisely so it can
+ * be read as what it is. This server appends one on every projection-served search to say when the
+ * synced copy last read the DHIS2 instance, and a page that showed the rows and threw the sentence
+ * away would be hiding the one fact that says how old they are.
+ */
+export function bundleOutcome<T>(bundle: Bundle<T> | undefined): OperationOutcome | null {
+    for (const entry of bundle?.entry ?? []) {
+        if (entry.search?.mode !== 'outcome') continue
+        const resource = entry.resource as OperationOutcome | undefined
+        if (resource?.resourceType === 'OperationOutcome') return resource
+    }
+    return null
 }
 
 /**
@@ -1087,6 +1132,50 @@ export function declaresRegisterSearch(capability: CapabilityStatement | null, r
     const byIdentifier =
         entry.searchParam?.some((parameter) => parameter.name === REGISTER_IDENTIFIER_SEARCH_PARAMETER) === true
     return searchable && byIdentifier
+}
+
+/**
+ * The search parameter that matches any value a record holds rather than only the ones that name it.
+ *
+ * Spelled `_content` and not `name`, which is the same refusal to guess that runs through the whole
+ * register: DHIS2 states no attribute that means a name, so a server offering `name` would be
+ * choosing one of an instance's attributes to be it. `_content` says what it does - it searches the
+ * content - and the server's own declaration documents it in those terms.
+ */
+export const REGISTER_CONTENT_SEARCH_PARAMETER = '_content'
+
+/**
+ * The two keys a register search can be sent under, and the one this server publishes for a register.
+ *
+ * `identifier` is what every live facade answers: the tracked entity uid, and the values of the
+ * attributes DHIS2 declares unique. `_content` is answered only where the project keeps a synced copy
+ * of the instance to search, because matching a substring of any value a person holds is a question a
+ * DHIS2 API round trip cannot answer. Which one is on offer is stated in `/metadata` ahead of any
+ * request, exactly like whether the register is searchable at all.
+ */
+export type RegisterSearchKey = typeof REGISTER_IDENTIFIER_SEARCH_PARAMETER | typeof REGISTER_CONTENT_SEARCH_PARAMETER
+
+/**
+ * Which key a search over one register is sent under, per what the conformance document declares.
+ *
+ * `_content` wins where it is declared, because it is the strictly wider question: every identifier
+ * value a person holds is one of the values it matches, so a reader who types a uid still finds them
+ * - and a reader who types the fragment on the card that is not a unique attribute's value finds them
+ * too, which `identifier` cannot do. Where it is not declared this answers `identifier`, which is
+ * what every live facade publishes and what the box has always sent.
+ *
+ * A capability that is still in flight, or a server that declares no search at all, also answers
+ * `identifier`: the caller has already asked `declaresRegisterSearch` whether to offer the control,
+ * and this decides only how a search that is offered is spelled.
+ */
+export function registerSearchKey(
+    capability: CapabilityStatement | null,
+    resourceType: string,
+): RegisterSearchKey {
+    const entry = capability?.rest?.[0]?.resource?.find((resource) => resource.type === resourceType)
+    const byContent =
+        entry?.searchParam?.some((parameter) => parameter.name === REGISTER_CONTENT_SEARCH_PARAMETER) === true
+    return byContent ? REGISTER_CONTENT_SEARCH_PARAMETER : REGISTER_IDENTIFIER_SEARCH_PARAMETER
 }
 
 /**

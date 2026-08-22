@@ -1510,6 +1510,28 @@ bound to loopback by default that loads the project once at startup.
   place to click: a language, a worked example already loaded, a context picker
   offering exactly what the endpoint offers, and a parse error shown against
   the line it names.
+- **The source boxes are CodeMirror 6 editors**, not textareas: JSON is read by
+  its own grammar with brace matching, and FHIRPath and CQL by stream
+  tokenisers this project writes, so keywords, strings, comments, and date
+  literals are told apart in both palettes. The colours are CSS tokens declared
+  beside every other palette in `index.css`, so the theme toggle repaints the
+  editor with nothing re-created. The editor is deferred behind `React.lazy`
+  into its own chunk, so a client that only fills forms in never downloads it.
+  The same read-only renderer paints the JSON results, the receipt page's
+  **Raw QuestionnaireResponse**, and the Server page's **Raw
+  CapabilityStatement**.
+- **A reference panel sits beside the editor**, on two tabs. **Examples** holds
+  every runnable example on named shelves - 29 FHIRPath, 18 CQL, 8 ELM, each
+  titled by what it answers rather than by the feature it uses, each loading
+  into the editor on a click, and every one of them verified to run against the
+  shipped context or a stored resource. The language tab states what THIS
+  engine answers - the FHIRPath function and operator vocabulary, the CQL
+  header, retrieves, query clauses and interval vocabulary, and the ELM library
+  shape and expression nodes - drawn from the engine's own registries rather
+  than from the published specifications, so nothing on it is a name the server
+  would refuse. Each language's shelf of refusals is stated beside what it
+  refuses: an unknown function, an unresolved value set, a library with no
+  identifier.
 
 #### Read and search
 
@@ -2296,12 +2318,36 @@ an identifier search and a paged listing on one page, with a detail route at
   record. A total is shown only where DHIS2 stated one. The detail view carries
   the person's identifiers, attribute values, and enrollments, with a completed
   one warned (BUGS.md 70).
+- **Only the matched entries of a searchset become rows.** R4 lets a server
+  append entries beside its results, and the projection backend appends an
+  `outcome` one; an entry stating `search.mode` of anything but `match` is
+  never a row and never counted, while an entry stating no mode at all is a
+  match by omission, which is what R4 says it is.
+- **The searchset's own outcome becomes the page's as-of line.** A projection-
+  served answer carries `X-DHIS2W-Projection-As-Of` beside an OperationOutcome
+  saying the same thing in prose, so the instant is taken from the header and
+  said once, in the wall clock every other instant on every other page is read
+  in - *Answered from the synced copy of this DHIS2 instance, as of ...* The
+  outcome's own sentence is what answers for a copy nothing has filled yet, and
+  a facade that asks DHIS2 itself states no line at all, because there is
+  nothing to say about an answer read a moment ago.
+- **The search box sends the parameter `/metadata` declared for that register.**
+  `identifier` is what every live facade publishes and what the box has always
+  sent. A run keeping a synced copy of the instance declares `_content` beside
+  it, and the box then searches that instead - any part of any value a record
+  holds, upper and lower case alike - with its own label and its own sentence
+  about what it searches, so a blank result never means something the copy on
+  screen did not describe. Neither wording calls anything a name: DHIS2 states
+  no attribute that means one, which is why the server spells the parameter
+  `_content` rather than `name`.
 
 #### Server page and links out
 
 - **`/server`** renders `/metadata` in full: declared operations including
   `$translate` and `$generate`, per-type interactions and search parameters,
-  and the store mode.
+  and the store mode - with the conformance document itself behind a **Raw
+  CapabilityStatement** toggle, since this document is the facade's whole
+  contract and the tables above it show the parts a browser needed.
 - **Links out to the DHIS2 instance the guide was generated from**: a new-tab
   external-link mark beside the selected organisation unit's name, on every
   data set / program / program-stage row of the rail's form shelves, and on

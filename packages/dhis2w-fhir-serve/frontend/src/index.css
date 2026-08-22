@@ -143,6 +143,18 @@
     --status-refused: oklch(0.65 0.13 75);
     --status-in-progress: oklch(0.65 0.13 75);
     --status-completed: oklch(0.6 0.14 155);
+    /* Source colours. Spent by the .tok-* rules at the foot of this file, which
+       is where the argument for them is. */
+    --code-keyword: oklch(0.46 0.15 300);
+    --code-operator: oklch(0.48 0.08 25);
+    --code-string: oklch(0.45 0.12 150);
+    --code-number: oklch(0.5 0.12 60);
+    --code-literal: oklch(0.5 0.13 30);
+    --code-comment: oklch(0.58 0.02 195);
+    --code-variable: oklch(0.45 0.1 265);
+    --code-type: oklch(0.45 0.11 210);
+    --code-property: oklch(0.42 0.1 265);
+    --code-punctuation: oklch(0.52 0.01 195);
 }
 
 .dark {
@@ -189,6 +201,19 @@
     --status-refused: oklch(0.75 0.13 75);
     --status-in-progress: oklch(0.75 0.13 75);
     --status-completed: oklch(0.72 0.16 155);
+    /* The same roles lifted for a dark ground: the hues are held and the
+       lightness rises, so a keyword stays a keyword between themes rather than
+       becoming a different colour that happens to be readable. */
+    --code-keyword: oklch(0.78 0.13 300);
+    --code-operator: oklch(0.78 0.08 25);
+    --code-string: oklch(0.78 0.13 150);
+    --code-number: oklch(0.82 0.12 75);
+    --code-literal: oklch(0.78 0.13 35);
+    --code-comment: oklch(0.6 0.02 195);
+    --code-variable: oklch(0.78 0.1 265);
+    --code-type: oklch(0.8 0.1 210);
+    --code-property: oklch(0.82 0.09 265);
+    --code-punctuation: oklch(0.68 0.01 195);
 }
 
 @layer base {
@@ -358,4 +383,50 @@
     &::-webkit-scrollbar-track {
         background: transparent;
     }
+}
+
+/* Source colours, for the CodeMirror editors on the Evaluate screen and every
+   highlighted document beside them. The class names are declared once in
+   components/CodeMirrorEditor.tsx and painted here, so the palette lives where
+   every other palette in this app lives - which is what makes the editors follow
+   the theme toggle with nothing re-created and no theme prop threaded through.
+
+   Deliberately narrow in chroma: an expression box sits inside a form, and a
+   rainbow would make the one actionable hue on the page stop meaning "act here".
+   Each role is its own hue family, so a keyword can never be mistaken for a
+   string, and none of them spends the identity blue. */
+.tok-keyword {
+    color: var(--code-keyword);
+    font-weight: 500;
+}
+.tok-operator {
+    color: var(--code-operator);
+}
+.tok-string {
+    color: var(--code-string);
+}
+.tok-number {
+    color: var(--code-number);
+}
+.tok-literal {
+    color: var(--code-literal);
+}
+.tok-comment {
+    color: var(--code-comment);
+    font-style: italic;
+}
+.tok-variable {
+    color: var(--code-variable);
+}
+.tok-type {
+    color: var(--code-type);
+}
+.tok-property {
+    color: var(--code-property);
+}
+.tok-punctuation {
+    color: var(--code-punctuation);
+}
+.tok-invalid {
+    color: var(--destructive);
 }

@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
 
 import { searchRegister } from '@/lib/api'
-import { bundleResources, type Patient } from '@/lib/fhir'
+import {
+    bundleOutcome,
+    bundleResources,
+    REGISTER_IDENTIFIER_SEARCH_PARAMETER,
+    type Patient,
+    type RegisterSearchKey,
+} from '@/lib/fhir'
 import {
     patientProjection,
     patientSearchQuery,
+    projectionAsOfLine,
     PATIENT_SEARCH_DEBOUNCE_MS,
     type PatientProjection,
 } from '@/lib/patients'
@@ -18,15 +25,28 @@ export interface PatientSearchState {
     searching: boolean
     /** The refusal the server stated, already reduced to its message. */
     error: string | null
-    /** Every person the instance holds under the searched identifier value, in the server's order. */
+    /** Every person the instance holds under the searched value, in the server's order. */
     results: PatientProjection[]
+    /** How old the copy that answered is, when it was a synced one - see `projectionAsOfLine`. */
+    asOf: string | null
 }
 
 /** Nothing asked, nothing found - which is what a control holds before anyone has typed. */
-const NOTHING_ASKED: PatientSearchState = { query: null, searching: false, error: null, results: [] }
+const NOTHING_ASKED: PatientSearchState = {
+    query: null,
+    searching: false,
+    error: null,
+    results: [],
+    asOf: null,
+}
 
 /**
- * Search the DHIS2 instance for a typed identifier value, once the typing stops.
+ * Search the DHIS2 instance for what somebody typed, once the typing stops.
+ *
+ * WHAT THE TYPED VALUE IS SEARCHED AGAINST IS THE SERVER'S TO DECIDE. `key` is the search parameter
+ * `/metadata` declared for this register - `identifier` on a facade that asks DHIS2 directly, and
+ * `_content` where the project keeps a synced copy that can match a substring of any value a person
+ * holds. `lib/fhir.registerSearchKey` makes that reading; this hook only sends what it was handed.
  *
  * WHY DEBOUNCED AND NOT PER KEYSTROKE. Every call here is a request this server makes of the DHIS2
  * instance - one read plus one filtered search per unique attribute the guide publishes - which
@@ -48,6 +68,7 @@ export function usePatientSearch(
     typed: string,
     enabled: boolean,
     resource: string = PEOPLE_RESOURCE_TYPE,
+    key: RegisterSearchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
 ): PatientSearchState {
     const [state, setState] = useState<PatientSearchState>(NOTHING_ASKED)
     const query = enabled ? patientSearchQuery(typed) : null
@@ -60,14 +81,15 @@ export function usePatientSearch(
         let cancelled = false
         setState((current) => ({ ...current, searching: true }))
         const timer = setTimeout(() => {
-            searchRegister(resource, query)
-                .then((bundle) => {
+            searchRegister(resource, query, key)
+                .then((answer) => {
                     if (cancelled) return
                     setState({
                         query,
                         searching: false,
                         error: null,
-                        results: bundleResources<Patient>(bundle).map(patientProjection),
+                        results: bundleResources<Patient>(answer.bundle).map(patientProjection),
+                        asOf: projectionAsOfLine(answer.projectionAsOf, bundleOutcome(answer.bundle)),
                     })
                 })
                 .catch((failure: unknown) => {
@@ -77,6 +99,7 @@ export function usePatientSearch(
                         searching: false,
                         error: failure instanceof Error ? failure.message : String(failure),
                         results: [],
+                        asOf: null,
                     })
                 })
         }, PATIENT_SEARCH_DEBOUNCE_MS)
@@ -84,7 +107,7 @@ export function usePatientSearch(
             cancelled = true
             clearTimeout(timer)
         }
-    }, [query, resource])
+    }, [key, query, resource])
 
     return state
 }

@@ -321,9 +321,24 @@ describe('withdrawalSummary', () => {
         expect(stated).toContain('keeps a hidden copy')
     })
 
-    it('renders the note as written rather than paraphrasing it', () => {
-        const stated = 'Withdrawn. The aggregate cells this receipt landed are gone from every ordinary read.'
-        expect(withdrawalSummary(withdrawal({ note: stated }))).toContain(stated)
+    it('says the withdrawal once, dropping the note’s own opening restatement of it', () => {
+        const stated = withdrawalSummary(withdrawal())
+        expect(stated).not.toContain('. Withdrawn.')
+        // Once at the front, and nowhere else - the note's remaining words are untouched.
+        expect(stated.match(/Withdrawn/g)).toHaveLength(1)
+        expect(stated).toContain('This DHIS2 instance keeps a hidden copy')
+    })
+
+    it('renders the rest of the note as written rather than paraphrasing it', () => {
+        const note = 'Withdrawn. The aggregate cells this receipt landed are gone from every ordinary read.'
+        const stated = withdrawalSummary(withdrawal({ note }))
+        expect(stated).toContain('The aggregate cells this receipt landed are gone from every ordinary read.')
+        expect(stated.match(/Withdrawn/g)).toHaveLength(1)
+    })
+
+    it('keeps a note that never restated the withdrawal exactly as it arrived', () => {
+        const note = 'The tracked entity this receipt registered is gone from every ordinary read.'
+        expect(withdrawalSummary(withdrawal({ note }))).toContain(note)
     })
 
     it('reads the instant in the wall clock it was written in, like every other one on screen', () => {

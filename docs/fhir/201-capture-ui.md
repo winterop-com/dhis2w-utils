@@ -497,6 +497,28 @@ page lists the people the instance holds, twenty-five at a time, with **Next**
 and **Previous** underneath. Searching is for a clerk holding a card; browsing is
 for one who is not.
 
+!!! note "A project keeping a synced copy searches wider, and the box says so"
+    `/metadata` is what decides which search the box sends, read before anything
+    is typed. A facade asking DHIS2 directly declares `identifier`, and the box
+    is labelled **Identifier value**. A project with
+    `[serve.search] backend = "projection"` keeps a synced copy of the instance
+    it can search itself, declares `_content` beside `identifier`, and the box
+    becomes **Any value a record holds**: any part of any value the record
+    carries, upper and lower case alike, so a fragment of a surname finds
+    somebody where an identifier search could not. The parameter is spelled
+    `_content` and not `name` for the reason the whole register is built on -
+    DHIS2 states no attribute that means a name, and neither the server nor the
+    box will pick one to be it. See
+    [Configure serving](301-serving.md) for the two tables that turn it on.
+
+**How old the answer is, said once.** An answer from a synced copy is not an
+answer from the instance, and the page says which it was: *Answered from the
+synced copy of this DHIS2 instance, as of 21 Aug 2026, 23:56* sits under the
+rows, read from the header the server sends beside them. A copy nothing has
+filled yet gets the server's own sentence about that instead. A facade asking
+DHIS2 itself states no line, because there is nothing to say about rows read a
+moment ago.
+
 The screen asks for its own page of twenty-five;
 `[serve.tracked_entities] page_size` is what the endpoint answers a caller that
 asks for no size at all, and `page_size_limit` caps what any caller may ask for
@@ -555,7 +577,7 @@ began, and the organisation unit it sits at.
     because capturing into a closed episode should be a decision somebody made
     on purpose.
 
-## The other three pages
+## The other pages
 
 - **Organisation units** is the reporting hierarchy, laid out like a GIS
   tool: on a wide viewport, three resizable panes - the hierarchy tree, the
@@ -595,12 +617,69 @@ began, and the organisation unit it sits at.
   identifiers beside the concept codes, and a `$translate` tester on the
   detail pages, answering from the running server exactly as
   `d2w fhir forward` resolves a coded answer.
+- **Evaluate** is a place to run one expression and see what this server
+  answers: pick FHIRPath, CQL, or a compiled ELM library, pick what it runs
+  over - a resource pasted below, a resource from this guide, a person this
+  DHIS2 instance holds, or nothing at all - and press **Evaluate**. It opens
+  with an example already loaded, because an empty box plus an empty context
+  is two blanks to fill before anything happens. An expression that does not
+  parse is an answer here rather than an error: the server reports the line
+  and the column its parser stopped on, and the screen shows that line with a
+  caret under the character. See [FHIRPath](501-fhirpath.md) and
+  [CQL](501-cql.md) for the languages themselves.
 - **Server** renders `/metadata` in full: the declared operations, the
   interactions and search parameters per resource type, and the store mode
-  this process is running in. The header's reachability light and the
+  this process is running in, with the conformance document itself behind a
+  **Raw CapabilityStatement** toggle - this document is the facade's whole
+  contract, and the tables above it show the parts a browser needed. The
+  header's reachability light and the
   server's self-description are worth a glance before blaming a form: a UI
   pointed at a stale `--live` process and one pointed at a freshly compiled
   IG look identical until you read the conformance document.
+
+### The reference beside the editor
+
+The Evaluate screen opens with a panel to the right of the box, on two tabs, and
+**Reference** in the toolbar folds it away.
+
+**Examples** is every worked expression this screen ships, on shelves named for
+the kind of question each answers - *Reading one record*, *Reading a Bundle*,
+*A filled-in form*, *Queries*, *Lists and intervals*, *Terminology, and what it
+refuses* - and one more shelf built from resources this particular server was
+found to hold. Each is titled by what it answers rather than by the function it
+uses, because somebody scanning a list of thirty is looking for a question like
+theirs. Clicking one loads the whole form - the source, the context, the
+resource - so the next thing to do is press **Evaluate**. Every one of them runs
+as it stands, including against a guide that publishes nothing at all: the
+generic ones carry their own data.
+
+The other tab is the language itself, and it is **this engine's** vocabulary
+rather than the published specification's. That distinction is the point: a
+reference listing the whole of FHIRPath would send somebody to type a function
+this engine answers `Unknown function: foo()` to, and a reference is worth
+nothing if the server disagrees with it. So the FHIRPath tab is the function
+registry and the operator set as implemented; the CQL tab is the header
+declarations, the retrieve forms, the query clauses in the order they are
+written, and the interval vocabulary; and the ELM tab is what a compiled library
+has to carry and which expression nodes the evaluator dispatches on.
+
+Each of the three ends with what the language refuses, stated beside the thing
+it is a refusal of - an unknown function, a value set the library never
+declared, a value set with no expansion, a library with no identifier. Half of
+learning a language here is learning what it says no to, and this engine is
+loud about those on purpose: a retrieve whose terminology resolves to nothing
+would silently widen from the set the library named to every resource of that
+type, which is the loudest possible wrong answer delivered quietly. The
+examples include the refusals for the same reason - meeting one here, with the
+whole message on screen, is cheaper than meeting it for the first time inside a
+measure nobody can explain.
+
+**The boxes are real editors.** Source and the pasted context are CodeMirror,
+so JSON gets its own grammar and brace matching, and FHIRPath and CQL get
+keywords, strings, comments, and date literals told apart from one another. The
+same rendering paints the JSON results underneath, the receipt page's **Raw
+QuestionnaireResponse**, and the Server page's **Raw CapabilityStatement**, in
+whichever theme the toggle is on.
 
 ## Opening an identity in DHIS2
 

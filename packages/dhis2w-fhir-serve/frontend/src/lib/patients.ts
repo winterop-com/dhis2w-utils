@@ -32,9 +32,11 @@ import {
     type Bundle,
     type CodeSystem,
     type Extension,
+    type OperationOutcome,
     type Patient,
     type Questionnaire,
 } from '@/lib/fhir'
+import { formatInstant } from '@/lib/spool'
 
 /**
  * The extension a submission marks its subject as a person the instance already holds with.
@@ -217,6 +219,38 @@ export interface PatientPage {
 
 /** The state a listing holds before its first page has landed. */
 export const NO_PATIENT_PAGE: PatientPage = { people: [], previous: null, next: null, total: null }
+
+/**
+ * What the projection states when nothing has read the DHIS2 instance into it yet.
+ *
+ * `dhis2w_fhir_serve.projection.serving` spells the same word. It is a value of the as-of header
+ * rather than an absent header, which is the distinction that matters: a copy that has never been
+ * filled is a different fact from a server that keeps no copy at all.
+ */
+export const NOTHING_SYNCED = 'never'
+
+/**
+ * How old the answer on screen is, in one line, or null when it is as old as the request.
+ *
+ * WHY THE HEADER LEADS AND THE OUTCOME FOLLOWS. Both say when the synced copy last read the DHIS2
+ * instance: the header states the instant as a machine value, and the OperationOutcome the searchset
+ * carries states it inside a sentence. Rendering both would put one fact on screen twice, in two
+ * spellings, which is the thing this project does not do. So the instant is taken from the header and
+ * said in the app's own wall-clock spelling - the same one every other instant on every other page is
+ * read in - and the outcome's prose is what answers for the cases the header cannot: a copy nothing
+ * has filled, and a server that stated the sentence without the header.
+ *
+ * Null is a facade searching DHIS2 itself. There is nothing to say about the age of an answer that
+ * was read a moment ago, and a line saying so would be noise on every register in the default
+ * deployment.
+ */
+export function projectionAsOfLine(asOf: string | null, outcome: OperationOutcome | null): string | null {
+    if (asOf !== null && asOf !== '' && asOf !== NOTHING_SYNCED) {
+        return `Answered from the synced copy of this DHIS2 instance, as of ${formatInstant(asOf)}.`
+    }
+    const diagnostics = outcome?.issue?.find((issue) => issue.diagnostics !== undefined)?.diagnostics
+    return diagnostics ?? null
+}
 
 /** One searchset Bundle read as a page: the people on it, and the way on and back. */
 export function patientPage(bundle: Bundle<Patient>): PatientPage {
