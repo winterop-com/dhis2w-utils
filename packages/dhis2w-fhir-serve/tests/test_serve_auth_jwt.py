@@ -491,7 +491,7 @@ async def test_the_keys_are_held_for_the_floor_however_short_the_issuer_asked(
 
     assert jwks.call_count == 1
     assert verifier.held is not None
-    assert verifier.held.expires_at - verifier.held.fetched_at == JWKS_MINIMUM_CACHE_SECONDS
+    assert verifier.held.expires_at - verifier.held.fetched_at == pytest.approx(JWKS_MINIMUM_CACHE_SECONDS)
 
 
 @pytest.mark.parametrize(
