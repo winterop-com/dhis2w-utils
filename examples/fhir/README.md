@@ -32,6 +32,9 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`validate_code_source.sh`](cli/validate_code_source.sh) | `d2w fhir validate --code-source code` — preview a concept-code migration | yes |
 | [`spool.sh`](cli/spool.sh) | `d2w fhir spool`, `requeue` — the capture queue, read and rewound offline | yes |
 | [`serve.sh`](cli/serve.sh) | `d2w fhir serve` — compile, serve, post a load set, read the receipts | no: docker compile, binds a port |
+| [`serve_auth_postures.sh`](cli/serve_auth_postures.sh) | `d2w fhir serve --auth` - the four postures: the bind refusal an absent key earns, `token`, `dhis2` read as the caller, `jwt` and its issuer | yes |
+| [`serve_projection_search.sh`](cli/serve_projection_search.sh) | `[serve.search] backend = "projection"` - `_content` and the as-of header from the synced copy, and the refusal without one | yes |
+| [`corrections.sh`](cli/corrections.sh) | `[forward] corrections` / `withdrawals` - a marked submission refused at the capture door, then received | yes |
 | [`forward.sh`](cli/forward.sh) | `d2w fhir forward` — drain the spool into DHIS2: dry run, `--import`, the three states | no: docker compile, binds a port, `--import` writes to the instance |
 | [`forward_overwrites.sh`](cli/forward_overwrites.sh) | The two postures a drain takes towards a value already sent - `allow` names it, `refuse` queues the response | no: the same compile, port, and writes as `forward.sh` |
 | [`forward_completeness.sh`](cli/forward_completeness.sh) | Data set completeness: what a `completed` response registers | no: the same compile, port, and writes as `forward.sh` |
