@@ -149,3 +149,16 @@ async def create_projection_tables(engine: AsyncEngine) -> None:
     """Create whatever of the four tables is absent, which is what opening an empty projection does."""
     async with engine.begin() as connection:
         await connection.run_sync(ProjectionBase.metadata.create_all)
+
+
+async def recreate_projection_tables(engine: AsyncEngine) -> None:
+    """Drop the four tables and create them at the current schema - what a rebuild stands on.
+
+    `create_all` adds absent tables and never alters a present one, so a projection file written by
+    an older schema keeps its old columns for ever. A rebuild refills from zero anyway, which is
+    exactly when dropping the tables costs nothing - so the rebuild is also the schema migration,
+    as the store's doctrine states.
+    """
+    async with engine.begin() as connection:
+        await connection.run_sync(ProjectionBase.metadata.drop_all)
+        await connection.run_sync(ProjectionBase.metadata.create_all)

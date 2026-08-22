@@ -63,6 +63,7 @@ from dhis2w_fhir_serve.projection.schema import (
     create_projection_tables,
     open_projection_engine,
     projection_sessions,
+    recreate_projection_tables,
 )
 
 if TYPE_CHECKING:
@@ -203,18 +204,19 @@ class SqliteProjectionStore:
             return await self._watermarks_in(session)
 
     async def rebuild(self) -> None:
-        """Empty the projection so a full materialization can fill it from zero.
+        """Drop and recreate the projection's tables so a full materialization fills a current schema.
 
         The watermarks go with the rows. A projection emptied of documents but still claiming to have
         read up to yesterday would never poll for any of them again, which is correctness rule 1
         stated backwards - and it is exactly the state a rebuild exists to be unable to leave behind.
+
+        Dropping rather than deleting is what makes the rebuild the schema migration: a file written
+        by an older schema keeps its old columns through any DELETE, and the refill would then write
+        columns the table does not have. A rebuild starts from zero anyway, so the tables are remade
+        at the schema this process carries.
         """
-        async with self.session() as session:
-            await session.execute(delete(ProjectedIdentifierRow))
-            await session.execute(delete(ProjectedNameRow))
-            await session.execute(delete(ProjectedResourceRow))
-            await session.execute(delete(ProjectionWatermarkRow))
-            await session.commit()
+        await self._ensure_tables()
+        await recreate_projection_tables(self._engine)
 
     async def close(self) -> None:
         """Dispose of the connection, which is what the serve lifespan does when the process unwinds."""
