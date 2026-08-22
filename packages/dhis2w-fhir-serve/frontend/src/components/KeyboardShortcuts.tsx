@@ -25,7 +25,12 @@ export function KeyboardShortcuts({ open, onOpenChange }: { open: boolean; onOpe
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent
+                className="sm:max-w-md"
+                onCloseAutoFocus={(event) => {
+                    event.preventDefault()
+                }}
+            >
                 <DialogTitle>{SHORTCUTS_TITLE}</DialogTitle>
                 <DialogDescription>{SHORTCUTS_DESCRIPTION}</DialogDescription>
                 <dl className="grid gap-1">

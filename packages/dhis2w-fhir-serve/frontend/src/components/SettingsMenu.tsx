@@ -91,6 +91,12 @@ export function SettingsMenu({
             )}
 
             <DropdownMenuContent
+                // A pointer interaction must not leave the trigger wearing a keyboard focus ring:
+                // the automatic focus return after close is programmatic, and the browser's
+                // modality heuristic paints focus-visible for it anyway.
+                onCloseAutoFocus={(event) => {
+                    event.preventDefault()
+                }}
                 side={collapsed ? 'right' : 'top'}
                 align="start"
                 sideOffset={8}
