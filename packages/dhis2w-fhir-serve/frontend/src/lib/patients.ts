@@ -193,6 +193,20 @@ export const PATIENT_SEARCH_DEBOUNCE_MS = 350
  */
 export const PATIENT_PAGE_PARAMETER = 'page'
 
+/**
+ * Where the register page carries the value it is searching for, so a search is a link.
+ *
+ * `#/tracked-entities?q=<value>` - a state of that screen rather than a document of its own, kept in
+ * the query string for the same reason the selected organisation unit is: it can then be sent,
+ * reloaded, and arrived at from elsewhere. The command palette is the first thing to arrive from
+ * elsewhere, and it hands the value over rather than searching itself.
+ *
+ * NOT A SEARCH PARAMETER THIS SERVER ANSWERS. It is this UI's own, read off the browser's address
+ * and put into the box; which parameter the request then carries is `useRegisterSearchKey`'s answer
+ * and is decided per server.
+ */
+export const REGISTER_QUERY_PARAMETER = 'q'
+
 /** The search parameter that asks for a page of a given size. */
 export const PATIENT_COUNT_PARAMETER = '_count'
 

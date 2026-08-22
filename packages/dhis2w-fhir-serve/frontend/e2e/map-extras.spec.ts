@@ -206,7 +206,7 @@ test('the popup wears the app card tokens in both themes', async ({ page }) => {
     expect(lightShell?.tipBorders).toContain(lightCard)
 
     // The popup survives a theme flip - only its tokens change under it.
-    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    await page.getByRole('button', { name: 'Switch to dark mode' }).click()
     await expect(map).toHaveAttribute('data-map-theme', 'dark')
 
     const darkCard = await resolvedCardColor()

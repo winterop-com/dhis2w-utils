@@ -20,6 +20,37 @@
             rel="icon"
             href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23245c9c'/%3E%3Cpath d='M4.5 4.5h7M4.5 8h5M4.5 11.5h3' stroke='white' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"
         />
+        <!--
+          The theme, before the first paint.
+
+          The app has five themes, each a block of custom properties in
+          index.css hung off `data-theme` on this element - see lib/theme.ts.
+          Reading the choice in React would mean the attribute arrives one frame
+          after the document does, and every load would flash Clinical under
+          whatever was actually chosen. So the read happens here, in the head,
+          before the body exists to be painted. next-themes does the same thing
+          for the light/dark class, which is the other half of the same problem.
+
+          THE NAMES ARE DUPLICATED FROM lib/theme.ts ON PURPOSE - this script
+          runs before any module is fetched, so it cannot import them. The test
+          beside that module reads this file and asserts the two lists match, so
+          a theme added in one place and not the other fails the suite rather
+          than silently falling back here.
+        -->
+        <script>
+            ;(function () {
+                var known = ['clinical', 'indigo', 'paper', 'contrast', 'terminal']
+                var chosen = 'clinical'
+                try {
+                    var stored = localStorage.getItem('d2w-fhir.theme')
+                    if (known.indexOf(stored) !== -1) chosen = stored
+                } catch (denied) {
+                    // Storage denied. The default is already in `chosen`, and the app runs
+                    // in it for as long as this document is open.
+                }
+                document.documentElement.setAttribute('data-theme', chosen)
+            })()
+        </script>
     </head>
     <body>
         <div id="root"></div>
