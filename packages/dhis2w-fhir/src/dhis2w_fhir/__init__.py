@@ -23,6 +23,7 @@ from dhis2w_fhir.config import (
     FhirProjectConfig,
     ForwardConfig,
     GenerateConfig,
+    HostileNamePosture,
     IgConfig,
     NamingConfig,
     NoFhirProjectError,
@@ -177,6 +178,7 @@ from dhis2w_fhir.foundation import (
     tracked_entity_attribute_value_extension_url,
     tracked_entity_attribute_value_extensions,
 )
+from dhis2w_fhir.hostile_names import HostileNameConfirmation, HostileNameGate, HostileNameRewrite
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, normalize_locale
 from dhis2w_fhir.names import (
     DHIS2_UID_LENGTH,
@@ -584,6 +586,7 @@ from dhis2w_fhir.validation.schemas import (
     ValidationFinding,
     ValidationScope,
 )
+from dhis2w_fhir.validation.substitution import substitute_build_aborting_text
 from dhis2w_fhir.writer import (
     GENERATED_HEADER,
     GENERATED_MARKDOWN_HEADER,
@@ -874,6 +877,10 @@ __all__ = [
     "grade_oracle",
     "grouping_identifiers",
     "GroupingIdentifier",
+    "HostileNameConfirmation",
+    "HostileNameGate",
+    "HostileNamePosture",
+    "HostileNameRewrite",
     "IgConfig",
     "IMPORT_REPORT_SUFFIX",
     "init_project",
@@ -1070,6 +1077,7 @@ __all__ = [
     "STATUS_BY_EVENT_STATUS",
     "StemResolution",
     "StemSubject",
+    "substitute_build_aborting_text",
     "SupportTerminologyProfile",
     "SurfaceCodeCoverage",
     "sweep_orphan_temporary_files",

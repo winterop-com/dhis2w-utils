@@ -10335,7 +10335,8 @@ The foundation runs first because it reads nothing, the pages last because they 
 
 Notes land in reports/fhir-generate-notes.md; `--details` prints them here instead.
 
-Name a target to run that one alone; the flags here belong to the bare run.
+Name a target to run that one alone; --details and --progress belong to the bare run, and the
+two hostile-name flags belong to every target under this group.
 
 **Usage**:
 
@@ -10346,6 +10347,8 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 **Options**:
 
 * `--details`: Print every note inline instead of writing them to the notes report.
+* `--substitute-hostile-names`: Publish a DHIS2 name carrying &#x27;&lt;&#x27; in rewritten wording (&quot;5 to &lt; 15 years&quot; becomes &quot;5 to under 15 years&quot;) instead of being asked. DHIS2 is never modified.
+* `--refuse-hostile-names`: Refuse the run over a DHIS2 name carrying &#x27;&lt;&#x27; instead of being asked, so the name is changed in DHIS2 before a build is spent on it.
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import errno
 import socket
+import sys
 from collections import Counter
 from contextlib import contextmanager
 from datetime import timedelta
@@ -31,6 +32,7 @@ from dhis2w_fhir import (
     MALFORMED_RESPONSES_RELATIVE_PATH,
     CorrectionPosture,
     GenerateReport,
+    HostileNamePosture,
     OverwritePosture,
     ServeAuth,
     ServeAuthScope,
@@ -50,6 +52,7 @@ if TYPE_CHECKING:
 
     from dhis2w_fhir.config import FhirProject, ProjectionConfig
     from dhis2w_fhir.doctor import DoctorReport
+    from dhis2w_fhir.hostile_names import HostileNameGate, HostileNameRewrite
     from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import (
         ForwardOutcome,
@@ -127,6 +130,106 @@ def _hint(prefix: str, text: str, *, style: str | None = None) -> None:
         markup=False,
         highlight=False,
         soft_wrap=True,
+    )
+
+
+class GenerateDecisions(BaseModel):
+    """The answers a `d2w fhir generate` flag preset, shared by the bare run and every named target."""
+
+    model_config = ConfigDict(frozen=True)
+
+    hostile_names: HostileNamePosture | None = None
+    """What to do with a DHIS2 name the IG publisher's build cannot survive; None asks."""
+
+
+#: How many rewrites the warning block shows before it counts the rest. Enough to recognise the
+#: shape of the names without turning the question into a report.
+_HOSTILE_NAME_SAMPLE_SIZE = 10
+
+#: The rule the warning block is drawn between, wide enough that it cannot be mistaken for a note.
+_HOSTILE_NAME_RULE = "=" * 78
+
+
+def _hostile_name_posture(*, substitute: bool, refuse: bool) -> HostileNamePosture | None:
+    """The posture the two flags state, or None when neither was passed and the run asks instead."""
+    if substitute and refuse:
+        raise CliUserError(
+            "--substitute-hostile-names and --refuse-hostile-names state opposite answers to the same "
+            "question. Pass one of them, or neither to be asked."
+        )
+    if substitute:
+        return HostileNamePosture.SUBSTITUTE
+    return HostileNamePosture.REFUSE if refuse else None
+
+
+def _generate_decisions(ctx: typer.Context) -> GenerateDecisions:
+    """The decisions the generate group's flags preset, or the empty set when nothing was passed."""
+    decisions = ctx.find_object(GenerateDecisions)
+    return decisions if decisions is not None else GenerateDecisions()
+
+
+def _hostile_name_gate(ctx: typer.Context, project: FhirProject) -> HostileNameGate:
+    """The gate this run screens DHIS2 names through: the flag's answer, else the project's, else a question."""
+    from dhis2w_fhir.hostile_names import HostileNameGate
+
+    posture = _generate_decisions(ctx).hostile_names or project.config.generate.hostile_names
+    return HostileNameGate(posture, confirmation=_confirm_hostile_names)
+
+
+def _has_terminal() -> bool:
+    """Whether there is a terminal to ask a question on, which a scripted run has not."""
+    return sys.stdin.isatty()
+
+
+def _confirm_hostile_names(rewrites: list[HostileNameRewrite]) -> bool:
+    """Ask whether the guide may publish rewritten names, and refuse without a terminal to ask on."""
+    _print_hostile_name_warning(rewrites)
+    if not _has_terminal():
+        _line(
+            "There is no terminal to ask on, so nothing is rewritten. Pass --substitute-hostile-names to "
+            "publish the rewrites, or --refuse-hostile-names to refuse without being asked."
+        )
+        _line(_HOSTILE_NAME_RULE)
+        return False
+    _line(_HOSTILE_NAME_RULE)
+    return typer.confirm("Rewrite these names for publication?", default=False)
+
+
+def _print_hostile_name_warning(rewrites: list[HostileNameRewrite]) -> None:
+    """Print what the run found, what a rewrite changes, and what it leaves alone."""
+    from dhis2w_fhir.notes import pluralize, verb_for_count
+
+    distinct = list({rewrite.original: rewrite for rewrite in rewrites}.values())
+    _line("")
+    _line(_HOSTILE_NAME_RULE)
+    _line("DHIS2 names the IG publisher cannot build")
+    _line(_HOSTILE_NAME_RULE)
+    _line(
+        f"{pluralize(len(distinct), 'selected DHIS2 name')} "
+        f"{verb_for_count(len(distinct), 'carries', 'carry')} '<'. A name reaches the guide byte-true, and "
+        "the IG publisher writes it into pages it strict-parses after writing, so `make build` aborts in its "
+        "last pass, once every resource has already been rendered."
+    )
+    _line("")
+    _line(
+        "Rewriting them changes the published guide and nothing else. DHIS2 is never modified: the instance "
+        "keeps every name exactly as it stands, no code or UID is touched, and the ConceptMaps keep the "
+        "original identifiers, so a consumer can still join a published concept back to its DHIS2 object."
+    )
+    _line("")
+    shown = distinct[:_HOSTILE_NAME_SAMPLE_SIZE]
+    remainder = len(distinct) - len(shown)
+    _line("As they would be published:" if not remainder else f"{len(shown)} of them, as they would be published:")
+    for rewrite in shown:
+        _line(f"  {rewrite.original!r} -> {rewrite.rewritten!r}")
+    if remainder:
+        _line(f"  and {remainder} more.")
+    _line("")
+    _line(
+        "Leaving them publishes every name exactly as DHIS2 states it, which is what "
+        '--refuse-hostile-names and `hostile_names = "refuse"` in fhir.toml do without asking. The run then '
+        "refuses when one of the gated names carries '<', and `d2w fhir check-artifacts` reports what "
+        "reaches the disk either way."
     )
 
 
@@ -595,6 +698,22 @@ def generate_callback(
         bool,
         typer.Option("--details", help="Print every note inline instead of writing them to the notes report."),
     ] = False,
+    substitute_hostile_names: Annotated[
+        bool,
+        typer.Option(
+            "--substitute-hostile-names",
+            help="Publish a DHIS2 name carrying '<' in rewritten wording (\"5 to < 15 years\" becomes "
+            '"5 to under 15 years") instead of being asked. DHIS2 is never modified.',
+        ),
+    ] = False,
+    refuse_hostile_names: Annotated[
+        bool,
+        typer.Option(
+            "--refuse-hostile-names",
+            help="Refuse the run over a DHIS2 name carrying '<' instead of being asked, so the name is "
+            "changed in DHIS2 before a build is spent on it.",
+        ),
+    ] = False,
     progress: ProgressOption = True,
 ) -> None:
     """Generate the whole IG source from DHIS2 metadata, or one named target of it.
@@ -605,16 +724,21 @@ def generate_callback(
 
     Notes land in reports/fhir-generate-notes.md; `--details` prints them here instead.
 
-    Name a target to run that one alone; the flags here belong to the bare run.
+    Name a target to run that one alone; --details and --progress belong to the bare run, and the
+    two hostile-name flags belong to every target under this group.
     """
+    ctx.obj = GenerateDecisions(
+        hostile_names=_hostile_name_posture(substitute=substitute_hostile_names, refuse=refuse_hostile_names)
+    )
     if ctx.invoked_subcommand is not None:
         return
     from dhis2w_fhir import GENERATE_FULL_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
+    gate = _hostile_name_gate(ctx, project)
     with _progress(GENERATE_FULL_STEPS, enabled=progress) as reporter:
-        report = asyncio.run(service.generate_full(generation.profile, project, reporter=reporter))
+        report = asyncio.run(service.generate_full(generation.profile, project, reporter=reporter, gate=gate))
         if reporter is not None:
             reporter.finish(_full_run_summary(report))
     if is_json_output():
@@ -639,14 +763,15 @@ def generate_foundation_command(progress: ProgressOption = True) -> None:
 
 
 @generate_app.command("option-sets")
-def generate_option_sets_command(progress: ProgressOption = True) -> None:
+def generate_option_sets_command(ctx: typer.Context, progress: ProgressOption = True) -> None:
     """Generate CodeSystem/ValueSet JSON from DHIS2 option sets into the nearest FHIR project."""
     from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
+    gate = _hostile_name_gate(ctx, project)
     with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
-        report = asyncio.run(service.generate_option_sets(generation.profile, project, reporter=reporter))
+        report = asyncio.run(service.generate_option_sets(generation.profile, project, reporter=reporter, gate=gate))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
@@ -659,14 +784,15 @@ def generate_option_sets_command(progress: ProgressOption = True) -> None:
 
 
 @generate_app.command("categories")
-def generate_categories_command(progress: ProgressOption = True) -> None:
+def generate_categories_command(ctx: typer.Context, progress: ProgressOption = True) -> None:
     """Generate CodeSystem/ValueSet JSON from DHIS2 categories into the nearest FHIR project."""
     from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
+    gate = _hostile_name_gate(ctx, project)
     with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
-        report = asyncio.run(service.generate_categories(generation.profile, project, reporter=reporter))
+        report = asyncio.run(service.generate_categories(generation.profile, project, reporter=reporter, gate=gate))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
@@ -679,7 +805,7 @@ def generate_categories_command(progress: ProgressOption = True) -> None:
 
 
 @generate_app.command("questionnaires")
-def generate_questionnaires_command(progress: ProgressOption = True) -> None:
+def generate_questionnaires_command(ctx: typer.Context, progress: ProgressOption = True) -> None:
     """Generate Questionnaire FSH into data-sets/, event-programs/, tracker-programs/, and data-dictionary/.
 
     A data set and an event program are one Questionnaire each.
@@ -693,8 +819,9 @@ def generate_questionnaires_command(progress: ProgressOption = True) -> None:
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
+    gate = _hostile_name_gate(ctx, project)
     with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
-        report = asyncio.run(service.generate_questionnaires(generation.profile, project, reporter=reporter))
+        report = asyncio.run(service.generate_questionnaires(generation.profile, project, reporter=reporter, gate=gate))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
@@ -710,14 +837,15 @@ def generate_questionnaires_command(progress: ProgressOption = True) -> None:
 
 
 @generate_app.command("examples")
-def generate_examples_command(progress: ProgressOption = True) -> None:
+def generate_examples_command(ctx: typer.Context, progress: ProgressOption = True) -> None:
     """Generate example QuestionnaireResponses for every configured data set, event program, and tracker stage."""
     from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
+    gate = _hostile_name_gate(ctx, project)
     with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
-        report = asyncio.run(service.generate_examples(generation.profile, project, reporter=reporter))
+        report = asyncio.run(service.generate_examples(generation.profile, project, reporter=reporter, gate=gate))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
@@ -730,14 +858,17 @@ def generate_examples_command(progress: ProgressOption = True) -> None:
 
 
 @generate_app.command("org-units")
-def generate_organisation_units_command(progress: ProgressOption = True) -> None:
+def generate_organisation_units_command(ctx: typer.Context, progress: ProgressOption = True) -> None:
     """Generate Organization/Location FSH from DHIS2 organisation units into the nearest FHIR project."""
     from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
+    gate = _hostile_name_gate(ctx, project)
     with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
-        report = asyncio.run(service.generate_organisation_units(generation.profile, project, reporter=reporter))
+        report = asyncio.run(
+            service.generate_organisation_units(generation.profile, project, reporter=reporter, gate=gate)
+        )
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
@@ -754,14 +885,15 @@ def generate_organisation_units_command(progress: ProgressOption = True) -> None
 
 
 @generate_app.command("pages")
-def generate_pages_command(progress: ProgressOption = True) -> None:
+def generate_pages_command(ctx: typer.Context, progress: ProgressOption = True) -> None:
     """Generate the narrative site pages and the per-artifact intros into ig/input/pagecontent/."""
     from dhis2w_fhir import GENERATE_TARGET_STEPS, service
 
     project = load_project()
     generation = service.resolve_generation_profile(project)
+    gate = _hostile_name_gate(ctx, project)
     with _progress(GENERATE_TARGET_STEPS, enabled=progress) as reporter:
-        report = asyncio.run(service.generate_pages(generation.profile, project, reporter=reporter))
+        report = asyncio.run(service.generate_pages(generation.profile, project, reporter=reporter, gate=gate))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return

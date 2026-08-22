@@ -96,6 +96,23 @@ _AGE = CategoryIn(
 )
 
 
+#: Two option sets whose options carry one DHIS2 code between them, which a real instance does:
+#: a diagnosis coded `Preeclampsia` belongs to as many sets as ask the question.
+_FIRST_DIAGNOSIS = OptionSetIn(
+    uid="Dg1aaaaaaaa",
+    code="diagnosis-antenatal",
+    name="Antenatal diagnosis",
+    options=[OptionIn(uid="Op1aaaaaaaa", code="Preeclampsia", name="Preeclampsia", sort_order=1)],
+)
+
+_SECOND_DIAGNOSIS = OptionSetIn(
+    uid="Dg2aaaaaaaa",
+    code="diagnosis-delivery",
+    name="Delivery diagnosis",
+    options=[OptionIn(uid="Op2aaaaaaaa", code="Preeclampsia", name="Preeclampsia", sort_order=1)],
+)
+
+
 def _option_set_systems(config: GenerateConfig) -> list[dict[str, Any]]:
     """The identifier CodeSystems one option-set selection emits, parsed back from the files it writes."""
     return [
@@ -174,6 +191,48 @@ def test_the_concepts_are_every_targeted_identifier_deduplicated_and_sorted() ->
 
     assert [concept["code"] for concept in uids] == ["Ag1aaaaaaaa", "TNYQzTHdoxL", "apsOixVZlf1"]
     assert [concept["display"] for concept in uids] == ["Under five", "Female", "Male"]
+
+
+def test_one_code_shared_by_two_option_sets_is_one_concept() -> None:
+    """Two sets naming the same DHIS2 option code enumerate it once.
+
+    The IG publisher anchors a concept row by its code, so the same code stated twice yields two
+    rows carrying one anchor id, and the publisher's own QA pass reports the page as holding
+    duplicate anchor ids while still exiting 0.
+    """
+    emitted = _by_url(
+        [
+            json.loads(artifact.content)
+            for artifact in build_option_set_identifier_artifacts(
+                [_FIRST_DIAGNOSIS, _SECOND_DIAGNOSIS], GenerateConfig(), _CANONICAL, ig_status="draft"
+            )
+        ]
+    )
+
+    document = emitted["http://dhis2.org/fhir/id/option-code"]
+
+    assert [concept["code"] for concept in document["concept"]] == ["Preeclampsia"]
+    assert document["count"] == 1
+
+
+def test_every_emitted_code_system_states_each_code_once() -> None:
+    """The invariant the publisher's anchor ids depend on, asserted over every namespace a family emits."""
+    documents = [
+        json.loads(artifact.content)
+        for artifact in (
+            *build_option_set_identifier_artifacts(
+                [_BIRTH_TYPE, _DELIVERY_PLACE, _FIRST_DIAGNOSIS, _SECOND_DIAGNOSIS],
+                GenerateConfig(),
+                _CANONICAL,
+                ig_status="draft",
+            ),
+            *build_category_identifier_artifacts([_SEX, _AGE], GenerateConfig(), _CANONICAL, ig_status="draft"),
+        )
+    ]
+
+    for document in documents:
+        codes = [concept["code"] for concept in document["concept"]]
+        assert len(codes) == len(set(codes)), f"{document['url']} states a code twice"
 
 
 def test_the_option_uids_and_the_option_codes_are_enumerated_separately() -> None:

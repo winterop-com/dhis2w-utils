@@ -614,6 +614,26 @@ chain in one command.
   path. Only codes stay asymmetric, and deliberately - a question object's code
   becomes a concept property the publisher escapes rather than an identifier
   value it does not.
+- **Or the guide publishes the name in wording the build survives.** Refusing is
+  one answer and often the wrong one: DHIS2 names carry `<` legitimately, and an
+  age band called `5 to < 15 years, Female` is not a defect to be renamed in a
+  production instance. `--substitute-hostile-names` publishes it as `5 to under
+  15 years, Female` (`<=` reads as `at most`); `--refuse-hostile-names` keeps
+  today's refusal; `[generate] hostile_names = "refuse" | "substitute"` is the
+  project's standing answer; and with none of them a run holding a terminal
+  prints the count, up to ten `before -> after` samples, and asks, while a run
+  with no terminal names the two flags and rewrites nothing rather than hanging a
+  script on a prompt. A flag beats the dial, the dial beats the question. DHIS2 is
+  never written to, and names only: no code, UID, or identifier value is
+  rewritten, so the ConceptMaps still take a published concept back to its DHIS2
+  object, and a code carrying `<` refuses the run under either answer. The rewrite
+  lands where DHIS2 metadata enters the emission inputs, before a single identity,
+  stem, or decomposition is planned off a name, so every target inherits one
+  spelling - which is also how it covers the class no refusal reaches: a DHIS2
+  form name and a category option combo name, which become question text and data
+  dictionary concept displays (one national selection generated cleanly and handed
+  the publisher 738 of them). Every rewrite is a `name-substitution` note, one per
+  distinct DHIS2 name.
 
 ### Generate the IG source
 
@@ -915,7 +935,11 @@ Published as two FHIR-native artifacts:
   built maps rather than assumed, so a family that grows a mapping group cannot
   leave its new target system un-enumerated, and the scaffolded
   `sushi-config.yaml` declares all six under `special-url` because they sit
-  outside the IG's own canonical.
+  outside the IG's own canonical. Each code is stated once per CodeSystem,
+  whichever maps named it: two option sets legitimately share a `Preeclampsia`
+  option code, and the publisher anchors a concept row by its code, so the same
+  code twice is one anchor id on two rows - which its own QA pass reports as a
+  duplicate anchor on the rendered page.
 - **`[generate.categories]` `include_ids`** selects, where absent or empty
   meaning every category except DHIS2's built-in `default` placeholder. That
   placeholder exchanges no information, so `include_default = false` skips it

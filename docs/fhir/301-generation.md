@@ -109,6 +109,50 @@ generate.concept_code_source
   Input should be 'id' or 'code' [type=literal_error, input_value='uid', input_type=str]
 ```
 
+### `hostile_names`
+
+**In plain words.** What the run does when a DHIS2 name carries a `<`. The IG
+publisher writes a name into pages it re-reads as HTML after writing, and a `<`
+opens a tag there, so the build dies hours in - after every resource has already
+been rendered. DHIS2 names carry the character legitimately: an age band is
+called `5 to < 15 years, Female`.
+
+**The two values.** `"refuse"` writes nothing and names the object, so the name
+is changed in DHIS2 or left out of the selection. `"substitute"` publishes the
+name in wording the publisher survives - `5 to under 15 years, Female` - and
+notes every name it rewrote. DHIS2 is never written to either way, and no code,
+UID, or identifier value is ever rewritten.
+
+**When you would set it.** Set `"substitute"` for a project whose instance names
+age bands the way most instances do, so nobody has to answer the same question on
+every run. Set `"refuse"` for a guide whose published names must repeat the
+instance byte for byte, and take the rename in DHIS2 when one carries a `<`.
+
+**Example.**
+
+```toml
+[generate]
+hostile_names = "substitute"
+```
+
+**Default:** unset - **If you leave it out:** `d2w fhir generate` shows the names
+and their rewrites and asks, when it has a terminal to ask on. Run from a script
+or a CI job it asks nobody and rewrites nothing, so an unattended run behaves as
+`"refuse"` does.
+
+**One run at a time:** `d2w fhir generate --substitute-hostile-names` and
+`--refuse-hostile-names` answer it for a single run and beat this key. The whole
+picture is in [Answer the hostile-name
+question](201-generate.md#answer-the-hostile-name-question).
+
+**If you get it wrong:** any value except the two stops the run:
+
+```text
+pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
+generate.hostile_names
+  Input should be 'refuse' or 'substitute' [type=enum, input_value='rewrite', input_type=str]
+```
+
 ### `timezone`
 
 **In plain words.** DHIS2 stores clock times without saying which time zone

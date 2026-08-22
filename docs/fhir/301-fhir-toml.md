@@ -206,6 +206,7 @@ the file refuses.
 | `[ig]` | [`status`](301-identity.md#status) | `"draft"` | draft-and-experimental, or official |
 | `[ig]` | [`title`](301-identity.md#title) | required | the title readers see on every page |
 | `[generate]` | [`concept_code_source`](301-generation.md#concept_code_source) | `"id"` | whether published codes are DHIS2 ids or DHIS2 codes |
+| `[generate]` | [`hostile_names`](301-generation.md#hostile_names) | unset (the run asks) | whether a DHIS2 name carrying `<` refuses the run or is published in rewritten wording |
 | `[generate]` | [`identifier_system_base`](301-generation.md#identifier_system_base) | `"http://dhis2.org/fhir"` | the web-address stem the DHIS2 identifier labels are built from |
 | `[generate]` | [`locales`](301-generation.md#locales) | every language found | which languages the guide publishes translations in |
 | `[generate]` | [`timezone`](301-generation.md#timezone) | unset (read as UTC) | the zone DHIS2's clock times are wall-clock readings in |
