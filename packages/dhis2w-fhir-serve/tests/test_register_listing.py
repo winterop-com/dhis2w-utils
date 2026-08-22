@@ -267,7 +267,7 @@ async def test_a_listing_parameter_this_server_cannot_answer_is_refused(listing_
 
     assert response.status_code == 400
     assert response.json()["issue"][0]["diagnostics"] == (
-        "`family` is not a search parameter this server answers `Patient` on: `identifier` is the one it supports"
+        "`family` is not a search parameter this server answers `Patient` on: it answers `_tag`, `identifier`"
     )
     assert not tracker.called
 

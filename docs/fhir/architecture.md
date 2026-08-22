@@ -677,7 +677,7 @@ doctor.py                    The nine-phase conformance runner
 r4/                          Frozen, alias-aware R4 models; JSON is dumped from these
 period/                      The 23 period types, parse_period, recent_periods
 scaffold/                    init and --refresh
-validation/                  The four passes, the scope axis, the report renderers
+validation/                  The five passes, the scope axis, the report renderers
 foundation/                  Identifier systems, extensions, profiles, the contract
 conversion/                  QuestionnaireResponse -> DHIS2 (phase A)
 resources/                   One package per DHIS2 domain that emits artifacts:

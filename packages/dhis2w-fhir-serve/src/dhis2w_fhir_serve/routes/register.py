@@ -40,13 +40,29 @@ honoured up to `[serve.tracked_entities] page_size_limit` and clamped rather tha
 and `_count=0` asks how large the register is - answered by counting the instance rather than by
 building a page nobody wants.
 
+**ONE FHIR RESOURCE TYPE IS ONE REGISTER OVER THE UNION OF ITS TRACKED ENTITY TYPES.** An instance
+may map fifty types onto nine resources, and two types mapped onto `Device` - a cold-chain fridge and
+a delivery vehicle - are one `GET /Device` answering about both. Nothing collides and nothing is
+last-writer-wins: the map is read into one row per type, the surface groups the rows by resource, and
+every read, search, listing, and count below is parameterized by the list of types it runs over.
+Each served resource still says which DHIS2 type it is, as the `meta.tag` `register.projection`
+carries - so a union is a union of stated things rather than a merge.
+
+**`_tag` is how a caller asks that union about one of its types**, and it is R4's own token search
+over exactly the element the resource states the type in: `_tag={base}/id/tracked-entity-type|{uid}`,
+or `_tag={uid}` for the code alone. It narrows the listing's walk, the search's scope, and the
+`_count=0` count alike, it rides every `next` and `previous` link so a walk stays inside the type it
+started in, and under `[serve.search] backend = "projection"` it narrows the store's own query rather
+than thinning its pages. A `_tag` naming a type this resource is not served over is an unsatisfied
+query, answered with an empty searchset. See `_requested_type_uids`.
+
 **A parameter this surface cannot apply is refused, and that is the whole reason `search_register`
 reads the query rather than filtering it.** The store searches ignore what they do not recognise,
 because the worst an ignored parameter costs there is a larger result set than a client expected.
 Here it costs the register itself: `family=Smith` answered with the listing is every registered
 person handed back as though each were a Smith. So the query is checked before anything is read, and
-anything but `identifier` (plus `_count`, and `page` on the listing) is a 400 naming what is
-answered. See `_require_answerable_parameters`.
+anything but `identifier` and `_tag` (plus `_count`, and `page` on the listing) is a 400 naming what
+is answered. See `_require_answerable_parameters`.
 
 **`identifier` is the whole search surface** for naming one entity, in both of FHIR's token forms:
 
@@ -180,6 +196,11 @@ IDENTIFIER_SEARCH_PARAMETER = "identifier"
 #: resource's whole content, which is what an index over every attribute value a person holds is.
 CONTENT_SEARCH_PARAMETER = "_content"
 
+#: R4's own token search over `Resource.meta.tag`, which is where a registered resource already
+#: states which DHIS2 tracked entity type it is - so this is how a caller asks one resource for one
+#: type. `_tag={typeSystem}|{uid}` names the system; `_tag={uid}` names the code alone.
+TAG_SEARCH_PARAMETER = "_tag"
+
 
 class RegisterLookup(BaseModel):
     """What one register request runs against: the connection, what this run serves, and where it searches.
@@ -203,9 +224,34 @@ class RegisterLookup(BaseModel):
     they have always done.
     """
 
+    tracked_entity_type_uids: tuple[str, ...] = ()
+    """The tracked entity types THIS request runs over, in the order the listing pages through them.
+
+    The resource's own types by default - one FHIR resource is served over every type the published
+    map takes onto it - narrowed to the ones a `_tag` named when the request named any.
+    """
+
+    typed_by_request: bool = False
+    """Whether `_tag` named the types, which is what makes an entity DHIS2 states no type for a miss.
+
+    A read of a resource that carries no `trackedEntityType` is served under whatever resource was
+    asked, because the instance itself declined to classify it. A request that NAMED a type is a
+    different question - "which of these are samples" - and an entity nothing states the type of is
+    not an answer to it.
+    """
+
     def from_projection(self) -> bool:
         """Whether this request's searchset membership comes from the projection rather than the instance."""
         return self.store is not None
+
+    def scoped_type_uids(self) -> tuple[str, ...]:
+        """The types a projection query is narrowed by, empty where the request narrowed nothing.
+
+        Empty means "every type this resource is served over" to a store query, which is what a
+        request naming no `_tag` asks for. A `_tag` that narrowed the scope to nothing never reaches
+        a store: `search_register` answers it empty before anything is asked.
+        """
+        return self.tracked_entity_type_uids if self.typed_by_request else ()
 
 
 def register_resource_types(request: Request) -> tuple[str, ...]:
@@ -221,17 +267,25 @@ async def search_register(request: Request, resource_type: str) -> Response:
     contents: list[tuple[str, ...]] = []
     for name, raw in request.query_params.multi_items():
         if name == IDENTIFIER_SEARCH_PARAMETER:
-            tokens.extend(identifier_token(value) for value in alternatives(name, raw))
+            tokens.extend(identifier_token(name, value) for value in alternatives(name, raw))
         elif name == CONTENT_SEARCH_PARAMETER:
             contents.append(tuple(alternatives(name, raw)))
-        else:
+        elif name != TAG_SEARCH_PARAMETER:
             continue
+        # `_tag` is honored like the other two and produces no token of its own: it narrowed which
+        # tracked entity types this lookup runs over, before any of them was asked anything.
         honored.append(HonoredParameter(name=name, value=raw))
     _require_answerable_parameters(request, lookup, resource_type, searching=bool(tokens or contents))
     service_base = base_url(request)
     cap = requested_entry_cap(request.query_params.get(COUNT_PARAMETER))
+    if lookup.typed_by_request and not lookup.tracked_entity_type_uids:
+        # Every `_tag` named a type this resource is not served over, so the scope is empty and
+        # nothing can be in it. Answered here rather than further in: an empty scope is an
+        # unsatisfied query, and neither the instance nor the projection needs to be asked to
+        # confirm that nobody is of no type.
+        return bundle_response(service_base, resource_type, tuple(honored), [], cap)
     if not tokens and not contents:
-        return await _listing_response(request, lookup, resource_type, service_base)
+        return await _listing_response(request, lookup, resource_type, service_base, tuple(honored))
     if lookup.from_projection():
         return await _projection_search_response(
             lookup, resource_type, tokens, tuple(contents), service_base, tuple(honored), cap
@@ -258,8 +312,12 @@ def _require_answerable_parameters(
     a facade that answered it with the listing would be answering a question it was not asked. The
     refusal names the parameters that ARE answered, so the difference reads as this server's posture
     rather than as a missing feature.
+
+    `_tag` is answered on every register, whichever backend found the matches, because it narrows the
+    question rather than answering it: it says which of the tracked entity types this resource is
+    served over the request is about, and every path below is already parameterized by that list.
     """
-    answerable = {IDENTIFIER_SEARCH_PARAMETER, COUNT_PARAMETER}
+    answerable = {IDENTIFIER_SEARCH_PARAMETER, TAG_SEARCH_PARAMETER, COUNT_PARAMETER}
     if lookup.from_projection():
         answerable.add(CONTENT_SEARCH_PARAMETER)
     for name in request.query_params:
@@ -279,7 +337,7 @@ async def read_registered_entity(request: Request, resource_type: str, tracked_e
     """Answer one entity by its DHIS2 tracked entity UID, which is what a search result links to."""
     lookup = await _live_lookup(request, resource_type)
     entity = await _read(lookup.reader, tracked_entity_uid)
-    if entity is None or not _is_served_as(entity, lookup.surface, resource_type):
+    if entity is None or not _is_served_as(entity, lookup):
         raise NotFoundError(resource_type, tracked_entity_uid)
     registered = registered_entity_for(entity, lookup.surface.index, resource_type)
     return JSONResponse(
@@ -287,15 +345,17 @@ async def read_registered_entity(request: Request, resource_type: str, tracked_e
     )
 
 
-def _is_served_as(entity: TrackerTrackedEntity, surface: RegisterSurface, resource_type: str) -> bool:
-    """Whether one entity's own type is served as the resource it was asked for under.
+def _is_served_as(entity: TrackerTrackedEntity, lookup: RegisterLookup) -> bool:
+    """Whether one entity's own type is one this request runs over.
 
     An entity DHIS2 states no type for is answered under whatever resource was asked, because the
-    only alternative is refusing to serve an entity the instance itself did not classify.
+    only alternative is refusing to serve an entity the instance itself did not classify. A request
+    that named a `_tag` asked a narrower question - "which of these are of this type" - and an entity
+    nothing states the type of is not an answer to it.
     """
     if entity.trackedEntityType is None:
-        return True
-    return entity.trackedEntityType in surface.tracked_entity_type_uids_for(resource_type)
+        return not lookup.typed_by_request
+    return entity.trackedEntityType in lookup.tracked_entity_type_uids
 
 
 async def _live_lookup(request: Request, resource_type: str) -> RegisterLookup:
@@ -321,6 +381,11 @@ async def _live_lookup(request: Request, resource_type: str) -> RegisterLookup:
     live under the caller's own credentials, so a process with no instance behind it can no more
     answer a projection-served register than a live one - R9's posture (iii) makes the live read part
     of every answer rather than a fallback for when the projection is cold.
+
+    The types come last and they are per-request, because `_tag` is the one thing about a register
+    lookup a client decides: the resource's own types, narrowed to the ones the request named. The
+    unnarrowed set is what decides whether this server serves the resource at all - narrowing to
+    nothing is an unsatisfied query, and serving no `Specimen` is a different fact stated earlier.
     """
     context = serve_context(request)
     surface = context.register_surface
@@ -331,8 +396,10 @@ async def _live_lookup(request: Request, resource_type: str) -> RegisterLookup:
         raise NotServedFromCompiledIgError(resource_type)
     if not surface.serves_tracked_entities():
         raise NoPublishedSubjectTypeError(resource_type)
-    if not surface.tracked_entity_type_uids_for(resource_type):
+    served = surface.tracked_entity_type_uids_for(resource_type)
+    if not served:
         raise NotServedError(resource_type)
+    tagged = _requested_type_uids(request, surface, served)
     backend = context.settings.search.backend
     store = projection_store(request) if backend is SearchBackend.PROJECTION else None
     return RegisterLookup(
@@ -340,11 +407,51 @@ async def _live_lookup(request: Request, resource_type: str) -> RegisterLookup:
         surface=surface,
         index=build_name_search_index(backend, reader=reader, store=store),
         store=store,
+        tracked_entity_type_uids=served if tagged is None else tagged,
+        typed_by_request=tagged is not None,
     )
 
 
+def _requested_type_uids(request: Request, surface: RegisterSurface, served: tuple[str, ...]) -> tuple[str, ...] | None:
+    """Which of this resource's types a `_tag` named, or None where the request named none.
+
+    ONE FHIR RESOURCE TYPE IS ONE REGISTER OVER THE UNION OF ITS TRACKED ENTITY TYPES, and `_tag` is
+    how a caller asks that register about one of them. It is R4's own token search over `meta.tag`,
+    and `meta.tag` is exactly where a registered resource already states its DHIS2 tracked entity
+    type (`register.projection`), so the parameter reads what the resource says rather than naming a
+    dimension this server invented. `_tag={base}/id/tracked-entity-type|{uid}` names the system;
+    `_tag={uid}` names the code alone, because there is one tag on these resources and no ambiguity
+    for a bare code to fall into.
+
+    Values widen, the way `identifier` values do: two tags are two types asked about at once.
+
+    A tag naming a type this resource is not served over - a Specimen type asked of `/Device`, a UID
+    the instance never held, a system this server publishes nothing under - narrows the scope to
+    nothing and is answered with an empty searchset. FHIR makes an unmatched token an unsatisfied
+    query rather than a malformed one, and this server does not know the difference between a type it
+    does not serve and a type that holds nobody today.
+    """
+    named: dict[str, None] = {}
+    tagged = False
+    for name, raw in request.query_params.multi_items():
+        if name != TAG_SEARCH_PARAMETER:
+            continue
+        tagged = True
+        for value in alternatives(name, raw):
+            token = identifier_token(name, value)
+            if token.system is None or token.system == surface.index.tracked_entity_type_system:
+                named[token.value] = None
+    if not tagged:
+        return None
+    return tuple(uid for uid in served if uid in named)
+
+
 async def _listing_response(
-    request: Request, lookup: RegisterLookup, resource_type: str, service_base: str
+    request: Request,
+    lookup: RegisterLookup,
+    resource_type: str,
+    service_base: str,
+    honored: tuple[HonoredParameter, ...],
 ) -> Response:
     """Answer one page of the register, or refuse the whole listing when the project serves none."""
     surface = lookup.surface
@@ -352,15 +459,15 @@ async def _listing_response(
     if not surface.serves_listing():
         raise RegisterListingDisabledError(resource_type)
     if lookup.from_projection():
-        return await _projection_listing_response(request, lookup, resource_type, service_base)
+        return await _projection_listing_response(request, lookup, resource_type, service_base, honored)
     if requested_entry_cap(request.query_params.get(COUNT_PARAMETER)) == 0:
-        return await _register_size_response(reader, surface, resource_type, service_base)
+        return await _register_size_response(lookup, resource_type, service_base, honored)
     count = _requested_count(request, surface)
     cursor = _requested_cursor(request)
     try:
         page = await read_listing_page(
             reader,
-            tracked_entity_type_uids=surface.tracked_entity_type_uids_for(resource_type),
+            tracked_entity_type_uids=lookup.tracked_entity_type_uids,
             cursor=cursor,
             count=count,
         )
@@ -371,7 +478,7 @@ async def _listing_response(
     bundle = Bundle(
         type="searchset",
         total=page.total,
-        link=_listing_links(service_base, resource_type, page, count),
+        link=_listing_links(service_base, resource_type, page, count, honored),
         entry=_entries(page.entities, surface, resource_type, service_base) or None,
     )
     return Response(content=bundle.model_dump_json(exclude_none=True, by_alias=True), media_type=FHIR_JSON_MEDIA_TYPE)
@@ -426,7 +533,11 @@ async def _projection_search_response(
 
 
 async def _projection_listing_response(
-    request: Request, lookup: RegisterLookup, resource_type: str, service_base: str
+    request: Request,
+    lookup: RegisterLookup,
+    resource_type: str,
+    service_base: str,
+    honored: tuple[HonoredParameter, ...],
 ) -> Response:
     """Answer one page of the register out of the projection, resolving each row live as the caller.
 
@@ -449,23 +560,34 @@ async def _projection_listing_response(
     count = _requested_count(request, lookup.surface)
     cursor_token = _requested_cursor(request)
     offset = (cursor_token.upstream_page - 1) * count
-    page = await lookup.store.search(ProjectionQuery(resource_type=resource_type, offset=offset, count=count))
+    page = await lookup.store.search(
+        ProjectionQuery(
+            resource_type=resource_type,
+            tracked_entity_type_uids=lookup.scoped_type_uids(),
+            offset=offset,
+            count=count,
+        )
+    )
     if page.cursor.updated_at is None:
         raise ProjectionEmptyError(resource_type)
     resolved = await _resolved_entities(
         lookup, resource_type, tuple(resource.resource_id for resource in page.resources), None
     )
-    links = [BundleLink(relation="self", url=_listing_url(service_base, resource_type, cursor_token, count))]
+    links = [BundleLink(relation="self", url=_listing_url(service_base, resource_type, cursor_token, count, honored))]
     if cursor_token.upstream_page > 1:
         previous = ListingCursor(upstream_page=cursor_token.upstream_page - 1)
-        links.append(BundleLink(relation="previous", url=_listing_url(service_base, resource_type, previous, count)))
+        links.append(
+            BundleLink(relation="previous", url=_listing_url(service_base, resource_type, previous, count, honored))
+        )
     # The store's own total decides whether there is a page after this one, and never leaves the
     # server: it is a count taken under the identity the sync ran as, which is a number about
     # somebody else - so it links the walk and is not stated. See this function's docstring.
     # `_count=0` asked for no entries at all, and a page of nothing leads nowhere.
     if count > 0 and page.total is not None and offset + len(page.resources) < page.total:
         following = ListingCursor(upstream_page=cursor_token.upstream_page + 1)
-        links.append(BundleLink(relation="next", url=_listing_url(service_base, resource_type, following, count)))
+        links.append(
+            BundleLink(relation="next", url=_listing_url(service_base, resource_type, following, count, honored))
+        )
     return _projection_bundle(
         resource_type,
         _entries(resolved, lookup.surface, resource_type, service_base),
@@ -506,7 +628,7 @@ async def _projection_candidates(
             found = await lookup.index.find(
                 NameQuery(
                     value=value,
-                    tracked_entity_type_uids=lookup.surface.tracked_entity_type_uids_for(resource_type),
+                    tracked_entity_type_uids=lookup.tracked_entity_type_uids,
                 )
             )
             for match in found.matches:
@@ -536,6 +658,7 @@ async def _projection_token_matches(
             resource_type=resource_type,
             identifiers=(token.value,),
             identifier_systems=() if token.system is None else (token.system,),
+            tracked_entity_type_uids=lookup.scoped_type_uids(),
         )
     )
     return tuple(resource.resource_id for resource in page.resources)
@@ -556,7 +679,7 @@ async def _resolved_entities(
         if cap is not None and len(kept) >= cap:
             break
         entity = await _read(lookup.reader, tracked_entity_uid)
-        if entity is not None and _is_served_as(entity, lookup.surface, resource_type):
+        if entity is not None and _is_served_as(entity, lookup):
             kept.append(entity)
     return kept
 
@@ -595,23 +718,22 @@ def _search_links(
 
 
 async def _register_size_response(
-    reader: RegisterReader, surface: RegisterSurface, resource_type: str, service_base: str
+    lookup: RegisterLookup, resource_type: str, service_base: str, honored: tuple[HonoredParameter, ...]
 ) -> Response:
     """Answer `_count=0` with how large the register is and nobody in it.
 
     Nothing is paged to answer this, because there is no page to build: the count is asked of the
     instance directly, one count-only request per tracked entity type in scope, which is the same
-    read a first page spends to state its total.
+    read a first page spends to state its total. A `_tag` narrows that scope, so `_count=0` beside one
+    is how a client asks how many of one tracked entity type this register holds.
     """
     try:
-        total = await count_listing_total(
-            reader, tracked_entity_type_uids=surface.tracked_entity_type_uids_for(resource_type)
-        )
+        total = await count_listing_total(lookup.reader, tracked_entity_type_uids=lookup.tracked_entity_type_uids)
     except Dhis2ClientError as error:
         raise UpstreamError(
             f"the DHIS2 instance did not answer the tracked entity count: {upstream_refusal_text(error)}"
         ) from error
-    return total_only_response(service_base, resource_type, (), total)
+    return total_only_response(service_base, resource_type, honored, total)
 
 
 def _requested_count(request: Request, surface: RegisterSurface) -> int:
@@ -636,23 +758,45 @@ def _requested_cursor(request: Request) -> ListingCursor:
     return ListingCursor() if stated is None else ListingCursor.from_token(stated)
 
 
-def _listing_links(service_base: str, resource_type: str, page: RegisterListingPage, count: int) -> list[BundleLink]:
+def _listing_links(
+    service_base: str,
+    resource_type: str,
+    page: RegisterListingPage,
+    count: int,
+    honored: tuple[HonoredParameter, ...],
+) -> list[BundleLink]:
     """`self`, and the neighbours that exist - each naming the page it leads to, explicitly."""
-    links = [BundleLink(relation="self", url=_listing_url(service_base, resource_type, page.cursor, count))]
+    links = [BundleLink(relation="self", url=_listing_url(service_base, resource_type, page.cursor, count, honored))]
     if page.previous_cursor is not None:
         links.append(
-            BundleLink(relation="previous", url=_listing_url(service_base, resource_type, page.previous_cursor, count))
+            BundleLink(
+                relation="previous",
+                url=_listing_url(service_base, resource_type, page.previous_cursor, count, honored),
+            )
         )
     if page.next_cursor is not None:
         links.append(
-            BundleLink(relation="next", url=_listing_url(service_base, resource_type, page.next_cursor, count))
+            BundleLink(relation="next", url=_listing_url(service_base, resource_type, page.next_cursor, count, honored))
         )
     return links
 
 
-def _listing_url(service_base: str, resource_type: str, cursor: ListingCursor, count: int) -> str:
-    """One page of the listing as a client may ask for it again and be given the same page."""
-    query = urlencode([(COUNT_PARAMETER, count), (PAGE_PARAMETER, cursor.token())])
+def _listing_url(
+    service_base: str,
+    resource_type: str,
+    cursor: ListingCursor,
+    count: int,
+    honored: tuple[HonoredParameter, ...],
+) -> str:
+    """One page of the listing as a client may ask for it again and be given the same page.
+
+    A `_tag` the request narrowed the walk by rides every link, because a `next` that dropped it
+    would walk out of the type the client asked about and into the rest of the resource's register.
+    The cursor cannot carry it: the token locates a page within a scope, and the scope is what `_tag`
+    decided.
+    """
+    tags = [(parameter.name, parameter.value) for parameter in honored if parameter.name == TAG_SEARCH_PARAMETER]
+    query = urlencode([*tags, (COUNT_PARAMETER, count), (PAGE_PARAMETER, cursor.token())])
     return f"{service_base}/{resource_type}?{query}"
 
 
@@ -679,7 +823,7 @@ async def _matching_entities(
     found: dict[str, TrackerTrackedEntity] = {}
     for token in tokens:
         for entity in await _entities_for_token(lookup, resource_type, token):
-            if entity.trackedEntity is not None and _is_served_as(entity, lookup.surface, resource_type):
+            if entity.trackedEntity is not None and _is_served_as(entity, lookup):
                 found.setdefault(entity.trackedEntity, entity)
     return list(found.values())
 
@@ -736,7 +880,7 @@ async def _search(
             NameQuery(
                 value=value,
                 attribute_uids=attribute_uids,
-                tracked_entity_type_uids=lookup.surface.tracked_entity_type_uids_for(resource_type),
+                tracked_entity_type_uids=lookup.tracked_entity_type_uids,
             )
         )
     except Dhis2ClientError as error:

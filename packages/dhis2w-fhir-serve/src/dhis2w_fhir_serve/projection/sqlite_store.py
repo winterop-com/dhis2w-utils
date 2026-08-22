@@ -63,6 +63,7 @@ from dhis2w_fhir_serve.projection.schema import (
     create_projection_tables,
     open_projection_engine,
     projection_sessions,
+    recreate_projection_tables,
 )
 
 if TYPE_CHECKING:
@@ -157,6 +158,7 @@ class SqliteProjectionStore:
                         resource_type=resource.resource_type,
                         resource_id=resource.resource_id,
                         updated_at=resource.cursor.updated_at,
+                        tracked_entity_type_uid=resource.tracked_entity_type_uid,
                         body=json.dumps(resource.body, ensure_ascii=False, sort_keys=True),
                     )
                 )
@@ -202,18 +204,19 @@ class SqliteProjectionStore:
             return await self._watermarks_in(session)
 
     async def rebuild(self) -> None:
-        """Empty the projection so a full materialization can fill it from zero.
+        """Drop and recreate the projection's tables so a full materialization fills a current schema.
 
         The watermarks go with the rows. A projection emptied of documents but still claiming to have
         read up to yesterday would never poll for any of them again, which is correctness rule 1
         stated backwards - and it is exactly the state a rebuild exists to be unable to leave behind.
+
+        Dropping rather than deleting is what makes the rebuild the schema migration: a file written
+        by an older schema keeps its old columns through any DELETE, and the refill would then write
+        columns the table does not have. A rebuild starts from zero anyway, so the tables are remade
+        at the schema this process carries.
         """
-        async with self.session() as session:
-            await session.execute(delete(ProjectedIdentifierRow))
-            await session.execute(delete(ProjectedNameRow))
-            await session.execute(delete(ProjectedResourceRow))
-            await session.execute(delete(ProjectionWatermarkRow))
-            await session.commit()
+        await self._ensure_tables()
+        await recreate_projection_tables(self._engine)
 
     async def close(self) -> None:
         """Dispose of the connection, which is what the serve lifespan does when the process unwinds."""
@@ -271,16 +274,41 @@ def _matching_ids(query: ProjectionQuery) -> Any:
     A query naming no identifier selects the whole resource type, which is the listing. A query
     naming identifiers selects whoever holds one of them - under one of the named systems where the
     token said which key it was, and under any system where it did not.
+
+    A query naming tracked entity types narrows either of those to the types it names, which is what
+    `_tag` asks of a resource served over several of them. It narrows through the resource table in
+    both cases, because the type is a fact about the resource rather than about one identifier of it.
     """
     if not query.identifiers:
-        return select(ProjectedResourceRow.resource_id).where(ProjectedResourceRow.resource_type == query.resource_type)
+        return _narrowed(
+            select(ProjectedResourceRow.resource_id).where(ProjectedResourceRow.resource_type == query.resource_type),
+            query,
+        )
     matched = select(ProjectedIdentifierRow.resource_id).where(
         ProjectedIdentifierRow.resource_type == query.resource_type,
         ProjectedIdentifierRow.value.in_(query.identifiers),
     )
     if query.identifier_systems:
         matched = matched.where(ProjectedIdentifierRow.system.in_(query.identifier_systems))
+    if query.tracked_entity_type_uids:
+        matched = matched.where(
+            ProjectedIdentifierRow.resource_id.in_(
+                _narrowed(
+                    select(ProjectedResourceRow.resource_id).where(
+                        ProjectedResourceRow.resource_type == query.resource_type
+                    ),
+                    query,
+                )
+            )
+        )
     return matched.distinct()
+
+
+def _narrowed(statement: Any, query: ProjectionQuery) -> Any:
+    """Narrow one selection over the resource table to the tracked entity types a query names."""
+    if not query.tracked_entity_type_uids:
+        return statement
+    return statement.where(ProjectedResourceRow.tracked_entity_type_uid.in_(query.tracked_entity_type_uids))
 
 
 def _identifiers_of(body: dict[str, Any]) -> list[tuple[str, str]]:
@@ -323,5 +351,6 @@ def _projected(row: ProjectedResourceRow, cursor: ProjectionCursor) -> Projected
         resource_type=row.resource_type,
         resource_id=row.resource_id,
         cursor=ProjectionCursor(updated_at=row.updated_at) if row.updated_at is not None else cursor,
+        tracked_entity_type_uid=row.tracked_entity_type_uid,
         body=body if isinstance(body, dict) else {},
     )

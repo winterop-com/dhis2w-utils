@@ -423,6 +423,7 @@ class _Run:
                     resource_type=resource_type,
                     resource_id=tracked_entity_uid,
                     cursor=ProjectionCursor(updated_at=instant),
+                    tracked_entity_type_uid=entity.trackedEntityType,
                     body=registered.model_dump(mode="json", exclude_none=True, by_alias=True),
                 )
             )

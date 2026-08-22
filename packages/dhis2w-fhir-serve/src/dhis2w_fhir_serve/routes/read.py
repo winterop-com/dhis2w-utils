@@ -141,7 +141,7 @@ def parse_store_search(params: QueryParams) -> ParsedSearch:
         elif name == "url":
             urls.extend(alternatives(name, raw))
         elif name == "identifier":
-            identifiers.extend(identifier_token(value) for value in alternatives(name, raw))
+            identifiers.extend(identifier_token(name, value) for value in alternatives(name, raw))
         else:
             continue
         honored.append(HonoredParameter(name=name, value=raw))
@@ -289,13 +289,18 @@ def alternatives(name: str, raw: str) -> list[str]:
     return values
 
 
-def identifier_token(value: str) -> IdentifierToken:
-    """Read a `system|value` token; a bare value, or an empty system, matches the value in any system."""
+def identifier_token(parameter: str, value: str) -> IdentifierToken:
+    """Read a `system|value` token; a bare value, or an empty system, matches the value in any system.
+
+    The parameter is named so the refusal names it: `identifier` and `_tag` are both token searches
+    over the same grammar, and a client told its `identifier` was malformed when it wrote a `_tag`
+    would look in the wrong half of its query.
+    """
     if "|" not in value:
         return IdentifierToken(value=value)
     system, _, token = value.partition("|")
     if not token:
-        raise BadSearchError(f"`identifier` token `{value}` names a system but no value")
+        raise BadSearchError(f"`{parameter}` token `{value}` names a system but no value")
     return IdentifierToken(system=system or None, value=token)
 
 

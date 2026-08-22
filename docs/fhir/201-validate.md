@@ -52,7 +52,7 @@ wrote /home/you/demo-ig/reports/fhir-validate-report.pdf
 │                   │ identity stem)                                           │
 │code source        │ id                                                       │
 └───────────────────┴──────────────────────────────────────────────────────────┘
-               findings by category (6)
+               findings by category (7)
 ┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┓
 ┃Severity ┃ Scope     ┃ Category              ┃ Count┃
 ┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━┩
@@ -62,6 +62,7 @@ wrote /home/you/demo-ig/reports/fhir-validate-report.pdf
 │info     │ instance  │ invalid-code          │ 1    │
 │info     │ instance  │ missing-code          │ 1    │
 │info     │ instance  │ template-hostile-name │ 11   │
+│info     │ instance  │ unmapped-tracked-en...│ 1    │
 └─────────┴───────────┴───────────────────────┴──────┘
                                   findings (4)
 [one row per error - the object, its code, and the character it carries]
@@ -118,7 +119,7 @@ Outside a project every selection table is empty, which selects everything
 of its kind - so the whole instance grades as being on the build path.
 Inside a project, findings grade against that project's own selection.
 
-## Know what the four passes cover
+## Know what the five passes cover
 
 | Pass | What it covers |
 | --- | --- |
@@ -126,6 +127,37 @@ Inside a project, findings grade against that project's own selection.
 | Deep option-set pass | Exactly what code-mode generation would do with each option set's options, over the same projections the emitter consumes. |
 | Code-stem pass | Exactly what a code-sourced `[generate.naming]` `source` does with each in-scope object of the naming surfaces (option sets, categories, organisation units, data sets, programs, program stages). |
 | Deep attribute pass | Every DHIS2 attribute the instance left uncoded - `info`, a coverage signal about how legible the `D2AttributeValue` extension is to a consumer without the instance. |
+| Subject-typing pass | Every tracked entity type the instance holds that `[generate.tracked_entity_types]` does not name. |
+
+### The subject-typing checklist
+
+A tracked entity type this project's mapping table never mentions is published
+as a `Patient`. That default is what keeps a person-tracking project's config
+empty, and it is applied silently - so on an instance that also tracks
+households, fridges, vehicles, water points, and lab samples, the way to find
+out which types are people is to read the list.
+
+This pass writes the list out, one finding per untyped type, under the category
+`unmapped-tracked-entity-type`:
+
+```
+warning  selection  unmapped-tracked-entity-type  trackedEntityTypes  oWMH7vxiPpZ  Fridge
+  tracked entity type is absent from [generate.tracked_entity_types], so its registrations
+  are published as Patient; write '"oWMH7vxiPpZ" = "<resource>"' to publish it as something
+  else
+```
+
+The severity is build impact like every other finding here. A type this build
+publishes a form for is a **warning** - something in this guide is about to call
+it a person. A type outside the selection is **info**: a fact about the
+instance, which this build never reads. Neither is ever an error, because "this
+really is a person" is a perfectly good reason to leave the line unwritten, and
+validate cannot tell which types those are. Working down the list once turns the
+silence into a decision.
+
+The mapping itself is [Custom subject types](401-custom-subject-types.md); what a
+served register does with several types is
+[The register](301-serving.md#tracked_entities-many-types).
 
 Every pass also checks the object's **name** for one thing that has nothing
 to do with codes: `template-hostile-name`, raised on any name carrying `<`,

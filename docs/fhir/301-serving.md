@@ -706,6 +706,62 @@ name, sex, or date of birth on a person served here unless a tracked entity
 attribute of your instance holds it, because DHIS2 is the only thing this server
 reads and it never invents a value it was not given.
 
+##### Fifty types is fifty lines, and fewer addresses { #tracked_entities-many-types }
+
+An instance that follows people, households, cold-chain fridges, delivery
+vehicles, water points, boreholes, and lab samples has a tracked entity type for
+each of them, and there is no upper bound on how many a project may map. Four
+facts cover every arrangement of them:
+
+**Mapping is one line per type.** `[generate.tracked_entity_types]` takes a type
+UID and a resource name, and fifty types is fifty lines in one table. Naming a
+type there selects nothing - which forms the guide publishes is still the three
+data-definition tables' business - so a project may type every type its instance
+holds while publishing forms for three of them.
+
+**A type nobody maps is a person.** That is the rule that keeps a
+person-tracking project's config empty, and it applies silently, so on a
+fifty-type instance it is worth checking rather than assuming. `d2w fhir
+validate` prints the checklist: one row per tracked entity type the instance
+holds that your table does not name, each carrying the UID, the name the
+instance holds, and the config line that would type it
+([Validate](201-validate.md)). Work down the list once and the silence is a
+decision rather than an oversight.
+
+**Two types mapped to one resource are one register serving both.** A fridge
+type and a vehicle type both published as `Device` do not collide, do not
+refuse, and do not overwrite each other: `GET /Device` searches, lists, and
+counts both, in the order the guide registers them. Every resource it hands back
+still says which DHIS2 type it is, as a `meta.tag` under
+`{identifier_system_base}/id/tracked-entity-type`, and `/metadata` names both
+types in that register's documentation - so a union is a union of stated things
+rather than a merge that loses which is which.
+
+**`_tag` asks that register about one of its types.** It is R4's own token
+search over `meta.tag`, which is the very element the resource states its type
+in:
+
+```
+GET /Device?_tag=http://dhis2.org/fhir/id/tracked-entity-type|TetFridge01
+GET /Device?_tag=TetFridge01          # the code alone; there is one tag to mean
+```
+
+Two tags widen rather than narrow, the way two `identifier` values do. It
+narrows the listing, the identifier search, and `_count=0` alike, and it rides
+every `next` and `previous` link, so a walk stays inside the type it started in.
+A tag naming a type that register is not served over matches nothing and is
+answered with an empty searchset - an unsatisfied query rather than a malformed
+one.
+
+DHIS2 pages one tracked entity type at a time, so a page of a register serving
+several types never mixes them: the last page of one type carries whatever it
+had left, and the `next` link crosses to the first page of the next. Following
+the links is all a client has to do to see the whole union.
+[`examples/fhir/cli/registers_many_types.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/registers_many_types.sh)
+walks it end to end against a live instance, and
+[`examples/fhir/client/register_any_type.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/register_any_type.py)
+is the same walk with no resource type written down anywhere.
+
 `[serve.tracked_entities]` is how a project offers *less* than all of that, and
 it says the same thing about every kind of record: whether this server answers
 about the instance's records at all is one decision, not one per kind. Every

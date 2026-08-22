@@ -23,7 +23,7 @@ Description: {{ profile.description_literal }}
 * extension contains
     {{ names.organisation_unit_extension }} named {{ names.organisation_unit_extension }} 1..1 and
     {{ names.form_type_extension }} named {{ names.form_type_extension }} 1..1
-* extension[{{ names.organisation_unit_extension }}] ^short = "The DHIS2 organisation unit the person is registered at, which becomes the organisation unit of the tracked entity."
+* extension[{{ names.organisation_unit_extension }}] ^short = "The DHIS2 organisation unit the subject is registered at, which becomes the organisation unit of the tracked entity."
 {% elif profile.tracker_context_required %}
 * extension contains
     {{ names.organisation_unit_extension }} named {{ names.organisation_unit_extension }} 1..1 and

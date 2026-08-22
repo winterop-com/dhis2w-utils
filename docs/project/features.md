@@ -1029,6 +1029,13 @@ registration form become `Questionnaire` instances.
   type onto `http://hl7.org/fhir/resource-types` - every row, not only the
   exceptions, so a consumer resolves a type over `$translate` without holding
   the project's config.
+- **`d2w fhir validate` names every type the table does not.** One finding per
+  tracked entity type the instance holds that `[generate.tracked_entity_types]`
+  never mentions, category `unmapped-tracked-entity-type`, carrying the UID, the
+  name the instance holds, and the config line that would type it - a warning on
+  a type this build publishes a form for, info on one outside the selection. A
+  fifty-type instance gets a fifty-row checklist instead of the silence the
+  `Patient` default otherwise applies in.
 - **`[generate.tracked_entity_types]` stays exceptions-only and UID-keyed.** A
   run leaving two or more registered types unmapped raises a generate note
   naming each by instance name and UID, which doctor's generate phase reports
@@ -1566,6 +1573,23 @@ reads that table.
   would miss exactly the people identifier search exists to find.
 - **A bare value** tries every key at once and folds the results deduplicated
   by tracked entity UID.
+- **One FHIR resource type is one register serving the UNION of its tracked
+  entity types.** Two DHIS2 types mapped to `Device` - a cold-chain fridge and a
+  delivery vehicle - are one `GET /Device` answering about both: no collision,
+  no refusal, no last-writer-wins. The read, the search, the listing, and the
+  `_count=0` count are all parameterized by the list of types the resource is
+  served over, `/metadata` names every type in that register's documentation,
+  and each served resource still states its own type as a `meta.tag`.
+- **`_tag` asks that union about one of its types.** R4's own token search over
+  `meta.tag`, which is the very element the type is stated in:
+  `_tag={base}/id/tracked-entity-type|<uid>`, or `_tag=<uid>` for the code
+  alone. Values widen the way `identifier` values do. It narrows the listing
+  walk, the identifier search, and the count alike; it rides every `next` and
+  `previous` link so a walk stays inside the type it started in; under
+  `[serve.search] backend = "projection"` it narrows the store's own query
+  rather than thinning its pages; and a tag naming a type that resource is not
+  served over is an empty searchset rather than a refusal. Declared as a
+  `searchParam` on every register entry of `/metadata`.
 - **Every search runs through a `NameSearchIndex`**, which answers with tracked
   entity identifiers and never with records; each match is then read back by UID
   under the credentials the request runs as, so DHIS2 authorizes every record

@@ -336,3 +336,30 @@ async def test_a_name_search_is_narrowed_by_attribute_and_by_tracked_entity_type
     assert (await index.find(NameQuery(value="Somsack", attribute_uids=("TeaOther001",)))).matches == ()
     assert (await index.find(NameQuery(value="Somsack", tracked_entity_type_uids=(_TYPE_UID,)))).matches != ()
     assert (await index.find(NameQuery(value="Somsack", tracked_entity_type_uids=("TetSample01",)))).matches == ()
+
+
+async def test_a_rebuild_migrates_a_file_written_by_an_older_schema(tmp_path: Path) -> None:
+    """A projection file missing a column the current schema carries is remade whole by rebuild.
+
+    `create_all` never alters a present table, so a DELETE-based rebuild would leave the old columns
+    in place and the refill would write columns the table does not have - the failure a live upgrade
+    hit on 2026-08-22. The rebuild drops and recreates instead, which a from-zero refill makes free.
+    """
+    import sqlite3
+
+    database_path = tmp_path / "projection.sqlite"
+    connection = sqlite3.connect(database_path)
+    connection.execute(
+        "CREATE TABLE projected_resource (resource_type TEXT NOT NULL, resource_id TEXT NOT NULL,"
+        " document TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (resource_type, resource_id))"
+    )
+    connection.commit()
+    connection.close()
+
+    store = SqliteProjectionStore(database_path)
+    await store.rebuild()
+    try:
+        columns = {row[1] for row in sqlite3.connect(database_path).execute("PRAGMA table_info(projected_resource)")}
+        assert "tracked_entity_type_uid" in columns
+    finally:
+        await store.close()

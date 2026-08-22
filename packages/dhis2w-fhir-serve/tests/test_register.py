@@ -359,7 +359,7 @@ async def test_a_search_parameter_this_server_cannot_answer_is_refused(live_clie
     issue = response.json()["issue"][0]
     assert issue["code"] == "invalid"
     assert issue["diagnostics"] == (
-        "`family` is not a search parameter this server answers `Patient` on: `identifier` is the one it supports"
+        "`family` is not a search parameter this server answers `Patient` on: it answers `_tag`, `identifier`"
     )
     assert not read.called
     assert not search.called
@@ -581,15 +581,17 @@ def test_a_compiled_statement_declares_no_patient(capture_project: FhirProject) 
     assert "Patient" not in [resource.type for resource in capability.rest[0].resource or []]
 
 
-def test_a_live_statement_declares_patient_search_on_identifier(capture_project: FhirProject) -> None:
-    """A live run over a guide that publishes a registration form declares the search and its parameter."""
+def test_a_live_statement_declares_patient_search_on_identifier_and_tag(capture_project: FhirProject) -> None:
+    """A live run over a guide that publishes a registration form declares the search and its parameters."""
     capability = _capability(capture_project, live=True)
 
     patient = next(resource for resource in capability.rest[0].resource or [] if resource.type == "Patient")
     assert [interaction.code for interaction in patient.interaction or []] == ["read", "search-type"]
-    assert [parameter.name for parameter in patient.searchParam or []] == ["identifier"]
+    assert [parameter.name for parameter in patient.searchParam or []] == ["identifier", "_tag"]
     assert (parameter := (patient.searchParam or [])[0]).type == "token"
     assert _NATIONAL_ID_SYSTEM.rsplit("/", 1)[0] in (parameter.documentation or "")
+    assert (tag := (patient.searchParam or [])[1]).type == "token"
+    assert "id/tracked-entity-type" in (tag.documentation or "")
 
 
 def test_the_index_reads_the_search_keys_and_the_published_types(capture_project: FhirProject) -> None:

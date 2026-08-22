@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-105 entries grouped by area. **Status tags** carry the result of the most
+108 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -137,6 +137,9 @@ filing.
 - [#98](#98-get-apitrackertrackedentities-silently-ignores-every-unrecognised-query-parameter-so-the-singular-trackedentity-turns-a-uid-scoped-read-into-an-unscoped-page) — `/api/tracker/trackedEntities` ignores unrecognised parameters; singular `trackedEntity=` returns a full page
 - [#99](#99-put-apitrackerownershiptransfer-binds-orgunit-while-the-documentation-gives-ou-and-the-refusal-is-a-tomcat-html-page) — ownership transfer binds `orgUnit`; the documentation gives `ou`, and the refusal is a Tomcat HTML page
 - [#101](#101-get-apisharing-reports-no-metaallowexternalaccess-so-no-caller-can-discover-whether-a-type-permits-external-access-at-all) — `GET /api/sharing` reports no `meta.allowExternalAccess`
+- [#104](#104-post-apimetadataimportstrategydelete-sorts-a-bundle-in-creation-order-so-a-type-and-the-attribute-it-collects-cannot-be-removed-in-one-post) — `DELETE` metadata import sorts in creation order; a type + its attribute cannot go in one post
+- [#105](#105-a-soft-deleted-tracked-entity-blocks-deletion-of-its-tracked-entity-type-and-no-tracker-query-will-show-the-row-that-is-blocking-it) — a soft-deleted tracked entity blocks its type's deletion and no query will show it
+- [#106](#106-get-apitrackertrackedentitiestrackedentitytype-answers-an-empty-page-for-a-type-no-accessible-program-tracks-however-many-entities-of-it-the-instance-holds) — a type no program tracks reads back as an empty register, silently
 
 ### v43-specific
 
@@ -5743,6 +5746,154 @@ nothing today and would cost the next caller a parse error.
 **How to know it's fixed:** the three tracker collections accept the same scoping parameters, or
 `/api/tracker/events` answers a scope refusal as `application/json` with an `errorCode`, the way
 `/api/tracker/enrollments` does.
+
+**Verifier:** none yet.
+
+---
+
+### 104. `POST /api/metadata?importStrategy=DELETE` sorts a bundle in creation order, so a type and the attribute it collects cannot be removed in one post
+
+**Version observed:** DHIS2 2.43.1 (`dhis2/core:2.43.1`, seeded Sierra Leone demo database).
+
+**What a caller is trying to do.** Undo a metadata bundle with the bundle that created it. A
+`trackedEntityAttribute` plus a `trackedEntityType` that collects it is one post to create, and the
+obvious removal is the same document with `importStrategy=DELETE`.
+
+**Repro.**
+
+```bash
+cat > bundle.json <<'JSON'
+{"trackedEntityAttributes":[{"id":"aBUGrepro01","name":"Bug repro attr","shortName":"Bug repro attr",
+  "valueType":"TEXT","aggregationType":"NONE"}],
+ "trackedEntityTypes":[{"id":"tBUGrepro01","name":"Bug repro type","shortName":"Bug repro type",
+  "trackedEntityTypeAttributes":[{"trackedEntityAttribute":{"id":"aBUGrepro01"}}]}]}
+JSON
+
+curl -sf -u admin:district -X POST 'http://localhost:8080/api/metadata?importStrategy=CREATE' \
+  -H 'Content-Type: application/json' -d @bundle.json
+# {"status":"OK", ...}
+
+curl -s -u admin:district -X POST 'http://localhost:8080/api/metadata?importStrategy=DELETE' \
+  -H 'Content-Type: application/json' -d @bundle.json
+# HTTP 409
+# ERROR: update or delete on table "trackedentityattribute" violates foreign key constraint
+# "fk_trackedentitytypeattribute_trackedentityattributeid" on table "trackedentitytypeattribute"
+#   Detail: Key (trackedentityattributeid)=(5762) is still referenced from table
+#   "trackedentitytypeattribute".
+```
+
+Nothing is removed: with the default `atomicMode=ALL` the whole bundle rolls back, so the type
+survives too. Posting the same two objects as two bundles - the type first, the attribute second -
+removes both.
+
+**Expected.** A `DELETE` import sorts the bundle in reverse dependency order, so the referencing
+object goes before the referenced one; or it refuses with an import report naming the object and the
+reference that blocks it.
+
+**Actual.** The bundle is sorted the way a create is sorted, the referenced object is deleted first,
+and the failure surfaces as a raw PostgreSQL foreign-key message - constraint name, table name, and
+an internal integer primary key - rather than as an import conflict a caller can act on.
+
+**Workaround applied in this repo.** Two posts, referencing objects first:
+`examples/fhir/cli/registers_many_types.sh` writes `delete-programmes.json`, `delete-types.json`,
+and `delete-attribute.json` and posts them in that order in its `cleanup` function.
+
+**How to know it's fixed:** the single-bundle `DELETE` above answers `status: OK` and removes both
+objects.
+
+**Verifier:** none yet.
+
+---
+
+### 105. A soft-deleted tracked entity blocks deletion of its tracked entity type, and no tracker query will show the row that is blocking it
+
+**Version observed:** DHIS2 2.43.1 (`dhis2/core:2.43.1`, seeded Sierra Leone demo database).
+
+**What a caller is trying to do.** Remove a tracked entity type after removing the entities of it -
+tearing down a demo, a test fixture, or a mis-modelled type.
+
+**Repro.** With a tracked entity type `T` holding one tracked entity `E`:
+
+```bash
+# The tracker delete is a SOFT delete: the row stays, flagged.
+curl -sf -u admin:district -X POST 'http://localhost:8080/api/tracker?async=false&importStrategy=DELETE' \
+  -H 'Content-Type: application/json' -d '{"trackedEntities":[{"trackedEntity":"E"}]}'
+# {"status":"OK","stats":{"deleted":1, ...}}
+
+# Nothing reports the row any more - not even with includeDeleted.
+curl -sf -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities?trackedEntityType=T&ouMode=ALL&includeDeleted=true'
+# {"pager":{...},"trackedEntities":[]}
+
+# But the metadata delete knows it is there.
+curl -s -u admin:district -X POST 'http://localhost:8080/api/metadata?importStrategy=DELETE' \
+  -H 'Content-Type: application/json' -d '{"trackedEntityTypes":[{"id":"T"}]}'
+# E4030  Object could not be deleted because it is associated with another object: TrackedEntity
+```
+
+`POST /api/maintenance?trackedEntityRemoval=true` hard-removes the soft-deleted rows, and the type
+then deletes.
+
+**Expected.** Either the soft-deleted entity is discoverable - `includeDeleted=true` is exactly the
+parameter for it (compare #89, #90) - or `E4030` names the entity that is blocking the delete.
+
+**Actual.** The blocking row is invisible to every read of the collection it belongs to, and the
+refusal names only the class of object. An operator holding both answers - "there are no entities"
+and "an entity is in the way" - has no query that reconciles them.
+
+**Workaround applied in this repo.** `d2w maintenance cleanup tracked-entities` (`POST
+/api/maintenance?trackedEntityRemoval=true`) runs before the metadata delete;
+`examples/fhir/cli/registers_many_types.sh` does it in its `cleanup` function and says why.
+
+**How to know it's fixed:** the `includeDeleted=true` read above lists `E`, or `E4030` names it.
+
+**Verifier:** none yet.
+
+---
+
+### 106. `GET /api/tracker/trackedEntities?trackedEntityType=` answers an empty page for a type no accessible program tracks, however many entities of it the instance holds
+
+**Version observed:** DHIS2 2.43.1 (`dhis2/core:2.43.1`, seeded Sierra Leone demo database).
+
+**What a caller is trying to do.** List the tracked entities of one type. The endpoint takes
+`trackedEntityType=` as a scope and refuses a query naming neither a type nor a program (`E1003`), so
+naming the type is the documented way to ask.
+
+**Repro.** As the superuser, against a type with public metadata AND data sharing (`rwrw----`):
+
+```bash
+# A type nothing enrols, and one entity of it in an org unit in the caller's scope.
+curl -sf -u admin:district -X POST 'http://localhost:8080/api/tracker?async=false' \
+  -H 'Content-Type: application/json' \
+  -d '{"trackedEntities":[{"trackedEntity":"E","trackedEntityType":"T","orgUnit":"DiszpKrYNg8"}]}'
+# {"status":"OK","stats":{"created":1, ...}}
+
+curl -sf -u admin:district 'http://localhost:8080/api/tracker/trackedEntities/E'
+# 404  E1005  TrackedEntity with id E could not be found.
+
+curl -sf -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities?trackedEntityType=T&ouMode=ALL'
+# {"pager":{...},"trackedEntities":[]}
+
+# Now create ANY tracker program over T and enrol one entity in it. Both reads start
+# answering - including the entity that is enrolled in nothing.
+```
+
+**Expected.** A tracked entity that exists, in an organisation unit the caller may see, of a type the
+caller may read, is returned by a read scoped to that type. If program ownership is genuinely
+required, the empty page is the wrong shape: `E1003` already exists for "this query cannot be
+answered", and silence for "this query was answered and nobody matched".
+
+**Actual.** The page is empty and the item read is a 404, with no error, no warning, and nothing in
+the answer to distinguish "the instance holds none" from "the instance holds them and will not tell
+you". Sharing is not the discriminator - the seeded types this was compared against carry `rw------`
+(no data sharing at all) and answer fine, because a program tracks them.
+
+**Workaround applied in this repo.** A tracked entity type whose register is meant to be readable
+gets a tracker program: `examples/fhir/cli/registers_many_types.sh` creates one registration
+programme per demo type and says why in its section 2.
+
+**How to know it's fixed:** the two reads above answer with `E` before any program exists.
 
 **Verifier:** none yet.
 

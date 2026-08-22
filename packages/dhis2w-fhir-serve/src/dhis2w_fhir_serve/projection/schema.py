@@ -61,6 +61,16 @@ class ProjectedResourceRow(ProjectionBase):
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
 
+    tracked_entity_type_uid: Mapped[str | None] = mapped_column(String, nullable=True)
+    """Which DHIS2 tracked entity type the row is, so one resource's register narrows to one type.
+
+    Nullable because the instance may state none, and a row whose type nothing states is a row no
+    query naming a type can honestly claim - which is the same reading the live path takes of an
+    entity carrying no `trackedEntityType`.
+    """
+
+    __table_args__ = (Index("ix_projected_resource_type", "resource_type", "tracked_entity_type_uid"),)
+
 
 class ProjectedIdentifierRow(ProjectionBase):
     """One `identifier` entry of one projected resource, as the token search matches it.
@@ -138,4 +148,17 @@ def projection_sessions(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]
 async def create_projection_tables(engine: AsyncEngine) -> None:
     """Create whatever of the four tables is absent, which is what opening an empty projection does."""
     async with engine.begin() as connection:
+        await connection.run_sync(ProjectionBase.metadata.create_all)
+
+
+async def recreate_projection_tables(engine: AsyncEngine) -> None:
+    """Drop the four tables and create them at the current schema - what a rebuild stands on.
+
+    `create_all` adds absent tables and never alters a present one, so a projection file written by
+    an older schema keeps its old columns for ever. A rebuild refills from zero anyway, which is
+    exactly when dropping the tables costs nothing - so the rebuild is also the schema migration,
+    as the store's doctrine states.
+    """
+    async with engine.begin() as connection:
+        await connection.run_sync(ProjectionBase.metadata.drop_all)
         await connection.run_sync(ProjectionBase.metadata.create_all)

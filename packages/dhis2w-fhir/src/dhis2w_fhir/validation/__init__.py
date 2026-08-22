@@ -104,6 +104,7 @@ from dhis2w_fhir.names import (
     is_valid_fhir_code,
     usable_code_stem,
 )
+from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE
 from dhis2w_fhir.resources.categories import max_category_slug_length
 from dhis2w_fhir.resources.option_sets import max_slug_length
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
@@ -168,6 +169,12 @@ _CODE_REQUIRED_COLLECTION = "organisationUnits"
 #: The sweep collection the deep attribute pass reads - the same objects `resolve_attribute_code_index`
 #: builds the emit-time `uid -> code` join from, so the pass needs no request of its own.
 _ATTRIBUTE_COLLECTION = "attributes"
+
+#: The sweep collection the subject-typing pass reads: every tracked entity type the instance holds.
+_TRACKED_ENTITY_TYPE_COLLECTION = "trackedEntityTypes"
+
+#: What a tracked entity type this project never typed is reported under.
+_UNMAPPED_TRACKED_ENTITY_TYPE_CATEGORY = "unmapped-tracked-entity-type"
 
 #: The characters an object's NAME cannot carry, in the order they are reported. The IG publisher's
 #: `fhir2.base.template` writes a resource's title into breadcrumbs and change-history headings
@@ -242,6 +249,7 @@ def build_code_validation(
         findings.extend(_collection_findings(collection, scope))
     attributes = _swept_attributes(collections)
     findings.extend(_attribute_findings(attributes))
+    findings.extend(_tracked_entity_type_findings(collections, config, scope))
     findings.sort(key=lambda finding: (_SEVERITY_RANK[finding.severity], finding.resource_type, finding.name))
     return FhirValidationReport(
         option_set_count=len(option_sets),
@@ -445,6 +453,54 @@ def _template_hostile_option_findings(option_set: OptionSetIn, locales: list[str
                 "template-hostile-name",
                 _template_hostile_message(option.name, character),
                 locales,
+            )
+        )
+    return findings
+
+
+def _tracked_entity_type_findings(
+    collections: list[MetadataCollectionIn], config: GenerateConfig, scope: ValidationScope | None
+) -> list[ValidationFinding]:
+    """Name every tracked entity type on the instance that `[generate.tracked_entity_types]` does not.
+
+    THE CHECKLIST A FIFTY-TYPE INSTANCE NEEDS. A DHIS2 instance may declare as many tracked entity
+    types as a project has kinds of thing, and the rule for the ones nobody typed is silent: a type
+    the table never mentions is published as a `Patient`. That default is right for the people and
+    wrong for the fridges, and the only way to find out which is which is to read the list - so this
+    pass writes the list out, one finding per type, each carrying the UID and the name the instance
+    holds and the config line that would type it.
+
+    The severity follows the same build-impact grading everything else here uses. A type the
+    configured build actually publishes a form for is a `warning`: something in this guide is about to
+    call it a person. A type outside the selection is `info`: it is a fact about the instance, and
+    this build never reads it. Either way it is never an error, because "this really is a person" is
+    a perfectly good reason to leave the line unwritten, and validate does not know which types those
+    are.
+    """
+    swept = next(
+        (collection for collection in collections if collection.resource == _TRACKED_ENTITY_TYPE_COLLECTION), None
+    )
+    if swept is None:
+        return []
+    findings: list[ValidationFinding] = []
+    for item in sorted(swept.items, key=lambda entry: (entry.name or entry.uid, entry.uid)):
+        if item.uid in config.tracked_entity_types:
+            continue
+        in_scope = _in_scope(scope, _TRACKED_ENTITY_TYPE_COLLECTION, item.uid)
+        findings.append(
+            ValidationFinding(
+                severity=_degraded("warning", in_scope),
+                scope=_scope_label(in_scope),
+                category=_UNMAPPED_TRACKED_ENTITY_TYPE_CATEGORY,
+                resource_type=_TRACKED_ENTITY_TYPE_COLLECTION,
+                uid=item.uid,
+                name=item.name or item.uid,
+                code=item.code,
+                message=(
+                    "tracked entity type is absent from [generate.tracked_entity_types], so its registrations "
+                    f'are published as {DEFAULT_SUBJECT_RESOURCE_TYPE}; write \'"{item.uid}" = "<resource>"\' '
+                    "to publish it as something else"
+                ),
             )
         )
     return findings
