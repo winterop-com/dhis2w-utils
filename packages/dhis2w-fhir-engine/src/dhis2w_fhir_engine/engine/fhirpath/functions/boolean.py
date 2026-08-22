@@ -7,15 +7,27 @@ from ...context import EvaluationContext
 from ...functions import FunctionRegistry
 
 
+def _unwrap_value(value: Any) -> Any:
+    """Unwrap a FHIR primitive carrying extensions so a conversion reads the value, not the wrapper.
+
+    Navigation hands `Patient.active` on as a primitive paired with its `_active` extensions, so every
+    conversion in this module takes its single input through here before the FHIRPath conversion table
+    (FHIRPath 2.0.0 section 5.6) decides what the value converts to.
+    """
+    from ..visitor import _underlying_value
+
+    return _underlying_value(value)
+
+
 @FunctionRegistry.register("not")
 def fn_not(ctx: EvaluationContext, collection: list[Any]) -> list[bool]:
-    """Returns the boolean negation of the input."""
-    if not collection:
+    """Returns the boolean negation of the input, reading the input under the singleton evaluation rule."""
+    from ..visitor import singleton_boolean
+
+    condition = singleton_boolean(collection)
+    if condition is None:
         return []
-    value = collection[0]
-    if isinstance(value, bool):
-        return [not value]
-    return []
+    return [not condition]
 
 
 @FunctionRegistry.register("iif")
@@ -65,7 +77,7 @@ def fn_to_boolean(ctx: EvaluationContext, collection: list[Any]) -> list[bool]:
     if not collection:
         return []
 
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
     if isinstance(value, bool):
         return [value]
@@ -110,7 +122,7 @@ def fn_to_integer(ctx: EvaluationContext, collection: list[Any]) -> list[int]:
     if not collection:
         return []
 
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
     if isinstance(value, bool):
         return [1 if value else 0]
@@ -159,7 +171,7 @@ def fn_to_decimal(ctx: EvaluationContext, collection: list[Any]) -> list[Decimal
     if not collection:
         return []
 
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
     if isinstance(value, bool):
         return [Decimal(1 if value else 0)]
@@ -201,7 +213,7 @@ def fn_to_string(ctx: EvaluationContext, collection: list[Any]) -> list[str]:
     if not collection:
         return []
 
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
     if isinstance(value, bool):
         return ["true" if value else "false"]
@@ -252,7 +264,7 @@ def fn_to_date(ctx: EvaluationContext, collection: list[Any]) -> list[str]:
     if not collection:
         return []
 
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
     if isinstance(value, str):
         # Basic date validation - YYYY-MM-DD format
@@ -281,7 +293,7 @@ def fn_to_datetime(ctx: EvaluationContext, collection: list[Any]) -> list[str]:
     if not collection:
         return []
 
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
     if isinstance(value, str):
         import re
@@ -306,7 +318,7 @@ def fn_to_time(ctx: EvaluationContext, collection: list[Any]) -> list[str]:
     if not collection:
         return []
 
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
     if isinstance(value, str):
         import re
@@ -337,7 +349,7 @@ def fn_to_quantity(ctx: EvaluationContext, collection: list[Any], unit: str | No
     if not collection:
         return []
 
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
     if isinstance(value, Quantity):
         return [value]

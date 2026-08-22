@@ -1776,3 +1776,76 @@ class TestDateTimeComponents:
         result = evaluator.evaluate("Patient.birthDate.day()", patient)
         assert len(result) == 1
         assert isinstance(result[0], int)
+
+
+# ==============================================================================
+# Singleton Evaluation of Collections
+# ==============================================================================
+
+
+ACTIVE_PATIENT: dict[str, Any] = {"resourceType": "Patient", "id": "yes", "active": True}
+INACTIVE_PATIENT: dict[str, Any] = {"resourceType": "Patient", "id": "no", "active": False}
+UNSTATED_PATIENT: dict[str, Any] = {"resourceType": "Patient", "id": "unstated"}
+
+
+@pytest.fixture
+def register() -> dict[str, Any]:
+    """A bundle holding one active patient, one explicitly inactive, and one that states nothing."""
+    return {
+        "resourceType": "Bundle",
+        "entry": [{"resource": ACTIVE_PATIENT}, {"resource": INACTIVE_PATIENT}, {"resource": UNSTATED_PATIENT}],
+    }
+
+
+class TestSingletonBooleanEvaluation:
+    """A single boolean item reads as its own value in a boolean context, not as "an item is present"."""
+
+    def test_where_on_a_boolean_element_reads_the_value(self, evaluator: Any, register: dict[str, Any]) -> None:
+        result = evaluator.evaluate("Bundle.entry.resource.where(active).id", register)
+        assert [str(value) for value in result] == ["yes"]
+
+    def test_where_on_a_boolean_comparison_answers_the_same(self, evaluator: Any, register: dict[str, Any]) -> None:
+        result = evaluator.evaluate("Bundle.entry.resource.where(active = true).id", register)
+        assert [str(value) for value in result] == ["yes"]
+
+    def test_where_on_a_non_boolean_element_keeps_every_record(self, evaluator: Any, register: dict[str, Any]) -> None:
+        result = evaluator.evaluate("Bundle.entry.resource.where(id).id", register)
+        assert [str(value) for value in result] == ["yes", "no", "unstated"]
+
+    def test_and_reads_an_explicit_false(self, evaluator: Any) -> None:
+        assert evaluator.evaluate("active and true", INACTIVE_PATIENT) == [False]
+        assert evaluator.evaluate("active and true", ACTIVE_PATIENT) == [True]
+
+    def test_or_reads_an_explicit_false(self, evaluator: Any) -> None:
+        assert evaluator.evaluate("active or false", INACTIVE_PATIENT) == [False]
+        assert evaluator.evaluate("active or false", ACTIVE_PATIENT) == [True]
+
+    def test_implies_reads_an_explicit_false(self, evaluator: Any) -> None:
+        assert evaluator.evaluate("active implies false", INACTIVE_PATIENT) == [True]
+        assert evaluator.evaluate("active implies false", ACTIVE_PATIENT) == [False]
+
+    def test_not_reads_an_explicit_false(self, evaluator: Any) -> None:
+        assert evaluator.evaluate("active.not()", INACTIVE_PATIENT) == [True]
+        assert evaluator.evaluate("active.not()", ACTIVE_PATIENT) == [False]
+
+    def test_iif_reads_an_explicit_false(self, evaluator: Any) -> None:
+        assert evaluator.evaluate("iif(active, 'yes', 'no')", INACTIVE_PATIENT) == ["no"]
+        assert evaluator.evaluate("iif(active, 'yes', 'no')", ACTIVE_PATIENT) == ["yes"]
+
+    def test_all_reads_an_explicit_false(self, evaluator: Any, register: dict[str, Any]) -> None:
+        assert evaluator.evaluate("Bundle.entry.resource.all(active)", register) == [False]
+
+    def test_exists_with_criteria_reads_an_explicit_false(self, evaluator: Any) -> None:
+        one_inactive = {"resourceType": "Bundle", "entry": [{"resource": INACTIVE_PATIENT}]}
+        assert evaluator.evaluate("Bundle.entry.resource.exists(active)", one_inactive) == [False]
+
+    def test_an_element_that_states_nothing_is_empty(self, evaluator: Any) -> None:
+        assert evaluator.evaluate("active and true", UNSTATED_PATIENT) == []
+        assert evaluator.evaluate("active.not()", UNSTATED_PATIENT) == []
+
+    def test_a_non_boolean_singleton_still_evaluates_as_true(self, evaluator: Any) -> None:
+        assert evaluator.evaluate("id and true", INACTIVE_PATIENT) == [True]
+        assert evaluator.evaluate("id.not()", INACTIVE_PATIENT) == [False]
+
+    def test_presence_of_a_false_element_is_still_presence(self, evaluator: Any) -> None:
+        assert evaluator.evaluate("active.exists()", INACTIVE_PATIENT) == [True]

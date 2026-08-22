@@ -66,6 +66,24 @@ def _underlying_value(value: Any) -> Any:
     return value
 
 
+def singleton_boolean(collection: list[Any] | None) -> bool | None:
+    """Read a collection as a boolean under the FHIRPath singleton evaluation of collections rule.
+
+    A single Boolean item evaluates to its own value, so `active` reads as false when the resource says
+    `"active": false` - a FHIR primitive carrying its `_element` extensions counts as the boolean it wraps,
+    not as "an item is present". A single item of any other type evaluates to true, and an empty collection
+    evaluates to empty, which the callers spell as `None`.
+    """
+    if not collection:
+        return None
+    if len(collection) == 1:
+        value = _underlying_value(collection[0])
+        if isinstance(value, bool):
+            return value
+        return True
+    return True
+
+
 class _PrimitiveWithExtension:
     """Wrapper for FHIR primitive values from resources.
 
@@ -1356,16 +1374,8 @@ class FHIRPathEvaluatorVisitor(fhirpathVisitor):
         return [total]
 
     def _to_boolean(self, collection: list[Any] | None) -> bool | None:
-        """Convert a collection to a boolean using FHIRPath rules."""
-        if collection is None or len(collection) == 0:
-            return None
-        if len(collection) == 1:
-            val = collection[0]
-            if isinstance(val, bool):
-                return val
-            return True  # Single non-boolean value is truthy
-        # Multiple items - error in strict mode, but we'll return True
-        return True
+        """Read a collection as a boolean for `where()`, `iif()`, and the logical operators."""
+        return singleton_boolean(collection)
 
     def _is_type(self, value: Any, type_name: str) -> bool:
         """Check if a value is of the specified type.

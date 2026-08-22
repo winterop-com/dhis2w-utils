@@ -148,6 +148,21 @@ and `.value` then stepped into what was left. This composes as far as you like -
 each step operates on the collection the previous step produced, and never on the
 original resource.
 
+### A boolean element is read for its value
+
+`where(active)` keeps the records whose `active` element says `true`. A record
+that says `"active": false` is dropped, the same as `where(active = true)` would
+drop it - the element is read for what it says, not for the fact that it is
+there. This is FHIRPath's singleton evaluation rule, and it applies wherever a
+condition is read: `where()`, `all()`, `exists(...)`, `iif()`, `not()`, and
+`and` / `or` / `xor` / `implies`.
+
+The rule has two other halves worth knowing. A single item of any other type
+reads as `true`, so `where(id)` keeps every record that has an `id` at all. And
+an element the record never states is empty, not false, so `active and true` on
+a record with no `active` answers `[]`. When you want presence rather than
+value, ask for it: `where(active.exists())` keeps the record that says `false`.
+
 ## The function vocabulary
 
 Functions are called with a dot, like a step. They reshape the collection rather

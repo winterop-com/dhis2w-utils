@@ -996,3 +996,100 @@ class TestProcedureRetrieval:
 
         assert len(all_procs) == 1
         assert len(completed) == 1
+
+
+class TestWireDateStringsInRetrieveFilters:
+    """A `where` clause compares a FHIR date element, which the wire delivers as a JSON string."""
+
+    @staticmethod
+    def _patients() -> InMemoryDataSource:
+        ds = InMemoryDataSource()
+        ds.add_resources(
+            [
+                {"resourceType": "Patient", "id": "p1", "birthDate": "1975-03-04"},
+                {"resourceType": "Patient", "id": "p2", "birthDate": "1991-08-20"},
+            ]
+        )
+        return ds
+
+    @staticmethod
+    def _observations() -> InMemoryDataSource:
+        ds = InMemoryDataSource()
+        ds.add_resources(
+            [
+                {
+                    "resourceType": "Observation",
+                    "id": "o1",
+                    "status": "final",
+                    "effectiveDateTime": "2024-03-04T10:00:00Z",
+                },
+                {
+                    "resourceType": "Observation",
+                    "id": "o2",
+                    "status": "final",
+                    "effectiveDateTime": "2019-01-02T10:00:00Z",
+                },
+            ]
+        )
+        return ds
+
+    def test_birth_date_orders_against_a_date_literal(self) -> None:
+        evaluator = CQLEvaluator(data_source=self._patients())
+        result = evaluator.evaluate_expression("[Patient] P where P.birthDate < @1980-01-01")
+        assert [patient["id"] for patient in result] == ["p1"]
+
+    def test_explicit_to_date_answers_the_same(self) -> None:
+        evaluator = CQLEvaluator(data_source=self._patients())
+        result = evaluator.evaluate_expression("[Patient] P where ToDate(P.birthDate) < @1980-01-01")
+        assert [patient["id"] for patient in result] == ["p1"]
+
+    def test_a_non_temporal_element_refuses(self) -> None:
+        evaluator = CQLEvaluator(data_source=self._patients())
+        with pytest.raises(CQLError, match="not a date, dateTime, or time"):
+            evaluator.evaluate_expression("[Patient] P where P.id < @1980-01-01")
+
+    def test_choice_element_falls_during_an_interval(self) -> None:
+        evaluator = CQLEvaluator(data_source=self._observations())
+        result = evaluator.evaluate_expression(
+            "[Observation] O where O.effective during Interval[@2020-01-01, @2025-01-01]"
+        )
+        assert [observation["id"] for observation in result] == ["o1"]
+
+    def test_named_choice_type_falls_during_an_interval(self) -> None:
+        evaluator = CQLEvaluator(data_source=self._observations())
+        result = evaluator.evaluate_expression(
+            "[Observation] O where O.effectiveDateTime during Interval[@2020-01-01, @2025-01-01]"
+        )
+        assert [observation["id"] for observation in result] == ["o1"]
+
+    def test_a_non_temporal_element_in_during_refuses_rather_than_answering_empty(self) -> None:
+        evaluator = CQLEvaluator(data_source=self._observations())
+        with pytest.raises(CQLError, match="not a date, dateTime, or time"):
+            evaluator.evaluate_expression("[Observation] O where O.status during Interval[@2020-01-01, @2025-01-01]")
+
+    def test_a_choice_element_written_as_a_period_answers_the_period(self) -> None:
+        ds = InMemoryDataSource()
+        ds.add_resource(
+            {
+                "resourceType": "Observation",
+                "id": "o3",
+                "effectivePeriod": {"start": "2024-01-01", "end": "2024-01-31"},
+            }
+        )
+        evaluator = CQLEvaluator(data_source=ds)
+        result = evaluator.evaluate_expression("[Observation] O return O.effective")
+        assert result == [{"start": "2024-01-01", "end": "2024-01-31"}]
+
+    def test_a_name_that_only_prefixes_another_element_stays_null(self) -> None:
+        ds = InMemoryDataSource()
+        ds.add_resource(
+            {
+                "resourceType": "Observation",
+                "id": "o4",
+                "referenceRange": [{"text": "normal"}],
+                "linkId": "q1",
+            }
+        )
+        evaluator = CQLEvaluator(data_source=ds)
+        assert evaluator.evaluate_expression("[Observation] O return O.reference") == [None]
+        assert evaluator.evaluate_expression("[Observation] O return O.link") == [None]
