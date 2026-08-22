@@ -978,8 +978,8 @@ screens, so the browser is never told them.
 screen: one entry per FHIR resource this run serves from the instance, each
 carrying the tracked entity types riding it under the names the instance holds
 for them. It is what lets the navigation entry and the page heading read the
-instance's own name for the one type a deployment tracks - **Person**, **Person
-(Play)** - and **Tracked entities** on one tracking something else besides, and
+instance's own name for the one type a deployment tracks - **Person**,
+**Fridge** - and **Tracked entities** on one tracking something else besides, and
 what lets a section on that page be titled *Specimen batch* rather than
 `Specimen` - the resource type is this project's projection, and the type's own
 name is what a reader working in DHIS2 recognises. It is `[]` whenever

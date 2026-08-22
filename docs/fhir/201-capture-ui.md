@@ -187,7 +187,7 @@ carries the rest as extensions the screen reads:
   this server has no grounds to make. The capture validator holds the same rule
   from the other side and admits the absence even where the form marks the
   question required. The shape is DHIS2's own text pattern, verbatim - the
-  Child Programme's *Unique ID (Play)* reads *DHIS2 fills this in when the
+  Child Programme's *Unique ID* reads *DHIS2 fills this in when the
   submission is imported, shaped `RANDOM(#######)`* - so what the screen shows
   is the rule the instance will apply, not an example of its output.
 
@@ -471,7 +471,7 @@ page, rather than a page that apologises.
 
 !!! note "The page is named for what the instance actually tracks"
     A run serving one tracked entity type is led to, and headed, by the
-    instance's own name for that type - **Person**, **Person (Play)**,
+    instance's own name for that type - **Person**, **Fridge**,
     **Specimen batch** - singular and unpluralised, because the string is
     DHIS2's rather than this project's to inflect. That is the name the people
     running the server say. It is not **Patients**: `Patient` is the FHIR

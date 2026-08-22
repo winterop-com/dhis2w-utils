@@ -1181,7 +1181,7 @@ async def test_bug_24_live_verifier(local_url: str) -> None:
         f"BUGS.md #24: expected 409 on a same-name TET import (the bug — `TET.name` is UNIQUE "
         f"at the DB level so any import sharing the built-in `Person` name fails), got "
         f"{excinfo.value.status_code}. DHIS2 may have loosened the constraint — verify "
-        f"upstream + drop the `_disambiguate_common_names` rename in "
+        f"upstream + drop the `resolve_tracked_entity_names` ladder in "
         f"`infra/scripts/seed/loader.py`."
     )
 

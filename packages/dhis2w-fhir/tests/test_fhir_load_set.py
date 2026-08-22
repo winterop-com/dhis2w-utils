@@ -710,7 +710,7 @@ _TWO_TRACKER_PROGRAMS_PAYLOAD: dict[str, object] = {
                     "sortOrder": 1,
                     "trackedEntityAttribute": {
                         "id": _UNIQUE_ATTRIBUTE_UID,
-                        "name": "Unique ID (Play)",
+                        "name": "Unique ID",
                         "valueType": "TEXT",
                         "unique": True,
                     },
@@ -741,7 +741,7 @@ _TWO_TRACKER_PROGRAMS_PAYLOAD: dict[str, object] = {
                     "sortOrder": 1,
                     "trackedEntityAttribute": {
                         "id": _UNIQUE_ATTRIBUTE_UID,
-                        "name": "Unique ID (Play)",
+                        "name": "Unique ID",
                         "valueType": "TEXT",
                         "unique": True,
                     },

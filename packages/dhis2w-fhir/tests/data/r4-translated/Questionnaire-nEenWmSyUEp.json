@@ -2,8 +2,8 @@
   "resourceType": "Questionnaire",
   "id": "nEenWmSyUEp",
   "url": "http://localhost:8080/fhir/Questionnaire/nEenWmSyUEp",
-  "title": "Person (Play)",
-  "description": "DHIS2 tracked entity type Person (Play) (nEenWmSyUEp) as a registration form: the tracked entity attributes the type itself collects, captured when a person is registered without being enrolled in any program.",
+  "title": "Person",
+  "description": "DHIS2 tracked entity type Person (nEenWmSyUEp) as a registration form: the tracked entity attributes the type itself collects, captured when a person is registered without being enrolled in any program.",
   "extension": [
     {
       "url": "http://localhost:8080/fhir/StructureDefinition/d2-form-type",
@@ -39,10 +39,10 @@
         {
           "code": "w75KJ2mc4zz",
           "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
-          "display": "First name (Play)"
+          "display": "First name"
         }
       ],
-      "text": "First name (Play)",
+      "text": "First name",
       "_text": {
         "extension": [
           {
@@ -91,10 +91,10 @@
         {
           "code": "zDhUuAYrxNC",
           "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
-          "display": "Last name (Play)"
+          "display": "Last name"
         }
       ],
-      "text": "Last name (Play)",
+      "text": "Last name",
       "type": "string",
       "extension": [
         {
@@ -149,10 +149,10 @@
         {
           "code": "lZGmxYbs97q",
           "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
-          "display": "Unique ID (Play)"
+          "display": "Unique ID"
         }
       ],
-      "text": "Unique ID (Play)",
+      "text": "Unique ID",
       "type": "string",
       "readOnly": true,
       "extension": [

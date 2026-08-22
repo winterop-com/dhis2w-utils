@@ -335,31 +335,314 @@ def _dump_section(rows: list[Any]) -> list[dict[str, Any]]:
     return out
 
 
-_DISAMBIGUATE_SECTIONS: frozenset[str] = frozenset(
+# The two sections whose `name` + `shortName` DHIS2 holds UNIQUE across the
+# whole instance, so a built-in of the same name blocks the fixture's copy.
+_NAME_LADDER_SECTIONS: frozenset[str] = frozenset(
     {"trackedEntityTypes", "trackedEntityAttributes"},
 )
 
+# Where each ladder section is read from + deleted through.
+_NAME_LADDER_ENDPOINTS: dict[str, str] = {
+    "trackedEntityTypes": "/api/trackedEntityTypes",
+    "trackedEntityAttributes": "/api/trackedEntityAttributes",
+}
 
-def _disambiguate_common_names(section: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Append a " (Play)" suffix to TET + TEA names so they don't collide with DHIS2 built-ins.
+# The last rung of the ladder: what a name wears when the object holding it
+# cannot be cleared. Reaching this is loud, not routine.
+_FALLBACK_SUFFIX = " (Play)"
 
-    A fresh DHIS2 install ships with a "Person" TrackedEntityType and
-    "First name" / "Last name" TrackedEntityAttributes whose UIDs differ
-    from play's. Name + shortName are UNIQUE in DHIS2, so importing our
-    copies fails `E5003`. The suffix side-steps the collision without
-    touching any UID references downstream.
-    """
-    if section not in _DISAMBIGUATE_SECTIONS:
+# Fields the fallback suffix lands on — the two DHIS2 holds UNIQUE. The
+# rendered `displayName` is computed from `name` and never submitted
+# (`_STRIP_KEYS` drops it), so it follows on its own.
+_NAME_FIELDS: tuple[str, ...] = ("name", "shortName")
+
+
+class NameCollision(BaseModel):
+    """One E5003 the importer raised over a tracked entity type / attribute name."""
+
+    model_config = ConfigDict(frozen=True)
+
+    section: str
+    uid: str
+    field: str
+    value: str
+
+
+class SuffixedName(BaseModel):
+    """One object that kept the fallback suffix, naming what blocked the clean name."""
+
+    model_config = ConfigDict(frozen=True)
+
+    section: str
+    uid: str
+    value: str
+    blocking_uid: str
+    reason: str
+
+
+class NameLadderResult(BaseModel):
+    """What the name ladder settled on: which uids cleared, which fell back to the suffix."""
+
+    model_config = ConfigDict(frozen=True)
+
+    cleared: tuple[str, ...] = ()
+    suffixed: tuple[SuffixedName, ...] = ()
+
+    @property
+    def suffixed_uids(self) -> frozenset[str]:
+        """UIDs whose `name` / `shortName` / `displayName` carry the fallback suffix."""
+        return frozenset(entry.uid for entry in self.suffixed)
+
+    def render(self) -> str:
+        """Return one line per object that fell back, or a single line saying none did."""
+        if not self.suffixed:
+            return "    every tracked entity type + attribute kept the name DHIS2 users read"
+        lines = ["    WARNING: these names could not be cleared and kept the fallback suffix:"]
+        for entry in self.suffixed:
+            lines.append(
+                f"      {entry.value}{_FALLBACK_SUFFIX}  ({entry.section} {entry.uid}) — "
+                f"blocked by {entry.blocking_uid}: {entry.reason}",
+            )
+        return "\n".join(lines)
+
+
+def _apply_fallback_suffix(
+    section: str,
+    rows: list[dict[str, Any]],
+    suffixed_uids: frozenset[str],
+) -> list[dict[str, Any]]:
+    """Append the fallback suffix to the rows the name ladder could not clear."""
+    if section not in _NAME_LADDER_SECTIONS or not suffixed_uids:
         return rows
     out: list[dict[str, Any]] = []
     for row in rows:
+        if row.get("id") not in suffixed_uids:
+            out.append(row)
+            continue
         copy = dict(row)
-        for field in ("name", "shortName", "displayName"):
+        for field in _NAME_FIELDS:
             value = copy.get(field)
-            if isinstance(value, str) and not value.endswith(" (Play)"):
-                copy[field] = f"{value} (Play)"
+            if isinstance(value, str) and not value.endswith(_FALLBACK_SUFFIX):
+                copy[field] = f"{value}{_FALLBACK_SUFFIX}"
         out.append(copy)
     return out
+
+
+def _name_ladder_payload(bundle: dict[str, list[Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Build the tracked entity type + attribute pass the ladder posts, names untouched."""
+    return {
+        section: _strip_nested_sharing(_dump_section(rows))
+        for section, rows in bundle.items()
+        if rows and section in _NAME_LADDER_SECTIONS
+    }
+
+
+def _name_collisions(
+    payload: dict[str, list[dict[str, Any]]],
+    response: WebMessageResponse,
+) -> list[NameCollision]:
+    """Read the E5003 rows off an import report and pair each with the name we posted.
+
+    DHIS2's message quotes the offending value, but the payload already
+    holds it under a stable key, so the value comes from our own row
+    rather than from string-parsing a localisable message.
+    """
+    by_uid: dict[str, tuple[str, dict[str, Any]]] = {}
+    for section, rows in payload.items():
+        for row in rows:
+            uid = row.get("id")
+            if isinstance(uid, str):
+                by_uid[uid] = (section, row)
+    collisions: dict[tuple[str, str], NameCollision] = {}
+    for conflict in response.conflict_rows():
+        if conflict.error_code != "E5003" or conflict.uid is None:
+            continue
+        found = by_uid.get(conflict.uid)
+        if found is None:
+            continue
+        section, row = found
+        field = conflict.property if conflict.property in ("name", "shortName") else "name"
+        value = row.get(field)
+        if not isinstance(value, str):
+            continue
+        # DHIS2 raises the same code once per unique property, and `name` and
+        # `shortName` usually carry the same string — one blocker, one rung.
+        collisions.setdefault(
+            (conflict.uid, value),
+            NameCollision(section=section, uid=conflict.uid, field=field, value=value),
+        )
+    return list(collisions.values())
+
+
+async def _find_blocking_object(client: Dhis2Client, section: str, value: str, incoming_uid: str) -> str | None:
+    """Return the uid of the live object already holding `value` as name or shortName."""
+    endpoint = _NAME_LADDER_ENDPOINTS[section]
+    for field in ("name", "shortName"):
+        raw = await client.get_raw(
+            endpoint,
+            params={"filter": f"{field}:eq:{value}", "fields": "id", "paging": "false"},
+        )
+        for row in raw.get(section) or []:
+            uid = row.get("id")
+            if isinstance(uid, str) and uid != incoming_uid:
+                return uid
+    return None
+
+
+async def _tracked_entity_type_usage(client: Dhis2Client, uid: str) -> str | None:
+    """Return why a tracked entity type is in use, or None when nothing references it."""
+    entities = await client.get_raw(
+        "/api/tracker/trackedEntities",
+        params={
+            "trackedEntityType": uid,
+            "ouMode": "ACCESSIBLE",
+            "fields": "trackedEntity",
+            "pageSize": "1",
+            "totalPages": "false",
+        },
+    )
+    if entities.get("trackedEntities"):
+        return "tracked entities are registered under it"
+    programs = await client.get_raw(
+        "/api/programs",
+        params={"filter": f"trackedEntityType.id:eq:{uid}", "fields": "id", "paging": "false"},
+    )
+    if programs.get("programs"):
+        return "a program registers into it"
+    return None
+
+
+async def _tracked_entity_attribute_usage(client: Dhis2Client, uid: str) -> str | None:
+    """Return why a tracked entity attribute is in use, or None when nothing references it."""
+    programs = await client.get_raw(
+        "/api/programs",
+        params={
+            "filter": f"programTrackedEntityAttributes.trackedEntityAttribute.id:eq:{uid}",
+            "fields": "id",
+            "paging": "false",
+        },
+    )
+    if programs.get("programs"):
+        return "a program collects it"
+    types = await client.get_raw(
+        "/api/trackedEntityTypes",
+        params={
+            "filter": f"trackedEntityTypeAttributes.trackedEntityAttribute.id:eq:{uid}",
+            "fields": "id",
+            "paging": "false",
+        },
+    )
+    if types.get("trackedEntityTypes"):
+        return "a tracked entity type collects it"
+    return None
+
+
+async def _usage_reason(client: Dhis2Client, section: str, uid: str) -> str | None:
+    """Return why the blocking object is in use, or None when the API reports nothing using it."""
+    if section == "trackedEntityTypes":
+        return await _tracked_entity_type_usage(client, uid)
+    return await _tracked_entity_attribute_usage(client, uid)
+
+
+async def _delete_blocking_object(client: Dhis2Client, section: str, uid: str) -> str | None:
+    """Delete the blocking object; return None on success or DHIS2's refusal on failure."""
+    try:
+        await client.delete_raw(f"{_NAME_LADDER_ENDPOINTS[section]}/{uid}")
+    except Dhis2ApiError as exc:
+        return f"DHIS2 refused the delete ({exc.status_code})"
+    return None
+
+
+async def _clear_collision(client: Dhis2Client, collision: NameCollision) -> SuffixedName | None:
+    """Clear one name collision; return the fallback entry when the blocker survives."""
+    blocking_uid = await _find_blocking_object(client, collision.section, collision.value, collision.uid)
+    if blocking_uid is None:
+        return SuffixedName(
+            section=collision.section,
+            uid=collision.uid,
+            value=collision.value,
+            blocking_uid="unknown",
+            reason="DHIS2 reported the collision but holds no object under that name",
+        )
+    reason = await _usage_reason(client, collision.section, blocking_uid)
+    if reason is None:
+        reason = await _delete_blocking_object(client, collision.section, blocking_uid)
+    if reason is None:
+        return None
+    return SuffixedName(
+        section=collision.section,
+        uid=collision.uid,
+        value=collision.value,
+        blocking_uid=blocking_uid,
+        reason=reason,
+    )
+
+
+async def resolve_tracked_entity_names(
+    client: Dhis2Client,
+    bundle: dict[str, list[Any]],
+) -> NameLadderResult:
+    """Import tracked entity types + attributes under the names DHIS2 users read.
+
+    `name` and `shortName` are UNIQUE instance-wide on both resources, so an
+    install already holding a "Person" type or a "First name" attribute under
+    a different uid refuses the fixture's copy with E5003 (BUGS.md #24). The
+    ladder, one rung at a time:
+
+      1. Post the name the fixture carries — "Person", never "Person (Play)".
+      2. On E5003, look up the object already holding that name.
+      3. Ask the API what uses it: tracked entities of the type, a program
+         registering into it, a program or type collecting the attribute.
+      4. Nothing uses it — delete it and post the clean name again.
+      5. Something does, or the delete is refused — that one object takes the
+         " (Play)" suffix and the seed says which name kept it and why.
+
+    Only E5003 is the ladder's business. Anything else this pass reports
+    (an attribute whose option set has not landed yet, say) is left to the
+    core pass, which posts these sections again beside everything they
+    reference and is the authority on whether the import succeeded.
+    """
+    payload = _name_ladder_payload(bundle)
+    if not payload:
+        return NameLadderResult()
+    response = await _post_metadata(client, payload, keep_conflict_report=True)
+    collisions = _name_collisions(payload, response)
+    if not collisions:
+        return NameLadderResult(cleared=tuple(sorted(_name_ladder_uids(payload))))
+    fallbacks: dict[str, SuffixedName] = {}
+    for collision in collisions:
+        if collision.uid in fallbacks:
+            continue
+        entry = await _clear_collision(client, collision)
+        if entry is not None:
+            fallbacks[entry.uid] = entry
+    if len(fallbacks) < len({collision.uid for collision in collisions}):
+        payload = {
+            section: _apply_fallback_suffix(section, rows, frozenset(fallbacks)) for section, rows in payload.items()
+        }
+        response = await _post_metadata(client, payload, keep_conflict_report=True)
+        for remaining in _name_collisions(payload, response):
+            fallbacks.setdefault(
+                remaining.uid,
+                SuffixedName(
+                    section=remaining.section,
+                    uid=remaining.uid,
+                    value=remaining.value,
+                    blocking_uid="unknown",
+                    reason="the name was still taken after the blocking object was cleared",
+                ),
+            )
+    suffixed = tuple(sorted(fallbacks.values(), key=lambda entry: (entry.section, entry.value)))
+    suffixed_uids = frozenset(entry.uid for entry in suffixed)
+    return NameLadderResult(
+        cleared=tuple(sorted(uid for uid in _name_ladder_uids(payload) if uid not in suffixed_uids)),
+        suffixed=suffixed,
+    )
+
+
+def _name_ladder_uids(payload: dict[str, list[dict[str, Any]]]) -> set[str]:
+    """Collect every uid the name ladder posted."""
+    return {row["id"] for rows in payload.values() for row in rows if isinstance(row.get("id"), str)}
 
 
 # OU-tree sections come first + on their own — the fresh DHIS2 admin
@@ -383,12 +666,17 @@ async def _post_metadata(
     *,
     max_attempts: int = 3,
     retry_delay_seconds: float = 8.0,
+    keep_conflict_report: bool = False,
 ) -> WebMessageResponse:
     """POST one bundle to `/api/metadata` with flakiness retry.
 
     Fresh DHIS2 installs sometimes hit timing bugs on the first
     few imports (see BUGS.md #27). Retry with a short delay — usually
     the second or third attempt succeeds against the same payload.
+
+    `keep_conflict_report` turns a 409 carrying a structured import report
+    into a return value rather than a raise, for the callers whose whole
+    job is reading which objects the importer rejected and why.
     """
     import asyncio as _asyncio  # noqa: PLC0415
 
@@ -413,6 +701,8 @@ async def _post_metadata(
             )
             return WebMessageResponse.model_validate(raw)
         except Dhis2ApiError as exc:
+            if keep_conflict_report and exc.status_code == 409 and isinstance(exc.body, dict):
+                return WebMessageResponse.model_validate(exc.body)
             last_error = exc
             if attempt == max_attempts:
                 break
@@ -429,10 +719,11 @@ async def _post_metadata(
 def _build_pass(
     bundle: dict[str, list[Any]],
     predicate: Any,
+    suffixed_uids: frozenset[str] = frozenset(),
 ) -> dict[str, list[dict[str, Any]]]:
-    """Strip + disambiguate + dump every section matching `predicate`."""
+    """Strip + dump every section matching `predicate`, suffixing the names the ladder could not clear."""
     return {
-        section: _disambiguate_common_names(section, _strip_nested_sharing(_dump_section(rows)))
+        section: _apply_fallback_suffix(section, _strip_nested_sharing(_dump_section(rows)), suffixed_uids)
         for section, rows in bundle.items()
         if rows and predicate(section)
     }
@@ -456,12 +747,17 @@ async def import_ou_tree(
 async def import_core_metadata(
     client: Dhis2Client,
     bundle: dict[str, list[Any]],
+    suffixed_uids: frozenset[str] = frozenset(),
 ) -> WebMessageResponse | None:
     """Post everything except the OU pass, deferred DataSets, and skipped sections.
 
     Data elements, categories, option sets, indicators, programs, program
     rules, TEAs/TETs, maps — all land here in a single request. DHIS2's
     importer resolves the cross-refs server-side.
+
+    `suffixed_uids` comes from `resolve_tracked_entity_names` and names the
+    tracked entity types + attributes whose clean name could not be freed,
+    so this pass repeats the fallback spelling the ladder settled on.
 
     Visualizations are explicitly skipped (`_SKIP_SECTIONS`) — they're
     rebuilt programmatically via the client's `VisualizationSpec` builder
@@ -475,6 +771,7 @@ async def import_core_metadata(
             and section not in _SKIP_SECTIONS
             and section not in _POST_VIZ_SECTIONS
         ),
+        suffixed_uids,
     )
     if not payload:
         return None
@@ -527,7 +824,8 @@ async def import_metadata_bundle(
     """
     del atomic_mode  # noqa: F841 — kept in signature for back-compat
     ou_response = await import_ou_tree(client, bundle)
-    core_response = await import_core_metadata(client, bundle)
+    resolution = await resolve_tracked_entity_names(client, bundle)
+    core_response = await import_core_metadata(client, bundle, resolution.suffixed_uids)
     await import_deferred_metadata(client, bundle)
     response = core_response or ou_response
     if response is None:
@@ -703,18 +1001,68 @@ async def attach_admin_to_datasets_and_programs(
     await client.put_raw(f"/api/users/{me_id}", me_raw)
 
 
+PERSON_TRACKED_ENTITY_TYPE_UID = "nEenWmSyUEp"
+UNIQUE_IDENTIFIER_ATTRIBUTE_UID = "lZGmxYbs97q"
+
+# The band each seeder that creates people draws its identifiers from. The
+# attribute is UNIQUE instance-wide, so two seeders sharing a band would
+# collide the moment both run.
+PLAY_PERSON_IDENTIFIER_BASE = 1_000_000
+ANC_PERSON_IDENTIFIER_BASE = 5_000_000
+
+# One step between consecutive identifiers. Prime, and wide enough that a
+# code reads as an identifier rather than as the row number it came from.
+_IDENTIFIER_STEP = 7_919
+
+
+def person_identifier(base: int, index: int) -> str:
+    """Return the Unique ID a seeded person carries, shaped like DHIS2's `RANDOM(#######)`.
+
+    Determined entirely by `base` + `index`, so the same fixture row gets
+    the same identifier on every rebuild and no two rows in a band ever
+    share one.
+    """
+    return f"{base + index * _IDENTIFIER_STEP:07d}"
+
+
+def _with_person_identifier(tracked_entity: dict[str, Any], base: int, index: int) -> dict[str, Any]:
+    """Attach a Unique ID to a person who carries none; leave every other row untouched."""
+    if tracked_entity.get("trackedEntityType") != PERSON_TRACKED_ENTITY_TYPE_UID:
+        return tracked_entity
+    attributes = [item for item in tracked_entity.get("attributes") or [] if isinstance(item, dict)]
+    if any(item.get("attribute") == UNIQUE_IDENTIFIER_ATTRIBUTE_UID for item in attributes):
+        return tracked_entity
+    copy = dict(tracked_entity)
+    copy["attributes"] = [
+        *attributes,
+        {"attribute": UNIQUE_IDENTIFIER_ATTRIBUTE_UID, "value": person_identifier(base, index)},
+    ]
+    return copy
+
+
 async def import_tracker(client: Dhis2Client) -> TrackerImportReport:
-    """POST the sampled Child Programme tracker payload.
+    """POST the sampled Child Programme tracker payload, each person carrying an identifier.
 
     The wire payload round-trips as dict because the input fixture lacks
     many of `TrackerBundle`'s optional fields (the seed isn't producing
     a full bundle, just the trackedEntities slice). The response from
     `/api/tracker` is parsed into the typed `TrackerImportReport` so
     callers see structured per-type stats instead of a verbose dict.
+
+    The play snapshot carries first name, last name, and gender but no
+    Unique ID, which leaves every identifier column in a register blank and
+    every identifier search with nothing to find. `person_identifier` mints
+    one per row (see it for the determinism rule).
     """
     raw_bundle = _load_gzip_json(FIXTURE_DIR / "tracker_payload.json.gz")
     tes = raw_bundle.get("trackedEntities") or []
-    body = {"trackedEntities": tes}
+    body = {
+        "trackedEntities": [
+            _with_person_identifier(entity, PLAY_PERSON_IDENTIFIER_BASE, index)
+            for index, entity in enumerate(tes)
+            if isinstance(entity, dict)
+        ],
+    }
     raw = await client.post_raw(
         "/api/tracker",
         body=body,
@@ -798,13 +1146,16 @@ async def seed_play(client: Dhis2Client) -> None:
          (organisationUnits / dataViewOrganisationUnits /
          teiSearchOrganisationUnits). Reconnect the client so the
          session's cached OU scope refreshes (BUGS.md #26).
-      4. Import everything except DataSets + Sections + DataEntryForms.
-      5. Import the deferred DataSet trio on its own (BUGS.md #23).
-      6. Seed the FHIR attribute fixtures — the option set, data set
+      4. Settle the tracked entity type + attribute names, clearing any
+         built-in holding "Person" / "First name" / "Last name" out of the
+         way (see `resolve_tracked_entity_names`).
+      5. Import everything except DataSets + Sections + DataEntryForms.
+      6. Import the deferred DataSet trio on its own (BUGS.md #23).
+      7. Seed the FHIR attribute fixtures — the option set, data set
          and org unit targets all exist by this point.
-      7. Import the aggregate data values (chunked).
-      8. Import the tracker sample.
-      9. Attach the imported datasets + programs to the admin user so
+      8. Import the aggregate data values (chunked).
+      9. Import the tracker sample.
+     10. Attach the imported datasets + programs to the admin user so
          Data Entry + Tracker Capture pickers are populated on login.
     """
     _log(">>> Loading typed metadata bundle")
@@ -822,8 +1173,12 @@ async def seed_play(client: Dhis2Client) -> None:
     await client.close()
     await client.connect()
 
+    _log(">>> Settling tracked entity type + attribute names")
+    resolution = await resolve_tracked_entity_names(client, bundle)
+    print(resolution.render(), flush=True)
+
     _log(">>> Importing core metadata (pass 2/3)")
-    _print_counts("core", await import_core_metadata(client, bundle))
+    _print_counts("core", await import_core_metadata(client, bundle, resolution.suffixed_uids))
 
     # Workspace fixtures land BEFORE visualizations + maps because the
     # seeded LegendSet (LsDoseBand1) is referenced by two of the bar-chart

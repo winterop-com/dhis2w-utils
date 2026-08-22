@@ -78,7 +78,7 @@ export const REGISTER_NAV_HINT = 'What this DHIS2 instance tracks'
  * A PAGE THAT IS NOT ALWAYS THE SAME PAGE STATES ITS OWN NAME, in `naming`. The
  * register is the only one of those too: DHIS2 tracks whatever a project tracks,
  * so a deployment registering one type is led to by the instance's own name for
- * it - Person, Person (Play), Specimen batch - and one registering several by the
+ * it - Person, Fridge, Specimen batch - and one registering several by the
  * register. The entry is one either way; splitting the rail per FHIR resource
  * would put the navigation at the mercy of a config file, and the sections inside
  * the page are where each type is named. See `registerTitle` for why the

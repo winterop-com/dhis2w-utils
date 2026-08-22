@@ -46,7 +46,7 @@ async def main() -> None:
     # 2. Tracked-entity analytics — list Person entities under Sierra Leone (descendants).
     response = await service.query_tracked_entities(
         profile,
-        tracked_entity_type="nEenWmSyUEp",  # Person (Play) TET — Sierra Leone seed
+        tracked_entity_type="nEenWmSyUEp",  # Person TET — Sierra Leone seed
         dimensions=["ou:ImspTQPwCqd"],
         ou_mode="DESCENDANTS",
         page_size=3,

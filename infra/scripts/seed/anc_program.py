@@ -37,6 +37,7 @@ from dhis2w_client.generated.v42.schemas import DataElement, Program, ProgramSta
 from dhis2w_client.v42.sharing import ACCESS_READ_WRITE_DATA
 
 from .event_program import _level_four_org_units
+from .loader import ANC_PERSON_IDENTIFIER_BASE, UNIQUE_IDENTIFIER_ATTRIBUTE_UID, person_identifier
 
 if TYPE_CHECKING:
     from dhis2w_client.v42.client import Dhis2Client
@@ -202,9 +203,15 @@ def _enrolled_woman(
     org_unit: str,
     first_name: str,
     last_name: str,
+    identifier_index: int,
     event_uids: tuple[str, ...],
 ) -> dict[str, Any]:
-    """One tracked entity with a single ANC enrollment and its visit events."""
+    """One tracked entity with a single ANC enrollment and its visit events.
+
+    The Unique ID comes from the ANC band of `person_identifier`, so these
+    two women carry an identifier a register shows and a search finds,
+    without ever landing on one of the play snapshot's.
+    """
     return {
         "trackedEntity": tracked_entity_uid,
         "trackedEntityType": _TRACKED_ENTITY_TYPE_PERSON,
@@ -212,6 +219,10 @@ def _enrolled_woman(
         "attributes": [
             {"attribute": _ATTRIBUTE_FIRST_NAME, "value": first_name},
             {"attribute": _ATTRIBUTE_LAST_NAME, "value": last_name},
+            {
+                "attribute": UNIQUE_IDENTIFIER_ATTRIBUTE_UID,
+                "value": person_identifier(ANC_PERSON_IDENTIFIER_BASE, identifier_index),
+            },
         ],
         "enrollments": [
             {
@@ -259,6 +270,7 @@ async def seed_anc_program(client: Dhis2Client) -> int:
                 facility,
                 "Aminata",
                 "Kamara",
+                0,
                 EVENT_UIDS_FOUR_VISITS,
             ),
             _enrolled_woman(
@@ -267,6 +279,7 @@ async def seed_anc_program(client: Dhis2Client) -> int:
                 facility,
                 "Isata",
                 "Sesay",
+                1,
                 (EVENT_UID_ONE_VISIT,),
             ),
         ]

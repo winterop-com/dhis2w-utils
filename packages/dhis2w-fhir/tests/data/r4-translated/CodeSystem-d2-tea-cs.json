@@ -10,7 +10,7 @@
   "concept": [
     {
       "code": "w75KJ2mc4zz",
-      "display": "First name (Play)",
+      "display": "First name",
       "property": [
         {
           "code": "dhis2-code",
@@ -62,7 +62,7 @@
     },
     {
       "code": "cejWyOfXge6",
-      "display": "Gender (Play)",
+      "display": "Gender",
       "property": [
         {
           "code": "value-type",
@@ -92,7 +92,7 @@
     },
     {
       "code": "zDhUuAYrxNC",
-      "display": "Last name (Play)",
+      "display": "Last name",
       "property": [
         {
           "code": "value-type",
@@ -446,7 +446,7 @@
     },
     {
       "code": "lZGmxYbs97q",
-      "display": "Unique ID (Play)",
+      "display": "Unique ID",
       "property": [
         {
           "code": "dhis2-code",
@@ -560,7 +560,7 @@
     {
       "code": "searchable-nEenWmSyUEp",
       "uri": "http://dhis2.org/fhir/property/searchable-nEenWmSyUEp",
-      "description": "Whether DHIS2 declares the tracked entity attribute searchable in tracked entity type Person (Play) (nEenWmSyUEp).",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in tracked entity type Person (nEenWmSyUEp).",
       "type": "boolean"
     }
   ],

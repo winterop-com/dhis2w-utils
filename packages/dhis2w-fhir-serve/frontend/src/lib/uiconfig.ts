@@ -183,7 +183,7 @@ export const REGISTER_TITLE = 'Tracked entities'
  * What the register is called on this run: the instance's own name for the one type it serves.
  *
  * NAME THE ACTUAL SUBJECT. DHIS2 tracks whatever a project tracks, and the instance holds a name for
- * each type - "Person", "Person (Play)", "Specimen batch". That name is what the people who run these
+ * each type - "Person", "Fridge", "Specimen batch". That name is what the people who run these
  * servers say, and it beats both alternatives this app could reach for: "Tracked entities" is DHIS2's
  * word for the whole family rather than for this one, and "Patients" is the FHIR resource this
  * project happens to project a person onto - a projection, stated as though it were the subject. A

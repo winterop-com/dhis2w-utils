@@ -116,7 +116,7 @@ are the most important findings on this page, because a half-carry reads as comp
    reads `unique` but not `generated`
    (`_PROGRAM_ATTRIBUTE_FIELDS`, `service.py:233`), so the registration form for
    `Child Programme` (`IpHINAT79UW`) asks a capture client to supply
-   `Unique ID (Play)` (`lZGmxYbs97q`), which the instance declares
+   `Unique ID` (`lZGmxYbs97q`), which the instance declares
    `generated: true, pattern: "RANDOM(#######)"` and mints itself.
 
 **One case where the guide silently substitutes a different artifact.** A data set with
@@ -396,7 +396,7 @@ none of the 19 states a constraint DHIS2 does not enforce.
 | `allowAuditLog` on a type | Whether DHIS2 audits reads of this type | `DELIBERATELY NOT` | Instance audit configuration; see 3.12 | - |
 | `expression` on an attribute | A computed attribute | `DELIBERATELY NOT` | DHIS2 computes it; a client neither supplies nor needs it | - |
 
-**Live check.** `Unique ID (Play)` (`lZGmxYbs97q`) is `unique: true, generated: true,
+**Live check.** `Unique ID` (`lZGmxYbs97q`) is `unique: true, generated: true,
 pattern: "RANDOM(#######)"`, and `Child Programme` asks for it. It is the only generated
 attribute on the instance and it is on the canonical demonstration programme.
 

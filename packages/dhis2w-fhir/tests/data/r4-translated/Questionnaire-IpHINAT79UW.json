@@ -66,10 +66,10 @@
         {
           "code": "w75KJ2mc4zz",
           "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
-          "display": "First name (Play)"
+          "display": "First name"
         }
       ],
-      "text": "First name (Play)",
+      "text": "First name",
       "_text": {
         "extension": [
           {
@@ -118,10 +118,10 @@
         {
           "code": "zDhUuAYrxNC",
           "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
-          "display": "Last name (Play)"
+          "display": "Last name"
         }
       ],
-      "text": "Last name (Play)",
+      "text": "Last name",
       "type": "string",
       "extension": [
         {
@@ -140,10 +140,10 @@
         {
           "code": "cejWyOfXge6",
           "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
-          "display": "Gender (Play)"
+          "display": "Gender"
         }
       ],
-      "text": "Gender (Play)",
+      "text": "Gender",
       "type": "choice",
       "answerValueSet": "http://localhost:8080/fhir/ValueSet/d2-os-pC3N9N77UmT-vs",
       "extension": [
@@ -163,10 +163,10 @@
         {
           "code": "lZGmxYbs97q",
           "system": "http://localhost:8080/fhir/CodeSystem/d2-tea-cs",
-          "display": "Unique ID (Play)"
+          "display": "Unique ID"
         }
       ],
-      "text": "Unique ID (Play)",
+      "text": "Unique ID",
       "type": "string",
       "readOnly": true,
       "extension": [
