@@ -19,11 +19,18 @@ import { useRegisterSearchKey } from '@/hooks/use-register-search-support'
 import { useTrackedEntityNaming, type TrackedEntityNaming } from '@/hooks/use-tracked-entity-naming'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import {
+    narrowedRegisterType,
     patientLeadValue,
+    registerAttributeValue,
+    registerTableColumns,
+    registerTypeChoices,
     REGISTER_QUERY_PARAMETER,
+    REGISTER_TYPE_PARAMETER,
     trackedEntityAttributeLabel,
     trackedEntityTypeLabel,
     type PatientProjection,
+    type RegisterTableColumns,
+    type RegisterTypeChoice,
 } from '@/lib/patients'
 import {
     PEOPLE_RESOURCE_TYPE,
@@ -36,9 +43,6 @@ import {
     type TrackedEntitiesSettings,
 } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
-
-/** How many of an entity's attribute values a row states before it says how many are left. */
-const ATTRIBUTE_VALUES_PER_ROW = 3
 
 /** What this page says it holds when every tracked entity type it serves is published as a person. */
 export const PEOPLE_PAGE_DESCRIPTION =
@@ -132,20 +136,26 @@ export function TrackedEntities() {
  * value over rather than running a search of its own, so which parameter this server answers and how
  * long to wait for the typing to stop stay decided in exactly one place.
  *
+ * SO DOES THE TRACKED ENTITY TYPE THE REGISTER IS NARROWED TO (`?type=<uid>`), on the same argument
+ * and in the same place: a register narrowed to its fridges is a view somebody can be sent. Which
+ * register the uid belongs to is not stated in the address, because it does not have to be - a
+ * tracked entity type rides exactly one register, and every section validates the uid against the
+ * types the server declared for it.
+ *
  * `replace` on every keystroke, so typing an identifier value leaves one history entry rather than
- * one per character - Back goes to the page before this one, not to the search half-typed.
+ * one per character - Back goes to the page before this one, not to the search half-typed. The
+ * narrowing writes the same way, so paging through types stacks no history either.
  */
 function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
     const naming = useTrackedEntityNaming()
     const [parameters, setParameters] = useSearchParams()
-    const typed = parameters.get(REGISTER_QUERY_PARAMETER) ?? ''
-    const setTyped = useCallback(
-        (next: string) => {
+    const setParameter = useCallback(
+        (name: string, next: string | null) => {
             setParameters(
                 (current) => {
                     const updated = new URLSearchParams(current)
-                    if (next === '') updated.delete(REGISTER_QUERY_PARAMETER)
-                    else updated.set(REGISTER_QUERY_PARAMETER, next)
+                    if (next === null || next === '') updated.delete(name)
+                    else updated.set(name, next)
                     return updated
                 },
                 { replace: true },
@@ -153,15 +163,36 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
         },
         [setParameters],
     )
+    const typed = parameters.get(REGISTER_QUERY_PARAMETER) ?? ''
+    const setTyped = useCallback(
+        (next: string) => {
+            setParameter(REGISTER_QUERY_PARAMETER, next)
+        },
+        [setParameter],
+    )
+    const askedType = parameters.get(REGISTER_TYPE_PARAMETER)
+    const setAskedType = useCallback(
+        (next: string | null) => {
+            setParameter(REGISTER_TYPE_PARAMETER, next)
+        },
+        [setParameter],
+    )
     // The box drives every section, so `usePatientSearch` runs once per resource inside the sections
     // themselves; this instance is the one whose state the box renders - errors and the empty answer
     // included - and it asks about the first resource, which is the one a person-only run has.
-    const leadResource = settings.registers[0]?.resource ?? ''
+    const leadRegister = settings.registers[0] ?? null
+    const leadResource = leadRegister?.resource ?? ''
     // The box is one control over every section, so its words follow the first register's declaration.
     // Which parameter a server answers is a property of how that server was started rather than of one
     // resource type, so a run declaring `_content` declares it for every register it publishes.
     const searchKey = useRegisterSearchKey(leadResource)
-    const search = usePatientSearch(typed, true, leadResource, searchKey)
+    const search = usePatientSearch(
+        typed,
+        true,
+        leadResource,
+        searchKey,
+        leadRegister === null ? null : narrowedRegisterType(leadRegister, askedType),
+    )
     const people = servesPeopleOnly(settings)
 
     return (
@@ -185,6 +216,8 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
                         register={register}
                         listing={settings.listing}
                         typed={typed}
+                        askedType={askedType}
+                        onType={setAskedType}
                         naming={naming}
                         headed={settings.registers.length > 1}
                     />
@@ -236,30 +269,56 @@ const TRACKED_ENTITY_WORDS: RegisterWords = {
             : `Showing ${String(shown)} of ${String(total)} tracked entities this DHIS2 instance holds.`,
 }
 
-/** One served resource: the entities it holds, or the ones the typed identifier value names. */
+/**
+ * One served resource: the entities it holds, or the ones the typed identifier value names.
+ *
+ * ONE RESOURCE IS ONE REGISTER OVER THE UNION OF THE TRACKED ENTITY TYPES THE PUBLISHED MAP TAKES
+ * ONTO IT, and a register over several of them offers the choice between them. The chips are the
+ * server's own declaration - `/uiconfig` states the types riding each register, `/metadata` documents
+ * the same set under the `_tag` parameter that narrows to one - so a register serving one type has
+ * nothing to choose between and keeps the page it always had.
+ *
+ * THE NARROWING IS THE SCOPE, NOT A SIEVE OVER THE PAGE. A chosen type rides the listing and the
+ * search alike as `_tag`, because both answer about the same register; the walk starts again at the
+ * server's first page, because a page token names a place inside a scope.
+ */
 function RegisterSection({
     register,
     listing,
     typed,
+    askedType,
+    onType,
     naming,
     headed,
 }: {
     register: Register
     listing: boolean
     typed: string
+    /** The type the address names, whichever register it belongs to - validated against this one. */
+    askedType: string | null
+    onType: (trackedEntityTypeUid: string | null) => void
     naming: TrackedEntityNaming
     /** True when this page shows more than one resource, so a section needs to say which it is. */
     headed: boolean
 }) {
     const navigate = useNavigate()
     const searchKey = useRegisterSearchKey(register.resource)
-    const search = usePatientSearch(typed, true, register.resource, searchKey)
-    const { page, loading, error, asOf, showNext, showPrevious } = useRegisterListing(register.resource, listing)
+    const selectedType = narrowedRegisterType(register, askedType)
+    const search = usePatientSearch(typed, true, register.resource, searchKey, selectedType)
+    const { page, loading, error, asOf, showNext, showPrevious } = useRegisterListing(
+        register.resource,
+        listing,
+        selectedType,
+    )
     const words = register.resource === PEOPLE_RESOURCE_TYPE ? PEOPLE_WORDS : TRACKED_ENTITY_WORDS
     // A search is on screen from the moment one is worth sending, which is the same rule that
     // decides whether a request goes at all - so a table never shows a page of everything under a
     // box that is already answering about somebody.
     const searching = search.query !== null
+    const choices = registerTypeChoices(register)
+    // Which type each row is, stated per row only while several are on screen. One register narrowed
+    // to one type has that type on every row, and the chip above the table already says which.
+    const typeColumn = choices.length > 1 && selectedType === null
 
     const open = (trackedEntityUid: string) => {
         navigate(`/tracked-entities/${register.resource}/${trackedEntityUid}`)
@@ -268,7 +327,13 @@ function RegisterSection({
     const everything = listing ? (
         <PageState loading={loading} error={error} empty={page.people.length === 0} emptyMessage={words.empty}>
             <div className="space-y-3">
-                <RegisterTable rows={page.people} words={words} naming={naming} onOpen={open} />
+                <RegisterTable
+                    rows={page.people}
+                    words={words}
+                    naming={naming}
+                    typeColumn={typeColumn}
+                    onOpen={open}
+                />
                 <Paging
                     line={words.paging(page.people.length, page.total)}
                     hasPrevious={page.previous !== null}
@@ -291,10 +356,19 @@ function RegisterSection({
     return (
         <section className="space-y-3">
             {headed && <h2 className="text-base font-semibold">{registerSectionTitle(register)}</h2>}
+            {choices.length > 1 && (
+                <TrackedEntityTypeFilter choices={choices} selected={selectedType} onSelect={onType} />
+            )}
             {searching ? (
                 <>
                     {search.results.length > 0 && (
-                        <RegisterTable rows={search.results} words={words} naming={naming} onOpen={open} />
+                        <RegisterTable
+                            rows={search.results}
+                            words={words}
+                            naming={naming}
+                            typeColumn={typeColumn}
+                            onOpen={open}
+                        />
                     )}
                 </>
             ) : (
@@ -309,43 +383,147 @@ function RegisterSection({
     )
 }
 
-/** Tracked entities, in the one shape this page shows one in - a page of them, or what a search found. */
+/** Where the chip group's own name lives, so the label on screen is the label the group carries. */
+const TYPE_FILTER_LABEL_ID = 'register-type-filter-label'
+
+/**
+ * The tracked entity types this register serves, as the choice between them.
+ *
+ * SHOWN ONLY WHERE THERE IS A CHOICE. One FHIR resource is one register over the union of the types
+ * the published map takes onto it, and a register over one type has nothing to offer here - so the
+ * ordinary deployment keeps the page it always had.
+ *
+ * NO COUNTS ON THE CHIPS, unlike the lifecycle group they otherwise follow. The spool is this
+ * server's own directory and it knows how many receipts are in each state; a register is somebody
+ * else's database, read a page at a time, and a projection-served searchset states no total at all.
+ * A number here would be one this UI made up.
+ */
+function TrackedEntityTypeFilter({
+    choices,
+    selected,
+    onSelect,
+}: {
+    choices: RegisterTypeChoice[]
+    /** The uid the register is narrowed to, or null for every type it serves. */
+    selected: string | null
+    onSelect: (trackedEntityTypeUid: string | null) => void
+}) {
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            {/* Named on screen and named to the group, from one string: the label is what a reader
+                sees and what `aria-labelledby` points the chips at, so the two cannot disagree and
+                nothing states the same fact twice. */}
+            <span id={TYPE_FILTER_LABEL_ID} className="text-muted-foreground text-sm">
+                Tracked entity type
+            </span>
+            <div
+                className="flex flex-wrap items-center gap-1 rounded-lg border p-1"
+                role="group"
+                aria-labelledby={TYPE_FILTER_LABEL_ID}
+                data-testid="register-type-filter"
+            >
+                <Button
+                    variant={selected === null ? 'secondary' : 'ghost'}
+                    size="sm"
+                    aria-pressed={selected === null}
+                    onClick={() => {
+                        onSelect(null)
+                    }}
+                >
+                    All
+                </Button>
+                {choices.map((choice) => (
+                    <Button
+                        key={choice.uid}
+                        variant={selected === choice.uid ? 'secondary' : 'ghost'}
+                        size="sm"
+                        aria-pressed={selected === choice.uid}
+                        className={cn(choice.name.isMachineSpelling && 'font-mono text-xs')}
+                        onClick={() => {
+                            onSelect(selected === choice.uid ? null : choice.uid)
+                        }}
+                    >
+                        {choice.name.text}
+                    </Button>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+/**
+ * Tracked entities, in the one shape this page shows one in - a page of them, or what a search found.
+ *
+ * ONE COLUMN PER ATTRIBUTE, NAMED ONCE IN THE HEADER. A single cell holding every value a record
+ * carries repeats each attribute's name on every row, cannot be read down a column, and ends in a
+ * count of what it left out that nobody can act on. So the attribute is the column, the value is the
+ * cell, and `registerTableColumns` decides the set from what the rows on this page actually hold -
+ * DHIS2's own listing preference first, capped, with the whole record one click away.
+ *
+ * A COLUMN NO ROW HAS ANYTHING IN IS NOT DRAWN. The identifier column is the case that matters: a
+ * DHIS2 instance whose tracked entity type declares no unique attribute holds no such value for
+ * anybody, and a leading column of dashes on every row states nothing about the records while
+ * reading as a defect in the page.
+ */
 function RegisterTable({
     rows,
     words,
     naming,
+    typeColumn,
     onOpen,
 }: {
     rows: PatientProjection[]
     words: RegisterWords
     naming: TrackedEntityNaming
+    /** True while several tracked entity types are on screen, so each row has to say which it is. */
+    typeColumn: boolean
     onOpen: (trackedEntityUid: string) => void
 }) {
+    const columns = registerTableColumns(rows, naming.attributes, naming.displayInList)
+    const shown = columns.attributes.length
+
     return (
-        // An entity can hold any number of attribute values and DHIS2 puts no length on one, so the
-        // table scrolls inside its own container rather than pushing the page sideways.
-        <div className="show-scrollbars overflow-x-auto rounded-lg border" data-testid="patient-listing">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Identifier values</TableHead>
-                        <TableHead>Tracked entity</TableHead>
-                        <TableHead>Tracked entity type</TableHead>
-                        <TableHead>Attribute values</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {rows.map((entity) => (
-                        <RegisterRow
-                            key={entity.trackedEntityUid}
-                            entity={entity}
-                            words={words}
-                            naming={naming}
-                            onOpen={onOpen}
-                        />
-                    ))}
-                </TableBody>
-            </Table>
+        <div className="space-y-2">
+            {/* An entity can hold any number of attribute values and DHIS2 puts no length on one, so
+                the table scrolls inside its own container rather than pushing the page sideways. */}
+            <div className="show-scrollbars overflow-x-auto rounded-lg border" data-testid="patient-listing">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            {columns.identifiers && <TableHead>Identifier values</TableHead>}
+                            <TableHead>Tracked entity</TableHead>
+                            {typeColumn && <TableHead>Tracked entity type</TableHead>}
+                            {columns.attributes.map((column) => (
+                                <TableHead
+                                    key={column.attributeUid}
+                                    className={cn(column.name.isMachineSpelling && 'font-mono text-xs')}
+                                >
+                                    {column.name.text}
+                                </TableHead>
+                            ))}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {rows.map((entity) => (
+                            <RegisterRow
+                                key={entity.trackedEntityUid}
+                                entity={entity}
+                                words={words}
+                                naming={naming}
+                                columns={columns}
+                                typeColumn={typeColumn}
+                                onOpen={onOpen}
+                            />
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+            {columns.hidden > 0 && (
+                <p className="text-muted-foreground text-xs">
+                    This table shows {shown} of the {shown + columns.hidden} attributes these records
+                    hold. Open a row for all of them.
+                </p>
+            )}
         </div>
     )
 }
@@ -355,33 +533,26 @@ function RegisterTable({
  *
  * The lead column is the values of the attributes DHIS2 declares unique, because those are what
  * name a subject - and one the instance holds under no unique value at all gets a dash there
- * rather than its uid repeated out of the column beside it. The attribute values are cut off at
- * a few, with the number left stated: a row is for recognising something, and its whole record is
- * one click away.
- *
- * WHICH FEW IS DHIS2'S CHOICE WHERE DHIS2 MADE ONE. An administrator marks the attributes that belong
- * in a listing of a type's entities, and those are the ones a clerk recognises somebody by - so they
- * are the ones shown, whatever order the projection carries them in. An instance that marks none
- * states no preference, and the row shows the first few as it always did rather than showing nothing.
- * The count of what is left over is over everything either way, because it is a fact about the record
- * rather than about the preference.
+ * rather than its uid repeated out of the column beside it. Every other value sits under the
+ * attribute's own column, bare: the header says which attribute it is, and saying it again beside
+ * the value would state one fact twice on every row.
  */
 function RegisterRow({
     entity,
     words,
     naming,
+    columns,
+    typeColumn,
     onOpen,
 }: {
     entity: PatientProjection
     words: RegisterWords
     naming: TrackedEntityNaming
+    columns: RegisterTableColumns
+    typeColumn: boolean
     onOpen: (trackedEntityUid: string) => void
 }) {
     const type = trackedEntityTypeLabel(naming.types, entity.trackedEntityTypeUid)
-    const preferred = entity.attributeValues.filter((value) => naming.displayInList.has(value.attributeUid))
-    const listed = preferred.length > 0 ? preferred : entity.attributeValues
-    const shown = listed.slice(0, ATTRIBUTE_VALUES_PER_ROW)
-    const hidden = entity.attributeValues.length - shown.length
     const open = () => {
         onOpen(entity.trackedEntityUid)
     }
@@ -399,70 +570,58 @@ function RegisterRow({
                 }
             }}
         >
-            <TableCell className="align-top">
-                {entity.identifiers.length === 0 ? (
-                    <span className="text-muted-foreground text-xs">-</span>
-                ) : (
-                    <div className="grid gap-1">
-                        {entity.identifiers.map((identifier) => {
-                            const attribute = trackedEntityAttributeLabel(
-                                naming.attributes,
-                                identifier.attributeUid,
-                            )
-                            return (
-                                <div key={`${identifier.attributeUid}-${identifier.value}`} className="grid">
-                                    <span className="font-mono text-xs font-medium">{identifier.value}</span>
-                                    <span
-                                        className={cn(
-                                            'text-muted-foreground text-xs',
-                                            attribute.isMachineSpelling && 'font-mono',
-                                        )}
+            {columns.identifiers && (
+                <TableCell className="align-top">
+                    {entity.identifiers.length === 0 ? (
+                        <span className="text-muted-foreground text-xs">-</span>
+                    ) : (
+                        <div className="grid gap-1">
+                            {entity.identifiers.map((identifier) => {
+                                const attribute = trackedEntityAttributeLabel(
+                                    naming.attributes,
+                                    identifier.attributeUid,
+                                )
+                                return (
+                                    <div
+                                        key={`${identifier.attributeUid}-${identifier.value}`}
+                                        className="grid"
                                     >
-                                        {attribute.text}
-                                    </span>
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-            </TableCell>
+                                        <span className="font-mono text-xs font-medium">
+                                            {identifier.value}
+                                        </span>
+                                        <span
+                                            className={cn(
+                                                'text-muted-foreground text-xs',
+                                                attribute.isMachineSpelling && 'font-mono',
+                                            )}
+                                        >
+                                            {attribute.text}
+                                        </span>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </TableCell>
+            )}
             <TableCell className="text-muted-foreground align-top font-mono text-xs whitespace-nowrap">
                 {entity.trackedEntityUid}
             </TableCell>
-            <TableCell className={cn('align-top text-sm', type?.isMachineSpelling === true && 'font-mono text-xs')}>
-                {type === null ? <span className="text-muted-foreground text-xs">-</span> : type.text}
-            </TableCell>
-            <TableCell className="align-top">
-                {entity.attributeValues.length === 0 ? (
-                    <span className="text-muted-foreground text-xs">-</span>
-                ) : (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                        {shown.map((value) => {
-                            const attribute = trackedEntityAttributeLabel(
-                                naming.attributes,
-                                value.attributeUid,
-                                value.attributeCode,
-                            )
-                            return (
-                                <span key={`${value.attributeUid}-${value.value}`} className="text-xs">
-                                    <span
-                                        className={cn(
-                                            'text-muted-foreground',
-                                            attribute.isMachineSpelling && 'font-mono',
-                                        )}
-                                    >
-                                        {attribute.text}
-                                    </span>{' '}
-                                    {value.value}
-                                </span>
-                            )
-                        })}
-                        {hidden > 0 && (
-                            <span className="text-muted-foreground text-xs">and {hidden} more</span>
-                        )}
-                    </div>
-                )}
-            </TableCell>
+            {typeColumn && (
+                <TableCell
+                    className={cn('align-top text-sm', type?.isMachineSpelling === true && 'font-mono text-xs')}
+                >
+                    {type === null ? <span className="text-muted-foreground text-xs">-</span> : type.text}
+                </TableCell>
+            )}
+            {columns.attributes.map((column) => {
+                const value = registerAttributeValue(entity, column.attributeUid)
+                return (
+                    <TableCell key={column.attributeUid} className="align-top text-sm">
+                        {value === null ? <span className="text-muted-foreground text-xs">-</span> : value}
+                    </TableCell>
+                )
+            })}
         </TableRow>
     )
 }

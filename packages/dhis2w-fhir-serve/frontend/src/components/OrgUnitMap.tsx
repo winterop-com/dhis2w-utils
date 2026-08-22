@@ -321,7 +321,7 @@ export function OrgUnitMap({
         const element = container.current
         if (element === null) return
         if (!webglAvailable()) {
-            setEngineFailure('This browser has no WebGL context, which the map renderer needs.')
+            setEngineFailure('This browser has no WebGL support, which the map needs in order to draw.')
             return
         }
 

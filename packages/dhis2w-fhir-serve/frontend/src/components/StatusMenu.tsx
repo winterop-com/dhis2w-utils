@@ -123,15 +123,20 @@ export function StatusMenu() {
                             const after = serverStatusSnapshot()
                             if (after.reachability !== 'ok') {
                                 toast.error('Server unreachable', {
-                                    description: 'The /metadata probe got no answer.',
+                                    description: 'This server did not answer.',
                                 })
                             } else if (after.capability === null) {
-                                toast.warning('Reachable, but not FHIR', {
-                                    description: 'The server answered without a readable CapabilityStatement.',
+                                // The same wording as the panel above states for the same
+                                // condition, so one fact is not read twice in two spellings.
+                                toast.warning('Answering, but not as a FHIR endpoint', {
+                                    description:
+                                        'The server answered, but not with the document that says what it offers.',
                                 })
                             } else {
-                                toast.success('Conformance re-read', {
-                                    description: servedIgLabel(after.capability) ?? 'CapabilityStatement refreshed.',
+                                toast.success('Server checked', {
+                                    description:
+                                        servedIgLabel(after.capability) ??
+                                        'What this server offers was read again.',
                                 })
                             }
                         })
@@ -142,7 +147,7 @@ export function StatusMenu() {
                     ) : (
                         <ServerCog className="size-4" aria-hidden />
                     )}
-                    {checking ? 'Re-reading /metadata...' : 'Re-read /metadata'}
+                    {checking ? 'Checking' : 'Check this server again'}
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>

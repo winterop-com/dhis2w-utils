@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     Select,
     SelectContent,
@@ -278,24 +279,36 @@ export function Evaluate() {
                                     </div>
                                 )}
 
-                                <Button type="button" onClick={run} disabled={running || notReady !== null}>
-                                    {running ? (
-                                        <Loader2 className="size-4 animate-spin" aria-hidden />
-                                    ) : (
-                                        <Play className="size-4" aria-hidden />
-                                    )}
-                                    Evaluate
-                                </Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button type="button" onClick={run} disabled={running || notReady !== null}>
+                                            {running ? (
+                                                <Loader2 className="size-4 animate-spin" aria-hidden />
+                                            ) : (
+                                                <Play className="size-4" aria-hidden />
+                                            )}
+                                            Evaluate
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Run this and show what the server answers</TooltipContent>
+                                </Tooltip>
 
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    aria-expanded={referenceShown}
-                                    onClick={() => setReferenceShown(!referenceShown)}
-                                >
-                                    <BookOpen className="size-4" aria-hidden />
-                                    Reference
-                                </Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            aria-expanded={referenceShown}
+                                            onClick={() => setReferenceShown(!referenceShown)}
+                                        >
+                                            <BookOpen className="size-4" aria-hidden />
+                                            Reference
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        What you can write here, and examples to start from
+                                    </TooltipContent>
+                                </Tooltip>
                             </div>
 
                             <div className="grid gap-1.5">

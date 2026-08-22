@@ -102,7 +102,7 @@ export const NAV_ITEMS: NavItem[] = [
     { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
     { path: 'evaluate', label: 'Evaluate', hint: 'FHIRPath, CQL, and ELM', icon: FlaskConical },
-    { path: 'server', label: 'Server', hint: 'What /metadata declares', icon: ServerCog },
+    { path: 'server', label: 'Server', hint: 'What this server offers', icon: ServerCog },
 ]
 
 /** The entries this run really offers, each under the name this run gives it. */

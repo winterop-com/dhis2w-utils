@@ -2340,11 +2340,28 @@ an identifier search and a paged listing on one page, with a detail route at
   string is DHIS2's - and **Tracked entities** once more than one type rides,
   never the FHIR resource this project projects a person onto. A section is
   titled *Specimen batch* rather than `Specimen` on the same rule.
+- **A register over several tracked entity types offers the choice between
+  them.** A chip group above the table - **All**, then one per type under the
+  name `/uiconfig` states for it - narrows the listing, the search, and the
+  address at once: the reads carry `_tag=<uid>`, R4's own token search over the
+  `meta.tag` a served register resource states its type in, and the address
+  carries `?type=<uid>` beside `?q=`, so a narrowed register is a sendable link.
+  A register serving one type shows no chips. Choosing one starts the paging
+  again at the server's first page, because a page token names a place inside a
+  scope.
 - **Each row carries what the projection states and no name column**, since
-  DHIS2 states no attribute that means one. The attribute-values column prefers
-  the attributes the published `D2TEA_CS` marks `display-in-list` - DHIS2's own
-  answer to which values let a clerk recognise somebody - and falls back to the
-  first few when an instance marks none.
+  DHIS2 states no attribute that means one. Every attribute the people on the
+  page hold a value of gets a column of its own, named once in the header with
+  the value alone in the cell; the attributes the published `D2TEA_CS` marks
+  `display-in-list` lead - DHIS2's own answer to which values let a clerk
+  recognise somebody - and the order is the projection's where an instance marks
+  none. Five columns is the cap, with the remainder stated under the table and
+  shown in full on the record.
+- **A column nothing on the page fills is not drawn.** The identifier column
+  goes when no row carries a value of a unique attribute, rather than standing
+  full of dashes; the tracked entity type column is drawn only while several
+  types are on screen, since one type on every row is the page's own title
+  stated once per record.
 - **The detail keeps showing everything**, heads itself with the tracked entity
   uid only once, and drops the badge beneath when no unique value names the
   record. A total is shown only where DHIS2 stated one. The detail view carries

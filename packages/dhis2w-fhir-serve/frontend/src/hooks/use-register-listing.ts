@@ -24,6 +24,14 @@ export interface RegisterListingState {
     showPrevious: () => void
 }
 
+/** Where one listing currently is: which register, narrowed to what, at which of the server's pages. */
+interface ListingPlace {
+    resource: string
+    /** The tracked entity type the walk is inside, or null when it is over every type the register serves. */
+    trackedEntityTypeUid: string | null
+    token: string | null
+}
+
 /**
  * Page through the tracked entities one served FHIR resource covers.
  *
@@ -31,6 +39,12 @@ export interface RegisterListingState {
  * because DHIS2 tracks whatever a project tracks and a section that mixed people with samples would
  * be paging two different things through one cursor. `/uiconfig` states the resources; each section
  * on screen holds one of these.
+ *
+ * WHY THE TYPE IS ANOTHER. One resource is one register over the union of the tracked entity types
+ * the published map takes onto it, and `_tag` is how a caller asks that register about one of them.
+ * A narrowing is a different scope rather than a filter over the page on screen, so choosing one
+ * starts the walk again at the server's first page: a token names a place inside a scope, and it
+ * means nothing in the scope next door.
  *
  * WHY THE TOKEN IS THE WHOLE STATE. There is no page number here and no offset arithmetic: the
  * server states where the neighbours are and this hook holds the one token it was handed. Moving is
@@ -44,12 +58,24 @@ export interface RegisterListingState {
  * The answer is only accepted while it is still the answer to the token that is current, so a slow
  * first page landing after Next was clicked is dropped rather than replacing the page on screen.
  */
-export function useRegisterListing(resource: string, enabled: boolean): RegisterListingState {
-    const [token, setToken] = useState<string | null>(null)
+export function useRegisterListing(
+    resource: string,
+    enabled: boolean,
+    trackedEntityTypeUid: string | null = null,
+): RegisterListingState {
+    const [place, setPlace] = useState<ListingPlace>({ resource, trackedEntityTypeUid, token: null })
     const [page, setPage] = useState<PatientPage>(NO_PATIENT_PAGE)
     const [loading, setLoading] = useState(enabled)
     const [error, setError] = useState<string | null>(null)
     const [asOf, setAsOf] = useState<string | null>(null)
+    // The scope the caller is asking about now, with the token dropped when it is a different one -
+    // read rather than written, so a new narrowing asks for its first page in the same render
+    // instead of asking for the old scope's token first and correcting itself.
+    const at: ListingPlace =
+        place.resource === resource && place.trackedEntityTypeUid === trackedEntityTypeUid
+            ? place
+            : { resource, trackedEntityTypeUid, token: null }
+    const token = at.token
 
     useEffect(() => {
         if (!enabled) {
@@ -62,7 +88,7 @@ export function useRegisterListing(resource: string, enabled: boolean): Register
         let cancelled = false
         setLoading(true)
         setError(null)
-        listRegister(resource, token, PATIENT_PAGE_SIZE)
+        listRegister(resource, token, PATIENT_PAGE_SIZE, trackedEntityTypeUid)
             .then((answer) => {
                 if (cancelled) return
                 setPage(patientPage(answer.bundle))
@@ -79,15 +105,17 @@ export function useRegisterListing(resource: string, enabled: boolean): Register
         return () => {
             cancelled = true
         }
-    }, [enabled, resource, token])
+    }, [enabled, resource, token, trackedEntityTypeUid])
 
     const showNext = useCallback(() => {
-        setToken((current) => page.next ?? current)
-    }, [page.next])
+        if (page.next === null) return
+        setPlace({ resource, trackedEntityTypeUid, token: page.next })
+    }, [page.next, resource, trackedEntityTypeUid])
 
     const showPrevious = useCallback(() => {
-        setToken((current) => page.previous ?? current)
-    }, [page.previous])
+        if (page.previous === null) return
+        setPlace({ resource, trackedEntityTypeUid, token: page.previous })
+    }, [page.previous, resource, trackedEntityTypeUid])
 
     return { page, loading, error, asOf, showNext, showPrevious }
 }

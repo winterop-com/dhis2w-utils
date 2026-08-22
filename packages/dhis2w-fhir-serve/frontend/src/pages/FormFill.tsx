@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useEnrollmentOptions } from '@/hooks/use-enrollment-options'
 import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
 import { useRegisterSearchSupport } from '@/hooks/use-register-search-support'
@@ -658,26 +659,36 @@ export function FormFill() {
                     <Sparkles className="size-4" />
                     {filling ? 'Filling' : 'Fill with test data'}
                 </Button>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                        // Everything the person entered goes, the combo included: it is their input
-                        // rather than the server's context, and it is the only control here a Radix
-                        // select cannot be returned to unchosen any other way. The reporting unit
-                        // stays, because clearing it would empty a control the form cannot be
-                        // submitted well without and that nothing on this page would refill. The
-                        // enrollment stays for the harder version of the same reason: clearing it
-                        // would silently return the submission to a synthetic pair that cannot
-                        // import.
-                        dispatch({ kind: 'replace', answers: initialAnswers(spec) })
-                        setAttributeOptionCombo(null)
-                        setIssues([])
-                    }}
-                >
-                    <Eraser className="size-4" />
-                    Clear
-                </Button>
+                {/* The one control here whose reach is not obvious from its name: it empties what
+                    was filled in and deliberately leaves two pieces of context standing, so the
+                    tooltip states both halves rather than letting a person discover the second. */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                                // Everything the person entered goes, the combo included: it is
+                                // their input rather than the server's context, and it is the only
+                                // control here a Radix select cannot be returned to unchosen any
+                                // other way. The reporting unit stays, because clearing it would
+                                // empty a control the form cannot be submitted well without and
+                                // that nothing on this page would refill. The enrollment stays for
+                                // the harder version of the same reason: clearing it would silently
+                                // return the submission to a synthetic pair that cannot import.
+                                dispatch({ kind: 'replace', answers: initialAnswers(spec) })
+                                setAttributeOptionCombo(null)
+                                setIssues([])
+                            }}
+                        >
+                            <Eraser className="size-4" />
+                            Clear
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                        Empties what you filled in. The organisation unit and the enrollment stay.
+                    </TooltipContent>
+                </Tooltip>
                 <div className="flex-1" />
                 {/* The reason a disabled button always states, because a control that refuses
                     without saying why is worse than one that posts and is refused. This one is
