@@ -9,6 +9,10 @@ Two things are checked here that are not about one request at all. The startup r
 than a 401 on every caller; and the DHIS2 validator is checked against `respx` for the one property
 that matters most - the header that leaves this process is the CALLER'S, never the runtime's.
 
+`/whoami` gets a section of its own, because it is the one address whose answer is the posture's
+verdict rather than a resource. The questions there are what each posture names a caller, that the
+verdict is the same under both scopes, and that a run checking nobody serves no such address at all.
+
 The last section is the same property one layer down, on the reads themselves: what
 `CallerCredentialReader` puts on the wire, and which DHIS2 verdicts it carries back as they stand.
 The register routes that use it are exercised end to end in `test_register.py`.
@@ -32,6 +36,8 @@ from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope, load_fhir
 from dhis2w_fhir_serve import auth as auth_module
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.auth import (
+    AUTHENTICATION_REALM,
+    BROWSER_SAFE_BASIC_SCHEME,
     SERVE_TOKENS_VARIABLE,
     AuthState,
     RequestIdentity,
@@ -50,9 +56,10 @@ from dhis2w_fhir_serve.passthrough import (
     open_pass_through_client,
 )
 from dhis2w_fhir_serve.routes import serve_routers
+from dhis2w_fhir_serve.routes.whoami import TOKEN_CALLER_NAME, WHOAMI_PATH, authenticated_caller
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool, StoredResponseEnvelope
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.routing import APIRoute
 
 #: The facade's own address in in-process requests, matching the suite's conftest.
@@ -391,20 +398,27 @@ async def test_the_write_scope_guards_the_create_and_nothing_else_that_posts(
     assert evaluated.status_code != 401
 
 
-def test_the_guarded_set_under_write_is_the_create_route_alone() -> None:
-    """One route is state-changing, and the set is stated as data rather than as a paragraph."""
+def test_the_guarded_set_under_write_is_the_create_route_and_the_one_that_names_the_caller() -> None:
+    """One route is state-changing; the other is the check itself, and the set is stated as data."""
     routers = serve_routers(auth=ServeAuth.TOKEN, auth_scope=ServeAuthScope.WRITE)
 
     assert [route.path for router in routers.guarded for route in router.routes if isinstance(route, APIRoute)] == [
-        "/QuestionnaireResponse"
+        WHOAMI_PATH,
+        "/QuestionnaireResponse",
     ]
 
 
-def test_a_server_that_receives_nothing_guards_nothing_under_write() -> None:
-    """Putting a 405 behind a credential would answer "who are you" where the answer is "nothing is taken"."""
+def test_a_server_that_receives_nothing_still_answers_who_is_asking() -> None:
+    """Putting a 405 behind a credential would answer "who are you" where the answer is "nothing is taken".
+
+    `/whoami` stays guarded on such a run, because a client with a credential still has a credential
+    to check - and this address is the only thing on a receive-nothing facade that could check it.
+    """
     routers = serve_routers(capture=False, auth=ServeAuth.TOKEN, auth_scope=ServeAuthScope.WRITE)
 
-    assert routers.guarded == ()
+    assert [route.path for router in routers.guarded for route in router.routes if isinstance(route, APIRoute)] == [
+        WHOAMI_PATH
+    ]
 
 
 def test_the_guarded_set_under_all_is_everything_but_the_conformance_document() -> None:
@@ -577,7 +591,43 @@ async def test_a_bearer_token_is_refused_by_the_dhis2_posture(
 
     assert refused.status_code == 401
     assert "ApiToken" in refused.json()["issue"][0]["diagnostics"]
-    assert refused.headers["www-authenticate"].startswith("Basic ")
+    assert refused.headers["www-authenticate"].startswith(f"{BROWSER_SAFE_BASIC_SCHEME} ")
+
+
+def test_the_dhis2_challenge_is_one_a_browser_hands_back_to_the_page() -> None:
+    """`WWW-Authenticate: Basic` makes a browser open its own dialog and leave the request pending.
+
+    That is the whole reason the scheme name is not `Basic`: a capture screen's Submit would sit
+    there forever instead of rendering the refusal the server sent it. What callers SEND is
+    untouched, and the refusal still says which scheme to send.
+    """
+    challenge = challenge_for(ServeAuth.DHIS2)
+
+    assert challenge.startswith(f"{BROWSER_SAFE_BASIC_SCHEME} ")
+    assert not challenge.startswith("Basic")
+    assert f'realm="{AUTHENTICATION_REALM}"' in challenge
+
+
+async def test_a_stale_credential_meets_that_challenge_on_the_capture_itself(
+    receiving_project: FhirProject, aggregate_response: dict[str, Any]
+) -> None:
+    """The case `/whoami` cannot cover: a password changed after somebody signed in, met at the submission."""
+    app = create_app(_settings(receiving_project, ServeAuth.DHIS2, ServeAuthScope.WRITE))
+
+    with respx.mock(base_url=INSTANCE_URL) as router:
+        router.get("/api/me").mock(return_value=httpx.Response(401))
+        refused: httpx.Response | None = None
+        async with _client(app) as http:
+            refused = await http.post(
+                "/QuestionnaireResponse",
+                content=json.dumps(aggregate_response),
+                headers={"Authorization": CALLER_BASIC},
+            )
+
+    assert refused is not None
+    assert refused.status_code == 401
+    assert not refused.headers["www-authenticate"].startswith("Basic")
+    assert refused.json()["resourceType"] == "OperationOutcome"
 
 
 def test_an_identity_is_what_a_route_reads_and_nothing_else() -> None:
@@ -617,6 +667,108 @@ async def test_the_posture_crosses_to_the_capture_ui_by_name_and_nothing_else_do
 
     assert body["auth"] == {"posture": "token", "scope": "write", "issuer": None}
     assert DEPLOYMENT_TOKENS not in str(body)
+
+
+# ---------------------------------------------------------------------------------------------
+# `/whoami`: a verdict on a credential, before anything has been done with it.
+# ---------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("scope", [ServeAuthScope.WRITE, ServeAuthScope.ALL])
+async def test_the_dhis2_posture_names_the_username_the_instance_gave(
+    serving_project: FhirProject, dhis2_identity: respx.MockRouter, scope: ServeAuthScope
+) -> None:
+    """The verdict is the same under both scopes, which is the one thing this address needs to be worth asking."""
+    app = create_app(_settings(serving_project, ServeAuth.DHIS2, scope))
+
+    async with _client(app) as http:
+        named = await http.get(WHOAMI_PATH, headers={"Authorization": CALLER_BASIC})
+
+    assert named.status_code == 200
+    assert named.json() == {"posture": "dhis2", "username": "clerk", "name": "clerk"}
+
+
+@pytest.mark.parametrize("scope", [ServeAuthScope.WRITE, ServeAuthScope.ALL])
+async def test_credentials_the_instance_refuses_are_refused_at_this_address_too(
+    serving_project: FhirProject, scope: ServeAuthScope
+) -> None:
+    """A wrong password answers 401 here rather than being found out at the first capture."""
+    app = create_app(_settings(serving_project, ServeAuth.DHIS2, scope))
+
+    with respx.mock(base_url=INSTANCE_URL) as router:
+        router.get("/api/me").mock(return_value=httpx.Response(401))
+        refused: httpx.Response | None = None
+        async with _client(app) as http:
+            refused = await http.get(WHOAMI_PATH, headers={"Authorization": CALLER_BASIC})
+
+    assert refused is not None
+    assert refused.status_code == 401
+    assert refused.json()["resourceType"] == "OperationOutcome"
+    assert refused.json()["issue"][0]["code"] == "login"
+    assert refused.headers["www-authenticate"] == challenge_for(ServeAuth.DHIS2)
+
+
+async def test_a_request_with_no_credential_at_all_is_refused_at_this_address(
+    serving_project: FhirProject, dhis2_identity: respx.MockRouter
+) -> None:
+    """The refusal is the one every other route gives, so there is no second vocabulary to read."""
+    app = create_app(_settings(serving_project, ServeAuth.DHIS2, ServeAuthScope.WRITE))
+
+    async with _client(app) as http:
+        refused = await http.get(WHOAMI_PATH)
+
+    assert refused.status_code == 401
+    assert "Basic" in refused.json()["issue"][0]["diagnostics"]
+
+
+@pytest.mark.parametrize("scope", [ServeAuthScope.WRITE, ServeAuthScope.ALL])
+async def test_the_token_posture_names_a_bearer_rather_than_a_person(
+    serving_project: FhirProject, deployment_tokens: None, scope: ServeAuthScope
+) -> None:
+    """A static token names a deployment, so the answer names no username and says so in words."""
+    app = create_app(_settings(serving_project, ServeAuth.TOKEN, scope))
+
+    async with _client(app) as http:
+        named = await http.get(WHOAMI_PATH, headers={"Authorization": "Bearer first-token"})
+        refused = await http.get(WHOAMI_PATH, headers={"Authorization": f"Bearer {WRONG_TOKEN}"})
+
+    assert named.status_code == 200
+    assert named.json() == {"posture": "token", "username": None, "name": TOKEN_CALLER_NAME}
+    assert refused.status_code == 401
+
+
+async def test_the_none_posture_serves_no_such_address(serving_project: FhirProject) -> None:
+    """A server that checks nobody has nobody to name, and 404 is the honest answer to the question."""
+    app = create_app(_settings(serving_project, ServeAuth.NONE, ServeAuthScope.ALL))
+
+    async with _client(app) as http:
+        asked = await http.get(WHOAMI_PATH)
+
+    assert asked.status_code == 404
+
+
+def test_the_address_is_mounted_by_a_posture_rather_than_by_a_scope() -> None:
+    """The one path a posture adds: absent under `none`, present and guarded under both scopes."""
+
+    def _paths(routers: tuple[APIRouter, ...]) -> set[str]:
+        return {route.path for router in routers for route in router.routes if isinstance(route, APIRoute)}
+
+    open_to_everyone = serve_routers(auth=ServeAuth.NONE, auth_scope=ServeAuthScope.ALL)
+    write = serve_routers(auth=ServeAuth.DHIS2, auth_scope=ServeAuthScope.WRITE)
+    everything = serve_routers(auth=ServeAuth.DHIS2, auth_scope=ServeAuthScope.ALL)
+
+    assert WHOAMI_PATH not in _paths(open_to_everyone.facade)
+    assert WHOAMI_PATH in _paths(write.facade) and WHOAMI_PATH in _paths(write.guarded)
+    assert WHOAMI_PATH in _paths(everything.facade) and WHOAMI_PATH in _paths(everything.guarded)
+
+
+def test_a_caller_is_named_from_the_identity_a_posture_established() -> None:
+    """One function, so the address and a reader of `RequestIdentity` spell the same caller the same way."""
+    person = authenticated_caller(RequestIdentity(posture=ServeAuth.DHIS2, username="clerk"))
+    bearer = authenticated_caller(RequestIdentity(posture=ServeAuth.TOKEN))
+
+    assert (person.username, person.name) == ("clerk", "clerk")
+    assert (bearer.username, bearer.name) == (None, TOKEN_CALLER_NAME)
 
 
 # ---------------------------------------------------------------------------------------------

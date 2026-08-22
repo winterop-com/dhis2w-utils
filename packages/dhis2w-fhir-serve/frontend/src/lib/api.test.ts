@@ -1,15 +1,17 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
     GUARDED_PATH_PATTERN,
     UnguardedPathError,
     apiConfiguration,
     apiFetch,
+    checkCredential,
     checkReachability,
     configureApi,
     outcomeMessage,
     translateCode,
 } from '@/lib/api'
+import { authSnapshot, basicAuthorization, bearerAuthorization, signIn, signOut, storedAuthorization } from '@/lib/auth'
 
 /**
  * The wire layer, tested against a stubbed `fetch`.
@@ -21,9 +23,16 @@ import {
 
 const originalFetch = globalThis.fetch
 
+beforeEach(() => {
+    sessionStorage.clear()
+    signOut()
+})
+
 afterEach(() => {
     globalThis.fetch = originalFetch
     configureApi({ baseUrl: '', token: null })
+    sessionStorage.clear()
+    signOut()
     vi.restoreAllMocks()
 })
 
@@ -125,6 +134,82 @@ describe('apiFetch', () => {
         const { calls } = stubFetch(fhirResponse({}))
         await apiFetch('/metadata', { headers: { Accept: 'application/json' } })
         expect(new Headers(calls[0].init.headers).get('Accept')).toBe('application/json')
+    })
+
+    it('signs with what this tab holds, and drops it the moment the server refuses it', async () => {
+        signIn(basicAuthorization('clerk', 'secret'), 'clerk')
+        const { calls } = stubFetch(fhirResponse({ resourceType: 'OperationOutcome' }, 401))
+
+        await apiFetch('/QuestionnaireResponse', { method: 'POST' })
+
+        expect(new Headers(calls[0].init.headers).get('Authorization')).toBe(basicAuthorization('clerk', 'secret'))
+        expect(storedAuthorization()).toBeNull()
+        expect(authSnapshot().refused).toBe(true)
+    })
+
+    it('leaves a request that succeeds signed in, so nothing is dropped for a 200', async () => {
+        signIn(basicAuthorization('clerk', 'secret'), 'clerk')
+        stubFetch(fhirResponse({}))
+
+        await apiFetch('/metadata')
+
+        expect(storedAuthorization()).toBe(basicAuthorization('clerk', 'secret'))
+    })
+})
+
+describe('checkCredential', () => {
+    it('asks who a credential belongs to, signing with that credential and not with this tabs', async () => {
+        signIn(bearerAuthorization('an-old-token'), null)
+        const { calls } = stubFetch(fhirResponse({ posture: 'dhis2', username: 'clerk', name: 'clerk' }))
+
+        const checked = await checkCredential(basicAuthorization('clerk', 'secret'))
+
+        expect(calls[0].url).toBe('/whoami')
+        expect(new Headers(calls[0].init.headers).get('Authorization')).toBe(basicAuthorization('clerk', 'secret'))
+        expect(checked).toEqual({ outcome: 'accepted', username: 'clerk' })
+    })
+
+    it('answers with the username the server named, never with what was typed', async () => {
+        stubFetch(fhirResponse({ posture: 'dhis2', username: 'Clerk', name: 'Clerk' }))
+
+        expect(await checkCredential(basicAuthorization('clerk', 'secret'))).toEqual({
+            outcome: 'accepted',
+            username: 'Clerk',
+        })
+    })
+
+    it('names nobody where the server names nobody, which is the token posture', async () => {
+        stubFetch(fhirResponse({ posture: 'token', username: null, name: 'the bearer of a token' }))
+
+        expect(await checkCredential(bearerAuthorization('a-token'))).toEqual({ outcome: 'accepted', username: null })
+    })
+
+    it('reads a 401 as a refusal', async () => {
+        stubFetch(fhirResponse({ resourceType: 'OperationOutcome' }, 401))
+
+        expect(await checkCredential(basicAuthorization('clerk', 'wrong'))).toEqual({ outcome: 'refused' })
+    })
+
+    it('leaves the session this tab already holds alone, because the panel is asking about another', async () => {
+        signIn(basicAuthorization('clerk', 'secret'), 'clerk')
+        stubFetch(fhirResponse({ resourceType: 'OperationOutcome' }, 401))
+
+        await checkCredential(basicAuthorization('someone', 'else'))
+
+        expect(storedAuthorization()).toBe(basicAuthorization('clerk', 'secret'))
+        expect(authSnapshot().refused).toBe(false)
+    })
+
+    it('reads a dead socket as unreachable, which is not the same as a refusal', async () => {
+        globalThis.fetch = (() => Promise.reject(new TypeError('failed to fetch'))) as unknown as typeof fetch
+
+        expect(await checkCredential(basicAuthorization('clerk', 'secret'))).toEqual({ outcome: 'unreachable' })
+    })
+
+    it('reads anything that is neither 200 nor 401 as unreachable, since it says nothing about the credential', async () => {
+        stubFetch(fhirResponse({}, 502))
+
+        expect(await checkCredential(basicAuthorization('clerk', 'secret'))).toEqual({ outcome: 'unreachable' })
     })
 })
 

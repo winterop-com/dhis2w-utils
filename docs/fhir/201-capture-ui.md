@@ -46,10 +46,47 @@ FHIR routes, so `/metadata`, `/Questionnaire`, and every other served path
 answer exactly as they do without `--ui`, and a resource type the facade
 does not serve is still an OperationOutcome rather than a page. Routing
 inside the UI is hash-based (`#/responses`), so a reload on any page works
-with no server-side rewrite. And the UI is not authenticated, because the
-facade is not: everything
-[What this server is not](201-serve.md#what-this-server-is-not) says applies
-to it unchanged.
+with no server-side rewrite. And the UI is authenticated exactly as the
+facade is - which under the default `auth = "none"` means not at all, and
+everything [What this server is not](201-serve.md#what-this-server-is-not)
+says applies to it unchanged.
+
+**Signing in, where a posture is configured.** A facade started with
+`--auth dhis2`, `--auth token`, or `--auth jwt` asks who this is before it
+draws a page, and the prompt is the one that posture calls for: a DHIS2
+username and password, a field for one of the deployment's tokens, or a
+field for a token headed with the issuer it has to come from. The posture is
+read off `/metadata`, which is the one address open in every scope.
+
+**What is typed is checked before it is kept.** Submitting asks the server
+`GET /whoami` with those credentials, and nothing is stored until the server
+names the caller. A wrong password is refused at the prompt - *DHIS2 did not
+accept this username and password.* - with the fields still there to try
+again with, and a server that could not be reached says so instead, because
+credentials that were never checked are not credentials that were rejected.
+Without that check the default `write` scope leaves every read open, so the
+first thing that would refuse a wrong password is a submission somebody
+spent minutes filling in. The name the header then shows is the one the
+**server** answered with - the DHIS2 instance's own spelling of the
+username, or under `jwt` the claim the server read out of the token - never
+what was typed into the box. The token posture names nobody, because a
+deployment token is not a person. **Sign out** in the header forgets the
+credential and the name, and the prompt comes back.
+
+A credential can still go stale after somebody signs in - a password
+changed, an account disabled - and that is met at the next request. The
+refusal arrives on the page, the prompt comes back with the same sentence,
+and the credential is dropped rather than signed with again. This is why the
+DHIS2 posture's 401 names `xBasic` in its `WWW-Authenticate` header rather
+than `Basic`: a browser meeting `Basic` on a request a page made opens its
+own credential dialog and never hands the response back, so Submit would sit
+pending forever instead of saying what happened. Callers still **send**
+`Authorization: Basic <base64>`; only the challenge's scheme name differs,
+and it differs for every caller alike rather than by guessing which ones are
+browsers.
+
+The credential is held in `sessionStorage`, for that browser tab only:
+closing the tab ends the session, and a second tab signs in on its own.
 
 In a checkout, `--ui` before the bundle exists refuses in one line rather
 than serving a blank page:

@@ -27,6 +27,13 @@
  * which is the password in a form anything can decode - that is what HTTP Basic is, and it is why
  * this is a per-tab store rather than a durable one. The alternative is a token exchange the DHIS2
  * instance behind this facade cannot yet offer (BUGS.md 96).
+ *
+ * NOTHING IS STORED UNTIL THE SERVER HAS NAMED THE CALLER. The panel asks `GET /whoami` with what
+ * was typed, and only an answer naming somebody reaches `signIn`. Storing first and finding out
+ * later is what a scope of `write` makes unbearable: every read is open, so the first thing that
+ * would have refused a wrong password is a submission somebody spent minutes filling in. The
+ * username this app shows is the server's answer rather than what was typed into the box, which is
+ * the same rule the receipts follow.
  */
 
 /** The four postures this server can be in, as `/uiconfig` and this module spell them. */
@@ -53,6 +60,21 @@ export const CREDENTIAL_STORAGE_KEY = 'd2w-fhir-serve-authorization'
 
 /** Where it keeps the name to show for whoever is signed in, which is the username under `dhis2`. */
 export const IDENTITY_STORAGE_KEY = 'd2w-fhir-serve-identity'
+
+/**
+ * What `GET /whoami` answers a caller this server accepts.
+ *
+ * The server's own words for who it just decided the caller is. `username` is the DHIS2 username
+ * under the DHIS2 posture and the claim the server read out of the token under the JWT one; it is
+ * null under the token posture, which names a deployment rather than a person. `name` is what the
+ * server would call the caller in a sentence, and this app reads it for nothing: a screen names a
+ * person or names nobody, and the server's constant for "the bearer of a token" is not a person.
+ */
+export interface AuthenticatedCaller {
+    posture: AuthPosture
+    username: string | null
+    name: string
+}
 
 /** The shape `rest.security` arrives in - only the parts this module reads. */
 export interface CapabilitySecurity {
@@ -175,10 +197,11 @@ export function setAuthPosture(posture: AuthPosture, issuer: string | null = nul
 }
 
 /**
- * Record that this tab signs its requests with one credential.
+ * Record that this tab signs its requests with one credential the server has already accepted.
  *
- * `identity` is what the header names, and is only ever a username: under the token posture there is
- * nobody to name, and a screen that invented one would be naming a deployment secret's owner.
+ * `identity` is what the header names, and is only ever a username the SERVER answered with: under
+ * the token posture there is nobody to name, and a screen that invented one would be naming a
+ * deployment secret's owner.
  */
 export function signIn(authorization: string, identity: string | null): void {
     try {
@@ -271,5 +294,29 @@ export const SIGN_IN_NOTES: Record<Exclude<AuthPosture, 'none'>, string> = {
 export const SIGN_IN_LABEL = 'Sign in'
 export const SIGN_OUT_LABEL = 'Sign out'
 
-/** What the panel says after a credential was refused, above the fields it is asking again with. */
-export const REFUSED_NOTICE = 'This server did not accept those credentials.'
+/**
+ * What the panel says above the fields when a credential was refused, per posture.
+ *
+ * Name the actual subject: under the DHIS2 posture the refusal came from the DHIS2 instance this
+ * server checks against, and saying "this server" would point a person at the wrong machine. Under
+ * the other two the refusal is this server's own, and it is a token that was not accepted.
+ *
+ * The same sentence covers both ways a credential is refused - the check the panel makes before it
+ * holds on to anything, and a 401 met later by a read or a submission - because they are the same
+ * fact about the same credential, and two spellings of it would only invite the reader to look for
+ * a difference that is not there.
+ */
+export const SIGN_IN_REFUSALS: Record<Exclude<AuthPosture, 'none'>, string> = {
+    token: 'This server did not accept this token.',
+    dhis2: 'DHIS2 did not accept this username and password.',
+    jwt: 'This server did not accept this token.',
+}
+
+/**
+ * What the panel says when the check could not be made at all.
+ *
+ * Distinct from a refusal on purpose, and the distinction is the whole reason the check is worth
+ * making: credentials that were never checked are not credentials that were rejected, and a person
+ * told the wrong one of those retypes a password that was right all along.
+ */
+export const SIGN_IN_UNREACHABLE = 'This server could not be reached, so nothing was checked.'

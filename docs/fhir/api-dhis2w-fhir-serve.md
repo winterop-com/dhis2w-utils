@@ -295,7 +295,44 @@ Who the facade serves: the four postures `[serve] auth` picks between, the scope
 covers, the startup refusals a posture this run could not honour meets before the socket opens, and
 the one dependency the guarded routers carry.
 
+The `dhis2` posture's 401 challenges with `xBasic`, not `Basic` - a browser that meets `Basic` on a
+request a page made opens its own credential dialog and never hands the response back, leaving the
+capture UI's Submit pending instead of rendering the refusal. The scheme callers **send** is
+untouched, and the header reads the same for every caller rather than shifting by `Accept` or user
+agent. `BROWSER_SAFE_BASIC_SCHEME` is the constant.
+
 ::: dhis2w_fhir_serve.auth
+
+### Who the caller is (`GET /whoami`)
+
+The one address whose whole answer is who this server just decided the caller is. It carries the
+authentication check in **every** scope - `write` guards one route and `all` guards all but
+`/metadata`, and this one is guarded under both - so a client can get a verdict on a credential
+without doing anything with it. Wrong credentials get the same 401, the same OperationOutcome, and
+the same `WWW-Authenticate` challenge every other refusal on this facade gets.
+
+It is mounted only where `[serve] auth` names a posture. Under `auth = "none"` the path is absent
+and answers 404: a server that checks nobody has nobody to name.
+
+```console
+$ curl -su clerk:the-right-password http://127.0.0.1:8095/whoami
+{"posture":"dhis2","username":"clerk","name":"clerk"}
+
+$ curl -su clerk:wrong -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8095/whoami
+401
+```
+
+`username` is the DHIS2 username under `dhis2`, the claim `[serve.jwt] username_claim` names under
+`jwt` - the same value a receipt is stamped with - and null under `token`, which names a deployment
+rather than a person. `name` is what to call the caller in a sentence: the username where there is
+one, and a stated constant where there is not.
+
+The capture UI's sign-in panel is the first caller: it asks here with what was typed before it holds
+on to anything, so a wrong password is refused at the prompt rather than at the first submission.
+The path is fixed rather than discovered, because the UI is served same-origin by the very process
+that answers it.
+
+::: dhis2w_fhir_serve.routes.whoami
 
 ### The external issuer
 

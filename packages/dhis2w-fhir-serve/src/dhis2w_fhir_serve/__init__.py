@@ -13,6 +13,7 @@ catch it by name.
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.auth import (
     AUTHENTICATION_REALM,
+    BROWSER_SAFE_BASIC_SCHEME,
     CREDENTIAL_CACHE_SECONDS,
     DHIS2_IDENTITY_PATH,
     SERVE_TOKENS_VARIABLE,
@@ -216,6 +217,12 @@ from dhis2w_fhir_serve.routes.spool import (
 )
 from dhis2w_fhir_serve.routes.terminology import CODE_LOOKUP_PATH, VALIDATE_CODE_PATH
 from dhis2w_fhir_serve.routes.translate import TranslateRequest, TranslationMatch, find_translations
+from dhis2w_fhir_serve.routes.whoami import (
+    TOKEN_CALLER_NAME,
+    WHOAMI_PATH,
+    AuthenticatedCaller,
+    authenticated_caller,
+)
 from dhis2w_fhir_serve.runtime import (
     ServeContext,
     ServeRuntime,
@@ -288,10 +295,13 @@ __all__ = [
     "as_of_entry",
     "as_of_headers",
     "attach_serve_runtime",
+    "authenticated_caller",
+    "AuthenticatedCaller",
     "AUTHENTICATION_REALM",
     "AuthState",
     "BadOperationError",
     "BadSearchError",
+    "BROWSER_SAFE_BASIC_SCHEME",
     "build_capture_index",
     "build_live_store",
     "build_metadata_body",
@@ -507,6 +517,7 @@ __all__ = [
     "SyncResourceCounts",
     "syntax_diagnostic",
     "TerminologyState",
+    "TOKEN_CALLER_NAME",
     "TokenRefusedError",
     "TOTAL_PAGES_PARAMETER",
     "TouchedPage",
@@ -533,5 +544,6 @@ __all__ = [
     "ValidatedCode",
     "ValidatedCredential",
     "VerifiedToken",
+    "WHOAMI_PATH",
     "WITHDRAWN_RESPONSES_RELATIVE_PATH",
 ]

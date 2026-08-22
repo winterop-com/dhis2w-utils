@@ -4,14 +4,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { checkCredential } from '@/lib/api'
 import {
     basicAuthorization,
     bearerAuthorization,
     signIn,
     signInHeading,
-    REFUSED_NOTICE,
     SIGN_IN_LABEL,
     SIGN_IN_NOTES,
+    SIGN_IN_REFUSALS,
+    SIGN_IN_UNREACHABLE,
     type AuthPosture,
 } from '@/lib/auth'
 
@@ -22,17 +24,25 @@ import {
  * than floating over it: the app has not read anything yet, so there is nothing behind it to see,
  * and a dialog over an empty frame would only be a dialog over an empty frame.
  *
- * NOTHING IS SENT FROM HERE. Submitting stores the credential this tab will sign its requests with;
- * whether the server accepts it is answered by the next request, and a 401 brings this panel back
- * with `refused` set. That is one round trip rather than two, and it means there is no separate
- * "check my credentials" endpoint for this UI to depend on.
+ * SUBMITTING ASKS THE SERVER WHO THIS IS, and nothing is kept until it answers. `GET /whoami`
+ * carries the authentication check under every scope, so it is the one address that gives a verdict
+ * on a credential without doing anything with it. The alternative - storing what was typed and
+ * finding out at the next request - is unbearable under the default `write` scope, where every read
+ * is open and the first thing that would refuse a wrong password is a submission somebody spent
+ * minutes filling in. A wrong password is refused here, at the prompt, in one round trip.
+ *
+ * A REFUSAL AND AN UNREACHABLE SERVER ARE DIFFERENT SENTENCES. One means retype the password; the
+ * other means it was never looked at. Telling a person the wrong one of those is how an afternoon
+ * goes into a credential that was right all along.
+ *
+ * THE NAME THAT IS KEPT IS THE SERVER'S, not what was typed into the box. Under the DHIS2 posture
+ * the instance's own spelling of the username is what lands on every receipt, and under the JWT
+ * posture the name is a claim this browser never reads for itself - the server read it, and the
+ * server said it. The token posture names nobody, because a deployment token is not a person.
  *
  * THE JWT POSTURE DRAWS THE TOKEN FIELD AND NAMES THE ISSUER. It is a paste field rather than a sign-in
  * form because this server has nowhere to send a username and a password: the token comes from an
  * identity provider it does not run, and the panel says so rather than implying it could get one.
- * The identity is left null for the same reason the deployment-token posture leaves it null - the
- * name on the receipt is the claim the SERVER read out of the token, and a browser reading a name out
- * of the token itself would be a browser asserting who somebody is.
  */
 export function SignInPanel({
     posture,
@@ -46,17 +56,32 @@ export function SignInPanel({
     const [token, setToken] = useState('')
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
+    const [checking, setChecking] = useState(false)
+    // The panel's own verdict on what was last submitted here. Null until something is submitted,
+    // and it takes the place of `refused` - which is the same fact about a credential met elsewhere.
+    const [notice, setNotice] = useState<string | null>(null)
     const pastesAToken = posture === 'token' || posture === 'jwt'
+    const shown = notice ?? (refused ? SIGN_IN_REFUSALS[posture] : null)
 
-    function submit(event: FormEvent<HTMLFormElement>): void {
+    async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
         event.preventDefault()
-        if (pastesAToken) {
-            if (token.trim() === '') return
-            signIn(bearerAuthorization(token.trim()), null)
+        if (checking) return
+        const typed = pastesAToken ? token.trim() : username.trim()
+        if (typed === '') return
+        const authorization = pastesAToken ? bearerAuthorization(typed) : basicAuthorization(typed, password)
+        setChecking(true)
+        setNotice(null)
+        const checked = await checkCredential(authorization)
+        setChecking(false)
+        if (checked.outcome === 'refused') {
+            setNotice(SIGN_IN_REFUSALS[posture])
             return
         }
-        if (username.trim() === '') return
-        signIn(basicAuthorization(username.trim(), password), username.trim())
+        if (checked.outcome === 'unreachable') {
+            setNotice(SIGN_IN_UNREACHABLE)
+            return
+        }
+        signIn(authorization, checked.username)
     }
 
     return (
@@ -67,12 +92,12 @@ export function SignInPanel({
                     <CardDescription>{SIGN_IN_NOTES[posture]}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {refused && (
+                    {shown !== null && (
                         <p className="text-destructive mb-4 text-sm" role="alert">
-                            {REFUSED_NOTICE}
+                            {shown}
                         </p>
                     )}
-                    <form className="grid gap-4" onSubmit={submit}>
+                    <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
                         {pastesAToken ? (
                             <div className="grid gap-2">
                                 <Label htmlFor="serve-token">Token</Label>
@@ -107,7 +132,12 @@ export function SignInPanel({
                                 </div>
                             </>
                         )}
-                        <Button type="submit">{SIGN_IN_LABEL}</Button>
+                        {/* Disabled rather than relabelled while the check is out: the button says
+                            what it does, and one round trip is not long enough to need a second
+                            word for it. */}
+                        <Button type="submit" disabled={checking} aria-busy={checking}>
+                            {SIGN_IN_LABEL}
+                        </Button>
                     </form>
                 </CardContent>
             </Card>

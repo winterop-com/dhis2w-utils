@@ -27,6 +27,7 @@ const proxiedPaths = [
     '/metadata',
     '/spool',
     '/uiconfig',
+    '/whoami',
     '/tracked-entities',
     '/evaluate',
     '/terminology',

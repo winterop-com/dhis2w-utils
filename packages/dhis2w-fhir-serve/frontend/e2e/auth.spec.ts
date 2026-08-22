@@ -5,8 +5,8 @@ import { expect, test, type Page } from '@playwright/test'
  *
  * WHAT IS REAL HERE AND WHAT IS FULFILLED. The bundle, the shell, the sign-in panel,
  * `sessionStorage`, and every header the browser sends are the real thing, against the real
- * `d2w fhir serve --ui` this suite drives. Two answers are fulfilled: `rest.security` on
- * `/metadata`, and the 401 the create route gives an unsigned caller.
+ * `d2w fhir serve --ui` this suite drives. Three answers are fulfilled: `rest.security` on
+ * `/metadata`, `GET /whoami`, and the 401 the create route gives an unsigned caller.
  *
  * WHY THOSE TWO. `uiconfig.spec.ts` argues this in full and this file inherits it: the suite drives
  * ONE server process, and `[serve] auth` is a property of how a process was STARTED - one process
@@ -28,9 +28,11 @@ import { expect, test, type Page } from '@playwright/test'
  * `test_serve_auth_jwt.py`'s claim, made there against real keys and real signatures.
  *
  * THE CLAIM. A person opening this facade under the DHIS2 posture is asked who they are before any
- * page is drawn; what they type is sent as HTTP Basic on the next request; and the app is the app
- * again once the server accepts it. Under the JWT posture they are told whose token to bring, and
- * what they paste is what leaves the tab.
+ * page is drawn; what they type is checked against the server before this tab keeps it, so a wrong
+ * password is refused at the prompt rather than at the first submission; what they type is sent as
+ * HTTP Basic on every request after that; the app is the app again once the server accepts it; and
+ * signing out forgets the lot. Under the JWT posture they are told whose token to bring, and what
+ * they paste is what leaves the tab.
  */
 
 /** The aggregate form the fixture project publishes, which is what the gated capture answers. */
@@ -126,6 +128,31 @@ async function servePosture(page: Page, security: unknown): Promise<void> {
     })
 }
 
+/**
+ * Answer `GET /whoami` the way a posture-configured server would: 401 unless the credential is the one.
+ *
+ * This is the address the sign-in panel asks before it keeps anything, so the credential the browser
+ * puts on it is the credential a person typed - which makes the fulfilment a check of the very thing
+ * under test rather than a stand-in for it. `username` is what the server says the caller is called,
+ * and the panel is required to keep that rather than what was typed into the box.
+ */
+async function nameTheCaller(
+    page: Page,
+    accepted: string,
+    named: { posture: string; username: string | null; name: string },
+): Promise<void> {
+    await page.route('**/whoami', async (route) => {
+        const credential = await route.request().headerValue('authorization')
+        const refused = credential !== accepted
+        await route.fulfill({
+            status: refused ? 401 : 200,
+            contentType: refused ? 'application/fhir+json' : 'application/json',
+            headers: refused ? { 'WWW-Authenticate': 'xBasic realm="d2w fhir serve"' } : {},
+            body: JSON.stringify(refused ? UNAUTHENTICATED_OUTCOME : named),
+        })
+    })
+}
+
 /** What an accepted capture answers with, which is all the form screen reads off a 201. */
 const ACCEPTED_OUTCOME = {
     resourceType: 'OperationOutcome',
@@ -167,6 +194,7 @@ async function guardTheCapture(page: Page, sent: string[], accepted: string = EX
 test('a DHIS2-posture facade asks who this is, and is the app again once it knows', async ({ page }) => {
     const sent: string[] = []
     await serveDhis2Posture(page)
+    await nameTheCaller(page, EXPECTED_AUTHORIZATION, { posture: 'dhis2', username: USERNAME, name: USERNAME })
     await guardTheCapture(page, sent)
 
     // Before signing in: the shell is there, and the panel is in place of the page.
@@ -197,13 +225,40 @@ test('a DHIS2-posture facade asks who this is, and is the app again once it know
     expect(sent.at(-1)).toBe(EXPECTED_AUTHORIZATION)
 })
 
+test('a wrong password is refused at the prompt, before anything is filled in', async ({ page }) => {
+    const sent: string[] = []
+    await serveDhis2Posture(page)
+    await nameTheCaller(page, EXPECTED_AUTHORIZATION, { posture: 'dhis2', username: USERNAME, name: USERNAME })
+    await guardTheCapture(page, sent)
+
+    await page.goto('/#/forms')
+    await page.getByLabel('DHIS2 username').fill(USERNAME)
+    await page.getByLabel('DHIS2 password').fill('not-the-password')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+
+    // The refusal is on the panel, the fields are still there to try again with, and nothing was
+    // kept - which is the whole point of asking before storing.
+    await expect(page.getByText('DHIS2 did not accept this username and password.')).toBeVisible()
+    await expect(page.getByLabel('DHIS2 password')).toBeVisible()
+    expect(await page.evaluate(() => sessionStorage.getItem('d2w-fhir-serve-authorization'))).toBeNull()
+
+    // And the right password gets through, on the same panel, with nothing reloaded.
+    await page.getByLabel('DHIS2 password').fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+
+    await expect(page.getByText('This server takes your DHIS2 credentials')).toHaveCount(0)
+    await expect(page.getByText(USERNAME)).toBeVisible()
+})
+
 test('a credential this server refuses brings the prompt back, wherever the refusal was met', async ({ page }) => {
     const sent: string[] = []
     await serveDhis2Posture(page)
+    await nameTheCaller(page, EXPECTED_AUTHORIZATION, { posture: 'dhis2', username: USERNAME, name: USERNAME })
     await guardTheCapture(page, sent)
 
     // A tab holding a credential the server no longer accepts - a password changed, an account
-    // disabled. The app opens as the app, because nothing has been refused yet.
+    // disabled. The app opens as the app, because nothing has been refused yet: the check at the
+    // prompt cannot cover a credential that went stale after somebody signed in.
     await page.addInitScript(() => {
         sessionStorage.setItem('d2w-fhir-serve-authorization', 'Basic d3JvbmM6d3Jvbmc=')
         sessionStorage.setItem('d2w-fhir-serve-identity', 'someone-else')
@@ -216,15 +271,38 @@ test('a credential this server refuses brings the prompt back, wherever the refu
     await page.getByRole('button', { name: 'Submit' }).click()
 
     // The 401 the submission met is what asks again, and it says the credentials were not accepted.
-    await expect(page.getByText('This server did not accept those credentials.')).toBeVisible()
+    // The submission's own error path is what runs here - which it can only do because the server's
+    // challenge names a scheme the browser hands back instead of intercepting.
+    await expect(page.getByText('DHIS2 did not accept this username and password.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
     expect(sent.at(-1)).toBe('Basic d3JvbmM6d3Jvbmc=')
+})
+
+test('signing out forgets the credential and asks again', async ({ page }) => {
+    const sent: string[] = []
+    await serveDhis2Posture(page)
+    await nameTheCaller(page, EXPECTED_AUTHORIZATION, { posture: 'dhis2', username: USERNAME, name: USERNAME })
+    await guardTheCapture(page, sent)
+
+    await page.goto('/#/forms')
+    await page.getByLabel('DHIS2 username').fill(USERNAME)
+    await page.getByLabel('DHIS2 password').fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByText(USERNAME)).toBeVisible()
+
+    await page.getByRole('button', { name: 'Sign out' }).click()
+
+    await expect(page.getByText('This server takes your DHIS2 credentials')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0)
+    expect(await page.evaluate(() => sessionStorage.getItem('d2w-fhir-serve-authorization'))).toBeNull()
+    expect(await page.evaluate(() => sessionStorage.getItem('d2w-fhir-serve-identity'))).toBeNull()
 })
 
 
 test('a JWT-posture facade names the issuer to get a token from, and sends what was pasted', async ({ page }) => {
     const sent: string[] = []
     await serveJwtPosture(page)
+    await nameTheCaller(page, EXPECTED_BEARER, { posture: 'jwt', username: USERNAME, name: USERNAME })
     await guardTheCapture(page, sent, EXPECTED_BEARER)
 
     // Before signing in: one field, headed with the issuer, because a person told to bring a token
@@ -241,10 +319,10 @@ test('a JWT-posture facade names the issuer to get a token from, and sends what 
     await page.getByLabel('Token').fill(PASTED_TOKEN)
     await page.getByRole('button', { name: 'Sign in' }).click()
 
-    // After signing in: the page is drawn, and nobody is named - the name on a receipt is the claim
-    // the server read out of the token, never one this browser decided for itself.
+    // After signing in: the page is drawn, and the person named is the one the SERVER read out of
+    // the token at `/whoami` - never one this browser decided for itself by opening the token.
     await expect(page.getByText(`This server takes a token from ${ISSUER}`)).toHaveCount(0)
-    await expect(page.getByText(USERNAME)).toHaveCount(0)
+    await expect(page.getByText(USERNAME)).toBeVisible()
 
     // And a capture goes through, carrying exactly what was pasted, as a bearer token.
     await page.goto(`/#/forms/${AGGREGATE_FORM}`)
