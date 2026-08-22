@@ -168,6 +168,10 @@ SKIP_WHEN_ENVIRONMENT_MISSING: dict[str, tuple[str, ...]] = {
     # cohort into FHIR and scores a measure over it. Every other example in that
     # directory evaluates over inline data and needs nothing running.
     "fhir/engine/e2e_measure_from_dhis2.py": ("DHIS2_URL", "DHIS2_USERNAME", "DHIS2_PASSWORD"),
+    # The `dhis2` posture checks a caller's own DHIS2 credentials against the instance, so the
+    # example presents a real one — a caller's, never the facade's profile. The personal access
+    # token is the same posture with no password on the wire.
+    "fhir/cli/serve_auth_postures.sh": ("DHIS2_USERNAME", "DHIS2_PASSWORD", "DHIS2_PAT"),
 }
 
 DEFAULT_PROFILE = "local_basic"
