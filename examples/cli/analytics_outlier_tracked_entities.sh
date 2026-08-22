@@ -25,11 +25,11 @@ d2w analytics outlier-detection \
 
 # --- Tracked entity analytics ------------------------------------------------
 # Line-lists tracked entities of a given type. The seeded Sierra Leone fixture
-# ships one TET "Person (Play)" (uid=nEenWmSyUEp) with 500 enrolled children
+# ships one TET "Person" (uid=nEenWmSyUEp) with 500 enrolled children
 # from the Child Programme sample (IpHINAT79UW).
 
 echo
-echo "--- list tracked entities of type Person (Play) under Sierra Leone (descendants), first 3"
+echo "--- list tracked entities of type Person under Sierra Leone (descendants), first 3"
 d2w analytics tracked-entities query nEenWmSyUEp \
     --dimension ou:ImspTQPwCqd --ou-mode DESCENDANTS \
     --page-size 3 --asc created

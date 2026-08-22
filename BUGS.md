@@ -2239,9 +2239,10 @@ cleanly with something like E5002 referencing the actual collision), or
 (b) the built-in "Person" / "First name" / "Last name" don't ship with
 unique constraints so sample-data bundles can bring their own.
 
-**Actual:** imports must either rename their objects or skip them entirely.
-Renames with a suffix like "Person (Play)" work, but create a
-second TET in the instance that downstream consumers may not expect.
+**Actual:** imports must either rename their objects, delete the built-in,
+or skip them entirely. A rename with a suffix like "Person (Play)" imports,
+but it leaves a second TET in the instance that downstream consumers do not
+expect and puts a word nobody can explain in front of every reader.
 
 **Impact:** any production DHIS2 instance restoring a Sierra-Leone-derived
 metadata bundle (play.dhis2.org is the reference tracker demo) hits this
@@ -2249,9 +2250,15 @@ on bootstrap. Bundle tooling can't "just import" — it needs renaming or
 UID-remapping logic.
 
 **Workaround in this repo:**
-`infra/scripts/seed/loader.py::_disambiguate_common_names` appends
-` (Play)` to `name` / `shortName` / `displayName` on every
-TrackedEntityType + TrackedEntityAttribute before submission.
+`infra/scripts/seed/loader.py::resolve_tracked_entity_names` posts the
+TrackedEntityType + TrackedEntityAttribute sections under the names the
+fixture carries, reads the E5003 rows off the import report, looks up the
+object already holding each name, asks `/api/tracker/trackedEntities`,
+`/api/programs`, and `/api/trackedEntityTypes` what references it, and
+deletes it when nothing does — then posts the clean name again. Only a
+name whose blocker survives takes the ` (Play)` suffix, and the seed logs
+which name kept it and why. Against `dhis2/core:2.43.1.0` no built-in
+stands in the way and every name imports clean.
 
 **Expected upstream fix:**
 - Loosen the UNIQUE constraint on `trackedEntityType.name` /

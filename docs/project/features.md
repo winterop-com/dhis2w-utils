@@ -2336,7 +2336,7 @@ an identifier search and a paged listing on one page, with a detail route at
   served FHIR resource with the tracked entity types riding it under the
   instance's own names, so the navigation entry and the page heading alike read
   the instance's own name for the one type a run serves - *Person*,
-  *Person (Play)*, *Specimen batch*, singular and unpluralised because the
+  *Fridge*, *Specimen batch*, singular and unpluralised because the
   string is DHIS2's - and **Tracked entities** once more than one type rides,
   never the FHIR resource this project projects a person onto. A section is
   titled *Specimen batch* rather than `Specimen` on the same rule.

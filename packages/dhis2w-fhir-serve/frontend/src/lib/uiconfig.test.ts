@@ -125,15 +125,15 @@ describe('what the register is called on this run', () => {
     })
 
     it('uses the name as DHIS2 spells it, in whatever language the instance holds it', () => {
-        // Never pluralised and never rewritten: turning "Person (Play)" into anything else means
+        // Never pluralised and never rewritten: turning "Personne" into anything else means
         // guessing at a string this project did not write.
         expect(
             registerTitle({
                 enabled: true,
                 listing: true,
-                registers: [{ resource: 'Patient', types: [{ uid: 'TetPerson01', name: 'Person (Play)' }] }],
+                registers: [{ resource: 'Patient', types: [{ uid: 'TetPerson01', name: 'Personne' }] }],
             }),
-        ).toBe('Person (Play)')
+        ).toBe('Personne')
     })
 
     it('is the register itself once more than one type rides, whichever resources they ride', () => {
