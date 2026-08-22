@@ -216,7 +216,11 @@ async def test_apply_sharing_bulk_merges_in_input_order_when_responses_are_stagg
     finally:
         await client.close()
 
-    assert completion_order == list(reversed(uids))
+    # The property under test is that the merged result keeps input order however completion
+    # runs - not the exact completion sequence, which rides scheduler timing and inverts on a
+    # loaded machine. It is enough that completion genuinely ran out of input order.
+    assert completion_order != uids
+    assert sorted(completion_order) == sorted(uids)
     assert result.successful_uids == [uid for index, uid in enumerate(uids) if index % 3]
     assert [failure.uid for failure in result.failures] == [uid for index, uid in enumerate(uids) if index % 3 == 0]
     assert result.total == len(uids)
