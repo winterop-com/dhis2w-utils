@@ -19,6 +19,18 @@ never logged, and never held anywhere a later request can reach. `Basic` and `Ap
 DHIS2's business, and a facade that inspected the credential would be a facade that could get the
 inspection wrong.
 
+THE `jwt` POSTURE RIDES THE SAME PATH, AND ONLY WHEN IT WAS TOLD TO. A token an external issuer
+minted is a credential DHIS2 accepts exactly when the instance was configured to trust that same
+issuer, through DHIS2's own `oidc.jwt.token.authentication.enabled` - which is a fact about the
+instance that this facade cannot read and must not guess. So `[serve.jwt] forward_bearer` states it.
+True and the `Bearer` header is forwarded exactly as `Basic` is: the same opaque header, the same
+credential-free pool, the same DHIS2 gates enforced against the person who asked. False - the
+default - and the live register is not answered at all, with `RegisterNotForwardableError` naming
+what would make it answerable. THE ONE THING IT NEVER DOES IS FALL BACK TO THE FACADE'S OWN PROFILE:
+that would answer every caller with that profile's rights, and under an administrator profile DHIS2
+skips its ownership and access-level model outright without writing a break-the-glass audit entry.
+A loud refusal is the only honest answer to "this caller cannot be authorized here".
+
 WHICH READS. Exactly the register reads a caller asks for: the tracked entity read, the identifier
 search, the listing and its counts, the enrollment listing, and the entity `/evaluate` names as its
 context. `dhis2w_fhir_serve.register.wire` takes a `RegisterReader` rather than a `Dhis2Client`
@@ -123,6 +135,30 @@ class PassThroughUnavailableError(ServeError):
         )
 
 
+class RegisterNotForwardableError(ServeError):
+    """The `jwt` posture is running with `forward_bearer` off, so the live register is not answered.
+
+    501 rather than 401 or 404, because none of those is what happened. The caller authenticated
+    perfectly well, the resource type exists, and this server simply does not implement reading the
+    register under this configuration - which is what 501 says. The one status it must never be is a
+    200 read as somebody else, and the one behaviour it must never have is a silent fall back to the
+    facade's profile; the module docstring above says why in full.
+    """
+
+    status_code = 501
+    issue_code = "not-supported"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "this server takes a token from an OpenID Connect issuer and will not read the register as "
+            "anybody but the caller who asked. Answering it needs two things stated together: "
+            "`[serve.jwt] forward_bearer = true` here, and a DHIS2 instance configured to trust the same "
+            "issuer (`oidc.jwt.token.authentication.enabled`), so the token you presented is one DHIS2 "
+            "resolves to a user of its own. Until both are true, the published guide, the received "
+            "responses, and every operation over them are served as they always were."
+        )
+
+
 @runtime_checkable
 class RegisterReader(Protocol):
     """What a register read needs of whatever it reads DHIS2 through: one raw GET answering parsed JSON.
@@ -155,6 +191,14 @@ class CallerCredentialReader(BaseModel):
     authorization: str = Field(repr=False)
     """The caller's header value, verbatim - never parsed, never logged, never held past this request."""
 
+    challenge: str
+    """What a 401 the instance gives back is answered with, which is this run's own posture's challenge.
+
+    Carried rather than derived, because the credential itself is opaque here: this reader cannot
+    tell a forwarded `Basic` from a forwarded `Bearer` without parsing the one thing it promises
+    never to parse. The posture that built it knows, so the posture that built it states it.
+    """
+
     async def get_raw(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Read one DHIS2 path as the caller, forwarding their header and none of the runtime's.
 
@@ -173,7 +217,7 @@ class CallerCredentialReader(BaseModel):
             raise UpstreamRefusalError(
                 answer.status_code,
                 issue_code,
-                challenge_for(ServeAuth.DHIS2) if answer.status_code == 401 else None,
+                self.challenge if answer.status_code == 401 else None,
             )
         if answer.status_code >= 400:
             raise Dhis2ApiError(status_code=answer.status_code, message=answer.reason_phrase, body=_error_body(answer))
@@ -202,15 +246,26 @@ async def open_pass_through_client(base_url: str, *, provenance: str) -> AsyncGe
 
 
 async def register_reader(request: Request) -> RegisterReader | None:
-    """What one register read runs over: the caller's own credentials under `dhis2`, else the runtime's client.
+    """What one register read runs over: the caller's own credentials where they can be, else the runtime's client.
 
     None is the compiled run, and it is the same None `live_client` answers - a process with no
     instance behind it has nothing to read a register from, whatever posture it serves under.
+
+    Three answers, and the middle one is the one worth reading twice. Under `dhis2` - and under `jwt`
+    with `[serve.jwt] forward_bearer = true` - the read is answered as the caller. Under `jwt` with
+    `forward_bearer` off it is refused rather than answered as the facade. Under `none` and `token`
+    it runs on the runtime's own client, which is the posture those two always were: they decide who
+    may ask and nothing about what an answer contains.
     """
     runtime_connection = live_client(request)
     if runtime_connection is None:
         return None
-    if serve_context(request).settings.auth is not ServeAuth.DHIS2:
+    settings = serve_context(request).settings
+    if settings.auth is ServeAuth.JWT:
+        if not settings.jwt.forward_bearer:
+            raise RegisterNotForwardableError
+        return await caller_reader(request)
+    if settings.auth is not ServeAuth.DHIS2:
         return runtime_connection
     return await caller_reader(request)
 
@@ -218,30 +273,40 @@ async def register_reader(request: Request) -> RegisterReader | None:
 async def caller_reader(request: Request) -> CallerCredentialReader:
     """Bind one request's own `Authorization` to the pooled connection, refusing a request that carries none.
 
-    A register read under this posture is answered under the credentials of whoever asked, so a
-    request that presented none has nothing to be answered under. That is a 401 rather than a fall
+    A register read under a forwarding posture is answered under the credentials of whoever asked, so
+    a request that presented none has nothing to be answered under. That is a 401 rather than a fall
     back to the runtime's client: falling back would answer an anonymous caller with the facade
-    profile's rights, which is exactly the read this posture exists to stop.
+    profile's rights, which is exactly the read these postures exist to stop.
 
     `[serve] auth_scope = "write"` leaves reads unguarded, so a register read can be the first thing
-    on a request that has established nobody. It establishes them here, through the same check and
-    the same brief cache the guarded routes use, rather than refusing a caller who presented perfectly
-    good credentials on an address that had not been told to look at them.
+    on a request that has established nobody. It establishes them here, through the same check the
+    guarded routes use - and the same brief cache, where the posture has one - rather than refusing a
+    caller who presented perfectly good credentials on an address that had not been told to look at
+    them.
+
+    The identity has to have been established by the posture this run serves. A `dhis2` identity on a
+    `jwt` run is not a thing that can happen, and checking it is how this function stays true when a
+    fourth posture arrives: the credential it forwards is only ever one this server itself accepted.
     """
+    posture = serve_context(request).settings.auth
     if request_identity(request) is None:
         await require_authenticated(request)
     identity = request_identity(request)
     presented = request.headers.get(AUTHORIZATION_HEADER, "").strip()
-    if identity is None or identity.posture is not ServeAuth.DHIS2 or presented == "":
+    if identity is None or identity.posture is not posture or presented == "":
         raise UnauthenticatedError(
             "this server answers the register under the DHIS2 authorization of whoever asks, and this "
             "request presented no credential to answer it under",
-            challenge_for(ServeAuth.DHIS2),
+            challenge_for(posture, serve_context(request).settings.jwt.issuer),
         )
     connection = caller_client(request)
     if connection is None:
         raise PassThroughUnavailableError
-    return CallerCredentialReader(connection=connection, authorization=presented)
+    return CallerCredentialReader(
+        connection=connection,
+        authorization=presented,
+        challenge=challenge_for(posture, serve_context(request).settings.jwt.issuer),
+    )
 
 
 def _error_body(answer: httpx.Response) -> Any:

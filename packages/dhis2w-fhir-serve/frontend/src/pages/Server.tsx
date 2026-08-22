@@ -21,6 +21,7 @@ const AUTHENTICATION_LABELS: Record<string, string> = {
     none: 'Every caller is served',
     token: 'A token this deployment issued',
     dhis2: 'The DHIS2 credentials of whoever is calling',
+    jwt: 'A token from an OpenID Connect issuer',
 }
 
 /** What each scope is called. `write` is the default and covers the one state-changing address. */
@@ -99,6 +100,11 @@ export function Server() {
                         </CardHeader>
                         <CardContent className="space-y-2 text-sm">
                             <p>{AUTHENTICATION_LABELS[authentication.posture] ?? authentication.posture}</p>
+                            {/* The issuer is the one part of `[serve.jwt]` that crosses, and the one a
+                                caller needs: a token has to be got from somewhere before it can be sent. */}
+                            {authentication.issuer && (
+                                <p className="font-mono text-xs break-all">{authentication.issuer}</p>
+                            )}
                             {authentication.posture !== 'none' && (
                                 <p className="text-muted-foreground">
                                     {SCOPE_LABELS[authentication.scope] ?? authentication.scope}

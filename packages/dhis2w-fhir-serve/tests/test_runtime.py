@@ -184,10 +184,10 @@ async def test_attaching_places_both_names_the_handlers_read(settings: ServeSett
 
 
 def test_a_runtime_names_what_a_facade_holds(tmp_path: Path) -> None:
-    """`ServeContext` is what is served, and the two connections are what it is served over."""
+    """`ServeContext` is what is served; the two connections and the issuer's keys are what serves it."""
     fields = set(ServeRuntime.model_fields)
 
-    assert fields == {"context", "live_client", "caller_client"}
+    assert fields == {"context", "live_client", "caller_client", "jwt_verifier"}
 
 
 async def test_the_pass_through_connection_is_opened_only_for_the_dhis2_posture(

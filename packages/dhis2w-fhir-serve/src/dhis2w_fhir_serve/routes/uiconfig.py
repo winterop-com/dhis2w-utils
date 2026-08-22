@@ -28,8 +28,9 @@ this module inherits it rather than restating it.
 THE AUTHENTICATION POSTURE IS HERE FOR THE SAME REASON `capture` is: it is a fact about how this
 process was started that a screen has to act on, and the screen's alternative is parsing a
 conformance document to decide which prompt to draw. THE NAME AND NOTHING ELSE crosses - `none`,
-`token`, or `dhis2`, plus how much of the surface the posture covers. No token, no realm, no
-username, no DHIS2 address beyond the one this document already carries. The sign-in gate in the
+`token`, `dhis2`, or `jwt`, plus how much of the surface the posture covers and, under `jwt`, the
+issuer a caller has to go to for a token. No token, no realm, no username, no signing key, no
+audience, no claim name, no DHIS2 address beyond the one this document already carries. The sign-in gate in the
 capture UI reads the posture off `/metadata` instead, because `/metadata` is open in every scope and
 this document is not: under `[serve] auth_scope = "all"` a caller with no credentials is refused
 here, which is the correct answer and a useless one to draw a prompt from.
@@ -159,14 +160,24 @@ class AuthUiConfig(BaseModel):
     """How this process decides who is calling, as a screen has to name it - the posture, never a secret.
 
     `posture` is what decides which prompt the capture UI draws: `token` a field for one of this
-    deployment's tokens, `dhis2` a DHIS2 username and password, `none` nothing at all. `scope` is what
-    decides whether browsing this server needs a credential or only submitting does.
+    deployment's tokens, `dhis2` a DHIS2 username and password, `jwt` a field for a token somebody
+    else issued, `none` nothing at all. `scope` is what decides whether browsing this server needs a
+    credential or only submitting does.
+
+    `issuer` is stated under `jwt` and None otherwise. It is the one part of `[serve.jwt]` that
+    crosses - the audience, the claim name, and whether the token is forwarded are this deployment's
+    business, and none of them is something a screen acts on. The issuer is: a person asked for a
+    token has to be told whose token, and the answer was never secret to begin with. The sign-in gate
+    reads it off `/metadata` rather than here, for the reason this module's own note gives, and it is
+    carried here for the Server page.
     """
 
     model_config = ConfigDict(frozen=True)
 
     posture: ServeAuth = ServeAuth.NONE
     scope: ServeAuthScope = ServeAuthScope.WRITE
+    issuer: str | None = None
+    """The OpenID Connect issuer this server takes tokens from, under `jwt`, and None otherwise."""
 
 
 class UiConfig(BaseModel):
@@ -209,7 +220,11 @@ async def read_ui_config(request: Request) -> UiConfig:
     settings = context.settings
     return UiConfig(
         capture=settings.capture,
-        auth=AuthUiConfig(posture=settings.auth, scope=settings.auth_scope),
+        auth=AuthUiConfig(
+            posture=settings.auth,
+            scope=settings.auth_scope,
+            issuer=settings.jwt.issuer if settings.auth is ServeAuth.JWT else None,
+        ),
         basemaps=basemap_layers(settings.basemaps),
         dhis2_base_url=public_instance_url(settings.dhis2_base_url),
         tracked_entities=tracked_entities_config(live=settings.live, surface=context.register_surface),

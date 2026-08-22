@@ -217,13 +217,21 @@ the basemap policy included, is covered in
 
 ## Who the facade serves
 
-`[serve] auth` is the posture, and there are three:
+`[serve] auth` is the posture, and there are four:
 
 | Posture | What a caller presents | Where the answer comes from |
 | --- | --- | --- |
 | `none` | Nothing | Every caller is served. The default. |
 | `token` | `Authorization: Bearer <token>` | The values of `D2W_FHIR_SERVE_TOKENS`, compared in constant time. |
 | `dhis2` | The DHIS2 credentials they would sign in to the instance with | One `GET /api/me` against that instance, as them - and every register read goes to it as them too. Needs `--live`. |
+| `jwt` | `Authorization: Bearer <token>`, from an OpenID Connect issuer | The signing keys that issuer publishes, read once at startup and checked in memory on every request. |
+
+They are a ladder rather than a menu, and each rung is the one below it with one
+more thing known about the caller. `none` knows nothing. `token` knows the caller
+holds a secret this deployment handed out. `dhis2` knows the caller is a
+particular DHIS2 user, because DHIS2 said so. `jwt` knows the caller is a
+particular person at an identity provider, because that provider signed for it.
+Climbing a rung is editing `fhir.toml` and restarting - never porting anything.
 
 `[serve] auth_scope` says how much of the surface the posture covers. `write` -
 the default - asks for credentials on `POST /QuestionnaireResponse`, which is
@@ -361,10 +369,106 @@ Two consequences worth stating plainly:
 `dhis2` states that reads of the register are answered under the caller's own
 DHIS2 authorization.
 
-`oauth2` is the name reserved for the posture after that. It is deliberately
-not a value `[serve] auth` accepts today: DHIS2 2.43.1's authorization server
-returns a 500 for any client its API creates (BUGS.md 96), so a project could
-state it and nothing would answer.
+### `jwt`: a token from the identity provider you already run
+
+This is the posture for a ministry that already has an identity provider. The
+clerks, the analysts, and the partner systems already sign in to it for
+everything else; `auth = "jwt"` is this facade taking that answer instead of
+asking the same question a second time. **It needs no new infrastructure at all** -
+no authorization server here, no client secret here, no token minted here.
+
+```toml
+[serve]
+host = "0.0.0.0"
+auth = "jwt"
+
+[serve.jwt]
+issuer = "https://idp.example.org/realms/health"
+audience = "d2w-fhir-serve"
+username_claim = "preferred_username"
+```
+
+```bash
+d2w fhir serve
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/Questionnaire
+```
+
+While the server starts it reads
+`https://idp.example.org/realms/health/.well-known/openid-configuration`, takes
+the `jwks_uri` from it, and reads the keys published there. **An issuer this
+machine cannot reach refuses the run**, in one line, before the socket opens: a
+posture that could not be honoured is not one to discover on a caller's behalf.
+
+Every request after that is checked in memory, against those keys, with no round
+trip to anybody:
+
+| Checked | What holds |
+| --- | --- |
+| Signature | One of the keys the issuer publishes, selected by the token's `kid`. RSA and ECDSA only - never a shared-secret algorithm, which on a public key is the algorithm-confusion attack. |
+| `iss` | Exactly the issuer `[serve.jwt] issuer` names. |
+| `exp` | In the future, with a minute of clock leeway. A token with no `exp` is refused. |
+| `nbf` | In the past, where the token states one. |
+| `aud` | Contains `[serve.jwt] audience`, when the table states one. Stating none accepts whatever this issuer signed. |
+| `[serve.jwt] username_claim` | Present and non-empty. Its value becomes the request identity, and the receipt records it. |
+
+The keys are held for as long as the JWKS response's own `Cache-Control` asks,
+never for less than five minutes - an issuer sending `max-age=0` on a document of
+public keys would otherwise put itself in the path of every request. **A key
+rotation is not an outage**: a token signed under a `kid` this process does not
+hold sends it back to the issuer once, and the new keys answer. A `kid` that
+never existed costs that issuer one read a minute, however many such tokens
+arrive.
+
+The trade this posture makes, stated plainly: **a token revoked before it expires
+stays valid here until it expires.** That is what local verification buys, and it
+is what every JWKS validator trades. The answer is short token lifetimes at the
+issuer.
+
+### Under `jwt`, the register is not read at all unless you say so
+
+A token this facade accepts is not automatically a token *DHIS2* accepts. DHIS2
+resolves a foreign issuer's JWT to a DHIS2 user only when the instance was
+configured to trust that same issuer -
+[`oidc.jwt.token.authentication.enabled`](https://docs.dhis2.org/en/manage/performing-system-administration/dhis-core-version-master/installation.html)
+in `dhis.conf` - and whether it was is a fact about the instance that this facade
+cannot read and will not guess.
+
+So `[serve.jwt] forward_bearer` states it, and it is **false by default**:
+
+```toml
+[serve.jwt]
+issuer = "https://idp.example.org/realms/health"
+forward_bearer = true       # only when DHIS2 trusts the same issuer
+```
+
+- **False.** The register answers 501, with an OperationOutcome naming both
+  halves that would make it answerable. The published guide, the received
+  responses, `$generate`, `/evaluate`, and the terminology reads are served
+  exactly as they always were.
+- **True.** A register read carries the caller's own `Bearer` header to the
+  instance, verbatim, over the same credential-free pool and by the same opaque
+  forward the `dhis2` posture uses. DHIS2 resolves the token to one of its users
+  and applies its five gates to that person.
+
+**What it never does is fall back to the facade's own profile.** That would
+answer every caller with that profile's rights - and DHIS2 skips its ownership
+and access-level model outright for a superuser without writing a
+break-the-glass audit entry, so an administrator profile would read past
+sharing, ownership, and access levels with nothing in the trail to say so. A
+loud 501 is the only honest answer to "this caller cannot be authorized here".
+
+`GET /metadata` says which of the two is in force, so a client learns it from the
+conformance document rather than from a refusal. The issuer is named there too,
+in an extension on `rest.security` - never a key, never the audience, never the
+claim name. The issuer is printed inside every token it signs, so stating it
+discloses nothing.
+
+`oauth2` is the name reserved for an authorization server this facade would run
+itself. It is deliberately not a value `[serve] auth` accepts: DHIS2 2.43.1's
+authorization server returns a 500 for any client its API creates (BUGS.md 96),
+so a project could state it and nothing would answer. **A deployment that wants
+bearer tokens today states `jwt` and names the issuer it already has** - which is
+the case that reservation was ever really about.
 
 ## Serving with a profile also links the screens back to the instance
 
@@ -527,10 +631,10 @@ machine losing power.
 `ls .serve/responses/received | wc -l` is therefore the pending count, with
 no extra bookkeeping: the directory *is* the queue
 [`d2w fhir forward`](201-forward.md) drains, which is why it is named
-`received/` rather than `responses/` - `forwarded/` and `rejected/` are its
-siblings.
+`received/` rather than `responses/` - `forwarded/`, `rejected/`, and
+`withdrawn/` are its siblings.
 
-A fourth directory, `malformed/`, is not a state a receipt is in. A file that
+`malformed/` is not a state a receipt is in. A file that
 no longer reads as a receipt - truncated, hand-edited, half-copied - is moved
 there with a `<file>.reason.json` beside it naming what stopped it, and the
 read that found it carries on with everything else. One unreadable byte costs
@@ -551,6 +655,7 @@ $ curl -s localhost:8390/spool | jq .counts
   "received": 0,
   "forwarded": 28,
   "rejected": 1,
+  "withdrawn": 0,
   "malformed": 0
 }
 ```

@@ -14,7 +14,7 @@ listing answer from the instance per request; no read of the store ever touches 
 
 The receipt spool is the one exception, and deliberately so: it is a path rather than a loaded
 index, and every read of it re-reads the directory. `d2w fhir forward` runs as a separate process
-and renames receipt files between the spool's three lifecycle directories while the server is up,
+and renames receipt files between the spool's four lifecycle directories while the server is up,
 so anything cached would be stale within seconds of a drain.
 
 ## When to reach for it
@@ -42,9 +42,9 @@ so anything cached would be stale within seconds of a drain.
   `SpoolCursor`, `SpoolPage`, `requested_page_size`, `requested_cursor`).
 - Load a project's served resources without an HTTP server (`load_compiled_store`, `ResourceStore`,
   `SearchQuery`, `IdentifierToken`).
-- Read or write the receipt spool a running facade keeps, in any of its three lifecycle states
+- Read or write the receipt spool a running facade keeps, in any of its four lifecycle states
   (`ResponseSpool`, `StoredReceipt`, `StoredResponseEnvelope`, `ResponseLifecycle`,
-  `RECEIVED_RESPONSES_RELATIVE_PATH`).
+  `RECEIVED_RESPONSES_RELATIVE_PATH`, `WITHDRAWN_RESPONSES_RELATIVE_PATH`).
 - Validate a QuestionnaireResponse against a served IG outside the endpoint
   (`validate_response`, `build_capture_index`, `CaptureNaming`, `CodingResolverSet`).
 - Generate a synthetic response against a served form (`generate_response`, `draw_seed`,
@@ -225,8 +225,7 @@ from dhis2w_fhir_serve import ServeRouters, serve_routers
 from fastapi import Depends, Request
 
 
-async def whoever_this_application_says(request: Request) -> None:
-    ...  # raise your own 401 here
+async def whoever_this_application_says(request: Request) -> None: ...  # raise your own 401 here
 
 
 routers = serve_routers(capture=settings.capture, auth=settings.auth, auth_scope=settings.auth_scope)
@@ -292,21 +291,34 @@ handlers read is written and read back.
 
 ### Authentication
 
-Who the facade serves: the three postures `[serve] auth` picks between, the scope `[serve] auth_scope`
+Who the facade serves: the four postures `[serve] auth` picks between, the scope `[serve] auth_scope`
 covers, the startup refusals a posture this run could not honour meets before the socket opens, and
 the one dependency the guarded routers carry.
 
 ::: dhis2w_fhir_serve.auth
 
+### The external issuer
+
+Under `[serve] auth = "jwt"`, callers arrive with a token an OpenID Connect issuer this facade does
+not run has minted. The issuer's discovery document and its JWKS are read once while the server
+starts - an issuer this machine cannot reach refuses the run - and every token is then verified in
+memory against those public keys: signature over the asymmetric algorithms only, `iss`, `exp`, `nbf`,
+and `aud` where one is configured. The keys are held for as long as their own `Cache-Control` asks,
+never below a floor, and an unknown `kid` forces one refetch so a key rotation is not an outage.
+
+::: dhis2w_fhir_serve.oidc
+
 ### Credential pass-through
 
-Under `[serve] auth = "dhis2"` on a live run, a register read carries the **caller's** own
-`Authorization` header to the instance, opaque and unparsed, so DHIS2 applies its sharing,
-organisation unit scopes, ownership, and access levels to the person who actually asked. The reads
-share one pooled connection held on the runtime for the life of the process, and that pool carries no
-credential of its own - `CallerCredentialReader` is the per-request pairing of it with one caller's
-header, and nothing on the path is cached. The startup store build, `/uiconfig`, and the forward
-drain are not on it: none of them acts on behalf of a request.
+Under `[serve] auth = "dhis2"` on a live run - and under `"jwt"` with `[serve.jwt] forward_bearer` on
+- a register read carries the **caller's** own `Authorization` header to the instance, opaque and
+unparsed, so DHIS2 applies its sharing, organisation unit scopes, ownership, and access levels to the
+person who actually asked. The reads share one pooled connection held on the runtime for the life of
+the process, and that pool carries no credential of its own - `CallerCredentialReader` is the
+per-request pairing of it with one caller's header, and nothing on the path is cached. The startup
+store build, `/uiconfig`, and the forward drain are not on it: none of them acts on behalf of a
+request. Under `jwt` with `forward_bearer` off there is no caller channel at all, and the register
+answers 501 rather than falling back to the facade's own profile.
 
 ::: dhis2w_fhir_serve.passthrough
 

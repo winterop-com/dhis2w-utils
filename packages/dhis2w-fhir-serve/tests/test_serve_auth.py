@@ -615,7 +615,7 @@ async def test_the_posture_crosses_to_the_capture_ui_by_name_and_nothing_else_do
     async with _client(app) as http:
         body = (await http.get("/uiconfig")).json()
 
-    assert body["auth"] == {"posture": "token", "scope": "write"}
+    assert body["auth"] == {"posture": "token", "scope": "write", "issuer": None}
     assert DEPLOYMENT_TOKENS not in str(body)
 
 
@@ -633,7 +633,9 @@ FACADE_PROVENANCE = "dhis2w-fhir-serve/9.9.9"
 async def _reader(header_value: str = CALLER_BASIC) -> AsyncGenerator[CallerCredentialReader]:
     """One caller's reader over the credential-free pool a running facade would hold open."""
     async with open_pass_through_client(INSTANCE_URL, provenance=FACADE_PROVENANCE) as pool:
-        yield CallerCredentialReader(connection=pool, authorization=header_value)
+        yield CallerCredentialReader(
+            connection=pool, authorization=header_value, challenge=challenge_for(ServeAuth.DHIS2)
+        )
 
 
 async def test_a_pass_through_read_carries_the_callers_header_and_the_facades_name() -> None:

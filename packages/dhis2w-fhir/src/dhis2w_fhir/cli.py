@@ -1281,8 +1281,10 @@ def serve_command(
             help="Who this facade serves, overriding `\\[serve] auth`. `none` serves every caller; "
             "`token` takes a static bearer token out of D2W_FHIR_SERVE_TOKENS; `dhis2` takes the "
             "caller's own DHIS2 credentials and checks them against the instance this run reads, "
-            "which needs --live. Binding an interface other than loopback while neither this flag "
-            "nor fhir.toml states a posture is refused.",
+            "which needs --live; `jwt` takes a token from the OpenID Connect issuer named in "
+            "`\\[serve.jwt] issuer`, verified against that issuer's published keys. Binding an "
+            "interface other than loopback while neither this flag nor fhir.toml states a posture "
+            "is refused.",
         ),
     ] = None,
     auth_scope: Annotated[
@@ -1340,7 +1342,9 @@ def serve_command(
 
     `--basemap` offers another tile layer on the organisation-unit map, and `--basemap none` offers none.
 
-    `--auth` says who is served: `none`, `token` (D2W_FHIR_SERVE_TOKENS), or `dhis2` (the caller's own credentials).
+    `--auth` says who is served: `none`, `token` (D2W_FHIR_SERVE_TOKENS), `dhis2` (the caller's own
+    credentials), or `jwt` (a token from the OpenID Connect issuer named in `\[serve.jwt] issuer`,
+    verified against that issuer's published keys).
 
     Host, port, authentication, strict codes, the UI, and basemaps come from `\[serve]` unless a flag beats them.
 

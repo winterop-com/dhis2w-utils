@@ -47,6 +47,12 @@ posture gets a statement of its own, in words: this server serves every caller. 
 never behind the check, whatever `[serve] auth_scope` says, because a client has to be able to read
 the posture it is expected to meet.
 
+The `jwt` posture is the one that has to say more than a scheme. A caller who knows this server takes
+a bearer token still cannot get one without knowing which issuer to ask, so the issuer rides on the
+element as an extension - `JWT_ISSUER_EXTENSION_URL` - beside the `OAuth` code that names the scheme.
+Never a key, never an audience, never a claim name: the issuer is public by construction, since it is
+printed inside every token that issuer signs, and the rest is this deployment's own business.
+
 The register's entries are the ones that are not about the store at all. They are answered from the
 DHIS2 instance per request, and which resource types they are is the published `D2TET_CM`'s to say -
 one entry per FHIR resource the map takes an in-scope tracked entity type onto. They are declared
@@ -80,6 +86,7 @@ from dhis2w_fhir.r4 import (
     CapabilityStatementSoftware,
     CodeableConcept,
     Coding,
+    Extension,
 )
 
 from dhis2w_fhir_serve.spool import current_instant
@@ -177,12 +184,24 @@ _VIEWER_REST_DOCUMENTATION = (
 #: R4's own code system for the schemes a `rest.security` may name.
 SECURITY_SERVICE_SYSTEM = "http://terminology.hl7.org/CodeSystem/restful-security-service"
 
-#: The one code in that system this facade uses. The DHIS2 posture takes a username and a password
-#: over HTTP Basic, which is exactly what `Basic` names; the static-token posture takes a scheme the
-#: value set has no code for, so it is stated as text, which an extensible binding is for.
+#: The two codes in that system this facade uses. The DHIS2 posture takes a username and a password
+#: over HTTP Basic, which is exactly what `Basic` names; the JWT posture takes a bearer token from an
+#: OAuth 2.0 authorization server, which is what `OAuth` names. The static-token posture takes a
+#: scheme the value set has no code for, so it is stated as text, which an extensible binding is for.
 BASIC_SECURITY_CODE = "Basic"
+OAUTH_SECURITY_CODE = "OAuth"
 BEARER_TOKEN_SECURITY_TEXT = "Bearer token"
+JWT_BEARER_TOKEN_SECURITY_TEXT = "JWT bearer token"
 DHIS2_PERSONAL_ACCESS_TOKEN_SECURITY_TEXT = "DHIS2 personal access token"
+
+#: Where the `jwt` posture states WHICH issuer it takes tokens from.
+#:
+#: R4 has no element for it: `security.service` names schemes, and an issuer is not a scheme. So it
+#: rides as an extension on `security`, which is what BackboneElement extensions are for, under a URL
+#: this project defines - `docs/fhir/301-serving.md` is where it is defined. THE ISSUER AND NOTHING
+#: ELSE crosses: never a key, never an audience, never a claim name. The issuer is the one fact a
+#: caller needs and the one fact that was never secret - it is printed on every token it signs.
+JWT_ISSUER_EXTENSION_URL = "https://winterop-com.github.io/dhis2w-utils/fhir/StructureDefinition/serve-jwt-issuer"
 
 #: What each posture says about itself. The `none` statement exists so an absence is never inferred.
 NO_AUTHENTICATION_DESCRIPTION = (
@@ -204,6 +223,25 @@ DHIS2_AUTHENTICATION_DESCRIPTION = (
     "access levels decide what you see."
 )
 
+JWT_AUTHENTICATION_DESCRIPTION = (
+    "Send a token from the OpenID Connect issuer named in this element's issuer extension, as "
+    "`Authorization: Bearer <token>`. Obtaining one is that issuer's business: this server mints no "
+    "token and runs no authorization server. It verifies the signature against the keys the issuer "
+    "publishes, checks the issuer, the expiry, and the audience it was configured with, and records "
+    "the username claim on every receipt you capture."
+)
+JWT_FORWARDED_REGISTER_DESCRIPTION = (
+    "Reads of the register are answered under your own DHIS2 authorization: this server forwards your "
+    "token to the instance, which resolves it to a DHIS2 user because it trusts the same issuer, so "
+    "DHIS2's sharing, organisation unit scopes, ownership, and access levels decide what you see."
+)
+JWT_UNFORWARDED_REGISTER_DESCRIPTION = (
+    "The register is not served here. This server will not read it as anybody but the caller who "
+    "asked, and forwarding your token to DHIS2 needs both `[serve.jwt] forward_bearer` on this server "
+    "and a DHIS2 instance configured to trust the same issuer. The published guide and the received "
+    "responses are served as usual."
+)
+
 #: What each scope adds about how much of the surface the posture covers.
 WRITE_SCOPE_DESCRIPTION = (
     "Credentials are required to create a QuestionnaireResponse. Every read, every search, this "
@@ -215,6 +253,50 @@ DHIS2_WRITE_SCOPE_DESCRIPTION = (
     "published guide, and both operations are served without them."
 )
 ALL_SCOPE_DESCRIPTION = "Credentials are required for every interaction except reading this document."
+
+
+def build_security(
+    posture: ServeAuth, scope: ServeAuthScope, *, issuer: str | None = None, forward_bearer: bool = False
+) -> CapabilityStatementSecurity:
+    """State how this process decides who is calling, in every posture including the one that does not.
+
+    `cors` is false in all four because this facade sends no cross-origin headers at all: the capture
+    UI it serves is same-origin with it, and a browser page from anywhere else is a deployment
+    decision for whatever sits in front of this server.
+
+    `issuer` and `forward_bearer` are the `jwt` posture's and are ignored in the other three. The
+    issuer is stated because a caller cannot get a token without knowing who to ask; `forward_bearer`
+    is stated because it decides whether the register answers at all, and a client discovering that
+    from a 501 would be a client this document had misled.
+    """
+    if posture is ServeAuth.NONE:
+        return CapabilityStatementSecurity(cors=False, description=NO_AUTHENTICATION_DESCRIPTION)
+    if posture is ServeAuth.JWT:
+        return _jwt_security(scope, issuer=issuer, forward_bearer=forward_bearer)
+    stated = TOKEN_AUTHENTICATION_DESCRIPTION if posture is ServeAuth.TOKEN else DHIS2_AUTHENTICATION_DESCRIPTION
+    covered = _scope_description(posture, scope)
+    return CapabilityStatementSecurity(
+        cors=False,
+        service=_security_services(posture),
+        description=f"{stated} {covered}",
+    )
+
+
+def _jwt_security(scope: ServeAuthScope, *, issuer: str | None, forward_bearer: bool) -> CapabilityStatementSecurity:
+    """The `jwt` posture's statement: the scheme, the issuer, and what the register does under it."""
+    register = JWT_FORWARDED_REGISTER_DESCRIPTION if forward_bearer else JWT_UNFORWARDED_REGISTER_DESCRIPTION
+    covered = ALL_SCOPE_DESCRIPTION if scope is not ServeAuthScope.WRITE else WRITE_SCOPE_DESCRIPTION
+    return CapabilityStatementSecurity(
+        cors=False,
+        extension=None if issuer is None else [Extension(url=JWT_ISSUER_EXTENSION_URL, valueString=issuer)],
+        service=[
+            CodeableConcept(
+                coding=[Coding(system=SECURITY_SERVICE_SYSTEM, code=OAUTH_SECURITY_CODE, display=OAUTH_SECURITY_CODE)],
+                text=JWT_BEARER_TOKEN_SECURITY_TEXT,
+            )
+        ],
+        description=f"{JWT_AUTHENTICATION_DESCRIPTION} {register} {covered}",
+    )
 
 
 def build_server_capability(
@@ -263,28 +345,15 @@ def build_server_capability(
             CapabilityStatementRest(
                 mode="server",
                 documentation=_REST_DOCUMENTATION if settings.capture else _VIEWER_REST_DOCUMENTATION,
-                security=build_security(settings.auth, settings.auth_scope),
+                security=build_security(
+                    settings.auth,
+                    settings.auth_scope,
+                    issuer=settings.jwt.issuer,
+                    forward_bearer=settings.jwt.forward_bearer,
+                ),
                 resource=resources,
             )
         ],
-    )
-
-
-def build_security(posture: ServeAuth, scope: ServeAuthScope) -> CapabilityStatementSecurity:
-    """State how this process decides who is calling, in every posture including the one that does not.
-
-    `cors` is false in all three because this facade sends no cross-origin headers at all: the capture
-    UI it serves is same-origin with it, and a browser page from anywhere else is a deployment
-    decision for whatever sits in front of this server.
-    """
-    if posture is ServeAuth.NONE:
-        return CapabilityStatementSecurity(cors=False, description=NO_AUTHENTICATION_DESCRIPTION)
-    stated = TOKEN_AUTHENTICATION_DESCRIPTION if posture is ServeAuth.TOKEN else DHIS2_AUTHENTICATION_DESCRIPTION
-    covered = _scope_description(posture, scope)
-    return CapabilityStatementSecurity(
-        cors=False,
-        service=_security_services(posture),
-        description=f"{stated} {covered}",
     )
 
 

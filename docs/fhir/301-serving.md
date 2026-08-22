@@ -159,14 +159,18 @@ serve.port
 ### `auth`
 
 **In plain words.** Who this server answers: everybody, anybody holding a token
-you issued, or anybody who can sign in to the DHIS2 instance behind it.
+you issued, anybody who can sign in to the DHIS2 instance behind it, or anybody
+holding a token from the identity provider you already run.
 
 **When you would change it.** The moment the server is reachable from another
 computer. `token` is the posture for a machine client - one shared secret, handed
 to whoever integrates. `dhis2` is the posture for people: the clerks filling in
 forms already have DHIS2 accounts, and this is how those accounts become their
 credentials for the facade. It needs `--live`, because checking a credential
-means asking the instance.
+means asking the instance. `jwt` is the posture for an organisation with an
+identity provider of its own: everybody already signs in there, and this server
+verifies what that provider signed rather than asking anybody anything. It needs
+no instance, because it asks nobody.
 
 **Example.**
 
@@ -212,18 +216,32 @@ error: `0.0.0.0` is not a loopback interface, and this project's fhir.toml state
 `auth = "none"` written out passes that check. The difference is deliberate: an
 absent key is nobody's decision, a written one is somebody's.
 
-**If you get it wrong:** a value that is not one of the three stops the run
+The `jwt` posture takes its issuer from a table of its own,
+[`[serve.jwt]`](#jwt):
+
+```toml
+[serve]
+host = "0.0.0.0"
+auth = "jwt"
+
+[serve.jwt]
+issuer = "https://idp.example.org/realms/health"
+```
+
+**If you get it wrong:** a value that is not one of the four stops the run
 before anything starts.
 
 ```text
 serve.auth
-  Input should be 'none', 'token' or 'dhis2'
+  Input should be 'none', 'token', 'dhis2' or 'jwt'
 ```
 
 `"oauth2"` is among the values it will tell you it does not accept, and that is
 current rather than an oversight: DHIS2 2.43.1's own authorization server
 returns a 500 for any client its API creates (BUGS.md 96), so a project could
-state it and nothing would answer. The name is reserved for when that is fixed.
+state it and nothing would answer. The name is reserved for an authorization
+server this facade would run itself; to take bearer tokens from one you already
+run, state `jwt` and name it.
 
 **What each posture decides about the answer.** `none` and `token` decide who
 may ask and nothing more: a live run reads DHIS2 as the profile the server was
@@ -245,10 +263,124 @@ unguarded otherwise: there is nobody to answer as. A read that presents one is
 answered, whichever scope is in force - the credential is checked on the spot,
 through the same brief cache the guarded addresses use.
 
+`jwt` decides both only where [`[serve.jwt] forward_bearer`](#jwt-forward_bearer)
+is on and the DHIS2 instance trusts the same issuer. Where it is off - the
+default - the register is not served at all rather than served as the facade.
+
 The startup store build, the instance address `/uiconfig` hands the screens, and
 `d2w fhir forward`'s drain stay on the facade's own profile in every posture,
 because none of them acts on behalf of a caller - so give that profile the
 rights the guide needs and no more. See the notes above the options.
+
+### The external issuer: the `[serve.jwt]` table { #jwt }
+
+**In plain words.** Which identity provider `auth = "jwt"` trusts, what one of
+its tokens has to say, and whether the token is passed on to DHIS2.
+
+**When you would use it.** Whenever `[serve] auth` is `"jwt"`; the posture cannot
+run without it. It has no command-line flag - which issuer a deployment
+federates with is a property of the deployment, not of one invocation.
+
+**Example.**
+
+```toml
+[serve]
+auth = "jwt"
+
+[serve.jwt]
+issuer = "https://idp.example.org/realms/health"
+audience = "d2w-fhir-serve"
+username_claim = "preferred_username"
+forward_bearer = false
+```
+
+| Key | Default | What it decides |
+| --- | --- | --- |
+| `issuer` | none - required for the posture | The OpenID Connect issuer identifier, the value its tokens carry as `iss`. This server appends `/.well-known/openid-configuration` to it, takes the `jwks_uri` from that document, and verifies every token against the keys published there. |
+| `audience` | absent - not checked | The `aud` an accepted token must name. State it when the issuer mints tokens for other services too. Leave it out and any token this issuer signed is accepted. |
+| `username_claim` | `"preferred_username"` | The claim whose value identifies the caller and is recorded on every receipt they capture. A token that carries no such claim is refused. |
+| `forward_bearer` | `false` | Whether a register read carries the caller's own token on to DHIS2. See [`forward_bearer`](#jwt-forward_bearer) below. |
+
+**What is checked, and what is not.** The signature against the issuer's
+published keys, selected by the token's `kid`; `iss`; `exp`, with a minute of
+clock leeway and no token accepted without one; `nbf` where the token states one;
+`aud` where the table states one; and the username claim. RSA and ECDSA
+signatures only - a shared-secret algorithm verified against a public key is the
+algorithm-confusion attack, and it is refused by name. **What is not checked is
+revocation**: verification is local, so a token withdrawn at the issuer before it
+expires still works here until it expires. Keep token lifetimes short at the
+issuer.
+
+**How often the issuer is read.** Twice at startup - the discovery document, then
+the keys - and after that only when the keys expire or a token names a `kid` this
+process does not hold. The JWKS answer's own `Cache-Control: max-age` is
+honoured, with a floor of five minutes; a key rotation is caught by the unknown
+`kid` rather than by an expiry, and costs one extra read.
+
+**If you leave `issuer` out:** the run stops before anything starts.
+
+```text
+error: `auth = "jwt"` verifies every caller's token against the keys one OpenID Connect issuer publishes, and this project's fhir.toml names no [serve.jwt] issuer. Add the table and the key - [serve.jwt] then issuer = "https://idp.example.org/realms/health" - naming the issuer identifier its own tokens carry as `iss`. This server appends /.well-known/openid-configuration to it and takes the keys from there.
+```
+
+**If the issuer cannot be reached:** the same, one line, before the socket opens.
+A server that started anyway would refuse every caller for a reason none of them
+could act on.
+
+**If you get a key wrong:** the table declares its full key set, so a typo is
+named and placed.
+
+```text
+fhir.toml: unknown key 'issur' in [serve.jwt]
+  did you mean 'issuer'?
+```
+
+#### `forward_bearer` { #jwt-forward_bearer }
+
+**In plain words.** Whether a register read sends the caller's own token to
+DHIS2, so DHIS2 answers as them.
+
+**When you would change it.** Only when the DHIS2 instance behind this facade has
+been configured to trust the same issuer - `oidc.jwt.token.authentication.enabled`
+in its `dhis.conf`. That is what lets DHIS2 resolve the token to one of its own
+users; without it, a forwarded token is a credential DHIS2 has no idea what to do
+with.
+
+**Example.**
+
+```toml
+[serve.jwt]
+issuer = "https://idp.example.org/realms/health"
+forward_bearer = true
+```
+
+**Default:** `false` - **If you leave it out:** the register is not served. A
+read of it answers 501 with an OperationOutcome naming both halves that would
+make it answerable, and everything else this server does - the published guide,
+the received responses, `$generate`, `/evaluate`, the terminology reads - is
+served exactly as it always was.
+
+```text
+this server takes a token from an OpenID Connect issuer and will not read the register as anybody but the caller who asked. Answering it needs two things stated together: [serve.jwt] forward_bearer = true here, and a DHIS2 instance configured to trust the same issuer (oidc.jwt.token.authentication.enabled), so the token you presented is one DHIS2 resolves to a user of its own.
+```
+
+That refusal is deliberate, and the alternative is the thing it exists to
+prevent: reading the register as the facade's own profile would hand every caller
+that profile's rights, and DHIS2 skips its ownership and access-level model
+outright for a superuser without writing a break-the-glass audit entry. There is
+no silent fallback.
+
+**If you turn it on without an instance:** the run stops, because a compiled
+guide has nothing behind it to forward to.
+
+```text
+error: `[serve.jwt] forward_bearer = true` sends each caller's own token on to the DHIS2 instance this run reads, and this run reads a compiled implementation guide off disk instead - there is no instance to send anything to. Serve with `--live`, or set `forward_bearer = false`.
+```
+
+`GET /metadata` states which of the two is in force under `rest.security`, so a
+client reads it from the conformance document rather than discovering it from a
+501. The issuer is stated there too, as an extension on that element - never a
+key, never the audience, never the claim name.
 
 ### `auth_scope`
 
@@ -281,9 +413,10 @@ expression over what is served, and a CDS Hooks call answers cards.
 
 Under [`auth = "dhis2"`](#auth) the register is the exception to that, and not
 by this key's doing: a read of it is answered under the caller's own DHIS2
-authorization, so it asks for credentials in either scope. `write` still leaves
-every read of the *published guide* open - the Questionnaires, the code lists,
-`/metadata` - because those are the same documents for everybody.
+authorization, so it asks for credentials in either scope. The same holds under
+[`auth = "jwt"`](#jwt) with `forward_bearer` on. `write` still leaves every read
+of the *published guide* open - the Questionnaires, the code lists, `/metadata` -
+because those are the same documents for everybody.
 
 **If you get it wrong:** a value that is neither stops the run before anything
 starts.
