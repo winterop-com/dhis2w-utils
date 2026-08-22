@@ -3,13 +3,17 @@ import { expect, request as playwrightRequest, test, type Page } from '@playwrig
 import { E2E_BASE_URL } from '../playwright.config.ts'
 
 /**
- * The command palette and the themes, against the real bundle the server ships.
+ * The command palette, the settings gear, and the themes, against the real bundle the server ships.
  *
  * TWO THINGS HERE CANNOT BE TESTED ANYWHERE ELSE. The first is the shortcut: whether Ctrl+K reaches
  * a window listener and opens a dialog is a fact about a browser, not about a component. The second
  * is the palette of every theme, which only exists once a real stylesheet has been parsed and the
  * custom properties resolved - a unit test can prove that each theme block DECLARES every token
  * (lib/theme.test.ts does), and only a browser can say what those declarations come out as.
+ *
+ * THE KEYS ARE HERE FOR THE SAME REASON AS THE CHORD. Whether `?` reaches a window listener, and
+ * whether it stays out of the way while a box has focus, is a fact about a browser rather than about
+ * a component - `lib/shortcuts.test.ts` decides the rules and this proves they are wired up.
  *
  * THE CONTRAST CASE IS THE ONE THAT EARNS ITS RUNTIME. Five themes times two grounds is ten
  * palettes, each with about thirty colour pairs in it, and no reviewer opens twenty screenshots. So
@@ -93,6 +97,12 @@ async function postReceipt(): Promise<string> {
     } finally {
         await api.dispose()
     }
+}
+
+/** Open the settings menu from the foot of the rail, and wait until it is actually there. */
+async function openSettings(page: Page): Promise<void> {
+    await page.getByRole('complementary').getByRole('button', { name: 'Settings' }).click()
+    await expect(page.getByRole('menu')).toBeVisible()
 }
 
 /** Open the palette the way a person does, and wait until it is actually there. */
@@ -185,10 +195,11 @@ test('a theme chosen in the palette is painted, and is still painted after a rel
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'clinical')
 })
 
-test('the header picker offers every theme and marks the one in force', async ({ page }) => {
+test('the gear offers every theme and marks the one in force', async ({ page }) => {
     await page.goto('/')
-    await page.getByRole('button', { name: 'Theme' }).click()
+    await openSettings(page)
 
+    // Both appearance controls live behind the one gear now: the five themes, and the ground.
     await Promise.all(
         ['Clinical', 'Indigo', 'Paper', 'Contrast', 'Terminal'].map((label) =>
             expect(page.getByRole('menuitemradio', { name: new RegExp(`^${label}`) })).toBeVisible(),
@@ -198,6 +209,128 @@ test('the header picker offers every theme and marks the one in force', async ({
         'aria-checked',
         'true',
     )
+    await expect(page.getByRole('menuitem', { name: /^Switch to dark mode/ })).toBeVisible()
+})
+
+test('the header carries neither of them, so what is left on it is the page', async ({ page }) => {
+    await page.goto('/')
+
+    const header = page.locator('header')
+    await expect(header.getByRole('button', { name: 'Theme' })).toHaveCount(0)
+    await expect(header.getByRole('button', { name: /^Switch to (dark|light) mode/ })).toHaveCount(0)
+
+    // What the header does keep: the collapse control, the page's name, and the server light.
+    await expect(header.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible()
+    await expect(header.locator('h1')).toHaveText('Overview')
+    await expect(header.getByRole('button', { name: /Server status/ })).toBeVisible()
+})
+
+test('a theme chosen at the gear is painted, and is still painted after a reload', async ({ page }) => {
+    await page.goto('/')
+    await openSettings(page)
+    await page.getByRole('menuitemradio', { name: /^Terminal/ }).click()
+
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
+
+    // The attribute is written before the first paint by the inline script in index.html, off the
+    // same storage key lib/theme.ts writes. If those two ever disagree, this reload shows Clinical.
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
+
+    await openSettings(page)
+    await expect(page.getByRole('menuitemradio', { name: /^Terminal/ })).toHaveAttribute(
+        'aria-checked',
+        'true',
+    )
+    await page.keyboard.press('Escape')
+
+    // Put it back, so the specs after this one meet the theme every other spec assumes.
+    await page.evaluate(() => {
+        localStorage.removeItem('d2w-fhir.theme')
+    })
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'clinical')
+})
+
+test('the gear is still reachable once the rail is collapsed to icons', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Collapse sidebar' }).click()
+
+    const gear = page.getByRole('complementary').getByRole('button', { name: 'Settings' })
+    await expect(gear).toBeVisible()
+    await gear.click()
+    await expect(page.getByRole('menuitemradio', { name: /^Clinical/ })).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Expand sidebar' }).click()
+})
+
+test('? puts every key this app answers on screen, and typing a ? does not', async ({ page }) => {
+    await page.goto('/')
+    await page.keyboard.press('?')
+
+    const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+    await expect(dialog).toBeVisible()
+    // The chord nobody discovers is the first row, which is the whole reason the list exists.
+    await expect(dialog.getByText('Open the command palette')).toBeVisible()
+    await expect(dialog.getByText('Collapse or expand the sidebar')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+
+    // A `?` typed into a box is a question mark. The palette's own box is the nearest one to hand.
+    await openPalette(page)
+    await page.getByRole('combobox', { name: 'Command palette' }).fill('?')
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+})
+
+test('the gear leads to the same list, for anyone who would not press a bare key', async ({ page }) => {
+    await page.goto('/')
+    await openSettings(page)
+    await page.getByRole('menuitem', { name: /Keyboard shortcuts/ }).click()
+
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible()
+    await page.keyboard.press('Escape')
+})
+
+test('the sidebar chord collapses the rail and puts it back', async ({ page }) => {
+    await page.goto('/')
+    // The page is waited for rather than pressed at: the chord is a window listener React attaches
+    // as the shell mounts, and a press landing before that is a press nothing has claimed yet.
+    await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible()
+
+    const rail = page.getByRole('complementary')
+    const wide = (await rail.boundingBox())?.width ?? 0
+
+    // The modifier is read off the browser's own user agent rather than assumed, because the app
+    // reads it off exactly that - and Playwright's Desktop Chrome profile claims Windows whatever
+    // machine it is running on, so `ControlOrMeta` and the app would disagree about which key it is.
+    const modifier = await page.evaluate(() =>
+        /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'Meta' : 'Control',
+    )
+
+    await page.keyboard.press(`${modifier}+b`)
+    await expect.poll(async () => (await rail.boundingBox())?.width).toBeLessThan(wide)
+
+    await page.keyboard.press(`${modifier}+b`)
+    await expect.poll(async () => (await rail.boundingBox())?.width).toBe(wide)
+})
+
+test('the palette states what kind of thing each row is, and what Return would do to it', async ({
+    page,
+}) => {
+    await page.goto('/')
+    await openPalette(page)
+
+    // One line per row: the name, the line about it, and the kind at the far edge.
+    await expect(page.getByRole('option', { name: /^Evaluate/ })).toContainText('Page')
+
+    const dialog = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(dialog).toContainText('Open')
+
+    await page.getByRole('combobox', { name: 'Command palette' }).fill('Terminal theme')
+    await expect(dialog).toContainText('Switch')
+    await page.keyboard.press('Escape')
 })
 
 test('every theme stays legible on both grounds', async ({ page }) => {
@@ -287,7 +420,7 @@ test('a theme change repaints the organisation-unit map with nothing reloaded', 
     // axes - the light/dark class and the theme attribute. Watching only the class would leave the
     // boundaries in the previous theme's colours until the ground happened to flip.
     const before = await map.getAttribute('data-map-theme')
-    await page.getByRole('button', { name: 'Theme' }).click()
+    await openSettings(page)
     await page.getByRole('menuitemradio', { name: /^Terminal/ }).click()
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')

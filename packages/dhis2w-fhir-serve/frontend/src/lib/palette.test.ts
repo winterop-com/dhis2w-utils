@@ -3,10 +3,14 @@ import { describe, expect, it } from 'vitest'
 import type { Questionnaire } from '@/lib/fhir'
 import {
     APPEARANCE_GROUP,
+    COLLAPSE_SIDEBAR_LABEL,
+    EXPAND_SIDEBAR_LABEL,
     FORMS_GROUP,
+    HELP_GROUP,
     MINIMUM_RECEIPT_PREFIX_LENGTH,
     PAGES_GROUP,
     paletteActions,
+    paletteActionVerb,
     paletteSearchValue,
     paletteShelves,
     RECEIPTS_AT_REST,
@@ -15,9 +19,11 @@ import {
     SESSION_GROUP,
     SWITCH_TO_DARK_LABEL,
     SWITCH_TO_LIGHT_LABEL,
+    VIEW_GROUP,
     type PaletteAction,
     type PaletteInput,
 } from '@/lib/palette'
+import { SHORTCUTS_TITLE } from '@/lib/shortcuts'
 import { THEMES } from '@/lib/theme'
 
 /**
@@ -68,6 +74,7 @@ const input = (overrides: Partial<PaletteInput> = {}): PaletteInput => ({
     register: null,
     dark: false,
     theme: 'clinical',
+    sidebarCollapsed: false,
     signedIn: false,
     ...overrides,
 })
@@ -291,6 +298,54 @@ describe('how the app looks', () => {
     })
 })
 
+describe('the sidebar and the list of keys', () => {
+    it('states the move the row would make, rather than where the sidebar stands', () => {
+        // A row reading "Sidebar" leaves a reader to guess which way it goes.
+        expect(labelsIn(paletteActions(input({ sidebarCollapsed: false })), VIEW_GROUP)).toEqual([
+            COLLAPSE_SIDEBAR_LABEL,
+        ])
+        expect(labelsIn(paletteActions(input({ sidebarCollapsed: true })), VIEW_GROUP)).toEqual([
+            EXPAND_SIDEBAR_LABEL,
+        ])
+    })
+
+    it('offers the list of shortcuts to a pointer, since a chord is what it is about', () => {
+        expect(labelsIn(paletteActions(input()), HELP_GROUP)).toEqual([SHORTCUTS_TITLE])
+    })
+})
+
+describe('what a row says it will do', () => {
+    it('opens what it goes to, switches what it changes, and runs what it ends', () => {
+        const actions = paletteActions(input({ signedIn: true }))
+        expect(paletteActionVerb(byId(actions, 'page:'))).toBe('Open')
+        expect(paletteActionVerb(byId(actions, 'help:shortcuts'))).toBe('Open')
+        expect(paletteActionVerb(byId(actions, 'theme:paper'))).toBe('Switch')
+        expect(paletteActionVerb(byId(actions, 'mode:switch'))).toBe('Switch')
+        expect(paletteActionVerb(byId(actions, 'view:sidebar'))).toBe('Switch')
+        expect(paletteActionVerb(byId(actions, 'session:sign-out'))).toBe('Run')
+    })
+
+    it('names the kind of every row in one plain noun', () => {
+        const actions = paletteActions(
+            input({
+                forms: [form('anc-visit', 'Antenatal visit')],
+                receipts: [receipt('aa11')],
+                register: 'Person',
+                query: 'aa11',
+                signedIn: true,
+            }),
+        )
+        for (const action of actions) {
+            expect(action.kind.split(' ')).toHaveLength(1)
+            expect(action.kind).toMatch(/^[A-Z][a-z]+$/)
+        }
+        expect(byId(actions, 'page:').kind).toBe('Page')
+        expect(byId(actions, 'form:anc-visit').kind).toBe('Form')
+        expect(byId(actions, 'receipt:aa11').kind).toBe('Receipt')
+        expect(byId(actions, 'theme:paper').kind).toBe('Theme')
+    })
+})
+
 describe('the session', () => {
     it('offers signing out only when there is a credential to forget', () => {
         expect(labelsIn(paletteActions(input({ signedIn: false })), SESSION_GROUP)).toEqual([])
@@ -314,7 +369,14 @@ describe('the whole list', () => {
                 }),
             ).map((action) => action.effect.kind),
         )
-        expect([...kinds].toSorted()).toEqual(['mode', 'navigate', 'sign-out', 'theme'])
+        expect([...kinds].toSorted()).toEqual([
+            'mode',
+            'navigate',
+            'shortcuts',
+            'sidebar',
+            'sign-out',
+            'theme',
+        ])
     })
 
     it('gives every action an id of its own, so a row cannot stand in for another', () => {
@@ -348,6 +410,8 @@ describe('the whole list', () => {
             RESPONSES_GROUP,
             'Person',
             APPEARANCE_GROUP,
+            VIEW_GROUP,
+            HELP_GROUP,
             SESSION_GROUP,
         ])
     })
