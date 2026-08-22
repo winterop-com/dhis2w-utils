@@ -129,8 +129,9 @@ class FormTypeDefinition(BaseModel):
 
 
 #: Every DHIS2 form kind a Questionnaire can be generated from. `tracked-entity` is the kind that
-#: registers a person without enrolling them in anything, which is why its display names the
-#: tracked entity type rather than a program.
+#: registers a subject without enrolling it in anything, which is why its display names the
+#: tracked entity type rather than a program. The subject is whatever resource that type maps to -
+#: a Patient, a Device, a Specimen - so neither the code nor the display names a person.
 FORM_TYPE_DEFINITIONS: tuple[FormTypeDefinition, ...] = (
     FormTypeDefinition(code="aggregate", display="Aggregate data set form"),
     FormTypeDefinition(code="event", display="Event program form"),

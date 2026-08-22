@@ -584,10 +584,10 @@ export const FORM_TYPE_EXTENSION_SUFFIX = '/StructureDefinition/d2-form-type'
  * `FORM_TYPE_DEFINITIONS` in dhis2w_fhir.foundation.schemas. `tracker-event`
  * (a program stage) is the one that catches people out: it is not spelled
  * `tracker`, which is the registration form, and the goldens use the former.
- * `tracked-entity` is the third one-person kind and the only one that enrols
- * nobody: it is generated from a DHIS2 tracked entity type rather than from a
- * program, so its response carries a subject and an organisation unit and no
- * enrollment at all.
+ * `tracked-entity` is the kind that enrols nobody: it is generated from a DHIS2
+ * tracked entity type rather than from a program, so its response carries a
+ * subject and an organisation unit and no enrollment at all. Its subject is
+ * whatever resource that type maps to - a Patient, a Device, a Specimen.
  */
 export const FORM_TYPES = ['aggregate', 'event', 'tracker', 'tracker-event', 'tracked-entity'] as const
 
@@ -597,16 +597,19 @@ export type FormType = (typeof FORM_TYPES)[number]
 /**
  * How each form kind is named in the UI, since the codes are terse.
  *
- * `tracked-entity` reads as "Person registration" rather than as its DHIS2 artifact name: what a
- * reader needs from a badge is that the form registers a person, and that it says nothing about a
- * program is the very fact "Tracker registration" beside it does not carry.
+ * `tracked-entity` reads as "Registration" and names no subject, because the subject varies: a
+ * tracked entity type maps to any of Patient, Practitioner, Group, Device, Location, Organization
+ * or Specimen, so a fridge and a lab sample register through this kind exactly as a person does.
+ * The form's own title says what is being registered; the badge only has to say that registering
+ * is what this form does, and that it says nothing about a program is the very fact
+ * "Tracker registration" beside it does not carry.
  */
 export const FORM_TYPE_LABELS: Record<FormType, string> = {
     aggregate: 'Aggregate data set',
     event: 'Event program',
     tracker: 'Tracker registration',
     'tracker-event': 'Tracker program stage',
-    'tracked-entity': 'Person registration',
+    'tracked-entity': 'Registration',
 }
 
 /** The form kinds whose submission is about one person rather than about a place or a period. */
