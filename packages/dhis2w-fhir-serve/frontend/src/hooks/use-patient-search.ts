@@ -48,6 +48,11 @@ const NOTHING_ASKED: PatientSearchState = {
  * `_content` where the project keeps a synced copy that can match a substring of any value a person
  * holds. `lib/fhir.registerSearchKey` makes that reading; this hook only sends what it was handed.
  *
+ * A NAMED TRACKED ENTITY TYPE NARROWS THE SEARCH TOO. One resource is one register over the union of
+ * the types the published map takes onto it, so a register narrowed to one type is narrowed for
+ * everything it answers - a search that ignored the narrowing would answer about people the table
+ * beneath it is not showing. The tag rides the request as `_tag`; see `lib/api.searchRegister`.
+ *
  * WHY DEBOUNCED AND NOT PER KEYSTROKE. Every call here is a request this server makes of the DHIS2
  * instance - one read plus one filtered search per unique attribute the guide publishes - which
  * makes it the only read in this app whose cost lands on somebody else's database. An eleven
@@ -69,6 +74,7 @@ export function usePatientSearch(
     enabled: boolean,
     resource: string = PEOPLE_RESOURCE_TYPE,
     key: RegisterSearchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
+    trackedEntityTypeUid: string | null = null,
 ): PatientSearchState {
     const [state, setState] = useState<PatientSearchState>(NOTHING_ASKED)
     const query = enabled ? patientSearchQuery(typed) : null
@@ -81,7 +87,7 @@ export function usePatientSearch(
         let cancelled = false
         setState((current) => ({ ...current, searching: true }))
         const timer = setTimeout(() => {
-            searchRegister(resource, query, key)
+            searchRegister(resource, query, key, trackedEntityTypeUid)
                 .then((answer) => {
                     if (cancelled) return
                     setState({
@@ -107,7 +113,7 @@ export function usePatientSearch(
             cancelled = true
             clearTimeout(timer)
         }
-    }, [key, query, resource])
+    }, [key, query, resource, trackedEntityTypeUid])
 
     return state
 }

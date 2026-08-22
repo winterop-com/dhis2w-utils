@@ -8,6 +8,12 @@ import {
     enrollmentsInProgram,
     holdsTrackedEntityAttributeConcepts,
     isCompletedEnrollment,
+    narrowedRegisterType,
+    registerAttributeValue,
+    registerTableColumns,
+    registerTypeChoices,
+    REGISTER_ATTRIBUTE_COLUMNS,
+    REGISTER_TYPE_PARAMETER,
     subjectExistsExtensionUrl,
     marksAnExistingSubject,
     MINIMUM_PATIENT_SEARCH_LENGTH,
@@ -26,7 +32,9 @@ import {
     trackedEntityTypeLabel,
     trackedEntityTypeNames,
     type PatientEnrollment,
+    type PatientProjection,
 } from '@/lib/patients'
+import type { Register } from '@/lib/uiconfig'
 
 /**
  * Reading a person the DHIS2 instance holds, and the two decisions a capture screen makes from it.
@@ -497,5 +505,229 @@ describe('how old a register answer says it is', () => {
                 issue: [{ severity: 'information', code: 'informational' }],
             }),
         ).toBeNull()
+    })
+})
+
+/**
+ * Narrowing one register to one of the tracked entity types it is served over.
+ *
+ * THE CHOICES ARE THE SERVER'S OWN DECLARATION. `/uiconfig` states the types riding each register
+ * and the name the published map holds for each; `/metadata` documents the same set under the `_tag`
+ * parameter that narrows to one of them. Nothing here reads a row to find out what a register serves,
+ * because a page holding no fridges today would then offer no way to ask for one.
+ */
+describe('the tracked entity types one register offers', () => {
+    const cold: Register = {
+        resource: 'Device',
+        types: [
+            { uid: 'TetFridge01', name: 'Fridge' },
+            { uid: 'TetVehicle1', name: 'Cold chain vehicle' },
+        ],
+    }
+
+    it('offers one choice per declared type, named as the instance names it', () => {
+        expect(registerTypeChoices(cold)).toEqual([
+            { uid: 'TetFridge01', name: { text: 'Fridge', isMachineSpelling: false } },
+            { uid: 'TetVehicle1', name: { text: 'Cold chain vehicle', isMachineSpelling: false } },
+        ])
+    })
+
+    it('falls back to the uid for a type this guide published no name for, and spells it as one', () => {
+        const unnamed: Register = { resource: 'Device', types: [{ uid: 'TetFridge01', name: null }] }
+        expect(registerTypeChoices(unnamed)).toEqual([
+            { uid: 'TetFridge01', name: { text: 'TetFridge01', isMachineSpelling: true } },
+        ])
+    })
+
+    it('offers nothing to choose between on a register serving one type', () => {
+        expect(registerTypeChoices({ resource: 'Patient', types: [{ uid: 'TetPerson01', name: 'Person' }] })).toHaveLength(1)
+    })
+
+    it('carries the chosen type in the address under its own parameter', () => {
+        expect(REGISTER_TYPE_PARAMETER).toBe('type')
+    })
+})
+
+describe('which type a register is narrowed to', () => {
+    const cold: Register = {
+        resource: 'Device',
+        types: [
+            { uid: 'TetFridge01', name: 'Fridge' },
+            { uid: 'TetVehicle1', name: 'Cold chain vehicle' },
+        ],
+    }
+
+    it('is the type the address names, when this register serves it', () => {
+        expect(narrowedRegisterType(cold, 'TetVehicle1')).toBe('TetVehicle1')
+    })
+
+    it('is nothing when the address names none', () => {
+        expect(narrowedRegisterType(cold, null)).toBeNull()
+        expect(narrowedRegisterType(cold, '')).toBeNull()
+    })
+
+    it('is nothing when the address names a type this register is not served over', () => {
+        // A page serving several registers carries one narrowing, and a `_tag` naming a type this
+        // resource does not serve would empty it - which reads as "this instance holds none of
+        // these" rather than as an address about the register next door.
+        expect(narrowedRegisterType(cold, 'TetPerson01')).toBeNull()
+    })
+})
+
+/**
+ * What the register table draws for one page of rows.
+ *
+ * ONE COLUMN PER ATTRIBUTE, derived from what the rows hold rather than from a declaration: DHIS2
+ * requires no attribute of an entity, so a column set taken from a type's whole attribute list would
+ * be columns of dashes.
+ */
+/** One row of a register page, as `patientProjection` hands one over. */
+const row = (
+    trackedEntityUid: string,
+    attributeValues: { attributeUid: string; attributeCode?: string | null; value: string }[],
+    identifiers: { attributeUid: string; value: string }[] = [],
+): PatientProjection => ({
+    trackedEntityUid,
+    trackedEntityTypeUid: 'TetPerson01',
+    identifiers,
+    attributeValues: attributeValues.map((value) => ({
+        attributeUid: value.attributeUid,
+        attributeCode: value.attributeCode ?? null,
+        value: value.value,
+    })),
+})
+
+describe('the columns one page of register rows earns', () => {
+    const names = new Map([
+        ['TeaBirthDat', 'Date of birth'],
+        ['TeaHousehld', 'Household size'],
+        ['TeaSex00001', 'Sex'],
+    ])
+
+    it('gives every attribute the rows hold a column of its own, named once', () => {
+        const columns = registerTableColumns(
+            [
+                row('TeiPerson001', [
+                    { attributeUid: 'TeaBirthDat', attributeCode: 'TEA_BIRTH_DATE', value: '1985-03-12' },
+                ]),
+                row('TeiPerson002', [{ attributeUid: 'TeaHousehld', value: '6' }]),
+            ],
+            names,
+            new Set(),
+        )
+        expect(columns.attributes.map((column) => column.attributeUid)).toEqual(['TeaBirthDat', 'TeaHousehld'])
+        expect(columns.attributes.map((column) => column.name.text)).toEqual(['Date of birth', 'Household size'])
+        expect(columns.hidden).toBe(0)
+    })
+
+    it('leads with the attributes DHIS2 marks as belonging in a listing', () => {
+        const columns = registerTableColumns(
+            [
+                row('TeiPerson001', [
+                    { attributeUid: 'TeaHousehld', value: '4' },
+                    { attributeUid: 'TeaBirthDat', value: '1985-03-12' },
+                    { attributeUid: 'TeaSex00001', value: 'OpFemale001' },
+                ]),
+            ],
+            names,
+            new Set(['TeaBirthDat', 'TeaSex00001']),
+        )
+        expect(columns.attributes.map((column) => column.attributeUid)).toEqual([
+            'TeaBirthDat',
+            'TeaSex00001',
+            'TeaHousehld',
+        ])
+    })
+
+    it('keeps the order the projection carried when the instance marks nothing', () => {
+        const columns = registerTableColumns(
+            [
+                row('TeiPerson001', [
+                    { attributeUid: 'TeaHousehld', value: '4' },
+                    { attributeUid: 'TeaBirthDat', value: '1985-03-12' },
+                ]),
+            ],
+            names,
+            new Set(),
+        )
+        expect(columns.attributes.map((column) => column.attributeUid)).toEqual(['TeaHousehld', 'TeaBirthDat'])
+    })
+
+    it('stops at the cap and says how many attributes it is not showing', () => {
+        const many = Array.from({ length: 8 }, (_, index) => ({
+            attributeUid: `TeaValue000${String(index)}`,
+            value: String(index),
+        }))
+        const columns = registerTableColumns([row('TeiPerson001', many)], names, new Set())
+        expect(columns.attributes).toHaveLength(REGISTER_ATTRIBUTE_COLUMNS)
+        expect(columns.hidden).toBe(8 - REGISTER_ATTRIBUTE_COLUMNS)
+    })
+
+    it('cuts the ones DHIS2 states no preference for first, whatever order they arrived in', () => {
+        const columns = registerTableColumns(
+            [
+                row('TeiPerson001', [
+                    { attributeUid: 'TeaHousehld', value: '4' },
+                    { attributeUid: 'TeaBirthDat', value: '1985-03-12' },
+                ]),
+            ],
+            names,
+            new Set(['TeaBirthDat']),
+            1,
+        )
+        expect(columns.attributes.map((column) => column.attributeUid)).toEqual(['TeaBirthDat'])
+        expect(columns.hidden).toBe(1)
+    })
+
+    it('names a column the guide published nothing for by the DHIS2 code, and spells it as one', () => {
+        const columns = registerTableColumns(
+            [row('TeiPerson001', [{ attributeUid: 'TeaLabRef01', attributeCode: 'TEA_LAB_REF', value: 'LAB-1' }])],
+            names,
+            new Set(),
+        )
+        expect(columns.attributes[0].name).toEqual({ text: 'TEA_LAB_REF', isMachineSpelling: true })
+    })
+
+    it('takes the code off a later row when the first row carried none', () => {
+        const columns = registerTableColumns(
+            [
+                row('TeiPerson001', [{ attributeUid: 'TeaLabRef01', value: 'LAB-1' }]),
+                row('TeiPerson002', [
+                    { attributeUid: 'TeaLabRef01', attributeCode: 'TEA_LAB_REF', value: 'LAB-2' },
+                ]),
+            ],
+            names,
+            new Set(),
+        )
+        expect(columns.attributes[0].name.text).toBe('TEA_LAB_REF')
+    })
+
+    it('draws the identifier column when a row on the page carries an identifier value', () => {
+        const columns = registerTableColumns(
+            [
+                row('TeiPerson001', [], [{ attributeUid: 'TeaNationId', value: '19850312-4471' }]),
+                row('TeiPerson002', []),
+            ],
+            names,
+            new Set(),
+        )
+        expect(columns.identifiers).toBe(true)
+    })
+
+    it('omits it entirely when no row does', () => {
+        // The instance whose type declares no unique attribute: a leading column of dashes on every
+        // row states nothing about the records and reads as a defect in the page.
+        const columns = registerTableColumns([row('TeiPerson001', []), row('TeiPerson002', [])], names, new Set())
+        expect(columns.identifiers).toBe(false)
+    })
+
+    it('omits it on an empty page too, and asks for no columns at all', () => {
+        expect(registerTableColumns([], names, new Set())).toEqual({ identifiers: false, attributes: [], hidden: 0 })
+    })
+
+    it('reads one row’s value of one column, and says nothing where the instance holds none', () => {
+        const entity = row('TeiPerson001', [{ attributeUid: 'TeaBirthDat', value: '1985-03-12' }])
+        expect(registerAttributeValue(entity, 'TeaBirthDat')).toBe('1985-03-12')
+        expect(registerAttributeValue(entity, 'TeaHousehld')).toBeNull()
     })
 })

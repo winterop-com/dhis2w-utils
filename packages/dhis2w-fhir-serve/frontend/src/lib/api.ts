@@ -67,6 +67,7 @@
 import type { EvaluationOutcome } from '@/lib/evaluate'
 import {
     REGISTER_IDENTIFIER_SEARCH_PARAMETER,
+    REGISTER_TAG_SEARCH_PARAMETER,
     type Bundle,
     type CapabilityStatement,
     type OperationOutcome,
@@ -389,8 +390,21 @@ export async function searchRegister(
     resource: string,
     query: string,
     key: RegisterSearchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
+    trackedEntityTypeUid: string | null = null,
 ): Promise<RegisterAnswer> {
-    return readRegisterBundle(resource, { [key]: query })
+    return readRegisterBundle(resource, { [key]: query, ...typeTag(trackedEntityTypeUid) })
+}
+
+/**
+ * The `_tag` a request narrowed to one tracked entity type carries, or nothing when it narrowed none.
+ *
+ * The uid alone rather than `{system}|{uid}`: a register resource states one tag, so a bare code has
+ * no ambiguity to fall into, and the system is this project's canonical - a string this UI would have
+ * to derive to say something the server already knows.
+ */
+function typeTag(trackedEntityTypeUid: string | null): Record<string, string> {
+    if (trackedEntityTypeUid === null || trackedEntityTypeUid === '') return {}
+    return { [REGISTER_TAG_SEARCH_PARAMETER]: trackedEntityTypeUid }
 }
 
 /**
@@ -443,13 +457,21 @@ async function readRegisterBundle(
  *
  * A deployment can publish the search and decline the listing, so callers ask `/uiconfig` first and
  * never offer the table at all in that case.
+ *
+ * A named tracked entity type rides every page of the walk, not only its first: the token locates a
+ * page inside a scope and the tag is what the scope is, so a `next` sent without it would step out
+ * of the type the walk started in.
  */
 export async function listRegister(
     resource: string,
     pageToken: string | null,
     count: number,
+    trackedEntityTypeUid: string | null = null,
 ): Promise<RegisterAnswer> {
-    const parameters: Record<string, string> = { [PATIENT_COUNT_PARAMETER]: String(count) }
+    const parameters: Record<string, string> = {
+        [PATIENT_COUNT_PARAMETER]: String(count),
+        ...typeTag(trackedEntityTypeUid),
+    }
     if (pageToken !== null) parameters[PATIENT_PAGE_PARAMETER] = pageToken
     return readRegisterBundle(resource, parameters)
 }

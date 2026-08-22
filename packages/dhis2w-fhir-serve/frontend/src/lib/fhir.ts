@@ -1148,6 +1148,21 @@ export function declaresRegisterSearch(capability: CapabilityStatement | null, r
 export const REGISTER_CONTENT_SEARCH_PARAMETER = '_content'
 
 /**
+ * The search parameter that asks one register about one of the tracked entity types riding it.
+ *
+ * R4's own token search over `meta.tag`, and `meta.tag` is exactly where a served register resource
+ * states its DHIS2 tracked entity type - so narrowing a register to one type reads what the resource
+ * already carries rather than a dimension this server invented. `_tag={system}|{uid}` names the
+ * system and `_tag={uid}` the code alone; this UI sends the uid alone, because a register resource
+ * carries one tag and there is no ambiguity for a bare code to fall into.
+ *
+ * It narrows the listing and the search alike, and rides the listing's `next` and `previous` links,
+ * so a walk stays inside the type it started in. `TAG_SEARCH_PARAMETER` in
+ * `dhis2w_fhir_serve.routes.register` is the Python side of the same string.
+ */
+export const REGISTER_TAG_SEARCH_PARAMETER = '_tag'
+
+/**
  * The two keys a register search can be sent under, and the one this server publishes for a register.
  *
  * `identifier` is what every live facade answers: the tracked entity uid, and the values of the

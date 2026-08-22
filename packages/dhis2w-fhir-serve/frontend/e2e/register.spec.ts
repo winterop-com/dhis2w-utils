@@ -297,6 +297,73 @@ const REGISTER_NAV_LINK = 'a[href="#/tracked-entities"]'
 const SPECIMEN_REGISTER = { resource: 'Specimen', types: [{ uid: 'TetSample01', name: 'Specimen batch' }] }
 
 /**
+ * The register a project taking two tracked entity types onto ONE FHIR resource publishes.
+ *
+ * One resource is one register over the union of the types the published map takes onto it, and this
+ * is the run where that matters: `/Patient` answers about people and about specimen batches alike,
+ * and `_tag` is how a caller asks it about one of them. The names are the instance's own, which is
+ * what the chips read; the sections are still one per resource, so this run has one section.
+ */
+const UNION_REGISTER = {
+    resource: 'Patient',
+    types: [
+        { uid: 'TetPerson01', name: 'Person' },
+        { uid: 'TetSample01', name: 'Specimen batch' },
+    ],
+}
+
+/** A tracked entity of that second type, served under the same resource as the people beside it. */
+const UNION_SPECIMEN_UID = 'TeiSample02'
+const UNION_LAB_REFERENCE = 'LAB-2026-0043'
+const UNION_SPECIMEN = {
+    resourceType: 'Patient',
+    id: UNION_SPECIMEN_UID,
+    meta: { tag: [{ system: `${IDENTIFIER_BASE}/id/tracked-entity-type`, code: 'TetSample01' }] },
+    identifier: [
+        { system: `${IDENTIFIER_BASE}/id/tracked-entity`, value: UNION_SPECIMEN_UID },
+        { system: `${IDENTIFIER_BASE}/tracked-entity-attribute/TeaLabRef01`, value: UNION_LAB_REFERENCE },
+    ],
+}
+
+/**
+ * Answer `/Patient` as a register over two tracked entity types does, `_tag` and all.
+ *
+ * Registered after `serveALiveInstance`, so it takes the route over: Playwright matches the most
+ * recently added handler first. The narrowing is done here rather than asserted on the request alone
+ * because the page has to be shown to change - a `_tag` that reached the server and narrowed nothing
+ * would pass a request-only assertion.
+ */
+async function serveAUnionRegister(page: Page): Promise<void> {
+    const held = [PATIENT, UNION_SPECIMEN]
+    await page.route(
+        (url) => url.pathname === '/Patient',
+        (route) => {
+            const url = new URL(route.request().url())
+            const tags = url.searchParams.getAll('_tag')
+            const identifier = url.searchParams.get('identifier')
+            const matching = held.filter(
+                (candidate) =>
+                    (tags.length === 0 || tags.includes(candidate.meta.tag[0].code)) &&
+                    (identifier === null ||
+                        candidate.id === identifier ||
+                        candidate.identifier.some((value) => value.value === identifier)),
+            )
+            return route.fulfill({
+                status: 200,
+                contentType: FHIR_JSON,
+                body: JSON.stringify({
+                    resourceType: 'Bundle',
+                    type: 'searchset',
+                    total: matching.length,
+                    link: [{ relation: 'self', url: '/Patient?_count=25' }],
+                    entry: matching.map((resource) => ({ resource, search: { mode: 'match' } })),
+                }),
+            })
+        },
+    )
+}
+
+/**
  * Answer `/uiconfig` with what this run offers about the instance's tracked entities.
  *
  * Fulfilled for the same reason uiconfig.spec.ts fulfils it: the suite drives ONE server process,
@@ -643,10 +710,11 @@ test.describe('the people this DHIS2 instance holds', () => {
         const listing = page.getByTestId('patient-listing')
         const first = listing.getByRole('row').filter({ hasText: NATIONAL_ID })
         await expect(first).toBeVisible()
-        // The two joins through the published guide, on the row: the type by its person-only form,
-        // the attribute by the dictionary. Neither name is anywhere in what the instance answered.
-        await expect(first).toContainText('Person')
-        await expect(first).toContainText('Date of birth')
+        // The join through the published guide, in the header: the dictionary is what turns
+        // `TeaBirthDat` into "Date of birth", and that name is nowhere in what the instance
+        // answered. The cell under it holds the value alone, because the column already said what
+        // the value is a value of.
+        await expect(listing.getByRole('columnheader', { name: 'Date of birth' })).toBeVisible()
         await expect(first).toContainText('1985-03-12')
         await expect(first).toContainText(PERSON_UID)
         await expect(
@@ -663,7 +731,8 @@ test.describe('the people this DHIS2 instance holds', () => {
         const second = listing.getByRole('row').filter({ hasText: SECOND_NATIONAL_ID })
         await expect(second).toBeVisible()
         // The attribute DHIS2 left uncoded is still named, because the guide published a name for it.
-        await expect(second).toContainText('Household size')
+        await expect(listing.getByRole('columnheader', { name: 'Household size' })).toBeVisible()
+        await expect(second).toContainText('6')
         await expect(listing.getByRole('row').filter({ hasText: NATIONAL_ID })).toHaveCount(0)
         await expect(previous).toBeEnabled()
         await expect(next).toBeDisabled()
@@ -789,6 +858,79 @@ test.describe('the people this DHIS2 instance holds', () => {
         // the whole family while this run tracks one member of it.
         await expect(page.getByRole('link', { name: 'Patients' })).toHaveCount(0)
         await expect(page.getByRole('heading', { name: REGISTER_TITLE })).toHaveCount(0)
+
+        // And nothing to choose between: one type is not a filter, and a row that stated the type
+        // would state the page's own title once per person.
+        await expect(page.getByTestId('register-type-filter')).toHaveCount(0)
+        await expect(page.getByTestId('patient-listing')).not.toContainText('Tracked entity type')
+    })
+
+    test('offers the types a union register serves, and narrows the whole page to one', async ({ page }) => {
+        // ONE RESOURCE IS ONE REGISTER OVER THE UNION OF ITS TRACKED ENTITY TYPES. The chips are the
+        // server's own declaration of that union - `/uiconfig` names the types and `/metadata`
+        // documents the same set under `_tag` - and choosing one narrows the listing, the search, and
+        // the address alike, because they are three views of one register rather than three filters.
+        await serveRegisterSettings(page, { enabled: true, listing: true, registers: [UNION_REGISTER] })
+        await serveALiveInstance(page)
+        await serveAUnionRegister(page)
+
+        await page.goto('/#/tracked-entities')
+
+        const filter = page.getByTestId('register-type-filter')
+        const listing = page.getByTestId('patient-listing')
+        await expect(filter.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+        await expect(listing.getByRole('row').filter({ hasText: NATIONAL_ID })).toBeVisible()
+        await expect(listing.getByRole('row').filter({ hasText: UNION_LAB_REFERENCE })).toBeVisible()
+        // Two types on screen, so every row says which it is - joined through the person-only forms
+        // the real guide publishes, not through anything the instance answered.
+        await expect(listing.getByRole('columnheader', { name: 'Tracked entity type' })).toBeVisible()
+        await expect(listing).toContainText('Specimen batch')
+
+        const narrowed = page.waitForRequest(
+            (request) => new URL(request.url()).searchParams.get('_tag') === 'TetSample01',
+        )
+        await filter.getByRole('button', { name: 'Specimen batch' }).click()
+        await narrowed
+
+        // A narrowed register is a link somebody can be sent, beside whatever is being searched for.
+        await expect(page).toHaveURL(/type=TetSample01/)
+        await expect(filter.getByRole('button', { name: 'Specimen batch' })).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        )
+        await expect(listing.getByRole('row').filter({ hasText: UNION_LAB_REFERENCE })).toBeVisible()
+        await expect(listing.getByRole('row').filter({ hasText: NATIONAL_ID })).toHaveCount(0)
+        // One type on every row now, and the chip above the table already says which - so the column
+        // that would repeat it is not drawn.
+        await expect(listing.getByRole('columnheader', { name: 'Tracked entity type' })).toHaveCount(0)
+
+        // The search rides the narrowing too: it answers about the same register, and an answer
+        // about a type the table is not showing would disagree with the page it is on.
+        const searched = page.waitForRequest((request) => {
+            const parameters = new URL(request.url()).searchParams
+            return parameters.get('identifier') === UNION_LAB_REFERENCE && parameters.get('_tag') === 'TetSample01'
+        })
+        await page.getByLabel('Identifier value').fill(UNION_LAB_REFERENCE)
+        await searched
+        await expect(listing.getByRole('row').filter({ hasText: UNION_LAB_REFERENCE })).toBeVisible()
+    })
+
+    test('opens on the type the address named, and lets go of it again', async ({ page }) => {
+        await serveRegisterSettings(page, { enabled: true, listing: true, registers: [UNION_REGISTER] })
+        await serveALiveInstance(page)
+        await serveAUnionRegister(page)
+
+        await page.goto('/#/tracked-entities?type=TetPerson01')
+
+        const filter = page.getByTestId('register-type-filter')
+        const listing = page.getByTestId('patient-listing')
+        await expect(filter.getByRole('button', { name: 'Person' })).toHaveAttribute('aria-pressed', 'true')
+        await expect(listing.getByRole('row').filter({ hasText: NATIONAL_ID })).toBeVisible()
+        await expect(listing.getByRole('row').filter({ hasText: UNION_LAB_REFERENCE })).toHaveCount(0)
+
+        await filter.getByRole('button', { name: 'All' }).click()
+        await expect(listing.getByRole('row').filter({ hasText: UNION_LAB_REFERENCE })).toBeVisible()
+        await expect(page).not.toHaveURL(/type=/)
     })
 
     test('becomes the register the instance actually holds when a type is not a person', async ({
@@ -821,25 +963,36 @@ test.describe('the people this DHIS2 instance holds', () => {
         await expect(page.getByText(NATIONAL_ID).first()).toBeVisible()
     })
 
-    test('shows the attribute values DHIS2 marks as belonging in a listing', async ({ page }) => {
-        // WHICH FEW A ROW SHOWS IS DHIS2'S CHOICE. An administrator marks the attributes that let a
-        // clerk recognise somebody, and the guide publishes that marking on `D2TEA_CS` - so those are
-        // the values on the row, whatever order the projection carried them in. The count of what is
-        // left over is over everything, because it is a fact about the record rather than about the
-        // preference; and the whole record is one click away, where nothing is left out.
+    test('gives every attribute a column, in the order DHIS2 states it wants them listed', async ({ page }) => {
+        // ONE COLUMN PER ATTRIBUTE, NAMED ONCE. The names come off the published `D2TEA_CS`, the
+        // cells hold the values alone, and nothing on a row is hidden behind a phrase nobody can act
+        // on. WHICH ORDER IS DHIS2'S CHOICE: an administrator marks the attributes that let a clerk
+        // recognise somebody, so those lead - and it is the order that decides which columns survive
+        // the cap on a record holding more attributes than a table can hold side by side.
         await serveRegisterSettings(page, { enabled: true, listing: true })
         await serveALiveInstance(page)
 
         await page.goto('/#/tracked-entities')
 
-        const row = page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID })
-        await expect(row).toContainText('Date of birth')
-        await expect(row).toContainText('Sex')
-        await expect(row).not.toContainText('Household size')
-        await expect(row).toContainText('and 1 more')
+        const listing = page.getByTestId('patient-listing')
+        const row = listing.getByRole('row').filter({ hasText: NATIONAL_ID })
+        await expect(row).toBeVisible()
+        // The whole header, in order: the identifier values these people hold, the uid, and then the
+        // two marked attributes ahead of the one the instance states no preference about. No
+        // "Tracked entity type" column, because this run serves one type and every row would repeat
+        // it.
+        expect(await listing.getByRole('columnheader').allTextContents()).toEqual([
+            'Identifier values',
+            'Tracked entity',
+            'Date of birth',
+            'Sex',
+            'Household size',
+        ])
+        await expect(row).toContainText('1985-03-12')
+        await expect(row).not.toContainText('and 1 more')
 
-        // The detail keeps showing everything, marked or not: a preference about a listing is not a
-        // claim that the rest is not held.
+        // The detail keeps showing everything: a table capped at what can be read side by side is
+        // not a claim that the rest is not held.
         await row.click()
         await expect(page.getByRole('heading', { name: 'Attribute values' })).toBeVisible()
         await expect(page.getByText('Household size')).toBeVisible()
