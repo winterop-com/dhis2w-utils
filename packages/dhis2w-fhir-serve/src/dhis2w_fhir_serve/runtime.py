@@ -23,6 +23,12 @@ carries no credential: it is the pool a register read sends the CALLER'S own `Au
 DHIS2 decides per caller what comes back. `dhis2w_fhir_serve.passthrough` states why, and opens it;
 the lifespan owns it exactly as it owns the client, so both close when the process unwinds.
 
+A project holding a materialized projection opens it here too - `[serve.projection] store` names the
+backend, `dhis2w_fhir_serve.projection.factory` builds it, and this context manager owns it exactly as
+it owns the two HTTP connections, so the database closes when the process unwinds. It is opened
+whether or not `[serve.search]` reads it, because a projection is a thing this project holds rather
+than a thing one search does.
+
 A run under `[serve] auth = "jwt"` also reads its issuer here, before anything is served: the
 discovery document and then the keys it names. That is a network read at startup and it is a
 deliberate one - an issuer this machine cannot reach is a posture this process cannot honour, and
@@ -47,11 +53,14 @@ from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.metadata import build_metadata_body
 from dhis2w_fhir_serve.oidc import JwtVerifier
 from dhis2w_fhir_serve.passthrough import open_pass_through_client
+from dhis2w_fhir_serve.projection.base import ProjectionStore
+from dhis2w_fhir_serve.projection.factory import build_projection_store
 from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.routes.context import (
     CALLER_CLIENT_ATTRIBUTE,
     LIVE_CLIENT_ATTRIBUTE,
+    PROJECTION_STORE_ATTRIBUTE,
     SERVE_CONTEXT_ATTRIBUTE,
 )
 from dhis2w_fhir_serve.settings import ServeSettings
@@ -60,7 +69,9 @@ from dhis2w_fhir_serve.store import ResourceStore, load_compiled_store
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+    from pathlib import Path
 
+    from dhis2w_fhir.config import ProjectionConfig
     from fastapi import FastAPI
 
 #: The distribution the server reports as its software version.
@@ -111,6 +122,14 @@ class ServeRuntime(BaseModel):
     there is nothing here a process would want to keep from itself.
     """
 
+    projection_store: ProjectionStore | None = None
+    """The materialized projection this project holds, or None where `[serve.projection]` names none.
+
+    A database connection rather than a value, which is why it rides here beside the two HTTP ones
+    rather than on `ServeContext`. Nothing in this process writes it - D2 makes `d2w fhir sync` the
+    only writer - and every read of it states the cursor it was read at.
+    """
+
 
 @asynccontextmanager
 async def open_serve_runtime(
@@ -149,6 +168,9 @@ async def open_serve_runtime(
                 open_pass_through_client(settings.dhis2_base_url, provenance=facade_provenance())
             )
         verifier = await open_jwt_verifier(settings.jwt) if settings.auth is ServeAuth.JWT else None
+        projection = await connections.enter_async_context(
+            open_projection_store(settings.projection, project_root=project.project_root)
+        )
         store = await build_store(settings, project, live)
         spool = ResponseSpool.at(project.project_root, settings.spool_dir)
         register_surface = RegisterSurface.resolve(
@@ -172,6 +194,7 @@ async def open_serve_runtime(
             live_client=live,
             caller_client=caller,
             jwt_verifier=verifier,
+            projection_store=projection,
         )
 
 
@@ -187,14 +210,15 @@ def attach_serve_runtime(app: FastAPI, runtime: ServeRuntime) -> None:
 
     This is the whole of what an application mounting the facade's routers must promise them. The
     state is the application's rather than the request's because one project, one store, and one
-    spool are properties of the process. Three of the four names it writes are the three
-    `dhis2w_fhir_serve.routes.context` reads back; the fourth is the JWT verifier, which
+    spool are properties of the process. Four of the five names it writes are the four
+    `dhis2w_fhir_serve.routes.context` reads back; the fifth is the JWT verifier, which
     `dhis2w_fhir_serve.auth` reads because it is the only thing that has a use for it.
     """
     setattr(app.state, SERVE_CONTEXT_ATTRIBUTE, runtime.context)
     setattr(app.state, LIVE_CLIENT_ATTRIBUTE, runtime.live_client)
     setattr(app.state, CALLER_CLIENT_ATTRIBUTE, runtime.caller_client)
     setattr(app.state, JWT_VERIFIER_ATTRIBUTE, runtime.jwt_verifier)
+    setattr(app.state, PROJECTION_STORE_ATTRIBUTE, runtime.projection_store)
 
 
 async def build_store(settings: ServeSettings, project: FhirProject, client: Dhis2Client | None) -> ResourceStore:
@@ -210,6 +234,34 @@ async def build_store(settings: ServeSettings, project: FhirProject, client: Dhi
     if client is not None:
         return await build_live_store(project, settings, client)
     return load_compiled_store(project)
+
+
+@asynccontextmanager
+async def open_projection_store(
+    config: ProjectionConfig, *, project_root: Path
+) -> AsyncGenerator[ProjectionStore | None]:
+    """Open the projection this project holds, closing it on the way out, or hold none where it names none.
+
+    Nothing is read while it opens and nothing is refused: a projection nobody has synced into is a
+    valid state of a valid file, and the surface that would answer out of it says so per request
+    rather than stopping the server. That keeps R11 true - a facade configured with a projection is
+    not a facade that fails differently from one without.
+    """
+    store = build_projection_store(config, project_root=project_root)
+    if store is None:
+        yield None
+        return
+    try:
+        yield store
+    finally:
+        await _closed(store)
+
+
+async def _closed(store: ProjectionStore) -> None:
+    """Dispose of a projection's connection where the backend holds one to dispose of."""
+    closer = getattr(store, "close", None)
+    if closer is not None:
+        await closer()
 
 
 def server_version() -> str:

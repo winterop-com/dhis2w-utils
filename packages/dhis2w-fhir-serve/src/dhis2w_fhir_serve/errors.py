@@ -138,6 +138,47 @@ class RegisterListingDisabledError(ServeError):
         self.resource_type = resource_type
 
 
+class ProjectionNotConfiguredError(ServeError):
+    """A search was told to read the materialized projection and this process holds none.
+
+    Loud rather than silent, and for the reason `PassThroughUnavailableError` is loud: the silent
+    alternative is answering the lookup from the DHIS2 instance instead, which would be a different
+    search than the one `fhir.toml` states, with a different cost, and no cursor to read it by.
+    `fhir.toml` refuses the pair before the socket opens, so this is what a runtime assembled by hand
+    meets rather than what an operator meets.
+    """
+
+    def __init__(self) -> None:
+        """Carry the refusal naming both keys, since the fix is the two of them agreeing."""
+        super().__init__(
+            "this server answers a register search from the materialized projection - `[serve.search] "
+            'backend = "projection"` - and holds none to read: state `[serve.projection] store = '
+            '"sqlite"` and fill it with `d2w fhir sync`'
+        )
+
+
+class ProjectionEmptyError(ServeError):
+    """The projection is configured and nothing has ever been synced into it.
+
+    404 and `not-supported`, the same pair every other "this server does not answer that here"
+    carries, because from the client's side that is what it is. The distinction that matters is in
+    the diagnostic: an empty projection is not a register with nobody in it, and answering an empty
+    searchset would tell a client the instance holds no people when nobody has looked yet.
+    """
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str) -> None:
+        """Carry the refusal naming the resource, the projection, and the command that fills it."""
+        super().__init__(
+            f"`{resource_type}` is answered from this project's materialized projection, and nothing has "
+            "been synced into it yet - so this server has read nothing about the register rather than "
+            "read that it is empty. Run `d2w fhir sync` and ask again."
+        )
+        self.resource_type = resource_type
+
+
 class NoPublishedSubjectTypeError(ServeError):
     """The facade runs live, but the guide publishes no registration form, so it knows of no type to search."""
 
@@ -184,14 +225,14 @@ class UnsupportedSearchParameterError(ServeError):
     status_code = 400
     issue_code = "invalid"
 
-    def __init__(self, resource_type: str, parameter: str, supported_parameter: str) -> None:
-        super().__init__(
-            f"`{parameter}` is not a search parameter this server answers `{resource_type}` on: "
-            f"`{supported_parameter}` is the one it supports"
-        )
+    def __init__(self, resource_type: str, parameter: str, supported_parameters: tuple[str, ...]) -> None:
+        """Carry the refusal naming what was asked for and what this server answers instead."""
+        named = ", ".join(f"`{supported}`" for supported in supported_parameters)
+        answers = f"{named} is the one it supports" if len(supported_parameters) == 1 else f"it answers {named}"
+        super().__init__(f"`{parameter}` is not a search parameter this server answers `{resource_type}` on: {answers}")
         self.resource_type = resource_type
         self.parameter = parameter
-        self.supported_parameter = supported_parameter
+        self.supported_parameters = supported_parameters
 
 
 class BadOperationError(ServeError):

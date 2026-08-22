@@ -5675,3 +5675,73 @@ helpers expose.
 and the `SharingMeta` component declares it.
 
 **Verifier:** none yet.
+
+---
+
+### 102. `/api/tracker/enrollments` and `/api/tracker/events` accept no scope but `program`, and the second refuses in HTML while the first refuses in JSON
+
+**Version observed:** DHIS2 2.43.1 (`dhis2/core:2.43.1`, seeded Sierra Leone demo database).
+
+**What a caller is trying to do.** Poll the tracker collections on a `lastUpdated`
+cursor, scoped the way the tracked entity collection is scoped. `GET /api/tracker/trackedEntities`
+takes `trackedEntityType=` and answers a filtered, paged, tombstone-carrying page. Its two siblings
+take neither `trackedEntityType=` nor no scope at all.
+
+**Repro.**
+
+```bash
+# The tracked entity collection: scoped by type, answers a page.
+curl -s -g -u admin:district -H 'Accept: application/json' \
+  "http://localhost:8080/api/tracker/trackedEntities?trackedEntityType=nEenWmSyUEp&ouMode=ACCESSIBLE&fields=trackedEntity&pageSize=1"
+
+# Its sibling, same scope: a JSON refusal naming a parameter that is not what was asked for.
+curl -s -g -u admin:district -H 'Accept: application/json' \
+  "http://localhost:8080/api/tracker/enrollments?trackedEntityType=nEenWmSyUEp&ouMode=ACCESSIBLE&fields=trackedEntity&pageSize=1"
+
+# The same query with no scope at all: the identical refusal.
+curl -s -g -u admin:district -H 'Accept: application/json' \
+  "http://localhost:8080/api/tracker/enrollments?ouMode=ACCESSIBLE&fields=trackedEntity&pageSize=1"
+
+# The third sibling, no scope: a Tomcat HTML error page, on a request that asked for JSON.
+curl -s -g -u admin:district -H 'Accept: application/json' \
+  "http://localhost:8080/api/tracker/events?ouMode=ACCESSIBLE&fields=event&pageSize=1"
+```
+
+**Expected.** Either all three collections accept the same scoping parameters, or the two that do
+not say so in the same content type as the one that does. A caller that asked for
+`application/json` and reached a Spring-managed API endpoint should not be handed a Tomcat error
+page.
+
+**Actual.**
+
+| Request | Answer |
+| --- | --- |
+| `trackedEntities?trackedEntityType=…` | 200, a page |
+| `enrollments?trackedEntityType=…` | 400 JSON, `{"errorCode":"E1003","message":"Program is mandatory"}` — naming a parameter the caller did not pass, rather than the one it did |
+| `enrollments` with no scope | 400 JSON, the identical `E1003 "Program is mandatory"` |
+| `events` with no scope | **400 `text/html`** — `<!doctype html><html lang="en"><head><title>HTTP Status 400 – Bad Request</title>…`, with `Accept: application/json` on the request |
+| `events?program=IpHINAT79UW` | 200, a page |
+
+Two separate surprises. The first is that `trackedEntityType=` is silently useless on
+`/api/tracker/enrollments` — it is not rejected as an unknown parameter, it is simply not the scope
+the endpoint wants, and the refusal names `program` instead (which compounds
+[#98](#98-get-apitrackertrackedentities-silently-ignores-every-unrecognised-query-parameter-so-the-singular-trackedentity-turns-a-uid-scoped-read-into-an-unscoped-page):
+unrecognised tracker query parameters are ignored rather than refused, so nothing tells the caller
+its scope did nothing). The second is the content type: two sibling collections under one path
+prefix refuse the same shape of mistake, one in the API's own error envelope and one in the servlet
+container's HTML.
+
+**Workaround applied in this repo.** A sync's enrollment poll is scoped by programme, walking the
+programmes the published guide names rather than the tracked entity types the register serves —
+`poll_enrollments` in
+`packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/register/wire.py`, over
+`TrackedEntityIndex.program_uids()`. The event collection is not polled at all, for a reason that
+is about the projection rather than about this bug
+(`dhis2w_fhir_serve.projection.base.ProjectionEndpoint`), so the HTML refusal costs this repo
+nothing today and would cost the next caller a parse error.
+
+**How to know it's fixed:** the three tracker collections accept the same scoping parameters, or
+`/api/tracker/events` answers a scope refusal as `application/json` with an `errorCode`, the way
+`/api/tracker/enrollments` does.
+
+**Verifier:** none yet.

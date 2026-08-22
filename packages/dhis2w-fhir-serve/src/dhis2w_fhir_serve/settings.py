@@ -9,6 +9,7 @@ from dhis2w_fhir.config import (
     DEFAULT_BASEMAPS,
     BasemapSource,
     FhirProject,
+    ProjectionConfig,
     SearchConfig,
     ServeAuth,
     ServeAuthScope,
@@ -89,6 +90,12 @@ class ServeSettings(BaseModel):
     `search` is what answers a register search - the `NameSearchIndex` backend behind every lookup.
     It comes off `[serve.search]` and no flag overrides it, for the reason `tracked_entities` states:
     which searches this server answers is its contract rather than a property of one invocation.
+
+    `projection` is the materialized projection this project holds: which store, where its file is,
+    and how far back an incremental sync re-reads. It comes off `[serve.projection]` and no flag
+    overrides it either - a projection is a thing on disk that `d2w fhir sync` fills and this process
+    reads, so which one a run reads is not a property of the run. `store = "none"` - the default - is
+    no projection at all, and a facade configured that way behaves exactly as it always did.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -107,6 +114,7 @@ class ServeSettings(BaseModel):
     dhis2_base_url: str | None = None
     tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
+    projection: ProjectionConfig = Field(default_factory=ProjectionConfig)
 
     @classmethod
     def resolve(
@@ -199,6 +207,7 @@ class ServeSettings(BaseModel):
                 dhis2_base_url=None if generation is None else generation.profile.base_url,
                 tracked_entities=serve_config.tracked_entities,
                 search=serve_config.search,
+                projection=serve_config.projection,
             ),
             host=resolved_host,
             port=port if port is not None else serve_config.port,

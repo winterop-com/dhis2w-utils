@@ -848,14 +848,19 @@ change no behaviour at all.
 3. **The SQLite `ProjectionStore`.** SQLAlchemy + `aiosqlite` per rule 10,
    `Mapped[...]` columns, Alembic migration, the watermark in the same transaction
    as the batch. Reference implementation of the Protocol; the Embedded posture's
-   whole backend; the thing every later test runs against.
+   whole backend; the thing every later test runs against. **Shipped** -
+   `dhis2w_fhir_serve.projection.schema` and `.sqlite_store`, selected by
+   `[serve.projection] store = "sqlite"`.
 4. **`d2w fhir sync`, incremental and full, against the SQLite store.** The
    watermark, the overlap window, the per-endpoint cursors, `includeDeleted=true` as
    a constant, `--rebuild`. Ends with a CLI example under `examples/fhir/cli/` and
-   an entry in `docs/project/features.md`.
+   an entry in `docs/project/features.md`. **Shipped** -
+   `dhis2w_fhir_serve.projection.sync`, `d2w fhir sync`, `examples/fhir/cli/sync.sh`.
 5. **Serve from the projection, cursor stated.** `GET /{RegisterType}/{uid}` and
    the listing answered from `ProjectionStore` when one is configured, each
    response carrying its cursor. The live path stays the default and stays tested.
+   **Shipped** - `[serve.search] backend = "projection"`, and section 10.1 states
+   where it came out narrower than this line reads.
 6. **The OpenSearch `NameSearchIndex`, behind an extra.** ICU transliteration in
    the analyzer, character n-grams, fuzziness. `[serve.search] backend = "index"`
    becomes real. The extra follows the `[browser]` / `[serve]` pattern - pinned
@@ -880,6 +885,72 @@ change no behaviour at all.
 Steps 1 to 5 are the smallest coherent slice: they land a synced FHIR server with
 no new service, on SQLite, with today's search. Steps 6 and 7 are the "proper
 backend". Steps 8 and 9 are population evaluation.
+
+### 10.1 What steps 3 to 5 shipped as, where it differs from what was proposed
+
+Six differences, each one a thing this paper proposed and the code decided
+otherwise about. They are here rather than in a commit message because the paper
+is what the next step will be read against.
+
+**The search dial gained `projection`, not `index`.** Section 7.4 wrote the dial
+as `"dhis2" | "index"` and reserved `index` for OpenSearch. A projection-backed
+search is a different thing from a search-engine-backed one - different backend,
+different guarantees, different install - so it took its own word.
+`[serve.search] backend = "projection"` names the store that answers it and
+`[serve.projection] store` names where that store is; `index` stays reserved for
+step 6, and the file still refuses it by name.
+
+**There are two watermarks, not three.** Section 5.2 rule 3 argued for one per
+endpoint and named tracked entities, enrollments, and events. Events are not
+polled: a projected register resource carries identity and attribute values
+(`register.projection`), an event carries neither, so an event that moved is not a
+change to anything the projection holds, and a poll for one would be a request per
+interval spent to learn nothing. `ProjectionEndpoint` has two members, and the
+third arrives with the resources that need it at steps 8 and 9.
+
+**The enrollment poll is scoped by programme, because the endpoint admits nothing
+else.** `/api/tracker/enrollments` answers `E1003 "Program is mandatory"` to a
+query naming a tracked entity type or naming nothing at all, so the poll walks the
+programmes the guide publishes rather than the types the register serves. Its
+sibling `/api/tracker/events` refuses the same shape with an HTML error page
+rather than JSON. Both recorded as **BUGS.md 102**.
+
+**The watermark advances after its walk rather than inside it.** Rule 1 says the
+batch and the watermark land in one transaction, and `ProjectionStore.write` still
+offers exactly that. But a walk pages by `createdAt` - `updatedAt` is the column
+the filter moves, and paging by it drops rows - so a later page can carry an
+earlier `updatedAt`, and no page knows the watermark. Each page is written as its
+own batch and the walk is closed by a batch carrying the new watermark once every
+row it describes is durable. That is rule 1 in the direction that matters: behind
+its data costs a re-read, ahead of it is silent loss.
+
+**There is no migration, and that is the design.** Step 3 asked for an Alembic
+migration. D3 makes rebuilding routine rather than a recovery step, so the way a
+schema change reaches a projection is `d2w fhir sync --rebuild`: the tables are
+created when absent, and a projection whose shape has moved on is refilled from
+the instance that is the record for all of it. A migration would be machinery for
+carrying forward a copy that is cheaper to make again.
+
+**Step 5 shipped at the R9(iii) boundary, and the boundary is at the response
+rather than at the row.** Step 5's line reads as though `GET /{RegisterType}/{uid}`
+is answered out of the store. Section 6 recommends posture (iii), under which every
+person-level read stays live and caller-credentialed, and (iii) is what shipped:
+the projection decides the membership of a searchset, its paging, and its
+`_content` answer, and every record on the page is read from the instance under the
+credentials of whoever asked. A read of one entity by its id is a person-level read
+and is answered live whatever the backend says. A projection-served searchset also
+states **no `total`** - the projection counted under the identity the sync ran as,
+and telling a caller scoped to one district how large the national register is
+would be a disclosure nothing authorized. Both are reversible the day
+(i)-versus-(ii) is decided, and neither is reversible by accident.
+
+**And one thing section 11 reserved is now answered.** "How projection freshness
+reaches a client" is an `outcome` entry in the searchset - R4 3.1.1.4's own
+mechanism for a server to say something about a search inside the search's answer,
+which no client has to be told about to read - plus an `X-DHIS2W-Projection-As-Of`
+header beside it. `Bundle.meta.lastUpdated` was the alternative and was not taken:
+it would say when the Bundle changed, and a searchset assembled this second out of
+rows read yesterday has those as two different instants.
 
 ## 11. Owner decisions this paper reserves
 

@@ -15,10 +15,12 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
+    "aiosqlite>=0.22",
     "dhis2w-fhir>=1.7.0,<2.0",
     "dhis2w-fhir-engine>=1.7.0,<2.0",
     "fastapi>=0.141.1",
     "joserfc>=1.7.0",
+    "sqlalchemy[asyncio]>=2.0.52",
     "uvicorn>=0.49.0",
 ]
 

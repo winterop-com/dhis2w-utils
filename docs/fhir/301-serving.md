@@ -30,7 +30,8 @@ for a single run. Three have no flag behind them, and each for the same reason -
 what they decide is what the server *is* rather than how one run of it went:
 [`capture`](#capture), [`spool_dir`](#spool_dir), and the whole
 [`[serve.tracked_entities]`](#tracked_entities) table - which
-[`[serve.search]`](#search) joins for the same reason.
+[`[serve.search]`](#search) and [`[serve.projection]`](#projection) join for the
+same reason.
 
 Two things to know before the options:
 
@@ -995,46 +996,159 @@ all behaves exactly as it always has.
 **In plain words.** What a register search runs through. `"dhis2"` is the DHIS2
 instance itself: one `filter=<attribute>:eq:<value>` query per search key per
 tracked entity type, put to the instance while somebody waits, which is the
-search this server has always run.
+search this server has always run. `"projection"` is the copy of the register
+[`[serve.projection]`](#projection) holds and `d2w fhir sync` fills: one indexed
+query over one local file, however many keys and types are in scope.
 
-**Why the key exists while it has one value.** Because of the shape it fixes,
-which is worth more than the choice it offers. A search answers with tracked
-entity identifiers - who matched, and nothing about them. The record behind a
-match is then read back from the instance under the credentials the request runs
-as, so DHIS2 applies its sharing, its organisation-unit scopes, and its
-ownership rules to every record this server hands out, whatever found it. That
-is what lets something other than the instance answer the *finding* half later
-without this server ever deciding on DHIS2's behalf who may see whom. The design
-is [the materialized projection](design/projection.md), sections 7 and 9.
+**What moves and what does not.** The *finding* half moves and the *disclosing*
+half stays exactly where it is. A search answers with tracked entity identifiers -
+who matched, and nothing about them. The record behind each match is then read
+back from the instance under the credentials the request runs as, so DHIS2
+applies its sharing, its organisation-unit scopes, and its ownership rules to
+every record this server hands out, whatever found it. So the projection decides
+who is on the page and DHIS2 decides who you may see, and a read of one person by
+their id is answered from the instance whichever backend is configured. The
+design is [the materialized projection](design/projection.md), sections 6 and 7,
+and the posture is R9.
 
-**What that costs, stated.** A search that finds nobody costs what it always
-did. A search that finds somebody spends one more read on the instance - the
-read of the person it is about to hand over, which is the read DHIS2 authorizes.
+**What `"projection"` buys.** Two things, and not a third.
 
-**When you would change it.** Not yet. The second value, `"index"`, arrives with
-the OpenSearch backend, and with it the things an exact match cannot do: finding
-`ສົມສັກ` from `Somsack`, surviving a typed one-character slip, ranking near
-matches. Until that ships, this key has one word and the file refuses every
-other.
+- **A search this server could not answer before.** `_content` - R4's own
+  parameter for a text search over a resource's whole content - matches a
+  case-insensitive substring of any value a person holds. It is spelled
+  `_content` and not `name` or `family` because this server does not know which
+  of somebody's DHIS2 attribute values is their name, and will not guess: DHIS2
+  states no such mapping. `"dhis2"` refuses the parameter, because an exact-match
+  filter cannot answer it.
+- **One query instead of many.** `"dhis2"` spends one round trip per search key
+  per tracked entity type, sequentially, while somebody waits. `"projection"`
+  spends one read of a local file. Each match still costs the one live read that
+  authorizes it.
+
+**What it does not buy.** Finding `ສົມສັກ` from `Somsack`. That needs
+transliteration applied when the index is built, which arrives with the
+OpenSearch backend - the third value, `"index"`, which is not a value yet and
+which the file refuses by name until it is.
+
+**What a synced answer says that a live one does not.** The instant it is as of.
+Every searchset answered from the projection carries an `outcome` entry saying
+so, and an `X-DHIS2W-Projection-As-Of` header beside it. It also states **no
+`total`**: the projection counted its rows under the identity `d2w fhir sync` ran
+as, and how many of them *you* may see is the instance's to say one read at a
+time, so a number counted for somebody else is not offered. `_count=0` - which
+asks for that number alone - comes back with the cursor and nothing else.
+
+**When you would change it.** When searching by name is something the people
+using this server actually do, and an exact match on a national identifier is not
+enough. The cost is a `d2w fhir sync` that has to run, and answers that are as of
+the last time it did.
 
 **Example.**
 
 ```toml
 [serve.search]
-backend = "dhis2"
+backend = "projection"
+
+[serve.projection]
+store = "sqlite"
 ```
 
 **Default:** `"dhis2"` - **If you leave it out:** the instance answers every
 search, which is what a live run has always done.
 
-**If you get it wrong:** the file refuses the value and names the key, before
-the server starts:
+**If you get it wrong:** the file refuses a value nothing answers, and names the
+key, before the server starts:
 
 ```
 error: 1 validation error for FhirProjectConfig
 serve.search.backend
-  Input should be 'dhis2' [type=enum, input_value='index', input_type=str]
+  Input should be 'dhis2' or 'projection' [type=enum, input_value='index', input_type=str]
 ```
+
+Naming `"projection"` with no projection to read is refused the same way, and the
+refusal names both keys:
+
+```
+error: serve.search.backend is "projection" and serve.projection.store is "none":
+a search answered from the materialized projection needs one to read, so state
+`[serve.projection] store = "sqlite"` and fill it with `d2w fhir sync`
+```
+
+### The synced copy: the `[serve.projection]` table { #projection }
+
+A projection is a durable copy of the mapped scope of a DHIS2 instance, held as
+the FHIR resources this project's map publishes, filled by
+[`d2w fhir sync`](201-serve.md#serve-from-a-synced-copy) and written by nothing
+else. This table says whether this project holds one, where it lives, and how far
+back an incremental sync re-reads.
+
+**Nothing in it is required, and no projection is the default.** A facade that
+reads the instance per request is the product rather than a lesser version of it:
+it needs no operator, no second command, and no schedule, and a project that
+never writes this table keeps behaving exactly as it always has.
+
+**Three rules the whole table runs under**, from
+[the materialized projection](design/projection.md) section 4:
+
+- **DHIS2 is the record.** The projection holds a copy. A row that disagrees with
+  the instance is a defect of the sync, and the fix for one is `--rebuild`.
+- **The sync is the only thing that writes it.** No route, no operator, no repair
+  script.
+- **It is rebuildable from zero, and rebuilding is routine.** Deleting the file is
+  a supported operation. It is also how a change to
+  [`[serve.tracked_entities]`](#tracked_entities) or to the published map reaches
+  what is already stored.
+
+#### `store` { #projection-store }
+
+**In plain words.** Which backend holds the projection. `"sqlite"` is one file
+under the project - no service, no port, nothing to operate. `"none"` is no
+projection at all, and is the default.
+
+**When you would change it.** When you want
+[`[serve.search] backend = "projection"`](#search-backend), or when you want a
+copy of the register that a later step can evaluate a measure over without asking
+the instance 50,000 times.
+
+**Default:** `"none"` - **If you leave it out:** this project holds no
+projection, `d2w fhir sync` refuses and names this key, and every register answer
+comes from the instance while somebody waits.
+
+**If you get it wrong:** the file refuses any other word by name, the same way
+`backend` does. `"postgres"` is the name reserved for the document store of step
+7 in the design, and it is not a value yet.
+
+#### `path` { #projection-path }
+
+**In plain words.** Which file the SQLite projection lives in, relative to the
+project root unless it is absolute - the same rule [`spool_dir`](#spool_dir)
+follows, because the two are the same kind of directory work.
+
+**Default:** `".serve/projection.sqlite"` - beside the receipt spool, under a
+directory the scaffold already gitignores. Neither is source, and both are things
+this project can make again.
+
+**If you get it wrong:** an empty value is refused by name. A path this process
+cannot write is refused when the first sync tries to create it, naming the file.
+
+#### `overlap_seconds` { #projection-overlap }
+
+**In plain words.** How far back before its own watermark an incremental sync
+re-reads. A sync that polled from exactly its watermark would drop the rows
+written in the instant it was reading them, so it re-reads a window and relies on
+a write being idempotent by tracked entity - which it is.
+
+**When you would change it.** Raise it when this machine's clock and the
+instance's are known to differ, or when the instance regularly holds transactions
+open longer than five minutes. Lowering it saves a handful of re-read rows and
+buys nothing else.
+
+**Default:** `300` (five minutes) - **If you leave it out:** a sync re-reads the
+last five minutes it already read, which costs one upsert per row it finds.
+
+**If you get it wrong:** a negative value is refused by name, because a negative
+window would poll from *after* the watermark, which is how a sync loses rows
+without saying anything.
 
 ## Forwarding it: the `[forward]` section { #forward }
 

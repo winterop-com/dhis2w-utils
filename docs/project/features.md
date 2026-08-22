@@ -1509,11 +1509,13 @@ reads that table.
   entity identifiers and never with records; each match is then read back by UID
   under the credentials the request runs as, so DHIS2 authorizes every record
   this server hands out whatever found it. `[serve.search] backend` names the
-  index and has one value, `"dhis2"` - the instance itself, one
+  index and has two values. `"dhis2"` - the default - is the instance itself, one
   `filter=<uid>:eq:<value>` query per key, which is the search a live run has
-  always run. `"index"` arrives with the OpenSearch backend and is refused until
-  then, naming `serve.search.backend`. The seam is `ProjectionStore` and
-  `NameSearchIndex`, both exported, both documented in
+  always run. `"projection"` is the synced copy `d2w fhir sync` fills: one
+  indexed query however many keys and types are in scope, plus `_content` for a
+  search across every value a person holds. `"index"` arrives with the OpenSearch
+  backend and is refused until then, naming `serve.search.backend`. The seam is
+  `ProjectionStore` and `NameSearchIndex`, both exported, both documented in
   [the materialized projection](../fhir/design/projection.md).
 - **The identifier set** is the attributes `D2TEA_CS` publishes `unique` - not
   `searchable`, which a superuser is not held to. The tracked entity types come
@@ -1745,6 +1747,97 @@ in phases that stop at the first level to find an error.
   submission was accepted, its form kind, its warnings, its lifecycle state,
   and the DHIS2 import report stored beside a rejection - none of which are
   QuestionnaireResponse elements.
+
+### Sync a copy of the register
+
+`d2w fhir sync` fills a **materialized projection**: a durable copy of the mapped
+scope of a DHIS2 instance, held as the FHIR resources this project's map
+publishes, on one SQLite file under the project. `[serve.search] backend =
+"projection"` is what searches it. Both are opt-in, and a facade that configures
+neither behaves exactly as it always has - reading the instance per request needs
+no operator, no second command, and no schedule, and that stays the product.
+
+- **The first run reads the whole mapped scope**, bulk-paged, projecting each page
+  through the same `registered_entity_for` a live register read answers with -
+  so a synced answer and a live one are the same bytes from the same code, and
+  the only difference between them is the instant they are true as of. Measured
+  on the seeded 2.43.1 stack: 502 people in about five seconds over ten pages.
+- **Every run after it reads what moved**, on a `lastUpdated` cursor, and applies
+  creates, updates, and tombstones. `--rebuild` drops the copy and fills it from
+  zero, which is routine rather than a recovery step: it is how a change to
+  `[serve.tracked_entities]` or to the published map reaches what is already
+  stored. `--dry-run` reads the instance exactly as a committing run does, counts
+  what would change, and writes neither a row nor a cursor.
+- **`includeDeleted=true` rides every poll and is not a flag**, because its
+  absence is silent - a sync without it never learns that anybody left and does
+  not error. A tombstone removes the row rather than archiving a last state,
+  because DHIS2 answers 404 to a read of a deleted entity, so there is no final
+  state to archive.
+- **The watermark is the instance's own clock and is per collection.** Tracked
+  entities and enrollments carry one each - a person's `lastUpdated` does not move
+  when one of their enrollments does, and an enrollment carries programme-level
+  attribute values the projected resource does carry, so the enrollment poll says
+  whose copy went stale and each one is re-read through the single tracked entity
+  path. Events are not polled: the projected resource carries no data value, so an
+  event that moved is not a change to anything held. The enrollment poll is scoped
+  by programme because `/api/tracker/enrollments` accepts no other scope
+  (BUGS.md 102).
+- **A watermark never runs ahead of its rows.** The store writes a batch and its
+  cursor in one transaction, and a walk advances its watermark only once every row
+  it read is durable - so a walk that failed halfway advances nothing and the next
+  run re-reads it, which the idempotent write makes free. An incremental run polls
+  from the watermark less `[serve.projection] overlap_seconds`, because a poll from
+  exactly the watermark drops the rows written in the instant it was reading.
+- **`SyncReport` is typed and `--json` prints it whole**: the mode, created /
+  updated / removed per FHIR resource type, the pages read, where each collection's
+  cursor stood before and after, and the instant every answer served from the
+  projection now states. The counts are read out of the projection rather than
+  assumed, so a row the overlap window re-read is honestly an update.
+- **DHIS2 stays the record.** No route writes the projection, no operator writes
+  it, and a row that disagrees with the instance is a defect of this command whose
+  fix is `--rebuild` rather than an edit. Deleting the file is supported. A capture
+  still travels spool, `d2w fhir forward`, DHIS2, then the next sync, so a captured
+  value appears in a synced server one sync interval after DHIS2 accepted it -
+  stated rather than hidden behind a write-through.
+
+### Serve from the synced copy
+
+`[serve.search] backend = "projection"` moves the *finding* half of a register
+search into the copy and leaves the *disclosing* half exactly where it is.
+
+- **`_content` is the search that arrives with it** - R4's own parameter for a
+  text search over a resource's whole content, matching a case-insensitive
+  substring of any value a person holds. It is spelled `_content` and not `name`
+  or `family` because this server does not know which of somebody's DHIS2
+  attribute values is their name and will not guess; `"dhis2"` refuses the
+  parameter, because an exact-match filter cannot answer it. `/metadata` declares
+  it only where it is answered.
+- **One indexed query replaces one tracker query per key per tracked entity
+  type.** The identifier search matches exactly over the token index; the listing
+  pages the copy with the same `_count` and opaque `page` pair the live listing
+  uses, so a client cannot tell the backends apart by the shape of a link.
+- **Every projection-served answer states the instant it is as of** - an
+  `outcome` entry in the searchset, which is R4's own way for a server to say
+  something about a search inside the search's answer, plus an
+  `X-DHIS2W-Projection-As-Of` header beside it. A live answer states neither,
+  because it is as of the moment the instance answered.
+- **Who may see whom does not change.** The copy says who is on the page; each
+  record is read from the instance under the credentials of whoever asked, so
+  DHIS2 applies its sharing, organisation-unit scopes, and ownership rules per
+  person per request. A person the copy holds and the instance will not disclose
+  to this caller is on nobody's page, and `GET /{resourceType}/{id}` is a
+  person-level read answered from the instance whatever the backend says.
+- **A projection-served searchset states no `total`.** The copy counted its rows
+  under the identity the sync ran as, and how many of them a given caller may see
+  is the instance's to say one read at a time - so a count taken for somebody else
+  is not offered. The Bundle keeps the same silence it already keeps when the
+  instance states no count, and `_count=0` - which asks for that number alone -
+  comes back with the cursor and no walk to follow.
+- **What it still cannot do is cross scripts.** Finding `ສົມສັກ` from `Somsack`
+  needs transliteration applied when the index is built, which arrives with a
+  search-engine backend; a one-character typo finds nothing here either. The
+  measurement and what closes each gap are in
+  [the materialized projection](../fhir/design/projection.md).
 
 ### Embed the facade
 
@@ -2575,7 +2668,8 @@ full key set and refuses anything else.
 | `[generate.examples]` | `per_target`, `source` |
 | `[serve]` | `host`, `port`, `strict_codes`, `capture`, `ui`, `spool_dir`, `basemaps`, `tracked_entities`, `search` |
 | `[serve.tracked_entities]` | `enabled`, `listing`, `page_size`, `page_size_limit`, `tracked_entity_types`, `search_attributes` |
-| `[serve.search]` | `backend` (`dhis2`) |
+| `[serve.search]` | `backend` (`dhis2`, `projection`) |
+| `[serve.projection]` | `store` (`none`, `sqlite`), `path`, `overlap_seconds` |
 | `[forward]` | `live`, `import`, `register_completeness`, `overwrites`, `corrections`, `withdrawals` |
 
 - **An unknown key stops the command.** A misspelled `max_lvl = 4` produces
@@ -2588,8 +2682,8 @@ full key set and refuses anything else.
 - **Flags beat the table beats the defaults** on `[serve]` and `[forward]`
   alike, and `--strict-codes` / `--no-strict-codes` reaches all three levels.
   `[serve] capture` and `[serve] spool_dir` have no flag at all, and neither do
-  `[serve.tracked_entities]` and `[serve.search]`, because each states what the
-  server is rather than what one run does.
+  `[serve.tracked_entities]`, `[serve.search]`, and `[serve.projection]`, because
+  each states what the server is rather than what one run does.
 - **The `[forward] import` key is spelled `import` in the file** (the field is
   `import_responses` in Python, because `import` is a keyword), and the file
   accepts no other spelling of it.

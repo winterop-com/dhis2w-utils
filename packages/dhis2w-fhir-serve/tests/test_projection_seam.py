@@ -32,6 +32,7 @@ from dhis2w_fhir_serve.projection.base import (
     ProjectionPage,
     ProjectionQuery,
     ProjectionStore,
+    ProjectionWatermarks,
 )
 from dhis2w_fhir_serve.projection.dhis2_names import Dhis2NameSearchIndex
 from dhis2w_fhir_serve.projection.factory import build_name_search_index
@@ -83,6 +84,10 @@ class _Store(BaseModel):
     async def cursor(self) -> ProjectionCursor:
         """How far this projection has been filled - nowhere, since nothing writes it."""
         return ProjectionCursor()
+
+    async def watermarks(self) -> ProjectionWatermarks:
+        """How far each collection has been read - nowhere, since nothing polls for this one."""
+        return ProjectionWatermarks()
 
     async def rebuild(self) -> None:
         """Empty a projection that was never filled."""

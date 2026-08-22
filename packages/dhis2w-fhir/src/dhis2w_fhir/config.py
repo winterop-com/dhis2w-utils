@@ -325,7 +325,7 @@ class TrackedEntitiesConfig(BaseModel):
 class SearchBackend(StrEnum):
     """What answers a register search - the `[serve.search] backend` key.
 
-    One value ships. `"index"` is the name reserved for the OpenSearch backend of step 6 in
+    Two values ship. `"index"` is the name reserved for the OpenSearch backend of step 6 in
     `docs/fhir/design/projection.md`, and it is deliberately not a member here for the reason
     `ServeAuth` reserves `oauth2` in its own docstring: a value that parses and then has nothing to
     run on is worse than a value the file refuses by name, naming the key it refused.
@@ -335,6 +335,13 @@ class SearchBackend(StrEnum):
     #: Search is as wide as `filter=<attribute>:eq:<value>` is, and every match is authorized by the
     #: instance on the read that resolves it.
     DHIS2 = "dhis2"
+
+    #: The materialized projection `d2w fhir sync` fills, asked one indexed query however many keys
+    #: and types are in scope. Finding is answered from the store and stated as of its cursor; the
+    #: record behind a match is still read from the instance under the caller's own credentials, so
+    #: what the projection decides is who is on the page and what DHIS2 decides is who may see them.
+    #: Needs `[serve.projection] store` to name a store, and the run is refused when it names none.
+    PROJECTION = "projection"
 
 
 class SearchConfig(BaseModel):
@@ -346,6 +353,13 @@ class SearchConfig(BaseModel):
     discloses are identifiers, and the record behind one is read back under the caller's own
     credentials, so DHIS2 decides per match per caller what may be seen.
 
+    `backend = "projection"` moves the finding half into the store `[serve.projection]` names and
+    leaves the disclosing half exactly where it is. A search then costs one indexed query rather
+    than one tracker query per key per tracked entity type, it answers a name the exact-match filter
+    could never answer, and every answer states the cursor it is as of. What it does not do is hand
+    over a record the instance has not authorized: each match is read back live under the caller's
+    own credentials, which is the R9 posture of `docs/fhir/design/projection.md` section 6 in full.
+
     The table has no command-line flag. Which searches this server answers is its contract - it is
     what `/metadata` declares - rather than a property of one invocation, which is the rule
     `[serve.tracked_entities]` follows for the same reason.
@@ -354,6 +368,101 @@ class SearchConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     backend: SearchBackend = SearchBackend.DHIS2
+
+
+#: Where a project's materialized projection lives when `[serve.projection]` names no other path.
+#:
+#: Beside the spool, under the project root, because the two are the same kind of thing about this
+#: project: what `d2w fhir serve` owns on disk. The spool is what a client sent and the projection is
+#: what DHIS2 held, and neither is source - the scaffold gitignores `.serve/` whole.
+DEFAULT_PROJECTION_RELATIVE_PATH = ".serve/projection.sqlite"
+
+#: How far back before its own watermark an incremental sync re-reads, in seconds.
+#:
+#: Five minutes. `updatedAfter` boundary semantics, clock skew between this host and the instance,
+#: and transactions in flight at the instant of a poll all drop rows at the edge, so a sync re-polls
+#: from `watermark - overlap` and relies on a write being idempotent by resource id
+#: (`docs/fhir/design/projection.md` section 5.2, rule 2). The window is a number somebody chose
+#: rather than a constant an incident discovers.
+DEFAULT_SYNC_OVERLAP_SECONDS = 300
+
+
+class ProjectionBackend(StrEnum):
+    """Which durable store holds this project's materialized projection - `[serve.projection] store`.
+
+    `"postgres"` is the name reserved for the document store of step 7 in
+    `docs/fhir/design/projection.md`, and it is deliberately not a member here for the reason
+    `SearchBackend` reserves `"index"`: a value that parses and then has nothing to run on is worse
+    than a value the file refuses by name.
+    """
+
+    #: No projection. The default, and the whole of what makes a facade configured without one behave
+    #: exactly as it always did: `d2w fhir sync` refuses and names this key, and every register answer
+    #: is read from the instance while the caller waits.
+    NONE = "none"
+
+    #: One SQLite file under the project root, over SQLAlchemy and aiosqlite. Needs no service, no
+    #: operator, and no port - which is what makes a synced FHIR server something a district office
+    #: can run on the machine it already has.
+    SQLITE = "sqlite"
+
+
+class ProjectionConfig(BaseModel):
+    """The materialized projection this project holds - the `[serve.projection]` table of `fhir.toml`.
+
+    A projection is a durable copy of the mapped scope of a DHIS2 instance, held as the FHIR
+    resources this project's map publishes, filled by `d2w fhir sync` and written by nothing else.
+    It is derived, it is rebuildable from zero, and every answer served out of it states the instant
+    it is as of. `docs/fhir/design/projection.md` section 4 is the doctrine in seven rules, and the
+    first of them is the one this table exists under: DHIS2 stays the record for everything DHIS2
+    can hold, and this holds a copy.
+
+    `store` is which backend holds it, and `"none"` - the default - is no projection at all. That is
+    not a degraded mode: a facade reading the instance per request is the product, it needs no
+    operator, and nothing in this table may make it harder to run
+    (`docs/fhir/design/projection.md` R11).
+
+    `path` is where a SQLite projection's one file lives, relative to the project root unless it is
+    absolute - the same rule `[serve] spool_dir` follows, because the two are the same kind of
+    directory work. Deleting the file is a supported operation: the next `d2w fhir sync` fills it
+    from zero, which is what "rebuildable" means when it is not frightening.
+
+    `overlap_seconds` is how far back before its own watermark an incremental run re-reads. A sync
+    that polled from exactly its watermark would drop the rows written in the instant it was reading,
+    so it re-reads a window and relies on a write being idempotent by resource id.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    store: ProjectionBackend = ProjectionBackend.NONE
+    path: str = DEFAULT_PROJECTION_RELATIVE_PATH
+    overlap_seconds: int = DEFAULT_SYNC_OVERLAP_SECONDS
+
+    @field_validator("path")
+    @classmethod
+    def _names_a_file(cls, value: str) -> str:
+        """An empty path names nothing, and a project that states one has to mean it."""
+        if value.strip() == "":
+            raise ValueError(
+                "path is empty: name the file the projection lives in, relative to the project root "
+                f"or absolute, or leave the key out for {DEFAULT_PROJECTION_RELATIVE_PATH!r}"
+            )
+        return value
+
+    @field_validator("overlap_seconds")
+    @classmethod
+    def _not_negative(cls, value: int) -> int:
+        """A negative overlap would poll from after the watermark, which is how a sync loses rows silently."""
+        if value < 0:
+            raise ValueError(
+                f"overlap_seconds is {value}: an incremental run re-reads a window BEFORE its own "
+                "watermark, so the window is zero or more seconds"
+            )
+        return value
+
+    def enabled(self) -> bool:
+        """Whether this project holds a projection at all, which is the one thing every caller asks first."""
+        return self.store is not ProjectionBackend.NONE
 
 
 class ServeAuth(StrEnum):
@@ -506,9 +615,14 @@ class ServeConfig(BaseModel):
     the one part of this table that says what a live run will tell a client about the instance behind
     it.
 
-    `[serve.search]` is what answers a register search - the instance itself today, and a search
-    index when one is configured. It says how a lookup is answered where `[serve.tracked_entities]`
-    says what may be looked up.
+    `[serve.search]` is what answers a register search - the instance itself, or the materialized
+    projection beside it. It says how a lookup is answered where `[serve.tracked_entities]` says
+    what may be looked up.
+
+    `[serve.projection]` is the materialized projection: which store holds a durable copy of the
+    mapped scope of the instance, where that store lives, and how far back an incremental sync
+    re-reads. `store = "none"` - the default - is no projection at all, which is the posture every
+    facade started before this table existed runs in and will keep running in.
 
     `auth` is who the facade serves, and `auth_scope` is how much of it the posture covers. The key
     is `ServeAuth | None` rather than `ServeAuth` because absence is a third state this table has to
@@ -540,6 +654,23 @@ class ServeConfig(BaseModel):
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
     tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
+    projection: ProjectionConfig = Field(default_factory=ProjectionConfig)
+
+    @model_validator(mode="after")
+    def _a_projection_search_has_a_projection(self) -> ServeConfig:
+        """`[serve.search] backend = "projection"` needs a store to search, and this file has to name it.
+
+        Refused here rather than at the first lookup, because a server that starts and then answers
+        every search with a failure is a decision nobody reads until somebody meets it - and the two
+        keys are three lines apart in the same file.
+        """
+        if self.search.backend is SearchBackend.PROJECTION and not self.projection.enabled():
+            raise ValueError(
+                'serve.search.backend is "projection" and serve.projection.store is "none": a search '
+                "answered from the materialized projection needs one to read, so state "
+                '`[serve.projection] store = "sqlite"` and fill it with `d2w fhir sync`'
+            )
+        return self
 
     @field_validator("spool_dir")
     @classmethod

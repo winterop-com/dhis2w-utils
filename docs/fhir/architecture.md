@@ -43,6 +43,7 @@ d2w fhir generate pages             Narrative site pages + per-artifact intros
 d2w fhir generate load-set          Synthetic response corpus into load/ (not IG source)
 d2w fhir validate                   FHIR-safety of the instance's codes (exit 1 on errors; --no-fail)
 d2w fhir serve [DIRECTORY]          Serve the project as a FHIR read + capture facade
+d2w fhir sync [DIRECTORY]           Fill a durable FHIR copy of the instance's register on disk
 d2w fhir forward [DIRECTORY]        Drain the capture spool into DHIS2 (dry run by default)
 d2w fhir doctor                     Run the whole chain against one instance and report what it breaks
 ```
@@ -479,6 +480,37 @@ served set follows the published map rather than a hardcoded `Patient`.
 Refusals are ordered so the message names the real reason - disabled by
 configuration, not live, no published type, or not in this surface.
 
+### The materialized projection
+
+A live register asks the instance every time somebody searches. `dhis2w-fhir-serve`
+also ships the other half: a durable copy of the mapped scope of an instance, held
+as the FHIR resources the published map produces, in `projection/`.
+
+- `base.py` is the two Protocols and their models. `ProjectionStore` holds
+  documents; `NameSearchIndex` finds candidates and answers with identifiers and
+  scores and nothing else. They are separate because they are separately
+  adoptable, separately backed, and separately *safe*.
+- `schema.py` and `sqlite_store.py` are the reference backend: SQLAlchemy over
+  aiosqlite, four tables, one file under the project. The document is the wire
+  JSON; the query dimensions are typed columns beside it.
+- `sqlite_names.py` searches the keys that store holds, folded and matched as a
+  substring - the measured behaviour of the `:like:` filter it replaces, and not
+  a transliteration.
+- `sync.py` is what fills it, and `d2w fhir sync` is its only caller. Nothing
+  there maps anything: the projection of a tracked entity onto a FHIR resource is
+  `register/projection.py`, the same function a live read answers with, so a
+  synced answer and a live one are the same bytes from the same code.
+- `serving.py` is how an answer out of the copy states the instant it is as of -
+  an `outcome` entry in the searchset and a header beside it.
+- `factory.py` dispatches on `[serve.projection] store` and `[serve.search]
+  backend`, the way `build_auth_provider` dispatches on a posture.
+
+**The projection changes what a search can find, not who may see the answer.**
+Every match is read back from the instance under the caller's own credentials,
+so DHIS2 applies its own rules per person per request; a person-level read by id
+is answered live in every posture. `docs/fhir/design/projection.md` is the design
+and section 6 is the reasoning.
+
 ### Capture
 
 `POST /QuestionnaireResponse` runs a phase machine, each phase the last to run
@@ -661,6 +693,8 @@ store.py, live.py            The two stores
 capability.py, metadata.py   /metadata
 capture/                     naming, index, resolve, validate, outcome
 register/                    index, surface, wire, listing, projection
+projection/                  base, schema, sqlite_store, sqlite_names,
+                             dhis2_names, sync, serving, factory
 routes/                      capture, read, register, generate, translate,
                              spool, uiconfig, enrollments, context
 synthesize.py                $generate
