@@ -7,6 +7,7 @@ from dhis2w_fhir.config import (
     FhirProjectConfig,
     GenerateConfig,
     IgConfig,
+    MalformedFhirConfigError,
     NoFhirProjectError,
     SearchBackend,
     SearchConfig,
@@ -499,3 +500,14 @@ def test_the_jwt_table_survives_a_config_round_trip(tmp_path: Path) -> None:
     assert load_fhir_config(path).serve.jwt == ServeJwtConfig(
         issuer="https://idp.example.org/realms/health", audience="d2w-fhir-serve"
     )
+
+
+def test_a_malformed_fhir_toml_is_a_worded_refusal_naming_the_file(tmp_path: Path) -> None:
+    """Invalid TOML answers with the file and the parser's own location, never a raw traceback."""
+    config_path = tmp_path / "fhir.toml"
+    config_path.write_text("[serve]\nui = true\n[serve]\nui = false\n", encoding="utf-8")
+    with pytest.raises(MalformedFhirConfigError) as raised:
+        load_fhir_config(config_path)
+    message = str(raised.value)
+    assert str(config_path) in message
+    assert "not valid TOML" in message

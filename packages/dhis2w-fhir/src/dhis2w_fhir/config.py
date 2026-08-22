@@ -49,6 +49,10 @@ class UnknownFhirConfigKeyError(CliUserError):
     """Raised when `fhir.toml` names keys the configuration document does not declare."""
 
 
+class MalformedFhirConfigError(CliUserError):
+    """Raised when `fhir.toml` is not valid TOML, naming the file and where the parser stopped."""
+
+
 class IgConfig(BaseModel):
     """SUSHI IG identity - the `[ig]` table of `fhir.toml`."""
 
@@ -930,7 +934,10 @@ def load_fhir_config(path: Path) -> FhirProjectConfig:
     table accepts, and every unknown key in the file is reported in one pass. A refusal about a
     value rather than a name (a wrong type, a value outside its range) keeps pydantic's own report.
     """
-    raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise MalformedFhirConfigError(f"{path}: not valid TOML - {error}") from error
     try:
         return FhirProjectConfig.model_validate(raw)
     except ValidationError as error:
