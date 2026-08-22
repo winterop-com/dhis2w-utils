@@ -48,7 +48,7 @@ test.describe('the evaluate screen', () => {
         await expect(page.getByTestId('evaluate-context-resource')).toContainText('Lovelace')
         await expect(page.getByRole('combobox', { name: 'Example' })).toContainText(FHIRPATH_EXAMPLE)
 
-        await page.getByRole('button', { name: 'Evaluate' }).click()
+        await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
 
         const answer = page.getByTestId('evaluate-answer')
         await expect(answer).toBeVisible()
@@ -69,7 +69,7 @@ test.describe('the evaluate screen', () => {
         await expect(page.getByRole('combobox', { name: 'Example' })).toContainText(CQL_EXAMPLE)
         await expect(sourceEditor(page)).toContainText('define People: [Patient]')
 
-        await page.getByRole('button', { name: 'Evaluate' }).click()
+        await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
 
         const answer = page.getByTestId('evaluate-answer')
         await expect(answer.getByText('People', { exact: true })).toBeVisible()
@@ -83,7 +83,7 @@ test.describe('the evaluate screen', () => {
         await page.goto('/#/evaluate')
 
         await typeSource(page, 'Patient.name..given')
-        await page.getByRole('button', { name: 'Evaluate' }).click()
+        await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
 
         const answer = page.getByTestId('evaluate-answer')
         await expect(answer).toContainText('Parse error at line 1, column 14')
@@ -108,7 +108,7 @@ test.describe('the evaluate screen', () => {
         await expect(sourceEditor(page)).toContainText('Questionnaire.item.linkId')
         await expect(page.getByLabel('Resource type')).toHaveValue('Questionnaire')
 
-        await page.getByRole('button', { name: 'Evaluate' }).click()
+        await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
         await expect(page.getByTestId('evaluate-answer')).toContainText('match')
     })
 
@@ -173,7 +173,7 @@ test.describe('the evaluate screen', () => {
 
         await expect(sourceEditor(page)).toContainText("Patient.telecom.where(system = 'email').value")
 
-        await page.getByRole('button', { name: 'Evaluate' }).click()
+        await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
         await expect(page.getByTestId('evaluate-answer')).toContainText('ada@example.org')
     })
 
@@ -188,7 +188,7 @@ test.describe('the evaluate screen', () => {
         // The whole Bundle is pasted into the context box, not a reference to one held elsewhere.
         await expect(page.getByTestId('evaluate-context-resource')).toContainText('Tadesse')
 
-        await page.getByRole('button', { name: 'Evaluate' }).click()
+        await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
 
         const answer = page.getByTestId('evaluate-answer')
         // Four weights are recorded and two of them clear the threshold, so the filter is doing work.
@@ -230,7 +230,7 @@ test.describe('the evaluate screen', () => {
             .getByTestId('evaluate-examples')
             .getByRole('button', { name: 'A valueset the data holds no expansion for, refused' })
             .click()
-        await page.getByRole('button', { name: 'Evaluate' }).click()
+        await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
 
         // The refusal is the answer, and it arrives as a 200 with the engine's own sentence on it.
         const answer = page.getByTestId('evaluate-answer')
