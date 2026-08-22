@@ -104,6 +104,17 @@ describe('the language reference', () => {
         expect(said).toContain('declare')
     })
 
+    it('states that a date read off a FHIR resource is compared without a conversion around it', () => {
+        // The CQL shelf that asks a realistic Bundle is written on this, so a reader meeting
+        // `P.birthDate < @2000-01-01` there finds the rule stated rather than inferred.
+        const temporal = languageReference('cql').sections.find((section) =>
+            section.title.toLowerCase().includes('temporal'),
+        )
+        const said = (temporal?.entries ?? []).map((entry) => `${entry.name} ${entry.meaning}`).join(' ')
+        expect(said).toContain('birthDate')
+        expect(said).toContain('no conversion is written')
+    })
+
     it('states the one thing an ELM library cannot be posted without', () => {
         const said = languageReference('elm')
             .sections.flatMap((section) => section.entries)

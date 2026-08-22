@@ -172,6 +172,25 @@ test.describe('the evaluate screen', () => {
         await expect(page.getByTestId('evaluate-answer')).toContainText('ada@example.org')
     })
 
+    test('asks the household Bundle a question a single record could not answer', async ({ page }) => {
+        await page.goto('/#/evaluate')
+
+        await page
+            .getByTestId('evaluate-examples')
+            .getByRole('button', { name: 'The weights above sixty kilograms' })
+            .click()
+
+        // The whole Bundle is pasted into the context box, not a reference to one held elsewhere.
+        await expect(page.getByTestId('evaluate-context-resource')).toContainText('Tadesse')
+
+        await page.getByRole('button', { name: 'Evaluate' }).click()
+
+        const answer = page.getByTestId('evaluate-answer')
+        // Four weights are recorded and two of them clear the threshold, so the filter is doing work.
+        await expect(answer).toContainText('2 matches')
+        await expect(answer.getByRole('cell', { name: '63.4', exact: true })).toBeVisible()
+    })
+
     test('states the CQL reference this engine answers, refusals included', async ({ page }) => {
         await page.goto('/#/evaluate')
 

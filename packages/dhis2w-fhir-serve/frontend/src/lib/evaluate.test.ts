@@ -4,6 +4,7 @@ import {
     EXAMPLE_BUNDLE,
     EXAMPLE_CLINICAL_BUNDLE,
     EXAMPLE_ELM,
+    EXAMPLE_HOUSEHOLD_BUNDLE,
     EXAMPLE_PATIENT,
     EXAMPLE_RESPONSE,
     GUIDE_PRESET_GROUP,
@@ -38,6 +39,10 @@ import {
 
 const LANGUAGES: EvaluationLanguage[] = ['fhirpath', 'cql', 'elm']
 
+/** Whether a string holds anything written outside the Latin letters ASCII covers. */
+const beyondAscii = (text: string): boolean =>
+    [...text].some((character) => (character.codePointAt(0) ?? 0) > 127)
+
 describe('the generic examples', () => {
     it('offers at least one for every language, so no language opens empty', () => {
         for (const language of LANGUAGES) {
@@ -68,6 +73,7 @@ describe('the generic examples', () => {
         expect(JSON.parse(EXAMPLE_PATIENT).resourceType).toBe('Patient')
         expect(JSON.parse(EXAMPLE_BUNDLE).resourceType).toBe('Bundle')
         expect(JSON.parse(EXAMPLE_CLINICAL_BUNDLE).resourceType).toBe('Bundle')
+        expect(JSON.parse(EXAMPLE_HOUSEHOLD_BUNDLE).resourceType).toBe('Bundle')
         expect(JSON.parse(EXAMPLE_RESPONSE).resourceType).toBe('QuestionnaireResponse')
         expect(JSON.parse(EXAMPLE_ELM).library.identifier.id).toBe('Example')
     })
@@ -163,6 +169,108 @@ describe('the shelves the examples sit on', () => {
         const shelves = exampleGroups(examples)
         expect(shelves.at(-1)?.group).toBe(GUIDE_PRESET_GROUP)
         expect(shelves.at(-1)?.examples).toHaveLength(1)
+    })
+})
+
+describe('the household Bundle the realistic examples ask', () => {
+    interface Entry {
+        resource: { resourceType: string; [element: string]: unknown }
+    }
+
+    const bundle = JSON.parse(EXAMPLE_HOUSEHOLD_BUNDLE) as { type: string; entry: Entry[] }
+    const held = (resourceType: string): Entry['resource'][] =>
+        bundle.entry.map((entry) => entry.resource).filter((resource) => resource.resourceType === resourceType)
+
+    it('is a collection, because nothing in it is the answer to a search', () => {
+        expect(bundle.type).toBe('collection')
+    })
+
+    it('holds a population rather than one person, so an "everyone" question has an answer', () => {
+        expect(held('Patient')).toHaveLength(2)
+    })
+
+    it('holds enough measurements, across enough codes, for a filter to leave rows behind', () => {
+        const observations = held('Observation')
+        expect(observations.length).toBeGreaterThanOrEqual(4)
+        const codes = new Set(
+            observations.map(
+                (observation) =>
+                    (observation.code as { coding: { code: string }[] }).coding[0].code,
+            ),
+        )
+        expect(codes.size).toBeGreaterThanOrEqual(2)
+    })
+
+    it('spreads those measurements over time, so latest-by-date is a question worth asking', () => {
+        const taken = held('Observation').map((observation) => String(observation.effectiveDateTime))
+        expect(new Set(taken).size).toBe(taken.length)
+        expect(new Set(taken.map((moment) => moment.slice(0, 7))).size).toBeGreaterThanOrEqual(3)
+    })
+
+    it('numbers the doses of one vaccine, so counting a series is a question worth asking', () => {
+        const doses = held('Immunization').map(
+            (immunization) =>
+                (immunization.protocolApplied as { doseNumberPositiveInt: number }[])[0].doseNumberPositiveInt,
+        )
+        expect(doses).toEqual([1, 2, 3])
+    })
+
+    it('carries the record around the readings - a Condition, an Encounter, and identifiers', () => {
+        expect(held('Condition')).toHaveLength(1)
+        expect(held('Encounter')).toHaveLength(1)
+        const identifiers = held('Patient').flatMap(
+            (patient) => (patient.identifier ?? []) as { value: string }[],
+        )
+        expect(identifiers.length).toBeGreaterThanOrEqual(2)
+    })
+
+    it('writes a name in the script the family writes it in, not only in Latin letters', () => {
+        const names = held('Patient').flatMap((patient) => patient.name as { family: string }[])
+        // Latin-only would make "the same names in their own script" an example with nothing to show.
+        expect(names.some((name) => beyondAscii(name.family))).toBe(true)
+    })
+})
+
+describe('the shelves that ask the household Bundle', () => {
+    const REALISTIC_SHELVES: Record<EvaluationLanguage, string> = {
+        fhirpath: 'Ask a Bundle',
+        cql: 'A population in a Bundle',
+        elm: 'A compiled library over a Bundle',
+    }
+
+    const shelved = (language: EvaluationLanguage) =>
+        genericExamples(language).filter((example) => example.group === REALISTIC_SHELVES[language])
+
+    it('offers one for every language, because the gap was every language asking a single Patient', () => {
+        expect(shelved('fhirpath').length).toBeGreaterThanOrEqual(8)
+        expect(shelved('cql').length).toBeGreaterThanOrEqual(6)
+        expect(shelved('elm').length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('attaches the same Bundle to every one of them, pasted whole', () => {
+        for (const language of LANGUAGES) {
+            for (const example of shelved(language)) {
+                expect(example.form.context.kind).toBe('inline')
+                expect(example.form.context.resource).toBe(EXAMPLE_HOUSEHOLD_BUNDLE)
+            }
+        }
+    })
+
+    it('builds a request carrying the Bundle itself, not the text of it', () => {
+        const [first] = shelved('fhirpath')
+        expect(evaluationRequest(first.form)).toMatchObject({
+            language: 'fhirpath',
+            context: { kind: 'inline', resource: JSON.parse(EXAMPLE_HOUSEHOLD_BUNDLE) },
+        })
+    })
+
+    it('asks each language what that language is for - resources, a population, a compiled library', () => {
+        const asked = (language: EvaluationLanguage) => shelved(language).map((example) => example.form.source).join('\n')
+        expect(asked('fhirpath')).toContain('ofType(Observation)')
+        expect(asked('cql')).toContain('[Immunization]')
+        // The coercion the CQL shelf is written on: a birth date compared without ToDate around it.
+        expect(asked('cql')).toContain('P.birthDate > @2020-01-01')
+        expect(asked('elm')).toContain('{http://hl7.org/fhir}Patient')
     })
 })
 
