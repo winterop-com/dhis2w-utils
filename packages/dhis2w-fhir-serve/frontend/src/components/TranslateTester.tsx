@@ -84,11 +84,11 @@ export function TranslateTester({
         <Card>
             <CardContent className="space-y-4 py-6">
                 <div className="space-y-1">
-                    <h3 className="text-base font-semibold">Translate a code</h3>
+                    <h3 className="text-base font-semibold">What a code maps to in DHIS2</h3>
                     <p className="text-muted-foreground text-sm">
-                        Ask this server what a concept means in DHIS2 terms: type a code (or press
-                        Translate on any row above) and the published maps answer with the DHIS2
-                        option uid and code it stands for. This is the live{' '}
+                        Type a concept code - or press Details on any row above - and the
+                        published maps answer with the DHIS2 option uid and code it stands for.
+                        On the wire this is the{' '}
                         <code className="font-mono">$translate</code> operation - the same one{' '}
                         <code className="font-mono">d2w fhir forward</code> resolves a coded answer
                         with.
@@ -132,7 +132,7 @@ export function TranslateTester({
                     )}
                     <Button type="submit" disabled={running || entered.trim() === ''}>
                         {running ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-                        Translate
+                        Look up
                     </Button>
                 </form>
 
