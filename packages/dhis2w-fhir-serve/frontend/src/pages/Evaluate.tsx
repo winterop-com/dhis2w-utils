@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BookOpen, Loader2, Play } from 'lucide-react'
 
 import { CodeBlock, CodeEditor, type EditorLanguage } from '@/components/CodeEditor'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EvaluateReference } from '@/components/EvaluateReference'
 import { PageHeader } from '@/components/PageState'
 import { Badge } from '@/components/ui/badge'
@@ -506,7 +507,7 @@ function Diagnostic({ diagnostic, source }: { diagnostic: EvaluationDiagnostic; 
     )
 }
 
-/** One define's answer: a table when the collection is values, JSON when it has structure. */
+/** One define's answer on two tabs: the table reading, and the raw JSON the server sent. */
 function ResultCard({ result }: { result: EvaluationResultRow }) {
     const shape = resultShape(result.values)
     return (
@@ -527,31 +528,43 @@ function ResultCard({ result }: { result: EvaluationResultRow }) {
                     </p>
                 )}
 
-                {result.refusal === null && shape === 'table' && (
-                    <div className="show-scrollbars overflow-x-auto rounded-lg border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-16">#</TableHead>
-                                    <TableHead>Value</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {result.values.map((value, index) => (
-                                    <TableRow key={`${result.name}-${String(index)}`}>
-                                        <TableCell className="text-muted-foreground font-mono text-xs">
-                                            {index + 1}
-                                        </TableCell>
-                                        <TableCell className="font-mono text-xs">{cellText(value)}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                )}
-
-                {result.refusal === null && shape === 'json' && (
-                    <CodeBlock value={JSON.stringify(result.values, null, 2)} testId="evaluate-result-json" />
+                {result.refusal === null && (
+                    <Tabs defaultValue={shape === 'table' ? 'table' : 'raw'} className="gap-3">
+                        <TabsList>
+                            <TabsTrigger value="table">Table</TabsTrigger>
+                            <TabsTrigger value="raw">Raw</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="table">
+                            <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-16">#</TableHead>
+                                            <TableHead>Value</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {result.values.map((value, index) => (
+                                            <TableRow key={`${result.name}-${String(index)}`}>
+                                                <TableCell className="text-muted-foreground font-mono text-xs">
+                                                    {index + 1}
+                                                </TableCell>
+                                                <TableCell className="font-mono text-xs">
+                                                    {cellText(value)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="raw">
+                            <CodeBlock
+                                value={JSON.stringify(result.values, null, 2)}
+                                testId="evaluate-result-json"
+                            />
+                        </TabsContent>
+                    </Tabs>
                 )}
             </CardContent>
         </Card>
