@@ -15,13 +15,14 @@ import {
 } from 'lucide-react'
 
 import { CommandPalette, PaletteButton } from '@/components/CommandPalette'
+import { KeyboardShortcuts } from '@/components/KeyboardShortcuts'
+import { SettingsMenu } from '@/components/SettingsMenu'
 import { SignInPanel } from '@/components/SignInPanel'
 import { StatusMenu } from '@/components/StatusMenu'
-import { ThemePicker } from '@/components/ThemePicker'
-import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useAuth } from '@/hooks/use-auth'
 import { useSidebar } from '@/hooks/use-sidebar'
 import { useUiConfig } from '@/hooks/use-ui-config'
@@ -158,11 +159,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
     // sign-in panel is up there is nowhere to go, and its reads would be requests this server
     // answers 401 to.
     const [paletteOpen, setPaletteOpen] = useState(false)
+    // The list of every key this app answers. Reached by `?`, by the gear, and by a palette row -
+    // three ways in, because a shortcut nobody has been told about is a shortcut nobody has.
+    const [shortcutsOpen, setShortcutsOpen] = useState(false)
     const registered = trackedEntitySettings(config)
     const paletteOffered = !asking && auth.posture !== null
     // Rebuilt only when the settings that name the pages change, so the palette's own memo over this
     // list is not defeated by a fresh array on every keystroke into its box.
     const paletteReachablePages = useMemo(() => palettePages(config), [config])
+    // `?` and the sidebar chord are the shell's own, and live whether or not this tab has signed in.
+    useAppShortcuts({
+        onShowShortcuts: () => {
+            setShortcutsOpen(true)
+        },
+        onToggleSidebar: toggle,
+    })
     useEffect(() => {
         const element = mobileNavRef.current
         if (!element) return
@@ -276,6 +287,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 </nav>
 
                 <div className="flex-1" />
+
+                {/* The gear sits at the foot of the rail rather than in the header: the header
+                    names the page, and how the app looks is not the page. Collapsed, it is an icon
+                    with a tooltip, exactly as every entry above it is. */}
+                <div className="border-t p-2">
+                    <SettingsMenu
+                        collapsed={collapsed}
+                        onShowShortcuts={() => {
+                            setShortcutsOpen(true)
+                        }}
+                    />
+                </div>
             </aside>
 
             {/* `min-h-0` on the column and on `main`: without it a flex item's automatic minimum
@@ -337,8 +360,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
                             />
                         )}
                         <StatusMenu />
-                        <ThemeToggle />
-                        <ThemePicker />
+
+                        {/* Below md there is no rail at all, so the gear the rail carries has to be
+                            here instead - the one place it is in the header, and only there. */}
+                        <div className="md:hidden">
+                            <SettingsMenu
+                                collapsed
+                                onShowShortcuts={() => {
+                                    setShortcutsOpen(true)
+                                }}
+                            />
+                        </div>
                     </div>
 
                     {/* The sidebar is hidden below md, so navigation moves
@@ -395,8 +427,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     pages={paletteReachablePages}
                     register={registered.enabled ? registerTitle(registered) : null}
                     signedIn={auth.authorization !== null}
+                    sidebarCollapsed={collapsed}
+                    onToggleSidebar={toggle}
+                    onShowShortcuts={() => {
+                        setShortcutsOpen(true)
+                    }}
                 />
             )}
+
+            <KeyboardShortcuts open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
         </div>
     )
 }

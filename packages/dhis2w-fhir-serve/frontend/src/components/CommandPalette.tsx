@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from 'next-themes'
-import { Search } from 'lucide-react'
+import {
+    ClipboardList,
+    FileText,
+    Inbox,
+    Keyboard,
+    LogOut,
+    Palette,
+    PanelLeft,
+    Search,
+    Stethoscope,
+    SunMoon,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -13,16 +24,29 @@ import {
     CommandList,
 } from '@/components/ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { usePaletteCatalogue } from '@/hooks/use-palette-catalogue'
 import { useThemeChoice } from '@/hooks/use-theme-choice'
 import { signOut } from '@/lib/auth'
 import {
+    FORM_KIND,
+    HELP_KIND,
+    MODE_KIND,
+    PAGE_KIND,
     paletteActions,
+    paletteActionVerb,
     paletteSearchValue,
     paletteShelves,
+    RECEIPT_KIND,
+    SEARCH_KIND,
+    SESSION_KIND,
+    THEME_KIND,
+    VIEW_KIND,
+    type PaletteAction,
     type PaletteEffect,
     type PalettePage,
 } from '@/lib/palette'
+import { applePlatform, modifierKeyLabel, PALETTE_KEY } from '@/lib/shortcuts'
 
 /** What the palette is titled for a screen reader, and what its box asks for. */
 export const PALETTE_TITLE = 'Command palette'
@@ -31,19 +55,36 @@ export const PALETTE_PLACEHOLDER = 'Go to a page, open a form, find a receipt'
 /** What it says when nothing matches what has been typed. */
 export const PALETTE_EMPTY = 'Nothing here matches that.'
 
-/** The one key this app binds, beside the modifier every platform spells differently. */
-export const PALETTE_KEY = 'k'
+/** The key the footer draws for "the highlighted row", which is what Return does here. */
+export const RETURN_KEY_GLYPH = '↵'
 
 /**
- * How the shortcut is written on each platform, for the header's own hint.
+ * How the chord is written on each platform, for the header's hint and the palette's own footer.
  *
  * Apple keyboards carry the command glyph and every reader of one knows it; everything else says
  * Ctrl in words. Written out rather than abbreviated to a single letter, because "C" beside a K is
  * two letters that could be anything.
  */
 function shortcutHint(): string {
-    const apple = /Mac|iPhone|iPad/.test(navigator.userAgent)
-    return apple ? '⌘K' : 'Ctrl K'
+    return `${modifierKeyLabel(applePlatform(navigator.userAgent))} ${PALETTE_KEY.toUpperCase()}`
+}
+
+/**
+ * The icon a row wears, by what kind of thing it leads to.
+ *
+ * By kind rather than by shelf, so a row carries the same mark wherever it is read - and so a list
+ * filtered down to three rows off three shelves still says what each of them is.
+ */
+const KIND_ICONS: Record<string, typeof Search> = {
+    [PAGE_KIND]: FileText,
+    [FORM_KIND]: ClipboardList,
+    [RECEIPT_KIND]: Inbox,
+    [SEARCH_KIND]: Search,
+    [THEME_KIND]: Palette,
+    [MODE_KIND]: SunMoon,
+    [VIEW_KIND]: PanelLeft,
+    [HELP_KIND]: Keyboard,
+    [SESSION_KIND]: LogOut,
 }
 
 /**
@@ -71,11 +112,15 @@ export function PaletteButton({ onOpen }: { onOpen: () => void }) {
 /**
  * Everything this run can do, two keystrokes away.
  *
- * THE TRIGGER IS Cmd+K ON MACOS AND Ctrl+K EVERYWHERE ELSE, AND THERE IS NO SECOND CHORD. Not one
- * action here has a shortcut of its own, and none ever should: the keyboards these servers are run
- * from include Nordic ones, where the bracket, brace, pipe and backslash keys need Alt to reach at
- * all - so a binding over any of them is a binding half the room cannot press. One letter, one
- * modifier, and a searchable list behind it covers every action without spending a second key.
+ * THE TRIGGER IS Cmd+K ON MACOS AND Ctrl+K EVERYWHERE ELSE, and every chord this app binds sits on
+ * a letter: the keyboards these servers are run from include Nordic ones, where the bracket, brace,
+ * pipe and backslash keys need Alt to reach at all, so a binding over any of them is a binding half
+ * the room cannot press. No row here has a chord of its own - a searchable list is what covers the
+ * whole action surface - and the two the shell does bind are on the Help shelf as rows as well.
+ *
+ * EVERY ROW IS ONE LINE: what it is called, the line about it beside rather than beneath, and the
+ * kind of thing it is at the far edge. A list that stacked two lines per row showed six rows in the
+ * height that now shows a dozen, and the shelf headings were the only thing saying what a row was.
  *
  * THE LIST IS BUILT ELSEWHERE. `paletteActions` in lib/palette.ts decides what is offered and what
  * each row is called; this file opens the dialog, runs what was chosen, and nothing else. That is
@@ -94,6 +139,9 @@ export function CommandPalette({
     pages,
     register,
     signedIn,
+    sidebarCollapsed,
+    onToggleSidebar,
+    onShowShortcuts,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -103,12 +151,23 @@ export function CommandPalette({
     register: string | null
     /** Whether this tab holds a credential, which is what decides if Sign out is offered. */
     signedIn: boolean
+    /** Whether the rail is collapsed, so the View row states the move it would make. */
+    sidebarCollapsed: boolean
+    /** Collapses the rail, or puts it back - the same thing the sidebar chord does. */
+    onToggleSidebar: () => void
+    /** Opens the list of every key this app answers. */
+    onShowShortcuts: () => void
 }) {
     const navigate = useNavigate()
     const { resolvedTheme, setTheme: setMode } = useTheme()
     const { theme, choose } = useThemeChoice()
     const catalogue = usePaletteCatalogue(open)
     const [query, setQuery] = useState('')
+    // What cmdk has highlighted, as the value the row was registered under. The footer states what
+    // Return would do to it, which is a fact about one row rather than about the list.
+    const [highlighted, setHighlighted] = useState('')
+    // The user agent does not change under a running tab, so the chord is spelled once.
+    const modifier = useMemo(() => modifierKeyLabel(applePlatform(navigator.userAgent)), [])
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
@@ -134,11 +193,18 @@ export function CommandPalette({
                 register,
                 dark: resolvedTheme === 'dark',
                 theme,
+                sidebarCollapsed,
                 signedIn,
             }),
-        [pages, catalogue, query, register, resolvedTheme, theme, signedIn],
+        [pages, catalogue, query, register, resolvedTheme, theme, sidebarCollapsed, signedIn],
     )
     const shelves = useMemo(() => paletteShelves(actions), [actions])
+    // Matched case-insensitively because cmdk normalises the value it reports back, and the footer
+    // saying nothing at all would be worse than it saying the wrong verb.
+    const highlightedAction = useMemo(
+        () => actions.find((action) => matchesValue(action, highlighted)) ?? null,
+        [actions, highlighted],
+    )
 
     const run = useCallback(
         (effect: PaletteEffect) => {
@@ -157,12 +223,18 @@ export function CommandPalette({
                 case 'mode':
                     setMode(effect.mode)
                     return
+                case 'sidebar':
+                    onToggleSidebar()
+                    return
+                case 'shortcuts':
+                    onShowShortcuts()
+                    return
                 case 'sign-out':
                     signOut()
                     return
             }
         },
-        [choose, navigate, onOpenChange, setMode],
+        [choose, navigate, onOpenChange, onShowShortcuts, onToggleSidebar, setMode],
     )
 
     return (
@@ -179,49 +251,102 @@ export function CommandPalette({
                 if (!next) setQuery('')
             }}
         >
-            <DialogContent className="top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0" showCloseButton={false}>
+            <DialogContent
+                // Wider than a dialog, because the rows are wide: a name, the line about it, and
+                // what kind of thing it is, all on one line and none of them truncated at the first
+                // interesting word. `top-1/4` puts the box where the eye already is.
+                className="top-1/4 translate-y-0 overflow-hidden rounded-xl! p-0 sm:max-w-2xl"
+                showCloseButton={false}
+            >
                 <DialogTitle className="sr-only">{PALETTE_TITLE}</DialogTitle>
                 <DialogDescription className="sr-only">{PALETTE_PLACEHOLDER}</DialogDescription>
                 {/* The dialog is the shell; `Command` is the list machinery, and every primitive
                     below reads its state off this element's context. Without it the box and the
                     rows mount with nothing to subscribe to. */}
-                <Command>
+                <Command value={highlighted} onValueChange={setHighlighted}>
                     <CommandInput
                         value={query}
                         onValueChange={setQuery}
                         placeholder={PALETTE_PLACEHOLDER}
                         aria-label={PALETTE_TITLE}
+                        className="h-10 text-base"
                     />
-                    <CommandList>
+                    <CommandList className="max-h-[min(28rem,60svh)]">
                         <CommandEmpty>{PALETTE_EMPTY}</CommandEmpty>
                         {shelves.map((shelf) => (
                             <CommandGroup key={shelf.group} heading={shelf.group}>
-                                {shelf.actions.map((action) => (
-                                    <CommandItem
-                                        key={action.id}
-                                        value={paletteSearchValue(action)}
-                                        // The tick the primitive draws for a row that states what is
-                                        // already in force - the theme in use, and nothing else.
-                                        data-checked={action.checked ? 'true' : 'false'}
-                                        onSelect={() => {
-                                            run(action.effect)
-                                        }}
-                                    >
-                                        <span className="grid gap-0.5">
-                                            <span>{action.label}</span>
-                                            {action.hint !== null && (
-                                                <span className="text-muted-foreground text-xs">
-                                                    {action.hint}
-                                                </span>
-                                            )}
-                                        </span>
-                                    </CommandItem>
-                                ))}
+                                {shelf.actions.map((action) => {
+                                    const Icon = KIND_ICONS[action.kind] ?? Search
+                                    return (
+                                        <CommandItem
+                                            key={action.id}
+                                            value={paletteSearchValue(action)}
+                                            // The tick the primitive draws for a row that states
+                                            // what is already in force - the theme in use, and
+                                            // nothing else.
+                                            data-checked={action.checked ? 'true' : 'false'}
+                                            className="gap-3 px-3 py-2.5"
+                                            onSelect={() => {
+                                                run(action.effect)
+                                            }}
+                                        >
+                                            <Icon className="text-muted-foreground size-4" aria-hidden />
+                                            {/* `flex-1` and not a margin on the kind beside it:
+                                                the primitive's own tick already carries `ml-auto`,
+                                                and two auto margins split the free space between
+                                                them - which left the kind floating mid-row. */}
+                                            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                                                <span className="shrink-0 font-medium">{action.label}</span>
+                                                {action.hint !== null && (
+                                                    <span className="text-muted-foreground truncate text-xs">
+                                                        {action.hint}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="text-muted-foreground shrink-0 pl-3 text-xs">
+                                                {action.kind}
+                                            </span>
+                                        </CommandItem>
+                                    )
+                                })}
                             </CommandGroup>
                         ))}
                     </CommandList>
+
+                    {/* The bar the Raycast idiom ends on: what this is on the left, and what the
+                        key under the reader's finger would do to the highlighted row on the right.
+                        The chord is stated here too, because the palette is where somebody who
+                        opened it by button first learns that it has one. */}
+                    <div className="text-muted-foreground flex items-center justify-between gap-3 border-t px-3 py-2 text-xs">
+                        <span className="flex items-center gap-2">
+                            <Stethoscope className="size-3.5" aria-hidden />
+                            <span>Capture</span>
+                        </span>
+                        <span className="flex items-center gap-4">
+                            {highlightedAction !== null && (
+                                <span className="flex items-center gap-1.5">
+                                    <span>{paletteActionVerb(highlightedAction)}</span>
+                                    <KbdGroup>
+                                        <Kbd>{RETURN_KEY_GLYPH}</Kbd>
+                                    </KbdGroup>
+                                </span>
+                            )}
+                            <span className="flex items-center gap-1.5">
+                                <span>{PALETTE_TITLE}</span>
+                                <KbdGroup>
+                                    <Kbd>{modifier}</Kbd>
+                                    <Kbd>{PALETTE_KEY.toUpperCase()}</Kbd>
+                                </KbdGroup>
+                            </span>
+                        </span>
+                    </div>
                 </Command>
             </DialogContent>
         </Dialog>
     )
+}
+
+/** Whether one action is the row cmdk reports as highlighted, whatever casing it reports it in. */
+function matchesValue(action: PaletteAction, value: string): boolean {
+    return paletteSearchValue(action).trim().toLowerCase() === value.trim().toLowerCase()
 }

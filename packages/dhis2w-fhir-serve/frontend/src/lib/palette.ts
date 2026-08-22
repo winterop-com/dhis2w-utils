@@ -13,17 +13,20 @@
  * is the one place that knows what "navigate" means.
  *
  * WHAT THE PALETTE DOES NOT OFFER. Anything that changes what this server holds. Every action here
- * moves the reader, repaints the app, or ends the session - none of them submits a form, forwards a
- * receipt, or withdraws one. A palette is a way to arrive somewhere quickly, and an irreversible act
- * two keystrokes deep is a way to do something you did not mean to.
+ * moves the reader, repaints the app, lays the screen out, or ends the session - none of them
+ * submits a form, forwards a receipt, or withdraws one. A palette is a way to arrive somewhere
+ * quickly, and an irreversible act two keystrokes deep is a way to do something you did not mean to.
  *
- * THE TRIGGER IS Cmd+K / Ctrl+K AND NOTHING ELSE, and no action carries a second chord. Bindings
- * over the bracket, brace, pipe and backslash keys are unreachable without a modifier on a Nordic
- * layout, and a shortcut that half the keyboards in the room cannot press is worse than no shortcut.
+ * EVERY CHORD THIS APP BINDS IS A LETTER, and there are two of them: K for this palette and B for
+ * the sidebar. Bindings over the bracket, brace, pipe and backslash keys are unreachable without a
+ * modifier on a Nordic layout, so a letter is the only key a chord here may sit on. `lib/shortcuts`
+ * holds the whole list, and every one of them is offered here as a row as well, because a shortcut
+ * nobody has been told about is a shortcut nobody has.
  */
 
 import { formIdentifier, formTitle, type Questionnaire } from '@/lib/fhir'
 import { patientSearchQuery, REGISTER_QUERY_PARAMETER } from '@/lib/patients'
+import { SHORTCUTS_DESCRIPTION, SHORTCUTS_TITLE } from '@/lib/shortcuts'
 import { LIFECYCLE_LABELS, type SpoolResponseSummary } from '@/lib/spool'
 import { THEMES, type ThemeName } from '@/lib/theme'
 
@@ -32,6 +35,8 @@ export type PaletteEffect =
     | { kind: 'navigate'; to: string }
     | { kind: 'theme'; theme: ThemeName }
     | { kind: 'mode'; mode: 'light' | 'dark' }
+    | { kind: 'sidebar' }
+    | { kind: 'shortcuts' }
     | { kind: 'sign-out' }
 
 /** One thing the palette offers: what it is called, what it does, and which shelf it sits on. */
@@ -41,8 +46,16 @@ export interface PaletteAction {
     /** The heading the action is shelved under. Actions keep the order they are built in. */
     group: string
     label: string
-    /** The muted line beneath the label, or null when the label says the whole thing. */
+    /** The muted line beside the label, or null when the label says the whole thing. */
     hint: string | null
+    /**
+     * What kind of thing the row leads to, in one plain noun, stated at the row's far edge.
+     *
+     * A row reads left to right as a name, a line about it, and what it is - so a list mixing pages,
+     * forms and receipts says which is which without a reader having to look up at the heading the
+     * row happens to sit under. The nouns are this app's own: Page, Form, Receipt, Theme.
+     */
+    kind: string
     /** Extra words the filter matches on and nothing renders. */
     keywords: string[]
     /**
@@ -86,6 +99,8 @@ export interface PaletteInput {
     dark: boolean
     /** The theme in force, so its row is marked rather than offered as a change. */
     theme: ThemeName
+    /** Whether the sidebar is collapsed, so the row states the move it would make. */
+    sidebarCollapsed: boolean
     /** Whether this tab holds a credential there is anything to sign out of. */
     signedIn: boolean
 }
@@ -95,7 +110,20 @@ export const PAGES_GROUP = 'Pages'
 export const FORMS_GROUP = 'Forms'
 export const RESPONSES_GROUP = 'Responses'
 export const APPEARANCE_GROUP = 'Appearance'
+export const VIEW_GROUP = 'View'
+export const HELP_GROUP = 'Help'
 export const SESSION_GROUP = 'Session'
+
+/** The nouns a row wears at its far edge, one per kind of thing the palette leads to. */
+export const PAGE_KIND = 'Page'
+export const FORM_KIND = 'Form'
+export const RECEIPT_KIND = 'Receipt'
+export const SEARCH_KIND = 'Search'
+export const THEME_KIND = 'Theme'
+export const MODE_KIND = 'Mode'
+export const VIEW_KIND = 'View'
+export const HELP_KIND = 'Help'
+export const SESSION_KIND = 'Session'
 
 /**
  * How many receipts the palette offers when nothing has been typed.
@@ -126,8 +154,31 @@ export function paletteActions(input: PaletteInput): PaletteAction[] {
         ...receiptActions(input.receipts, input.query),
         ...registerActions(input.register, input.query),
         ...appearanceActions(input.dark, input.theme),
+        ...viewActions(input.sidebarCollapsed),
+        ...helpActions(),
         ...sessionActions(input.signedIn),
     ]
+}
+
+/**
+ * What choosing one row does, in the word the footer states it with.
+ *
+ * Three words for five effects, because a reader is being told what is about to happen rather than
+ * which branch runs: going somewhere is Open, changing how the app looks or is laid out is Switch,
+ * and the one action that ends something is Run.
+ */
+export function paletteActionVerb(action: PaletteAction): string {
+    switch (action.effect.kind) {
+        case 'navigate':
+        case 'shortcuts':
+            return 'Open'
+        case 'theme':
+        case 'mode':
+        case 'sidebar':
+            return 'Switch'
+        case 'sign-out':
+            return 'Run'
+    }
 }
 
 /** Every page this run offers, under the name this run gives it. */
@@ -137,6 +188,7 @@ function pageActions(pages: PalettePage[]): PaletteAction[] {
         group: PAGES_GROUP,
         label: page.label,
         hint: page.hint,
+        kind: PAGE_KIND,
         keywords: ['go to', 'open', 'page'],
         checked: false,
         effect: { kind: 'navigate', to: page.path === '' ? '/' : `/${page.path}` },
@@ -160,6 +212,7 @@ function formActions(forms: Questionnaire[]): PaletteAction[] {
             group: FORMS_GROUP,
             label: formTitle(form),
             hint: identifier,
+            kind: FORM_KIND,
             keywords: ['form', 'questionnaire', 'capture', identifier],
             checked: false,
             effect: { kind: 'navigate', to: `/forms/${identifier}` },
@@ -193,6 +246,7 @@ function receiptActions(receipts: SpoolResponseSummary[], query: string): Palett
         group: RESPONSES_GROUP,
         label: receipt.response_id,
         hint: receiptHint(receipt),
+        kind: RECEIPT_KIND,
         keywords: ['receipt', 'response', 'submission'],
         checked: false,
         effect: { kind: 'navigate', to: `/responses/${receipt.response_id}` },
@@ -234,6 +288,7 @@ function registerActions(register: string | null, query: string): PaletteAction[
             group: register,
             label: `Look up "${searchable}" in ${register}`,
             hint: 'Opens the register with this identifier value searched for',
+            kind: SEARCH_KIND,
             keywords: ['search', 'find', 'identifier', 'register'],
             checked: false,
             effect: {
@@ -261,6 +316,7 @@ function appearanceActions(dark: boolean, current: ThemeName): PaletteAction[] {
         group: APPEARANCE_GROUP,
         label: `${theme.label} theme`,
         hint: theme.hint,
+        kind: THEME_KIND,
         keywords: ['theme', 'colour', 'color', 'palette', 'appearance'],
         checked: theme.name === current,
         effect: { kind: 'theme', theme: theme.name },
@@ -271,6 +327,7 @@ function appearanceActions(dark: boolean, current: ThemeName): PaletteAction[] {
             group: APPEARANCE_GROUP,
             label: dark ? SWITCH_TO_LIGHT_LABEL : SWITCH_TO_DARK_LABEL,
             hint: 'Every theme is designed for both',
+            kind: MODE_KIND,
             keywords: ['light', 'dark', 'mode', 'appearance'],
             // Never ticked: it offers the ground that is NOT in force, so a tick on it would say
             // the opposite of what the label says.
@@ -290,6 +347,47 @@ function appearanceActions(dark: boolean, current: ThemeName): PaletteAction[] {
 export const SWITCH_TO_DARK_LABEL = 'Switch to dark mode'
 export const SWITCH_TO_LIGHT_LABEL = 'Switch to light mode'
 
+/** What the two states of the sidebar are called, in the palette and in the shortcuts list alike. */
+export const COLLAPSE_SIDEBAR_LABEL = 'Collapse sidebar'
+export const EXPAND_SIDEBAR_LABEL = 'Expand sidebar'
+
+/**
+ * The sidebar, stated as the move it would make rather than as where it stands.
+ *
+ * The row is the same chord the keyboard carries (Cmd+B, Ctrl+B), offered to a pointer - and the
+ * label says which way it goes, because a row reading "Sidebar" would leave a reader to guess.
+ */
+function viewActions(collapsed: boolean): PaletteAction[] {
+    return [
+        {
+            id: 'view:sidebar',
+            group: VIEW_GROUP,
+            label: collapsed ? EXPAND_SIDEBAR_LABEL : COLLAPSE_SIDEBAR_LABEL,
+            hint: collapsed ? 'Puts the names back beside the icons' : 'Leaves the rail as icons',
+            kind: VIEW_KIND,
+            keywords: ['sidebar', 'rail', 'collapse', 'expand', 'view'],
+            checked: false,
+            effect: { kind: 'sidebar' },
+        },
+    ]
+}
+
+/** The list of every key this app answers, offered to somebody who never presses a chord. */
+function helpActions(): PaletteAction[] {
+    return [
+        {
+            id: 'help:shortcuts',
+            group: HELP_GROUP,
+            label: SHORTCUTS_TITLE,
+            hint: SHORTCUTS_DESCRIPTION,
+            kind: HELP_KIND,
+            keywords: ['keyboard', 'shortcuts', 'keys', 'chord', 'help'],
+            checked: false,
+            effect: { kind: 'shortcuts' },
+        },
+    ]
+}
+
 /** Signing out, offered only when there is a credential to forget. */
 function sessionActions(signedIn: boolean): PaletteAction[] {
     if (!signedIn) return []
@@ -299,6 +397,7 @@ function sessionActions(signedIn: boolean): PaletteAction[] {
             group: SESSION_GROUP,
             label: SIGN_OUT_ACTION_LABEL,
             hint: 'Forgets the credential this browser tab holds',
+            kind: SESSION_KIND,
             keywords: ['sign out', 'log out', 'session'],
             checked: false,
             effect: { kind: 'sign-out' },
@@ -334,10 +433,11 @@ export function paletteShelves(actions: PaletteAction[]): PaletteShelf[] {
 /**
  * What cmdk filters one row against: everything a person might type to reach it.
  *
- * The label, the hint, and the keywords in one string. cmdk matches on an item's `value` alone, so a
- * row whose value was its label could not be found by typing the id under it or the word "theme"
- * beside it - and a reader typing "receipt" has no way of knowing that the rows are titled by id.
+ * The label, the hint, the kind, and the keywords in one string. cmdk matches on an item's `value`
+ * alone, so a row whose value was its label could not be found by typing the id beside it or the
+ * word "theme" after it - and a reader typing "receipt" has no way of knowing that the rows are
+ * titled by id.
  */
 export function paletteSearchValue(action: PaletteAction): string {
-    return [action.label, action.hint ?? '', ...action.keywords].join(' ')
+    return [action.label, action.hint ?? '', action.kind, ...action.keywords].join(' ')
 }

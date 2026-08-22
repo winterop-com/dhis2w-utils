@@ -28,8 +28,9 @@ a checkout needs `make build-frontend` once.
 - read a receipt back joined to the questions it answers
 - follow a receipt's lifecycle from the browser while `d2w fhir forward`
   runs in a terminal
-- reach any page, form, or receipt from the command palette on Cmd+K, and
-  pick which of the five themes the screens are painted in
+- reach any page, form, or receipt from the command palette on Cmd+K, see every
+  key the app answers with `?`, and pick which of the five themes the screens are
+  painted in
 
 ## Serve it
 
@@ -705,26 +706,59 @@ thing for anyone who was never told about the chord. Type, and it narrows:
   address, `#/tracked-entities?q=...`, so the result is a link you can send.
 - **Appearance** - the five themes below, and the switch between the light
   ground and the dark one.
+- **View** - **Collapse sidebar**, or **Expand sidebar** when it already is.
+- **Help** - **Keyboard shortcuts**, the same list `?` puts up.
 - **Session** - **Sign out**, when this tab holds a credential.
+
+Each row is one line: an icon for what kind of thing it is, its name, the line
+about it beside the name, and the kind itself - *Page*, *Form*, *Receipt*,
+*Theme* - at the right-hand edge. The bar along the bottom says what Return would
+do to the highlighted row, and spells the chord for whoever arrived by button.
 
 **Nothing in the palette changes what this server holds.** Every action moves
 you, repaints the app, or ends the session. Submitting a form, forwarding a
 receipt and withdrawing one all stay where they are - two keystrokes is the
 wrong distance from an irreversible act.
 
-**One chord, and no second one.** No action here has a shortcut of its own, and
-none will: these servers get run from Nordic keyboards among others, where the
-bracket, brace, pipe and backslash keys need Alt to reach at all, and a binding
-over any of them is one half the room cannot press.
+**Every chord is a letter.** No row in the palette has a shortcut of its own, and
+the two the app does bind sit on K and B: these servers get run from Nordic
+keyboards among others, where the bracket, brace, pipe and backslash keys need
+Alt to reach at all, and a binding over any of them is one half the room cannot
+press.
 
-## Themes
+## Every key: ?
 
-The header carries two controls, because they are two questions. The moon or sun
-switches between the **light ground and the dark one**; the palette icon beside
-it picks the **theme** - which set of colours the app spends inside whichever
-ground is up. Every theme is designed for both, and the choice is remembered in
-this browser and applied before the first paint, so a reload never flashes one
-theme under another.
+Press **?** anywhere outside a box and the whole list comes up - the palette
+chord, the sidebar chord, and the keys every app shares. The key is matched on
+the character rather than on a physical key plus Shift, so it works on a
+Norwegian layout as it does on a US one, and it stays out of the way whenever an
+input, a text area, a select, or one of the Evaluate editors has focus.
+
+| What it does | Key |
+| --- | --- |
+| Open the command palette | Cmd+K, or Ctrl+K |
+| Collapse or expand the sidebar | Cmd+B, or Ctrl+B |
+| Open the list of shortcuts | ? |
+| Close a dialog, a menu, or the palette | Esc |
+| Open the row that has focus | Enter |
+| Move through the organisation unit hierarchy | Arrow keys |
+
+**Cmd+B is the platform's modifier and not either one**, because Ctrl+B on macOS
+is the "back one character" that text fields and the Evaluate editors both
+answer. It fires while a box or an editor has focus - clearing the screen down to
+the work in front of you is worth most mid-form.
+
+The gear in the lower left leads to the same list, for anybody who would rather
+not find out by pressing keys.
+
+## Settings, and the themes
+
+**The gear at the foot of the sidebar holds how the app looks.** Two controls
+under two headings, because they are two questions: **Theme** is which of the
+five sets of colours the app spends, and **Mode** is the light ground or the dark
+one. Every theme is designed for both, and the choice is remembered in this
+browser and applied before the first paint, so a reload never flashes one theme
+under another. Collapsed to icons, the gear stays where it is.
 
 | Theme | What it looks like |
 | --- | --- |
