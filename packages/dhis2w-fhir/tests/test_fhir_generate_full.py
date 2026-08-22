@@ -298,7 +298,7 @@ async def test_generate_option_sets_announces_a_fetch_and_an_emit_step(
     ]
     assert reporter.completions == [
         "1/2 instance metadata: 1 option set(s)",
-        "2/2 option sets: 3 written, 0 unchanged",
+        "2/2 option sets: 5 written, 0 unchanged",
     ]
 
 

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 
+from dhis2w_fhir.config import GenerateConfig
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, normalize_project_name
 
 __all__ = ["FSH_INI_RELATIVE_PATH", "SUSHI_CONFIG_RELATIVE_PATH", "build_scaffold_files"]
@@ -37,7 +38,13 @@ def build_scaffold_files(options: InitOptions, *, copyright_year: int | None = N
     return [
         _render("fhir.toml", "fhir.toml.jinja", options),
         _render("fhir.toml.example", "fhir.toml.example.jinja", options),
-        _render(SUSHI_CONFIG_RELATIVE_PATH, "sushi-config.yaml.jinja", options, year=year),
+        _render(
+            SUSHI_CONFIG_RELATIVE_PATH,
+            "sushi-config.yaml.jinja",
+            options,
+            year=year,
+            identifier_system_base=GenerateConfig().identifier_system_base,
+        ),
         _render("ig/ig.ini", "ig.ini.jinja", options),
         _render(FSH_INI_RELATIVE_PATH, "fsh.ini.jinja", options),
         _render("ig/input/fsh/aliases.fsh", "aliases.fsh.jinja", options),

@@ -1569,6 +1569,7 @@ async def test_option_set_selection_unions_the_target_closure(
 
     assert report.option_set_count == 2
     assert report.written_files == [
+        "terminology/CodeSystem-d2-option-id-cs.json",
         "terminology/CodeSystem-d2-os-Os1aaaaaaaa-cs.json",
         "terminology/CodeSystem-d2-os-Os2aaaaaaaa-cs.json",
         "terminology/ValueSet-d2-os-Os1aaaaaaaa-vs.json",

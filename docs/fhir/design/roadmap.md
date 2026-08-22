@@ -75,9 +75,10 @@ models and ship no templates.
 | `period/parser.py` | `parse_period` - length-dispatched ISO parsing transcribed from `Period.Input.of` and `DateUnitPeriodTypeParser`. |
 | `period/recent.py` | `recent_periods` - the inverse, built on the parser so the two cannot drift. |
 | `resources/__init__.py` | Re-export shim over the resource components. |
-| `resources/option_sets/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per option set, `TERMINOLOGY_DIRECTORY`, `option_set_identities`, `option_set_identity_index`, `concept_assignments`, `max_slug_length`, `option_set_code_fallback`, `option_set_fsh_name`. |
+| `resources/identifier_terminology.py` | `build_identifier_code_systems` and `build_identifier_code_system_artifacts` - one `content: complete` CodeSystem per DHIS2 identifier namespace the given ConceptMaps target, read off the maps rather than assumed, so a family that grows a group cannot leave its new target system un-enumerated. Each family calls it for the namespaces its own maps name and writes the result into the directory it owns. |
+| `resources/option_sets/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per option set, the ConceptMap per set, `build_option_set_identifier_artifacts` for the two identifier namespaces those maps target, `TERMINOLOGY_DIRECTORY`, `option_set_identities`, `option_set_identity_index`, `concept_assignments`, `max_slug_length`, `option_set_code_fallback`, `option_set_fsh_name`. |
 | `resources/option_sets/schemas.py` | `OptionSetSelection`, `OptionIn`, `ConceptSourceIn` (the concept-source projection categories share), `OptionSetIn`, `ConceptAssignment`, `ConceptAssignmentPlan`, `OptionSetIdentity`, `OptionSetIdentityPlan`, `OptionSetIdentityIndex`. |
-| `resources/categories/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per DHIS2 category, `CATEGORY_DIRECTORY`, `build_category_artifacts`, `category_identities`, `category_fsh_name`, `max_category_slug_length`. Concepts are built by the option-set component's `build_concepts`, so both terminology sources assign concept codes in one place. |
+| `resources/categories/__init__.py` | The pre-built CodeSystem/ValueSet JSON pair per DHIS2 category, `CATEGORY_DIRECTORY`, `build_category_artifacts`, `build_category_identifier_artifacts`, `category_identities`, `category_fsh_name`, `max_category_slug_length`. Concepts are built by the option-set component's `build_concepts`, so both terminology sources assign concept codes in one place. |
 | `resources/categories/schemas.py` | `CategorySelection`, `CategoryIn` (a `ConceptSourceIn`), `CategoryIdentity`, `CategoryIdentityPlan`, `DEFAULT_CATEGORY_NAME`, `is_default_category`. |
 | `resources/questionnaires/__init__.py` | One Questionnaire per form plus the two support terminology pairs; `ITEM_TYPES_BY_VALUE_TYPE`, `BOUNDS_BY_VALUE_TYPE`, `QUESTIONNAIRE_DIRECTORIES`, `domain_code`, `is_multi_valued`. |
 | `resources/questionnaires/documents.py` | The JSON twin of the FSH emitter: `build_questionnaire_documents` and `build_data_dictionary_documents` return finished R4 documents with every name already absolute, through the same exported decisions (`item_type`, `is_disaggregated`, `source_description`, `source_program`, `FormKindProfile` / `FORM_KIND_PROFILES`) the FSH path calls. `test_fhir_questionnaire_parity.py` gates the equality against SUSHI output. |
@@ -247,7 +248,7 @@ each one at its section of those pages.
 | --- | --- |
 | `fhir.toml` | The minimal committed config - the profile pointer, `[ig]`, and the seeded target lists when `--data-set` / `--event-program` / `--tracker-program` were given. |
 | `fhir.toml.example` | Every option with its default, documented. |
-| `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` / `excludexls` (JSON only, no per-resource spreadsheets), the `path-resource` globs for `input/resources/registry/*`, `input/resources/terminology/*`, and `input/resources/categories/*` (SUSHI recurses into those sub-folders, the IG Publisher does not, so a missing glob drops that sub-folder from the published guide), and the eight-entry `menu:`. No `pages:` and no `groups:`. Also the one file recording the publisher URL and the copyright year, which is why a refresh reads its inputs from it. |
+| `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), the six `special-url` declarations for the DHIS2 identifier namespaces the ConceptMaps target, the `path-resource` globs for `input/resources/registry/*`, `input/resources/terminology/*`, and `input/resources/categories/*` (SUSHI recurses into those sub-folders, the IG Publisher does not, so a missing glob drops that sub-folder from the published guide), and the eight-entry `menu:`. No `pages:` and no `groups:`. Also the one file recording the publisher URL and the copyright year, which is why a refresh reads its inputs from it. |
 | `ig/ig.ini` | `template = fhir2.base.template`, pointing at the compiled ImplementationGuide JSON. |
 | `ig/fsh.ini` | `timeout = 1800` for the publisher's embedded SUSHI, settable with `--sushi-timeout`. |
 | `ig/input/fsh/aliases.fsh` | Hand-authored alias stub. Never regenerated - it carries no generated header. |
@@ -1451,11 +1452,26 @@ keeps the cache and only `make clean-all` wipes it.
 scaffolded `sushi-config.yaml` take the demo from 26,120 files and 874MB to
 13,710 and 466MB, with the same 0 errors and 0 warnings, because the two extra
 wire formats add a file and a rendered page per resource for content that
-consumers and the tooling read as JSON anyway. `excludexls` sits beside them
-for the same reason one scale up: the publisher otherwise writes a spreadsheet
-per conformance resource, and on the play 2.43 guide that pass alone ran 3h25m
-of a 5h24m build - the largest single phase, ahead of the cold-cache
-terminology validation.
+consumers and the tooling read as JSON anyway. The spreadsheet pass is not a
+third one of these: `excludexls` is not a parameter the IG Publisher knows -
+it appears in neither the publisher nor `template-parameters` - and the pass
+it looks like it would skip measured 1.66 seconds on the play 2.43 guide.
+
+**The long builds were idle, not slow.** Phase-by-phase timing off the
+publisher's own logs put the wall clock in three places, none of them work:
+
+| What | Before | After | Why |
+| --- | --- | --- | --- |
+| Terminology requests, one district-scale guide | 4,779 (57 percent byte-identical repeats) | 5 | Each DHIS2 identifier namespace is now published as a `content: complete` CodeSystem beside the ConceptMaps that target it, not only as a NamingSystem. A NamingSystem answers no `$validate-code`, so every mapped row went to tx.fhir.org and came back UNKNOWN_CODESYSTEM. |
+| `Generating Narratives`, same guide | 438 s | 1.47 s | The same fix - narratives are where the row-by-row validation happened. |
+| `Generate Native Outputs`, one guide | 341 s | 21 s | The scaffolded `make build` streams the project into the container, builds on its own disk, and streams `output/`, `fsh-generated/` and `input-cache/` back. macOS reaches a bind-mounted host directory over a network-style filesystem and that phase writes tens of thousands of small files one at a time. |
+| Offline build (`TX_SERVER=n/a`), district registry | did not complete | 51 s, site and QA report | With the identifier CodeSystems in the guide there is nothing left for a terminology server to answer except the `Attachment.contentType` binding on the boundary extension, which reports one error per unit with geometry and does not stop the build. |
+
+`content: not-present` was tried first and does not work: the publisher reads
+it as "the codes are elsewhere" and asks the server anyway. The six CodeSystems
+sit at URLs outside the IG canonical, so the scaffolded `sushi-config.yaml`
+declares them under `special-url`; the parameter takes no patterns, and the six
+lines follow `[generate] identifier_system_base`.
 
 **The lever on the publisher's rendering pass** is
 `[generate.organisation_units] max_level`. The registry is 2,664 of the demo's

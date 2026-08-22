@@ -124,6 +124,11 @@ does not read a selection - it publishes whatever `ig/fsh-generated/` and
 toolchain pin, and hand-authored FSH all reach the publisher without ever
 passing it.
 
+The recipe asks the CLI's own help before running the scan. A project whose
+lock pins a dhis2w-fhir without the command (before 1.8) gets a warning that
+names the upgrade (`uv lock --upgrade && uv sync`) and a build that proceeds
+unscanned - a missing preflight must never stop a publishable guide.
+
 It reads the same files the publisher reads, through the very predicates the
 generate-time refusal uses, and it opens no connection and reads no profile -
 so it answers in seconds, offline, on any project:
@@ -218,11 +223,12 @@ Exception: Process exited with an error: 143 (Exit value: 143)
 
 **`TX_SERVER`** picks the terminology server the publisher validates
 against; it defaults to `http://tx.fhir.org`. `TX_SERVER=n/a` disables
-terminology validation for an offline build, but current publisher versions
-throw a `NullPointerException` on required bindings that need a server - the
-`Attachment.contentType` binding on the GeoJSON boundary extension is one,
-so a guide carrying the organisation-unit registry will not build offline. Use `n/a` only when your content
-has no such bindings.
+terminology validation for an offline build, and a generated guide does
+build that way - a district registry in 51 seconds, site and all. What it
+costs is one error per organisation unit carrying geometry: the GeoJSON
+boundary attachment states its media type, that field binds to the IETF BCP
+13 media types, and only a terminology server can answer that value set.
+Those errors are the whole difference, and they go away online.
 
 **`JAVA_HEAP`** is the publisher's JVM heap, `4g` by default - the knob for
 exit 137:
@@ -294,22 +300,70 @@ compiled CodeSystems, dominated by the two data-dictionary files (2.5MB of
 FSH on the uncapped Lao IG). Writing that instance's 235 option sets as FSH
 instead of predefined JSON makes the compile roughly half again as long,
 which is the case for predefined terminology; fewer selected forms mean
-smaller dictionary files. Docker is not where the time goes - the bind mount
-is a rounding error against the compile, and running SUSHI natively rather
-than containerised saves on the order of a fifth. The rest is SUSHI's own
-work.
+smaller dictionary files. Docker is not where the compile's time goes - the
+mount is a rounding error against it, and running SUSHI natively rather than
+containerised saves on the order of a fifth. The rest is SUSHI's own work.
+The publisher run is the other story entirely, and the section below is it.
 
 **What the publisher pays for** is sheer resource count - every format it
 writes and every page it renders is per resource - which is why the
 scaffolded `sushi-config.yaml` excludes what a DHIS2-derived guide's
 consumers never read: the XML and Turtle wire formats (`excludexml`,
 `excludettl` - on the demo, half the output: 13,710 files and 466MB instead
-of 26,120 and 874MB) and the per-resource spreadsheets (`excludexls` - on a
-national registry, the spreadsheet pass alone is most of the build).
-Terminology service time is a small fixed cost only while the cache is warm:
-a cold cache on a large guide pays `TX_SERVER` a round-trip per coding, which
+of 26,120 and 874MB). The per-resource spreadsheet pass is not worth
+excluding and there is no parameter for it anyway: the publisher knows no
+`excludexls`, and on a national guide the pass it looks like it would skip
+runs in under two seconds.
+
+Terminology service time is a fixed cost only while the cache is warm: a
+cold cache on a large guide pays `TX_SERVER` a round-trip per coding, which
 can dominate everything else - and is why the caches survive a
 `make refresh`.
+
+## Why a build is fast now
+
+A build that used to run for a long stretch was mostly not running. Two of
+its longest phases were waiting, and a third was writing through a mount.
+All three are handled by what `d2w fhir generate` emits and what
+`d2w fhir init --refresh` writes, so a current project pays none of them.
+The numbers below are one district-scale guide, measured phase by phase off
+the publisher's own log.
+
+**The terminology wait.** A DHIS2 identifier namespace -
+`http://dhis2.org/fhir/id/option`, and five siblings - is declared as a
+NamingSystem, which says the URL identifies DHIS2 objects and lists nothing.
+Every ConceptMap row is validated against the system its target code sits
+in, and a NamingSystem answers no `$validate-code`, so the publisher asked
+the terminology server about each row on its own and was told
+UNKNOWN_CODESYSTEM each time: **4,779 requests**, 57 percent of them byte-for-byte
+repeats, with the narrative phase alone at **438 seconds**. Generation now
+publishes each of those namespaces a second time, as a CodeSystem at the
+same URL with `content: complete` and every identifier the guide's maps name
+enumerated in it. The publisher answers the question out of the guide:
+**5 requests, and narratives in 1.5 seconds**. (`content: not-present` does not
+work - the publisher reads it as "the codes are elsewhere" and asks the
+server anyway.)
+
+Each of those CodeSystems is published at a URL outside the IG's own
+canonical, which the publisher calls a mismatch unless the URL is declared.
+The scaffolded `sushi-config.yaml` declares all six under `special-url`;
+they follow `[generate] identifier_system_base`, so a project that changes
+that key changes those six lines with it.
+
+**The mount.** Docker on macOS reaches a host directory over a network-style
+filesystem, and the publisher's output phase writes tens of thousands of
+small files one at a time. That single phase took **341 seconds** through the
+mount and **21 seconds** on the container's own disk. `make build` now streams
+the project into the container, builds it there, and streams `output/`,
+`fsh-generated/` and `input-cache/` back - two bulk copies instead of one
+file at a time. `temp/` and `template/` stay behind; nothing reads them and
+they are the bulk of what a build writes. `make build-bind` is the old
+behaviour, worth reaching for when you want to watch `output/` fill up as it
+is written.
+
+**Offline builds work.** `make build TX_SERVER=n/a` completes - site, QA
+report and all - in **51 seconds** on that guide. The section above says what it
+costs.
 
 ## Keep the caches warm
 

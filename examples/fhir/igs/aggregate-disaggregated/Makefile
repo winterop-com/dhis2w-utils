@@ -8,6 +8,14 @@ JAVA_HEAP ?= 4g
 D2W ?= uv run d2w
 # Named volume for the FHIR package cache - the bulk of a cold build's wall clock.
 CACHE_VOLUME := fhir-ig-cache
+# Where `build` runs the publisher: a directory on the container's own filesystem rather than the
+# mounted project. See the comment on that target for why.
+BUILD_WORKDIR := /home/publisher/work
+# What comes back out of that directory when the publisher is done. The site, the resources SUSHI
+# compiled - `validate`, `check-artifacts` and the FHIR endpoint all read those - and the terminology
+# and package caches the next build reuses. `temp/` and `template/` stay behind: nothing reads them,
+# and they are the bulk of what a build writes.
+BUILD_CARRIED_BACK := output fsh-generated input-cache
 
 .PHONY: cache-init help setup upgrade generate validate sushi build refresh clean clean-all
 
@@ -35,7 +43,16 @@ validate:  ## Check the DHIS2 instance's codes/names for FHIR-safety (writes md/
 .PHONY: check
 
 check:  ## Scan the artifacts on disk for what aborts the IG publisher (offline, seconds, exit 1 on findings)
-	$(D2W) fhir check-artifacts
+# A finding fails this recipe loudly; a toolchain too old to know the command must not. A project
+# whose lock pins a dhis2w-fhir without `check-artifacts` (1.8+) would otherwise die here on
+# "No such command" and take `build` down with it - on a guide that is perfectly publishable. So
+# ask the CLI what it knows first, and when the command is absent, warn with the upgrade named
+# and let the build proceed unscanned.
+	@if $(D2W) fhir --help 2>/dev/null | grep -q "check-artifacts"; then \
+		$(D2W) fhir check-artifacts; \
+	else \
+		echo "WARNING: the pinned dhis2w-fhir has no 'd2w fhir check-artifacts' (1.8+); skipping the artifact scan. Upgrade: uv lock --upgrade && uv sync"; \
+	fi
 
 cache-init:  ## Ensure the shared package-cache volume is writable by the publisher user
 	docker run --rm -u root -v $(CACHE_VOLUME):/home/publisher/.fhir --entrypoint sh $(DOCKER_IMAGE) -c "mkdir -p /home/publisher/.fhir/packages && chown -R 1001:1001 /home/publisher/.fhir"
@@ -50,6 +67,36 @@ build: cache-init  ## Run the full IG publisher
 # spent to be told a page failed to parse. Reading the same files the publisher reads answers in
 # seconds and names the object. Generation carries the same gate, but a build publishes what is on
 # disk: output written before the gate, output from an older toolchain pin, and hand-authored FSH.
+	$(MAKE) check
+# Then the publisher, run on the container's own disk rather than on the mounted project. Docker on
+# macOS reaches a host directory over a network-style filesystem, and the publisher's output pass
+# writes tens of thousands of small files one at a time: on a district-scale guide that single pass
+# took 341 seconds through the mount and 21 seconds inside the container. So the project is streamed
+# in, built there, and the results streamed back - two bulk copies instead of one file at a time.
+# Linux mounts a host directory directly and pays none of that; the recipe is the same either way
+# because a project that builds one way on one machine should build the same way on the other.
+	docker run --rm -v $$(pwd)/$(IG_DIR):/mnt/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
+		$(DOCKER_IMAGE) bash -c 'set -e; \
+			rm -rf $(BUILD_WORKDIR); mkdir -p $(BUILD_WORKDIR); \
+			tar -C /mnt/ig --exclude=./output --exclude=./temp --exclude=./template -cf - . \
+				| tar -C $(BUILD_WORKDIR) -xf -; \
+			cd $(BUILD_WORKDIR); \
+			status=0; \
+			java -Xmx$(JAVA_HEAP) -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx $(TX_SERVER) \
+				|| status=$$?; \
+			for carried in $(BUILD_CARRIED_BACK); do \
+				if [ -d "$(BUILD_WORKDIR)/$$carried" ]; then \
+					rm -rf "/mnt/ig/$$carried"; \
+					tar -C $(BUILD_WORKDIR) -cf - "$$carried" | tar -C /mnt/ig -xf -; \
+				fi; \
+			done; \
+			exit $$status'
+
+.PHONY: build-bind
+
+build-bind: cache-init  ## Run the publisher straight over the mounted project, no copy in or out
+# The same build without the two copies. Worth reaching for when you want to watch output/ fill up
+# as it is written, or when a copy is what you suspect. On macOS it is the slower of the two.
 	$(MAKE) check
 	docker run --rm -v $$(pwd)/$(IG_DIR):/home/publisher/ig -v $(CACHE_VOLUME):/home/publisher/.fhir \
 		$(DOCKER_IMAGE) \

@@ -154,6 +154,8 @@ async def test_generate_option_sets_across_majors(
     assert report.target_base == "ig/input"
     assert report.target_directory == "resources/terminology, resources/concept-maps"
     assert report.written_files == [
+        "terminology/CodeSystem-d2-option-code-id-cs.json",
+        "terminology/CodeSystem-d2-option-id-cs.json",
         "terminology/CodeSystem-d2-os-Xa1b2c3d4e5-cs.json",
         "terminology/ValueSet-d2-os-Xa1b2c3d4e5-vs.json",
         "concept-maps/ConceptMap-d2-os-Xa1b2c3d4e5-cm.json",
@@ -233,6 +235,8 @@ async def test_generate_categories_across_majors(
     assert report.target_directory == "resources/categories, resources/concept-maps"
     assert report.written_files == [
         "categories/CodeSystem-d2-cat-O5P6e8yu1T6-cs.json",
+        "categories/CodeSystem-d2-category-option-code-id-cs.json",
+        "categories/CodeSystem-d2-category-option-id-cs.json",
         "categories/ValueSet-d2-cat-O5P6e8yu1T6-vs.json",
         "concept-maps/ConceptMap-d2-cat-O5P6e8yu1T6-cm.json",
     ]
@@ -298,6 +302,8 @@ async def test_a_category_map_a_rerun_no_longer_produces_is_swept(
 
     assert report.deleted_files == [
         "CodeSystem-d2-cat-O5P6e8yu1T6-cs.json",
+        "CodeSystem-d2-category-option-code-id-cs.json",
+        "CodeSystem-d2-category-option-id-cs.json",
         "ValueSet-d2-cat-O5P6e8yu1T6-vs.json",
         "ConceptMap-d2-cat-O5P6e8yu1T6-cm.json",
     ]
@@ -531,15 +537,19 @@ async def test_generate_is_idempotent(
 
     assert first.deleted_files == []
     assert first.written_files == [
+        "terminology/CodeSystem-d2-option-code-id-cs.json",
+        "terminology/CodeSystem-d2-option-id-cs.json",
         "terminology/CodeSystem-d2-os-Xa1b2c3d4e5-cs.json",
         "terminology/ValueSet-d2-os-Xa1b2c3d4e5-vs.json",
         "concept-maps/ConceptMap-d2-os-Xa1b2c3d4e5-cm.json",
     ]
     assert second.written_files == []
     assert second.deleted_files == []
-    assert second.unchanged_count == 3
+    assert second.unchanged_count == 5
     resources = tmp_path / "ig" / "input" / "resources"
     assert sorted(path.name for path in (resources / "terminology").glob("*.json")) == [
+        "CodeSystem-d2-option-code-id-cs.json",
+        "CodeSystem-d2-option-id-cs.json",
         "CodeSystem-d2-os-Xa1b2c3d4e5-cs.json",
         "ValueSet-d2-os-Xa1b2c3d4e5-vs.json",
     ]

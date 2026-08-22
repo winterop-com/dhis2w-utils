@@ -102,7 +102,14 @@ def test_sushi_config_declares_the_prebuilt_resource_subfolders() -> None:
     assert parameters == {
         "excludexml": "true",
         "excludettl": "true",
-        "excludexls": "true",
+        "special-url": [
+            "http://dhis2.org/fhir/id/option",
+            "http://dhis2.org/fhir/id/option-code",
+            "http://dhis2.org/fhir/id/category-option",
+            "http://dhis2.org/fhir/id/category-option-code",
+            "http://dhis2.org/fhir/id/category-option-combo",
+            "http://dhis2.org/fhir/id/category-option-combo-code",
+        ],
         "path-resource": [
             "input/resources/registry/*",
             "input/resources/terminology/*",
@@ -433,10 +440,11 @@ def test_normalize_project_name_collapses_and_strips_separators() -> None:
 def test_makefile_mounts_the_package_cache_volume() -> None:
     """Container targets mount the named volume, and cache-init makes it writable for the publisher user."""
     makefile = _by_path()["Makefile"]
-    assert makefile.count("-v $(CACHE_VOLUME):/home/publisher/.fhir") == 3
+    assert makefile.count("-v $(CACHE_VOLUME):/home/publisher/.fhir") == 4
     assert "cache-init:" in makefile
     assert "sushi: cache-init" in makefile
     assert "build: cache-init" in makefile
+    assert "build-bind: cache-init" in makefile
     assert "chown -R 1001:1001 /home/publisher/.fhir" in makefile
     assert "CACHE_VOLUME := fhir-ig-cache" in makefile
 
@@ -450,11 +458,24 @@ def test_makefile_refuses_the_build_before_the_publisher_runs() -> None:
     """
     makefile = _by_path()["Makefile"]
     assert "check:  ## Scan the artifacts on disk for what aborts the IG publisher" in makefile
-    assert "\t$(D2W) fhir check-artifacts\n" in makefile
     assert ".PHONY: check" in makefile
     build_recipe = makefile.split("build: cache-init")[1]
     steps = [line.strip() for line in build_recipe.splitlines() if line.startswith("\t")]
     assert steps[0] == "$(MAKE) check"
+
+
+def test_makefile_check_skips_when_the_pinned_toolchain_lacks_the_command() -> None:
+    """A lock pinning a dhis2w-fhir without `check-artifacts` gets a warning and a build, not a brick.
+
+    The recipe asks the CLI's own help before running the scan: present runs it (findings still
+    exit 1 and stop `build`), absent warns with the upgrade named and lets the build proceed.
+    """
+    makefile = _by_path()["Makefile"]
+    check_recipe = makefile.split(".PHONY: check")[1].split(".PHONY:")[0]
+    assert 'if $(D2W) fhir --help 2>/dev/null | grep -q "check-artifacts"; then' in check_recipe
+    assert "$(D2W) fhir check-artifacts; \\" in check_recipe
+    assert "WARNING: the pinned dhis2w-fhir has no 'd2w fhir check-artifacts' (1.8+)" in check_recipe
+    assert "uv lock --upgrade && uv sync" in check_recipe
 
 
 def test_makefile_serves_the_ig_off_disk_and_straight_from_the_instance() -> None:

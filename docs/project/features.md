@@ -560,6 +560,15 @@ chain in one command.
   scaffold refresh. `make serve` / `make serve-live` / `make serve-ui` read the
   `[serve]` table; `make forward` / `make forward-import` drive the drain.
   `make check` is the artifact scan below, and `make build` runs it first.
+- **`make build` builds on the container's own disk.** Docker on macOS reaches a
+  mounted host directory over a network-style filesystem, and the publisher's
+  output phase writes tens of thousands of small files one at a time - 341
+  seconds through the mount against 21 on the container's disk, measured on one
+  guide. The target streams the project in, builds there, and streams `output/`,
+  `fsh-generated/` and `input-cache/` back; `temp/` and `template/` stay behind,
+  since nothing reads them and they are the bulk of what a build writes.
+  `make build-bind` runs the publisher straight over the mount for anyone who
+  wants to watch `output/` fill as it is written.
 - **`d2w fhir check-artifacts` refuses a doomed build in seconds.** The
   generate-time gate stands at the emit site, and a build never visits it:
   `make build` publishes whatever `ig/fsh-generated/` and `ig/input/` hold, so
@@ -893,6 +902,20 @@ Published as two FHIR-native artifacts:
 - **The one directory two targets share** states ownership by file-name prefix
   (`sync_json_artifacts(owned_prefix=...)`), so each family sweeps only the ids
   its own naming token produces and one `path-resource` glob covers both.
+- **Every identifier namespace a map targets is published as a CodeSystem too**,
+  at the same URL, with `content: complete` and every identifier the guide's own
+  maps name enumerated in it - `{base}/id/option` and `{base}/id/option-code`
+  beside the option-set pairs, the two category-option namespaces beside the
+  category pairs, the two option-combo namespaces beside the attribute-combo
+  pairs. A NamingSystem states what a namespace is and lists nothing, so a
+  ConceptMap row validated against one sent the IG publisher to a terminology
+  server and came back UNKNOWN_CODESYSTEM: 4,779 requests on one district-scale
+  guide, against 5 once the namespaces are enumerated, with the publisher's
+  narrative phase down from 438 seconds to 1.5. The namespaces are read off the
+  built maps rather than assumed, so a family that grows a mapping group cannot
+  leave its new target system un-enumerated, and the scaffolded
+  `sushi-config.yaml` declares all six under `special-url` because they sit
+  outside the IG's own canonical.
 - **`[generate.categories]` `include_ids`** selects, where absent or empty
   meaning every category except DHIS2's built-in `default` placeholder. That
   placeholder exchanges no information, so `include_default = false` skips it

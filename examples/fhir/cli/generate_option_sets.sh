@@ -14,7 +14,15 @@ cd demo-option-sets
 # answerValueSet binding resolves against. Concept codes are DHIS2 option UIDs by default
 # (concept_code_source = "code" in fhir.toml swaps them), and beside each pair lands a
 # ConceptMap taking every concept code back to both DHIS2 identifiers.
-# Narrow the set with [generate.option_sets] include_ids; absent or empty is every set.
+# Narrow the set with [generate.option_sets] include_ids; absent or empty is every set -
+# and naming your sets is the practice: this instance deliberately carries an option set
+# whose name holds '<', which the generate gate refuses rather than hand the IG publisher
+# a page it dies on hours later.
+cat >> fhir.toml <<'TOML'
+
+[generate.option_sets]
+include_ids = ["OsVaccType1"]
+TOML
 d2w fhir generate option-sets
 
 ls ig/input/resources/terminology | head -6
