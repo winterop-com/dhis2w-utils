@@ -214,9 +214,9 @@ test.describe('the evaluate screen', () => {
         await page.goto('/#/evaluate')
 
         await expect(page.getByTestId('evaluate-examples')).toBeVisible()
-        await page.getByRole('button', { name: 'Reference' }).click()
+        await page.getByRole('button', { name: 'Reference', exact: true }).click()
         await expect(page.getByTestId('evaluate-examples')).toHaveCount(0)
-        await page.getByRole('button', { name: 'Reference' }).click()
+        await page.getByRole('button', { name: 'Reference', exact: true }).click()
         await expect(page.getByTestId('evaluate-examples')).toBeVisible()
     })
 
