@@ -355,7 +355,7 @@ function ServerIdentity({
         <section className="space-y-3">
             <SectionHeading
                 title="This server"
-                description="What /metadata says this server is."
+                description="What this server says it is."
             />
             <PageState
                 loading={checking && capability === null}
@@ -409,7 +409,7 @@ function ServerIdentity({
 
                         <Button asChild variant="outline" size="sm">
                             <Link to="/server">
-                                What /metadata declares
+                                What this server offers
                                 <ArrowRight aria-hidden />
                             </Link>
                         </Button>

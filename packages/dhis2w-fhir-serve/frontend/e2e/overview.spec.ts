@@ -111,10 +111,10 @@ test('a form card opens the form view', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Fill with test data' })).toBeVisible()
 })
 
-test('the server strip names the guide and links to what /metadata declares', async ({ page }) => {
+test('the server strip names the guide and links to what this server offers', async ({ page }) => {
     await page.goto('/')
 
-    const strip = page.getByRole('link', { name: 'What /metadata declares' })
+    const strip = page.getByRole('link', { name: 'What this server offers' })
     await expect(page.getByText('DHIS2 FHIR Capture IG').first()).toBeVisible()
     // The operations are conditional on what the store holds, which is the point of showing them.
     await expect(page.getByText('$generate', { exact: true })).toBeVisible()

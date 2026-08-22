@@ -139,10 +139,15 @@ export function Responses() {
                 {formOptions.length > 1 && (
                     <FormFilter options={formOptions} selected={formFilter} onSelect={setFormFilter} />
                 )}
-                <Button variant="outline" size="sm" onClick={reload} disabled={refreshing}>
-                    <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} aria-hidden />
-                    Reload
-                </Button>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="outline" size="sm" onClick={reload} disabled={refreshing}>
+                            <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} aria-hidden />
+                            Reload
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Read this list from the server again</TooltipContent>
+                </Tooltip>
             </div>
 
             <PageState
@@ -240,8 +245,10 @@ function LifecycleFilter({
     selected: ResponseLifecycle | null
     onSelect: (lifecycle: ResponseLifecycle | null) => void
 }) {
+    // The group is named for the column the table heads with, because it filters that column.
+    // "Lifecycle" is this project's word for the state and appears nowhere a reader can see.
     return (
-        <div className="flex flex-wrap items-center gap-1 rounded-lg border p-1" role="group" aria-label="Lifecycle">
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border p-1" role="group" aria-label="State">
             <Button
                 variant={selected === null ? 'secondary' : 'ghost'}
                 size="sm"

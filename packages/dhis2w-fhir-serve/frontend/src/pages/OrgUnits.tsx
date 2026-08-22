@@ -1412,7 +1412,7 @@ function MapPanel({
             <Suspense
                 fallback={
                     <div className="bg-card text-muted-foreground flex min-h-[20rem] flex-1 items-center justify-center rounded-lg border text-sm">
-                        Loading the map renderer
+                        Loading the map
                     </div>
                 }
             >
