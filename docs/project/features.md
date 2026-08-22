@@ -2371,12 +2371,12 @@ an identifier search and a paged listing on one page, with a detail route at
 #### Command palette
 
 - **Cmd+K on macOS, Ctrl+K everywhere else**, plus a magnifying-glass button in
-  the header for anyone who was never told about the chord. One binding and no
-  second: nothing here carries a shortcut of its own, because a chord over the
-  bracket, brace, pipe or backslash keys is one a Nordic keyboard cannot press
-  without Alt.
-- **Pages, forms, receipts, the register, appearance, and the session**, on
-  shelves in that order. The pages are the shell's own navigation table mapped
+  the header for anyone who was never told about the chord. Every chord this app
+  binds sits on a letter, because one over the bracket, brace, pipe or backslash
+  keys is one a Nordic keyboard cannot press without Alt - and no row in the
+  palette carries a chord of its own.
+- **Pages, forms, receipts, the register, appearance, the view, help, and the
+  session**, on shelves in that order. The pages are the shell's own navigation table mapped
   onto the palette, so what the rail offers and what the palette reaches cannot
   drift; the forms are every published Questionnaire by title with its served id
   beneath; the receipts are the newest few at rest and the ones a typed id
@@ -2388,9 +2388,15 @@ an identifier search and a paged listing on one page, with a detail route at
   long to wait for the typing to stop stay decided in one place, and the result
   is a link that can be sent. The register page reads the value out of the query
   string, and writes what is typed into it back with `replace`.
+- **Each row is one line**: a leading icon by kind, the name, the line about it
+  beside rather than beneath, and the kind itself - *Page*, *Form*, *Receipt*,
+  *Theme* - at the far edge. A footer bar states what the key under the reader's
+  finger would do to the highlighted row (*Open*, *Switch*, *Run*) and spells the
+  chord, which is where somebody who opened it by button first learns there is
+  one.
 - **Nothing in it changes what the server holds.** Every action navigates,
-  repaints, or ends the session; submitting, forwarding, and withdrawing all
-  stay on their own screens.
+  repaints, lays the screen out, or ends the session; submitting, forwarding, and
+  withdrawing all stay on their own screens.
 - **It reads nothing until it is opened.** The Questionnaire search runs once
   per tab (a served guide cannot change under a running server) and the spool is
   re-read on each open, over whatever the last read produced - so the rows are
@@ -2398,6 +2404,28 @@ an identifier search and a paged listing on one page, with a detail route at
 - **The action list is a pure function** (`lib/palette.ts`) of what this run
   offers, so the claim that the palette reaches every page is asserted rather
   than believed.
+
+#### Settings, and the keys
+
+- **One gear at the foot of the sidebar** holds both appearance controls - the
+  five themes under **Theme**, the light or dark ground under **Mode** - and a
+  way into the list of shortcuts. The header keeps the collapse control, the
+  page's name, who is signed in, and the server light, and carries neither
+  appearance control. Collapsed to icons the gear stays where it is, with the
+  tooltip every rail entry has.
+- **`?` puts every key this app answers on screen**, matched on the character
+  rather than on a physical key plus Shift, because a `?` is Shift and the slash
+  on one layout and Shift and the plus on another. It never fires while an input,
+  a textarea, a select, a rich-text region, or a CodeMirror editor has focus.
+- **Cmd+B on macOS, Ctrl+B everywhere else, collapses the sidebar** and puts it
+  back - the platform's own modifier rather than either, because Ctrl+B on macOS
+  is the "back one character" that text fields and CodeMirror both answer. It
+  fires while a box or an editor has focus, since clearing the screen is worth
+  most mid-form, and stands aside only for a rich-text region.
+- **The list is `lib/shortcuts.ts` and the rules are pure functions** over a
+  described key press, so "not while somebody is typing" and "which modifier on
+  which platform" are asserted rather than buried in an effect. Both chords are
+  palette rows as well.
 
 #### Themes
 
@@ -2408,8 +2436,8 @@ an identifier search and a paged listing on one page, with a detail route at
   **Terminal** (phosphor green, and a ground to match).
 - **Theme and mode are two axes and stay two controls.** next-themes owns light
   or dark as a `dark` class; `lib/theme.ts` owns the theme as `data-theme` on the
-  same element. The header carries a picker beside the light/dark toggle, and
-  the palette carries both.
+  same element. The settings gear carries the two under their own headings, and
+  the palette carries both on its Appearance shelf.
 - **Applied before the first paint** by an inline script in `index.html` reading
   the same `localStorage` key the module writes, so a reload never flashes one
   theme under another. The two copies of the theme-name list are kept in step by
