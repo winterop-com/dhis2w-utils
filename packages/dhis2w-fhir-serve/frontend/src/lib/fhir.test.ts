@@ -35,6 +35,7 @@ import {
     isMatchEntry,
     questionCount,
     registerSearchKey,
+    REGISTER_TAG_SEARCH_PARAMETER,
     registersAPerson,
     servedIgLabel,
     trackedEntityOf,
@@ -816,6 +817,13 @@ describe('which parameter a register search is sent under', () => {
 
     it('is still identifier on a compiled run, which declares no register at all', () => {
         expect(registerSearchKey(metadata, 'Patient')).toBe('identifier')
+    })
+
+    it('narrows to one tracked entity type on R4’s own token search over the tag the resource carries', () => {
+        // Not a parameter this project invented: a served register resource states its DHIS2 tracked
+        // entity type as a `meta.tag`, and `_tag` is the search R4 already defines over it. The
+        // Python side spells the same string in `dhis2w_fhir_serve.routes.register`.
+        expect(REGISTER_TAG_SEARCH_PARAMETER).toBe('_tag')
     })
 })
 

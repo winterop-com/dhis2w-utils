@@ -8,7 +8,9 @@ import {
     checkCredential,
     checkReachability,
     configureApi,
+    listRegister,
     outcomeMessage,
+    searchRegister,
     translateCode,
 } from '@/lib/api'
 import { authSnapshot, basicAuthorization, bearerAuthorization, signIn, signOut, storedAuthorization } from '@/lib/auth'
@@ -333,5 +335,46 @@ describe('outcomeMessage', () => {
 
     it('answers null for no outcome at all', () => {
         expect(outcomeMessage(null)).toBeNull()
+    })
+})
+
+/**
+ * Narrowing a register to one of the tracked entity types it is served over.
+ *
+ * `_tag` is R4's own token search over `meta.tag`, which is where a served register resource already
+ * states its DHIS2 tracked entity type. It has to ride BOTH reads: the listing and the search answer
+ * about the same register, and a search that ignored the narrowing would answer about entities the
+ * table beneath it is not showing.
+ */
+describe('a register narrowed to one tracked entity type', () => {
+    const emptyBundle = { resourceType: 'Bundle', type: 'searchset', entry: [] }
+
+    it('tags the listing, and keeps the tag on the page the walk moves to', async () => {
+        const { calls } = stubFetch(fhirResponse(emptyBundle))
+        await listRegister('Device', null, 25, 'TetFridge01')
+        await listRegister('Device', 'a-token-the-server-minted', 25, 'TetFridge01')
+
+        expect(calls[0].url).toBe('/Device?_count=25&_tag=TetFridge01')
+        // The token names a place inside a scope, so a `next` sent without the tag would step out of
+        // the type the walk started in.
+        expect(calls[1].url).toBe('/Device?_count=25&_tag=TetFridge01&page=a-token-the-server-minted')
+    })
+
+    it('tags the search under whichever key this server declared for the register', async () => {
+        const { calls } = stubFetch(fhirResponse(emptyBundle))
+        await searchRegister('Device', 'FR-2026-11', 'identifier', 'TetFridge01')
+        await searchRegister('Device', 'fridge', '_content', 'TetFridge01')
+
+        expect(calls[0].url).toBe('/Device?identifier=FR-2026-11&_tag=TetFridge01')
+        expect(calls[1].url).toBe('/Device?_content=fridge&_tag=TetFridge01')
+    })
+
+    it('sends no tag at all when nothing narrowed the register', async () => {
+        const { calls } = stubFetch(fhirResponse(emptyBundle))
+        await listRegister('Patient', null, 25)
+        await searchRegister('Patient', '19850312-4471')
+
+        expect(calls[0].url).toBe('/Patient?_count=25')
+        expect(calls[1].url).toBe('/Patient?identifier=19850312-4471')
     })
 })

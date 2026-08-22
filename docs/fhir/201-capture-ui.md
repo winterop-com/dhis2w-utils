@@ -539,26 +539,47 @@ pages and "137 people" is worth showing only when it is true. Where there is no
 count, the paging controls are the whole of what the page claims: there is a
 next page or there is not.
 
-**What a row shows is what the server states about a person, and nothing
-more.** Four columns: the identifier values that name them - the values of the
-attributes DHIS2 declares unique, each labelled with the attribute it belongs
-to - then the DHIS2 tracked entity uid, then the type the instance holds them
-as, then the rest of the attribute values with a count of any left over. A
-person the instance holds no unique value for shows a dash in the first column
-and is still findable and still openable by their uid. There is no name column.
-DHIS2 states no attribute that means a name - which of an instance's attributes
-carry one is that instance's own decision - so a name column would be this page
-guessing, and a wrong name on a person's row is worse than no name at all.
+**One FHIR resource is one register over every tracked entity type the
+published map takes onto it, and a register over several offers the choice
+between them.** A row of chips above the table - **All**, then one per type,
+under the name the instance holds for it - narrows the table, the search box,
+and the address alike: choosing **Fridge** sends `_tag=<uid>` on both reads and
+puts `?type=<uid>` in the address, so a narrowed register is a link somebody can
+be sent. The chips come from the server's own declaration: `/uiconfig` states
+the types riding each register and `/metadata` documents the same set under the
+`_tag` parameter that narrows to one of them
+([Consume the FHIR API](401-consume-the-fhir-api.md)). A register serving one
+type has nothing to choose between and shows no chips at all. Narrowing starts
+the paging again at the server's first page, because a page token names a place
+inside a scope and means nothing in the scope next door.
 
-**Which attribute values a row shows is DHIS2's choice where DHIS2 made one.**
-An administrator marks the attributes that belong in a list of a type's
-entities - the two or three that let a clerk recognise somebody - and the
-published `D2TEA_CS` carries that marking, so those are the values on the row
-whatever order the projection arrived in. An instance that marks none states no
-preference, and the row shows the first few as it otherwise would. The count of
-what is left over is over everything either way, and the detail below keeps
-showing every value: a preference about a listing is not a claim that the rest
-is not held.
+**What a row shows is what the server states about a person, and nothing
+more.** The identifier values that name them - the values of the attributes
+DHIS2 declares unique, each labelled with the attribute it belongs to - then the
+DHIS2 tracked entity uid, then a column per attribute the people on that page
+hold a value of, the attribute named once in the header and the value alone in
+the cell. There is no name column. DHIS2 states no attribute that means a name -
+which of an instance's attributes carry one is that instance's own decision - so
+a name column would be this page guessing, and a wrong name on a person's row is
+worse than no name at all.
+
+**A column nothing on the page has anything in is not drawn.** An instance whose
+tracked entity type declares no unique attribute holds no identifier value for
+anybody, and the identifier column goes rather than standing there full of
+dashes on every row; it comes back the moment a page carries one. The tracked
+entity type is a column only while several types are on screen, which is a
+register serving more than one with no chip chosen - one type on every row is
+the page's own title stated once per person.
+
+**Which attributes get the columns is DHIS2's choice where DHIS2 made one.** An
+administrator marks the attributes that belong in a list of a type's entities -
+the two or three that let a clerk recognise somebody - and the published
+`D2TEA_CS` carries that marking, so those lead whatever order the projection
+arrived in. An instance that marks none states no preference and the columns
+keep the projection's order. Five columns is the cap, because past a handful
+rows stop being readable side by side; a page whose records hold more says so
+underneath - *This table shows 5 of the 9 attributes these records hold* - and
+the detail below keeps showing every value, marked or not.
 
 **A row opens that person.** The page is headed by the value that names them -
 the value of an attribute DHIS2 declares unique - with the tracked entity uid

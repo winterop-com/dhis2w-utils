@@ -37,6 +37,7 @@ import {
     type Questionnaire,
 } from '@/lib/fhir'
 import { formatInstant } from '@/lib/spool'
+import type { Register } from '@/lib/uiconfig'
 
 /**
  * The extension a submission marks its subject as a person the instance already holds with.
@@ -206,6 +207,18 @@ export const PATIENT_PAGE_PARAMETER = 'page'
  * and is decided per server.
  */
 export const REGISTER_QUERY_PARAMETER = 'q'
+
+/**
+ * Where the register page carries the tracked entity type it is narrowed to, so a filter is a link.
+ *
+ * `#/tracked-entities?type=<uid>` beside `?q=<value>`, and for the same reason: a narrowed register
+ * is a state of that screen rather than a document of its own, and holding it in the query string
+ * makes it something that can be sent, reloaded, and arrived at from elsewhere.
+ *
+ * NOT THE PARAMETER THE REQUEST CARRIES. This is the browser's address; the request narrows on
+ * `_tag`, which is R4's token search over the `meta.tag` a register resource states its type in.
+ */
+export const REGISTER_TYPE_PARAMETER = 'type'
 
 /** The search parameter that asks for a page of a given size. */
 export const PATIENT_COUNT_PARAMETER = '_count'
@@ -418,6 +431,138 @@ export function trackedEntityTypeLabel(
     const published = names.get(trackedEntityTypeUid)
     if (published !== undefined) return { text: published, isMachineSpelling: false }
     return { text: trackedEntityTypeUid, isMachineSpelling: true }
+}
+
+/** One choice of the tracked entity type filter: the uid it narrows by, under the name it is offered as. */
+export interface RegisterTypeChoice {
+    /** The DHIS2 tracked entity type uid - what rides the address, and what the request tags on. */
+    uid: string
+    /** What the chip says: the name the guide published for the type, else the uid DHIS2 knows it by. */
+    name: PublishedName
+}
+
+/**
+ * The types one register can be narrowed to, in the order the server declared them.
+ *
+ * ONE FHIR RESOURCE IS ONE REGISTER OVER THE UNION OF ITS TRACKED ENTITY TYPES, and this is that
+ * union read off the server's own declaration: `/uiconfig` states the types riding each register and
+ * the name the published map holds for each, and `/metadata` documents the same set under the `_tag`
+ * parameter that narrows to one of them. So the filter offers exactly what the server said it serves,
+ * named as the instance names it - "Person", "Fridge" - rather than as the resource projecting it.
+ *
+ * A type the guide published no name for falls back to its uid, which is at least a thing that can be
+ * looked up, and is spelled as the machine value it is.
+ */
+export function registerTypeChoices(register: Register): RegisterTypeChoice[] {
+    return register.types.map((type) => ({
+        uid: type.uid,
+        name:
+            type.name === null || type.name === ''
+                ? { text: type.uid, isMachineSpelling: true }
+                : { text: type.name, isMachineSpelling: false },
+    }))
+}
+
+/**
+ * The type one register is narrowed to, or null when it is narrowed to none.
+ *
+ * Validated against the register's own declaration rather than trusted, on the rule the lifecycle
+ * filter follows: a uid this register is not served over would narrow every listing and every search
+ * to nothing, and an empty page reads as "this DHIS2 instance holds none of these" rather than as
+ * "that address named a type this register does not carry". Null is also the answer for every other
+ * register on a page that serves several - one address carries one narrowing, and a register that
+ * does not serve the named type is simply not the one being narrowed.
+ */
+export function narrowedRegisterType(register: Register, asked: string | null): string | null {
+    if (asked === null || asked === '') return null
+    return register.types.some((type) => type.uid === asked) ? asked : null
+}
+
+/**
+ * How many of an entity's attributes the register table gives a column of their own.
+ *
+ * A table is for recognising a record, not for holding one: past a handful of columns the rows stop
+ * being readable side by side, and the whole record - every value, nothing left out - is one click
+ * away. Which few is DHIS2's choice where DHIS2 made one; see `registerTableColumns`.
+ */
+export const REGISTER_ATTRIBUTE_COLUMNS = 5
+
+/** One attribute the register table gives a column: the uid its cells are read by, under its name. */
+export interface RegisterAttributeColumn {
+    attributeUid: string
+    /** The header: the published name, else the DHIS2 code, else the uid - see `trackedEntityAttributeLabel`. */
+    name: PublishedName
+}
+
+/** What the register table shows for one page of rows, decided by what those rows actually hold. */
+export interface RegisterTableColumns {
+    /**
+     * Whether any row carries a value of an attribute DHIS2 declares unique.
+     *
+     * False takes the column away rather than filling it with dashes: a leading column empty on
+     * every row states nothing about the records and reads as a defect in the page.
+     */
+    identifiers: boolean
+    /** One column per attribute, DHIS2's own listing preference first, capped at `REGISTER_ATTRIBUTE_COLUMNS`. */
+    attributes: RegisterAttributeColumn[]
+    /** How many attributes these rows hold that no column shows - zero when every one has a column. */
+    hidden: number
+}
+
+/**
+ * The columns one page of register rows earns: one per attribute, named once in the header.
+ *
+ * ONE COLUMN PER ATTRIBUTE, NOT ONE CELL OF EVERYTHING. A cell holding "Date of birth 1985-03-12,
+ * Sex Female, and 1 more" repeats every attribute's name on every row, cannot be scanned down a
+ * column, and hides the rest behind a phrase nobody can act on. So the attribute is named once, in
+ * the header, and the cell holds the value alone.
+ *
+ * DERIVED FROM THE ROWS ON THE PAGE, because that is the only set that is certainly true: DHIS2
+ * requires no attribute of an entity, the projection carries exactly what the instance holds, and a
+ * column for an attribute nobody on this page has a value of would be a column of dashes. A page
+ * whose rows hold different attributes gets the union of them, in the order they first appear.
+ *
+ * ORDERED BY DHIS2'S OWN PREFERENCE. An administrator marks the attributes that belong in a listing
+ * of a type's entities - the two or three a clerk recognises somebody by - and those lead. An
+ * instance that marks none states no preference, and the columns stay in the order the projection
+ * carried them. The preference decides the order, and therefore which columns survive the cap.
+ */
+export function registerTableColumns(
+    rows: readonly PatientProjection[],
+    names: ReadonlyMap<string, string>,
+    preferred: ReadonlySet<string>,
+    limit: number = REGISTER_ATTRIBUTE_COLUMNS,
+): RegisterTableColumns {
+    const codes = new Map<string, string | null>()
+    for (const row of rows) {
+        for (const value of row.attributeValues) {
+            // First appearance fixes the order; a later row's code fills one the first row left
+            // uncoded, since DHIS2 requires no code on a tracked entity attribute.
+            const known = codes.get(value.attributeUid) ?? null
+            if (!codes.has(value.attributeUid) || (known === null && value.attributeCode !== null)) {
+                codes.set(value.attributeUid, value.attributeCode)
+            }
+        }
+    }
+    const appearance = [...codes.keys()]
+    const ordered = [
+        ...appearance.filter((uid) => preferred.has(uid)),
+        ...appearance.filter((uid) => !preferred.has(uid)),
+    ]
+    const shown = ordered.slice(0, Math.max(limit, 0))
+    return {
+        identifiers: rows.some((row) => row.identifiers.length > 0),
+        attributes: shown.map((attributeUid) => ({
+            attributeUid,
+            name: trackedEntityAttributeLabel(names, attributeUid, codes.get(attributeUid) ?? null),
+        })),
+        hidden: ordered.length - shown.length,
+    }
+}
+
+/** What one entity holds of one attribute, or null when this instance holds no value of it for them. */
+export function registerAttributeValue(entity: PatientProjection, attributeUid: string): string | null {
+    return entity.attributeValues.find((value) => value.attributeUid === attributeUid)?.value ?? null
 }
 
 /** One enrollment of one tracked entity, as `GET /tracked-entities/{uid}/enrollments` states it, field for field. */
