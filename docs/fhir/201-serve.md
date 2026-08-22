@@ -92,6 +92,12 @@ semantics and both operations, is
 | default | `ig/fsh-generated/resources` (what SUSHI compiled) merged with `ig/input/resources/` (the registry, terminology, concept-map, and category JSON the generate targets wrote, which SUSHI never re-emits) | nothing beyond the store | a compiled IG on disk; no DHIS2 connection at all |
 | `--live` | the same read set, built straight off a DHIS2 instance at startup | the register - one tracked entity by identifier, the listing of them, and one entity's enrollments - read from the instance per request, and gated by `[serve.tracked_entities]` | a reachable instance and a resolvable profile; no compile step |
 
+A live run has one more posture available to it, and it is opt-in: a **synced
+copy** of the register, filled by `d2w fhir sync` and searched instead of the
+instance. It changes what a search can find and how much it costs, and it changes
+nothing about who may see whom - [Serve from a synced
+copy](#serve-from-a-synced-copy) is the whole of it.
+
 The default mode is fully offline. If the project has never been compiled,
 the server refuses to start and says what to run:
 
@@ -510,6 +516,121 @@ Seven types against a compiled run's fourteen is the definitional layer
 missing: no StructureDefinitions, no profiles, no ImplementationGuide - the
 documents only a FSH compile produces. The stored-response count is the spool
 on disk, which both modes read the same way.
+
+## Serve from a synced copy { #serve-from-a-synced-copy }
+
+A live run asks the instance every time somebody searches. That is right, it is
+current, and it has one shape it cannot get out of: `filter=<attribute>:eq:<value>`
+is an exact match, so a clerk gets exactly one chance to spell a value the way it
+was stored, and one query goes out per search key per tracked entity type while
+they wait.
+
+A **projection** is a durable copy of the mapped scope of the instance, held as
+the FHIR resources this project's map publishes. `d2w fhir sync` fills it, and
+`[serve.search] backend = "projection"` searches it. Two lines of `fhir.toml` and
+one command:
+
+```toml
+[serve.projection]
+store = "sqlite"
+
+[serve.search]
+backend = "projection"
+```
+
+```console
+$ d2w fhir sync
+[1/3] register: 1 tracked entity type(s), 1 program(s), mode initial
+[2/3] tracked entities: 502 created, 0 updated, 0 removed over 5 page(s)
+[3/3] enrollments: 0 entity(s) re-read from an enrollment that moved
+ok: created 502, updated 0, removed 0 over 10 page(s)
+ok: answers served from this projection are as of 2026-08-21T16:46:57.099000
+```
+
+The first run reads the whole mapped scope. Every run after it reads what moved,
+which on an unchanged instance is one request:
+
+```console
+$ d2w fhir sync
+[2/3] tracked entities: 0 created, 1 updated, 0 removed over 2 page(s)
+ok: created 0, updated 1, removed 0 over 4 page(s)
+```
+
+`--rebuild` drops the copy and fills it from zero. That is a routine operation
+rather than a recovery step: it is how a change to `[serve.tracked_entities]` or
+to the published map reaches what is already stored. `--dry-run` reads the
+instance exactly as a committing run does, counts what would change, and writes
+nothing.
+
+### What the synced copy changes
+
+**A search can find somebody by a value rather than by the whole of one.**
+`_content` is R4's own parameter for a text search over a resource's whole
+content, and this server answers it only from the projection:
+
+```console
+$ curl -sG http://127.0.0.1:8080/Patient --data-urlencode '_content=minata-Ren'
+```
+
+It is spelled `_content` and not `name` or `family` on purpose. This server does
+not know which of somebody's DHIS2 attribute values is their name, and will not
+guess - DHIS2 states no such mapping, and a wrong `family` on a person is a worse
+answer than none. So it offers a search across every value they hold, and says
+that is what it is doing.
+
+**A search costs one query instead of many.** One read of one local file, however
+many search keys and tracked entity types are in scope.
+
+**Every answer says when it was true.** A searchset served from the projection
+carries an `outcome` entry stating the instant, and an
+`X-DHIS2W-Projection-As-Of` header beside it:
+
+```
+x-dhis2w-projection-as-of: 2026-08-21T16:46:57.099000
+```
+
+That is the one way a client can tell the two backends apart, and it is
+deliberate: an answer out of a copy is *as of* an instant, never *now*, and a
+client that cannot tolerate that reads the instance instead.
+
+### What it does not change
+
+**Who may see whom.** The projection says who is on the page; the record behind
+each one is read from the instance under the credentials of whoever asked. So
+DHIS2 applies its sharing, its organisation-unit scopes, and its ownership rules
+to every record this server hands out, per person, per request, exactly as it does
+without a projection. A person the copy holds and the instance will not disclose
+to this caller is on nobody's page. `GET /Patient/{id}` is a person-level read and
+is answered from the instance whatever the search backend says.
+
+That is why a projection-served searchset states **no `total`**. The copy knows
+how many rows it holds; that number was counted under the identity `d2w fhir sync`
+ran as, and how many of them *you* may see is the instance's to say one read at a
+time. A count taken for somebody else is not offered.
+
+**Where the data comes from.** DHIS2 stays the record for everything DHIS2 can
+hold. The projection is a copy, `d2w fhir sync` is the only thing that writes it,
+and a row that disagrees with the instance is a defect of the sync whose fix is
+`--rebuild` rather than an edit. Deleting `.serve/projection.sqlite` is a
+supported operation.
+
+**When a capture appears.** A submission still travels spool, then
+[`d2w fhir forward`](201-forward.md), then DHIS2, then the next sync - so a
+captured value appears in a synced server one sync interval after DHIS2 accepted
+it. The receipt is readable from the spool immediately, which is what the spool is
+for. There is no write-through, and there will not be one: it would make this copy
+a second system of record.
+
+### What it still cannot do
+
+Find `ສົມສັກ` from `Somsack`. Matching across scripts needs transliteration
+applied when the index is built, which arrives with a search-engine backend rather
+than with this one. A one-character typo finds nothing here too. The full
+measurement, and what closes each gap, is in
+[the materialized projection](design/projection.md) section 3.3.
+
+Every key is documented in
+[Configure serving](301-serving.md#projection).
 
 ## Stored responses are receipts
 

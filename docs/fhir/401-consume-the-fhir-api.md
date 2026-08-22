@@ -294,7 +294,7 @@ there, two parameters narrow each other; here, every token and every
 comma-separated value is another key to try, and their matches are unioned. A
 client holding two cards for one person asks once.
 
-**A parameter other than `identifier` is refused, not ignored.** This is the
+**A parameter this server cannot apply is refused, not ignored.** This is the
 second place the register parts company with the searches above, and for the
 same reason the union semantics exist: an unapplied filter here would be
 answered with the register itself, and a client that asked for the people called
@@ -305,6 +305,35 @@ answers on:
 $ curl -s 'localhost:8391/Patient?family=Smith'
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`family` is not a search parameter this server answers `Patient` on: `identifier` is the one it supports"}]}
 ```
+
+**A server with a synced copy answers one more: `_content`.** Where the operator
+has configured
+[`[serve.search] backend = "projection"`](301-serving.md#search-backend), the
+register also answers R4's own parameter for a text search over a resource's
+whole content - a case-insensitive substring of any value the person holds:
+
+```console
+$ curl -s 'localhost:8391/Patient?_content=minata' | jq '.entry[] | select(.search.mode=="match") | .resource.id'
+```
+
+It is `_content` and not `family` on purpose: this server does not know which of
+somebody's DHIS2 attribute values is their name and will not guess, for exactly
+the reason the identity-only projection below states. `/metadata` declares
+`_content` only where it is answered, so a client reads the CapabilityStatement
+rather than probing. Under the default backend it is refused like any other
+unanswerable parameter, because an exact-match tracker filter cannot search a
+content.
+
+**And a projection-served answer says when it was true.** Every searchset it
+answers carries an `outcome` entry stating the instant, and an
+`X-DHIS2W-Projection-As-Of` header beside it - so an answer out of the copy is
+*as of* an instant, never *now*. It also states **no `total`**: the copy counted
+its rows under the identity the sync ran as, and how many of them you may see is
+the instance's to say one read at a time. `_count=0` is therefore the one
+question this backend cannot answer - it comes back with the cursor, no entries,
+and no walk to follow. Every record on the page was read from the instance under
+your own credentials whichever backend found it, and `GET /Patient/{id}` is
+answered from the instance in every posture.
 
 `_count` is honoured beside `identifier` and caps the matches handed back, on
 the same terms as every other searchset here - `total` states how many there

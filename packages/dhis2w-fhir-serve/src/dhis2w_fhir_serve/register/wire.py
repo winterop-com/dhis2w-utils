@@ -36,10 +36,11 @@ which is which, and nothing in this module branches on the answer.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 from dhis2w_client.errors import Dhis2ApiError
-from dhis2w_client.generated.v42.oas import TrackerTrackedEntity
+from dhis2w_client.generated.v42.oas import TrackerEnrollment, TrackerTrackedEntity
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
@@ -257,6 +258,182 @@ async def search_tracked_entities(
             return []
         raise
     return TrackedEntitiesPage.model_validate(raw).trackedEntities
+
+
+#: The other two tracker collections, and what a sync poll asks each of them for.
+#:
+#: `/api/tracker/enrollments` is the only one polled beside the tracked entities, and it is polled for
+#: whose projection has gone stale rather than for anything it holds: a program-level attribute value
+#: rides an enrollment, and a tracked entity's own `lastUpdated` does not move when one of its
+#: enrollments does. `/api/tracker/events` is not polled at all - see `ProjectionEndpoint`.
+ENROLLMENTS_PATH = "/api/tracker/enrollments"
+_TOUCHED_ENROLLMENT_FIELDS = "enrollment,trackedEntity,updatedAt,deleted"
+
+#: The parameter that makes a poll see a deletion, and it is a CONSTANT rather than a dial.
+#:
+#: `docs/fhir/design/projection.md` section 3.4, finding 2: without it a cursor poll returns zero rows
+#: for a deleted entity and does not error, so a sync that forgot it would simply never learn that
+#: anybody left. R10 makes it a constant for exactly that reason - its absence is silent, and the
+#: single most dangerous line in a sync is the one that can be switched off by accident.
+INCLUDE_DELETED_PARAMETER = "includeDeleted"
+
+#: The cursor parameter a poll narrows itself with, in the instance's own zone-less spelling.
+UPDATED_AFTER_PARAMETER = "updatedAfter"
+
+#: The order every poll pages in.
+#:
+#: `createdAt` and not `updatedAt`, because paging needs an order that does not move underneath the
+#: walk: an entity updated between page 2 and page 3 of a poll ordered by `updatedAt` moves to the
+#: end and takes a row with it. `createdAt` is immutable per row, and which rows the walk covers is
+#: the `updatedAfter` filter's job rather than the sort's.
+POLL_ORDER = "createdAt:asc"
+
+#: How many rows one poll page carries. The paper's section 3.2 measured 200 as the size where the
+#: page count stops being what the walk costs (0.595 s for 800 people over five pages).
+POLL_PAGE_SIZE = 200
+
+#: The projection a poll asks for: the register's own fields, plus the two a cursor sync reads.
+POLLED_TRACKED_ENTITY_FIELDS = f"{TRACKED_ENTITY_FIELDS},updatedAt,deleted"
+
+
+class TouchedRow(BaseModel):
+    """One row of an enrollment poll: whose projection it touches, when, and whether it is a tombstone."""
+
+    model_config = ConfigDict(frozen=True)
+
+    tracked_entity_uid: str | None = None
+    updated_at: datetime | None = None
+    deleted: bool = False
+
+
+class TouchedPage(BaseModel):
+    """One page of an enrollment poll, and how many pages the instance said there are."""
+
+    model_config = ConfigDict(frozen=True)
+
+    rows: tuple[TouchedRow, ...] = ()
+    page_count: int | None = None
+
+
+class EnrollmentsPage(BaseModel):
+    """One page of `/api/tracker/enrollments`: the enrollments on it, and where it sits."""
+
+    model_config = ConfigDict(extra="allow")
+
+    enrollments: list[TrackerEnrollment] = []
+    pager: TrackedEntitiesPager | None = None
+
+
+async def poll_tracked_entities(
+    reader: RegisterReader,
+    *,
+    tracked_entity_type_uid: str,
+    updated_after: datetime | None,
+    page: int,
+    page_size: int = POLL_PAGE_SIZE,
+) -> TrackedEntitiesPage:
+    """Read one page of one tracked entity type as a sync polls it - tombstones included, always.
+
+    `includeDeleted=true` rides every call and is not a parameter: without it a deleted entity is
+    invisible to a cursor poll and nothing says so (section 3.4, finding 2). `updated_after` None is
+    the initial full materialization, which reads the type whole.
+
+    A type the instance does not hold answers an empty page, not a refusal - the same fold every
+    other read here applies, because a mistyped UID in `[serve.tracked_entities]` should show up as a
+    surface that finds nothing.
+    """
+    params: dict[str, Any] = {
+        "trackedEntityType": tracked_entity_type_uid,
+        "ouMode": SEARCH_ORG_UNIT_MODE,
+        "fields": POLLED_TRACKED_ENTITY_FIELDS,
+        "order": POLL_ORDER,
+        "page": page,
+        "pageSize": page_size,
+        INCLUDE_DELETED_PARAMETER: "true",
+        TOTAL_PAGES_PARAMETER: "true",
+    }
+    if updated_after is not None:
+        params[UPDATED_AFTER_PARAMETER] = dhis2_instant(updated_after)
+    try:
+        raw = await reader.get_raw(TRACKED_ENTITIES_PATH, params=params)
+    except Dhis2ApiError as error:
+        if _is_unknown_type_refusal(error):
+            return TrackedEntitiesPage()
+        raise
+    return TrackedEntitiesPage.model_validate(raw)
+
+
+async def poll_enrollments(
+    reader: RegisterReader,
+    *,
+    program_uid: str,
+    updated_after: datetime | None,
+    page: int,
+    page_size: int = POLL_PAGE_SIZE,
+) -> TouchedPage:
+    """Read one page of one program's enrollments as a sync polls it, for whose projection moved.
+
+    SCOPED BY PROGRAM BECAUSE THE ENDPOINT ADMITS NOTHING ELSE. `/api/tracker/enrollments` answers
+    `E1003 "Program is mandatory"` to a query naming a tracked entity type, or naming nothing at all,
+    so an enrollment poll walks the programs the guide publishes rather than the types the register
+    serves. Recorded as BUGS.md 102 alongside its sibling's refusal, which is not even JSON.
+
+    Only three fields are asked for. This poll never maps anything: what it answers is a list of
+    tracked entities whose projection is stale, and each of them is re-read through the tracked
+    entity path that every other projected row comes from, so there is exactly one mapping surface.
+    """
+    params: dict[str, Any] = {
+        "program": program_uid,
+        "ouMode": SEARCH_ORG_UNIT_MODE,
+        "fields": _TOUCHED_ENROLLMENT_FIELDS,
+        "order": POLL_ORDER,
+        "page": page,
+        "pageSize": page_size,
+        INCLUDE_DELETED_PARAMETER: "true",
+        TOTAL_PAGES_PARAMETER: "true",
+    }
+    if updated_after is not None:
+        params[UPDATED_AFTER_PARAMETER] = dhis2_instant(updated_after)
+    try:
+        raw = await reader.get_raw(ENROLLMENTS_PATH, params=params)
+    except Dhis2ApiError as error:
+        if _is_unknown_type_refusal(error):
+            return TouchedPage()
+        raise
+    page_read = EnrollmentsPage.model_validate(raw)
+    return TouchedPage(
+        rows=tuple(
+            TouchedRow(
+                tracked_entity_uid=enrollment.trackedEntity,
+                updated_at=as_instant(enrollment.updatedAt),
+                deleted=bool(enrollment.deleted),
+            )
+            for enrollment in page_read.enrollments
+        ),
+        page_count=None if page_read.pager is None else page_read.pager.pageCount,
+    )
+
+
+def as_instant(value: datetime | int | None) -> datetime | None:
+    """One DHIS2 timestamp as a datetime, or None where it is not one this sync can compare against.
+
+    The tracker's OpenAPI document types an instant as a date-time OR an epoch integer, and this repo
+    does not guess which unit an integer is in (`routes.enrollments._instant` carries the same
+    integer through as text for the same reason). A watermark is a comparison, so an instant nobody
+    can place on a clock is one this sync declines to advance to.
+    """
+    return value if isinstance(value, datetime) else None
+
+
+def dhis2_instant(value: datetime) -> str:
+    """One instant spelled the way `updatedAfter` takes it - the instance's own zone-less reading.
+
+    DHIS2 2.43 answers `updatedAt` as a wall-clock reading with no offset (BUGS.md 62) and takes
+    `updatedAfter` in the same spelling, so a cursor read out of one answer goes back on the wire
+    exactly as it arrived. Any offset this host attached would be a claim about a clock nobody
+    consulted, so the value is written to seconds and the zone, if somebody attached one, is dropped.
+    """
+    return value.replace(tzinfo=None).isoformat(timespec="seconds")
 
 
 def is_tracked_entity_uid(value: str) -> bool:

@@ -9939,6 +9939,7 @@ $ d2w fhir [OPTIONS] COMMAND [ARGS]...
 * `serve`: Serve the project&#x27;s IG as a FHIR read and...
 * `forward`: Drain the capture spool into DHIS2 -...
 * `spool`: List the capture spool - how many receipts...
+* `sync`: Fill this project&#x27;s materialized...
 * `requeue`: Move receipts DHIS2 refused back into the...
 * `withdraw`: Retract from DHIS2 the events named...
 * `doctor`: Run the whole FHIR toolchain against this...
@@ -10168,6 +10169,53 @@ $ d2w fhir spool [OPTIONS] [directory]
 **Options**:
 
 * `--details`: List every receipt, not just how many are in each state.
+* `--help`: Show this message and exit.
+
+### `d2w fhir sync`
+
+Fill this project&#x27;s materialized projection from DHIS2 - the register, as FHIR, on disk.
+
+A projection is a durable copy of the mapped scope of a DHIS2 instance, held as the FHIR resources
+this project&#x27;s map publishes. It is what `[serve.search] backend = &quot;projection&quot;` answers a register
+search from: one indexed query instead of one tracker query per key per tracked entity type, and a
+search across every value a person holds rather than an exact match on one.
+
+The first run reads the whole mapped scope. Every run after it reads what moved since the last one,
+which on an unchanged instance is one request and 56 bytes. `--rebuild` drops the projection and
+fills it from zero, which is routine rather than a recovery step - it is how a change to
+`[serve.tracked_entities]` or to the published map reaches what is already stored.
+
+DHIS2 STAYS THE RECORD. Nothing here writes to the instance, and nothing but this command writes
+to the projection. A projection row that disagrees with DHIS2 is a defect of this command, and the
+fix for one is `--rebuild` rather than an edit.
+
+A deletion is followed. Every poll carries `includeDeleted=true`, which is not a flag here because
+its absence is silent: a sync without it never learns that anybody left. A tombstone removes the
+row rather than archiving a last state, because DHIS2 will not answer a read of a deleted entity.
+
+WHAT A SYNCED SERVER DOES NOT CHANGE. A record is still read from the instance under the
+credentials of whoever asks, so DHIS2 authorizes every disclosure exactly as it does today; the
+projection decides who is on the page. Which is why a synced answer states the instant it is as of
+and a live one does not.
+
+Where the projection lives is `[serve.projection] path`, and which store holds it is
+`[serve.projection] store` - a project that names none is refused here, naming the key.
+
+**Usage**:
+
+```console
+$ d2w fhir sync [OPTIONS] [directory]
+```
+
+**Arguments**:
+
+* `directory`: Project directory (default: current directory).  [default: .]
+
+**Options**:
+
+* `--rebuild`: Empty the projection first, then fill it from zero. How a mapping change reaches it.
+* `--dry-run`: Read the instance and count what would change, writing nothing and moving no cursor.
+* `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 
 ### `d2w fhir requeue`

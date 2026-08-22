@@ -67,7 +67,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from dhis2w_fhir.config import ServeAuth, ServeAuthScope
+from dhis2w_fhir.config import SearchBackend, ServeAuth, ServeAuthScope
 from dhis2w_fhir.foundation import (
     CAPTURE_SERVER_READ_RESOURCE_TYPES,
     GENERATE_OPERATION_CODE,
@@ -147,6 +147,27 @@ LISTING_DOCUMENTATION = (
 )
 LISTING_OFF_DOCUMENTATION = (
     "A search naming no identifier is refused: this project serves the register by identifier only."
+)
+
+#: What a projection-served register entry adds: where its answers come from, and when they are true.
+PROJECTION_DOCUMENTATION = (
+    "Which entities a search names comes from this project's materialized projection of the "
+    "instance, and every searchset says the instant it is as of - an `outcome` entry beside the "
+    "matches, and an `X-DHIS2W-Projection-As-Of` header beside the response. Each named entity is "
+    "then read from the instance under your own DHIS2 authorization, so the projection decides who "
+    "is on the page and DHIS2 decides who you may see; a read of one entity by its id is answered "
+    "from the instance and is as of now. A projection-served searchset states no total, because how "
+    "many of its rows you may see is the instance's to say one read at a time."
+)
+
+#: What the `_content` search parameter means here, and the one thing it deliberately does not claim.
+CONTENT_SEARCH_DOCUMENTATION = (
+    "A case-insensitive substring of any value the entity holds - its identifiers and its other "
+    "tracked entity attribute values alike - matched over the projection's index. It is spelled "
+    "`_content` rather than `name` or `family` because this server does not know which of an "
+    "entity's DHIS2 attribute values is a name, and will not guess: DHIS2 states no such mapping. "
+    "The match is a substring and not a transliteration, so a name stored in one script is not "
+    "found from another."
 )
 
 #: What a register entry states about several identifiers in one search, which widen rather than narrow.
@@ -412,7 +433,7 @@ def _register_resources(
     return [
         CapabilityStatementResource(
             type=register.resource_type,
-            documentation=_register_documentation(register_surface, register),
+            documentation=_register_documentation(settings, register_surface, register),
             interaction=[
                 CapabilityStatementInteraction(code="read"),
                 CapabilityStatementInteraction(code="search-type"),
@@ -427,23 +448,37 @@ def _register_resources(
                         f"`{index.identifier_system_base}/tracked-entity-attribute/<uid>`. A token naming "
                         "no system is searched across every one of them."
                     ),
-                )
+                ),
+                *(
+                    [
+                        CapabilityStatementSearchParam(
+                            name="_content",
+                            type="string",
+                            documentation=CONTENT_SEARCH_DOCUMENTATION,
+                        )
+                    ]
+                    if settings.search.backend is SearchBackend.PROJECTION
+                    else []
+                ),
             ],
         )
         for register in register_surface.registers()
     ]
 
 
-def _register_documentation(register_surface: RegisterSurface, register: ServedRegister) -> str:
-    """What one register entry says this server answers, listing included when this project serves one."""
+def _register_documentation(
+    settings: ServeSettings, register_surface: RegisterSurface, register: ServedRegister
+) -> str:
+    """What one register entry says this server answers: what a hit is, how it pages, where it came from."""
     labels = tuple(
         published.uid if published.name is None else f"{published.name} ({published.uid})"
         for published in register.tracked_entity_types
     )
     stated = f"{register_documentation(register.resource_type, labels)} {IDENTIFIER_UNION_DOCUMENTATION}"
-    if not register_surface.serves_listing():
-        return f"{stated} {LISTING_OFF_DOCUMENTATION}"
-    return f"{stated} {LISTING_DOCUMENTATION}"
+    listing = LISTING_DOCUMENTATION if register_surface.serves_listing() else LISTING_OFF_DOCUMENTATION
+    if settings.search.backend is not SearchBackend.PROJECTION:
+        return f"{stated} {listing}"
+    return f"{stated} {listing} {PROJECTION_DOCUMENTATION}"
 
 
 def _operations(

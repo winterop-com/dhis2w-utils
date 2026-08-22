@@ -189,7 +189,7 @@ Four pages cover the file between them:
 | [Who the guide is](301-identity.md) | `profile`, `[ig]` - which DHIS2 server it reads, and the guide's own identity |
 | [What goes in](301-what-goes-in.md) | the six selection tables, `[generate.tracked_entity_types]`, `[generate.organisation_units]`, `[generate.examples]` - which of your DHIS2 metadata the guide covers |
 | [How things are generated](301-generation.md) | `[generate]`, `[generate.naming]` - identifier addresses, code choices, time zone, languages, and everything about naming |
-| [Serving it](301-serving.md) | `[serve]`, `[serve.tracked_entities]`, `[serve.search]`, `[[serve.basemaps]]`, `[forward]` - how the local capture server runs, what it answers about people, what answers a search for one, and how forwarding behaves |
+| [Serving it](301-serving.md) | `[serve]`, `[serve.tracked_entities]`, `[serve.search]`, `[serve.projection]`, `[[serve.basemaps]]`, `[forward]` - how the local capture server runs, what it answers about people, what answers a search for one, where the synced copy of the register lives, and how forwarding behaves |
 
 ### Every option, alphabetically within its section
 
@@ -245,7 +245,10 @@ the file refuses.
 | `[serve.tracked_entities]` | [`page_size_limit`](301-serving.md#tracked_entities-page_size_limit) | `100` | the largest page anybody may ask for |
 | `[serve.tracked_entities]` | [`search_attributes`](301-serving.md#tracked_entities-search_attributes) | the unique and searchable ones | which attributes a search keys on |
 | `[serve.tracked_entities]` | [`tracked_entity_types`](301-serving.md#tracked_entities-tracked_entity_types) | the types the published forms register | which types the register covers |
-| `[serve.search]` | [`backend`](301-serving.md#search-backend) | `"dhis2"` | what answers a search for a person - the instance itself today |
+| `[serve.search]` | [`backend`](301-serving.md#search-backend) | `"dhis2"` | what answers a search for a person - the instance, or the synced copy |
+| `[serve.projection]` | [`store`](301-serving.md#projection-store) | `"none"` | whether this project holds a synced copy of the register at all |
+| `[serve.projection]` | [`path`](301-serving.md#projection-path) | `".serve/projection.sqlite"` | which file that copy lives in |
+| `[serve.projection]` | [`overlap_seconds`](301-serving.md#projection-overlap) | `300` | how far back an incremental sync re-reads, so no row falls off the edge |
 | `[forward]` | [`import`](301-serving.md#import) | `false` | whether a plain forward writes to DHIS2 or only checks |
 | `[forward]` | [`live`](301-serving.md#live) | `true` | what a drain reads when the project holds no compiled guide |
 | `[forward]` | [`register_completeness`](301-serving.md#register_completeness) | `true` | whether a finished aggregate form also marks its data set complete |

@@ -205,6 +205,16 @@ class TrackedEntityIndex(BaseModel):
         """The name this guide publishes one program under, or None when the program is outside its selection."""
         return self.program_names.get(program_uid)
 
+    def program_uids(self) -> tuple[str, ...]:
+        """Every program this guide publishes, in the order it published them.
+
+        A sync's enrollment poll needs these because `/api/tracker/enrollments` will be scoped by
+        program and by nothing else - it answers `E1003 "Program is mandatory"` to a query naming a
+        tracked entity type (BUGS.md 102). So the programs the guide published are the scope an
+        enrollment poll walks, where every other register read walks the types the register serves.
+        """
+        return tuple(self.program_names)
+
     def organisation_unit_name(self, organisation_unit_uid: str) -> str | None:
         """The name this guide publishes one organisation unit under, or None when the registry omits it."""
         return self.organisation_unit_names.get(organisation_unit_uid)

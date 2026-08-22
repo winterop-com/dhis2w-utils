@@ -128,9 +128,25 @@ page_size_limit = 100               # the largest page anyone may ask for; a big
 # search_attributes = ["lZGmxYbs97q"]
 
 [serve.search]
-# What answers a search for a person. The instance itself today: one exact-match query per key
-# while the caller waits. No command-line flag overrides this table. -> 301-serving#search
+# What answers a search for a person. `dhis2` is the instance itself: one exact-match query per
+# key while the caller waits. `projection` is the synced copy below: one indexed query, plus
+# `_content` for a search across every value a person holds. Either way the record behind a match
+# is read from the instance under the caller's own credentials, so DHIS2 decides who may be seen.
+# No command-line flag overrides this table. -> 301-serving#search
 backend = "dhis2"                   # the DHIS2 instance answers every search -> 301-serving#search-backend
+
+# A durable copy of the mapped scope of the instance, held as FHIR and filled by `d2w fhir sync`.
+# Nothing here is required: `store = "none"` is no copy at all, which is what a facade that reads
+# the instance per request has always been. DHIS2 stays the record; the sync is the only writer;
+# deleting the file is supported, and `d2w fhir sync --rebuild` does the same thing on purpose.
+# -> 301-serving#projection
+[serve.projection]
+store = "none"                      # "none" or "sqlite" -> 301-serving#projection-store
+# Where a sqlite copy lives, relative to the project root unless absolute.
+# path = ".serve/projection.sqlite"  # -> 301-serving#projection-path
+# How far back before its own watermark an incremental sync re-reads, in seconds. The window is
+# what stops a row written in the instant of a poll from falling off the edge of it.
+# overlap_seconds = 300              # -> 301-serving#projection-overlap
 
 # The map backgrounds the organisation unit map offers - the one outbound call. The screens'
 # layer control lists these in order, opens on the first, and always carries a None entry

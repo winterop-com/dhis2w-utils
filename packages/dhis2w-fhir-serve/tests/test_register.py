@@ -274,7 +274,11 @@ async def test_every_search_runs_through_the_index_whatever_is_behind_it(
             """Drop nothing, as the `dhis2` backend does."""
             return None
 
-    monkeypatch.setattr(register_route_module, "build_name_search_index", lambda backend, *, reader: _RecordingIndex())
+    monkeypatch.setattr(
+        register_route_module,
+        "build_name_search_index",
+        lambda backend, *, reader, store=None: _RecordingIndex(),
+    )
     _read_route(None, _NATIONAL_ID)
     resolution = _read_route(_entity(), _PERSON_UID)
     search = _search_route()

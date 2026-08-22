@@ -14,6 +14,11 @@ The `dhis2` posture holds a third: a connection to the same instance carrying no
 which a register read borrows to send the CALLER'S header over. It is state of the process for the
 same reason the client is - a pool, not a value - and it is None in every other posture, because
 nothing else forwards anybody's credential. `dhis2w_fhir_serve.passthrough` is what reads it.
+
+The materialized projection is the fourth, and it is a database connection held open for the life of
+the process - so it lives beside the context rather than on it, exactly as the two HTTP connections
+do. It is None wherever `[serve.projection] store` names none, which is the zero-ops default and the
+whole of what makes a facade configured without one behave as it always did.
 """
 
 from __future__ import annotations
@@ -26,14 +31,16 @@ if TYPE_CHECKING:
     import httpx
     from dhis2w_client import Dhis2Client
 
+    from dhis2w_fhir_serve.projection.base import ProjectionStore
     from dhis2w_fhir_serve.runtime import ServeContext
 
-#: Where the three pieces of runtime state live on the application, named here because this is what
-#: reads them: an application mounting the facade's routers writes the same three, through
+#: Where the four pieces of runtime state live on the application, named here because this is what
+#: reads them: an application mounting the facade's routers writes the same four, through
 #: `dhis2w_fhir_serve.runtime.attach_serve_runtime`.
 SERVE_CONTEXT_ATTRIBUTE = "context"
 LIVE_CLIENT_ATTRIBUTE = "live_client"
 CALLER_CLIENT_ATTRIBUTE = "caller_client"
+PROJECTION_STORE_ATTRIBUTE = "projection_store"
 
 
 def serve_context(request: Request) -> ServeContext:
@@ -52,3 +59,9 @@ def caller_client(request: Request) -> httpx.AsyncClient | None:
     """The credential-free connection pass-through reads borrow, or None outside the `dhis2` posture."""
     connection: httpx.AsyncClient | None = getattr(request.app.state, CALLER_CLIENT_ATTRIBUTE, None)
     return connection
+
+
+def projection_store(request: Request) -> ProjectionStore | None:
+    """The materialized projection this process serves from, or None where the project holds none."""
+    store: ProjectionStore | None = getattr(request.app.state, PROJECTION_STORE_ATTRIBUTE, None)
+    return store

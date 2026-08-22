@@ -13,6 +13,7 @@ import errno
 import socket
 from collections import Counter
 from contextlib import contextmanager
+from datetime import timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -43,6 +44,11 @@ if TYPE_CHECKING:
 
     from dhis2w_core.progress import ProgressReporter
 
+    # Type-only, exactly as `d2w fhir serve` and `d2w fhir sync` import the package itself: the serve
+    # extra may not be installed, and a name used in an annotation costs no import at runtime.
+    from dhis2w_fhir_serve import ServeSettings, SyncReport
+
+    from dhis2w_fhir.config import FhirProject, ProjectionConfig
     from dhis2w_fhir.doctor import DoctorReport
     from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import (
@@ -2293,6 +2299,211 @@ def spool_command(
         typer.echo(report.model_dump_json(indent=2))
         return
     _render_spool_state(report, details=details)
+
+
+def _render_sync_report(report: SyncReport, generation: GenerationProfile) -> None:
+    """Render one sync: what it read, what it changed per resource type, and where the cursor now stands."""
+    render_detail(
+        "fhir sync",
+        [
+            DetailRow("project", str(report.project_root)),
+            DetailRow("instance", f"{generation.profile.base_url} ({generation.name}, from {generation.origin})"),
+            DetailRow("projection", str(report.store_path)),
+            DetailRow("run", report.mode.value + (" (dry run)" if report.dry_run else "")),
+            DetailRow("tracked entity types", str(len(report.tracked_entity_types))),
+            DetailRow("programs polled for enrollments", str(len(report.programs))),
+            DetailRow("pages read", str(report.pages_read)),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    if report.counts:
+        render_list(
+            "resources",
+            [
+                {
+                    "type": row.resource_type,
+                    "created": str(row.created),
+                    "updated": str(row.updated),
+                    "removed": str(row.removed),
+                }
+                for row in report.counts
+            ],
+            [
+                ColumnSpec("Resource", "type", no_wrap=True),
+                ColumnSpec("Created", "created", no_wrap=True),
+                ColumnSpec("Updated", "updated", no_wrap=True),
+                ColumnSpec("Removed", "removed", no_wrap=True),
+            ],
+            console=STDERR_CONSOLE,
+        )
+    render_list(
+        "how far each collection has been read",
+        [
+            {
+                "collection": move.endpoint.value,
+                "was": "never" if move.moved_from is None else move.moved_from.isoformat(),
+                "now": "never" if move.moved_to is None else move.moved_to.isoformat(),
+            }
+            for move in report.cursors
+        ],
+        [
+            ColumnSpec("Collection", "collection", no_wrap=True),
+            ColumnSpec("Read up to, before", "was", no_wrap=True),
+            ColumnSpec("Read up to, now", "now", no_wrap=True),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    if report.dry_run:
+        _line(_SYNC_DRY_RUN_BANNER)
+    _hint("ok", report.counts_line())
+    if report.cursor.updated_at is None:
+        _hint(
+            "note",
+            "the projection states no cursor yet: both collections have to have been read before an "
+            "answer can say what instant it is as of",
+        )
+    else:
+        _hint("ok", f"answers served from this projection are as of {report.cursor.updated_at.isoformat()}")
+
+
+#: What a sync's dry run says, so nobody reads its counts as a description of what is on disk.
+_SYNC_DRY_RUN_BANNER = (
+    "DRY RUN - the instance was read exactly as a committing run reads it and the counts above are "
+    "what a committing run would do. Nothing was written to the projection and no cursor moved. "
+    "Re-run without --dry-run to commit."
+)
+
+
+@app.command("sync")
+def sync_command(
+    directory: Annotated[
+        Path, typer.Argument(file_okay=False, help="Project directory (default: current directory).")
+    ] = Path("."),
+    rebuild: Annotated[
+        bool,
+        typer.Option(
+            "--rebuild",
+            help="Empty the projection first, then fill it from zero. How a mapping change reaches it.",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Read the instance and count what would change, writing nothing and moving no cursor.",
+        ),
+    ] = False,
+    progress: ProgressOption = True,
+) -> None:
+    r"""Fill this project's materialized projection from DHIS2 - the register, as FHIR, on disk.
+
+    A projection is a durable copy of the mapped scope of a DHIS2 instance, held as the FHIR resources
+    this project's map publishes. It is what `\[serve.search] backend = "projection"` answers a register
+    search from: one indexed query instead of one tracker query per key per tracked entity type, and a
+    search across every value a person holds rather than an exact match on one.
+
+    The first run reads the whole mapped scope. Every run after it reads what moved since the last one,
+    which on an unchanged instance is one request and 56 bytes. `--rebuild` drops the projection and
+    fills it from zero, which is routine rather than a recovery step - it is how a change to
+    `\[serve.tracked_entities]` or to the published map reaches what is already stored.
+
+    DHIS2 STAYS THE RECORD. Nothing here writes to the instance, and nothing but this command writes
+    to the projection. A projection row that disagrees with DHIS2 is a defect of this command, and the
+    fix for one is `--rebuild` rather than an edit.
+
+    A deletion is followed. Every poll carries `includeDeleted=true`, which is not a flag here because
+    its absence is silent: a sync without it never learns that anybody left. A tombstone removes the
+    row rather than archiving a last state, because DHIS2 will not answer a read of a deleted entity.
+
+    WHAT A SYNCED SERVER DOES NOT CHANGE. A record is still read from the instance under the
+    credentials of whoever asks, so DHIS2 authorizes every disclosure exactly as it does today; the
+    projection decides who is on the page. Which is why a synced answer states the instant it is as of
+    and a live one does not.
+
+    Where the projection lives is `\[serve.projection] path`, and which store holds it is
+    `\[serve.projection] store` - a project that names none is refused here, naming the key.
+    """
+    try:
+        from dhis2w_fhir_serve import SYNC_STEPS, ServeSettings
+    except ImportError as error:
+        raise LookupError(_SERVE_PACKAGE_MISSING) from error
+
+    from dhis2w_fhir import service
+
+    project = load_project(directory)
+    configured = project.config.serve.projection
+    if not configured.enabled():
+        raise CliUserError(_SYNC_NO_PROJECTION)
+    generation = service.resolve_generation_profile(project)
+    settings = ServeSettings(
+        project_dir=project.project_root,
+        live=True,
+        tracked_entities=project.config.serve.tracked_entities,
+        search=project.config.serve.search,
+        projection=configured,
+        dhis2_base_url=generation.profile.base_url,
+    )
+    with _progress(SYNC_STEPS, enabled=progress) as reporter:
+        report = asyncio.run(_sync(settings, project, configured, rebuild=rebuild, dry_run=dry_run, reporter=reporter))
+        if reporter is not None:
+            reporter.finish(report.counts_line())
+    if is_json_output():
+        typer.echo(report.model_dump_json(indent=2))
+    else:
+        _render_sync_report(report, generation)
+
+
+#: What a project that configured no projection is told, naming the key and the two commands it pairs.
+_SYNC_NO_PROJECTION = (
+    'this project holds no materialized projection to fill: state `[serve.projection] store = "sqlite"` '
+    'in fhir.toml, and `[serve.search] backend = "projection"` beside it if you want `d2w fhir serve` '
+    "to answer register searches from it"
+)
+
+
+async def _sync(
+    settings: ServeSettings,
+    project: FhirProject,
+    configured: ProjectionConfig,
+    *,
+    rebuild: bool,
+    dry_run: bool,
+    reporter: ProgressReporter | None,
+) -> SyncReport:
+    """Open the instance and the projection, run one sync over both, and close them again.
+
+    The register surface comes from a live store build - the same one `d2w fhir serve --live` starts
+    with - because a sync maps exactly what a live run serves, through exactly the same published map.
+    A second way of deciding what a tracked entity is in FHIR would be a second answer to that
+    question, and the two would disagree on the first mapping change.
+    """
+    from dhis2w_fhir_serve import (
+        RegisterSurface,
+        TrackedEntityIndex,
+        build_store,
+        open_live_client,
+        open_projection_store,
+        projection_path,
+        run_sync,
+    )
+
+    async with open_live_client(project, settings) as client:
+        store = await build_store(settings, project, client)
+        surface = RegisterSurface.resolve(TrackedEntityIndex.from_store(project, store), settings.tracked_entities)
+        async with open_projection_store(configured, project_root=project.project_root) as projection:
+            if projection is None:
+                raise CliUserError(_SYNC_NO_PROJECTION)
+            return await run_sync(
+                client,
+                surface=surface,
+                store=projection,
+                project_root=project.project_root,
+                store_path=projection_path(configured, project_root=project.project_root),
+                overlap=timedelta(seconds=configured.overlap_seconds),
+                rebuild=rebuild,
+                dry_run=dry_run,
+                narrator=reporter,
+            )
 
 
 @app.command("requeue")

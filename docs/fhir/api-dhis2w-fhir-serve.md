@@ -395,17 +395,46 @@ search, or holding a copy of an instance as FHIR resources.** `NameSearchIndex` 
 register search runs through: it answers with tracked entity identifiers and scores and never with
 records, so the record behind a match is read back live, under the caller's own credentials, and
 DHIS2 authorizes each disclosure exactly as it does today. `ProjectionStore` is the durable document
-backend beside it, written by a sync and by nothing else. One backend ships - `Dhis2NameSearchIndex`,
-the instance itself, which is what `[serve.search] backend = "dhis2"` selects and what a server that
-states no `[serve.search]` runs. It improves nothing over the search a live run has always run, and
-proving the seam is its whole job. The design is
+backend beside it, written by a sync and by nothing else. The design is
 [the materialized projection](design/projection.md), sections 7 and 9.
+
+Two backends of each ship. `Dhis2NameSearchIndex` is the instance itself, which is what
+`[serve.search] backend = "dhis2"` selects and what a server that states no `[serve.search]` runs; it
+improves nothing over the search a live run has always run, and proving the seam is its whole job.
+`SqliteProjectionStore` and `SqliteNameSearchIndex` are the other half - one file under the project,
+selected together by `[serve.projection] store = "sqlite"` and `[serve.search] backend =
+"projection"`.
 
 ::: dhis2w_fhir_serve.projection.base
 
 ::: dhis2w_fhir_serve.projection.dhis2_names
 
 ::: dhis2w_fhir_serve.projection.factory
+
+### The materialized projection
+
+**Reach for these when you are filling a projection, reading one, or serving an answer out of one.**
+`SqliteProjectionStore` is the reference implementation of `ProjectionStore` and the Embedded
+posture's whole backend: SQLAlchemy over aiosqlite, one file, no service. `run_sync` is what fills
+it - the initial materialization, the incremental `updatedAfter` poll with `includeDeleted=true` as a
+constant, and the full rebuild - and `SyncReport` is what it answers with. `SqliteNameSearchIndex` is
+the search over its keys, and `projection.serving` is how an answer served from it states the instant
+it is as of.
+
+**What none of them does is decide who may read what.** A projection-served answer names candidates;
+the record behind each one is read from the instance under the caller's own credentials, so DHIS2
+authorizes every disclosure per match per caller. That is R9's recommended posture (iii), and each
+module docstring says where its half of it sits.
+
+::: dhis2w_fhir_serve.projection.schema
+
+::: dhis2w_fhir_serve.projection.sqlite_store
+
+::: dhis2w_fhir_serve.projection.sqlite_names
+
+::: dhis2w_fhir_serve.projection.sync
+
+::: dhis2w_fhir_serve.projection.serving
 
 ### Enrollment listing
 

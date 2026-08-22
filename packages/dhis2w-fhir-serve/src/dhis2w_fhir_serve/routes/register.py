@@ -58,6 +58,33 @@ answered. See `_require_answerable_parameters`.
   per key attribute, folded into one result set and deduplicated by tracked entity UID. An entity
   holding the same value in two of them appears once.
 
+**`[serve.search] backend = "projection"` MOVES THE FINDING HALF AND LEAVES THE DISCLOSING HALF WHERE
+IT IS.** Under that backend the searchset's membership, its paging, and its `_content` answer all come
+out of the materialized projection `d2w fhir sync` fills - one indexed query over a local file rather
+than one tracker query per key per tracked entity type, and answerable in ways an exact-match filter
+is not. Three things stay exactly as they are, and they are the three that matter:
+
+- **Every record is still read live, under the caller's own credentials.** The projection says who is
+  on the page; `fetch_tracked_entity` says whether this caller may have them, per person, per request.
+  That is `docs/fhir/design/projection.md` R9 and its recommended posture (iii) in full, and it is why
+  a projection can answer the finding half without this facade taking on one line of DHIS2's
+  authorization model. `GET /{resourceType}/{id}` is a person-level read and therefore stays live
+  whatever the backend says.
+- **Every projection-served answer states the instant it is as of** - an `outcome` entry in the
+  searchset and a header beside it (`dhis2w_fhir_serve.projection.serving`). A live answer states
+  none, because it is as of the moment the instance answered.
+- **No projection-served answer states a `total`.** The projection counted its rows under the build
+  identity the sync ran as, and how many of them THIS caller may see is DHIS2's to say one read at a
+  time - so a count taken before that is a number about somebody else, and a Bundle states no total
+  rather than one nobody counted for the person reading it.
+
+`_content` is the one search parameter that arrives with the backend, and it is R4's own parameter for
+a text search over a resource's whole content. It is the honest spelling: this server does not know
+which of a person's DHIS2 attribute values is their name - `register.projection` says at length why it
+refuses to guess - so it offers a search across all of them rather than a `family` it would be
+inventing. Under `backend = "dhis2"` the parameter is refused exactly as every other unanswerable one
+is, because an exact-match filter cannot answer it.
+
 **A SEARCH FINDS IDENTIFIERS AND A READ RESOLVES THEM.** Every filtered search here goes through
 `dhis2w_fhir_serve.projection.NameSearchIndex`, which answers with tracked entity UIDs and scores and
 never with records; each match is then read back through `fetch_tracked_entity` under the credentials
@@ -90,6 +117,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
 from dhis2w_client.errors import Dhis2ClientError
+from dhis2w_fhir.config import SearchBackend
 from dhis2w_fhir.r4 import Bundle, BundleEntry, BundleEntrySearch, BundleLink, json_resource
 from pydantic import BaseModel, ConfigDict
 from starlette.requests import Request
@@ -102,14 +130,23 @@ from dhis2w_fhir_serve.errors import (
     NotFoundError,
     NotServedError,
     NotServedFromCompiledIgError,
+    ProjectionEmptyError,
+    ProjectionNotConfiguredError,
     RegisterDisabledError,
     RegisterListingDisabledError,
     UnsupportedSearchParameterError,
     UpstreamError,
 )
 from dhis2w_fhir_serve.passthrough import RegisterReader, register_reader
-from dhis2w_fhir_serve.projection.base import NameQuery, NameSearchIndex
+from dhis2w_fhir_serve.projection.base import (
+    NameQuery,
+    NameSearchIndex,
+    ProjectionCursor,
+    ProjectionQuery,
+    ProjectionStore,
+)
 from dhis2w_fhir_serve.projection.factory import build_name_search_index
+from dhis2w_fhir_serve.projection.serving import as_of_entry, as_of_headers
 from dhis2w_fhir_serve.register.listing import (
     COUNT_PARAMETER,
     PAGE_PARAMETER,
@@ -121,7 +158,7 @@ from dhis2w_fhir_serve.register.listing import (
 from dhis2w_fhir_serve.register.projection import registered_entity_for
 from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.register.wire import fetch_tracked_entity, upstream_refusal_text
-from dhis2w_fhir_serve.routes.context import serve_context
+from dhis2w_fhir_serve.routes.context import projection_store, serve_context
 from dhis2w_fhir_serve.routes.read import (
     HonoredParameter,
     alternatives,
@@ -139,13 +176,17 @@ if TYPE_CHECKING:
 #: The one search parameter the facade answers a register lookup on.
 IDENTIFIER_SEARCH_PARAMETER = "identifier"
 
+#: The search parameter a projection-served register answers beside it: R4's own text search over a
+#: resource's whole content, which is what an index over every attribute value a person holds is.
+CONTENT_SEARCH_PARAMETER = "_content"
+
 
 class RegisterLookup(BaseModel):
-    """What one register request runs against: the connection, what this run serves, and the index it searches.
+    """What one register request runs against: the connection, what this run serves, and where it searches.
 
-    The three are resolved together because a request that cannot have one has no use for the others:
-    a compiled run holds no connection, a project serving no tracked entity type has nothing to
-    search, and the index is built over the very connection the resolution reads back through.
+    They are resolved together because a request that cannot have one has no use for the others: a
+    compiled run holds no connection, a project serving no tracked entity type has nothing to search,
+    and the index is built over the very connection - or the very store - the resolution reads through.
     """
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
@@ -154,6 +195,18 @@ class RegisterLookup(BaseModel):
     surface: RegisterSurface
     index: NameSearchIndex
 
+    store: ProjectionStore | None = None
+    """The materialized projection, where this run answers a search from one, and None otherwise.
+
+    None is both postures a live run can be in: `[serve.search] backend = "dhis2"`, and a project that
+    configured no projection at all. Either way the searches below read the instance, which is what
+    they have always done.
+    """
+
+    def from_projection(self) -> bool:
+        """Whether this request's searchset membership comes from the projection rather than the instance."""
+        return self.store is not None
+
 
 def register_resource_types(request: Request) -> tuple[str, ...]:
     """Every resource type this process answers from the instance, which is what a read dispatches on."""
@@ -161,36 +214,56 @@ def register_resource_types(request: Request) -> tuple[str, ...]:
 
 
 async def search_register(request: Request, resource_type: str) -> Response:
-    """Answer the entities an identifier names, or - naming none - one page of the register."""
+    """Answer the entities a search names, or - naming none - one page of the register."""
     lookup = await _live_lookup(request, resource_type)
     honored: list[HonoredParameter] = []
     tokens: list[IdentifierToken] = []
+    contents: list[tuple[str, ...]] = []
     for name, raw in request.query_params.multi_items():
-        if name != IDENTIFIER_SEARCH_PARAMETER:
+        if name == IDENTIFIER_SEARCH_PARAMETER:
+            tokens.extend(identifier_token(value) for value in alternatives(name, raw))
+        elif name == CONTENT_SEARCH_PARAMETER:
+            contents.append(tuple(alternatives(name, raw)))
+        else:
             continue
-        tokens.extend(identifier_token(value) for value in alternatives(name, raw))
         honored.append(HonoredParameter(name=name, value=raw))
-    _require_answerable_parameters(request, resource_type, searching=bool(tokens))
+    _require_answerable_parameters(request, lookup, resource_type, searching=bool(tokens or contents))
     service_base = base_url(request)
-    if not tokens:
-        return await _listing_response(request, lookup.reader, lookup.surface, resource_type, service_base)
+    cap = requested_entry_cap(request.query_params.get(COUNT_PARAMETER))
+    if not tokens and not contents:
+        return await _listing_response(request, lookup, resource_type, service_base)
+    if lookup.from_projection():
+        return await _projection_search_response(
+            lookup, resource_type, tokens, tuple(contents), service_base, tuple(honored), cap
+        )
     entities = await _matching_entities(lookup, resource_type, tokens)
     entries = _entries(entities, lookup.surface, resource_type, service_base)
-    cap = requested_entry_cap(request.query_params.get(COUNT_PARAMETER))
     return bundle_response(service_base, resource_type, tuple(honored), entries, cap)
 
 
-def _require_answerable_parameters(request: Request, resource_type: str, searching: bool) -> None:
+def _require_answerable_parameters(
+    request: Request, lookup: RegisterLookup, resource_type: str, searching: bool
+) -> None:
     """Refuse a register request naming a parameter this server cannot apply to it.
 
-    A register search is `identifier` and nothing else, so `family=Smith` is a query this facade has
-    no way to run. Answering it with the listing would hand back the whole register as though every
-    row in it were a Smith, and the `self` link's silence about the parameter is not a signal any
-    client reads. `_count` shapes the answer on either path; `page` names a page of the listing, and
-    a search naming an identifier is answered whole rather than paged.
+    A register search is `identifier`, plus `_content` where a projection answers it, and nothing
+    else - so `family=Smith` is a query this facade has no way to run. Answering it with the listing
+    would hand back the whole register as though every row in it were a Smith, and the `self` link's
+    silence about the parameter is not a signal any client reads. `_count` shapes the answer on either
+    path; `page` names a page of the listing, and a search naming a value is answered whole rather
+    than paged, whichever backend found it.
+
+    `_content` is refused under `[serve.search] backend = "dhis2"` for the same reason every other
+    unanswerable parameter is: an exact-match tracker filter cannot search a resource's content, and
+    a facade that answered it with the listing would be answering a question it was not asked. The
+    refusal names the parameters that ARE answered, so the difference reads as this server's posture
+    rather than as a missing feature.
     """
+    answerable = {IDENTIFIER_SEARCH_PARAMETER, COUNT_PARAMETER}
+    if lookup.from_projection():
+        answerable.add(CONTENT_SEARCH_PARAMETER)
     for name in request.query_params:
-        if name in {IDENTIFIER_SEARCH_PARAMETER, COUNT_PARAMETER}:
+        if name in answerable:
             continue
         if name == PAGE_PARAMETER:
             if not searching:
@@ -199,7 +272,7 @@ def _require_answerable_parameters(request: Request, resource_type: str, searchi
                 f"`{PAGE_PARAMETER}` names a page of the `{resource_type}` listing, and a search naming "
                 f"`{IDENTIFIER_SEARCH_PARAMETER}` is answered whole"
             )
-        raise UnsupportedSearchParameterError(resource_type, name, IDENTIFIER_SEARCH_PARAMETER)
+        raise UnsupportedSearchParameterError(resource_type, name, tuple(sorted(answerable - {COUNT_PARAMETER})))
 
 
 async def read_registered_entity(request: Request, resource_type: str, tracked_entity_uid: str) -> Response:
@@ -238,9 +311,16 @@ async def _live_lookup(request: Request, resource_type: str) -> RegisterLookup:
     nobody to be is a 401 rather than a page read as the facade. It sits between the two because
     authenticating a caller comes before telling them what this guide publishes.
 
-    The index is built last and over the same reader, because `[serve.search] backend = "dhis2"` is
-    the instance itself: the connection a search runs over is the connection a match is resolved
-    back through, and one request never uses two.
+    The index is built last, over the reader under `[serve.search] backend = "dhis2"` and over the
+    projection under `"projection"`. Under the first, the connection a search runs over is the
+    connection a match is resolved back through and one request never uses two; under the second they
+    are deliberately two things, because that split is the whole design - the projection says who
+    matched and the instance says who may be seen.
+
+    THE READER IS REQUIRED UNDER EITHER BACKEND. A projection-served search still resolves every match
+    live under the caller's own credentials, so a process with no instance behind it can no more
+    answer a projection-served register than a live one - R9's posture (iii) makes the live read part
+    of every answer rather than a fallback for when the projection is cold.
     """
     context = serve_context(request)
     surface = context.register_surface
@@ -253,19 +333,26 @@ async def _live_lookup(request: Request, resource_type: str) -> RegisterLookup:
         raise NoPublishedSubjectTypeError(resource_type)
     if not surface.tracked_entity_type_uids_for(resource_type):
         raise NotServedError(resource_type)
+    backend = context.settings.search.backend
+    store = projection_store(request) if backend is SearchBackend.PROJECTION else None
     return RegisterLookup(
         reader=reader,
         surface=surface,
-        index=build_name_search_index(context.settings.search.backend, reader=reader),
+        index=build_name_search_index(backend, reader=reader, store=store),
+        store=store,
     )
 
 
 async def _listing_response(
-    request: Request, reader: RegisterReader, surface: RegisterSurface, resource_type: str, service_base: str
+    request: Request, lookup: RegisterLookup, resource_type: str, service_base: str
 ) -> Response:
     """Answer one page of the register, or refuse the whole listing when the project serves none."""
+    surface = lookup.surface
+    reader = lookup.reader
     if not surface.serves_listing():
         raise RegisterListingDisabledError(resource_type)
+    if lookup.from_projection():
+        return await _projection_listing_response(request, lookup, resource_type, service_base)
     if requested_entry_cap(request.query_params.get(COUNT_PARAMETER)) == 0:
         return await _register_size_response(reader, surface, resource_type, service_base)
     count = _requested_count(request, surface)
@@ -288,6 +375,223 @@ async def _listing_response(
         entry=_entries(page.entities, surface, resource_type, service_base) or None,
     )
     return Response(content=bundle.model_dump_json(exclude_none=True, by_alias=True), media_type=FHIR_JSON_MEDIA_TYPE)
+
+
+async def _projection_search_response(
+    lookup: RegisterLookup,
+    resource_type: str,
+    tokens: list[IdentifierToken],
+    contents: tuple[tuple[str, ...], ...],
+    service_base: str,
+    honored: tuple[HonoredParameter, ...],
+    cap: int | None,
+) -> Response:
+    """Answer a search whose membership the projection decided and whose records the instance authorized.
+
+    The two parameters combine the way R4 says they do. Values within one parameter are alternatives,
+    so they are folded into one set of candidates; two different parameters are conditions that both
+    hold, so their candidate sets are intersected. `identifier` runs over the token index - an exact
+    match, because an identifier names somebody rather than describes them - and `_content` runs over
+    the folded attribute values, which is a case-insensitive substring and is what an index over a
+    person's own values can honestly claim to be.
+
+    Then every candidate is read from DHIS2 under the credentials this request runs as. A person the
+    projection holds and this caller may not see is carried by neither the entries nor the total,
+    which is the whole of R9's posture (iii): the projection decides who is on the page and the
+    instance decides who may see them.
+
+    A projection nothing has been synced into refuses rather than answering an empty searchset, the
+    same way the listing does: "nobody matched" and "nobody has looked" are different facts, and
+    only one of them is true here.
+
+    How many matches are resolved is bounded by `[serve.tracked_entities] page_size_limit`, which is
+    the same bound the listing puts on a page. Every resolution is a live read, so an unbounded
+    `_content` search matching a whole district would be that many sequential reads while somebody
+    waits - and the limit an operator already wrote down for a page is what they meant by "as many
+    people as this server hands over at once".
+    """
+    if lookup.store is None:
+        raise ProjectionNotConfiguredError
+    cursor = await lookup.store.cursor()
+    if cursor.updated_at is None:
+        raise ProjectionEmptyError(resource_type)
+    candidates = await _projection_candidates(lookup, resource_type, tokens, contents)
+    resolved = await _resolved_entities(lookup, resource_type, candidates, _resolution_cap(lookup, cap))
+    return _projection_bundle(
+        resource_type,
+        _entries(resolved, lookup.surface, resource_type, service_base),
+        _search_links(service_base, resource_type, honored, cap),
+        cursor,
+    )
+
+
+async def _projection_listing_response(
+    request: Request, lookup: RegisterLookup, resource_type: str, service_base: str
+) -> Response:
+    """Answer one page of the register out of the projection, resolving each row live as the caller.
+
+    The page is named the way every other page of this listing is named - `_count` and an opaque
+    `page` token a client only ever follows - so a client cannot tell the two backends apart by the
+    shape of a link. What it CAN tell them apart by is the `outcome` entry stating the cursor, which
+    is D6's one stated exception and the point of R3.
+
+    THE ANSWER STATES NO TOTAL. The projection knows exactly how many rows it holds, and that number
+    was counted under the identity the sync ran as rather than under the identity of whoever is
+    asking. Handing it over would tell a caller scoped to one district how large the national register
+    is, so the Bundle states no total - the same silence it already keeps when the instance states no
+    count. `_count=0` asks how large the register is, and this is the one posture that cannot answer
+    it: what comes back is the cursor, no entries, and no `next` link, because a page of nothing
+    leads nowhere. A client that has to have the number reads the live backend, where the count is
+    taken under its own credentials.
+    """
+    if lookup.store is None:
+        raise ProjectionNotConfiguredError
+    count = _requested_count(request, lookup.surface)
+    cursor_token = _requested_cursor(request)
+    offset = (cursor_token.upstream_page - 1) * count
+    page = await lookup.store.search(ProjectionQuery(resource_type=resource_type, offset=offset, count=count))
+    if page.cursor.updated_at is None:
+        raise ProjectionEmptyError(resource_type)
+    resolved = await _resolved_entities(
+        lookup, resource_type, tuple(resource.resource_id for resource in page.resources), None
+    )
+    links = [BundleLink(relation="self", url=_listing_url(service_base, resource_type, cursor_token, count))]
+    if cursor_token.upstream_page > 1:
+        previous = ListingCursor(upstream_page=cursor_token.upstream_page - 1)
+        links.append(BundleLink(relation="previous", url=_listing_url(service_base, resource_type, previous, count)))
+    # The store's own total decides whether there is a page after this one, and never leaves the
+    # server: it is a count taken under the identity the sync ran as, which is a number about
+    # somebody else - so it links the walk and is not stated. See this function's docstring.
+    # `_count=0` asked for no entries at all, and a page of nothing leads nowhere.
+    if count > 0 and page.total is not None and offset + len(page.resources) < page.total:
+        following = ListingCursor(upstream_page=cursor_token.upstream_page + 1)
+        links.append(BundleLink(relation="next", url=_listing_url(service_base, resource_type, following, count)))
+    return _projection_bundle(
+        resource_type,
+        _entries(resolved, lookup.surface, resource_type, service_base),
+        links,
+        page.cursor,
+    )
+
+
+def _resolution_cap(lookup: RegisterLookup, requested: int | None) -> int:
+    """How many matches a projection-served search reads back, bounded by what this project allows.
+
+    A `_count` above the limit is served the limit rather than refused, which is the rule
+    `_requested_count` states for the listing and the one R4 gives a server for a `_count` it will
+    not meet. Naming no `_count` gets the limit too: every resolution is a live read, and a search
+    that matched a district is not an instruction to spend a district's worth of round trips.
+    """
+    limit = lookup.surface.tracked_entities.page_size_limit
+    return limit if requested is None else min(requested, limit)
+
+
+async def _projection_candidates(
+    lookup: RegisterLookup,
+    resource_type: str,
+    tokens: list[IdentifierToken],
+    contents: tuple[tuple[str, ...], ...],
+) -> tuple[str, ...]:
+    """Which tracked entities this search names, before the instance has been asked about any of them."""
+    conditions: list[dict[str, None]] = []
+    if tokens:
+        matched: dict[str, None] = {}
+        for token in tokens:
+            for resource_id in await _projection_token_matches(lookup, resource_type, token):
+                matched.setdefault(resource_id, None)
+        conditions.append(matched)
+    for alternatives_of_one_parameter in contents:
+        matched = {}
+        for value in alternatives_of_one_parameter:
+            found = await lookup.index.find(
+                NameQuery(
+                    value=value,
+                    tracked_entity_type_uids=lookup.surface.tracked_entity_type_uids_for(resource_type),
+                )
+            )
+            for match in found.matches:
+                matched.setdefault(match.tracked_entity_uid, None)
+        conditions.append(matched)
+    if not conditions:
+        return ()
+    first, *rest = conditions
+    return tuple(resource_id for resource_id in first if all(resource_id in other for other in rest))
+
+
+async def _projection_token_matches(
+    lookup: RegisterLookup, resource_type: str, token: IdentifierToken
+) -> tuple[str, ...]:
+    """Which projected resources hold one identifier token, matched exactly over the token index.
+
+    A token naming a system is looked for under that system alone; a bare value is looked for under
+    every system the projection holds, which is the same "the client does not know which key this is"
+    the live path answers by trying each of them. The tracked entity UID needs no special case here
+    the way it does live: the projected resource carries it as an `identifier` like any other, so one
+    index answers a UID and a national identifier with the same query.
+    """
+    if lookup.store is None:
+        return ()
+    page = await lookup.store.search(
+        ProjectionQuery(
+            resource_type=resource_type,
+            identifiers=(token.value,),
+            identifier_systems=() if token.system is None else (token.system,),
+        )
+    )
+    return tuple(resource.resource_id for resource in page.resources)
+
+
+async def _resolved_entities(
+    lookup: RegisterLookup, resource_type: str, candidates: tuple[str, ...], cap: int | None
+) -> list[TrackerTrackedEntity]:
+    """Read each candidate from DHIS2 as the caller, keeping the ones the instance let through.
+
+    This is where R9 happens, one person at a time. A candidate the caller may not see comes back as
+    nothing - DHIS2 hides what a caller may not see rather than refusing it - and is carried by no
+    part of the answer. A candidate whose type is not the one this resource is served over is dropped
+    for the same reason the live path drops it: a sample never comes back as a person.
+    """
+    kept: list[TrackerTrackedEntity] = []
+    for tracked_entity_uid in candidates:
+        if cap is not None and len(kept) >= cap:
+            break
+        entity = await _read(lookup.reader, tracked_entity_uid)
+        if entity is not None and _is_served_as(entity, lookup.surface, resource_type):
+            kept.append(entity)
+    return kept
+
+
+def _projection_bundle(
+    resource_type: str,
+    entries: list[BundleEntry],
+    links: list[BundleLink],
+    cursor: ProjectionCursor | None,
+) -> Response:
+    """Serialise a projection-served searchset: the matches, the links, and the instant it is as of.
+
+    The as-of statement rides twice, and `dhis2w_fhir_serve.projection.serving` argues why: an
+    `outcome` entry, which is R4's own way for a server to say something about a search inside the
+    search's answer, and a header beside it for whoever reads responses rather than resources.
+    """
+    stated = cursor if cursor is not None else ProjectionCursor()
+    bundle = Bundle(type="searchset", link=links, entry=[*entries, as_of_entry(stated)])
+    return Response(
+        content=bundle.model_dump_json(exclude_none=True, by_alias=True),
+        media_type=FHIR_JSON_MEDIA_TYPE,
+        headers=as_of_headers(stated),
+    )
+
+
+def _search_links(
+    service_base: str, resource_type: str, honored: tuple[HonoredParameter, ...], cap: int | None
+) -> list[BundleLink]:
+    """The `self` link of a search answered whole - what was applied, and the cap applied with it."""
+    parameters = [(parameter.name, parameter.value) for parameter in honored]
+    if cap is not None:
+        parameters.append((COUNT_PARAMETER, str(cap)))
+    query = urlencode(parameters)
+    url = f"{service_base}/{resource_type}?{query}" if query else f"{service_base}/{resource_type}"
+    return [BundleLink(relation="self", url=url)]
 
 
 async def _register_size_response(
