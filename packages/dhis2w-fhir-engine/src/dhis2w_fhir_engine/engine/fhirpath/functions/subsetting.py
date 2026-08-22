@@ -56,14 +56,3 @@ def fn_single(ctx: EvaluationContext, collection: list[Any]) -> list[Any]:
     if len(collection) > 1:
         raise FHIRPathError(f"single() expected 0 or 1 elements, got {len(collection)}")
     return collection
-
-
-@FunctionRegistry.register("not")
-def fn_not(ctx: EvaluationContext, collection: list[Any]) -> list[bool]:
-    """Returns the boolean negation of the input."""
-    if not collection:
-        return []
-    if len(collection) == 1 and isinstance(collection[0], bool):
-        return [not collection[0]]
-    # For non-boolean, return negation of "exists"
-    return [not bool(collection)]

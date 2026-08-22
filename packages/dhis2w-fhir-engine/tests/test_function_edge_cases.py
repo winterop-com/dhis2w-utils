@@ -230,9 +230,14 @@ class TestBooleanFunctionsEdgeCases:
     """Edge cases for boolean functions."""
 
     def test_not_non_boolean(self) -> None:
-        """Test not with non-boolean input."""
+        """A single non-boolean item evaluates as true under the singleton rule, so not() reports false."""
         ctx = EvaluationContext()
-        assert fn_not(ctx, ["string"]) == []
+        assert fn_not(ctx, ["string"]) == [False]
+
+    def test_not_empty(self) -> None:
+        """An empty collection evaluates as empty, so not() reports empty."""
+        ctx = EvaluationContext()
+        assert fn_not(ctx, []) == []
 
     def test_iif_with_list_results(self) -> None:
         """Test iif with list results."""

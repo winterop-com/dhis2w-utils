@@ -64,6 +64,136 @@ def _rule_contexts(accessor_result: Any) -> list[Any]:
     return contexts
 
 
+# The R4 choice elements a CQL author names without its type. Held as a list rather than derived from a
+# prefix rule because a prefix rule cannot tell `Observation.value[x]` from `QuestionnaireResponse.linkId`
+# or `Observation.referenceRange`, and answering one of those for a choice would be worse than answering
+# nothing. A choice element this list has not heard of is reachable under its concrete name.
+_CHOICE_ELEMENT_NAMES: frozenset[str] = frozenset(
+    {
+        "abatement",
+        "asNeeded",
+        "born",
+        "collected",
+        "deceased",
+        "effective",
+        "medication",
+        "multipleBirth",
+        "occurrence",
+        "onset",
+        "performed",
+        "scheduled",
+        "serviced",
+        "timing",
+        "value",
+    }
+)
+
+
+def _member_of(resource: dict[str, Any], name: str) -> Any:
+    """Read a member of a FHIR resource dict, resolving a choice element to the type it was written as.
+
+    FHIR writes a choice element under its concrete type - `Observation.effective[x]` reaches the wire as
+    `effectiveDateTime` or `effectivePeriod` - and a CQL author names the choice, not the type. When the
+    plain name holds nothing, the one key that continues it with a capitalised type name answers instead.
+    """
+    value = resource.get(name)
+    if value is not None:
+        return value
+    if name not in _CHOICE_ELEMENT_NAMES:
+        return None
+    for key, choice_value in resource.items():
+        if key.startswith(name) and len(key) > len(name) and key[len(name)].isupper():
+            return choice_value
+    return None
+
+
+def _is_temporal_point(value: Any) -> bool:
+    """Report whether a value is a CQL temporal point - a Date, a DateTime, or a Time."""
+    return isinstance(value, FHIRDate | FHIRDateTime | FHIRTime)
+
+
+def _temporal_shape_of(value: Any) -> Any:
+    """Return the temporal value a comparison should read its partner as, or None when there is none.
+
+    An interval answers with whichever endpoint carries a temporal value, so `during Interval[@2020-01-01,
+    @2025-01-01]` reads its point the same way `< @2020-01-01` reads its right-hand side.
+    """
+    if _is_temporal_point(value):
+        return value
+    if isinstance(value, CQLInterval):
+        for endpoint in (value.low, value.high):
+            if _is_temporal_point(endpoint):
+                return endpoint
+    return None
+
+
+def _read_as_temporal(text: str, alongside: Any) -> FHIRDate | FHIRDateTime | FHIRTime | None:
+    """Read a FHIR date, dateTime, or time string as the temporal kind the value beside it is.
+
+    Returns None when the string is not shaped like one of the three, which is what tells the caller to
+    refuse the comparison instead of guessing at it.
+    """
+    if isinstance(alongside, FHIRTime):
+        return FHIRTime.parse(text)
+    if "T" in text or ":" in text:
+        return FHIRDateTime.parse(text)
+    if isinstance(alongside, FHIRDateTime):
+        return FHIRDateTime.parse(text)
+    return FHIRDate.parse(text)
+
+
+def _temporal_refusal(text: str, alongside: Any, operator_text: str) -> str:
+    """Spell why a string could not stand opposite a temporal value in a comparison."""
+    return (
+        f"Cannot compare the string {text!r} to a {type(alongside).__name__} with '{operator_text}': "
+        "it is not a date, dateTime, or time"
+    )
+
+
+def _coerce_temporal_operands(left: Any, right: Any, operator_text: str, refuse: bool = True) -> tuple[Any, Any]:
+    """Read a date-shaped string operand as its temporal value when the operand it meets is temporal.
+
+    This is CQL's implicit conversion posture applied at the comparison sites rather than as a blanket
+    string-to-date guess. A FHIR `date`, `dateTime`, or `instant` element arrives from the wire as a JSON
+    string, so `P.birthDate < @1980-01-01` and `O.effective during Interval[...]` put a string on one side
+    of a temporal comparison; the string is read as the same temporal kind as the other side, exactly as
+    an explicit `ToDate` would read it.
+
+    What is coerced: a string that parses as a FHIR date, dateTime, or time, and only when the operand
+    facing it is a temporal point or an interval of temporal points. Two strings are left alone, a string
+    facing a number is left alone, and a string facing a temporal that does not parse as one - `P.id <
+    @1980-01-01` - refuses with a CQLError naming the string, because answering false there would report
+    an ordering the data never stated.
+
+    Args:
+        left: Left operand.
+        right: Right operand.
+        operator_text: The operator as written, for the refusal message.
+        refuse: Raise on a non-temporal string facing a temporal; when False, hand the operands back
+            unchanged so an operator with its own defined answer for a type mismatch keeps it.
+    """
+    left_shape = _temporal_shape_of(right) if isinstance(left, str) else None
+    right_shape = _temporal_shape_of(left) if isinstance(right, str) else None
+
+    if left_shape is not None:
+        read = _read_as_temporal(left, left_shape)
+        if read is None:
+            if refuse:
+                raise CQLError(_temporal_refusal(left, left_shape, operator_text))
+            return left, right
+        left = read
+
+    if right_shape is not None:
+        read = _read_as_temporal(right, right_shape)
+        if read is None:
+            if refuse:
+                raise CQLError(_temporal_refusal(right, right_shape, operator_text))
+            return left, right
+        right = read
+
+    return left, right
+
+
 class CQLEvaluatorVisitor(cqlVisitor):
     """Visitor that evaluates CQL expressions.
 
@@ -795,6 +925,10 @@ class CQLEvaluatorVisitor(cqlVisitor):
         if left is None or right is None:
             return None
 
+        # Equality already answers false for a type mismatch, so a string that is not a temporal keeps
+        # that answer rather than becoming a refusal; only a date-shaped string is read as a temporal.
+        left, right = _coerce_temporal_operands(left, right, op, refuse=False)
+
         if op == "=":
             return self._equals(left, right)
         elif op == "!=":
@@ -811,6 +945,8 @@ class CQLEvaluatorVisitor(cqlVisitor):
 
         if left is None or right is None:
             return None
+
+        left, right = _coerce_temporal_operands(left, right, op)
 
         # Handle interval comparisons with scalars (uncertainty intervals)
         # E.g., Interval[7, 18] > 5 -> True (all values > 5)
@@ -1014,25 +1150,7 @@ class CQLEvaluatorVisitor(cqlVisitor):
                 return self._evaluate_library_definition(target, name)
 
             if isinstance(target, dict):
-                result = target.get(name)
-                # FHIR polymorphic type support: value[x]
-                # If accessing 'value' and not found, try valueQuantity, valueString, etc.
-                if result is None and name == "value":
-                    for suffix in [
-                        "Quantity",
-                        "String",
-                        "CodeableConcept",
-                        "Boolean",
-                        "Integer",
-                        "DateTime",
-                        "Period",
-                        "Range",
-                        "Ratio",
-                    ]:
-                        result = target.get(f"value{suffix}")
-                        if result is not None:
-                            break
-                return result
+                return _member_of(target, name)
             elif isinstance(target, CQLTuple):
                 return target.elements.get(name)
             elif isinstance(target, CQLInterval):
@@ -1049,17 +1167,17 @@ class CQLEvaluatorVisitor(cqlVisitor):
                 results = []
                 for item in target:
                     if isinstance(item, dict):
-                        results.append(item.get(name))
+                        results.append(_member_of(item, name))
                     elif isinstance(item, list):
                         # Recursively access property on nested list items
                         for nested in item:
                             if isinstance(nested, dict):
-                                results.append(nested.get(name))
+                                results.append(_member_of(nested, name))
                             elif isinstance(nested, list):
                                 # Deep nesting - flatten further
                                 for deep in nested:
                                     if isinstance(deep, dict):
-                                        results.append(deep.get(name))
+                                        results.append(_member_of(deep, name))
                     else:
                         results.append(getattr(item, name, None))
                 return results
@@ -1146,6 +1264,7 @@ class CQLEvaluatorVisitor(cqlVisitor):
                 # because a non-null element is definitively != null
                 return any(item is not None and item == element for item in container)
             elif isinstance(container, CQLInterval):
+                element, _ = _coerce_temporal_operands(element, container, op)
                 return container.contains(element)
         elif op == "contains":
             # container contains element
@@ -1162,6 +1281,7 @@ class CQLEvaluatorVisitor(cqlVisitor):
                 # Check if element equals any non-null item in container
                 return any(item is not None and item == element for item in container)
             elif isinstance(container, CQLInterval):
+                element, _ = _coerce_temporal_operands(element, container, op)
                 return container.contains(element)
 
         return None
@@ -1176,6 +1296,7 @@ class CQLEvaluatorVisitor(cqlVisitor):
         if value is None or low is None or high is None:
             return None
 
+        value, _ = _coerce_temporal_operands(value, low, "between")
         is_between: bool = low <= value <= high
         return is_between
 
@@ -1835,6 +1956,9 @@ class CQLEvaluatorVisitor(cqlVisitor):
             if hasattr(child, "getText"):
                 op_text += _node_text(child).lower() + " "
         op_text = op_text.strip()
+
+        if left is not None and right is not None:
+            left, right = _coerce_temporal_operands(left, right, op_text)
 
         # Handle "same X as" expressions (concurrentWithIntervalOperatorPhrase)
         if "same" in op_text and "as" in op_text:

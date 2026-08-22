@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from dhis2w_fhir_engine.engine.cql import CQLCode, CQLConcept, CQLEvaluator, CQLInterval, CQLRatio, CQLTuple
+from dhis2w_fhir_engine.engine.exceptions import CQLError
 from dhis2w_fhir_engine.engine.types import FHIRDate, FHIRDateTime, FHIRTime, Quantity
 
 PATIENT_BORN_1990: dict[str, Any] = {"resourceType": "Patient", "id": "p1", "birthDate": "1990-01-01"}
@@ -1015,3 +1016,83 @@ class TestConsistentEvaluationClock:
         result = evaluator.evaluate_expression("TimeOfDay()")
         assert isinstance(result, FHIRTime)
         assert 0 <= (result.hour or 0) <= 23
+
+
+WIRE_STRING_COMPARISON_CASES: list[tuple[str, bool]] = [
+    # A FHIR date element reaches CQL as a JSON string; ordering it against a date literal reads it as a date.
+    ("'1975-03-04' < @1980-01-01", True),
+    ("'1985-03-04' < @1980-01-01", False),
+    ("'1985-03-04' > @1980-01-01", True),
+    ("'1980-01-01' <= @1980-01-01", True),
+    ("@1980-01-01 < '1985-03-04'", True),
+    ("@1980-01-01 > '1985-03-04'", False),
+    # A dateTime string keeps its time component and reads as a dateTime.
+    ("'2024-03-04T10:00:00Z' < @2025-01-01T00:00:00Z", True),
+    ("'2024-03-04T10:00:00Z' > @2025-01-01T00:00:00Z", False),
+    # A time string reads as a time when the literal beside it is one.
+    ("'T10:00:00' < @T12:00:00", True),
+    # Timing phrases read the string the same way.
+    ("'1975-03-04' before @1980-01-01", True),
+    ("'1985-03-04' after @1980-01-01", True),
+    ("'2024-03-04' during Interval[@2020-01-01, @2025-01-01]", True),
+    ("'2019-03-04' during Interval[@2020-01-01, @2025-01-01]", False),
+    ("'2024-03-04T10:00:00Z' during Interval[@2020-01-01T00:00:00Z, @2025-01-01T00:00:00Z]", True),
+    ("'2024-03-04' included in Interval[@2020-01-01, @2025-01-01]", True),
+    # Interval membership and `between` read it too.
+    ("'2024-03-04' in Interval[@2020-01-01, @2025-01-01]", True),
+    ("'2019-03-04' in Interval[@2020-01-01, @2025-01-01]", False),
+    ("'1985-03-04' between @1980-01-01 and @1990-01-01", True),
+    # Equality reads a date-shaped string as the date it spells.
+    ("'1980-01-01' = @1980-01-01", True),
+    ("'1980-01-02' = @1980-01-01", False),
+]
+
+NON_TEMPORAL_STRING_REFUSALS: list[str] = [
+    "'p1' < @1980-01-01",
+    "'p1' > @1980-01-01",
+    "@1980-01-01 < 'p1'",
+    "'final' during Interval[@2020-01-01, @2025-01-01]",
+    "'final' included in Interval[@2020-01-01, @2025-01-01]",
+    "'final' before @1980-01-01",
+    "'final' in Interval[@2020-01-01, @2025-01-01]",
+]
+
+UNCOERCED_COMPARISON_CASES: list[tuple[str, bool]] = [
+    # Two strings order as strings; neither side is temporal, so nothing is read as a date.
+    ("'apple' < 'banana'", True),
+    ("'2024-01-01' < '2024-06-01'", True),
+    # A date-shaped string facing a number is left alone as well.
+    ("{1, 2, 3} includes 2", True),
+]
+
+
+class TestWireDateStringsInComparisons:
+    """A FHIR date element arrives as a JSON string and is read as a temporal where one faces it."""
+
+    @pytest.mark.parametrize(("expression", "expected"), WIRE_STRING_COMPARISON_CASES)
+    def test_date_shaped_string_is_read_as_a_temporal(
+        self, evaluator: CQLEvaluator, expression: str, expected: bool
+    ) -> None:
+        assert evaluator.evaluate_expression(expression) is expected
+
+    @pytest.mark.parametrize("expression", NON_TEMPORAL_STRING_REFUSALS)
+    def test_non_temporal_string_refuses(self, evaluator: CQLEvaluator, expression: str) -> None:
+        with pytest.raises(CQLError, match="not a date, dateTime, or time"):
+            evaluator.evaluate_expression(expression)
+
+    @pytest.mark.parametrize(("expression", "expected"), UNCOERCED_COMPARISON_CASES)
+    def test_comparisons_without_a_temporal_operand_are_untouched(
+        self, evaluator: CQLEvaluator, expression: str, expected: bool
+    ) -> None:
+        assert evaluator.evaluate_expression(expression) is expected
+
+    def test_explicit_to_date_still_works(self, evaluator: CQLEvaluator) -> None:
+        assert evaluator.evaluate_expression("ToDate('1975-03-04') < @1980-01-01") is True
+
+    def test_explicit_to_datetime_still_works(self, evaluator: CQLEvaluator) -> None:
+        assert (
+            evaluator.evaluate_expression(
+                "ToDateTime('2024-03-04T10:00:00Z') during Interval[@2020-01-01T00:00:00Z, @2025-01-01T00:00:00Z]"
+            )
+            is True
+        )

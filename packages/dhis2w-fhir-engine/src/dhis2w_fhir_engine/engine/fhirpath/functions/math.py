@@ -9,12 +9,24 @@ from ...functions import FunctionRegistry
 from ...types import Quantity
 
 
+def _unwrap_value(value: Any) -> Any:
+    """Unwrap a FHIR primitive carrying extensions so arithmetic reads the number, not the wrapper.
+
+    Navigation hands `Observation.value.value` on as a primitive paired with its `_value` extensions, and
+    the wrapper is neither an int nor a Decimal, so every math function takes its input through here before
+    testing what kind of number it holds.
+    """
+    from ..visitor import _underlying_value
+
+    return _underlying_value(value)
+
+
 @FunctionRegistry.register("abs")
 def fn_abs(ctx: EvaluationContext, collection: list[Any]) -> list[Any]:
     """Returns the absolute value."""
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)):
         return [abs(value)]
     if isinstance(value, Quantity):
@@ -27,7 +39,7 @@ def fn_ceiling(ctx: EvaluationContext, collection: list[Any]) -> list[int]:
     """Returns the smallest integer >= value."""
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)):
         return [math.ceil(value)]
     return []
@@ -38,7 +50,7 @@ def fn_floor(ctx: EvaluationContext, collection: list[Any]) -> list[int]:
     """Returns the largest integer <= value."""
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)):
         return [math.floor(value)]
     return []
@@ -49,7 +61,7 @@ def fn_round(ctx: EvaluationContext, collection: list[Any], precision: int = 0) 
     """Rounds to the specified precision."""
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)):
         return [round(float(value), int(precision))]
     return []
@@ -60,7 +72,7 @@ def fn_truncate(ctx: EvaluationContext, collection: list[Any]) -> list[int]:
     """Truncates to integer by removing decimal portion."""
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)):
         return [int(value)]
     return []
@@ -71,7 +83,7 @@ def fn_sqrt(ctx: EvaluationContext, collection: list[Any]) -> list[float]:
     """Returns the square root."""
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)) and value >= 0:
         return [math.sqrt(float(value))]
     return []
@@ -82,7 +94,7 @@ def fn_ln(ctx: EvaluationContext, collection: list[Any]) -> list[float]:
     """Returns the natural logarithm."""
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)) and value > 0:
         return [math.log(float(value))]
     return []
@@ -93,7 +105,7 @@ def fn_log(ctx: EvaluationContext, collection: list[Any], base: float) -> list[f
     """Returns the logarithm with given base."""
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)) and value > 0:
         return [math.log(float(value), float(base))]
     return []
@@ -108,7 +120,7 @@ def fn_power(ctx: EvaluationContext, collection: list[Any], exponent: float) -> 
     """
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)):
         try:
             result = math.pow(float(value), float(exponent))
@@ -124,7 +136,7 @@ def fn_exp(ctx: EvaluationContext, collection: list[Any]) -> list[float]:
     """Returns e raised to the power of value."""
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
     if isinstance(value, (int, float, Decimal)):
         return [math.exp(float(value))]
     return []
@@ -228,16 +240,11 @@ def fn_low_boundary(ctx: EvaluationContext, collection: list[Any], precision: in
     """
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
-    # Unwrap _PrimitiveWithExtension and convert strings to date/time types
     from ...types import FHIRDate, FHIRDateTime, FHIRTime
-    from ..visitor import _PrimitiveWithExtension
 
-    if isinstance(value, _PrimitiveWithExtension):
-        value = value.value
-
-    # Parse date/datetime strings
+    # Parse date/datetime strings into their date/time types
     if isinstance(value, str):
         # Try parsing as datetime first (contains 'T')
         if "T" in value:
@@ -375,16 +382,11 @@ def fn_high_boundary(
     """
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
-    # Unwrap _PrimitiveWithExtension and convert strings to date/time types
     from ...types import FHIRDate, FHIRDateTime, FHIRTime
-    from ..visitor import _PrimitiveWithExtension
 
-    if isinstance(value, _PrimitiveWithExtension):
-        value = value.value
-
-    # Parse date/datetime strings
+    # Parse date/datetime strings into their date/time types
     if isinstance(value, str):
         # Try parsing as datetime first (contains 'T')
         if "T" in value:
@@ -524,7 +526,7 @@ def fn_precision(ctx: EvaluationContext, collection: list[Any]) -> list[int]:
     """
     if not collection:
         return []
-    value = collection[0]
+    value = _unwrap_value(collection[0])
 
     if isinstance(value, (int, float, Decimal)):
         decimal_value = Decimal(str(value))
