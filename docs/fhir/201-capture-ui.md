@@ -132,12 +132,13 @@ DHIS2 capture model it came from (read off the `D2FormType` extension - a
 form carrying none sits in its own stated section, because the facade will
 refuse to capture against it). **Data sets** are periodic reports for an
 organisation unit, with no person involved; **Event programs** record single
-events without registering anyone; **Tracker programs** get one group
+events without registering anyone; **Tracker programs** get one card
 per program - its registration form first, its stages nested beneath -
 because stages record visits for a person the registration enrols; and
 **People** is the person-only kind, which registers a person in this DHIS2
-instance without enrolling them in a program. Every row keeps its question
-count and id, and opens the form.
+instance without enrolling them in a program. Every form is a card carrying
+its kind as a tinted badge, its question count and its id, and the whole card
+opens the form.
 
 A person-only form is generated from a DHIS2 tracked entity type rather than
 from a data set or a program, so it belongs to neither of the other shelves:
@@ -149,7 +150,7 @@ assignment on a data set and on a program and never on a type, so a
 person-only form is reportable at every published organisation unit and gets
 a **People** shelf of its own in the organisation-units rail too.
 
-![The forms list: data sets, event programs, and tracker programs as sections, with question count and id per served form](../img/fhir/capture-ui-forms.png)
+![The forms list: data sets, event programs, and tracker programs as sections of cards, each card carrying its kind as a tinted badge with the question count and id beside it](../img/fhir/capture-ui-forms.png)
 
 Open one and you get the form itself - every question as the control its R4
 item type asks for: a switch for a yes/no, a bounded number field for a

@@ -230,7 +230,7 @@ test.describe('filling a form in the browser', () => {
 
         await page.goto('/#/forms')
         await page
-            .getByRole('row')
+            .getByRole('link')
             .filter({ hasText: 'Child Health' })
             .click()
         await expect(page).toHaveURL(new RegExp(`#/forms/${AGGREGATE_FORM}$`))
@@ -638,14 +638,14 @@ test.describe('a tracker registration form', () => {
             'this server does not answer $generate for the tracker kind, so a registration cannot be filled here',
         )
 
-        // The listing shelves the form inside its program's tracker group, with its role stated.
+        // The listing shelves the form inside its program's tracker group, with its kind stated.
         await page.goto('/#/forms')
         const listed = page
             .getByTestId('forms-tracker-programs')
-            .getByRole('row')
+            .getByRole('link')
             .filter({ hasText: form.title })
             .first()
-        await expect(listed).toContainText('registration - enrols a person')
+        await expect(listed).toContainText('Tracker registration')
 
         const opened = page.waitForResponse((response) => response.url().includes('$generate'))
         await listed.click()

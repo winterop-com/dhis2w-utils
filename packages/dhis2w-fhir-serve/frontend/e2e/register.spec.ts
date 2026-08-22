@@ -618,9 +618,13 @@ test.describe('a person-only registration form', () => {
         request,
     }) => {
         await page.goto('/#/forms')
-        await page.getByTestId('forms-people').getByRole('row').filter({ hasText: 'Person' }).first().click()
+        await page.getByTestId('forms-people').getByRole('link').filter({ hasText: 'Person' }).first().click()
         await expect(page).toHaveURL(new RegExp(`#/forms/${PERSON_FORM}$`))
 
+        // The form first, then what it says it is. The listing this click came from carries the same
+        // "Registration" badge on every person-only card, so reading the kind before the form has
+        // actually taken the screen reads the listing behind it rather than the form in front.
+        await expect(page.getByRole('button', { name: 'Fill with test data' })).toBeVisible()
         await expect(page.getByText('Registration', { exact: true })).toBeVisible()
         // Nothing about an enrollment, because this form enrols nobody: no "Answering for" picker,
         // and none of the read-only enrollment facts a tracker registration states.

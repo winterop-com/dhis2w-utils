@@ -53,8 +53,8 @@ test('a stage form states its own word for the visit date, and that it repeats',
 test('the forms listing says which stages repeat', async ({ page }) => {
     await page.goto('/#/forms')
 
-    const stage = page.getByTestId('forms-tracker-program').getByRole('row').filter({ hasText: 'ANC visit' })
-    await expect(stage).toContainText('stage - each visit is its own record')
+    const stage = page.getByTestId('forms-tracker-program').getByRole('link').filter({ hasText: 'ANC visit' })
+    await expect(stage).toContainText('each visit is its own record')
 })
 
 test('a data element and a section carry the descriptions DHIS2 holds for them', async ({ page }) => {

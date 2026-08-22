@@ -202,7 +202,7 @@ test('a DHIS2-posture facade asks who this is, and is the app again once it know
     await expect(page.getByText('This server takes your DHIS2 credentials')).toBeVisible()
     // The shell's own header still names the section - it is the frame, not the page. What is not
     // there is the listing, because the read that would fill it was never made.
-    await expect(page.getByRole('row').filter({ hasText: 'Child Health' })).toHaveCount(0)
+    await expect(page.getByRole('link').filter({ hasText: 'Child Health' })).toHaveCount(0)
 
     // What the panel keeps is a tab's credential, and it says so where a person can read it.
     await expect(page.getByText('this browser tab only')).toBeVisible()
