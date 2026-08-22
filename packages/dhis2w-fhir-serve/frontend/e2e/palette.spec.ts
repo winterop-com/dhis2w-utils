@@ -105,10 +105,27 @@ async function openSettings(page: Page): Promise<void> {
     await expect(page.getByRole('menu')).toBeVisible()
 }
 
-/** Open the palette the way a person does, and wait until it is actually there. */
+/** Open the palette the way a person does, and wait until it is actually there.
+ *
+ * The header's palette button being visible is the page having rendered, which is the earliest a
+ * keypress can mean anything - the chord's listener attaches in an effect after first paint, so on
+ * a slow machine a press straight after navigation lands before anybody is listening. The press is
+ * retried while the dialog has not appeared, because "rendered" and "listening" are close but not
+ * the same instant.
+ */
 async function openPalette(page: Page): Promise<void> {
-    await page.keyboard.press('Control+k')
-    await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Command palette' })).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Command palette' })
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        await page.keyboard.press('Control+k')
+        try {
+            await expect(dialog).toBeVisible({ timeout: 2_000 })
+            return
+        } catch {
+            // Not listening yet - press again.
+        }
+    }
+    await expect(dialog).toBeVisible()
 }
 
 test('Ctrl+K opens the palette, and typing a page name goes there', async ({ page }) => {
