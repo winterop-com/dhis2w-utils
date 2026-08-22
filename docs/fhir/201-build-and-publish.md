@@ -262,6 +262,17 @@ kill by dropping
 `--rm` from the run and then
 `docker inspect <container> --format '{{.State.OOMKilled}}'`.
 
+The other memory failure is the opposite one - the heap itself too small.
+A national-scale guide (8,000-plus publishable files) does not fit the
+default heap: the run dies mid-validation with
+`Exception in thread "main" java.lang.OutOfMemoryError: Java heap space`
+and a Java stack trace, which is a real build error, not a kill. The fix
+is `make build JAVA_HEAP=8g`. The two knobs squeeze against each other
+through the heap-plus-2-gigabyte rule: on one 16 GB docker VM, measured on
+one national guide, `4g` dies in validation, `10g` clears validation and
+is then OOM-killed at Jekyll, and `8g` completes the whole build - about
+21 minutes, site, package, and QA report.
+
 ## Size the build
 
 The counts below were taken from real instances (the Sierra Leone demo:
