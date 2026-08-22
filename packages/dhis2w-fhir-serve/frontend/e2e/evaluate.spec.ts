@@ -139,7 +139,7 @@ test.describe('the evaluate screen', () => {
         await expect(editor.locator('.tok-keyword').first()).toBeVisible()
     })
 
-    test('holds a reference beside the editor, on the two tabs a reader needs', async ({ page }) => {
+    test('holds a reference beside the editor, every language on its own tab', async ({ page }) => {
         await page.goto('/#/evaluate')
 
         // Open with the screen, because the second thing a reader wonders is what else they could
@@ -147,6 +147,11 @@ test.describe('the evaluate screen', () => {
         const examples = page.getByTestId('evaluate-examples')
         await expect(examples).toBeVisible()
         await expect(examples).toContainText('The email address, out of every way of reaching the person')
+
+        // All three languages sit on the bar whatever the editor speaks - a reader writing
+        // FHIRPath reads what CQL answers without touching the language picker.
+        await expect(page.getByRole('tab', { name: 'CQL' })).toBeVisible()
+        await expect(page.getByRole('tab', { name: 'ELM' })).toBeVisible()
 
         await page.getByRole('tab', { name: 'FHIRPath' }).click()
         const reference = page.getByTestId('evaluate-reference')
