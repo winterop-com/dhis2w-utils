@@ -43,7 +43,23 @@ const FLOORS = {
     accent: 9,
     status: 3,
     code: 4,
+    kind: 4.5,
 } as const
+
+/**
+ * The five capture-model tints, measured as the pair each badge actually paints.
+ *
+ * A KIND BADGE IS TEXT, SO IT TAKES THE TEXT FLOOR RATHER THAN THE GRAPHICAL ONE. A status chip is
+ * a coloured dot beside a word in ink; a kind badge is the word itself, set in the tint, on a
+ * ground of the same hue - which is the arrangement that goes wrong quietly, because a tint that
+ * is nearly its own background still looks like a badge from across the room.
+ *
+ * Nothing in this list is declared by a theme. The inks are derived once from `--info` and
+ * `--foreground`, and the grounds are those inks mixed into `--card`, so what is being measured
+ * here is whether one derivation holds across five palettes and both grounds - ten answers per
+ * kind, from two lines of CSS.
+ */
+const KINDS = ['aggregate', 'event', 'tracker', 'tracker-event', 'tracked-entity'] as const
 
 /** Every pair measured, as [ink, ground, floor]. */
 const PAIRS: [string, string, number][] = [
@@ -54,6 +70,8 @@ const PAIRS: [string, string, number][] = [
     ['secondary-foreground', 'secondary', FLOORS.body],
     ['muted-foreground', 'background', FLOORS.muted],
     ['muted-foreground', 'card', FLOORS.muted],
+    // The pair a form declaring no kind wears: the neutral badge, ink on its own muted ground.
+    ['muted-foreground', 'muted', FLOORS.muted],
     ['primary-foreground', 'primary', FLOORS.identity],
     ['primary', 'background', FLOORS.identity],
     ['accent-foreground', 'accent', FLOORS.accent],
@@ -74,6 +92,9 @@ const PAIRS: [string, string, number][] = [
     ['code-type', 'card', FLOORS.code],
     ['code-property', 'card', FLOORS.code],
     ['code-punctuation', 'card', FLOORS.code],
+    ...KINDS.map(
+        (kind): [string, string, number] => [`kind-${kind}`, `kind-${kind}-surface`, FLOORS.kind],
+    ),
 ]
 
 /** A form the fixture project publishes, used to mint a receipt for the prefix case. */

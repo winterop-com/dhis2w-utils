@@ -27,9 +27,20 @@
        character by character rather than skimmed. */
     --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+    /* The semantic set: what a state MEANS, before any component decides how to
+       draw it. Four words - good, critical, warning, info - and every theme
+       states all four, so a chip is that theme's green rather than a green
+       imported into it. Everything below that carries a state is derived from
+       these rather than from a colour of its own. */
+    --color-good: var(--good);
+    --color-critical: var(--critical);
+    --color-warning: var(--warning);
+    --color-info: var(--info);
     /* The spool lifecycle, as colours. These are the states a receipt can be in
        on disk - see dhis2w_fhir_serve.spool, `d2w fhir forward`, and
-       `d2w fhir withdraw` - plus the drain's own refusal of a queued one. */
+       `d2w fhir withdraw` - plus the drain's own refusal of a queued one. Each
+       one names a member of the semantic set; the tokens themselves are derived
+       at the foot of the `:root` block. */
     --color-status-received: var(--status-received);
     --color-status-forwarded: var(--status-forwarded);
     --color-status-rejected: var(--status-rejected);
@@ -130,19 +141,18 @@
     --sidebar-accent-foreground: oklch(0.34 0.1 240);
     --sidebar-border: oklch(0.91 0.005 195);
     --sidebar-ring: oklch(0.52 0.12 240);
-    /* The spool lifecycle. `received` is deliberately the identity blue: a
-       receipt on disk is the normal resting state, not a warning. `refused`
-       (the translator would not convert it) is amber because the fix is in the
-       guide; `rejected` (DHIS2 said no) is the destructive hue because the fix
-       is in the data. `withdrawn` is a muted violet, off the failure axis
-       entirely: nothing went wrong with it, it was taken back. */
-    --status-received: oklch(0.55 0.11 240);
-    --status-forwarded: oklch(0.6 0.14 155);
-    --status-rejected: oklch(0.55 0.17 25);
+    /* The semantic set. `good` is the success green, `critical` the hue of a
+       refusal the data has to answer for, `warning` the amber of one the guide
+       has to answer for, and `info` the identity blue: a fact that is neither
+       a success nor a problem, which is why it is also the colour of a receipt
+       resting on disk. `withdrawn` is not one of the four - nothing went wrong
+       with a withdrawal and nothing is pending, it was taken back - so it keeps
+       a muted violet of its own, off the failure axis entirely. */
+    --good: oklch(0.6 0.14 155);
+    --critical: oklch(0.55 0.17 25);
+    --warning: oklch(0.65 0.13 75);
+    --info: oklch(0.55 0.11 240);
     --status-withdrawn: oklch(0.52 0.09 305);
-    --status-refused: oklch(0.65 0.13 75);
-    --status-in-progress: oklch(0.65 0.13 75);
-    --status-completed: oklch(0.6 0.14 155);
     /* Source colours. Spent by the .tok-* rules at the foot of this file, which
        is where the argument for them is. */
     --code-keyword: oklch(0.46 0.15 300);
@@ -155,6 +165,69 @@
     --code-type: oklch(0.45 0.11 210);
     --code-property: oklch(0.42 0.1 265);
     --code-punctuation: oklch(0.52 0.01 195);
+
+    /* -----------------------------------------------------------------------
+       THE DERIVED LAYER - STATED ONCE, CORRECT IN EVERY THEME
+
+       Everything from here to the end of this block is written in terms of the
+       tokens above it, and for that reason it is declared exactly once. A
+       `var()` inside a custom property is substituted against the element the
+       property lands on, and every one of these lands on `<html>` - the same
+       element a theme block paints - so `--status-rejected` resolves to
+       Contrast's `--critical` under Contrast and to Paper's under Paper with no
+       theme restating the line. A theme that wants a different answer overrides
+       the token this is derived FROM. That is also why the completeness rule in
+       lib/theme.test.ts reads only the literal tokens: a theme cannot leave one
+       of these behind, because there is nothing here to leave behind.
+       ----------------------------------------------------------------------- */
+
+    /* The spool lifecycle and the two QuestionnaireResponse statuses, as the
+       semantic word each of them is. A receipt on disk is information, not a
+       warning; the translator refusing to convert one is a warning because the
+       fix is in the guide; DHIS2 refusing it is critical because the fix is in
+       the data. */
+    --status-received: var(--info);
+    --status-forwarded: var(--good);
+    --status-rejected: var(--critical);
+    --status-refused: var(--warning);
+    --status-in-progress: var(--warning);
+    --status-completed: var(--good);
+
+    /* THE CAPTURE MODEL, AS FIVE HUES. A data set, an event program, a tracker
+       registration, one of that program's stages, and a person-only
+       registration are five different things to fill in, and a listing that
+       paints them all the same asks the reader to read every title before
+       knowing what any of them is. So each kind gets a hue, and the hue is the
+       only thing that varies between them: one lightness, one chroma, five
+       angles, which is what keeps five tints reading as one set.
+
+       THE LIGHTNESS IS BORROWED, NOT CHOSEN. `--kind-ink-source` mixes the
+       identity toward the theme's own ink, so on a light ground the five inks
+       come out dark and on a dark ground they come out light - in Contrast,
+       where both ends are pushed to the extremes, they follow. Nothing here is
+       a per-theme literal, and no theme has to know these exist.
+
+       THE CHROMA IS A QUARTER OF A STATUS'S, ON PURPOSE. The wheel is already
+       spent - rejected owns 25, forwarded 155, refused 75, withdrawn 305, and
+       the identity moves between 148 and 285 depending on the theme - so five
+       more hues cannot all be clear of it. The set is held at 0.08 chroma over
+       a 12% tint instead, which puts every badge in a different register from
+       every status: a status is a vivid dot, a kind is a quiet pill with a word
+       in it. `tracker` at 265 is the one that sits inside the identity's band,
+       and that is the price of keeping the five 65 degrees apart from each
+       other - which is the separation that actually has to hold, because the
+       five appear side by side and a status never appears among them. */
+    --kind-ink-source: color-mix(in oklab, var(--info) 70%, var(--foreground));
+    --kind-aggregate: oklch(from var(--kind-ink-source) l 0.08 200);
+    --kind-aggregate-surface: color-mix(in oklab, var(--kind-aggregate) 12%, var(--card));
+    --kind-event: oklch(from var(--kind-ink-source) l 0.08 45);
+    --kind-event-surface: color-mix(in oklab, var(--kind-event) 12%, var(--card));
+    --kind-tracker: oklch(from var(--kind-ink-source) l 0.08 265);
+    --kind-tracker-surface: color-mix(in oklab, var(--kind-tracker) 12%, var(--card));
+    --kind-tracker-event: oklch(from var(--kind-ink-source) l 0.08 125);
+    --kind-tracker-event-surface: color-mix(in oklab, var(--kind-tracker-event) 12%, var(--card));
+    --kind-tracked-entity: oklch(from var(--kind-ink-source) l 0.08 330);
+    --kind-tracked-entity-surface: color-mix(in oklab, var(--kind-tracked-entity) 12%, var(--card));
 }
 
 .dark {
@@ -194,13 +267,11 @@
     --sidebar-accent-foreground: oklch(0.88 0.09 240);
     --sidebar-border: oklch(0.3 0.006 195);
     --sidebar-ring: oklch(0.72 0.14 240);
-    --status-received: oklch(0.72 0.14 240);
-    --status-forwarded: oklch(0.72 0.16 155);
-    --status-rejected: oklch(0.7 0.16 25);
+    --good: oklch(0.72 0.16 155);
+    --critical: oklch(0.7 0.16 25);
+    --warning: oklch(0.75 0.13 75);
+    --info: oklch(0.72 0.14 240);
     --status-withdrawn: oklch(0.72 0.1 305);
-    --status-refused: oklch(0.75 0.13 75);
-    --status-in-progress: oklch(0.75 0.13 75);
-    --status-completed: oklch(0.72 0.16 155);
     /* The same roles lifted for a dark ground: the hues are held and the
        lightness rises, so a keyword stays a keyword between themes rather than
        becoming a different colour that happens to be readable. */
@@ -248,12 +319,19 @@
    `--map-selection` stays an amber pair in all five, for the reason the
    Clinical block gives: it must be a second hue category from whatever the
    identity spends, so the selected shape is never a stronger shade of the wash
-   under it. That is what constrains the identity hues here - the spool's own
-   colours already claim red, green, amber and violet, so an identity that
-   wanted one of those would have to take it from a status, and a status is a
-   fact rather than a decoration. Terminal is the one theme that pays that
-   price knowingly: its identity is the phosphor green, so its `forwarded` and
-   `completed` move to a cyan and the queue stays legible beside them.
+   under it. That is what constrains the identity hues here - the semantic set
+   already claims red, green, amber and violet, so an identity that wanted one
+   of those would have to take it from a state, and a state is a fact rather
+   than a decoration. Terminal is the one theme that pays that price knowingly:
+   its identity is the phosphor green, so its `--good` moves to a cyan and the
+   queue stays legible beside it.
+
+   WHAT A THEME BLOCK DOES NOT CONTAIN. The derived layer at the foot of
+   `:root` - the spool's lifecycle colours and the five capture-model tints -
+   is written in terms of the tokens a theme block declares, so it follows the
+   theme without appearing in it. Repaint `--good` and every success chip in
+   the app is that theme's green; a theme that wants its own answer overrides
+   the token underneath rather than the derivation.
 
    ADDING A THEME: one block pair here, one row in `THEMES` (lib/theme.ts), and
    one name in the pre-paint script in index.html. Nothing else learns of it.
@@ -299,13 +377,11 @@ html[data-theme='indigo'] {
     --sidebar-accent-foreground: oklch(0.33 0.15 285);
     --sidebar-border: oklch(0.9 0.018 268);
     --sidebar-ring: oklch(0.48 0.19 285);
-    --status-received: oklch(0.5 0.18 285);
-    --status-forwarded: oklch(0.6 0.14 155);
-    --status-rejected: oklch(0.55 0.17 25);
+    --good: oklch(0.6 0.14 155);
+    --critical: oklch(0.55 0.17 25);
+    --warning: oklch(0.65 0.13 75);
+    --info: oklch(0.5 0.18 285);
     --status-withdrawn: oklch(0.55 0.12 335);
-    --status-refused: oklch(0.65 0.13 75);
-    --status-in-progress: oklch(0.65 0.13 75);
-    --status-completed: oklch(0.6 0.14 155);
     --code-keyword: oklch(0.46 0.16 330);
     --code-operator: oklch(0.48 0.09 25);
     --code-string: oklch(0.45 0.12 150);
@@ -352,13 +428,11 @@ html.dark[data-theme='indigo'] {
     --sidebar-accent-foreground: oklch(0.88 0.11 285);
     --sidebar-border: oklch(0.3 0.03 268);
     --sidebar-ring: oklch(0.74 0.16 285);
-    --status-received: oklch(0.74 0.16 285);
-    --status-forwarded: oklch(0.72 0.16 155);
-    --status-rejected: oklch(0.7 0.16 25);
+    --good: oklch(0.72 0.16 155);
+    --critical: oklch(0.7 0.16 25);
+    --warning: oklch(0.75 0.13 75);
+    --info: oklch(0.74 0.16 285);
     --status-withdrawn: oklch(0.74 0.13 335);
-    --status-refused: oklch(0.75 0.13 75);
-    --status-in-progress: oklch(0.75 0.13 75);
-    --status-completed: oklch(0.72 0.16 155);
     --code-keyword: oklch(0.8 0.14 330);
     --code-operator: oklch(0.78 0.09 25);
     --code-string: oklch(0.78 0.13 150);
@@ -412,13 +486,11 @@ html[data-theme='paper'] {
     --sidebar-accent-foreground: oklch(0.32 0.11 250);
     --sidebar-border: oklch(0.885 0.024 82);
     --sidebar-ring: oklch(0.45 0.12 250);
-    --status-received: oklch(0.47 0.12 250);
-    --status-forwarded: oklch(0.52 0.12 150);
-    --status-rejected: oklch(0.5 0.18 28);
+    --good: oklch(0.52 0.12 150);
+    --critical: oklch(0.5 0.18 28);
+    --warning: oklch(0.58 0.13 70);
+    --info: oklch(0.47 0.12 250);
     --status-withdrawn: oklch(0.5 0.1 305);
-    --status-refused: oklch(0.58 0.13 70);
-    --status-in-progress: oklch(0.58 0.13 70);
-    --status-completed: oklch(0.52 0.12 150);
     --code-keyword: oklch(0.44 0.15 305);
     --code-operator: oklch(0.46 0.1 30);
     --code-string: oklch(0.43 0.11 145);
@@ -465,13 +537,11 @@ html.dark[data-theme='paper'] {
     --sidebar-accent-foreground: oklch(0.88 0.09 250);
     --sidebar-border: oklch(0.31 0.016 70);
     --sidebar-ring: oklch(0.74 0.12 250);
-    --status-received: oklch(0.74 0.12 250);
-    --status-forwarded: oklch(0.72 0.15 150);
-    --status-rejected: oklch(0.7 0.16 28);
+    --good: oklch(0.72 0.15 150);
+    --critical: oklch(0.7 0.16 28);
+    --warning: oklch(0.76 0.13 72);
+    --info: oklch(0.74 0.12 250);
     --status-withdrawn: oklch(0.72 0.1 305);
-    --status-refused: oklch(0.76 0.13 72);
-    --status-in-progress: oklch(0.76 0.13 72);
-    --status-completed: oklch(0.72 0.15 150);
     --code-keyword: oklch(0.79 0.13 305);
     --code-operator: oklch(0.79 0.09 30);
     --code-string: oklch(0.79 0.12 145);
@@ -526,13 +596,11 @@ html[data-theme='contrast'] {
     --sidebar-accent-foreground: oklch(0.24 0.16 255);
     --sidebar-border: oklch(0.5 0 0);
     --sidebar-ring: oklch(0.4 0.19 255);
-    --status-received: oklch(0.42 0.19 255);
-    --status-forwarded: oklch(0.45 0.15 152);
-    --status-rejected: oklch(0.45 0.21 27);
+    --good: oklch(0.45 0.15 152);
+    --critical: oklch(0.45 0.21 27);
+    --warning: oklch(0.5 0.15 70);
+    --info: oklch(0.42 0.19 255);
     --status-withdrawn: oklch(0.42 0.16 305);
-    --status-refused: oklch(0.5 0.15 70);
-    --status-in-progress: oklch(0.5 0.15 70);
-    --status-completed: oklch(0.45 0.15 152);
     --code-keyword: oklch(0.36 0.2 300);
     --code-operator: oklch(0.38 0.14 25);
     --code-string: oklch(0.36 0.14 148);
@@ -579,13 +647,11 @@ html.dark[data-theme='contrast'] {
     --sidebar-accent-foreground: oklch(0.93 0.11 255);
     --sidebar-border: oklch(0.55 0 0);
     --sidebar-ring: oklch(0.8 0.16 255);
-    --status-received: oklch(0.8 0.16 255);
-    --status-forwarded: oklch(0.83 0.19 150);
-    --status-rejected: oklch(0.75 0.19 27);
+    --good: oklch(0.83 0.19 150);
+    --critical: oklch(0.75 0.19 27);
+    --warning: oklch(0.85 0.15 78);
+    --info: oklch(0.8 0.16 255);
     --status-withdrawn: oklch(0.8 0.14 305);
-    --status-refused: oklch(0.85 0.15 78);
-    --status-in-progress: oklch(0.85 0.15 78);
-    --status-completed: oklch(0.83 0.19 150);
     --code-keyword: oklch(0.85 0.16 300);
     --code-operator: oklch(0.86 0.11 25);
     --code-string: oklch(0.86 0.16 148);
@@ -600,10 +666,10 @@ html.dark[data-theme='contrast'] {
 
 /* TERMINAL - phosphor green, and a ground to match. The one theme with real
    personality in it, and the only one whose identity is not a blue: the green
-   is the point. That costs something and the cost is paid openly - `forwarded`
-   and `completed` move to a cyan, because a success chip in the identity's own
-   green beside a `received` chip in the identity's own green is one colour
-   saying two things. `--code-string` moves to the same cyan for the same
+   is the point. That costs something and the cost is paid openly - `--good`
+   moves to a cyan, because a success chip in the identity's own green beside a
+   `received` chip in the identity's own green is one colour saying two things,
+   and `--info` is this theme's identity. `--code-string` moves to that cyan for the same
    reason. The dark ground is the theme's home; the light one is the same
    palette over a pale green wash, for a screen in daylight. */
 html[data-theme='terminal'] {
@@ -640,13 +706,11 @@ html[data-theme='terminal'] {
     --sidebar-accent-foreground: oklch(0.3 0.12 148);
     --sidebar-border: oklch(0.885 0.035 147);
     --sidebar-ring: oklch(0.45 0.15 148);
-    --status-received: oklch(0.47 0.15 148);
-    --status-forwarded: oklch(0.5 0.12 210);
-    --status-rejected: oklch(0.5 0.19 27);
+    --good: oklch(0.5 0.12 210);
+    --critical: oklch(0.5 0.19 27);
+    --warning: oklch(0.58 0.14 72);
+    --info: oklch(0.47 0.15 148);
     --status-withdrawn: oklch(0.5 0.12 315);
-    --status-refused: oklch(0.58 0.14 72);
-    --status-in-progress: oklch(0.58 0.14 72);
-    --status-completed: oklch(0.5 0.12 210);
     --code-keyword: oklch(0.42 0.16 305);
     --code-operator: oklch(0.45 0.12 30);
     --code-string: oklch(0.44 0.14 195);
@@ -693,13 +757,11 @@ html.dark[data-theme='terminal'] {
     --sidebar-accent-foreground: oklch(0.87 0.15 148);
     --sidebar-border: oklch(0.32 0.05 150);
     --sidebar-ring: oklch(0.8 0.2 148);
-    --status-received: oklch(0.8 0.2 148);
-    --status-forwarded: oklch(0.75 0.13 210);
-    --status-rejected: oklch(0.7 0.17 27);
+    --good: oklch(0.75 0.13 210);
+    --critical: oklch(0.7 0.17 27);
+    --warning: oklch(0.78 0.14 78);
+    --info: oklch(0.8 0.2 148);
     --status-withdrawn: oklch(0.75 0.12 315);
-    --status-refused: oklch(0.78 0.14 78);
-    --status-in-progress: oklch(0.78 0.14 78);
-    --status-completed: oklch(0.75 0.13 210);
     --code-keyword: oklch(0.8 0.14 305);
     --code-operator: oklch(0.8 0.1 30);
     --code-string: oklch(0.8 0.13 195);
@@ -722,6 +784,191 @@ html.dark[data-theme='terminal'] {
     html {
         @apply font-sans;
     }
+}
+
+/* ---------------------------------------------------------------------------
+   RULE 1: INTERACTIVE GETS A COLOUR, AND NOTHING ELSE DOES
+
+   The complaint this answers is "it is hard to know what to click - almost
+   everything looks the same", and the answer is one rule rather than a nicer
+   shade: a thing that navigates wears the accent when the pointer is on it,
+   and a thing that does not never wears the accent at all. So the accent is
+   spent on exactly one meaning across the whole app, and a reader who has
+   learnt it once on any screen has learnt it everywhere.
+
+   THE RULE HAS TWO HALVES AND THE SECOND IS THE EASY ONE TO FORGET. A surface
+   that navigates announces itself on hover; a LINK inside prose announces
+   itself at rest. A word that is only coloured once the pointer is on it is a
+   word nobody knows to point at - and on a touch screen there is no hover at
+   all, so a hover-only affordance is not a quiet affordance, it is none.
+   `.interactive-link` is that half: the accent from the start, an underline on
+   hover for the reader who cannot tell the two greys of ink apart.
+
+   THREE CLASSES FOR THE FIRST HALF, USED TOGETHER. `.interactive` goes on the
+   element that actually navigates - the whole card, the whole row - so the target is the
+   surface rather than the words on it. `.interactive-title` goes on the text
+   that names where it goes; that text is what takes the accent, which is why
+   the class exists at all instead of the hover painting every descendant.
+   `.interactive-mark` goes on the chevron a row ends with, and a row that
+   navigates should have one: on a list of rows the mark is what says "these
+   open" before anything is hovered.
+
+   The hover fill is deliberately the same wash the shadcn primitives use for
+   an active option, so a card and a menu row agree about what "under the
+   pointer" looks like. Focus gets the ring rather than the fill, because a
+   keyboard walking a list must see one position, not a trail.
+   --------------------------------------------------------------------------- */
+.interactive {
+    cursor: pointer;
+    transition-property: background-color, border-color, color;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+}
+.interactive:hover {
+    background-color: color-mix(in oklab, var(--accent) 40%, transparent);
+}
+/* The ring is drawn INSIDE the element rather than around it. A row inside a
+   card sits under `overflow: hidden` - the clip that keeps a hover fill from
+   spilling past a rounded corner - and an outset ring on such a row is a ring
+   with its top and bottom cut off. Inset, the same rule serves a card and a
+   row, and a keyboard walking a list sees a whole ring on every stop. */
+.interactive:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--ring);
+}
+.interactive-title {
+    color: var(--foreground);
+    font-weight: 500;
+    transition: color 150ms ease-out;
+}
+.interactive:hover .interactive-title,
+.interactive:focus-visible .interactive-title {
+    color: var(--accent-foreground);
+}
+.interactive-mark {
+    flex-shrink: 0;
+    color: var(--muted-foreground);
+    transition:
+        color 150ms ease-out,
+        transform 150ms ease-out;
+}
+.interactive:hover .interactive-mark,
+.interactive:focus-visible .interactive-mark {
+    color: var(--accent-foreground);
+    transform: translateX(2px);
+}
+.interactive-link {
+    color: var(--accent-foreground);
+    text-decoration: none;
+    transition: color 150ms ease-out;
+}
+.interactive-link:hover,
+.interactive-link:focus-visible {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .interactive,
+    .interactive-title,
+    .interactive-mark,
+    .interactive-link {
+        transition: none;
+    }
+    .interactive:hover .interactive-mark,
+    .interactive:focus-visible .interactive-mark {
+        transform: none;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   RULE 2: TWO GREYS, AND THEY MEAN DIFFERENT THINGS
+
+   Muted text is doing one of two jobs in this app and the two must not look
+   alike. A hint is prose - a sentence written for a person, set in the sans
+   face and dimmed because it is context rather than content. An identifier is
+   a machine's string - a DHIS2 uid, a canonical, an error code - which is read
+   character by character rather than skimmed, and is set in the mono face for
+   exactly that reason. Both are `--muted-foreground`; the face is what says
+   which of the two a reader is looking at.
+
+   Anything that is neither - a value, a title, a count that answers a question
+   - is `--foreground` and needs no class. That is the third of the rule and it
+   is the one that is enforced by absence: if a value is wearing a grey, it has
+   been mistaken for a hint.
+
+   A COUNT IS NEVER AN IDENTIFIER. "8 questions" is prose about a form and
+   takes the hint's grey; the spool's own numbers are the answer the screen was
+   opened for and take the foreground. Neither of them is mono. `PsAncVisit1`
+   is mono, because mono here means "read this character by character" - and
+   nobody reads an eight that way.
+
+   Size stays with the caller. A hint is `text-sm` under a heading and
+   `text-xs` inside a row, and an identifier is `text-xs` nearly everywhere;
+   these classes carry the colour and the face, which are the parts that must
+   never vary.
+   --------------------------------------------------------------------------- */
+.prose-hint {
+    color: var(--muted-foreground);
+}
+.machine-identifier {
+    font-family: var(--font-mono);
+    color: var(--muted-foreground);
+}
+
+/* ---------------------------------------------------------------------------
+   RULE 4: A KIND GETS A HUE
+
+   One badge shape, five tints, painted from the derived `--kind-*` tokens at
+   the foot of `:root` - see the argument for the hues there. The component is
+   components/KindBadge.tsx and the kind rides on `data-form-kind`, whose values
+   are the `FormType` codes verbatim, so the stylesheet and the union in
+   lib/fhir.ts are checked against each other in lib/theme.test.ts rather than
+   drifting quietly.
+
+   The two custom properties are the whole mechanism: the shape rule reads
+   `--kind-ink` and `--kind-surface`, and each kind's rule is one line that says
+   which pair it is. A form declaring no kind gets the neutral pair - not a
+   guessed hue, because "this server will refuse to capture against it" is a
+   fact about the form rather than a sixth kind of form.
+   --------------------------------------------------------------------------- */
+.kind-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 1.25rem;
+    padding: 0 0.5rem;
+    border: 1px solid color-mix(in oklab, var(--kind-ink) 30%, var(--kind-surface));
+    border-radius: calc(var(--radius) * 2.6);
+    color: var(--kind-ink);
+    background-color: var(--kind-surface);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.kind-badge[data-form-kind='aggregate'] {
+    --kind-ink: var(--kind-aggregate);
+    --kind-surface: var(--kind-aggregate-surface);
+}
+.kind-badge[data-form-kind='event'] {
+    --kind-ink: var(--kind-event);
+    --kind-surface: var(--kind-event-surface);
+}
+.kind-badge[data-form-kind='tracker'] {
+    --kind-ink: var(--kind-tracker);
+    --kind-surface: var(--kind-tracker-surface);
+}
+.kind-badge[data-form-kind='tracker-event'] {
+    --kind-ink: var(--kind-tracker-event);
+    --kind-surface: var(--kind-tracker-event-surface);
+}
+.kind-badge[data-form-kind='tracked-entity'] {
+    --kind-ink: var(--kind-tracked-entity);
+    --kind-surface: var(--kind-tracked-entity-surface);
+}
+.kind-badge[data-form-kind='none'] {
+    --kind-ink: var(--muted-foreground);
+    --kind-surface: var(--muted);
 }
 
 /* MapLibre draws its corner controls (fullscreen, attribution) from its own

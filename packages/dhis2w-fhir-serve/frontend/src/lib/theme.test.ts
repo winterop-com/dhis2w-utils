@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import indexHtml from '../../index.html?raw'
 import indexCss from '@/index.css?raw'
 
+import { FORM_TYPES } from '@/lib/fhir'
 import {
     chooseTheme,
     DEFAULT_THEME_NAME,
@@ -219,29 +220,55 @@ describe('every theme paints every token', () => {
      * A theme that repainted the surfaces and left `--code-string` behind would put Clinical's green
      * inside Terminal's editor, where the surface is already green. That failure is invisible in a
      * screenshot of the page a reviewer happens to open, and obvious here.
+     *
+     * THE RULE APPLIES TO THE LITERAL TOKENS, WHICH IS ALL THERE IS TO LEAVE BEHIND. `:root` also
+     * declares a derived layer - tokens written in terms of other tokens - and those are stated once
+     * for the whole app: `--status-rejected: var(--critical)` is Contrast's critical under Contrast
+     * because a `var()` in a custom property resolves against the element it lands on, and every one
+     * of these lands on the same `<html>` a theme block paints. A theme cannot forget one of those,
+     * so requiring it to restate them would be requiring duplication rather than completeness.
      */
     const css = indexCss
 
-    /** The tokens declared in one block, given the selector that opens it. */
-    const tokensUnder = (selector: string): string[] => {
+    /** What one block declares, given the selector that opens it, as token to value. */
+    const declarationsUnder = (selector: string): Map<string, string> => {
         const opened = css.indexOf(`${selector} {`)
         expect(opened, `index.css declares no block for ${selector}`).toBeGreaterThan(-1)
         const closed = css.indexOf('\n}', opened)
         const block = css.slice(opened, closed)
-        return [...block.matchAll(/^\s+(--[a-z0-9-]+):/gm)].map((match) => match[1]).toSorted()
+        return new Map(
+            [...block.matchAll(/^\s+(--[a-z0-9-]+):\s*([^;]+);/gm)].map((match) => [
+                match[1],
+                match[2].trim(),
+            ]),
+        )
     }
 
-    const base = tokensUnder(':root').filter((token) => token !== '--radius')
+    /** The tokens declared in one block, in a stable order. */
+    const tokensUnder = (selector: string): string[] => [...declarationsUnder(selector).keys()].toSorted()
+
+    const baseDeclarations = declarationsUnder(':root')
+    /** A token written in terms of another token - the derived layer, stated once for every theme. */
+    const derived = [...baseDeclarations]
+        .filter(([, value]) => value.includes('var('))
+        .map(([token]) => token)
+    const base = [...baseDeclarations.keys()]
+        .filter((token) => token !== '--radius' && !derived.includes(token))
+        .toSorted()
+
+    /** What one theme block declares, minus any derived token it has chosen to override. */
+    const paletteUnder = (selector: string): string[] =>
+        tokensUnder(selector).filter((token) => !derived.includes(token))
 
     for (const theme of THEMES) {
         if (theme.name === DEFAULT_THEME_NAME) continue
 
         it(`${theme.label} states the whole palette on the light ground`, () => {
-            expect(tokensUnder(`html[data-theme='${theme.name}']`)).toEqual(base)
+            expect(paletteUnder(`html[data-theme='${theme.name}']`)).toEqual(base)
         })
 
         it(`${theme.label} states the whole palette on the dark ground`, () => {
-            expect(tokensUnder(`html.dark[data-theme='${theme.name}']`)).toEqual(base)
+            expect(paletteUnder(`html.dark[data-theme='${theme.name}']`)).toEqual(base)
         })
     }
 
@@ -251,6 +278,55 @@ describe('every theme paints every token', () => {
         for (const theme of THEMES) {
             if (theme.name === DEFAULT_THEME_NAME) continue
             expect(tokensUnder(`html[data-theme='${theme.name}']`)).not.toContain('--radius')
+        }
+    })
+
+    it('has a derived layer, and every token it is derived from is one every theme paints', () => {
+        // The whole mechanism: a derivation is correct in five themes only if what it names is
+        // repainted by five themes. A derived token that reached for something declared nowhere -
+        // or for a literal - would be a colour one theme cannot move.
+        expect(derived.length).toBeGreaterThan(0)
+        const known = new Set([...base, ...derived])
+        for (const token of derived) {
+            const value = baseDeclarations.get(token) ?? ''
+            for (const [, named] of value.matchAll(/var\((--[a-z0-9-]+)\)/g)) {
+                expect(known, `${token} is derived from ${named}, which index.css declares nowhere`)
+                    .toContain(named)
+            }
+        }
+    })
+
+    it('states the semantic set at the base, so a theme that said nothing would still have states', () => {
+        // good / critical / warning / info are what a state MEANS. They are palette tokens - every
+        // theme states its own four - and everything that carries a state is derived from them.
+        for (const token of ['--good', '--critical', '--warning', '--info']) {
+            expect(base).toContain(token)
+        }
+        for (const token of [
+            '--status-received',
+            '--status-forwarded',
+            '--status-rejected',
+            '--status-refused',
+            '--status-in-progress',
+            '--status-completed',
+        ]) {
+            expect(derived, `${token} should read the semantic set rather than a colour of its own`)
+                .toContain(token)
+        }
+    })
+
+    it('paints every form kind this app has, and no kind it does not', () => {
+        // The badge's `data-form-kind` carries the `FormType` code verbatim, so a kind added to the
+        // union without a tint here would render as an unstyled pill - which looks like a bug in the
+        // form rather than a gap in the stylesheet. `none` is the sixth rule and not a sixth kind:
+        // it is what a form declaring no D2FormType wears.
+        const painted = [...css.matchAll(/\.kind-badge\[data-form-kind='([a-z-]+)'\]/g)].map(
+            (match) => match[1],
+        )
+        expect(painted.toSorted()).toEqual([...FORM_TYPES, 'none'].toSorted())
+        for (const kind of FORM_TYPES) {
+            expect(derived).toContain(`--kind-${kind}`)
+            expect(derived).toContain(`--kind-${kind}-surface`)
         }
     })
 

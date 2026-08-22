@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 
+import { KindBadge } from '@/components/KindBadge'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,6 @@ import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { refreshServerStatus, useServerStatus } from '@/hooks/use-server-status'
 import { useSpool } from '@/hooks/use-spool'
 import {
-    FORM_TYPE_LABELS,
     formIdentifier,
     formSlice,
     formTitle,
@@ -315,14 +315,8 @@ function FormCard({ questionnaire }: { questionnaire: Questionnaire }) {
         >
             <span className="text-sm font-medium">{title}</span>
             <span className="mt-auto flex flex-wrap items-center gap-2">
-                {kind === null ? (
-                    <Badge variant="outline" className="text-muted-foreground">
-                        no form type
-                    </Badge>
-                ) : (
-                    <Badge variant="secondary">{FORM_TYPE_LABELS[kind]}</Badge>
-                )}
-                <span className="text-muted-foreground font-mono text-xs">
+                <KindBadge kind={kind} />
+                <span className="prose-hint text-xs">
                     {questions} question{questions === 1 ? '' : 's'}
                 </span>
             </span>
