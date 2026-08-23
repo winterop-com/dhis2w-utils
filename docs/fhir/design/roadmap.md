@@ -1504,9 +1504,10 @@ described, and the git history is where it was built. What is left:
 - **Native FHIR resource intake - the capture contract's second door.** Today a
   capture is a QuestionnaireResponse; clients that already speak Observation,
   Immunization, Patient, and Encounter should be able to post those directly,
-  with the same spool, translation, and forward behind them. Design paper
-  first: which resources, how a resource names its form-equivalent scope, and
-  what a refusal looks like when it names neither.
+  with the same spool, translation, and forward behind them.
+  [Native FHIR resource intake](native-intake.md) is the design paper: which
+  resources, how a resource names its form-equivalent scope, what a refusal looks
+  like when it names neither, and the decisions it reserves.
 
 - **The search-engine step of the register.** The projection answers membership
   and substring search; transliteration ("Somsack" finding a Lao name) and
