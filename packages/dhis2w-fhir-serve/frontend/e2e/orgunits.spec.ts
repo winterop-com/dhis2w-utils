@@ -279,10 +279,25 @@ test('a unit with no captures says so instead of showing a zero', async ({ page,
         for (const candidate of listing.responses) used.add(candidate.organisation_unit)
         spoolUrl = listing.next_url ?? null
     }
-    const bare = ['Rp268JB6Ne4', 'EJoI3HuIUEV', 'MgFYJDBqSSs', 'vWbkYPRmKyS', 'lc3eMKXaEfw', 'YuQRtpLP10I'].find(
-        (uid) => !used.has(uid),
-    )
-    expect(bare, 'every candidate unit already holds a capture - widen this list').toBeTruthy()
+    // Every unit the registry publishes is a candidate - see ORG_UNITS in fixture_project.py.
+    // The generator spreads its captures over the registry, so with enough earlier posts any
+    // shorter list can be fully covered by chance within one run, and a retry re-reads the same
+    // spool. When even the full registry is covered, bareness cannot be shown this run - skip
+    // with the reason rather than fail on state no assertion here controls.
+    const published = [
+        'Rp268JB6Ne4',
+        'EJoI3HuIUEV',
+        'MgFYJDBqSSs',
+        'vWbkYPRmKyS',
+        'lc3eMKXaEfw',
+        'YuQRtpLP10I',
+        'DiszpKrYNg8',
+        'fdc6uOvgoji',
+        'O6uvpzGd5pu',
+        'ImspTQPwCqd',
+    ]
+    const bare = published.find((uid) => !used.has(uid))
+    test.skip(!bare, 'every published unit already holds a capture this run')
 
     await page.goto(`/#/organisation-units?unit=${bare ?? ''}`)
 
