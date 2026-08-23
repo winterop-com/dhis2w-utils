@@ -97,6 +97,7 @@ Generating, serving, and draining from Python, rather than from the command line
 | [`generate_ig.py`](generate_ig.py) | `load_project` + `resolve_generation_profile` + `generate_full`, and the `GenerateFullReport` consumed as a model rather than parsed as text |
 | [`consume_facade.py`](consume_facade.py) | Plain httpx against a running facade: `/metadata`, search, `$generate`, POST a capture, read the receipt, read `/spool` |
 | [`evaluate_via_facade.py`](evaluate_via_facade.py) | Plain httpx against a running facade's `POST /evaluate`: one FHIRPath call, one CQL library, and one expression that will not parse - answered with the line and column, not a 500 |
+| [`evaluate_as_parameters.py`](evaluate_as_parameters.py) | The same evaluation through `POST /$evaluate`, the FHIR operation: one parameter per define, `part` entries where a define answered several values, an `OperationOutcome` part where one refused |
 | [`forward_spool.py`](forward_spool.py) | `forward_responses` dry run, and the `ForwardReport` counts, per-receipt outcomes, and rejection reasons rolled up by cause |
 | [`minimal_facade.py`](minimal_facade.py) | Facade ladder, level one: one route that translates a capture, posts it to the endpoint its payload names, and hands back DHIS2's verdict under DHIS2's own status |
 | [`basic_facade.py`](basic_facade.py) | Facade ladder, level two: one client for the process in a FastAPI lifespan, settings resolved once at startup, `/health` off a cheap DHIS2 read, one log line per verdict |

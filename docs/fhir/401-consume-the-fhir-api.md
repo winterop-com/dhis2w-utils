@@ -16,6 +16,8 @@ what a valid capture is ([The capture contract](401-capture-contract.md)).
   as the responses the guide's own forms describe
 - resolve generated codes back to DHIS2 identifiers with `$translate`
 - get a valid, reproducible test submission from `$generate`
+- evaluate a FHIRPath expression, a CQL library, or a compiled ELM library over
+  what the facade serves with `$evaluate`, and read the answer as `Parameters`
 - post a capture and read every kind of answer the server gives
 - read the two non-FHIR endpoints, `/spool` and `/uiconfig`
 
@@ -918,7 +920,8 @@ elements.
 set's members are elements of documents this facade already serves whole, so a
 client reads `GET /CodeSystem/{id}` and `GET /ValueSet/{id}` and walks them.
 `/metadata` is the authority on which operations exist: `$generate` on
-`Questionnaire` and `$translate` on `ConceptMap`, and nothing else.
+`Questionnaire`, `$translate` on `ConceptMap`, `$summary` on the register's
+people where a project publishes summaries, and `$evaluate` at the service base.
 
 ## `$generate`: a valid submission on demand
 
@@ -1014,6 +1017,146 @@ A Questionnaire the server does not hold is a 404 OperationOutcome - the same
 ``no Questionnaire with id `x` is served here`` a read answers with. One it holds
 but cannot read as a capture form is a 422: ``` `Questionnaire/{id}` cannot be
 generated against: ``` followed by what stopped it.
+
+## `$evaluate`: an expression over what this facade serves
+
+`POST [base]/$evaluate` runs one FHIRPath expression, one CQL library, or one
+compiled ELM library over a resource this server serves, and answers a
+`Parameters` resource. It is the **system-level** operation - declared at
+`rest.operation` in `/metadata`, because what it evaluates over is whatever the
+request names as its context and no resource type owns that. Its definition is
+this project's own,
+`https://winterop-com.github.io/dhis2w-utils/fhir/OperationDefinition/serve-evaluate`,
+and this page is where it is defined.
+
+The input is a `Parameters` resource:
+
+| Parameter | Type | What it is |
+| --- | --- | --- |
+| `language` | `code` | `fhirpath`, `cql`, or `elm`. Required. |
+| `source` | `string` | The expression, the CQL library text, or the ELM library as JSON. Required. |
+| `expression` | `string` | Which define to answer. Omitted, a library answers every define it declares. |
+| `context` | *(parts)* | The one resource the expression may reach. Omitted, it runs over no resource at all. |
+
+`context` carries a `kind` part naming one of three, and the parts that kind
+needs - the same three the [Evaluate screen](201-capture-ui.md) offers, and the
+only data an expression can reach:
+
+| `kind` | Parts | What it names |
+| --- | --- | --- |
+| `stored` | `resourceType`, `resourceId` | One resource of the served guide, named the way a read names it. |
+| `inline` | `resource` | The resource carried in the request itself. |
+| `registered` | `trackedEntityUid`, optionally `resourceType` | One tracked entity, read from the DHIS2 instance a live run holds open and projected the way `GET /Patient/{uid}` projects it. |
+
+One answer rides the parameter named for the define - `value[x]` for a
+primitive, `resource` for a resource:
+
+```console
+$ curl -s localhost:8389/'$evaluate' -H 'Content-Type: application/fhir+json' -d '{
+    "resourceType": "Parameters",
+    "parameter": [
+      {"name": "language", "valueCode": "fhirpath"},
+      {"name": "source", "valueString": "Questionnaire.title"},
+      {"name": "context", "part": [
+        {"name": "kind", "valueCode": "stored"},
+        {"name": "resourceType", "valueCode": "Questionnaire"},
+        {"name": "resourceId", "valueString": "BfMAe6Itzgt"}]}]}'
+{"resourceType":"Parameters","parameter":[{"name":"expression","valueString":"Child Health"}]}
+```
+
+A FHIRPath expression has no define name, so its parameter is named
+`expression`. Several values ride one `part` apiece, because a parameter states
+one value and a collection is several:
+
+```console
+$ # ... "source": "Questionnaire.item.linkId"
+{
+  "resourceType": "Parameters",
+  "parameter": [
+    {
+      "name": "expression",
+      "part": [
+        {"name": "value", "valueString": "Y2rk0vzgvAx"},
+        {"name": "value", "valueString": "vtOr8PTJVxS"}
+      ]
+    }
+  ]
+}
+```
+
+A CQL library answers one parameter per define, named by the define, in
+declaration order. A define that refuses carries an `OperationOutcome` part of
+its own, so the rest of the library still answers - here over one tracked entity
+read from DHIS2 at request time:
+
+```console
+$ curl -s localhost:8391/'$evaluate' -H 'Content-Type: application/fhir+json' -d '{
+    "resourceType": "Parameters",
+    "parameter": [
+      {"name": "language", "valueCode": "cql"},
+      {"name": "source", "valueString": "library RegisteredPerson version '"'"'1.0'"'"'\nusing FHIR version '"'"'4.0.1'"'"'\n\ndefine Person: First([Patient])\ndefine TrackedEntityUid: Person.id\ndefine KnownToTheRegister: exists [Patient]\ndefine Unmapped: Message('"'"'x'"'"', true, '"'"'no-birth-date'"'"', '"'"'Error'"'"', '"'"'DHIS2 states no mapping for Patient.birthDate'"'"')\n"},
+      {"name": "context", "part": [
+        {"name": "kind", "valueCode": "registered"},
+        {"name": "trackedEntityUid", "valueString": "jdXAPyf0K9X"}]}]}'
+{
+  "resourceType": "Parameters",
+  "parameter": [
+    {"name": "Person", "resource": {"resourceType": "Patient", "id": "jdXAPyf0K9X", ...}},
+    {"name": "TrackedEntityUid", "valueString": "jdXAPyf0K9X"},
+    {"name": "KnownToTheRegister", "valueBoolean": true},
+    {"name": "Unmapped", "part": [
+      {"name": "outcome", "resource": {"resourceType": "OperationOutcome", "issue": [
+        {"severity": "error", "code": "processing",
+         "diagnostics": "Error evaluating Unmapped: CQL Error [no-birth-date]: DHIS2 states no mapping for Patient.birthDate"}]}}]}
+  ]
+}
+```
+
+**A bad expression is a 200.** Source that will not parse, a define name the
+library does not declare - each answers `200` with an `outcome` parameter saying
+so, because the request was well formed and this is its answer. The line and the
+column the parser stopped on are in the issue's `diagnostics`, counted from one:
+
+```console
+$ # ... "source": "define Form: singleton from [Questionnaire]"
+{
+  "resourceType": "Parameters",
+  "parameter": [
+    {"name": "outcome", "resource": {"resourceType": "OperationOutcome", "issue": [
+      {"severity": "error", "code": "invalid",
+       "diagnostics": "line 4, column 29: extraneous input '[' expecting {...}"}]}}
+  ]
+}
+```
+
+What answers an OperationOutcome with a **4xx** is a request this facade cannot
+serve at all: a stored resource it does not hold (404), a `registered` context on
+a process holding no DHIS2 instance (404), a `language` this server does not
+evaluate or a `context` naming a fourth kind (400).
+
+**A define that matched nothing carries no parameter.** FHIR has no empty
+collection - a value is present or the element is not there - so an expression
+matching nothing answers `{"resourceType": "Parameters"}` and a library answers
+only the defines that had something to say.
+
+**The sibling that keeps what `Parameters` cannot carry.** `POST /evaluate`
+answers this project's own JSON for the same evaluation: one row per define
+whether or not it answered, so "matched nothing" and "was not run" stay apart,
+and diagnostics as fields rather than as prose. It is what the capture UI's
+Evaluate screen reads, and it takes the same body this operation takes as
+`Parameters` - which `$evaluate` also accepts, so a caller who has one body can
+choose which shape comes back by choosing an address:
+
+```console
+$ curl -s localhost:8389/'$evaluate' -H 'Content-Type: application/json' \
+    -d '{"language": "fhirpath", "source": "Questionnaire.title",
+         "context": {"kind": "stored", "resource_type": "Questionnaire", "resource_id": "BfMAe6Itzgt"}}'
+{"resourceType":"Parameters","parameter":[{"name":"expression","valueString":"Child Health"}]}
+```
+
+A `Parameters` body is what the operation documents and what a FHIR client
+should send; the plain body is read for the convenience of a caller already
+posting to `/evaluate`.
 
 ## Posting a capture
 

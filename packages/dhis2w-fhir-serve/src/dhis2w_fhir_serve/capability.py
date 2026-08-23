@@ -6,12 +6,16 @@ and then narrows it to this installation - the profiles this project generated, 
 types this store actually holds, so a client that reads `/metadata` never sees a resource type
 advertised that the store cannot answer for.
 
-The three facade surfaces that are not FHIR at all - the evaluator, the terminology reads, and the
-CDS Hooks discovery - are named in the `description` rather than declared as resources or as
-server-level operations, exactly as `GET /spool` is. A CapabilityStatement describes the FHIR
-interface, and `rest.operation` would send a client following this document to `[base]/$evaluate`,
-which is not an address this server serves. The sentence is what a person reading the conformance
-document needs; the paths themselves are what a client calls.
+`$evaluate` is the one operation declared at `rest.operation`, the server-level slot, because it is
+the one operation whose URL is the service base's: it runs over whichever resource the request names
+as its context, so no resource type owns it. A client following this document reaches
+`[base]/$evaluate` and is answered there.
+
+The facade surfaces that are not FHIR at all - `POST /evaluate`'s own JSON shape, the terminology
+reads, and the CDS Hooks discovery - are named in the `description` rather than declared, exactly as
+`GET /spool` is. A CapabilityStatement describes the FHIR interface, and a slot pointing at
+`[base]/terminology/lookup` would be naming a path FHIR has no interaction for. The sentence is what
+a person reading the conformance document needs; the paths themselves are what a client calls.
 
 The QuestionnaireResponse entry is the one that says what the facade is: responses are received
 and stored as receipts. Reading one back returns the submission as it arrived, never a live view
@@ -35,8 +39,8 @@ them - it is what a forwarder reads a concept back into DHIS2 identifiers with. 
 serves it all the same, because the maps are published IG artifacts sitting in the same store as
 everything else, and an instance is free to support more than the statement it instantiates.
 
-Both operations are declared on the resource entry they are answered under, which is the entry a
-client resolves the URL from. `$translate` is answered at `/ConceptMap/$translate` and is declared on
+The resource operations are declared on the resource entry they are answered under, which is the
+entry a client resolves the URL from. `$translate` is answered at `/ConceptMap/$translate` and is declared on
 the ConceptMap entry; `$generate` is answered at `/Questionnaire/{id}/$generate` and is declared on
 the Questionnaire entry. `rest.operation` would send a client following the statement to
 `[base]/$translate`, which this server does not serve - a server-level slot is for a server-level
@@ -124,6 +128,25 @@ TRANSLATE_OPERATION_DEFINITION = "http://hl7.org/fhir/OperationDefinition/Concep
 TRANSLATE_DOCUMENTATION = (
     "Translate a generated concept code into the DHIS2 option UID and option code the "
     "published ConceptMaps map it onto."
+)
+
+#: The system-level operation the facade evaluates expressions at, and the definition it names.
+#:
+#: The definition is this project's own, and is defined in prose rather than emitted as an IG
+#: artifact - the same footing `JWT_ISSUER_EXTENSION_URL` below stands on, and for the same reason:
+#: it describes what this server does, not what a guide this server publishes contains.
+#: `docs/fhir/401-consume-the-fhir-api.md` is where it is defined.
+EVALUATE_OPERATION_NAME = "evaluate"
+EVALUATE_OPERATION_DEFINITION = "https://winterop-com.github.io/dhis2w-utils/fhir/OperationDefinition/serve-evaluate"
+
+#: What the `$evaluate` operation states about what it evaluates, and over what.
+EVALUATE_DOCUMENTATION = (
+    "Evaluate one FHIRPath expression, CQL library, or compiled ELM library over one resource this "
+    "server serves - a published resource of the guide named by type and id, a resource posted in "
+    "the request, or one tracked entity of the register read from the DHIS2 instance - and answer a "
+    "Parameters resource: one parameter per define, named by the define, an OperationOutcome part "
+    "where a define refused, and an `outcome` parameter carrying the line and column a parser "
+    "stopped on. POST a Parameters resource naming `language` and `source`."
 )
 
 #: The resource type `$generate` is answered on, and what the operation states about its output.
@@ -417,7 +440,9 @@ def build_server_capability(
             f"{project.config.ig.title} served as a FHIR capture facade: {store_summary.total} resources "
             f"across {len(store_summary.counts_by_type)} types. `GET /spool` states how many responses "
             f"are stored, which is a number that changes while this server runs. Beside the FHIR surface "
-            f"this process also answers `POST /evaluate` (FHIRPath, CQL, and ELM over what it serves), "
+            f"this process also answers `POST /evaluate` (the same evaluation the declared `$evaluate` "
+            f"operation answers, in this project's own JSON shape, with the line and column a parser "
+            f"stopped on), "
             f"`GET /terminology/validate-code` and `GET /terminology/lookup` (this guide's own "
             f"vocabularies, not a terminology server), and `GET /cds-services` (CDS Hooks, one service)."
         ),
@@ -442,6 +467,13 @@ def build_server_capability(
                     forward_bearer=settings.jwt.forward_bearer,
                 ),
                 resource=resources,
+                operation=[
+                    CapabilityStatementOperation(
+                        name=EVALUATE_OPERATION_NAME,
+                        definition=EVALUATE_OPERATION_DEFINITION,
+                        documentation=EVALUATE_DOCUMENTATION,
+                    )
+                ],
             )
         ],
     )

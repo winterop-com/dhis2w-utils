@@ -419,7 +419,8 @@ async def test_metadata_declares_the_operation_when_the_store_holds_concept_maps
     assert [operation["name"] for operation in operations] == ["translate"]
     assert operations[0]["definition"] == "http://hl7.org/fhir/OperationDefinition/ConceptMap-translate"
     assert operations[0]["documentation"]
-    assert "operation" not in body["rest"][0]
+    # The server-level slot is for operations whose URL is the service base's, and `$translate`'s is not.
+    assert [operation["name"] for operation in body["rest"][0]["operation"]] == ["evaluate"]
 
 
 async def test_the_declared_operation_is_reachable_at_the_url_its_entry_names(
@@ -442,13 +443,16 @@ async def test_metadata_declares_concept_map_as_a_read_type(translate_client: ht
     assert [parameter["name"] for parameter in entry["searchParam"]] == ["_id", "url", "identifier"]
 
 
-async def test_metadata_declares_no_operation_when_the_store_holds_no_concept_map(
+async def test_metadata_declares_no_translate_when_the_store_holds_no_concept_map(
     client: httpx.AsyncClient,
 ) -> None:
     body = (await client.get("/metadata")).json()
 
-    assert "operation" not in body["rest"][0]
     assert "ConceptMap" not in [resource["type"] for resource in body["rest"][0]["resource"]]
+    declared = [
+        operation["name"] for resource in body["rest"][0]["resource"] for operation in resource.get("operation", [])
+    ]
+    assert "translate" not in declared
 
 
 async def test_translate_over_a_store_without_concept_maps_answers_false(client: httpx.AsyncClient) -> None:
