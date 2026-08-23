@@ -148,7 +148,7 @@ export function ResponseDetail() {
                     {questionnaireId === '' ? (
                         title
                     ) : (
-                        <Link className="hover:underline" to={`/forms/${questionnaireId}`}>
+                        <Link className="interactive-link" to={`/forms/${questionnaireId}`}>
                             {title}
                         </Link>
                     )}

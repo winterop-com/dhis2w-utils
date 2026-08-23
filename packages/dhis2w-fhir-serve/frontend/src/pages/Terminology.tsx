@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { ChevronRight, Search } from 'lucide-react'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
 import { PageHeader, PageState } from '@/components/PageState'
@@ -140,7 +140,14 @@ export function Terminology() {
                     error={conceptMaps.error}
                     rows={conceptMapRows}
                     query={query}
-                    emptyMessage="This project published no ConceptMaps. Run `make generate` then `make sushi` to compile the option sets and categories the forms bind, then restart the server."
+                    emptyMessage={
+                        <>
+                            This project published no ConceptMaps. Run{' '}
+                            <code className="font-mono">d2w fhir generate</code>, then{' '}
+                            <code className="font-mono">make sushi</code> to compile the option sets
+                            and categories the forms bind, then restart the server.
+                        </>
+                    }
                 />
             </section>
         </>
@@ -188,7 +195,8 @@ function TerminologySection({
     error: string | null
     rows: TerminologyRow[]
     query: string
-    emptyMessage: string
+    /** What this section states when it holds nothing - a node, because it names commands. */
+    emptyMessage: ReactNode
 }) {
     const navigate = useNavigate()
     const matching = rows
@@ -230,13 +238,14 @@ function TerminologySection({
                                 <TableHead>Id</TableHead>
                                 <TableHead>DHIS2 identifiers</TableHead>
                                 <TableHead className="text-right">{countLabel}</TableHead>
-                                                            </TableRow>
+                                <TableHead className="w-8" aria-hidden />
+                            </TableRow>
                         </TableHeader>
                         <TableBody>
                             {matching.map(({ row, codeMatches }) => (
                                 <TableRow
                                     key={row.key}
-                                    className="hover:bg-accent cursor-pointer"
+                                    className="interactive"
                                     tabIndex={0}
                                     aria-label={`Open ${row.title}`}
                                     onClick={() => navigate(`/terminology/${resourceType}/${row.identifier}`)}
@@ -247,10 +256,10 @@ function TerminologySection({
                                         }
                                     }}
                                 >
-                                    <TableCell className="font-medium">
-                                        {row.title}
+                                    <TableCell>
+                                        <span className="interactive-title">{row.title}</span>
                                         {codeMatches > 0 && (
-                                            <span className="text-muted-foreground ml-2 text-xs font-normal">
+                                            <span className="text-muted-foreground ml-2 text-xs">
                                                 {codeMatches} matching {codeMatches === 1 ? 'code' : 'codes'}
                                             </span>
                                         )}
@@ -263,6 +272,9 @@ function TerminologySection({
                                     </TableCell>
                                     <TableCell className="text-right font-mono text-xs">
                                         {row.count ?? '-'}
+                                    </TableCell>
+                                    <TableCell className="w-8" aria-hidden>
+                                        <ChevronRight className="interactive-mark size-4" />
                                     </TableCell>
                                 </TableRow>
                             ))}

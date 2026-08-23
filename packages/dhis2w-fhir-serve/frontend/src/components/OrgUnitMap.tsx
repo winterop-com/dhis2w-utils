@@ -960,7 +960,7 @@ function popupElement(content: UnitPopupContent, onOpen: () => void): HTMLElemen
     const open = document.createElement('button')
     open.type = 'button'
     open.dataset.testid = 'org-unit-map-popup-open'
-    open.className = 'text-primary mt-1 block text-sm hover:underline'
+    open.className = 'interactive-link mt-1 block text-sm'
     open.textContent = 'Open'
     open.addEventListener('click', onOpen)
     root.append(open)

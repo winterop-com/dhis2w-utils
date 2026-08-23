@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 
 import { PageHeader, PageState } from '@/components/PageState'
 import { PatientSearchControl } from '@/components/PatientSearch'
@@ -501,6 +502,7 @@ function RegisterTable({
                                     {column.name.text}
                                 </TableHead>
                             ))}
+                            <TableHead className="w-8" aria-hidden />
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -553,13 +555,18 @@ function RegisterRow({
     onOpen: (trackedEntityUid: string) => void
 }) {
     const type = trackedEntityTypeLabel(naming.types, entity.trackedEntityTypeUid)
+    // Which column names this row, and so takes the accent when the row is under the pointer. It is
+    // the identifier values wherever the instance holds any, and the uid where it holds none - the
+    // same fall-back `patientLeadValue` makes for the row's own name. A dash names nothing, so a
+    // table where most rows carry no unique value must not be a table where most rows go unnamed.
+    const uidNamesTheRow = !columns.identifiers || entity.identifiers.length === 0
     const open = () => {
         onOpen(entity.trackedEntityUid)
     }
 
     return (
         <TableRow
-            className="hover:bg-accent cursor-pointer"
+            className="interactive"
             tabIndex={0}
             aria-label={`Open the ${words.one} identified by ${patientLeadValue(entity)}`}
             onClick={open}
@@ -586,7 +593,7 @@ function RegisterRow({
                                         key={`${identifier.attributeUid}-${identifier.value}`}
                                         className="grid"
                                     >
-                                        <span className="font-mono text-xs font-medium">
+                                        <span className="interactive-title font-mono text-xs">
                                             {identifier.value}
                                         </span>
                                         <span
@@ -604,8 +611,10 @@ function RegisterRow({
                     )}
                 </TableCell>
             )}
-            <TableCell className="text-muted-foreground align-top font-mono text-xs whitespace-nowrap">
-                {entity.trackedEntityUid}
+            <TableCell className="align-top font-mono text-xs whitespace-nowrap">
+                <span className={uidNamesTheRow ? 'interactive-title' : 'text-muted-foreground'}>
+                    {entity.trackedEntityUid}
+                </span>
             </TableCell>
             {typeColumn && (
                 <TableCell
@@ -622,6 +631,9 @@ function RegisterRow({
                     </TableCell>
                 )
             })}
+            <TableCell className="w-8 align-top" aria-hidden>
+                <ChevronRight className="interactive-mark size-4" />
+            </TableCell>
         </TableRow>
     )
 }

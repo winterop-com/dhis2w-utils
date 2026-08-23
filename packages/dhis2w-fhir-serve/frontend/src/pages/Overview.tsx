@@ -276,7 +276,15 @@ function CaptureSection({
                 loading={loading}
                 error={error}
                 empty={slice.total === 0}
-                emptyMessage="This project publishes no Questionnaires, so there is nothing to capture against. Run `make generate` then `make sushi` to compile the implementation guide, or serve it with --live."
+                emptyMessage={
+                    <>
+                        This project publishes no Questionnaires, so there is nothing to capture
+                        against. Run <code className="font-mono">d2w fhir generate</code>, then{' '}
+                        <code className="font-mono">make sushi</code> to compile the implementation
+                        guide - or serve straight from the DHIS2 instance with{' '}
+                        <code className="font-mono">--live</code>.
+                    </>
+                }
             >
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {slice.shown.map((questionnaire) => (
@@ -354,9 +362,12 @@ function ServerIdentity({
             <PageState
                 loading={checking && capability === null}
                 error={
-                    reachability === 'unreachable'
-                        ? 'No answer from /metadata. Is `d2w fhir serve --ui` still running?'
-                        : null
+                    reachability === 'unreachable' ? (
+                        <>
+                            No answer from <code className="font-mono">/metadata</code>. Is{' '}
+                            <code className="font-mono">d2w fhir serve --ui</code> still running?
+                        </>
+                    ) : null
                 }
                 empty={capability === null}
                 emptyMessage="The server answered, but not with a CapabilityStatement."

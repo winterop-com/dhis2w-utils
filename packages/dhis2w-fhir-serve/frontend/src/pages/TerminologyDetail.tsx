@@ -198,8 +198,11 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
 
                 {concepts.length === 0 ? (
                     <p className="text-muted-foreground rounded-lg border px-4 py-8 text-sm">
-                        This CodeSystem carries no concepts. A `content` of `not-present` means the
-                        concepts live somewhere else; `complete` with none is an empty system.
+                        This CodeSystem carries no concepts. A{' '}
+                        <code className="font-mono">content</code> of{' '}
+                        <code className="font-mono">not-present</code> means the concepts live
+                        somewhere else; <code className="font-mono">complete</code> with none is an
+                        empty system.
                     </p>
                 ) : (
                     <>
@@ -289,7 +292,7 @@ function ConceptPropertyCell({ concept, code }: { concept: CodeSystemConcept; co
     if (link !== null) {
         return (
             <TableCell className={link.isCode ? 'font-mono text-xs' : 'text-xs'}>
-                <Link className="text-primary underline-offset-4 hover:underline" to={link.to}>
+                <Link className="interactive-link" to={link.to}>
                     {link.label}
                 </Link>
             </TableCell>
