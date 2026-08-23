@@ -18,8 +18,10 @@ option's DHIS2 code.
 `[ips.identity]` is the input and this map is the published output, in the manner
 `[generate.tracked_entity_types]` and `D2TET_CM` already establish: a consumer resolves a served
 `gender` back to the DHIS2 value behind it without holding this project's `fhir.toml`. The register
-itself reads the file rather than the map, because the nominations the map's source depends on are
-not published anywhere - phase 2's section mapping is where that closes.
+itself performs the file rather than the map, and so does the section map beside it
+(`dhis2w_fhir.resources.ips_sections`): a project may edit `fhir.toml` between two generate runs,
+and a server reading a stale artifact would serve a mapping its operator had already changed. What
+the map buys is that the claim is auditable, not that it is what happens.
 """
 
 from __future__ import annotations
@@ -84,7 +86,7 @@ def administrative_gender_map_id(config: GenerateConfig) -> str:
 def administrative_gender_map_file_prefix(config: GenerateConfig) -> str:
     """The file-name prefix this one map owns, which is what its family sweeps by.
 
-    `concept-maps/` holds three families now, so none of them owns the directory outright: each
+    `concept-maps/` holds four families, so none of them owns the directory outright: each
     sweeps the file names its own naming tokens produce and leaves the others alone.
     """
     return f"ConceptMap-{join_id_tokens(config.naming.prefix, _MAP_TOKEN)}"

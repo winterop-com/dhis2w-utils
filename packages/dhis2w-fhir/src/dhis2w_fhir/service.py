@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from collections import Counter
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime
@@ -108,6 +109,10 @@ from dhis2w_fhir.resources.examples.schemas import (
     ExampleSelection,
     SyntheticPlacement,
 )
+from dhis2w_fhir.resources.ips_sections import (
+    build_section_concept_map_artifacts,
+    section_map_file_prefix,
+)
 from dhis2w_fhir.resources.option_sets import (
     CONCEPT_MAP_DIRECTORY,
     TERMINOLOGY_DIRECTORY,
@@ -206,6 +211,7 @@ from dhis2w_fhir.writer import (
     FshArtifact,
     JsonArtifact,
     JsonBuild,
+    SyncReport,
     clean_generated_files,
     sync_artifacts,
     sync_json_artifacts,
@@ -1150,6 +1156,49 @@ async def init_project(directory: Path, options: InitOptions, *, force: bool = F
     return report
 
 
+#: What SUSHI compiles the FSH sources into, under `ig/`. SUSHI writes that tree and recreates it
+#: whole on every run; no other command in this toolchain writes a byte of it.
+_COMPILED_DIRECTORY = "fsh-generated"
+
+
+def _remove_stale_compile(project: FhirProject, *fsh_syncs: SyncReport) -> list[GenerateNote]:
+    """Remove the compiled guide when this target rewrote the FSH sources SUSHI compiled it from.
+
+    `ig/fsh-generated/` is SUSHI's output and nobody else's, so a run that rewrites a FSH source
+    leaves it holding resources compiled from sources that no longer exist. Everything that reads
+    the compiled tree - `d2w fhir check-artifacts`, `d2w fhir serve`, `d2w fhir forward`, `make
+    build` - would read that mixture as the project's current state, and a substitution-changing
+    regenerate makes it hundreds of files wide. Removing it leaves one of two honest states: a
+    compile of these very sources, or no compile at all, which is what every reader of that tree
+    already answers with `run d2w fhir generate, then make sushi`.
+
+    `ig/temp/` and `ig/output/` stay. `temp/` is the IG publisher's own scratch - no command reads
+    it between builds, and the scaffolded `make build` does not even ship it into the container -
+    and `output/` is a published site, which is a thing to replace deliberately rather than to
+    discard on a source edit.
+
+    A target whose FSH syncs wrote and deleted nothing leaves the compile where it is, so a
+    regenerate against unchanged metadata leaves a compiled project compiled. The returned note is
+    the run's own account of the removal, carried on the report of the target that removed it - in
+    a whole-run generate that is the first target to rewrite a source, since the targets after it
+    find the tree already gone.
+    """
+    if not any(sync.written or sync.deleted for sync in fsh_syncs):
+        return []
+    compiled = project.ig_directory / _COMPILED_DIRECTORY
+    if not compiled.is_dir():
+        return []
+    shutil.rmtree(compiled)
+    return [
+        generate_note(
+            GenerateNoteCategory.COMPILE_REMOVED,
+            f"removed ig/{_COMPILED_DIRECTORY}: it held SUSHI's compile of FSH sources this run rewrote, and "
+            "check-artifacts, serve, forward and `make build` all read that tree. Run `make sushi` in the "
+            "project to compile the sources this run wrote.",
+        )
+    ]
+
+
 async def generate_foundation(project: FhirProject, *, reporter: ProgressReporter | None = None) -> GenerateReport:
     """Generate the instance-independent `foundation/` artifacts: DHIS2 identifier aliases and D2Period."""
     return _emit_foundation(project, progress=_StepAnnouncer(reporter, GENERATE_FOUNDATION_STEPS))
@@ -1168,6 +1217,7 @@ def _emit_foundation(project: FhirProject, *, progress: _StepAnnouncer) -> Gener
         deleted_files=sync.deleted,
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
+        notes=_remove_stale_compile(project, sync),
     )
     progress.complete(_target_counts(report))
     return report
@@ -1270,7 +1320,9 @@ def _emit_option_sets(
         written_files=[*sync.written, *concept_map_sync.written],
         unchanged_count=len(sync.unchanged) + len(concept_map_sync.unchanged),
         option_set_count=len(option_sets),
-        notes=[*notes, *build.notes],
+        # The JSON this target writes is read straight off `ig/input/resources`, so only the
+        # superseded FSH it swept is a change to what SUSHI compiles.
+        notes=[*notes, *build.notes, *_remove_stale_compile(project, SyncReport(deleted=superseded))],
     )
     progress.complete(_target_counts(report))
     return report
@@ -1608,6 +1660,16 @@ def _emit_questionnaires(
             ),
             owned_prefix=administrative_gender_map_file_prefix(generate),
         ),
+        # The section map rides this target for the same reason the identity map does: what it maps
+        # out of is the DHIS2 namespaces this target's own vocabularies publish. A project mapping
+        # no section produces no file, and the sweep then deletes the one a project that used to map
+        # one left behind.
+        sync_json_artifacts(
+            project.resources_directory,
+            CONCEPT_MAP_DIRECTORY,
+            build_section_concept_map_artifacts(project.config.ips.sections, generate, canonical, ig_status=ig_status),
+            owned_prefix=section_map_file_prefix(generate),
+        ),
     ]
     report = GenerateReport(
         project_root=project.project_root,
@@ -1633,6 +1695,7 @@ def _emit_questionnaires(
             *assignment_build.notes,
             *attribute_combo_build.notes,
             *decomposition.notes,
+            *_remove_stale_compile(project, *syncs),
         ],
     )
     progress.complete(_target_counts(report))
@@ -1767,7 +1830,7 @@ async def _emit_examples(
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
         example_count=example_count,
-        notes=notes,
+        notes=[*notes, *_remove_stale_compile(project, sync)],
     )
     progress.complete(_target_counts(report))
     return report
@@ -2613,6 +2676,7 @@ def _emit_organisation_units(
     notes.extend(_registry_scale_notes(len(organisation_units)))
     sync = sync_artifacts(project.fsh_directory, "organization", artifacts)
     registry_sync = sync_json_artifacts(project.resources_directory, REGISTRY_DIRECTORY, registry)
+    notes.extend(_remove_stale_compile(project, sync))
     report = GenerateReport(
         project_root=project.project_root,
         target_base="ig/input",

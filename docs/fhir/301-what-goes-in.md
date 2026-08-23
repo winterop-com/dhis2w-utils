@@ -519,11 +519,11 @@ and a wrong name on a patient record is a worse answer than none. So a person
 served out of your register carries a name when a line here says which
 attribute it is, and not otherwise.
 
-**What it reaches today.** The register: the `Patient` a live run answers
+**What it reaches.** The register - the `Patient` a live run answers
 `GET /Patient/{uid}` with, and every match in a search
-([Serving it](301-serving.md#tracked_entities-resources)). It reaches nothing
-else yet. The design behind it, including what it is a first step toward, is
-[the IPS document](design/ips.md).
+([Serving it](301-serving.md#tracked_entities-resources)) - and the patient
+summary that same person is served at, where the nominated name is the name on
+the document. [The IPS document](design/ips.md) is the design behind both.
 
 **Example.**
 
@@ -627,6 +627,118 @@ pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProject
 ips.identity
   Value error, the DHIS2 value 'M' is mapped to 'man', which is not one of R4's
   administrative-gender codes: name one of male, female, other, unknown
+```
+
+## The `[ips.sections]` table { #ips-sections }
+
+`[ips.identity]` says what a piece of your metadata means about *who* somebody
+is. This says what a piece of it means about *what happened to them*: which of
+your recorded values belong in which section of a patient summary.
+
+**Why anybody has to say.** A DHIS2 data element carries a name, a value type,
+an optional option set, an optional code, and membership in groups. It carries
+no statement that its values are allergies, or problems, or immunisations.
+There is no field to read and no convention to mine. So the clinical content of
+a summary is stated here, or it is absent - and content this project cannot
+place never appears in the document. An unmapped stage does not become a
+free-text observation and an unmapped number does not get swept into a results
+section on the grounds that it was numeric.
+
+**One section is mapped, and it is `immunizations`.** It is the first and
+easiest: DHIS2 immunisation forms record a dose per vaccine, and the FHIR
+profile for an immunisation binds its vaccine code *preferably* rather than
+requiredly, so a dose recorded against a DHIS2 data element can be published
+with the DHIS2 coding without breaking anything. Naming any other section in
+this table is refused, so a line written for a section nobody has built is a
+message rather than a table that quietly does nothing.
+
+**Example.**
+
+```toml
+[ips.sections.immunizations]
+program_stages = [
+    "A03MvHHogjR",     # Child Programme - Birth
+    "ZzYYXq4fJie",     # Child Programme - Baby Postnatal
+]
+dose_data_elements = [
+    "bx6fsa0t90x",     # MCH BCG dose
+    "ebaJjqltK5N",     # MCH OPV dose
+    "FqlgKAG8HOu",     # MCH Measles dose
+]
+```
+
+**It is published, not private.** `d2w fhir generate` writes these rows out as
+a concept map in the guide - `D2Section_CM` - so somebody reading your published
+guide can check which recorded values a summary carries without holding your
+`fhir.toml`
+([Terminology and ConceptMaps](401-terminology-and-conceptmaps.md)).
+
+**Default:** absent - **If you leave it out:** the summary is still served, and
+every clinical section of it states that it is empty. That is a valid document
+and the document says so; [Serving it](301-serving.md#ips-summary) covers what
+it says.
+
+### `program_stages` { #ips-program_stages }
+
+**In plain words.** The program stages whose events record doses. An event of
+any other stage contributes nothing, whatever it holds.
+
+**If you get it wrong:** a value that is not a UID is refused when the file
+loads, naming the value. A stage your guide publishes no form for contributes
+no dose and is named in the summary's own immunisations section, so a guide
+narrower than its mapping never reads as a person who was never vaccinated.
+
+### `dose_data_elements` { #ips-dose_data_elements }
+
+**In plain words.** The data elements inside those stages that each record a
+dose of one vaccine.
+
+**The data element is the vaccine and the value is the dose.** That is the
+shape a DHIS2 immunisation form has: `MCH BCG dose`, `MCH Measles dose`,
+`MCH Penta dose`, one element per vaccine, with the value saying either that the
+dose was given or which dose of the series it was. So the summary codes each
+dose by the data element it was recorded against, and reads the value as the
+dose number where the value names one.
+
+**A value that records no dose produces nothing.** A `false` on a yes-or-no dose
+element says the vaccine was not given, and DHIS2 states no reason why - FHIR
+requires a reason on a dose that was not given, so no entry is written rather
+than a reason invented.
+
+**If you get it wrong:** a value that is not a UID is refused when the file
+loads. Naming data elements with no stage beside them, or a stage with no data
+elements beside it, is refused too - either one alone maps no dose at all:
+
+```text
+pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
+ips.sections.immunizations
+  Value error, [ips.sections.immunizations] program_stages names a stage and
+  dose_data_elements names no data element: state which of that stage's data
+  elements each record a dose
+```
+
+## The `[ips] enabled` key { #ips-enabled }
+
+**In plain words.** Whether this project serves a patient summary at all.
+
+**Default:** `false` - **If you leave it out:** `$summary` is refused, by name,
+on every resource, and the register and the record answer exactly as they always
+did. A patient summary is a clinical document about a person, and publishing one
+is a decision a deployment makes rather than a default it inherits.
+
+```toml
+[ips]
+enabled = true
+```
+
+**If you get it wrong:** a request to a server that has not been told to publish
+one is answered with a refusal naming this key:
+
+```text
+this server assembles no `Patient` summary: this project sets `[ips] enabled` to
+false, so it publishes who its subjects are and what was recorded about them and
+no summary over either; set it true in fhir.toml and serve again to answer
+`$summary`
 ```
 
 Next: [How things are generated](301-generation.md) - identifiers, codes,

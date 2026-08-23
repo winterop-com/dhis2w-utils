@@ -1,6 +1,6 @@
 # Mixed facility example guide
 
-> One of eight in the [example IG catalog](../README.md). Verified by `make verify-igs`.
+> One of nine in the [example IG catalog](../README.md). Verified by `make verify-igs`.
 
 **The story: one of every capture kind at once.** This is the flagship - the
 guide a real facility would publish if it reported everything it does through

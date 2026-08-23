@@ -391,3 +391,122 @@ def test_with_distinct_notes_leaves_the_per_target_reports_alone() -> None:
     assert len(report.questionnaires.notes) == 1
     assert len(report.examples.notes) == 2
     assert len(report.pages.notes) == 1
+
+
+def _write_compile(root: Path) -> Path:
+    """Put a compiled guide where SUSHI writes one, holding one resource this run did not compile."""
+    compiled = root / "ig" / "fsh-generated" / "resources"
+    compiled.mkdir(parents=True)
+    (compiled / "CodeSystem-d2-os-Age.json").write_text('{"resourceType": "CodeSystem"}', encoding="utf-8")
+    return compiled.parent
+
+
+def _compile_notes(*reports: GenerateReport) -> list[str]:
+    """Every note about the compiled guide these target reports carry, in the order the targets ran."""
+    return [
+        note.message
+        for report in reports
+        for note in report.notes
+        if note.category is GenerateNoteCategory.COMPILE_REMOVED
+    ]
+
+
+def _full_run_compile_notes(report: GenerateFullReport) -> list[str]:
+    """The same reading over a whole run: every target of it, in the order the fields declare them."""
+    return _compile_notes(*(getattr(report, target) for target in type(report).model_fields))
+
+
+@respx.mock
+async def test_a_generate_that_writes_fsh_removes_the_compile_it_no_longer_matches(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A first run writes every FSH source, so the compile of the sources before it goes with it."""
+    _mock_instance(mock_system_info, mock_attributes)
+    await _scaffold_project(tmp_path)
+    compiled = _write_compile(tmp_path)
+
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
+
+    assert not compiled.exists()
+    assert _full_run_compile_notes(report) == [
+        "removed ig/fsh-generated: it held SUSHI's compile of FSH sources this run rewrote, and "
+        "check-artifacts, serve, forward and `make build` all read that tree. Run `make sushi` in "
+        "the project to compile the sources this run wrote."
+    ]
+
+
+@respx.mock
+async def test_an_unchanged_regenerate_leaves_the_compile_alone(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The second run over the same instance writes no FSH, so the compile is still the one these sources make."""
+    _mock_instance(mock_system_info, mock_attributes)
+    await _scaffold_project(tmp_path)
+    await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
+    compiled = _write_compile(tmp_path)
+
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
+
+    assert (compiled / "resources" / "CodeSystem-d2-os-Age.json").is_file()
+    assert _full_run_compile_notes(report) == []
+
+
+@respx.mock
+async def test_the_removal_is_reported_once_however_many_targets_rewrote_fsh(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Four targets of a first run write FSH, and the compile is removed and reported by the first of them."""
+    _mock_instance(mock_system_info, mock_attributes)
+    await _scaffold_project(tmp_path)
+    _write_compile(tmp_path)
+
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
+
+    assert len(_full_run_compile_notes(report)) == 1
+    assert [note.category for note in report.foundation.notes] == [GenerateNoteCategory.COMPILE_REMOVED]
+
+
+@respx.mock
+async def test_a_solo_target_whose_own_sources_changed_removes_the_compile(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """One target is a whole regenerate as far as the compile is concerned: its sources are in it too."""
+    _mock_instance(mock_system_info, mock_attributes)
+    await _scaffold_project(tmp_path)
+    compiled = _write_compile(tmp_path)
+
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert not compiled.exists()
+    assert len(_compile_notes(report)) == 1
+
+
+@respx.mock
+async def test_a_target_that_writes_only_predefined_json_leaves_the_compile_alone(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The option-set target writes `ig/input/resources`, which is read off disk rather than compiled."""
+    _mock_instance(mock_system_info, mock_attributes)
+    await _scaffold_project(tmp_path)
+    compiled = _write_compile(tmp_path)
+
+    report = await service.generate_option_sets(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.written_files
+    assert (compiled / "resources" / "CodeSystem-d2-os-Age.json").is_file()
+    assert _compile_notes(report) == []

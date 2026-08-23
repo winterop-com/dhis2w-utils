@@ -86,7 +86,7 @@ Reading one person's record back out of DHIS2 and assembling it into a FHIR docu
 
 | File | Shows |
 | --- | --- |
-| [`ips_document.py`](ips_document.py) | An International Patient Summary prototype: a nominated name, one mapped section of Observations, and the three required sections stating absence the way IPS v2.0.1 states it |
+| [`ips_document.py`](ips_document.py) | An International Patient Summary assembled by hand: a nominated name, one mapped section of Observations, and the three required sections stating absence the way IPS v2.0.1 states it. The served surface is `$summary` - [`../cli/summary.sh`](../cli/summary.sh) walks it |
 
 ## Drive the toolchain
 

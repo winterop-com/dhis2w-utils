@@ -165,6 +165,12 @@ url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 # name = "Satellite"
 # url = "https://tiles.example.org/satellite/{z}/{x}/{y}.jpg?api_key=YOUR_KEY"
 
+[ips]
+# Whether this project serves a patient summary at all, at `GET /Patient/{uid}/$summary`.
+# A clinical document about a person is a posture a deployment states rather than one it
+# inherits, so it is off until a line here turns it on. -> 301-what-goes-in#ips-enabled
+enabled = false
+
 [ips.identity]
 # Which tracked entity attribute holds a person's name, birth date, and sex on this instance.
 # DHIS2 has no field that means any of the three, so a served person carries a name only when
@@ -181,6 +187,16 @@ url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 # reads the translation without holding this file. -> 301-what-goes-in#ips-administrative_gender
 # "Male" = "male"
 # "Female" = "female"
+
+[ips.sections.immunizations]
+# Which recorded values a summary's Immunizations section carries. DHIS2 marks no data element
+# as an immunisation, so the section is stated here or it is empty. A DHIS2 immunisation form
+# records one data element per vaccine with the value saying which dose it was, so the data
+# element is the vaccine and the value is the dose. The two lists arrive together or not at all,
+# and `d2w fhir generate` publishes them as the D2Section_CM concept map, so a consumer reads
+# which values a summary carries without holding this file. -> 301-what-goes-in#ips-sections
+# program_stages = ["A03MvHHogjR", "ZzYYXq4fJie"]      # -> 301-what-goes-in#ips-program_stages
+# dose_data_elements = ["bx6fsa0t90x", "FqlgKAG8HOu"]  # -> 301-what-goes-in#ips-dose_data_elements
 
 [forward]
 # How `d2w fhir forward` drains this project; a flag on the command line wins over these. -> 301-serving#forward

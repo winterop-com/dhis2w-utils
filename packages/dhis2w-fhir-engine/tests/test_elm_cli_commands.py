@@ -14,7 +14,9 @@ runner = CliRunner()
 DATA_DIRECTORY = Path(__file__).parent / "data" / "cql"
 HELLO_WORLD = DATA_DIRECTORY / "hello_world.cql"
 
-UNSERIALIZABLE_LIBRARY = "library Conditional version '1.0'\n\ndefine Verdict: case when true then 1 else 2 end\n"
+UNSERIALIZABLE_LIBRARY = (
+    "library Untyped version '1.0'\n\nusing FHIR version '4.0.1'\n\ndefine Verdict: [Observation: 'a-literal-code']\n"
+)
 
 
 def integer_literal(value: int) -> dict[str, Any]:
@@ -201,7 +203,7 @@ class TestConvertFailures:
     """`elm convert` reports a CQL source it cannot serialise."""
 
     def test_reports_the_failure(self, tmp_path: Path) -> None:
-        file = tmp_path / "conditional.cql"
+        file = tmp_path / "untyped.cql"
         file.write_text(UNSERIALIZABLE_LIBRARY)
 
         result = runner.invoke(app, ["convert", str(file)])
@@ -210,7 +212,7 @@ class TestConvertFailures:
         assert "Error converting to ELM" in result.output
 
     def test_quiet_sends_the_failure_to_standard_error(self, tmp_path: Path) -> None:
-        file = tmp_path / "conditional.cql"
+        file = tmp_path / "untyped.cql"
         file.write_text(UNSERIALIZABLE_LIBRARY)
 
         result = runner.invoke(app, ["convert", str(file), "--quiet"])

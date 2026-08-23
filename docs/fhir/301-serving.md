@@ -1,4 +1,4 @@
-# Serving it: the `[serve]` and `[forward]` sections
+# Serving it: the `[serve]`, `[ips]`, and `[forward]` sections
 
 **Who this is for:** the person editing `fhir.toml`.
 
@@ -19,6 +19,7 @@
 - decide whether the server answers questions about people at all, who can be
   found, and how many of them one page holds
 - decide what answers a search for one of them
+- decide whether the server assembles a patient summary about one of them
 - state the posture every `d2w fhir forward` in the project runs in
 
 `d2w fhir serve` starts a small
@@ -664,7 +665,7 @@ rather than guessed at.
     used, the more work the instance does. The seven settings below are how a
     project decides how much of that it wants.
 
-A live run - `d2w fhir serve --live` - answers four
+A live run - `d2w fhir serve --live` - answers five
 questions about the instance's tracked entities that no other run can answer:
 
 - *"Who holds this identifier?"* - the search, from a card number, a register
@@ -677,8 +678,11 @@ questions about the instance's tracked entities that no other run can answer:
 - *"What has happened to this one?"* - the record: every event of that entity's
   enrollments, at `/tracked-entities/{uid}/events`, each one served as the
   response its programme stage's own published form describes.
+- *"What should a clinician be handed about this person?"* - the patient
+  summary, at `/Patient/{uid}/$summary`, where a project has said which
+  recorded values belong in it ([the patient summary](#ips-summary) below).
 
-A server reading a compiled guide answers none of the four and says so. It
+A server reading a compiled guide answers none of the five and says so. It
 holds no connection to a DHIS2 instance, so there is nothing to answer about -
 that is a property of the mode, not something this table turns on.
 
@@ -1250,6 +1254,58 @@ last five minutes it already read, which costs one upsert per row it finds.
 **If you get it wrong:** a negative value is refused by name, because a negative
 window would poll from *after* the watermark, which is how a sync loses rows
 without saying anything.
+
+### The patient summary: `$summary` { #ips-summary }
+
+`[serve.tracked_entities]` says who this server may talk about and what it may
+say happened to them. This is the one document it assembles out of both: an
+[International Patient Summary](https://hl7.org/fhir/uv/ips/STU2/), served where
+that guide says it lives.
+
+```
+GET /Patient/{uid}/$summary
+GET /Patient/$summary?identifier={system}|{value}
+```
+
+Both answer one FHIR document: a bundle whose first entry indexes the rest, with
+the person as its subject and one section per part of a patient summary. The
+second form resolves the person through the same identifier search
+`GET /Patient?identifier=` answers, and refuses a value several people hold -
+a summary is about one person, and picking the first match would be this server
+choosing which.
+
+**It is a projection of two answers this server already gives.** The subject is
+the very record `GET /Patient/{uid}` hands back, with the nominated name and sex
+on it; the clinical entries come out of the same reading of the events
+`/tracked-entities/{uid}/events` serves. Nothing is read a third way, and every
+read stays scoped to the one person it is about.
+
+**Two things have to be said before it carries anything.**
+[`[ips] enabled`](301-what-goes-in.md#ips-enabled) publishes the document at
+all, and it is off by default. [`[ips.sections]`](301-what-goes-in.md#ips-sections)
+says which recorded values belong in which section, and without it every
+clinical section is empty.
+
+**A summary with nothing mapped is still served, and it says so.** The three
+sections the IPS requires - problems, allergies, medications - each state that
+they are empty rather than carrying content nobody nominated, which is what the
+IPS itself prescribes for a section a system holds nothing for. The document
+then carries one sentence naming those sections and stating plainly that it is a
+valid summary which does not claim the obligations the IPS puts on a system that
+creates one. Those are two separate claims and this server makes them
+separately. The same sentence rides the response as the
+`X-DHIS2W-Summary-Caveat` header, for whoever reads responses rather than
+documents.
+
+**It is answered about people and refused about everything else.** The register
+serves nine kinds of resource, and a patient summary of a cold-chain fridge is
+not a narrower patient summary - it is a document nobody has defined. So the
+operation is answered on the resources FHIR gives a person and refused by name
+on the rest, with the register and the record still served for them as usual.
+
+**A client that speaks IPS finds it without being told.** `/metadata` declares
+the operation on each register resource that answers it, under the IPS's own
+published definition rather than one this project invented.
 
 ## Forwarding it: the `[forward]` section { #forward }
 

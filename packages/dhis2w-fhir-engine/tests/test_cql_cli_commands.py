@@ -36,7 +36,9 @@ RICH_LIBRARY = (
 
 CONTEXT_ONLY_LIBRARY = "library Bare version '1.0'\n\ncontext Patient\n"
 
-UNSERIALIZABLE_LIBRARY = "library Conditional version '1.0'\n\ndefine Verdict: case when true then 1 else 2 end\n"
+UNSERIALIZABLE_LIBRARY = (
+    "library Untyped version '1.0'\n\nusing FHIR version '4.0.1'\n\ndefine Verdict: [Observation: 'a-literal-code']\n"
+)
 
 STRATIFIED_MEASURE = (
     "library Stratified version '1.0'\n\n"
@@ -282,7 +284,7 @@ class TestExportBranches:
         assert "identifier" in result.output
 
     def test_reports_a_source_that_cannot_be_exported(self, tmp_path: Path) -> None:
-        file = write_source(tmp_path, "conditional.cql", UNSERIALIZABLE_LIBRARY)
+        file = write_source(tmp_path, "untyped.cql", UNSERIALIZABLE_LIBRARY)
 
         result = runner.invoke(app, ["export", str(file)])
 
@@ -290,7 +292,7 @@ class TestExportBranches:
         assert "Error exporting to ELM" in result.output
 
     def test_quiet_sends_the_export_failure_to_standard_error(self, tmp_path: Path) -> None:
-        file = write_source(tmp_path, "conditional.cql", UNSERIALIZABLE_LIBRARY)
+        file = write_source(tmp_path, "untyped.cql", UNSERIALIZABLE_LIBRARY)
 
         result = runner.invoke(app, ["export", str(file), "--quiet"])
 

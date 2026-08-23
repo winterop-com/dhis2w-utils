@@ -122,8 +122,8 @@ stem, so the triple stays in step. See
 **A dedicated pair directory, not a shared one.** `categories/` is separate from
 `terminology/` because each JSON sync deletes every `*.json` in its target that
 the run did not produce. Sharing one directory would have the two targets deleting
-each other's documents. `concept-maps/` is the deliberate exception: both families
-publish there and each sweeps only the files its own id stem names, so the published
+each other's documents. `concept-maps/` is the deliberate exception: every map family
+publishes there and each sweeps only the files its own id stem names, so the published
 guide needs one `path-resource` glob for the whole terminology-mapping story.
 
 **The scaffolded `sushi-config.yaml` declares the glob.** Its `path-resource`
@@ -409,7 +409,8 @@ then calls cannot disagree - see
 
 ### The sex values a person is served under { #the-sex-values-a-person-is-served-under }
 
-`D2Sex_CM` is the one map in this guide whose target is not a DHIS2 identifier.
+`D2Sex_CM` is one of the two maps in this guide whose target is not a DHIS2
+identifier - [`D2Section_CM`](#the-sections-a-recorded-value-feeds) is the other.
 `Patient.gender` is bound to R4's own `administrative-gender` code system - `male`,
 `female`, `other`, `unknown` - and the binding is **required**, so a DHIS2 option
 code reaches that element through a translation or it does not reach it at all.
@@ -461,6 +462,77 @@ themselves are published.
 The rows are sorted by the DHIS2 value, so regenerating an unchanged `fhir.toml`
 writes the same bytes. Nominate no `sex` and no file is written at all - an R4
 group needs at least one element, and a map with no group states nothing.
+
+### The sections a recorded value feeds { #the-sections-a-recorded-value-feeds }
+
+`D2Section_CM` is the other map that runs outward. An International Patient
+Summary is a document of LOINC-coded sections, and DHIS2 marks no data element as
+an immunisation, a problem, or an allergy - so which of an instance's recorded
+values belong in which section is that instance's own statement, written in
+[`[ips.sections]`](301-what-goes-in.md#ips-sections) and published here for a
+consumer to audit.
+
+```json
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-section-cm",
+  "url": "http://example.org/fhir/ConceptMap/d2-section-cm",
+  "name": "D2Section_CM",
+  "title": "DHIS2 program stages and data elements as International Patient Summary sections",
+  "status": "draft",
+  "experimental": true,
+  "group": [
+    {
+      "source": "http://dhis2.org/fhir/id/program-stage",
+      "target": "http://loinc.org",
+      "element": [
+        {
+          "code": "A03MvHHogjR",
+          "target": [
+            { "code": "11369-6", "display": "History of Immunization Narrative", "equivalence": "equal" }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://dhis2.org/fhir/id/data-element",
+      "target": "http://loinc.org",
+      "element": [
+        {
+          "code": "bx6fsa0t90x",
+          "target": [
+            { "code": "11369-6", "display": "History of Immunization Narrative", "equivalence": "equal" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**The sources are the DHIS2 identifier namespaces, not the generated concept
+codes.** A program stage rides `<base>/id/program-stage` and a data element rides
+`<base>/id/data-element` - the very systems the guide publishes those objects
+under, and the very ones `[ips.sections]` states its nominations in. A generated
+concept code moves with [`[generate.naming]` `source`](301-generation.md#naming)
+and a UID namespace never does, so a map keyed on the codes would go stale the
+first time a project changed its naming.
+
+**The target is LOINC**, because an IPS section is a LOINC-coded section of a
+document and nothing else. `11369-6` is the Immunizations section, which is the
+one section a mapping reaches today; another section is another row in these same
+two groups rather than a second map.
+
+**Where the server reads it from.** The file, exactly as with the sex values. A
+`d2w fhir serve --live` run assembling a summary reads `fhir.toml`, because a
+project may edit the file between two generate runs and a server reading a stale
+artifact would serve a mapping its operator had already changed. The map is what
+makes the claim auditable, not what makes it happen - see
+[`$summary`](401-consume-the-fhir-api.md#summary-one-persons-international-patient-summary).
+
+Rows are sorted by the UID, so regenerating an unchanged `fhir.toml` writes the
+same bytes, and a namespace the project nominates nothing under gets no group
+rather than an empty one. Map no section and no file is written at all.
 
 ## Translations: designations on a concept, extensions on a title
 
@@ -550,13 +622,14 @@ a terminology server can serve that answer over
 [`$translate`](401-consume-the-fhir-api.md#translate-generated-codes-back-to-dhis2-identifiers) -
 a running [`d2w fhir serve`](201-serve.md) does exactly that.
 
-Four families publish maps into one directory:
+Five families publish maps into one directory:
 
 ```
 ig/input/resources/concept-maps/ConceptMap-d2-os-<stem>-cm.json    option sets
 ig/input/resources/concept-maps/ConceptMap-d2-cat-<stem>-cm.json   categories
 ig/input/resources/concept-maps/ConceptMap-d2-aoc-<stem>-cm.json   attribute option combos
 ig/input/resources/concept-maps/ConceptMap-d2-sex-cm.json          sex values
+ig/input/resources/concept-maps/ConceptMap-d2-section-cm.json      patient summary sections
 ```
 
 | Family | Written by | Question it answers | Target namespaces |
@@ -565,11 +638,13 @@ ig/input/resources/concept-maps/ConceptMap-d2-sex-cm.json          sex values
 | Categories | `categories` | Which DHIS2 **category option** does this disaggregation code name? | `<base>/id/category-option`, `<base>/id/category-option-code` |
 | Attribute option combos | `questionnaires` | Which DHIS2 **category option combo** does this response's attribute combination name? | `<base>/id/category-option-combo`, `<base>/id/category-option-combo-code` |
 | Sex values | `questionnaires` | What does this instance's sex value mean, in FHIR's own words? | `http://hl7.org/fhir/administrative-gender` |
+| Patient summary sections | `questionnaires` | Which section of a patient summary do this instance's recorded values feed? | `http://loinc.org` |
 
-The last of those is the only one that runs outward rather than back: every other
-map here takes a published code onto a DHIS2 identifier, and that one takes a DHIS2
-value onto a vocabulary HL7 owns. See
-[the sex values a person is served under](#the-sex-values-a-person-is-served-under).
+The last two run outward rather than back: every other map here takes a published
+code onto a DHIS2 identifier, and those two take a DHIS2 value onto a vocabulary
+somebody else owns. See
+[the sex values a person is served under](#the-sex-values-a-person-is-served-under)
+and [the sections a recorded value feeds](#the-sections-a-recorded-value-feeds).
 
 `D2TET_CM` is a map too, and the one that runs the other way - from a DHIS2 concept
 to a FHIR resource type rather than back to a DHIS2 identifier. It is authored in
@@ -717,9 +792,11 @@ No family owns the directory outright. A JSON sync normally deletes every `*.jso
 in its target the run did not produce, which would have `d2w fhir generate option-sets`
 sweeping away the category maps; instead each family sweeps only the file-name prefix
 its own naming tokens produce (`ConceptMap-d2-os-`, `ConceptMap-d2-cat-`,
-`ConceptMap-d2-aoc-`, `ConceptMap-d2-sex`). Each still converges: drop a category from
-the selection and its map goes with its pair, and drop `sex` from
-[`[ips.identity]`](301-what-goes-in.md#ips-sex) and the sex map goes with it.
+`ConceptMap-d2-aoc-`, `ConceptMap-d2-sex`, `ConceptMap-d2-section`). Each still
+converges: drop a category from the selection and its map goes with its pair, drop
+`sex` from [`[ips.identity]`](301-what-goes-in.md#ips-sex) and the sex map goes with
+it, and drop [`[ips.sections]`](301-what-goes-in.md#ips-sections) and the section
+map goes with that.
 
 ## See also
 

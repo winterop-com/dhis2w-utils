@@ -1,6 +1,6 @@
 # Disaggregated aggregate example guide
 
-> One of eight in the [example IG catalog](../README.md). Verified by `make verify-igs`.
+> One of nine in the [example IG catalog](../README.md). Verified by `make verify-igs`.
 
 **The story: what a data set's category axes become in FHIR.** This is
 [`aggregate-minimal`](../aggregate-minimal/)'s selection with the categories

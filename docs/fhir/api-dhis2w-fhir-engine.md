@@ -176,7 +176,9 @@ the default.
 ### FHIR R4: resource models
 
 The typed R4 resources: `Patient`, `Condition`, `AllergyIntolerance`, `Observation`, `Composition`
-and the document vocabulary; `Questionnaire`, `QuestionnaireResponse` and the capture vocabulary;
+and the document vocabulary; `Immunization` and `ImmunizationProtocolApplied`, which a patient
+summary's one mapped section is built from; `Questionnaire`, `QuestionnaireResponse` and the capture
+vocabulary;
 `Bundle`, `CapabilityStatement`, `Parameters`, `OperationOutcome`; and the elements they are built
 from - `Extension`, `Reference`, `Coding`, `CodeableConcept`, `Identifier`, `Meta`, `Narrative`.
 

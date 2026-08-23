@@ -90,7 +90,7 @@ semantics and both operations, is
 | Mode | What the store holds | What it also answers | What it needs |
 | --- | --- | --- | --- |
 | default | `ig/fsh-generated/resources` (what SUSHI compiled) merged with `ig/input/resources/` (the registry, terminology, concept-map, and category JSON the generate targets wrote, which SUSHI never re-emits) | nothing beyond the store | a compiled IG on disk; no DHIS2 connection at all |
-| `--live` | the same read set, built straight off a DHIS2 instance at startup | the register - one tracked entity by identifier, the listing of them, and one entity's enrollments - read from the instance per request, and gated by `[serve.tracked_entities]` | a reachable instance and a resolvable profile; no compile step |
+| `--live` | the same read set, built straight off a DHIS2 instance at startup | the register - one tracked entity by identifier, the listing of them, one entity's enrollments, and one person's patient summary - read from the instance per request, and gated by `[serve.tracked_entities]` and `[ips]` | a reachable instance and a resolvable profile; no compile step |
 
 A live run has one more posture available to it, and it is opt-in: a **synced
 copy** of the register, filled by `d2w fhir sync` and searched instead of the
@@ -122,13 +122,21 @@ and all four shaped by
 [`[serve.tracked_entities]`](301-serving.md#tracked_entities), which is how a project offers
 less than all of them.
 
+A fifth read sits on top of those two: `GET /Patient/{uid}/$summary` assembles
+one person's [International Patient Summary](https://hl7.org/fhir/uv/ips/STU2/)
+out of the register's own answer about them and the events it already serves.
+It has a dial of its own, [`[ips] enabled`](301-what-goes-in.md#ips-enabled),
+and it is off until a project turns it on -
+[the patient summary](301-serving.md#ips-summary) is what it answers and what
+it says about itself.
+
 `Patient` is the resource a tracked entity type is published as by default,
 not a fixed fact: the served register answers under whichever resource this
 project's published map states each type is, so an instance whose types are
 herds or specimen batches is read at that type's own resource rather than at
 `Patient` ([what goes in](301-what-goes-in.md#tracked_entity_types)).
 
-A compiled run holds no client, so all four answer a `not-supported`
+A compiled run holds no client, so all five answer a `not-supported`
 OperationOutcome and `/metadata` declares no register resource at all. What `--live` serves is
 byte-identical to what the compiled store would have served for the same
 metadata, because both come out of the same JSON builders - the CodeSystem and
@@ -371,6 +379,7 @@ the instance, exactly as it arrived:
 | `GET /Patient` (the register listing, and its `_count=0` total) | The caller |
 | `GET /tracked-entities/{uid}/enrollments` | The caller |
 | `GET /tracked-entities/{uid}/events` (the record, and one event of it) | The caller |
+| `GET /Patient/{uid}/$summary` and `GET /Patient/$summary?identifier=` | The caller |
 | `POST /evaluate` with a `registered` context | The caller |
 | The store built at startup | The facade's profile |
 | The instance address `/uiconfig` hands the screens | The facade's profile |

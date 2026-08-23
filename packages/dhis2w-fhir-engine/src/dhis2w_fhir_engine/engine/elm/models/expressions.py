@@ -2,6 +2,13 @@
 
 This module defines Pydantic models for all ELM expression types.
 The models follow the ELM 1.5 specification.
+
+Some ELM wire names are Python keywords (`else`, `return`). Those fields take a trailing-underscore
+Python name and reach the wire through `validation_alias=AliasChoices(<wire>, <field>)` plus
+`serialization_alias=<wire>` rather than through a plain `alias`. A plain `alias` is what PEP 681
+hands the type checkers as the constructor parameter name, so mypy and pyright then reject the field
+name even though `populate_by_name=True` accepts it at runtime; the alias pair leaves the field name
+as the parameter and still reads and writes the wire spelling.
 """
 
 # Every model here belongs to one pydantic tagged union keyed on the `type` discriminator: the base
@@ -14,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from dhis2w_fhir_engine.engine.elm.models.types import ELMTypeSpecifier
 
@@ -376,8 +383,9 @@ class ELMIf(ELMExpression):
     type: Literal["If"] = "If"
     condition: ELMExpression
     then: ELMExpression
-    # 'else' is a Python keyword, use alias
-    else_: ELMExpression | None = Field(default=None, alias="else")
+    else_: ELMExpression | None = Field(
+        default=None, validation_alias=AliasChoices("else", "else_"), serialization_alias="else"
+    )
 
 
 class ELMCaseItem(BaseModel):
@@ -395,7 +403,9 @@ class ELMCase(ELMExpression):
     type: Literal["Case"] = "Case"
     comparand: ELMExpression | None = None
     caseItem: list[ELMCaseItem] = Field(default_factory=list)
-    else_: ELMExpression | None = Field(default=None, alias="else")
+    else_: ELMExpression | None = Field(
+        default=None, validation_alias=AliasChoices("else", "else_"), serialization_alias="else"
+    )
 
 
 class ELMCoalesce(ELMNaryExpression):
@@ -857,7 +867,9 @@ class ELMQuery(ELMExpression):
     let: list[ELMLetClause] | None = None
     relationship: list[ELMWith | ELMWithout] | None = None
     where: ELMExpression | None = None
-    return_: ELMReturnClause | None = Field(default=None, alias="return")
+    return_: ELMReturnClause | None = Field(
+        default=None, validation_alias=AliasChoices("return", "return_"), serialization_alias="return"
+    )
     aggregate: ELMAggregateClause | None = None
     sort: ELMSortClause | None = None
 

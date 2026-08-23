@@ -1,10 +1,17 @@
-"""ELM library structure models."""
+"""ELM library structure models.
+
+Where an ELM wire name is a Python keyword or shadows a builtin (`def`, `t` for a node's type), the
+field keeps a Python name and reaches the wire through `validation_alias=AliasChoices(<wire>,
+<field>)` plus `serialization_alias=<wire>`. A plain `alias` is what PEP 681 hands the type checkers
+as the constructor parameter name, so mypy and pyright would then reject the field name even though
+`populate_by_name=True` accepts it at runtime.
+"""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from dhis2w_fhir_engine.engine.elm.models.types import ELMTypeSpecifier
 
@@ -180,8 +187,9 @@ class ELMStatements(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    # Alias 'def' to 'definitions' since 'def' is a Python keyword
-    definitions: list[ELMDefinition | ELMFunctionDef] = Field(default_factory=list, alias="def")
+    definitions: list[ELMDefinition | ELMFunctionDef] = Field(
+        default_factory=list, validation_alias=AliasChoices("def", "definitions"), serialization_alias="def"
+    )
 
 
 class ELMAnnotation(BaseModel):
@@ -189,7 +197,7 @@ class ELMAnnotation(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    type: str | None = Field(default=None, alias="t")
+    type: str | None = Field(default=None, validation_alias=AliasChoices("t", "type"), serialization_alias="t")
     s: Any | None = None  # Source info
 
 

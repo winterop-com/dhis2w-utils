@@ -25,7 +25,7 @@ from dhis2w_core.cli_errors import CliUserError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from dhis2w_fhir.i18n import normalize_locale
-from dhis2w_fhir.ips import IdentityNominations
+from dhis2w_fhir.ips import IdentityNominations, SectionMappings
 from dhis2w_fhir.names import NamingSource, is_dhis2_uid, strip_trailing_slash
 from dhis2w_fhir.r4 import SUBJECT_RESOURCE_TYPES
 from dhis2w_fhir.resources.categories.schemas import CategorySelection
@@ -844,16 +844,29 @@ class IpsConfig(BaseModel):
     sex, and maps that sex attribute's values onto R4's `administrative-gender` codes. DHIS2 holds no
     field that means any of those, so the nomination is the instance's own statement or there is
     nothing to publish - `docs/fhir/design/ips.md` section 4 is the argument, and section 9's phase 1
-    is what the nomination reaches today: the register's own `Patient`, before any summary document
-    exists.
+    is what the nomination reaches: the register's own `Patient`.
 
-    The table is always present as a table of defaults, for the reason `[serve.jwt]` is: a project
+    `[ips.sections]` nominates which recorded values belong in which section of a patient summary,
+    and `[ips.sections.immunizations]` is the one section phase 2 maps. Section 5 is the argument:
+    DHIS2 marks no data element as an immunisation, so the section content of a summary is stated or
+    it is absent.
+
+    `enabled` is the dial the whole summary surface hangs off, and it is false by default. A patient
+    summary is a clinical document about a person, and publishing one is a decision a deployment
+    makes rather than a default it inherits: `d2w fhir serve` answers `$summary` on a register whose
+    subjects are people only where this key says so, and refuses it by name where it does not
+    (R7 in section 8, "Gated and additive"). The register, the record, and everything else this
+    facade serves are untouched either way - a summary is a new read over reads that already exist.
+
+    The tables are always present as tables of defaults, for the reason `[serve.jwt]` is: a project
     that nominates nothing is refused by the key's name rather than by a missing section, and its
-    register answers exactly what it answered before this table existed.
+    register answers exactly what it answered before they existed.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    enabled: bool = False
+    sections: SectionMappings = Field(default_factory=SectionMappings)
     identity: IdentityNominations = Field(default_factory=IdentityNominations)
 
 

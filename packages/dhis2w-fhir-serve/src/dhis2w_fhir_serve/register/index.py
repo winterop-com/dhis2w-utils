@@ -27,7 +27,7 @@ for that translation is already in the store, put there by the generate targets:
 A project that publishes no registration form has no tracked entity type, and every lookup here
 answers empty. That is the honest reading of a guide with nobody in it, and the route says so.
 
-ONE FACT HERE COMES FROM `fhir.toml` RATHER THAN FROM THE GUIDE, AND ONLY ONE. `[ips.identity]`
+ONE FACT HERE COMES FROM `fhir.toml` RATHER THAN FROM THE GUIDE. `[ips.identity]`
 nominates which tracked entity attribute carries a person's name, birth date, and sex, and the guide
 publishes that nomination nowhere: `D2TEA_CS` states what an attribute is called and what type its
 values are, and no artifact states what one *means*. So the nominations are read from the project
@@ -37,7 +37,9 @@ found (`docs/fhir/design/ips.md` section 4, "Value-shape validation"). The map f
 `administrative-gender` is published as a ConceptMap by `d2w fhir generate`, so a consumer audits the
 translation without holding this file, but what the server performs it reads from the file - the
 nominations the map depends on are not published, and half a dial read from an artifact and half
-from a file would be worse than either.
+from a file would be worse than either. `[ips.sections]` is read the same way and for the same
+reason, by `dhis2w_fhir_serve.routes.summary` rather than here: a section mapping says what a
+summary carries and nothing about the register.
 """
 
 from __future__ import annotations
