@@ -359,7 +359,8 @@ async def test_a_search_parameter_this_server_cannot_answer_is_refused(live_clie
     issue = response.json()["issue"][0]
     assert issue["code"] == "invalid"
     assert issue["diagnostics"] == (
-        "`family` is not a search parameter this server answers `Patient` on: it answers `_tag`, `identifier`"
+        "`family` is not a search parameter this server answers `Patient` on: it answers `_tag`, "
+        "`d2-attribute`, `identifier`"
     )
     assert not read.called
     assert not search.called
@@ -587,7 +588,7 @@ def test_a_live_statement_declares_patient_search_on_identifier_and_tag(capture_
 
     patient = next(resource for resource in capability.rest[0].resource or [] if resource.type == "Patient")
     assert [interaction.code for interaction in patient.interaction or []] == ["read", "search-type"]
-    assert [parameter.name for parameter in patient.searchParam or []] == ["identifier", "_tag"]
+    assert [parameter.name for parameter in patient.searchParam or []] == ["identifier", "_tag", "d2-attribute"]
     assert (parameter := (patient.searchParam or [])[0]).type == "token"
     assert _NATIONAL_ID_SYSTEM.rsplit("/", 1)[0] in (parameter.documentation or "")
     assert (tag := (patient.searchParam or [])[1]).type == "token"

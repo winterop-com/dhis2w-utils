@@ -100,6 +100,7 @@ from dhis2w_fhir.r4 import (
     Extension,
 )
 
+from dhis2w_fhir_serve.register.filtering import ATTRIBUTE_FILTER_PARAMETER
 from dhis2w_fhir_serve.register.projection import PERSON_RESOURCE_TYPES
 from dhis2w_fhir_serve.spool import current_instant
 from dhis2w_fhir_serve.store import CONCEPT_MAP_RESOURCE_TYPE
@@ -202,6 +203,23 @@ TAG_SEARCH_DOCUMENTATION = (
     "narrows the listing and the identifier search alike, and rides the `next` and `previous` links "
     "of a listing so a walk stays inside the type it started in. A tag naming a type this resource is "
     "not served over matches nothing."
+)
+
+#: What the `d2-attribute` filter means, and the one sentence about it that must never be dropped.
+#:
+#: A filter that looks like search and matches only exact values is a trap unless every declaration of
+#: it says which it is, so the equality sentence leads. The attributes themselves are named after it,
+#: per register, by `_filter_documentation` - prose, because a searchParam's documentation is prose;
+#: `/uiconfig` carries the same set as values for a screen that has to draw a control over them.
+ATTRIBUTE_FILTER_DOCUMENTATION = (
+    "The value of one tracked entity attribute, spelled `d2-attribute={trackedEntityAttributeUid}|"
+    "{value}`. IT MATCHES THAT VALUE EXACTLY - equality and nothing else: no prefix, no substring, no "
+    "range, no ordering, and case is ignored exactly as DHIS2's own `eq` ignores it. Repeat the "
+    "parameter to narrow further; two of them are the entities holding both values. A comma is part "
+    "of the value rather than a separator, because a DHIS2 attribute value may contain one. It "
+    "narrows the listing, the identifier search, and the `_count=0` count alike, and it rides the "
+    "`next` and `previous` links of a listing so a walk stays inside the filter it started in. "
+    "`identifier` is how you name somebody; this is how you ask which of them hold a value."
 )
 
 #: What the `_content` search parameter means here, and the one thing it deliberately does not claim.
@@ -565,6 +583,11 @@ def _register_resources(
                         f"over are {_type_labels(register)}."
                     ),
                 ),
+                CapabilityStatementSearchParam(
+                    name=ATTRIBUTE_FILTER_PARAMETER,
+                    type="token",
+                    documentation=_filter_documentation(register),
+                ),
                 *(
                     [
                         CapabilityStatementSearchParam(
@@ -599,6 +622,40 @@ def _summary_operation(summaries: bool, resource_type: str) -> list[CapabilitySt
             documentation=SUMMARY_DOCUMENTATION,
         )
     ]
+
+
+def _filter_documentation(register: ServedRegister) -> str:
+    """What one register's value filter answers, and which attributes it answers it on.
+
+    The attributes are named in the declaration rather than left to a client to discover, because the
+    parameter is worthless without them: `d2-attribute` names an attribute by DHIS2 UID, and a UID is
+    not something anybody guesses. They are the attributes this register's own types collect, so a
+    register of samples names a sample's attributes and never a person's.
+    """
+    if not register.filter_attributes:
+        return (
+            f"{ATTRIBUTE_FILTER_DOCUMENTATION} This register filters on no attribute: the guide "
+            "publishes no registration form for the tracked entity types it is served over, so "
+            "nothing states what they collect."
+        )
+    return f"{ATTRIBUTE_FILTER_DOCUMENTATION} The attributes it filters on are {_attribute_labels(register)}."
+
+
+def _attribute_labels(register: ServedRegister) -> str:
+    """The filterable attributes as a client has to read them - the UID, the name, and what the values are.
+
+    The bound ValueSet is named where DHIS2 binds an option set, because that is the difference
+    between a filter a caller can enumerate the values of and one they have to already know a value
+    of. `/uiconfig` carries the same canonical as a value, for a screen drawing a control from it.
+    """
+    labels: list[str] = []
+    for attribute in register.filter_attributes:
+        named = (
+            attribute.attribute_uid if attribute.display is None else f"{attribute.display} ({attribute.attribute_uid})"
+        )
+        stated = named if attribute.value_type is None else f"{named}, whose values are {attribute.value_type}"
+        labels.append(stated if attribute.value_set is None else f"{stated} drawn from `{attribute.value_set}`")
+    return "; ".join(labels)
 
 
 def _type_labels(register: ServedRegister) -> str:

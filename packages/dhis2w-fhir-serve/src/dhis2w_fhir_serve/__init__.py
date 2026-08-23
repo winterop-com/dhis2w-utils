@@ -71,6 +71,7 @@ from dhis2w_fhir_serve.errors import (
     RegisterDisabledError,
     RegisterListingDisabledError,
     ServeError,
+    UnknownFilterAttributeError,
     UpstreamError,
     outcome,
     register_error_handlers,
@@ -158,6 +159,12 @@ from dhis2w_fhir_serve.projection.sync import (
     SyncReport,
     SyncResourceCounts,
     run_sync,
+)
+from dhis2w_fhir_serve.register.filtering import (
+    ATTRIBUTE_FILTER_OPERATOR,
+    ATTRIBUTE_FILTER_PARAMETER,
+    AttributeFilter,
+    requested_attribute_filters,
 )
 from dhis2w_fhir_serve.register.index import (
     NominatedAttributeError,
@@ -320,6 +327,9 @@ __all__ = [
     "as_of_entry",
     "as_of_headers",
     "attach_serve_runtime",
+    "ATTRIBUTE_FILTER_OPERATOR",
+    "ATTRIBUTE_FILTER_PARAMETER",
+    "AttributeFilter",
     "authenticated_caller",
     "AuthenticatedCaller",
     "AUTHENTICATION_REALM",
@@ -502,6 +512,7 @@ __all__ = [
     "REJECTED_RESPONSES_RELATIVE_PATH",
     "rejection_outcome",
     "request_identity",
+    "requested_attribute_filters",
     "requested_cursor",
     "requested_page_size",
     "RequestIdentity",
@@ -579,6 +590,7 @@ __all__ = [
     "UnreadableReceiptError",
     "UnresolvableCodingError",
     "UPDATED_AFTER_PARAMETER",
+    "UnknownFilterAttributeError",
     "UpstreamError",
     "UpstreamRefusalError",
     "VALIDATE_CODE_PATH",

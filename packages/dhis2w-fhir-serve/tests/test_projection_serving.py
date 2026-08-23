@@ -408,8 +408,13 @@ def test_the_metadata_declares_the_content_parameter_only_where_it_is_answered(
     synced = _patient_entry(capture_project, SearchBackend.PROJECTION)
     live = _patient_entry(capture_project, SearchBackend.DHIS2)
 
-    assert {parameter.name for parameter in synced.searchParam or []} == {"identifier", "_tag", "_content"}
-    assert {parameter.name for parameter in live.searchParam or []} == {"identifier", "_tag"}
+    assert {parameter.name for parameter in synced.searchParam or []} == {
+        "identifier",
+        "_tag",
+        "d2-attribute",
+        "_content",
+    }
+    assert {parameter.name for parameter in live.searchParam or []} == {"identifier", "_tag", "d2-attribute"}
     assert synced.documentation is not None
     assert "materialized projection" in synced.documentation
     assert live.documentation is not None

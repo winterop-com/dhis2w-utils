@@ -278,10 +278,20 @@ def _matching_ids(query: ProjectionQuery) -> Any:
     A query naming tracked entity types narrows either of those to the types it names, which is what
     `_tag` asks of a resource served over several of them. It narrows through the resource table in
     both cases, because the type is a fact about the resource rather than about one identifier of it.
+
+    A query naming attribute values narrows either of them again, once per value, through the index
+    the sync writes every attribute value into - which is what `d2-attribute` asks. One subquery per
+    filter and not one predicate, because two filters are two rows of that table about one person:
+    ANDing the columns of a single row would ask for one value that is two things at once.
     """
     if not query.identifiers:
-        return _narrowed(
-            select(ProjectedResourceRow.resource_id).where(ProjectedResourceRow.resource_type == query.resource_type),
+        return _filtered(
+            _narrowed(
+                select(ProjectedResourceRow.resource_id).where(
+                    ProjectedResourceRow.resource_type == query.resource_type
+                ),
+                query,
+            ),
             query,
         )
     matched = select(ProjectedIdentifierRow.resource_id).where(
@@ -301,6 +311,8 @@ def _matching_ids(query: ProjectionQuery) -> Any:
                 )
             )
         )
+    for holders in _value_holders(query):
+        matched = matched.where(ProjectedIdentifierRow.resource_id.in_(holders))
     return matched.distinct()
 
 
@@ -309,6 +321,30 @@ def _narrowed(statement: Any, query: ProjectionQuery) -> Any:
     if not query.tracked_entity_type_uids:
         return statement
     return statement.where(ProjectedResourceRow.tracked_entity_type_uid.in_(query.tracked_entity_type_uids))
+
+
+def _filtered(statement: Any, query: ProjectionQuery) -> Any:
+    """Narrow one selection over the resource table to the entities holding every value a query names."""
+    for holders in _value_holders(query):
+        statement = statement.where(ProjectedResourceRow.resource_id.in_(holders))
+    return statement
+
+
+def _value_holders(query: ProjectionQuery) -> list[Any]:
+    """One selection of tracked entity UIDs per value filter - whoever holds that value under that attribute.
+
+    Matched on the folded column, because DHIS2's own `eq` matches a tracked entity attribute value
+    without regard to case (BUGS.md 109) and an equality that meant one thing live and another here
+    would be two operators wearing one name. The folded column is already indexed - `_content` needed
+    it first - so the filter costs an index read rather than a scan.
+    """
+    return [
+        select(ProjectedNameRow.tracked_entity_uid).where(
+            ProjectedNameRow.attribute_uid == attribute_value.attribute_uid,
+            ProjectedNameRow.folded == attribute_value.folded_value(),
+        )
+        for attribute_value in query.attribute_values
+    ]
 
 
 def _identifiers_of(body: dict[str, Any]) -> list[tuple[str, str]]:

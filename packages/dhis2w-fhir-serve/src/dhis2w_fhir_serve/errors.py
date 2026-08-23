@@ -300,6 +300,34 @@ class UnsupportedSearchParameterError(ServeError):
         self.supported_parameters = supported_parameters
 
 
+class UnknownFilterAttributeError(ServeError):
+    """The value filter names a tracked entity attribute this register does not filter on.
+
+    Refused rather than answered empty, and that is the difference between this and a `_tag` naming a
+    type the resource is not served over. A tag names a value that may or may not be held; this names
+    the FIELD, and a field this register has no column for is a query nobody could ever satisfy - a
+    client that read an empty searchset back would take it as "no women are registered here". So the
+    refusal states the attributes this register does filter on, which is the same set `/metadata` and
+    `/uiconfig` declare ahead of the request.
+    """
+
+    status_code = 400
+    issue_code = "invalid"
+
+    def __init__(self, resource_type: str, parameter: str, attribute_uid: str, declared: tuple[str, ...]) -> None:
+        """Carry the refusal naming the attribute asked for and the ones this register answers on."""
+        named = ", ".join(f"`{uid}`" for uid in declared)
+        answers = f"it filters on {named}" if declared else "it filters on none"
+        super().__init__(
+            f"`{parameter}` names the tracked entity attribute `{attribute_uid}`, which `{resource_type}` "
+            f"is not filtered by here: {answers}"
+        )
+        self.resource_type = resource_type
+        self.parameter = parameter
+        self.attribute_uid = attribute_uid
+        self.declared = declared
+
+
 class BadOperationError(ServeError):
     """The parameters an operation was invoked with cannot be read as what the operation declares."""
 

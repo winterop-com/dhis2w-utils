@@ -44,6 +44,8 @@ from dhis2w_client.generated.v42.oas import TrackerEnrollment, TrackerTrackedEnt
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from dhis2w_fhir_serve.passthrough import RegisterReader
 
 #: The tracker endpoint a lookup reads, and the one-entity form of it.
@@ -126,6 +128,18 @@ def upstream_refusal_text(error: Exception) -> str:
     return f"{text}{body_message}" if body_message else text
 
 
+def _filter_parameter(filters: Sequence[str]) -> dict[str, Any]:
+    """The `filter=` parameters one query carries, or none at all where the request narrowed nothing.
+
+    A list value, so httpx writes one `filter=` parameter per expression and the endpoint ANDs them.
+    Verified against 2.42 and 2.43: two repeated filters narrow to the entities holding both, which
+    the comma-joined spelling also does - and the repeated one is the spelling whose values may
+    contain a comma. An empty sequence puts no key on the query at all, so an unfiltered listing goes
+    out byte for byte as it always did.
+    """
+    return {"filter": list(filters)} if filters else {}
+
+
 def _is_unknown_type_refusal(error: Dhis2ApiError) -> bool:
     """Whether DHIS2 refused because the named tracked entity type does not exist on the instance.
 
@@ -147,13 +161,20 @@ async def list_tracked_entities(
     tracked_entity_type_uid: str,
     page: int,
     page_size: int,
+    filters: Sequence[str] = (),
 ) -> TrackedEntitiesPage:
     """Read one page of one tracked entity type, counted so the page can say how many.
 
-    No `filter=`: this is the listing, and its whole query is the type. `ouMode=ACCESSIBLE` for the
-    same reason every search here sends it (BUGS.md 74) - the register a user may see is the register
-    they are shown, and a listing scoped to the capture unit would answer a fraction of it without
-    saying so. A type the instance does not hold answers an empty page, not a refusal.
+    `filters` is the value filter a request narrowed the register by, one `filter=` expression apiece,
+    ANDed by the endpoint; a request naming none sends none, and this is the whole listing. It goes on
+    the wire rather than thinning the page afterwards because the pager counts what the query
+    selected: a page narrowed after DHIS2 counted it would be a short page beside a total describing
+    everybody.
+
+    `ouMode=ACCESSIBLE` for the same reason every search here sends it (BUGS.md 74) - the register a
+    user may see is the register they are shown, and a listing scoped to the capture unit would
+    answer a fraction of it without saying so. A type the instance does not hold answers an empty
+    page, not a refusal.
     """
     try:
         raw = await reader.get_raw(
@@ -165,6 +186,7 @@ async def list_tracked_entities(
                 "page": page,
                 "pageSize": page_size,
                 TOTAL_PAGES_PARAMETER: "true",
+                **_filter_parameter(filters),
             },
         )
     except Dhis2ApiError as error:
@@ -174,13 +196,16 @@ async def list_tracked_entities(
     return TrackedEntitiesPage.model_validate(raw)
 
 
-async def count_tracked_entity_pages(reader: RegisterReader, *, tracked_entity_type_uid: str, page_size: int) -> int:
+async def count_tracked_entity_pages(
+    reader: RegisterReader, *, tracked_entity_type_uid: str, page_size: int, filters: Sequence[str] = ()
+) -> int:
     """How many pages of one type there are at one page size, asked without carrying anybody back.
 
     The listing needs this at one place only: a `previous` link crossing back over a type boundary
     lands on the last page of the type before it, and the last page is a number nothing on the
-    current page states. The projection is the UID alone, because the answer read is the pager.
-    A type the instance does not hold counts zero pages.
+    current page states. The projection is the UID alone, because the answer read is the pager, and
+    `filters` rides it because the last page of a filtered walk is the last page of the filter rather
+    than of the type. A type the instance does not hold counts zero pages.
     """
     try:
         raw = await reader.get_raw(
@@ -192,6 +217,7 @@ async def count_tracked_entity_pages(reader: RegisterReader, *, tracked_entity_t
                 "page": 1,
                 "pageSize": page_size,
                 TOTAL_PAGES_PARAMETER: "true",
+                **_filter_parameter(filters),
             },
         )
     except Dhis2ApiError as error:
@@ -202,14 +228,18 @@ async def count_tracked_entity_pages(reader: RegisterReader, *, tracked_entity_t
     return 0 if pager is None or pager.pageCount is None else pager.pageCount
 
 
-async def count_tracked_entities(reader: RegisterReader, *, tracked_entity_type_uid: str) -> int | None:
+async def count_tracked_entities(
+    reader: RegisterReader, *, tracked_entity_type_uid: str, filters: Sequence[str] = ()
+) -> int | None:
     """How many entities one tracked entity type holds, asked without carrying any of them back.
 
     The listing needs this when several types are in scope: DHIS2 counts one type at a time, so the
     searchset's total is the sum of one count per type, and a count is what this asks for - the UID
-    projection at a page size of one, reading the pager and dropping the page. None means the
-    instance stated no total, which is a different answer from a total of zero and stays different
-    all the way to the Bundle. A type the instance does not hold holds nothing, so it counts zero.
+    projection at a page size of one, reading the pager and dropping the page. `filters` narrows the
+    count exactly as it narrows the page, which is what makes `_count=0` beside a value filter answer
+    how many of the register hold that value. None means the instance stated no total, which is a
+    different answer from a total of zero and stays different all the way to the Bundle. A type the
+    instance does not hold holds nothing, so it counts zero.
     """
     try:
         raw = await reader.get_raw(
@@ -221,6 +251,7 @@ async def count_tracked_entities(reader: RegisterReader, *, tracked_entity_type_
                 "page": 1,
                 "pageSize": _COUNT_ONLY_PAGE_SIZE,
                 TOTAL_PAGES_PARAMETER: "true",
+                **_filter_parameter(filters),
             },
         )
     except Dhis2ApiError as error:

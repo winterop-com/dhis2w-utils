@@ -45,6 +45,7 @@ WITHDRAWN_UI_NAMES = (
     "BasemapLayer",
     "RegisterUiConfig",
     "RegisteredTypeUiConfig",
+    "FilterableAttributeUiConfig",
     "TrackedEntitiesUiConfig",
     "basemap_layers",
     "public_instance_url",

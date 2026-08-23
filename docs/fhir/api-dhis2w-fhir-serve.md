@@ -58,6 +58,8 @@ so anything cached would be stale within seconds of a drain.
   `PublishedTrackedEntityType`, `RegisterSurface`, `ServedRegister`, `registered_entity_for`,
   `search_tracked_entities`, `fetch_tracked_entity`, `TrackedEntityEnrollment`,
   `TrackedEntityEnrollments`).
+- Read a register's value filter, or narrow a search of your own by one (`AttributeFilter`,
+  `requested_attribute_filters`, `ATTRIBUTE_FILTER_PARAMETER`, `ATTRIBUTE_FILTER_OPERATOR`).
 - Put something other than the DHIS2 instance behind a register search, or hold a copy of an
   instance as FHIR resources (`NameSearchIndex`, `NameQuery`, `NameMatch`, `NameMatches`,
   `Dhis2NameSearchIndex`, `build_name_search_index`, `ProjectionStore`, `ProjectedResource`,
@@ -413,7 +415,9 @@ onto - so a project tracking people alone serves `Patient` and one that also reg
 surface narrows that by `[serve.tracked_entities]`, the wire module holds the empirical
 `/api/tracker/trackedEntities` contract the search obeys, and the projection turns one tracked entity
 into the resource its type is registered as, carrying identity and no claim the target resource
-otherwise defines - each module docstring states why.
+otherwise defines - each module docstring states why. The filtering module is the register's value
+filter, `d2-attribute={attributeUid}|{value}`: which attributes each register answers it on, how the
+two backends run it, and why it answers equality and nothing else.
 
 ::: dhis2w_fhir_serve.register.index
 
@@ -424,6 +428,8 @@ otherwise defines - each module docstring states why.
 ::: dhis2w_fhir_serve.register.projection
 
 ::: dhis2w_fhir_serve.register.listing
+
+::: dhis2w_fhir_serve.register.filtering
 
 ::: dhis2w_fhir_serve.routes.register
 

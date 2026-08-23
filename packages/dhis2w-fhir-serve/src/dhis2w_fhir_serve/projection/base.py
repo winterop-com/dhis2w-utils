@@ -43,6 +43,8 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir_serve.register.filtering import AttributeFilter
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -174,6 +176,16 @@ class ProjectionQuery(BaseModel):
     This is what `_tag` on a register search becomes. Narrowing in the store rather than after it is
     what keeps a narrowed page a full page: thinning a page of the whole resource down to one type
     would hand back a short page with more of that type still behind it.
+    """
+
+    attribute_values: tuple[AttributeFilter, ...] = ()
+    """The attribute-value equalities the answer is narrowed by; every one of them has to hold.
+
+    This is what `d2-attribute` on a register search becomes, and the projection can answer it
+    because the sync already indexed every attribute value every entity holds - the index `_content`
+    reads is keyed by the attribute the value belongs to, so filtering by one attribute is that same
+    index read with one predicate more. Narrowing in the store rather than after it, for the reason
+    `tracked_entity_type_uids` gives: a page thinned afterwards is a short page with more behind it.
     """
 
     offset: int = 0

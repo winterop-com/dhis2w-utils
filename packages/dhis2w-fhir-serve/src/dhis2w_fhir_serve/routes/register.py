@@ -56,6 +56,18 @@ started in, and under `[serve.search] backend = "projection"` it narrows the sto
 than thinning its pages. A `_tag` naming a type this resource is not served over is an unsatisfied
 query, answered with an empty searchset. See `_requested_type_uids`.
 
+**`d2-attribute` IS HOW A CALLER ASKS THE REGISTER FOR WHAT A RECORD HOLDS RATHER THAN WHO IT IS.**
+`identifier` answers the attributes DHIS2 declares unique, exactly and by design. The attributes it
+declares nothing about - sex, district of residence, whether consent was given - describe a lot of
+people rather than naming one, and `d2-attribute={attributeUid}|{value}` is the filter over them:
+one occurrence is one attribute and one value, occurrences narrow, and IT ANSWERS EQUALITY AND
+NOTHING ELSE. It narrows the listing, the identifier search, the `_content` search, and the
+`_count=0` count alike, under either backend, and it rides the listing's `next` and `previous` links
+the way `_tag` does. Which attributes a register filters on is what its types' own published forms
+ask, declared per register at `/metadata` and at `/uiconfig`; an attribute the request names and this
+register does not filter on is a 400 naming the ones it does. `dhis2w_fhir_serve.register.filtering`
+argues every part of that, including why there is no config dial narrowing the set.
+
 **A parameter this surface cannot apply is refused, and that is the whole reason `search_register`
 reads the query rather than filtering it.** The store searches ignore what they do not recognise,
 because the worst an ignored parameter costs there is a larger result set than a client expected.
@@ -163,6 +175,13 @@ from dhis2w_fhir_serve.projection.base import (
 )
 from dhis2w_fhir_serve.projection.factory import build_name_search_index
 from dhis2w_fhir_serve.projection.serving import as_of_entry, as_of_headers
+from dhis2w_fhir_serve.register.filtering import (
+    ATTRIBUTE_FILTER_PARAMETER,
+    AttributeFilter,
+    holds_every_filter,
+    requested_attribute_filters,
+    wire_filters,
+)
 from dhis2w_fhir_serve.register.listing import (
     COUNT_PARAMETER,
     PAGE_PARAMETER,
@@ -171,7 +190,7 @@ from dhis2w_fhir_serve.register.listing import (
     count_listing_total,
     read_listing_page,
 )
-from dhis2w_fhir_serve.register.projection import registered_entity_for
+from dhis2w_fhir_serve.register.projection import attribute_values, registered_entity_for
 from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.register.wire import fetch_tracked_entity, upstream_refusal_text
 from dhis2w_fhir_serve.routes.context import projection_store, serve_context
@@ -270,11 +289,18 @@ async def search_register(request: Request, resource_type: str) -> Response:
             tokens.extend(identifier_token(name, value) for value in alternatives(name, raw))
         elif name == CONTENT_SEARCH_PARAMETER:
             contents.append(tuple(alternatives(name, raw)))
-        elif name != TAG_SEARCH_PARAMETER:
+        elif name not in (TAG_SEARCH_PARAMETER, ATTRIBUTE_FILTER_PARAMETER):
             continue
         # `_tag` is honored like the other two and produces no token of its own: it narrowed which
         # tracked entity types this lookup runs over, before any of them was asked anything.
+        # `d2-attribute` is honored here and read below, so a malformed one is refused after this
+        # resource is known to be served rather than before.
         honored.append(HonoredParameter(name=name, value=raw))
+    filters = requested_attribute_filters(
+        request.query_params.multi_items(),
+        resource_type=resource_type,
+        declared=lookup.surface.filter_attributes_for(resource_type),
+    )
     _require_answerable_parameters(request, lookup, resource_type, searching=bool(tokens or contents))
     service_base = base_url(request)
     cap = requested_entry_cap(request.query_params.get(COUNT_PARAMETER))
@@ -285,12 +311,15 @@ async def search_register(request: Request, resource_type: str) -> Response:
         # confirm that nobody is of no type.
         return bundle_response(service_base, resource_type, tuple(honored), [], cap)
     if not tokens and not contents:
-        return await _listing_response(request, lookup, resource_type, service_base, tuple(honored))
+        # A request naming values and no identifier is the register narrowed to who holds them, and
+        # it is the listing rather than a search: it is paged, it states a total, and a client walks
+        # it with the same links. A filter narrows a question about everybody; it does not name one.
+        return await _listing_response(request, lookup, resource_type, service_base, tuple(honored), filters)
     if lookup.from_projection():
         return await _projection_search_response(
-            lookup, resource_type, tokens, tuple(contents), service_base, tuple(honored), cap
+            lookup, resource_type, tokens, tuple(contents), service_base, tuple(honored), cap, filters
         )
-    entities = await matching_entities(lookup, resource_type, tokens)
+    entities = await matching_entities(lookup, resource_type, tokens, filters)
     entries = _entries(entities, lookup.surface, resource_type, service_base)
     return bundle_response(service_base, resource_type, tuple(honored), entries, cap)
 
@@ -316,8 +345,11 @@ def _require_answerable_parameters(
     `_tag` is answered on every register, whichever backend found the matches, because it narrows the
     question rather than answering it: it says which of the tracked entity types this resource is
     served over the request is about, and every path below is already parameterized by that list.
+    `d2-attribute` is answered on every register for the same reason and on both backends alike: an
+    exact-match tracker filter is precisely what it asks for, so the backend that cannot answer
+    `_content` answers this one natively.
     """
-    answerable = {IDENTIFIER_SEARCH_PARAMETER, TAG_SEARCH_PARAMETER, COUNT_PARAMETER}
+    answerable = {IDENTIFIER_SEARCH_PARAMETER, TAG_SEARCH_PARAMETER, ATTRIBUTE_FILTER_PARAMETER, COUNT_PARAMETER}
     if lookup.from_projection():
         answerable.add(CONTENT_SEARCH_PARAMETER)
     for name in request.query_params:
@@ -464,16 +496,22 @@ async def _listing_response(
     resource_type: str,
     service_base: str,
     honored: tuple[HonoredParameter, ...],
+    filters: tuple[AttributeFilter, ...],
 ) -> Response:
-    """Answer one page of the register, or refuse the whole listing when the project serves none."""
+    """Answer one page of the register, or refuse the whole listing when the project serves none.
+
+    A `d2-attribute` filter narrows the page, its total, and its links alike, and it is refused with
+    the listing rather than allowed through it: `listing = false` is a project saying its register is
+    not something to page through, and a filtered page is still a page of everybody who matches.
+    """
     surface = lookup.surface
     reader = lookup.reader
     if not surface.serves_listing():
         raise RegisterListingDisabledError(resource_type)
     if lookup.from_projection():
-        return await _projection_listing_response(request, lookup, resource_type, service_base, honored)
+        return await _projection_listing_response(request, lookup, resource_type, service_base, honored, filters)
     if requested_entry_cap(request.query_params.get(COUNT_PARAMETER)) == 0:
-        return await _register_size_response(lookup, resource_type, service_base, honored)
+        return await _register_size_response(lookup, resource_type, service_base, honored, filters)
     count = _requested_count(request, surface)
     cursor = _requested_cursor(request)
     try:
@@ -482,6 +520,7 @@ async def _listing_response(
             tracked_entity_type_uids=lookup.tracked_entity_type_uids,
             cursor=cursor,
             count=count,
+            filters=wire_filters(filters),
         )
     except Dhis2ClientError as error:
         raise UpstreamError(
@@ -504,15 +543,18 @@ async def _projection_search_response(
     service_base: str,
     honored: tuple[HonoredParameter, ...],
     cap: int | None,
+    filters: tuple[AttributeFilter, ...],
 ) -> Response:
     """Answer a search whose membership the projection decided and whose records the instance authorized.
 
-    The two parameters combine the way R4 says they do. Values within one parameter are alternatives,
+    The parameters combine the way R4 says they do. Values within one parameter are alternatives,
     so they are folded into one set of candidates; two different parameters are conditions that both
     hold, so their candidate sets are intersected. `identifier` runs over the token index - an exact
     match, because an identifier names somebody rather than describes them - and `_content` runs over
     the folded attribute values, which is a case-insensitive substring and is what an index over a
-    person's own values can honestly claim to be.
+    person's own values can honestly claim to be. A `d2-attribute` filter is a third condition and
+    runs over that same index keyed by the attribute, which is what makes it equality where
+    `_content` is a substring.
 
     Then every candidate is read from DHIS2 under the credentials this request runs as. A person the
     projection holds and this caller may not see is carried by neither the entries nor the total,
@@ -534,7 +576,7 @@ async def _projection_search_response(
     cursor = await lookup.store.cursor()
     if cursor.updated_at is None:
         raise ProjectionEmptyError(resource_type)
-    candidates = await _projection_candidates(lookup, resource_type, tokens, contents)
+    candidates = await _projection_candidates(lookup, resource_type, tokens, contents, filters)
     resolved = await _resolved_entities(lookup, resource_type, candidates, _resolution_cap(lookup, cap))
     return _projection_bundle(
         resource_type,
@@ -550,6 +592,7 @@ async def _projection_listing_response(
     resource_type: str,
     service_base: str,
     honored: tuple[HonoredParameter, ...],
+    filters: tuple[AttributeFilter, ...],
 ) -> Response:
     """Answer one page of the register out of the projection, resolving each row live as the caller.
 
@@ -576,6 +619,7 @@ async def _projection_listing_response(
         ProjectionQuery(
             resource_type=resource_type,
             tracked_entity_type_uids=lookup.scoped_type_uids(),
+            attribute_values=filters,
             offset=offset,
             count=count,
         )
@@ -625,8 +669,15 @@ async def _projection_candidates(
     resource_type: str,
     tokens: list[IdentifierToken],
     contents: tuple[tuple[str, ...], ...],
+    filters: tuple[AttributeFilter, ...],
 ) -> tuple[str, ...]:
-    """Which tracked entities this search names, before the instance has been asked about any of them."""
+    """Which tracked entities this search names, before the instance has been asked about any of them.
+
+    A `d2-attribute` filter is one more condition every candidate has to satisfy, and it is asked of
+    the store as one query rather than of each candidate afterwards: the values are indexed, so the
+    filter narrows before the live reads are spent instead of after. It is one condition however many
+    filters the request named, because the store ANDs them itself.
+    """
     conditions: list[dict[str, None]] = []
     if tokens:
         matched: dict[str, None] = {}
@@ -634,6 +685,8 @@ async def _projection_candidates(
             for resource_id in await _projection_token_matches(lookup, resource_type, token):
                 matched.setdefault(resource_id, None)
         conditions.append(matched)
+    if filters:
+        conditions.append(dict.fromkeys(await _projection_filter_matches(lookup, resource_type, filters)))
     for alternatives_of_one_parameter in contents:
         matched = {}
         for value in alternatives_of_one_parameter:
@@ -670,6 +723,22 @@ async def _projection_token_matches(
             resource_type=resource_type,
             identifiers=(token.value,),
             identifier_systems=() if token.system is None else (token.system,),
+            tracked_entity_type_uids=lookup.scoped_type_uids(),
+        )
+    )
+    return tuple(resource.resource_id for resource in page.resources)
+
+
+async def _projection_filter_matches(
+    lookup: RegisterLookup, resource_type: str, filters: tuple[AttributeFilter, ...]
+) -> tuple[str, ...]:
+    """Which projected resources hold every value a request filtered on, matched over the value index."""
+    if lookup.store is None:
+        return ()
+    page = await lookup.store.search(
+        ProjectionQuery(
+            resource_type=resource_type,
+            attribute_values=filters,
             tracked_entity_type_uids=lookup.scoped_type_uids(),
         )
     )
@@ -730,17 +799,27 @@ def _search_links(
 
 
 async def _register_size_response(
-    lookup: RegisterLookup, resource_type: str, service_base: str, honored: tuple[HonoredParameter, ...]
+    lookup: RegisterLookup,
+    resource_type: str,
+    service_base: str,
+    honored: tuple[HonoredParameter, ...],
+    filters: tuple[AttributeFilter, ...],
 ) -> Response:
     """Answer `_count=0` with how large the register is and nobody in it.
 
     Nothing is paged to answer this, because there is no page to build: the count is asked of the
     instance directly, one count-only request per tracked entity type in scope, which is the same
     read a first page spends to state its total. A `_tag` narrows that scope, so `_count=0` beside one
-    is how a client asks how many of one tracked entity type this register holds.
+    is how a client asks how many of one tracked entity type this register holds - and a
+    `d2-attribute` filter narrows it the same way, which is how a client asks how many of them hold a
+    value without carrying one of them back.
     """
     try:
-        total = await count_listing_total(lookup.reader, tracked_entity_type_uids=lookup.tracked_entity_type_uids)
+        total = await count_listing_total(
+            lookup.reader,
+            tracked_entity_type_uids=lookup.tracked_entity_type_uids,
+            filters=wire_filters(filters),
+        )
     except Dhis2ClientError as error:
         raise UpstreamError(
             f"the DHIS2 instance did not answer the tracked entity count: {upstream_refusal_text(error)}"
@@ -802,13 +881,15 @@ def _listing_url(
 ) -> str:
     """One page of the listing as a client may ask for it again and be given the same page.
 
-    A `_tag` the request narrowed the walk by rides every link, because a `next` that dropped it
-    would walk out of the type the client asked about and into the rest of the resource's register.
-    The cursor cannot carry it: the token locates a page within a scope, and the scope is what `_tag`
-    decided.
+    Everything the request narrowed the walk by rides every link - the `_tag` that chose the types
+    and the `d2-attribute` filters that chose who is in them - because a `next` that dropped either
+    would walk out of the question the client asked and into the rest of the resource's register. The
+    cursor cannot carry them: the token locates a page within a scope, and the scope is what those
+    parameters decided. Nothing else can be in `honored` here, since a listing is what a request
+    naming neither an identifier nor a content search is.
     """
-    tags = [(parameter.name, parameter.value) for parameter in honored if parameter.name == TAG_SEARCH_PARAMETER]
-    query = urlencode([*tags, (COUNT_PARAMETER, count), (PAGE_PARAMETER, cursor.token())])
+    narrowing = [(parameter.name, parameter.value) for parameter in honored]
+    query = urlencode([*narrowing, (COUNT_PARAMETER, count), (PAGE_PARAMETER, cursor.token())])
     return f"{service_base}/{resource_type}?{query}"
 
 
@@ -830,13 +911,25 @@ async def matching_entities(
     lookup: RegisterLookup,
     resource_type: str,
     tokens: tuple[IdentifierToken, ...] | list[IdentifierToken],
+    filters: tuple[AttributeFilter, ...] = (),
 ) -> list[TrackerTrackedEntity]:
-    """Fold every token's matches into one result set, in the order they were found, once per entity."""
+    """Fold every token's matches into one result set, in the order they were found, once per entity.
+
+    A value filter narrows the fold rather than the searches inside it, and it is read off the record
+    each search already carried back: an identifier search resolves every match live before it hands
+    it over, so what the person holds is in hand and a second query per attribute would ask the
+    instance what this already knows. Membership is therefore as of now here, exactly as the rest of
+    a live answer is - where a projection-served search decides membership as of its cursor and says
+    so in the searchset.
+    """
     found: dict[str, TrackerTrackedEntity] = {}
     for token in tokens:
         for entity in await _entities_for_token(lookup, resource_type, token):
-            if entity.trackedEntity is not None and _is_served_as(entity, lookup):
-                found.setdefault(entity.trackedEntity, entity)
+            if entity.trackedEntity is None or not _is_served_as(entity, lookup):
+                continue
+            if not holds_every_filter(attribute_values(entity, lookup.surface.index), filters):
+                continue
+            found.setdefault(entity.trackedEntity, entity)
     return list(found.values())
 
 

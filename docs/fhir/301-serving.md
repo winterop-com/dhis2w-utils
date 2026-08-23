@@ -1089,6 +1089,66 @@ itself already treats as worth looking somebody up by.
 the server connects, so a mistyped id is a key nothing is ever found under. The
 symptom is a value you know a person holds finding nobody.
 
+#### Filtering the register by a value: `d2-attribute` { #tracked_entities-attribute-filter }
+
+`search_attributes` is about the values that **name** somebody. This is about the
+values that **describe** them - a sex, a district of residence, whether consent
+was given - and it is a different question with a different answer:
+
+```
+GET /Patient?d2-attribute=cejWyOfXge6|Female
+GET /Patient?d2-attribute=cejWyOfXge6|Female&d2-attribute=lZGmxYbs97q|Bo
+```
+
+The left half is the DHIS2 tracked entity attribute id; the right half is the
+value. Repeating the parameter narrows: the second line is the people who hold
+both values. It composes with everything else the register answers -
+`identifier` narrows it to one person, `_tag` to one tracked entity type,
+`_count` sizes the page, and `_count=0` answers **how many** records hold the
+value without carrying one of them back. Every `next` and `previous` link
+carries the filter forward, so a walk stays inside it.
+
+!!! warning "It matches the whole value, and only the whole value"
+    This is equality and nothing else. `d2-attribute=cejWyOfXge6|Fem` finds
+    nobody - not the women, not an error, nobody. There is no prefix match, no
+    substring, no range, no "starts with", and no way to ask for records that
+    hold **no** value for the attribute. The one thing it forgives is case:
+    `female` and `Female` find the same records, because DHIS2's own `eq`
+    operator ignores case and a filter that behaved differently depending on
+    which search backend answered it would be two operators wearing one name.
+
+    A search that matches part of a value is `_content`, below, and it is
+    available only under the synced backend.
+
+**The server tells you which attributes it filters on**, per register, in two
+places - and it has to, because the filter names an attribute by an
+eleven-character DHIS2 id that nobody guesses:
+
+- `/metadata` names them in the `d2-attribute` search parameter's documentation
+  on each register's entry, with each attribute's name, the DHIS2 value type of
+  its values, and - where DHIS2 binds the attribute to an option set - the
+  canonical of the published ValueSet its values come from.
+- `/uiconfig` carries the same set as values rather than prose, under
+  `tracked_entities.registers[].filter_attributes[]`, which is what lets a screen
+  draw a select over a coded attribute's published values and a text box over
+  everything else.
+
+**Which attributes those are is the guide's answer, and there is no dial.** They
+are the attributes the published registration forms ask of the tracked entity
+types that register is served over - the same values every record already carries
+back as labelled extras. So a register of people filters on a person's
+attributes, a register of specimen batches on a sample's, and neither on the
+other's. Naming an attribute a register does not filter on is refused with a 400
+that lists the ones it does, rather than answered with an empty result a client
+would read as "nobody holds that value".
+
+**Both search backends answer it.** Under the default backend it becomes a
+`filter=<attribute>:eq:<value>` on the tracker query DHIS2 already answers;
+under the synced backend it is read out of the projection's own index of every
+attribute value it holds. The same question gets the same records either way.
+[`examples/fhir/cli/serve_attribute_filter.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/serve_attribute_filter.sh)
+walks it against a live instance.
+
 ### What answers a search: the `[serve.search]` table { #search }
 
 `[serve.tracked_entities]` says what may be looked up. This table says what
