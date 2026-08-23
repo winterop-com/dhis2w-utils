@@ -23,6 +23,7 @@ from ...generated.cql.cqlLexer import cqlLexer
 from ...generated.cql.cqlParser import cqlParser
 from ...generated.cql.cqlVisitor import cqlVisitor
 from ..cql.evaluator import require_end_of_input
+from ..types import FHIRDate, FHIRDateTime, FHIRTime
 from .exceptions import ELMValidationError
 from .loader import ELMLoader
 from .models.library import ELMLibrary
@@ -42,6 +43,37 @@ def _elm_type(type_name: str) -> str:
 def _child_contexts(children: Any) -> list[Any]:
     """Return the child contexts a repeated-rule accessor yields, as a list."""
     return cast(list[Any], children)
+
+
+def _strip_at(text: str) -> str:
+    """Drop the `@` that opens every CQL date, datetime, and time literal."""
+    return text[1:] if text.startswith("@") else text
+
+
+def _integer_literal(value: int) -> dict[str, Any]:
+    """An ELM Integer literal node carrying one component of a date, time, or datetime."""
+    return {"type": "Literal", "valueType": _elm_type("Integer"), "value": str(value)}
+
+
+def _decimal_literal(value: str) -> dict[str, Any]:
+    """An ELM Decimal literal node, which is how ELM carries a timezone offset in hours."""
+    return {"type": "Literal", "valueType": _elm_type("Decimal"), "value": value}
+
+
+def _put_component(node: dict[str, Any], name: str, value: int | None) -> None:
+    """Write one date or time component onto an ELM node, leaving unstated precision absent."""
+    if value is not None:
+        node[name] = _integer_literal(value)
+
+
+def _offset_hours(tz_offset: str) -> str:
+    """The hours an ISO timezone suffix stands for, which is what ELM's `timezoneOffset` carries."""
+    if tz_offset == "Z":
+        return "0.0"
+    sign = -1 if tz_offset.startswith("-") else 1
+    hours = int(tz_offset[1:3])
+    minutes = int(tz_offset[4:6])
+    return str(sign * (hours + minutes / 60))
 
 
 class ELMSerializer(cqlVisitor):
@@ -557,26 +589,48 @@ class ELMSerializer(cqlVisitor):
 
     def visitDateTimeLiteral(self, ctx: cqlParser.DateTimeLiteralContext) -> dict[str, Any]:
         """Visit datetime literal."""
-        text = ctx.getText()
-        if text.startswith("@"):
-            text = text[1:]
-        return {"type": "DateTime", "value": text}
+        text = _strip_at(ctx.getText())
+        parsed = FHIRDateTime.parse(text)
+        if parsed is None:
+            raise ELMValidationError(f"Malformed datetime literal: @{text}")
+
+        node: dict[str, Any] = {"type": "DateTime", "year": _integer_literal(parsed.year)}
+        _put_component(node, "month", parsed.month)
+        _put_component(node, "day", parsed.day)
+        _put_component(node, "hour", parsed.hour)
+        _put_component(node, "minute", parsed.minute)
+        _put_component(node, "second", parsed.second)
+        _put_component(node, "millisecond", parsed.millisecond)
+        if parsed.tz_offset is not None:
+            node["timezoneOffset"] = _decimal_literal(_offset_hours(parsed.tz_offset))
+        return node
 
     def visitDateLiteral(self, ctx: cqlParser.DateLiteralContext) -> dict[str, Any]:
         """Visit date literal."""
-        text = ctx.getText()
-        if text.startswith("@"):
-            text = text[1:]
-        return {"type": "Date", "value": text}
+        text = _strip_at(ctx.getText())
+        parsed = FHIRDate.parse(text)
+        if parsed is None:
+            raise ELMValidationError(f"Malformed date literal: @{text}")
+
+        node: dict[str, Any] = {"type": "Date", "year": _integer_literal(parsed.year)}
+        _put_component(node, "month", parsed.month)
+        _put_component(node, "day", parsed.day)
+        return node
 
     def visitTimeLiteral(self, ctx: cqlParser.TimeLiteralContext) -> dict[str, Any]:
         """Visit time literal."""
-        text = ctx.getText()
-        if text.startswith("@T"):
-            text = text[2:]
-        elif text.startswith("@"):
+        text = _strip_at(ctx.getText())
+        if text.startswith("T"):
             text = text[1:]
-        return {"type": "Time", "value": text}
+        parsed = FHIRTime.parse(text)
+        if parsed is None:
+            raise ELMValidationError(f"Malformed time literal: @T{text}")
+
+        node: dict[str, Any] = {"type": "Time", "hour": _integer_literal(parsed.hour)}
+        _put_component(node, "minute", parsed.minute)
+        _put_component(node, "second", parsed.second)
+        _put_component(node, "millisecond", parsed.millisecond)
+        return node
 
     def visitQuantityLiteral(self, ctx: cqlParser.QuantityLiteralContext) -> dict[str, Any]:
         """Visit quantity literal."""
@@ -856,25 +910,23 @@ class ELMSerializer(cqlVisitor):
         return {"type": "If", "condition": condition, "then": then_expr, "else": else_expr}
 
     def visitCaseExpressionTerm(self, ctx: cqlParser.CaseExpressionTermContext) -> dict[str, Any]:
-        """Visit case expression."""
+        """Visit a case expression in either its searched or its comparand form."""
+        # The grammar is `case expression? caseExpressionItem+ 'else' expression 'end'`, so the
+        # expressions hanging directly off this node are the else clause, preceded by the comparand
+        # when one was written. `ctx.expression()` yields them as a list, not as a single node.
+        expressions = _child_contexts(ctx.expression())
+        if not expressions:
+            raise ELMValidationError("A case expression needs an else clause")
+
         result: dict[str, Any] = {"type": "Case"}
+        if len(expressions) > 1:
+            result["comparand"] = self._visit_node(expressions[0])
 
-        # Check for comparand
-        comparand_expr = ctx.expression()
-        if comparand_expr:
-            result["comparand"] = self._visit_node(comparand_expr)
-
-        case_items = []
-        for item in _child_contexts(ctx.caseExpressionItem()):
-            when_expr = self._visit_node(item.expression(0))
-            then_expr = self._visit_node(item.expression(1))
-            case_items.append({"when": when_expr, "then": then_expr})
-
-        result["caseItem"] = case_items
-
-        # Note: else is typically the last expression after the items
-        # The grammar handles this differently, but we'll handle it in evaluation
-
+        result["caseItem"] = [
+            {"when": self._visit_node(item.expression(0)), "then": self._visit_node(item.expression(1))}
+            for item in _child_contexts(ctx.caseExpressionItem())
+        ]
+        result["else"] = self._visit_node(expressions[-1])
         return result
 
     # =========================================================================

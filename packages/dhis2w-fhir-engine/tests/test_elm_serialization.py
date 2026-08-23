@@ -19,7 +19,7 @@ from dhis2w_fhir_engine.engine.elm.serializer import (
     serialize_to_elm_model,
 )
 from dhis2w_fhir_engine.engine.elm.visitor import ELMExpressionVisitor
-from dhis2w_fhir_engine.engine.types import FHIRDate, Quantity
+from dhis2w_fhir_engine.engine.types import FHIRDate, FHIRDateTime, FHIRTime, Quantity
 
 ELM_TYPE = "{urn:hl7-org:elm-types:r1}"
 
@@ -51,6 +51,11 @@ def visitor() -> ELMExpressionVisitor:
 def _alias(name: str) -> dict[str, str]:
     """The ELM node a query alias reference serializes to."""
     return {"type": "AliasRef", "name": name}
+
+
+def integer_literal(value: int) -> dict[str, str]:
+    """The ELM Integer literal node one date or time component serializes to."""
+    return {"type": "Literal", "valueType": f"{ELM_TYPE}Integer", "value": str(value)}
 
 
 def statement(elm: dict[str, Any], name: str) -> dict[str, Any]:
@@ -359,17 +364,37 @@ class TestExpressionShapes:
     """The ELM node shapes the serializer emits for individual expressions."""
 
     @pytest.mark.parametrize(
-        ("expression", "node_type"),
+        ("expression", "node_type", "components"),
         [
-            ("@2024-01-15", "Date"),
-            ("@2024-01-15T10:30:00", "DateTime"),
-            ("@T10:30:00", "Time"),
+            ("@2024-01-15", "Date", {"year": 2024, "month": 1, "day": 15}),
+            ("@2024", "Date", {"year": 2024}),
+            (
+                "@2024-01-15T10:30:00",
+                "DateTime",
+                {"year": 2024, "month": 1, "day": 15, "hour": 10, "minute": 30, "second": 0},
+            ),
+            ("@T10:30:00", "Time", {"hour": 10, "minute": 30, "second": 0}),
+            ("@T00:00", "Time", {"hour": 0, "minute": 0}),
         ],
     )
-    def test_temporal_literals(self, serializer: ELMSerializer, expression: str, node_type: str) -> None:
+    def test_temporal_literals(
+        self, serializer: ELMSerializer, expression: str, node_type: str, components: dict[str, int]
+    ) -> None:
         elm = serializer.serialize_expression(expression)
         assert elm["type"] == node_type
-        assert elm["value"] == expression.removeprefix("@T").removeprefix("@")
+        # ELM carries a date, time, or datetime as one node per component, each an Integer literal,
+        # so the precision the source wrote is the set of components the node names.
+        assert {name: value for name, value in elm.items() if name != "type"} == {
+            name: integer_literal(value) for name, value in components.items()
+        }
+
+    def test_a_datetime_literal_carries_its_timezone_as_an_offset_in_hours(self, serializer: ELMSerializer) -> None:
+        elm = serializer.serialize_expression("@2024-01-15T10:30:00+05:30")
+        assert elm["timezoneOffset"] == {
+            "type": "Literal",
+            "valueType": "{urn:hl7-org:elm-types:r1}Decimal",
+            "value": "5.5",
+        }
 
     @pytest.mark.parametrize(
         ("expression", "node_type"),
@@ -578,9 +603,20 @@ class TestExpressionShapes:
         assert [code["code"] for code in elm["code"]] == ["x"]
         assert elm["display"] == "D"
 
-    def test_case_with_a_comparand_is_not_serializable(self, serializer: ELMSerializer) -> None:
-        with pytest.raises(AttributeError):
-            serializer.serialize_expression("case 2 when 1 then 'one' when 2 then 'two' end")
+    def test_a_searched_case_carries_its_whens_and_its_else(self, serializer: ELMSerializer) -> None:
+        elm = serializer.serialize_expression("case when false then 1 when true then 2 else 3 end")
+        assert elm["type"] == "Case"
+        assert "comparand" not in elm
+        assert [item["when"]["value"] for item in elm["caseItem"]] == ["false", "true"]
+        assert [item["then"]["value"] for item in elm["caseItem"]] == ["1", "2"]
+        assert elm["else"]["value"] == "3"
+
+    def test_a_case_with_a_comparand_carries_the_comparand(self, serializer: ELMSerializer) -> None:
+        elm = serializer.serialize_expression("case 2 when 1 then 'one' when 2 then 'two' else 'other' end")
+        assert elm["type"] == "Case"
+        assert elm["comparand"]["value"] == "2"
+        assert [item["when"]["value"] for item in elm["caseItem"]] == ["1", "2"]
+        assert elm["else"]["value"] == "other"
 
 
 class TestLibraryStructure:
@@ -1002,6 +1038,37 @@ class TestLibraryRoundTrip:
             ("Max({ 1, 5, 3 })", 5),
             ("start of Interval[1, 10]", 1),
             ("end of Interval[1, 10]", 10),
+            ("case when false then 'a' when true then 'b' else 'c' end", "b"),
+            ("case when false then 'a' when false then 'b' else 'c' end", "c"),
+            ("case 2 when 1 then 'one' when 2 then 'two' else 'other' end", "two"),
+            ("case 9 when 1 then 'one' when 2 then 'two' else 'other' end", "other"),
+            ("case 'x' when 'x' then case when true then 'nested' else 'no' end else 'no' end", "nested"),
+            ("@2024-01-15", FHIRDate(year=2024, month=1, day=15)),
+            ("@2024-01", FHIRDate(year=2024, month=1)),
+            ("@2024", FHIRDate(year=2024)),
+            ("@2024-01-15T10:30:00", FHIRDateTime(year=2024, month=1, day=15, hour=10, minute=30, second=0)),
+            (
+                "@2024-01-15T00:00:00.250Z",
+                FHIRDateTime(year=2024, month=1, day=15, hour=0, minute=0, second=0, millisecond=250, tz_offset="Z"),
+            ),
+            (
+                "@2024-01-15T10:30:00+05:30",
+                FHIRDateTime(year=2024, month=1, day=15, hour=10, minute=30, second=0, tz_offset="+05:30"),
+            ),
+            ("@T12:00", FHIRTime(hour=12, minute=0)),
+            ("@T00:00:00", FHIRTime(hour=0, minute=0, second=0)),
+            (
+                "Interval[@2024-01-01, @2024-01-31]",
+                CQLInterval(
+                    low=FHIRDate(year=2024, month=1, day=1),
+                    high=FHIRDate(year=2024, month=1, day=31),
+                    low_closed=True,
+                    high_closed=True,
+                ),
+            ),
+            ("@2024-01-15 in Interval[@2024-01-01, @2024-01-31]", True),
+            ("start of Interval[@2024-01-01, @2024-01-31]", FHIRDate(year=2024, month=1, day=1)),
+            ("case when @2024-01-15 in Interval[@2024-01-01, @2024-01-31] then 'inside' else 'outside' end", "inside"),
         ],
     )
     def test_an_expression_answers_the_same_from_cql_and_from_elm(self, expression: str, expected: Any) -> None:

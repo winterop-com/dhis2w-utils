@@ -903,12 +903,12 @@ class TestDateTimeOperators:
         assert isinstance(result, FHIRDateTime)
         assert (result.year, result.month, result.day) == (today.year, today.month, today.day)
 
-    def test_time_of_day_is_a_clock_string(self, visitor: ELMExpressionVisitor) -> None:
+    def test_time_of_day_is_a_time_value(self, visitor: ELMExpressionVisitor) -> None:
         result = visitor.evaluate({"type": "TimeOfDay"})
-        hours, minutes, seconds = result.split(":")
-        assert 0 <= int(hours) <= 23
-        assert 0 <= int(minutes) <= 59
-        assert 0 <= int(seconds) <= 59
+        assert isinstance(result, FHIRTime)
+        assert 0 <= result.hour <= 23
+        assert result.minute is not None and 0 <= result.minute <= 59
+        assert result.second is not None and 0 <= result.second <= 59
 
     @pytest.mark.parametrize(
         ("node", "expected"),
@@ -944,13 +944,19 @@ class TestDateTimeOperators:
     @pytest.mark.parametrize(
         ("node", "expected"),
         [
-            ({"type": "Time", "hour": integer(10), "minute": integer(30), "second": integer(15)}, "10:30:15"),
-            ({"type": "Time", "hour": integer(10), "minute": integer(30)}, "10:30"),
-            ({"type": "Time", "hour": integer(10)}, "10"),
+            (
+                {"type": "Time", "hour": integer(10), "minute": integer(30), "second": integer(15)},
+                FHIRTime(hour=10, minute=30, second=15),
+            ),
+            ({"type": "Time", "hour": integer(10), "minute": integer(30)}, FHIRTime(hour=10, minute=30)),
+            ({"type": "Time", "hour": integer(10)}, FHIRTime(hour=10)),
+            ({"type": "Time", "hour": integer(0), "minute": integer(0)}, FHIRTime(hour=0, minute=0)),
             ({"type": "Time"}, None),
         ],
     )
-    def test_time_constructor(self, visitor: ELMExpressionVisitor, node: dict[str, Any], expected: str | None) -> None:
+    def test_time_constructor(
+        self, visitor: ELMExpressionVisitor, node: dict[str, Any], expected: FHIRTime | None
+    ) -> None:
         assert visitor.evaluate(node) == expected
 
     @pytest.mark.parametrize(
@@ -1004,7 +1010,10 @@ class TestDateTimeOperators:
             ({"type": "DateFrom", "operand": date_literal("2024-01-02")}, FHIRDate(year=2024, month=1, day=2)),
             ({"type": "DateFrom", "operand": integer(1)}, None),
             ({"type": "DateFrom", "operand": NULL}, None),
-            ({"type": "TimeFrom", "operand": datetime_literal("2024-01-02T03:04:05")}, "03:04:05"),
+            (
+                {"type": "TimeFrom", "operand": datetime_literal("2024-01-02T03:04:05")},
+                FHIRTime(hour=3, minute=4, second=5),
+            ),
             ({"type": "TimeFrom", "operand": datetime_literal("2024-01-02")}, None),
             ({"type": "TimeFrom", "operand": integer(1)}, None),
             ({"type": "TimeFrom", "operand": NULL}, None),

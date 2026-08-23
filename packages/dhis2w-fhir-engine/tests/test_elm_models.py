@@ -16,10 +16,12 @@ from dhis2w_fhir_engine.engine.elm.models.expressions import (
     ELMNull,
     ELMOr,
     ELMQuery,
+    ELMReturnClause,
     ELMSubtract,
     ELMTuple,
 )
 from dhis2w_fhir_engine.engine.elm.models.library import (
+    ELMAnnotation,
     ELMCodeDef,
     ELMCodeSystem,
     ELMDefinition,
@@ -245,6 +247,50 @@ class TestELMExpressions:
         assert query.type == "Query"
 
 
+class TestKeywordAliasedFields:
+    """Fields whose ELM wire name is a Python keyword, or shadows one of the model's own names."""
+
+    def test_an_else_branch_is_given_by_field_name(self) -> None:
+        if_expr = ELMIf(
+            condition=ELMLiteral(valueType="{urn:hl7-org:elm-types:r1}Boolean", value="true"),
+            then=ELMLiteral(valueType="{urn:hl7-org:elm-types:r1}Integer", value="1"),
+            else_=ELMLiteral(valueType="{urn:hl7-org:elm-types:r1}Integer", value="2"),
+        )
+        assert isinstance(if_expr.else_, ELMLiteral)
+        assert if_expr.else_.value == "2"
+
+    def test_an_else_branch_reads_and_writes_the_wire_name(self) -> None:
+        if_expr = ELMIf.model_validate(
+            {
+                "condition": {"type": "Literal", "valueType": "x", "value": "true"},
+                "then": {"type": "Literal", "valueType": "x", "value": "1"},
+                "else": {"type": "Literal", "valueType": "x", "value": "2"},
+            }
+        )
+        assert if_expr.else_ is not None
+        assert "else" in if_expr.model_dump(by_alias=True, exclude_none=True)
+
+    def test_statements_are_given_by_field_name(self) -> None:
+        statements = ELMStatements(definitions=[ELMDefinition(name="Sum", expression={})])
+        assert [definition.name for definition in statements.definitions] == ["Sum"]
+        assert statements.model_dump(by_alias=True, exclude_none=True)["def"][0]["name"] == "Sum"
+
+    def test_statements_read_the_wire_name(self) -> None:
+        statements = ELMStatements.model_validate({"def": [{"name": "Sum", "expression": {}}]})
+        assert [definition.name for definition in statements.definitions] == ["Sum"]
+
+    def test_an_annotation_type_is_given_by_field_name(self) -> None:
+        annotation = ELMAnnotation(type="CqlToElmInfo")
+        assert annotation.type == "CqlToElmInfo"
+        assert annotation.model_dump(by_alias=True, exclude_none=True) == {"t": "CqlToElmInfo"}
+        assert ELMAnnotation.model_validate({"t": "CqlToElmInfo"}).type == "CqlToElmInfo"
+
+    def test_a_query_return_clause_is_given_by_field_name(self) -> None:
+        query = ELMQuery(source=[], return_=ELMReturnClause(expression=ELMLiteral(valueType="x", value="1")))
+        assert query.return_ is not None
+        assert "return" in query.model_dump(by_alias=True, exclude_none=True)
+
+
 class TestELMLibrary:
     def test_minimal_library(self) -> None:
         library = ELMLibrary(
@@ -262,15 +308,13 @@ class TestELMLibrary:
             parameters=[ELMParameter(name="MeasurementPeriod")],
             codeSystems=[ELMCodeSystem(name="LOINC", id="http://loinc.org")],
             valueSets=[ELMValueSet(name="Diabetes", id="http://example.org/ValueSet/diabetes")],
-            statements=ELMStatements.model_validate(
-                {
-                    "def": [
-                        ELMDefinition(
-                            name="Sum",
-                            expression={"type": "Literal", "value": "42"},
-                        ),
-                    ]
-                }
+            statements=ELMStatements(
+                definitions=[
+                    ELMDefinition(
+                        name="Sum",
+                        expression={"type": "Literal", "value": "42"},
+                    ),
+                ]
             ),
         )
         assert library.identifier.id == "TestLibrary"
@@ -285,13 +329,11 @@ class TestELMLibrary:
     def test_get_definition(self) -> None:
         library = ELMLibrary(
             identifier=ELMIdentifier(id="TestLibrary"),
-            statements=ELMStatements.model_validate(
-                {
-                    "def": [
-                        ELMDefinition(name="First", expression={}),
-                        ELMDefinition(name="Second", expression={}),
-                    ]
-                }
+            statements=ELMStatements(
+                definitions=[
+                    ELMDefinition(name="First", expression={}),
+                    ELMDefinition(name="Second", expression={}),
+                ]
             ),
         )
         assert library.get_definition("First") is not None
@@ -301,12 +343,10 @@ class TestELMLibrary:
     def test_get_function(self) -> None:
         library = ELMLibrary(
             identifier=ELMIdentifier(id="TestLibrary"),
-            statements=ELMStatements.model_validate(
-                {
-                    "def": [
-                        ELMFunctionDef(name="Add", operand=[], expression={}),
-                    ]
-                }
+            statements=ELMStatements(
+                definitions=[
+                    ELMFunctionDef(name="Add", operand=[], expression={}),
+                ]
             ),
         )
         assert library.get_function("Add") is not None
