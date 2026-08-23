@@ -919,9 +919,22 @@ Published as two FHIR-native artifacts:
   under `{base}/id/category-option-code`. Both namespaces are declared as
   NamingSystems and aliased (`$DHIS2-CO`, `$DHIS2-CO-CODE`) by the `foundation`
   target.
-- **The one directory two targets share** states ownership by file-name prefix
-  (`sync_json_artifacts(owned_prefix=...)`), so each family sweeps only the ids
-  its own naming token produces and one `path-resource` glob covers both.
+- **`D2Sex_CM`** is the first map this project publishes onto a vocabulary that
+  is not DHIS2's own: one `equal` row per line of
+  `[ips.identity.administrative_gender]`, sourced from the nominated attribute's
+  own value namespace (`{base}/tracked-entity-attribute/{uid}` - the very system
+  the register publishes that attribute's values under) and targeting
+  `http://hl7.org/fhir/administrative-gender`. Written by the `questionnaires`
+  target beside the attribute vocabulary it reads out of, rows sorted by the
+  DHIS2 value so an unchanged `fhir.toml` regenerates the same bytes, and no file
+  at all where no `sex` is nominated. The register reads the file rather than the
+  map, because the nominations the map depends on are published nowhere; the map
+  is what makes the translation auditable from the guide alone.
+- **The one directory the map families share** states ownership by file-name
+  prefix (`sync_json_artifacts(owned_prefix=...)`), so each family sweeps only
+  the ids its own naming token produces (`ConceptMap-d2-os-`,
+  `ConceptMap-d2-cat-`, `ConceptMap-d2-aoc-`, `ConceptMap-d2-sex`) and one
+  `path-resource` glob covers them all.
 - **Every identifier namespace a map targets is published as a CodeSystem too**,
   at the same URL, with `content: complete` and every identifier the guide's own
   maps name enumerated in it - `{base}/id/option` and `{base}/id/option-code`
@@ -1040,6 +1053,48 @@ registration form become `Questionnaire` instances.
   run leaving two or more registered types unmapped raises a generate note
   naming each by instance name and UID, which doctor's generate phase reports
   as a warning.
+
+#### Who a person is
+
+- **`[ips.identity]`** nominates, by UID, which tracked entity attribute holds a
+  person's `name`, `birth_date`, and `sex`. DHIS2 has no field that means any of
+  the three, so the nomination is the instance's own statement or there is
+  nothing to publish. Absent - the default - the register answers exactly what it
+  answered before the table existed, byte for byte, which is what the whole serve
+  test suite asserts by passing unchanged.
+- **One attribute for the name, published as free text.** There is no
+  given/family split: FHIR's `ips-pat-1` is satisfied by `name.text`, and which
+  half of a person's name an attribute holds is a fact DHIS2 does not state.
+- **`[ips.identity.administrative_gender]`** maps each value the sex attribute
+  holds - the option's DHIS2 code where it is option-set bound - onto one of
+  R4's four `administrative-gender` codes, whose binding on `Patient.gender` is
+  required. A fifth word is refused when `fhir.toml` loads; a `sex` with no map,
+  and a map with no `sex`, are both refused as halves of a dial that would do
+  nothing.
+- **The value shape is checked against the guide, not guessed.** At startup each
+  nomination is looked up in the published `D2TEA_CS` vocabulary and its
+  `value-type` checked against what the FHIR element takes - `DATE` for
+  `birth_date`, free text for `name` and `sex`. A mismatch refuses the run,
+  naming the key and the type it found. An attribute the guide publishes nothing
+  about is logged and served, because the guide's silence means the attribute is
+  outside the selection rather than wrong.
+- **Absence is stated per person, in the IG's own mechanism.** A nominated birth
+  date the instance holds no value for keeps the element and carries
+  `data-absent-reason` `unknown` on its `_birthDate` sibling - the IPS guide's own
+  worked example; a value this server cannot read as a date carries `error`
+  instead, because "nobody recorded one" and "what was recorded is not a date"
+  are different answers. `name` and `gender` state no absence, being required on
+  nothing the register serves, and a sex value outside the map publishes no
+  `gender` at all.
+- **A nomination adds a reading and removes nothing.** The attribute's own value
+  still rides the `D2TrackedEntityAttributeValue` extension as the string DHIS2
+  sent, so a client sees both what the instance holds and what the project says
+  it means. Nomination reaches only the resource types R4 gives those elements -
+  `Patient`, `Person`, `Practitioner`, `RelatedPerson` - and never a `Specimen`
+  or a `Location`.
+- **One mapping surface, so a synced copy and a live read agree.** The nominations
+  ride `TrackedEntityIndex`, which `registered_entity_for` is the sole consumer
+  of, so `d2w fhir sync` writes the same bytes the register answers with.
 
 #### The data dictionary
 
@@ -1626,7 +1681,8 @@ reads that table.
   walked.
 - **The whole people surface is `[serve.tracked_entities]`' to give.**
   `enabled` false answers none of it even under `--live`; `listing` false keeps
-  the identifier search and drops the browse; `page_size` / `page_size_limit`
+  the identifier search and drops the browse; `events` false keeps identity and
+  drops one entity's own record; `page_size` / `page_size_limit`
   size a page and cap what may be asked for; `tracked_entity_types` narrows
   search and listing to named types (the laboratory instance that registers
   specimens beside patients); and `search_attributes` names the search keys in
@@ -1636,21 +1692,22 @@ reads that table.
   would refuse the clinic finding a woman by her searchable first name. Several
   matches is a normal answer the listing already renders. Each refusal names
   the setting and the line to change.
-- **The projection is identity and nothing else**: `id` and an `identifier`
-  under `{base}/id/tracked-entity`, one `identifier` per unique attribute value
-  under `{base}/tracked-entity-attribute/<uid>`, the tracked entity type as a
-  `meta.tag`, and every other attribute value - entity-level and
-  enrollment-level alike, so a person found by a program attribute comes back
-  holding it - on the `D2TrackedEntityAttributeValue` foundation extension.
-  There is no `name`, `gender`, or `birthDate`, because DHIS2 states no mapping
-  for them and a wrong one is worse than none.
+- **The projection is identity, plus whatever `[ips.identity]` nominated**: `id`
+  and an `identifier` under `{base}/id/tracked-entity`, one `identifier` per
+  unique attribute value under `{base}/tracked-entity-attribute/<uid>`, the
+  tracked entity type as a `meta.tag`, and every other attribute value -
+  entity-level and enrollment-level alike, so a person found by a program
+  attribute comes back holding it - on the `D2TrackedEntityAttributeValue`
+  foundation extension. `name`, `gender`, and `birthDate` are filled from the
+  nominations and from nothing else, because DHIS2 states no mapping for them
+  and a wrong one is worse than none.
 - **`GET /{resourceType}/{uid}`** reads one tracked entity, which is what each
-  Bundle entry's `fullUrl` points at. The projection is identity-only whatever
-  the resource: the tracked entity uid, the values of the attributes DHIS2
-  declares unique, the type as `meta.tag`, the rest as extensions, and nothing
-  the target resource otherwise defines - a served `Specimen` states no
-  `Specimen.type`, exactly as a served `Patient` states no name, gender, or
-  birth date.
+  Bundle entry's `fullUrl` points at. The projection states nothing the target
+  resource otherwise defines: the tracked entity uid, the values of the
+  attributes DHIS2 declares unique, the type as `meta.tag`, the rest as
+  extensions, and the nominated demographics where the resource is one R4 gives
+  them - a served `Specimen` states no `Specimen.type`, and no name, and no
+  birth date, whatever anybody nominated about people.
 - **`GET /tracked-entities/{uid}/enrollments`** is the picker's feed: typed
   JSON rather than a FHIR resource, because EpisodeOfCare-versus-CarePlan is
   still an open decision. It lists enrollment uid, program uid and the name the
@@ -1660,9 +1717,32 @@ reads that table.
   claiming the person does not exist), with a COMPLETED enrollment listed and
   marked rather than hidden (BUGS.md 70: DHIS2 takes events into one without a
   word).
-- **A compiled run holds no client**, so both answer a `not-supported`
+- **`GET /tracked-entities/{uid}/events`** is the record: every event of that
+  entity's enrollments, newest first, each served as the `QuestionnaireResponse`
+  its program stage's own published form describes - the stage's canonical as
+  `questionnaire`, the entity as `subject` under the resource type the published
+  map registers it as, the enrollment and the reporting unit as extensions, the
+  event's instant as `authored`, and one item per data value typed by the very
+  form a submission is validated against, coded answers carried as the concepts
+  the guide publishes. The shape is the capture contract's own, so what a client
+  may post is what it reads back, and no clinical resource is invented for data
+  DHIS2 states no mapping for. One read of the tracked entity per request,
+  entity-scoped throughout (BUGS.md 72 and 91: `/api/tracker/events` demands a
+  program on v43, and naming one an entity is not enrolled in answers 404), and
+  ordered here because DHIS2 nests the events unordered. `_count` and `page`
+  walk it on the register's own dials, `_count=0` answers how long the record is,
+  and any other parameter is refused rather than ignored. An event of a stage the
+  guide publishes no form for counts in the total, carries no document, and is
+  named in an `outcome` entry. One event is read at
+  `GET /tracked-entities/{uid}/events/{eventUid}`, which is what each entry's
+  `fullUrl` points at - never `QuestionnaireResponse/{id}`, which answers the
+  spool's receipts. `[serve.tracked_entities] events = false` refuses the record
+  and leaves identity served.
+- **A compiled run holds no client**, so all of them answer a `not-supported`
   OperationOutcome naming `--live`, and `/metadata` declares no register
-  resource at all.
+  resource at all - which is where the record's address is stated too, on the
+  QuestionnaireResponse entry whose documents it answers with and on every
+  register entry, so a client that found somebody learns where their record is.
 
 #### `$translate`
 
@@ -3235,10 +3315,11 @@ checks, and BUGS.md workaround drift detection. Available via CLI and MCP.
 One example tree, version-neutral: each example is a single copy that runs
 against DHIS2 v41, v42, and v43.
 
-- **`examples/fhir/`**: the `d2w fhir` surface in its own group - 5 CLI scripts
-  (init/generate/validate, serve, forward, doctor, spool) and 25 Python library
-  examples grouped as build a response, read a form, convert to DHIS2, send and
-  verify, and drive the toolchain. Every one runs in `make verify-examples`
+- **`examples/fhir/`**: the `d2w fhir` surface in its own group - 25 CLI scripts
+  (init/generate/validate, serve, forward, doctor, spool, sync) and 43 Python
+  library examples grouped as build a response, read a form, convert to DHIS2,
+  send and verify, say who a person is, summarise a record, and drive the
+  toolchain. Every library one runs in `make verify-examples`
   against a shared `_fixture.py` that scaffolds a project, builds a translation
   context off the instance, and starts a live facade on a port the operating
   system picks. There are no MCP examples because there are no MCP tools: what

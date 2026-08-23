@@ -4,10 +4,12 @@ An IPS is one FHIR `document`: a Bundle whose first entry is a Composition and w
 entries are the resources that Composition's sections point at.
 
 **This is a working prototype ahead of the decisions the IPS working paper reserves for the owner**
-([`docs/fhir/design/ips.md`](../../../docs/fhir/design/ips.md), section 10). Nothing here is a
-shipped feature: the identity nominations and the section mapping the paper leaves to an owner are
-stated in this file as constants, so that those calls can be read off a document instead of argued
-in the abstract.
+([`docs/fhir/design/ips.md`](../../../docs/fhir/design/ips.md), section 10). The section mapping is
+still stated in this file as constants, so that the call can be read off a document instead of
+argued in the abstract. The identity half no longer is: `[ips.identity]` ships, and
+[`identity_nominations.py`](identity_nominations.py) is the reading this file predates. This one
+keeps its own constants so that the document it builds stays runnable against a project whose
+`fhir.toml` nominates nothing.
 
 **What it maps.** `Patient.name` from the two tracked entity attributes nominated below as the given
 and family halves - DHIS2 has no name field, so a name is a nomination or it is nothing. Then the
@@ -26,9 +28,9 @@ invariant `ips-comp-1` accepts instead. Both are valid; neither is conformance w
 
 `Patient.birthDate` is required (1..1) and this instance publishes no birth-date attribute to
 nominate, so the element carries the data-absent-reason extension with `unknown` on its `_birthDate`
-sibling - the IG's own worked example. `Patient.gender` is left off entirely: the nominated sex
-attribute holds free text, `gender` is bound to `administrative-gender` with a required binding, and
-filling it would mean inventing the ConceptMap the paper says somebody has to author.
+sibling - the IG's own worked example. `Patient.gender` is left off entirely, because this file states
+no gender map: `gender` is bound to `administrative-gender` with a required binding, and the
+translation is `[ips.identity.administrative_gender]`'s to state and `D2Sex_CM`'s to publish.
 
 No IPS validator runs offline, so the verification story is this example's own reference check -
 every reference the Composition makes resolves to a Bundle entry - plus the model round-trips in

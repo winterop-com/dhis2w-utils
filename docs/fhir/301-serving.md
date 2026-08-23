@@ -661,10 +661,10 @@ rather than guessed at.
     when it started: a hundred readers cost it no more than one. The register is
     the exception. Every search, and every page of the listing, is a question put
     to the DHIS2 instance while somebody waits - so the more this surface is
-    used, the more work the instance does. The six settings below are how a
+    used, the more work the instance does. The seven settings below are how a
     project decides how much of that it wants.
 
-A live run - `d2w fhir serve --live` - answers three
+A live run - `d2w fhir serve --live` - answers four
 questions about the instance's tracked entities that no other run can answer:
 
 - *"Who holds this identifier?"* - the search, from a card number, a register
@@ -674,8 +674,11 @@ questions about the instance's tracked entities that no other run can answer:
 - *"Which programmes is this record in?"* - the enrollment list the capture
   screens' pickers choose from, at
   `/tracked-entities/{uid}/enrollments`.
+- *"What has happened to this one?"* - the record: every event of that entity's
+  enrollments, at `/tracked-entities/{uid}/events`, each one served as the
+  response its programme stage's own published form describes.
 
-A server reading a compiled guide answers none of the three and says so. It
+A server reading a compiled guide answers none of the four and says so. It
 holds no connection to a DHIS2 instance, so there is nothing to answer about -
 that is a property of the mode, not something this table turns on.
 
@@ -701,10 +704,14 @@ register and the published forms from ever describing the same type differently.
 
 Each address answers the same way, and answers narrowly: it gives back the DHIS2
 id of the record, the values of the attributes DHIS2 declares unique, and the
-remaining attribute values as labelled extras - **and nothing else**. There is no
-name, sex, or date of birth on a person served here unless a tracked entity
-attribute of your instance holds it, because DHIS2 is the only thing this server
-reads and it never invents a value it was not given.
+remaining attribute values as labelled extras - **and nothing else**, unless you
+have said which attribute means what. A person carries a name, a sex, and a date
+of birth only where
+[`[ips.identity]`](301-what-goes-in.md#ips-identity) nominates the attribute
+each of them lives in, because DHIS2 states no such mapping, this server never
+invents a value it was not given, and a wrong name on a patient record is a
+worse answer than none. A nomination adds a reading of an attribute value the
+record already carried; it hides nothing and replaces nothing.
 
 ##### Fifty types is fifty lines, and fewer addresses { #tracked_entities-many-types }
 
@@ -850,6 +857,42 @@ on the first page of the people the instance holds.
 `serve.tracked_entities.listing` is what a different value gets you. Setting
 `listing = true` beside `enabled = false` changes nothing - `enabled` removes
 the surface the listing is part of.
+
+#### `events` { #tracked_entities-events }
+
+**In plain words.** Whether "what has happened to this person" is a question
+this server answers. On - the default - one tracked entity's own events come
+back at `GET /tracked-entities/{uid}/events`, each as the response its programme
+stage's published form describes: when it happened, which form it answers, and
+every value that was recorded, with the codes this guide publishes for them. Off,
+the register still says who somebody is, and their record is refused.
+
+**When you would change it.** When publishing identity is agreed and publishing
+what was recorded is not - a directory that lets a partner system confirm a
+person is registered, without handing over their visits. The distinction is a
+real one to a data protection officer, and this setting is where it is drawn.
+
+**Example.**
+
+```toml
+[serve.tracked_entities]
+events = false
+```
+
+The register answers as it always did; a request for one entity's events is
+refused with a message naming this key.
+
+**What is served is one entity's events and never a programme's.** The read is
+scoped to the tracked entity it is asked about, which is also what makes it safe:
+DHIS2 decides, per caller, which of that entity's events come back.
+
+**Default:** `true` - **If you leave it out:** a live run answers the record of
+any tracked entity its caller may see.
+
+**If you get it wrong:** TOML wants bare `true` or `false`; a printout naming
+`serve.tracked_entities.events` is what a different value gets you. Setting
+`events = true` beside `enabled = false` changes nothing - `enabled` removes the
+surface the record is part of.
 
 #### `page_size` { #tracked_entities-page_size }
 
@@ -1072,10 +1115,12 @@ and the posture is R9.
 - **A search this server could not answer before.** `_content` - R4's own
   parameter for a text search over a resource's whole content - matches a
   case-insensitive substring of any value a person holds. It is spelled
-  `_content` and not `name` or `family` because this server does not know which
-  of somebody's DHIS2 attribute values is their name, and will not guess: DHIS2
-  states no such mapping. `"dhis2"` refuses the parameter, because an exact-match
-  filter cannot answer it.
+  `_content` and not `name` or `family` because it searches every value, not the
+  one somebody nominated as a name in
+  [`[ips.identity]`](301-what-goes-in.md#ips-identity) - and on an instance that
+  nominates nothing there is no name to search by, because DHIS2 states no such
+  mapping and this server will not guess. `"dhis2"` refuses the parameter,
+  because an exact-match filter cannot answer it.
 - **One query instead of many.** `"dhis2"` spends one round trip per search key
   per tracked entity type, sequentially, while somebody waits. `"projection"`
   spends one read of a local file. Each match still costs the one live read that

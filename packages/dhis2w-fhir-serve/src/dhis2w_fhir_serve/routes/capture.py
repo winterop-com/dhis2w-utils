@@ -54,8 +54,9 @@ from dhis2w_fhir_serve.routes.context import serve_context
 from dhis2w_fhir_serve.spool import StoredResponseEnvelope, current_instant, new_response_id
 
 #: Where the capture state is held on the app. It is deliberately not part of `ServeContext`: the
-#: context is everything the lifespan loaded, and this is built by the first capture request and
-#: filled in as questionnaires are met, so a facade that is only ever read from never builds it.
+#: context is everything the lifespan loaded, and this is built by the first request that needs a
+#: form read - a capture, or a record read projecting one entity's events through the same forms -
+#: and filled in as questionnaires are met.
 CAPTURE_STATE_ATTRIBUTE = "capture"
 
 #: The JSON media types a capture body may be declared as. `application/fhir+json` is what FHIR
@@ -137,7 +138,12 @@ def _require_json_body(request: Request) -> None:
 
 
 def capture_state(request: Request) -> CaptureState:
-    """The capture state of this app, built from the served project the first time a capture arrives."""
+    """The capture state of this app, built from the served project the first time a form is read.
+
+    Shared with the record surface, which projects one entity's events through the same naming and
+    the same index cache a submission is validated against - one form typed one way, whichever
+    direction a value is travelling. `dhis2w_fhir_serve.routes.history` is the other caller.
+    """
     held: CaptureState | None = getattr(request.app.state, CAPTURE_STATE_ATTRIBUTE, None)
     if held is not None:
         return held

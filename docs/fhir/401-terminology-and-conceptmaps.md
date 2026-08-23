@@ -407,6 +407,61 @@ its register answers over, so the answer a client translates and the endpoint it
 then calls cannot disagree - see
 [the register](401-consume-the-fhir-api.md#the-register-what-the-instance-holds-one-resource-per-tracked-entity-type).
 
+### The sex values a person is served under { #the-sex-values-a-person-is-served-under }
+
+`D2Sex_CM` is the one map in this guide whose target is not a DHIS2 identifier.
+`Patient.gender` is bound to R4's own `administrative-gender` code system - `male`,
+`female`, `other`, `unknown` - and the binding is **required**, so a DHIS2 option
+code reaches that element through a translation or it does not reach it at all.
+DHIS2 publishes no such translation, which makes the rows an instance's own
+statement, written in
+[`[ips.identity.administrative_gender]`](301-what-goes-in.md#ips-administrative_gender)
+and published here.
+
+```json
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-sex-cm",
+  "url": "http://example.org/fhir/ConceptMap/d2-sex-cm",
+  "name": "D2Sex_CM",
+  "title": "DHIS2 sex values as FHIR administrative gender codes",
+  "status": "draft",
+  "experimental": true,
+  "targetCanonical": "http://hl7.org/fhir/ValueSet/administrative-gender",
+  "group": [
+    {
+      "source": "http://dhis2.org/fhir/tracked-entity-attribute/cejWyOfXge6",
+      "target": "http://hl7.org/fhir/administrative-gender",
+      "element": [
+        { "code": "Female", "target": [{ "code": "female", "equivalence": "equal" }] },
+        { "code": "Male", "target": [{ "code": "male", "equivalence": "equal" }] }
+      ]
+    }
+  ]
+}
+```
+
+**The source system is one attribute's own value namespace**, the very system the
+register publishes that attribute's values under
+([Identifiers and the D2 extensions](401-identifiers-and-extensions.md)). That is
+deliberate, and it is what makes the map true of what the server does: the server
+holds a person's stored value, not an option-set concept, so the row codes are the
+values DHIS2 stores - on an option-set-bound attribute, the option's DHIS2 code. A
+map keyed on anything else would publish a step nobody performs.
+
+**Where the server reads it from.** The file, not the map. Which attribute is a
+person's sex is not published anywhere - the guide states what an attribute is
+called and what type its values are, and no artifact states what one *means* - so
+reading half the dial from an artifact and half from `fhir.toml` would be worse
+than reading both from one place. The map is what makes the translation auditable
+by somebody holding the guide alone; it is not the server's own input. That is the
+one way this family differs from `D2TET_CM`, and it closes when the nominations
+themselves are published.
+
+The rows are sorted by the DHIS2 value, so regenerating an unchanged `fhir.toml`
+writes the same bytes. Nominate no `sex` and no file is written at all - an R4
+group needs at least one element, and a map with no group states nothing.
+
 ## Translations: designations on a concept, extensions on a title
 
 Every vocabulary on this page publishes its DHIS2 `NAME` translations, and the
@@ -495,17 +550,26 @@ a terminology server can serve that answer over
 [`$translate`](401-consume-the-fhir-api.md#translate-generated-codes-back-to-dhis2-identifiers) -
 a running [`d2w fhir serve`](201-serve.md) does exactly that.
 
-Two targets publish maps, one family each, into one directory:
+Four families publish maps into one directory:
 
 ```
 ig/input/resources/concept-maps/ConceptMap-d2-os-<stem>-cm.json    option sets
 ig/input/resources/concept-maps/ConceptMap-d2-cat-<stem>-cm.json   categories
+ig/input/resources/concept-maps/ConceptMap-d2-aoc-<stem>-cm.json   attribute option combos
+ig/input/resources/concept-maps/ConceptMap-d2-sex-cm.json          sex values
 ```
 
 | Family | Written by | Question it answers | Target namespaces |
 | --- | --- | --- | --- |
 | Option sets | `option-sets` | Which DHIS2 **option** does this answer code name? | `<base>/id/option`, `<base>/id/option-code` |
 | Categories | `categories` | Which DHIS2 **category option** does this disaggregation code name? | `<base>/id/category-option`, `<base>/id/category-option-code` |
+| Attribute option combos | `questionnaires` | Which DHIS2 **category option combo** does this response's attribute combination name? | `<base>/id/category-option-combo`, `<base>/id/category-option-combo-code` |
+| Sex values | `questionnaires` | What does this instance's sex value mean, in FHIR's own words? | `http://hl7.org/fhir/administrative-gender` |
+
+The last of those is the only one that runs outward rather than back: every other
+map here takes a published code onto a DHIS2 identifier, and that one takes a DHIS2
+value onto a vocabulary HL7 owns. See
+[the sex values a person is served under](#the-sex-values-a-person-is-served-under).
 
 `D2TET_CM` is a map too, and the one that runs the other way - from a DHIS2 concept
 to a FHIR resource type rather than back to a DHIS2 identifier. It is authored in
@@ -513,9 +577,9 @@ FSH beside the vocabulary it maps rather than written as JSON here, so it compil
 out of `data-dictionary/` and needs no glob of its own; see
 [the resource each type is published as](#the-resource-each-type-is-published-as).
 
-Each map takes its id, its FSH name, and its URL from the same identity stem its
-CodeSystem and ValueSet do, carries the source object's UID as its single
-`identifier` (`<base>/id/option-set` for a set, `<base>/id/category` for a
+Each map back to DHIS2 takes its id, its FSH name, and its URL from the same
+identity stem its CodeSystem and ValueSet do, carries the source object's UID as its
+single `identifier` (`<base>/id/option-set` for a set, `<base>/id/category` for a
 category), and points `sourceCanonical` at its own ValueSet. All four DHIS2
 namespaces are declared as NamingSystems by the `foundation` target (see
 [Generate the IG source](201-generate.md#know-the-eight-targets)), so a validator meeting one has a
@@ -649,11 +713,13 @@ the maps compile fine and are dropped from the published guide. A project scaffo
 before the glob existed picks it up with `d2w fhir init --refresh` (see
 [Set up an IG project](201-set-up-a-project.md#refresh-an-older-projects-scaffold)).
 
-Neither target owns the directory outright. A JSON sync normally deletes every `*.json`
+No family owns the directory outright. A JSON sync normally deletes every `*.json`
 in its target the run did not produce, which would have `d2w fhir generate option-sets`
-sweeping away the category maps; instead each target sweeps only the file-name prefix
-its own id stem produces (`ConceptMap-d2-os-`, `ConceptMap-d2-cat-`). Both still
-converge: drop a category from the selection and its map goes with its pair.
+sweeping away the category maps; instead each family sweeps only the file-name prefix
+its own naming tokens produce (`ConceptMap-d2-os-`, `ConceptMap-d2-cat-`,
+`ConceptMap-d2-aoc-`, `ConceptMap-d2-sex`). Each still converges: drop a category from
+the selection and its map goes with its pair, and drop `sex` from
+[`[ips.identity]`](301-what-goes-in.md#ips-sex) and the sex map goes with it.
 
 ## See also
 

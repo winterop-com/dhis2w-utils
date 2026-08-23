@@ -72,6 +72,14 @@ Posting a response at a running facade, and reading what comes back.
 | [`read_register_as_yourself.py`](read_register_as_yourself.py) | A facade under `auth = "dhis2"`: the register read under the caller's own DHIS2 authorization, and the 401 a read with no credential gets |
 | [`register_any_type.py`](register_any_type.py) | Every register a facade serves, walked off `/metadata` with no resource type written down - the type names behind each one, and the tag each resource carries |
 
+## Say who a person is
+
+Which tracked entity attribute means a name, a birth date, a sex, and what a reading of one produces.
+
+| File | Shows |
+| --- | --- |
+| [`identity_nominations.py`](identity_nominations.py) | `[ips.identity]` read over a real person: a name filled, a sex value the map does not answer for, and a birth date stating its own absence |
+
 ## Summarise a record
 
 Reading one person's record back out of DHIS2 and assembling it into a FHIR document.

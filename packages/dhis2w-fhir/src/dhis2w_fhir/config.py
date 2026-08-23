@@ -25,6 +25,7 @@ from dhis2w_core.cli_errors import CliUserError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from dhis2w_fhir.i18n import normalize_locale
+from dhis2w_fhir.ips import IdentityNominations
 from dhis2w_fhir.names import NamingSource, is_dhis2_uid, strip_trailing_slash
 from dhis2w_fhir.r4 import SUBJECT_RESOURCE_TYPES
 from dhis2w_fhir.resources.categories.schemas import CategorySelection
@@ -295,6 +296,11 @@ class TrackedEntitiesConfig(BaseModel):
     refuses only the request that means "everybody", which is the posture for an instance whose
     register is not something a capture client may page through.
 
+    `events` is one entity's own record - the events of its enrollments, each served as the
+    QuestionnaireResponse the guide publishes for its program stage. False and the record is refused
+    while identity is still served, which is the posture for a deployment that publishes who its
+    subjects are and not what was recorded about them.
+
     `page_size` is what one page carries when the client names no `_count`, and `page_size_limit`
     is the largest `_count` honoured: a client asking for more is served the limit rather than
     refused, which is what FHIR says a server may do with a `_count` it will not meet.
@@ -310,6 +316,7 @@ class TrackedEntitiesConfig(BaseModel):
 
     enabled: bool = True
     listing: bool = True
+    events: bool = True
     page_size: int = DEFAULT_REGISTER_PAGE_SIZE
     page_size_limit: int = DEFAULT_REGISTER_PAGE_SIZE_LIMIT
     tracked_entity_types: list[str] = Field(default_factory=list)
@@ -830,6 +837,26 @@ class ForwardConfig(BaseModel):
     withdrawals: WithdrawalPosture = WithdrawalPosture.OFF
 
 
+class IpsConfig(BaseModel):
+    """What this instance says about a person beyond their identifiers - the `[ips]` tables of `fhir.toml`.
+
+    `[ips.identity]` nominates the tracked entity attribute carrying a person's name, birth date, and
+    sex, and maps that sex attribute's values onto R4's `administrative-gender` codes. DHIS2 holds no
+    field that means any of those, so the nomination is the instance's own statement or there is
+    nothing to publish - `docs/fhir/design/ips.md` section 4 is the argument, and section 9's phase 1
+    is what the nomination reaches today: the register's own `Patient`, before any summary document
+    exists.
+
+    The table is always present as a table of defaults, for the reason `[serve.jwt]` is: a project
+    that nominates nothing is refused by the key's name rather than by a missing section, and its
+    register answers exactly what it answered before this table existed.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    identity: IdentityNominations = Field(default_factory=IdentityNominations)
+
+
 class FhirProjectConfig(BaseModel):
     """The full parsed `fhir.toml` document."""
 
@@ -840,6 +867,7 @@ class FhirProjectConfig(BaseModel):
     generate: GenerateConfig = Field(default_factory=GenerateConfig)
     serve: ServeConfig = Field(default_factory=ServeConfig)
     forward: ForwardConfig = Field(default_factory=ForwardConfig)
+    ips: IpsConfig = Field(default_factory=IpsConfig)
 
 
 class FhirProject(BaseModel):

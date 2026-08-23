@@ -7,13 +7,21 @@ in, not a promise that DHIS2 holds what that resource defines. A Specimen here t
 event on a tracked entity, and no declared link from a sample to the person it came from. It has
 tracked entity attributes, and which of them mean those things is a decision each instance makes for
 itself, usually differently. The same holds for the people: `Patient.name`, `Patient.gender`, and
-`Patient.birthDate` are the elements every FHIR client reaches for first, and none of them is filled
-in, because DHIS2 has no first-name attribute, no sex attribute, no date-of-birth attribute. A server
-that matched on attribute names would be inventing a semantic mapping and publishing it as fact - and
-a wrong `gender` on a person, or a wrong `type` on a sample, is a worse answer than none. When an
-instance nominates the mapping (roadmap decision 5.2), the nomination is what fills those elements;
-until then a registered resource answers exactly one question, which is what this thing is in this
-instance.
+`Patient.birthDate` are the elements every FHIR client reaches for first, and DHIS2 has no first-name
+attribute, no sex attribute, no date-of-birth attribute. A server that matched on attribute names
+would be inventing a semantic mapping and publishing it as fact - and a wrong `gender` on a person,
+or a wrong `type` on a sample, is a worse answer than none.
+
+WHICH IS WHY THOSE THREE ELEMENTS COME FROM A NOMINATION AND FROM NOTHING ELSE. `[ips.identity]`
+names the attribute carrying a person's name, birth date, and sex, and maps that sex attribute's
+values onto R4's `administrative-gender` codes; `dhis2w_fhir.ips` reads a person's values through it
+(`docs/fhir/design/ips.md` section 4, and section 9's phase 1, which is this). A project that
+nominates nothing serves exactly what this register served before the table existed, byte for byte,
+because a registered resource then answers exactly one question, which is what this thing is in this
+instance. A nomination adds a reading of a value and removes nothing: the value keeps riding the
+attribute-value extension as the string DHIS2 sent, so a client sees both what the instance holds
+and what this project says it means. Nomination reaches only the resource types that define those
+elements - the people - and never a `Specimen` or a `Location`, which define none of them.
 
 WHAT IT DOES CARRY, and where each fact comes from:
 
@@ -49,12 +57,19 @@ from dhis2w_fhir.foundation.tracked_entity_attribute_values import (
     tracked_entity_attribute_identifiers,
     tracked_entity_attribute_value_extensions,
 )
+from dhis2w_fhir.ips import ServedIdentity, served_identity
 from dhis2w_fhir.r4 import Coding, Identifier, Meta, RegisteredEntity
 
 if TYPE_CHECKING:
     from dhis2w_client.generated.v42.oas import TrackerAttribute, TrackerTrackedEntity
 
     from dhis2w_fhir_serve.register.index import TrackedEntityIndex
+
+#: The resource types a demographic nomination reaches: the ones R4 gives a `HumanName`, a `gender`,
+#: and a `birthDate`. A `Specimen` or a `Location` defines none of the three, so a nomination is
+#: silently no business of theirs rather than an error - the table nominates an attribute of a
+#: person, and the register serves nine kinds of thing.
+PERSON_RESOURCE_TYPES = ("Patient", "Person", "Practitioner", "RelatedPerson")
 
 
 def registered_entity_for(
@@ -66,12 +81,17 @@ def registered_entity_for(
     identifiers = [Identifier(system=index.tracked_entity_system, value=tracked_entity_uid)]
     identifiers.extend(tracked_entity_attribute_identifiers(values, index.identifier_system_base))
     extensions = tracked_entity_attribute_value_extensions(values, index.attribute_value_extension_url)
+    identity = _identity(values, index, resource_type)
     return RegisteredEntity(
         resourceType=resource_type,
         id=tracked_entity_uid,
         meta=_type_tag(entity, index),
         identifier=identifiers,
         extension=extensions or None,
+        name=identity.name,
+        gender=identity.gender,
+        birthDate=identity.birth_date,
+        birthDate_element=identity.birth_date_element,
     )
 
 
@@ -101,6 +121,24 @@ def attribute_values(entity: TrackerTrackedEntity, index: TrackedEntityIndex) ->
             ),
         )
     return list(carried.values())
+
+
+def _identity(
+    values: list[TrackedEntityAttributeValueIn], index: TrackedEntityIndex, resource_type: str
+) -> ServedIdentity:
+    """Read the nominated attributes of one person, or state nothing where nothing was nominated.
+
+    The first value an attribute is carried under wins. An attribute collected at the tracked entity
+    type and again at a program can hold two different strings, and a person has one name: taking the
+    first keeps a served resource stable rather than picking whichever enrollment sorted first.
+    """
+    identity = index.identity
+    if not identity.nominates_anything() or resource_type not in PERSON_RESOURCE_TYPES:
+        return ServedIdentity()
+    stated: dict[str, str] = {}
+    for attribute_value in values:
+        stated.setdefault(attribute_value.attribute_uid, attribute_value.value)
+    return served_identity(stated, identity)
 
 
 def _attributes(entity: TrackerTrackedEntity) -> list[TrackerAttribute]:

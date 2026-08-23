@@ -29,12 +29,12 @@ reserves.
 This paper tees up five owner calls, listed in full in section 10: the identity
 nominations that fill `Patient.name` / `birthDate` / `gender`, where section mappings
 come from, what the serving surface is called, whether a summary with no mapped
-clinical section may be built at all, and how this sequences against the history
-surface. It is a decision document, not a plan of record - the recommendation in
-section 9 is a recommendation. It assumes throughout that **tracked entity history
-(roadmap 9.3) is the prerequisite substrate**: a summary is a projection of a record,
-and the facade does not yet serve that record. Nothing here proposes building the IPS
-before the history it summarises exists.
+clinical section may be built at all, and in what order the three phases land. It is a
+decision document, not a plan of record - the recommendation in
+section 9 is a recommendation. It rests throughout on **the record the facade serves**:
+a summary is a projection of a record, and `GET /tracked-entities/{uid}/events` is
+where that record is read - one entity's events, each as the response its programme
+stage's published form describes (section 3).
 
 ## 2. What an IPS is
 
@@ -140,12 +140,20 @@ and a paged listing, all gated by `[serve.tracked_entities]` (`config.py`,
 `TrackedEntitiesConfig`) and refused with `RegisterDisabledError` /
 `NoPublishedSubjectTypeError`.
 
-**The history surface does not exist.** The facade serves the enrollment listing at
-`/tracked-entities/{uid}/enrollments` and nothing under it: no event read, no data
-value read, no timeline. Roadmap 9.3 has the design; nothing is built. Whatever an IPS
-section is fed from comes through that surface once it exists, entity-scoped
-throughout, because BUGS.md 69 forces the owner-aware discipline and BUGS.md 72 forbids
-the program-scoped read that would otherwise be the obvious shortcut.
+**The history surface is what an IPS section reads from, and it is served.**
+`GET /tracked-entities/{uid}/events` answers one entity's own events - every event of
+every enrollment it holds, newest first - each as the `QuestionnaireResponse` its
+programme stage's published form describes: the stage's canonical as `questionnaire`,
+the entity as `subject`, the enrollment and the reporting unit as extensions, the
+event's own instant as `authored`, and one item per data value carrying the codes this
+guide publishes. The read is entity-scoped throughout, which is what R3 asks of it -
+one read of the tracked entity per request, the events nested under the enrollments
+they belong to, no program ever named (BUGS.md 72 and 91) and no organisation-unit
+scope (BUGS.md 69). What the record does not carry is a clinical vocabulary: an item's
+coding is a DHIS2 option in this guide's own CodeSystem, so a section's semantics still
+come from a mapping somebody writes. `dhis2w_fhir_serve.history` is the module; a stage
+the guide publishes no form for is counted and named rather than served as something
+else.
 
 **The semantic layer stops one step short of clinical vocabulary.** ConceptMaps and
 `$translate` ship for option sets (`D2OS_<stem>_CM`), categories (`D2CAT_<stem>_CM`),
@@ -439,8 +447,8 @@ nominated name fixes that whether or not a summary is ever built. It also front-
 the riskiest owner decision and is the only phase that exercises the
 option-to-`administrative-gender` ConceptMap the whole clinical-vocabulary line needs.
 
-**Phase 2 - the immunisation section, as the first and only mapped section.** Once the
-history surface serves events, ship `[ips.sections]` restricted to `Immunizations`,
+**Phase 2 - the immunisation section, as the first and only mapped section.** The
+history surface serves the events it reads: ship `[ips.sections]` restricted to `Immunizations`,
 publish the mapping as a ConceptMap beside the vocabularies it maps (option C in
 section 5), and serve a document whose three required sections all carry `emptyReason`
 and whose one recommended section carries real doses. Small, honest, demonstrably valid,
@@ -451,8 +459,7 @@ same way: an owner writes a mapping, the generator publishes it, the projection 
 it. No section is built into the code. `Results`, `Vital Signs`, and `Problems` are the
 likely order on the fleet as it stands.
 
-**What this recommendation deliberately does not do.** It does not build a summary
-before the history surface exists (R3 has nowhere to read from). It does not claim
+**What this recommendation deliberately does not do.** It does not claim
 `Plan of Care` from scheduled events, because that spends `CarePlan` on a fact decision
 5.2 has not finished allocating. It does not attempt `Allergies` at all. And it derives
 no section assignment from anything DHIS2 says about itself.
@@ -479,14 +486,16 @@ appears, option B in section 5 wins outright.
   such a document is valid and is not Creator-conformant. This project can refuse to
   serve it, serve it with a stated caveat, or serve it silently. This is a doctrine
   call, not a technical one.
-- **Sequencing against tracked entity history.** This paper assumes history first
-  throughout. Phase 1 of the recommendation does not need it and could land earlier;
-  whether it does is a scheduling call.
+- **Sequencing.** The record this paper reads from is served, so the phases are free
+  to land in any order. Phase 1 needs no record at all, and phase 2 needs the section
+  mappings rather than a further read.
 
 ## See also
 
 - [FHIR roadmap and review guide](roadmap.md) - the IPS item in 9.3, which this page
-  narrows, and the history surface it depends on.
+  narrows.
+- [Consume the FHIR API](../401-consume-the-fhir-api.md) - the record at
+  `/tracked-entities/{uid}/events`, which is what a section is fed from.
 - [The enrollment resource](enrollment-resource.md) - decision 5.2, whose recommended
   `EpisodeOfCare` is the shape a summary's episodes would hang off.
 - [DHIS2 fidelity audit](dhis2-fidelity.md) - what the guide carries about a data

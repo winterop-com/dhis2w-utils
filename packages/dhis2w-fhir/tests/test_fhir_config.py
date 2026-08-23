@@ -7,6 +7,7 @@ from dhis2w_fhir.config import (
     FhirProjectConfig,
     GenerateConfig,
     IgConfig,
+    IpsConfig,
     MalformedFhirConfigError,
     NoFhirProjectError,
     SearchBackend,
@@ -21,6 +22,7 @@ from dhis2w_fhir.config import (
     load_project,
     write_fhir_config,
 )
+from dhis2w_fhir.ips import IdentityNominations
 from pydantic import ValidationError
 
 _MINIMAL_TOML = """
@@ -293,11 +295,12 @@ def test_a_tracked_entity_type_map_still_takes_any_uid_as_a_key(tmp_path: Path) 
 
 
 def test_the_tracked_entities_table_serves_a_listing_of_twenty_by_default() -> None:
-    """An absent `[serve.tracked_entities]` serves people, lists them, and pages them twenty at a time."""
+    """An absent `[serve.tracked_entities]` serves people, lists them, records them, and pages twenty at a time."""
     tracked_entities = ServeConfig().tracked_entities
 
     assert tracked_entities.enabled is True
     assert tracked_entities.listing is True
+    assert tracked_entities.events is True
     assert tracked_entities.page_size == 20
     assert tracked_entities.page_size_limit == 100
     assert tracked_entities.tracked_entity_types == []
@@ -308,13 +311,15 @@ def test_the_tracked_entities_table_parses_off_fhir_toml(tmp_path: Path) -> None
     """What a live run says about people is project config, so it loads off the document like the rest."""
     path = _write(
         tmp_path,
-        after="\n[serve.tracked_entities]\nenabled = true\nlisting = false\npage_size = 5\npage_size_limit = 50\n"
+        after="\n[serve.tracked_entities]\nenabled = true\nlisting = false\nevents = false\npage_size = 5\n"
+        "page_size_limit = 50\n"
         'tracked_entity_types = ["nEenWmSyUEp"]\nsearch_attributes = ["lZGmxYbs97q"]\n',
     )
 
     tracked_entities = load_fhir_config(path).serve.tracked_entities
 
     assert tracked_entities.listing is False
+    assert tracked_entities.events is False
     assert tracked_entities.page_size == 5
     assert tracked_entities.page_size_limit == 50
     assert tracked_entities.tracked_entity_types == ["nEenWmSyUEp"]
@@ -511,3 +516,116 @@ def test_a_malformed_fhir_toml_is_a_worded_refusal_naming_the_file(tmp_path: Pat
     message = str(raised.value)
     assert str(config_path) in message
     assert "not valid TOML" in message
+
+
+_IDENTITY_TABLE = (
+    "\n[ips.identity]\n"
+    'name = "w75KJ2mc4zz"\n'
+    'birth_date = "iESIqZ0R0R0"\n'
+    'sex = "cejWyOfXge6"\n'
+    "\n[ips.identity.administrative_gender]\n"
+    '"Male" = "male"\n'
+    '"Female" = "female"\n'
+)
+
+
+def test_the_identity_table_parses_off_fhir_toml(tmp_path: Path) -> None:
+    """Which attribute means what is the instance's own statement, so it loads off the document."""
+    path = _write(tmp_path, after=_IDENTITY_TABLE)
+
+    identity = load_fhir_config(path).ips.identity
+
+    assert identity.name == "w75KJ2mc4zz"
+    assert identity.birth_date == "iESIqZ0R0R0"
+    assert identity.sex == "cejWyOfXge6"
+    assert identity.administrative_gender == {"Male": "male", "Female": "female"}
+    assert identity.nominates_anything() is True
+
+
+def test_a_project_stating_no_identity_table_nominates_nothing(tmp_path: Path) -> None:
+    """An absent table is the whole of what every project written before it said: nominate nothing."""
+    identity = load_fhir_config(_write(tmp_path)).ips.identity
+
+    assert identity == IdentityNominations()
+    assert identity.nominates_anything() is False
+    assert identity.nominated_attribute_uids() == ()
+
+
+def test_a_nomination_that_is_not_a_uid_is_refused_by_the_shape(tmp_path: Path) -> None:
+    """A name or a code here would nominate nothing, silently, so the file refuses anything but a UID."""
+    path = _write(tmp_path, after='\n[ips.identity]\nname = "First name"\n')
+
+    with pytest.raises(ValidationError) as raised:
+        load_fhir_config(path)
+
+    assert "is not a DHIS2 UID" in str(raised.value)
+
+
+def test_a_gender_outside_the_four_r4_codes_is_refused_by_name(tmp_path: Path) -> None:
+    """`Patient.gender` has a required binding, so a fifth word maps onto nothing a client can read."""
+    path = _write(
+        tmp_path,
+        after='\n[ips.identity]\nsex = "cejWyOfXge6"\n\n[ips.identity.administrative_gender]\n"M" = "man"\n',
+    )
+
+    with pytest.raises(ValidationError) as raised:
+        load_fhir_config(path)
+
+    assert "administrative-gender codes" in str(raised.value)
+
+
+def test_a_nominated_sex_with_no_map_is_refused(tmp_path: Path) -> None:
+    """A sex nomination whose values map onto nothing publishes no gender at all, which nobody asked for."""
+    path = _write(tmp_path, after='\n[ips.identity]\nsex = "cejWyOfXge6"\n')
+
+    with pytest.raises(ValidationError) as raised:
+        load_fhir_config(path)
+
+    assert "maps nothing" in str(raised.value)
+
+
+def test_a_gender_map_with_no_nominated_sex_is_refused(tmp_path: Path) -> None:
+    """The map names values of an attribute nobody nominated, so the file says which half is missing."""
+    path = _write(tmp_path, after='\n[ips.identity.administrative_gender]\n"Male" = "male"\n')
+
+    with pytest.raises(ValidationError) as raised:
+        load_fhir_config(path)
+
+    assert "an attribute nobody nominated" in str(raised.value)
+
+
+def test_a_misspelled_key_in_the_identity_table_gets_the_same_treatment(tmp_path: Path) -> None:
+    """`[ips.identity]` declares its full key set like every other table, so a typo is named and placed."""
+    path = _write(tmp_path, after='\n[ips.identity]\nbirthdate = "iESIqZ0R0R0"\n')
+
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+
+    assert raised.value.diagnostics == (
+        "fhir.toml: unknown key 'birthdate' in [ips.identity]\n  did you mean 'birth_date'?",
+    )
+
+
+def test_a_misspelled_key_in_the_ips_table_gets_the_same_treatment(tmp_path: Path) -> None:
+    """The `[ips]` table declares one sub-table today, and refuses the name of a second nobody built."""
+    path = _write(tmp_path, after='\n[ips.sections]\n"A03MvHHogjR" = "Immunizations"\n')
+
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+
+    assert raised.value.diagnostics == ("fhir.toml: unknown key 'sections' in [ips]",)
+
+
+def test_the_identity_table_survives_a_config_round_trip(tmp_path: Path) -> None:
+    """The table writes to fhir.toml and loads back off it, exactly as its sibling tables do."""
+    path = tmp_path / "fhir.toml"
+    config = _make_config()
+    config.ips = IpsConfig(
+        identity=IdentityNominations(
+            name="w75KJ2mc4zz", sex="cejWyOfXge6", administrative_gender={"Male": "male", "Female": "female"}
+        )
+    )
+
+    write_fhir_config(path, config)
+
+    assert load_fhir_config(path).ips == config.ips

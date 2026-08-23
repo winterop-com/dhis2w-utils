@@ -4991,6 +4991,70 @@ without `program`, or refuses with a DHIS2 JSON error naming it; and the singula
 
 ---
 
+### 108. Nested `enrollments[events[...]]` come back in an order that is neither the event's date nor its creation, and `order=` is accepted and ignored
+
+**Version observed:** DHIS2 2.43.1 (`dhis2/core:2.43.1`, revision `9cbfbf3`, local seeded stack).
+
+**What a caller is trying to do.** Read one tracked entity's whole record in one request - the
+entity, its enrollments, and the events under each - which is the only entity-scoped way to reach
+the events at all: `/api/tracker/events` demands a `program` on this major
+([#91](#91-get-apitrackerevents-demands-program-unconditionally-on-v43-and-the-singular-enrollment-filter-is-silently-ignored-on-every-major)) and an entity-scoped read naming a programme the entity is not enrolled in answers
+`404 E1005` ([#72](#72-entity-scoped-get-with-a-program-the-entity-is-not-enrolled-in-answers-404-trackedentity-could-not-be-found)). The nested read is the shape that avoids both. What it does not carry is
+an order, and nothing says so.
+
+**Repro** (read-only, `admin:district`; three events of one tracked entity, one hour apart):
+
+```bash
+# The nested read. The events come back 07:00, 06:00, 08:00 - and do so on every repeat.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities/geghdTobFoE?fields=enrollments%5Bevents%5Bevent,occurredAt,createdAt%5D%5D'
+# ckVmcZmRSYZ  occurredAt 07:00  createdAt 2026-08-22T14:39:19.307
+# wMd9bJKGydN  occurredAt 06:00  createdAt 2026-08-22T14:39:19.319
+# Jb3VgYmqRpD  occurredAt 08:00  createdAt 2026-08-22T14:39:19.291
+
+# `order=` is accepted and changes nothing - and so is an order naming a field that does not exist.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities/geghdTobFoE?fields=enrollments%5Bevents%5Bevent,occurredAt%5D%5D&order=occurredAt:asc'
+# -> 200, the same 07:00, 06:00, 08:00
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:district \
+  'http://localhost:8080/api/tracker/trackedEntities/geghdTobFoE?fields=enrollments%5Bevents%5Bevent%5D%5D&order=notAField:asc'
+# -> 200
+
+# The flat collection, which does order, for comparison.
+curl -s -u admin:district \
+  'http://localhost:8080/api/tracker/events?program=PrColdCh001&trackedEntity=geghdTobFoE&order=occurredAt:asc&fields=event,occurredAt'
+# -> 06:00, 07:00, 08:00
+```
+
+**Expected.** Either the nested collection carries a documented order - the event's own date is the
+obvious one, and it is what the flat collection sorts on - or the `order=` the same request already
+accepts applies to it. A caller reading a person's record over time is reading a timeline, and a
+timeline in an unstated order is a list.
+
+**Actual.** The order matches neither `occurredAt` (07:00, 06:00, 08:00) nor `createdAt` (the
+creation order is Jb3, ckV, wMd; the answer is ckV, wMd, Jb3), and it is stable across repeats, so
+it is *an* order - just not one the payload explains. `order=` on the request is accepted and does
+not reach the nested collection, and an `order=` naming a field that does not exist is accepted too,
+which is [#98](#98-get-apitrackertrackedentities-silently-ignores-every-unrecognised-query-parameter-so-the-singular-trackedentity-turns-a-uid-scoped-read-into-an-unscoped-page)'s "unrecognised tracker query parameters are ignored rather than refused"
+reaching a parameter that *is* recognised at the top level.
+
+**Impact.** Anything rendering a record over time has to sort client-side after reading the whole
+of it, which also means it cannot page the timeline at the source: a "first ten events" read of a
+collection in an unstated order is ten arbitrary events.
+
+**Workaround applied in this repo.** The record surface orders the events itself, newest first, by
+`occurredAt` and then by the event UID as the tie-break, and pages the ordered result rather than
+the answer:
+`recorded_entity` in
+`packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/history/wire.py`. The tie-break is what makes two
+reads of an unchanged record answer the same bytes.
+
+**How to know it's fixed:** the nested read answers in `occurredAt` order, or honours the `order=`
+the request already carries, and an `order=` naming a field the collection does not have is refused.
+
+**Verifier:** none yet.
+
+
 ### 92. `/api/metadata` import rewrites `Option.sortOrder` to a 0-based sequence
 
 **Observed on:** DHIS2 `2.43.1` (`dhis2/core`, `make dhis2-run`, rev `9cbfbf3`), while
@@ -5995,3 +6059,48 @@ rendered page shows `5 to &lt; 15 years, Female`. The refusal and the rewrite bo
 at that point.
 
 **Verifier:** none yet.
+
+### 107. The IG publisher's concept anchor slug strips whitespace, so two distinct codes render one duplicate anchor id
+
+**Version observed:** HL7 `fhir-ig-publisher` 2.3.2 (`publisher.jar`), FHIR R4, rendering a
+CodeSystem generated from DHIS2 2.43 metadata.
+
+**What a caller is trying to do.** Publish a `content: complete` CodeSystem enumerating every
+option code a national instance holds. DHIS2 option codes are free text, and an instance
+legitimately holds both `Pre eclampsia` and `Preeclampsia` as distinct codes on different
+option sets. A complete CodeSystem must state both - dropping either would claim a code the
+guide's ConceptMaps still reference.
+
+**Repro.** A CodeSystem holding two concepts whose codes differ only in whitespace:
+
+```json
+{"resourceType": "CodeSystem", "id": "anchor-repro", "status": "active",
+ "content": "complete", "url": "http://example.org/anchor-repro",
+ "concept": [
+   {"code": "Pre eclampsia", "display": "Pre eclampsia"},
+   {"code": "Preeclampsia", "display": "Preeclampsia"}
+ ]}
+```
+
+Build the guide. The rendered `CodeSystem-anchor-repro.html` carries the same anchor id for
+both concept rows, and QA reports it - on the real guide, as:
+
+```text
+Internal error in location for message: 'Error @1, 2: Found / expecting a token name',
+loc = '.../CodeSystem-d2-option-code-id-cs.html',
+err = 'The html source has duplicate anchor Ids: d2-option-code-id-cs-Preeclampsia'
+```
+
+**Expected.** The publisher owns its anchor scheme; two distinct codes should render two
+distinct anchors (an ordinal suffix on the collision would do), or the QA message should name
+the two source codes rather than reporting an internal error against a location the message
+itself calls malformed.
+
+**Actual.** One anchor id for both rows, a QA error per collision, and an `Internal error in
+location` line above it. The build still exits 0 - the errors are QA-level.
+
+**Workaround applied in this repo:** none in the emission - `resources/identifier_terminology.py`
+deliberately keeps both codes, because merging codes that differ only in characters the
+publisher's slug strips would make a `content: complete` claim false
+(`_distinct_concepts` dedupes exact duplicates only). The QA errors are cosmetic and counted
+among a guide's expected errors; `docs/fhir/201-troubleshooting.md` names the symptom.

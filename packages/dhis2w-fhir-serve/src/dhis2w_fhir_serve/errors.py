@@ -138,6 +138,26 @@ class RegisterListingDisabledError(ServeError):
         self.resource_type = resource_type
 
 
+class RecordDisabledError(ServeError):
+    """This project publishes who its subjects are and not what was recorded about them.
+
+    `[serve.tracked_entities] events` is false, so the register answers and the record does not. Same
+    status and issue code as every other "this server does not serve that here", with the key named so
+    an operator reads it as a decision this project wrote down rather than as a missing feature.
+    """
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str) -> None:
+        super().__init__(
+            f"this facade serves no `{resource_type}`: this project publishes who its tracked entities "
+            "are and not what was recorded about them; set `[serve.tracked_entities] events = true` in "
+            "fhir.toml and serve again"
+        )
+        self.resource_type = resource_type
+
+
 class ProjectionNotConfiguredError(ServeError):
     """A search was told to read the materialized projection and this process holds none.
 

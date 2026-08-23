@@ -12,6 +12,8 @@ what a valid capture is ([The capture contract](401-capture-contract.md)).
 - read and search the published resources, including the identifier search
   that groups a program's forms
 - find a person by identifier and page through the people an instance holds
+- read one tracked entity's record over time - every event of its enrollments,
+  as the responses the guide's own forms describe
 - resolve generated codes back to DHIS2 identifiers with `$translate`
 - get a valid, reproducible test submission from `$generate`
 - post a capture and read every kind of answer the server gives
@@ -32,8 +34,8 @@ that wants the FHIR surface as a library rather than as an address.
 
 Every response body on this page is real output from a running facade. The
 compiled-store examples run against a project served on port 8389; the
-register and enrollment examples, which exist only under `--live`, against a
-`d2w fhir serve --live` on port 8391. The Python surface behind all of it is
+register, enrollment, and record examples, which exist only under `--live`,
+against a `d2w fhir serve --live` on port 8391. The Python surface behind all of it is
 documented in [the `dhis2w_fhir_serve` API reference](api-dhis2w-fhir-serve.md).
 
 ## Discovery: `/metadata`
@@ -356,11 +358,13 @@ $ curl -s 'localhost:8391/Patient?identifier=NO-SUCH-ID' | jq '.type, .total'
 0
 ```
 
-**The Patient is identity and nothing else.** No `name`, no `gender`, no
-`birthDate` - DHIS2 has no attribute that means any of those, and which of an
-instance's attributes do is a decision each instance makes for itself. A wrong
-`gender` on a patient record is a worse answer than none, so the server states
-only what DHIS2 states:
+**The Patient is identity, plus whatever the instance nominated.** No `name`, no
+`gender`, no `birthDate` unless
+[`[ips.identity]`](301-what-goes-in.md#ips-identity) says which tracked entity
+attribute holds each one - DHIS2 has no attribute that means any of those, and
+which of an instance's attributes do is a decision each instance makes for
+itself. A wrong `gender` on a patient record is a worse answer than none, so
+without a nomination the server states only what DHIS2 states:
 
 ```json
 {
@@ -570,6 +574,132 @@ switch is about browsing a register with no criteria, and this is a read about
 one person you already have.
 
 A UID the instance does not hold is a 404 here, as on any read.
+
+## `/tracked-entities/{uid}/events`: what has happened to one of them
+
+The register says who somebody is. This says what the instance holds about
+them: every event of every enrollment that tracked entity has, newest first,
+each one served as the `QuestionnaireResponse` the guide already publishes for
+its program stage. It is a searchset Bundle, read from DHIS2 while you wait,
+under your own authorization where the server runs
+[`auth = "dhis2"`](301-serving.md#auth).
+
+**The shape is the capture contract's, read backwards.** A client posting a
+tracker event sends a `D2TrackerEventResponse`; this is the same document,
+built from what DHIS2 holds now - the stage's `questionnaire`, the tracked
+entity as `subject`, the enrollment and the reporting unit as extensions, the
+event's own instant as `authored`, and one item per data value under the
+`linkId` its data element is asked as. What a client may write is what a client
+reads back, so a consumer that already understands one leg understands both.
+
+The subject need not be a person. Here it is a cold chain fridge, whose type
+the project publishes as `Device`, and whose record is three hourly temperature
+readings:
+
+```console
+$ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events?_count=1' | jq .
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 3,
+  "link": [
+    { "relation": "self", "url": "http://localhost:8391/tracked-entities/geghdTobFoE/events?_count=1&page=bzA" },
+    { "relation": "next", "url": "http://localhost:8391/tracked-entities/geghdTobFoE/events?_count=1&page=bzE" }
+  ],
+  "entry": [
+    {
+      "fullUrl": "http://localhost:8391/tracked-entities/geghdTobFoE/events/Jb3VgYmqRpD",
+      "resource": {
+        "resourceType": "QuestionnaireResponse",
+        "id": "Jb3VgYmqRpD",
+        "meta": { "profile": ["http://localhost:8391/fhir/StructureDefinition/d2-tracker-event-response"] },
+        "extension": [
+          {
+            "url": "http://localhost:8391/fhir/StructureDefinition/d2-organisation-unit",
+            "valueReference": { "reference": "Location/DiszpKrYNg8" }
+          },
+          {
+            "url": "http://localhost:8391/fhir/StructureDefinition/d2-tracker-enrollment",
+            "valueIdentifier": { "system": "http://dhis2.org/fhir/id/tracker-enrollment", "value": "IsEmT1d3S4X" }
+          },
+          { "url": "http://localhost:8391/fhir/StructureDefinition/d2-form-type", "valueCode": "tracker-event" }
+        ],
+        "questionnaire": "http://localhost:8391/fhir/Questionnaire/PsTempRead1",
+        "status": "completed",
+        "subject": {
+          "type": "Device",
+          "identifier": { "system": "http://dhis2.org/fhir/id/tracked-entity", "value": "geghdTobFoE" }
+        },
+        "authored": "2026-08-22T08:00:00Z",
+        "item": [
+          { "linkId": "UHa1Rmk0lwA", "answer": [{ "valueInteger": 5 }] },
+          { "linkId": "vlWx4U5DnZX", "answer": [{ "valueDecimal": 7.9 }] }
+        ]
+      },
+      "search": { "mode": "match" }
+    }
+  ]
+}
+```
+
+`id` is the DHIS2 event UID and `fullUrl` is where that one document is served
+- `GET /tracked-entities/{uid}/events/{eventUid}` answers it on its own.
+`QuestionnaireResponse/{id}` is deliberately *not* that address: that one
+answers the spool, where a document of the same id is a receipt of what a client
+sent rather than what DHIS2 now holds.
+
+**A coded value carries the concept this guide publishes for it.** DHIS2 stores
+an option's own code; the served CodeSystem publishes that code beside the
+concept code, so the answer comes back as a coding a consumer can resolve:
+
+```json
+{ "linkId": "vTUhAUZFoys",
+  "answer": [{ "valueCoding": {
+    "system": "http://localhost:8391/fhir/CodeSystem/d2-os-kzgQRhOCadd-cs",
+    "code": "sXfZuRdvhl5",
+    "display": "Dose 0" } }] }
+```
+
+A value the served terminology cannot code comes back as the string DHIS2
+stored, and so does a number the instance holds in a spelling its own value
+type does not admit. Dropping either would hide a value the instance holds.
+
+**Paging.** `_count` and `page` walk the record the way they walk the register
+listing, `_count` clamped at
+[`page_size_limit`](301-serving.md#tracked_entities-page_size_limit), and
+`_count=0` answers how long the record is and returns nobody's events:
+
+```console
+$ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events?_count=0'
+{"resourceType":"Bundle","type":"searchset","total":3,"link":[{"relation":"self","url":"http://localhost:8391/tracked-entities/geghdTobFoE/events?_count=0"}]}
+```
+
+`total` is every event this caller may see, counted under their own
+credentials. The two parameters above are the whole surface: anything else is
+refused rather than ignored, because a parameter this server cannot apply,
+ignored, would answer a narrower question with the whole record.
+
+```console
+$ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events?programStage=PsTempRead1'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`programStage` is not a search parameter this server answers `events` on: it answers `_count`, `page`"}]}
+```
+
+**An event of a stage this project publishes no form for is stated rather than
+skipped.** It counts in `total`, carries no document - there is no form to name
+as its `questionnaire` - and the searchset closes with an `outcome` entry saying
+which stage it was of. Generate that stage's Questionnaire and it reads here
+like the rest.
+
+Like the register, this is live-only, and
+`[serve.tracked_entities] enabled = false` takes it away with the register.
+[`events = false`](301-serving.md#tracked_entities-events) takes it away on its
+own, for a project that publishes who its subjects are and not what was recorded
+about them:
+
+```console
+$ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this facade serves no `events`: this project publishes who its tracked entities are and not what was recorded about them; set `[serve.tracked_entities] events = true` in fhir.toml and serve again"}]}
+```
 
 ## `$translate`: generated codes back to DHIS2 identifiers
 

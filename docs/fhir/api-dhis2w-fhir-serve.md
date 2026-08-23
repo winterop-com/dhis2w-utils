@@ -481,6 +481,22 @@ picker's typed JSON feed rather than as a FHIR resource, because whether a DHIS2
 
 ::: dhis2w_fhir_serve.routes.enrollments
 
+### The record
+
+`GET /tracked-entities/{uid}/events` - one tracked entity's own events, each served as the
+`QuestionnaireResponse` its program stage's published form describes, and `GET
+/tracked-entities/{uid}/events/{eventUid}` for one of them. Where the register answers who somebody
+is, this answers what has happened to them: one entity-scoped read of the instance per request, under
+the credentials of whoever asked. The wire module holds the read and the order it puts the record in,
+and the projection turns one recorded event into the document the capture contract already states for
+it - so the shape a client reads back is the shape a client would post.
+
+::: dhis2w_fhir_serve.history.wire
+
+::: dhis2w_fhir_serve.history.projection
+
+::: dhis2w_fhir_serve.routes.history
+
 ### Read and search routes
 
 `GET /{type}/{id}` and `GET /{type}`, answered from the store for every definitional resource and

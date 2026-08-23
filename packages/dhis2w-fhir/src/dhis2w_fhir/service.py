@@ -74,6 +74,10 @@ from dhis2w_fhir.overwrite import (
 )
 from dhis2w_fhir.period import parse_period, recent_periods
 from dhis2w_fhir.r4 import QuestionnaireResponse
+from dhis2w_fhir.resources.administrative_gender import (
+    administrative_gender_map_file_prefix,
+    build_administrative_gender_concept_map_artifacts,
+)
 from dhis2w_fhir.resources.attribute_combos import (
     ATTRIBUTE_COMBO_DIRECTORY,
     attribute_combo_concept_map_file_prefix,
@@ -1591,6 +1595,18 @@ def _emit_questionnaires(
             CONCEPT_MAP_DIRECTORY,
             concept_maps,
             owned_prefix=attribute_combo_concept_map_file_prefix(generate),
+        ),
+        # The identity map rides this target because the vocabulary it maps out of is this target's:
+        # its source is one tracked entity attribute's value namespace, and `D2TEA_CS` is what
+        # publishes that attribute. A project nominating no sex attribute produces no file, and the
+        # sweep then deletes the one a project that used to nominate one left behind.
+        sync_json_artifacts(
+            project.resources_directory,
+            CONCEPT_MAP_DIRECTORY,
+            build_administrative_gender_concept_map_artifacts(
+                project.config.ips.identity, generate, canonical, ig_status=ig_status
+            ),
+            owned_prefix=administrative_gender_map_file_prefix(generate),
         ),
     ]
     report = GenerateReport(
