@@ -1527,11 +1527,9 @@ described, and the git history is where it was built. What is left:
   screen's table a rendering of a wire-true resource. Measure scoring already
   answers `MeasureReport`.
 
-- **The capture UI's remaining chrome.** Adopt the interactive-row treatment on
-  the three table pages still wearing bare rows (the recipe is written); widen
-  `PageState` messages to rendered nodes so the ten strings carrying literal
-  backticks read as code; settle the parked vocabulary decisions (nav labels,
-  lifecycle labels, the application's own name).
+- **The capture UI's parked vocabulary.** Settle the nav labels, the lifecycle
+  labels, and the application's own name; the options are written, and the
+  picks are the owner's.
 
 - **The record at device frequency - an event-scale projection.** The record read
   is one entity-scoped request with the events nested inside, which is
