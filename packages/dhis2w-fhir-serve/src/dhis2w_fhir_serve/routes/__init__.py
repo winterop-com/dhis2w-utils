@@ -10,6 +10,12 @@ it, `/terminology/validate-code` and
 so a lowercase segment can never be one the read router should have claimed, whichever depth it
 sits at.
 
+`$evaluate` is a one-segment fixed path too, and a FHIR one: it is the system-level operation
+answering an evaluation as a `Parameters` resource, so it mounts with the FHIR group while
+`/evaluate` beside it answers this facade's own JSON. A segment beginning with `$` can shadow no
+resource type either, and both addresses run the same evaluation over the same three contexts -
+`dhis2w_fhir_serve.routes.evaluate_operation` argues the split.
+
 `$summary` is the one FHIR path whose fixed segment sits at the END rather than the start, and it
 mounts in that same group for exactly that reason: `/{ResourceType}/$summary` is the shape
 `/{resource_type}/{resource_id}` also matches, so a summary router mounted after the read catch-alls
@@ -58,7 +64,7 @@ WHICH ROUTERS ARE BEHIND THE AUTHENTICATION CHECK is decided here as well, and s
 `ServeRouters.guarded` names them, and `[serve] auth_scope` is the whole of what decides the set.
 `write` guards the state-changing surface, which is one route - `POST /QuestionnaireResponse`, the
 create. Every other POST this facade serves writes nothing: `$generate` reads a published form and
-answers with a draft, `/evaluate` runs an expression over what is served, a CDS Hooks call answers
+answers with a draft, `/evaluate` and `$evaluate` run an expression over what is served, a CDS Hooks call answers
 cards, and `POST /` is a refusal on every posture. `all` guards everything except `/metadata`, which
 stays open because a client has to be able to read the posture it is expected to meet - a server
 that refuses to say how to authenticate to it is one nobody can authenticate to. The UI mounts stay
@@ -159,6 +165,7 @@ def serve_routers(
     from dhis2w_fhir_serve.routes.cds import router as cds_router
     from dhis2w_fhir_serve.routes.enrollments import router as enrollments_router
     from dhis2w_fhir_serve.routes.evaluate import router as evaluate_router
+    from dhis2w_fhir_serve.routes.evaluate_operation import router as evaluate_operation_router
     from dhis2w_fhir_serve.routes.generate import router as generate_router
     from dhis2w_fhir_serve.routes.history import router as history_router
     from dhis2w_fhir_serve.routes.read import router as read_router
@@ -175,6 +182,7 @@ def serve_routers(
         metadata_router,
         submissions,
         build_root_router(serve_ui),
+        evaluate_operation_router,
         translate_router,
         generate_router,
         history_router,

@@ -380,7 +380,7 @@ the instance, exactly as it arrived:
 | `GET /tracked-entities/{uid}/enrollments` | The caller |
 | `GET /tracked-entities/{uid}/events` (the record, and one event of it) | The caller |
 | `GET /Patient/{uid}/$summary` and `GET /Patient/$summary?identifier=` | The caller |
-| `POST /evaluate` with a `registered` context | The caller |
+| `POST /evaluate` and `POST /$evaluate` with a `registered` context | The caller |
 | The store built at startup | The facade's profile |
 | The instance address `/uiconfig` hands the screens | The facade's profile |
 | `d2w fhir forward`'s drain | The forwarding profile |
@@ -494,8 +494,8 @@ forward_bearer = true       # only when DHIS2 trusts the same issuer
 
 - **False.** The register answers 501, with an OperationOutcome naming both
   halves that would make it answerable. The published guide, the received
-  responses, `$generate`, `/evaluate`, and the terminology reads are served
-  exactly as they always were.
+  responses, `$generate`, `/evaluate`, `$evaluate`, and the terminology reads are
+  served exactly as they always were.
 - **True.** A register read carries the caller's own `Bearer` header to the
   instance, verbatim, over the same credential-free pool and by the same opaque
   forward the `dhis2` posture uses. DHIS2 resolves the token to one of its users

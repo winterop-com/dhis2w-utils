@@ -250,7 +250,8 @@ may ask and nothing more: a live run reads DHIS2 as the profile the server was
 started with, so what any caller sees is that profile's rights rather than their
 own. `dhis2` decides both. Every register read it answers - the tracked entity
 read, identifier search, the listing and its counts, the enrollment listing, and
-`/evaluate`'s registered context - is sent to DHIS2 carrying the caller's own
+the registered context of `/evaluate` and `$evaluate` - is sent to DHIS2 carrying
+the caller's own
 `Authorization` header, so DHIS2's sharing, organisation unit scopes, ownership,
 and access levels answer per caller, and this server applies no rule of its own.
 What DHIS2 hides it hides: a tracked entity a caller may not see is a 404 here
@@ -359,8 +360,8 @@ forward_bearer = true
 **Default:** `false` - **If you leave it out:** the register is not served. A
 read of it answers 501 with an OperationOutcome naming both halves that would
 make it answerable, and everything else this server does - the published guide,
-the received responses, `$generate`, `/evaluate`, the terminology reads - is
-served exactly as it always was.
+the received responses, `$generate`, `/evaluate`, `$evaluate`, the terminology
+reads - is served exactly as it always was.
 
 ```text
 this server takes a token from an OpenID Connect issuer and will not read the register as anybody but the caller who asked. Answering it needs two things stated together: [serve.jwt] forward_bearer = true here, and a DHIS2 instance configured to trust the same issuer (oidc.jwt.token.authentication.enabled), so the token you presented is one DHIS2 resolves to a user of its own.
@@ -410,8 +411,8 @@ load is a sign-in page nobody can use.
 **Default:** `"write"` - **If you leave it out:** credentials are asked for on
 `POST /QuestionnaireResponse` and nowhere else. That is the one address this
 facade changes anything at; every other POST it serves writes nothing -
-`$generate` drafts a response from a published form, `/evaluate` runs an
-expression over what is served, and a CDS Hooks call answers cards.
+`$generate` drafts a response from a published form, `/evaluate` and `$evaluate`
+run an expression over what is served, and a CDS Hooks call answers cards.
 
 Under [`auth = "dhis2"`](#auth) the register is the exception to that, and not
 by this key's doing: a read of it is answered under the caller's own DHIS2

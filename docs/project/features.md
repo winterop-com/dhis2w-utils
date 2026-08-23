@@ -1497,8 +1497,8 @@ bound to loopback by default that loads the project once at startup.
   break-the-glass audit entry.
 - **`[serve] auth_scope` says how much the posture covers.** `write` - the
   default - guards `POST /QuestionnaireResponse` and nothing else, which is the
-  facade's whole state-changing surface: `$generate`, `/evaluate`, and a CDS
-  Hooks call are POSTs that write nothing. `all` guards every router but
+  facade's whole state-changing surface: `$generate`, `/evaluate`, `$evaluate`,
+  and a CDS Hooks call are POSTs that write nothing. `all` guards every router but
   `/metadata`, which stays open in every posture so a client can read the posture
   it has to meet; the capture UI's own files stay open too.
 - **`GET /whoami` names the caller, and carries the check under every scope.**
@@ -1518,7 +1518,8 @@ bound to loopback by default that loads the project once at startup.
   by `Accept` or user agent.
 - **`dhis2` forwards the caller's credentials on every register read.** The
   tracked entity read, the identifier search, the register listing and its
-  counts, the enrollment listing, and `/evaluate`'s registered context are sent
+  counts, the enrollment listing, and the registered context of `/evaluate` and
+  `$evaluate` are sent
   to DHIS2 carrying the caller's own `Authorization` header, verbatim and
   unparsed, over a pooled connection the process holds open with no credential
   of its own - so DHIS2's five authorization gates (authority, sharing, the
@@ -1610,6 +1611,20 @@ bound to loopback by default that loads the project once at startup.
   bad expression is a 200 with the reason, never a 500. The engine reaches the
   named context and nothing else - no library path is passed and no file is
   opened.
+- **`POST /$evaluate`** is the same evaluation answered as the `Parameters`
+  resource a FHIR client expects from an operation: one parameter per define
+  named by the define, `value[x]` for a single primitive, `resource` where a
+  define answered a FHIR resource, one `part` per value where it answered
+  several, an `OperationOutcome` part where a define refused, and an `outcome`
+  parameter whose issue carries the line and column a parser stopped on. It is
+  system-level - `[base]/$evaluate`, declared at `rest.operation` in `/metadata`
+  under a definition this project defines - because what it runs over is
+  whichever resource the request names, so no resource type owns it. A
+  `Parameters` body naming `language`, `source`, `expression`, and a `context`
+  of the same three kinds is canonical; the plain `/evaluate` body is read at the
+  same address for a caller who already has one. A define that matched nothing
+  carries no parameter, because FHIR has no empty collection - which is what
+  `/evaluate`'s own shape exists to keep.
 - **`GET /terminology/validate-code`** and **`GET /terminology/lookup`** answer
   about the CodeSystems and ValueSets this project publishes: is this code in
   that set, and what is this code called. It is not a terminology server, and

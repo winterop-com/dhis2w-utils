@@ -218,6 +218,11 @@ from dhis2w_fhir_serve.routes.evaluate import (
     RegisteredEntityContext,
     StoredResourceContext,
 )
+from dhis2w_fhir_serve.routes.evaluate_operation import (
+    EVALUATE_OPERATION_PATH,
+    evaluation_ask,
+    evaluation_parameters,
+)
 from dhis2w_fhir_serve.routes.history import (
     TRACKED_ENTITY_EVENT_PATH,
     TRACKED_ENTITY_EVENTS_PATH,
@@ -376,8 +381,11 @@ __all__ = [
     "DiagnosticKind",
     "discover_issuer",
     "draw_seed",
+    "EVALUATE_OPERATION_PATH",
     "EVALUATE_PATH",
     "evaluate_source",
+    "evaluation_ask",
+    "evaluation_parameters",
     "EvaluationDiagnostic",
     "EvaluationLanguage",
     "EvaluationOutcome",

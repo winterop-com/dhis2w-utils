@@ -34,6 +34,8 @@ so anything cached would be stale within seconds of a drain.
 - Run one FHIRPath expression, CQL library, or ELM library over a resource and read what the parser
   and the evaluator said about it (`evaluate_source`, `EvaluationLanguage`, `EvaluationOutcome`,
   `EvaluationResult`, `EvaluationDiagnostic`, `json_safe`, `syntax_diagnostic`).
+- Read an evaluation's `Parameters` input, and say an evaluation's answer as the `Parameters` a FHIR
+  client reads (`evaluation_ask`, `evaluation_parameters`, `EVALUATE_OPERATION_PATH`).
 - Ask what a code means in the vocabularies one project publishes, with no server running
   (`load_terminology`, `TerminologyState`, `LookedUpCode`, `ValidatedCode`, `ConceptProperty`).
 - Answer a CDS Hooks invocation with cards built from a CQL library (`CdsService`, `CdsDiscovery`,
@@ -555,6 +557,18 @@ and nothing else.
 ::: dhis2w_fhir_serve.evaluation
 
 ::: dhis2w_fhir_serve.routes.evaluate
+
+### The evaluation as a Parameters resource
+
+`POST /$evaluate` - the same evaluation, answered as the `Parameters` resource a FHIR client expects
+from an operation: one parameter per define named by the define, `value[x]` for a single primitive,
+`resource` where a define answered a resource, one `part` per value where it answered several, an
+`OperationOutcome` part where it refused, and an `outcome` parameter carrying the line and column a
+parser stopped on. Both directions are pure functions - `evaluation_ask` reads a `Parameters` input
+into the request it asks for, `evaluation_parameters` says one `EvaluationOutcome` in FHIR's own
+terms - so a caller assembling or reading an operation body needs no server running.
+
+::: dhis2w_fhir_serve.routes.evaluate_operation
 
 ### This guide's vocabularies
 

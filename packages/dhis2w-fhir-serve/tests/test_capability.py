@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope
 from dhis2w_fhir.r4 import CapabilityStatement, CapabilityStatementSecurity
-from dhis2w_fhir_serve.capability import SECURITY_SERVICE_SYSTEM, build_server_capability
+from dhis2w_fhir_serve.capability import (
+    EVALUATE_OPERATION_DEFINITION,
+    SECURITY_SERVICE_SYSTEM,
+    build_server_capability,
+)
 from dhis2w_fhir_serve.metadata import build_metadata_body
 from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 from dhis2w_fhir_serve.register.surface import RegisterSurface
@@ -113,7 +117,6 @@ def test_concept_map_joins_the_read_types_when_the_store_holds_maps(compiled_pro
     concept_map = resources[-1]
     assert [interaction.code for interaction in concept_map.interaction or []] == ["read", "search-type"]
     assert [operation.name for operation in concept_map.operation or []] == ["translate"]
-    assert capability.rest[0].operation is None
 
 
 def test_a_store_without_maps_declares_neither_the_read_type_nor_the_operation(
@@ -123,19 +126,31 @@ def test_a_store_without_maps_declares_neither_the_read_type_nor_the_operation(
 
     assert capability.rest is not None
     assert "ConceptMap" not in [resource.type for resource in capability.rest[0].resource or []]
-    assert capability.rest[0].operation is None
+    assert [operation.name for operation in capability.rest[0].operation or []] == ["evaluate"]
 
 
-def test_every_declared_operation_rides_the_resource_entry_whose_url_answers_it(
+def test_the_server_level_slot_holds_the_one_operation_whose_url_is_the_service_base(
     compiled_project: FhirProject,
 ) -> None:
-    """Nothing is declared server-level, because this server answers no operation at `[base]/$name`."""
+    """`$evaluate` runs over whatever the request names, so no resource type owns it and it rides here."""
+    capability = _capability(compiled_project, FULL_SUMMARY)
+
+    assert capability.rest is not None
+    declared = capability.rest[0].operation or []
+    assert [operation.name for operation in declared] == ["evaluate"]
+    assert declared[0].definition == EVALUATE_OPERATION_DEFINITION
+    assert "Parameters resource" in (declared[0].documentation or "")
+
+
+def test_every_resource_operation_rides_the_entry_whose_url_answers_it(
+    compiled_project: FhirProject,
+) -> None:
+    """A resource operation's URL is the resource's, so declaring one server-level would name a 404."""
     with_maps = StoreSummary(counts_by_type={**FULL_SUMMARY.counts_by_type, "ConceptMap": 3})
 
     capability = _capability(compiled_project, with_maps)
 
     assert capability.rest is not None
-    assert capability.rest[0].operation is None
     declared = {
         resource.type: [operation.name for operation in resource.operation or []]
         for resource in capability.rest[0].resource or []

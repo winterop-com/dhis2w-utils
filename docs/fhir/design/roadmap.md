@@ -1522,12 +1522,6 @@ described, and the git history is where it was built. What is left:
   attributes, value types, and option-set canonicals). Both are designed;
   each is its own slice.
 
-- **Evaluation results as a FHIR resource.** `POST /evaluate` answers a shape of
-  this project's own; a `$evaluate` operation answering `Parameters` - one
-  parameter per define, an `OperationOutcome` part per refusal - makes the
-  screen's table a rendering of a wire-true resource. Measure scoring already
-  answers `MeasureReport`.
-
 - **The capture UI's parked vocabulary.** Settle the nav labels, the lifecycle
   labels, and the application's own name; the options are written, and the
   picks are the owner's.

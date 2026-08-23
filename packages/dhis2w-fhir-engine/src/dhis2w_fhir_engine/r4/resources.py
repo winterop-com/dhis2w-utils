@@ -821,34 +821,14 @@ class OperationOutcome(DomainResource):
     issue: list[OperationOutcomeIssue] | None = None
 
 
-class ParametersParameter(BackboneElement):
-    """`Parameters.parameter` - one named input or output of an operation, valued or nested in `part`."""
-
-    name: str | None = None
-    valueBoolean: bool | None = None
-    valueCode: str | None = None
-    valueInteger: int | None = None
-    valueString: str | None = None
-    valueUri: str | None = None
-    valueCoding: Coding | None = None
-    part: list[ParametersParameter] | None = None
-
-
-class Parameters(Resource):
-    """A FHIR R4 Parameters - the body an operation answers with; a `Resource`, so it carries no narrative."""
-
-    resourceType: Literal["Parameters"] = "Parameters"
-    id: str | None = None
-    parameter: list[ParametersParameter] | None = None
-
-
 class JsonResource(FhirBase):
     """The one open model here: a wire document carried verbatim, keyed only by its `resourceType`.
 
-    A Bundle entry and a compiled-store body hold whatever resource the document happens to be, so
-    modelling their contents would mean naming every resource type in advance. This is the typed
-    wrapper the house style asks for over a genuinely dynamic wire shape: `extra="allow"` keeps
-    every key the document carried, and `resourceType` is the one fact that is always there.
+    A Bundle entry, a compiled-store body, and an operation parameter carrying a whole resource hold
+    whatever resource the document happens to be, so modelling their contents would mean naming every
+    resource type in advance. This is the typed wrapper the house style asks for over a genuinely
+    dynamic wire shape: `extra="allow"` keeps every key the document carried, and `resourceType` is
+    the one fact that is always there.
     """
 
     model_config = ConfigDict(frozen=True, populate_by_name=True, extra="allow")
@@ -859,6 +839,35 @@ class JsonResource(FhirBase):
 def json_resource(resource: FhirBase) -> JsonResource:
     """Carry a typed resource as a `JsonResource`, exactly as the emitter would have written it."""
     return JsonResource.model_validate(json.loads(resource.model_dump_json(exclude_none=True, by_alias=True)))
+
+
+class ParametersParameter(BackboneElement):
+    """`Parameters.parameter` - one named input or output of an operation, valued or nested in `part`.
+
+    `resource` is how a parameter carries a whole resource rather than a datatype - an operation
+    handed a document to work over, and an operation answering an `OperationOutcome` about one of its
+    own parts. It is `JsonResource` for the reason `BundleEntry.resource` is: which resource type it
+    holds is the caller's to decide, one request at a time.
+    """
+
+    name: str | None = None
+    valueBoolean: bool | None = None
+    valueCode: str | None = None
+    valueDecimal: float | None = None
+    valueInteger: int | None = None
+    valueString: str | None = None
+    valueUri: str | None = None
+    valueCoding: Coding | None = None
+    resource: JsonResource | None = None
+    part: list[ParametersParameter] | None = None
+
+
+class Parameters(Resource):
+    """A FHIR R4 Parameters - the body an operation answers with; a `Resource`, so it carries no narrative."""
+
+    resourceType: Literal["Parameters"] = "Parameters"
+    id: str | None = None
+    parameter: list[ParametersParameter] | None = None
 
 
 class CompositionSection(BackboneElement):

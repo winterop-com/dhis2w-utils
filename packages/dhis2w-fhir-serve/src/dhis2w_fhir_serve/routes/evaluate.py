@@ -1,14 +1,17 @@
 """`POST /evaluate` - run one FHIRPath expression, CQL library, or ELM library against this facade's data.
 
-WHY THIS IS NOT FHIR, AND WHY IT IS NOT AN OPERATION. FHIR has no `$evaluate`: CQL evaluation is
-spelled `Library/$evaluate` in the Clinical Reasoning module, which answers a `Parameters` resource
-and is defined only for CQL over a Library the server holds. This endpoint is three languages wide,
-takes source text the caller wrote rather than a canonical the server publishes, and has to answer
-what a parser said about the character it stopped on. A `Parameters` resource can carry none of
-that, and bending one into carrying it would produce a document no FHIR client could read anyway.
-So this is `/spool`'s shape for `/spool`'s reasons - plain `application/json`, Pydantic models, a
-single lowercase segment that no PascalCase resource type can shadow, mounted ahead of the read
-catch-alls. `dhis2w_fhir_serve.routes.spool` argues that choice in full.
+WHY THIS SHAPE IS NOT FHIR'S. This endpoint answers a diagnostic, not a document: the line and the
+column a parser stopped on, one row per define whether it answered or refused, and the difference
+between a define that matched nothing and a define that was never run. FHIR has no empty collection
+and `Parameters` has no line number, so this answer is plain `application/json` and Pydantic models -
+`/spool`'s shape for `/spool`'s reasons, a single lowercase segment that no PascalCase resource type
+can shadow, mounted ahead of the read catch-alls. `dhis2w_fhir_serve.routes.spool` argues that
+choice in full, and the capture UI's Evaluate screen is the reader this shape is for.
+
+`POST /$evaluate` is the wire-true sibling and answers the same evaluation as a `Parameters`
+resource, for a client that speaks operations rather than this project's JSON.
+`dhis2w_fhir_serve.routes.evaluate_operation` is that operation, and it resolves its context through
+`evaluation_subject` below - so the two addresses reach exactly the same three resources.
 
 WHAT AN EXPRESSION MAY REACH, STATED ONCE. Exactly the resource the request named as its context,
 and nothing else. Three kinds of context are offered and each is a different way of naming one
@@ -138,12 +141,17 @@ async def evaluate_expression(request: Request, asked: EvaluationRequest) -> Eva
     blocking, CPU-bound work, and a facade doing it inline would stall every other request it is
     serving - including the capture that is trying to post a receipt.
     """
-    subject = await _subject(request, asked.context)
+    subject = await evaluation_subject(request, asked.context)
     return await run_in_threadpool(evaluate_source, asked.language, asked.source, subject, asked.expression_name)
 
 
-async def _subject(request: Request, context: EvaluationContext | None) -> dict[str, Any] | None:
-    """The one resource an expression may reach, resolved from whichever way the request named it."""
+async def evaluation_subject(request: Request, context: EvaluationContext | None) -> dict[str, Any] | None:
+    """The one resource an expression may reach, resolved from whichever way the request named it.
+
+    Public because `POST /$evaluate` resolves its context through this very function: the two
+    endpoints answer in two shapes and reach exactly the same three resources, and a second
+    resolution path would be a second answer to "what may an expression read".
+    """
     if context is None:
         return None
     if isinstance(context, InlineResourceContext):
