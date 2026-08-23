@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { RefreshCw } from 'lucide-react'
+import { ChevronRight, RefreshCw } from 'lucide-react'
 
 import { PageHeader, PageState } from '@/components/PageState'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
@@ -25,6 +25,7 @@ import {
     LIFECYCLE_TINTS,
     RESPONSE_LIFECYCLES,
     formatInstant,
+    type LifecycleHint,
     type ResponseLifecycle,
 } from '@/lib/spool'
 import { cn } from '@/lib/utils'
@@ -173,6 +174,7 @@ export function Responses() {
                                     <TableHead>State</TableHead>
                                     <TableHead className="text-right">Answers</TableHead>
                                     <TableHead>Receipt</TableHead>
+                                    <TableHead className="w-8" aria-hidden />
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -184,7 +186,7 @@ export function Responses() {
                                     return (
                                         <TableRow
                                             key={summary.response_id}
-                                            className="hover:bg-accent cursor-pointer"
+                                            className="interactive"
                                             tabIndex={0}
                                             aria-label={`Open the receipt for ${label}`}
                                             onClick={open}
@@ -198,7 +200,9 @@ export function Responses() {
                                             <TableCell className="whitespace-nowrap">
                                                 {formatInstant(summary.received_at)}
                                             </TableCell>
-                                            <TableCell className="font-medium">{label}</TableCell>
+                                            <TableCell>
+                                                <span className="interactive-title">{label}</span>
+                                            </TableCell>
                                             <TableCell>
                                                 <FormKindBadge kind={summary.form_kind} />
                                             </TableCell>
@@ -210,6 +214,9 @@ export function Responses() {
                                             </TableCell>
                                             <TableCell className="text-muted-foreground font-mono text-xs">
                                                 {summary.response_id}
+                                            </TableCell>
+                                            <TableCell className="w-8" aria-hidden>
+                                                <ChevronRight className="interactive-mark size-4" />
                                             </TableCell>
                                         </TableRow>
                                     )
@@ -282,10 +289,23 @@ function LifecycleFilter({
                             </span>
                         </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom">{LIFECYCLE_HINTS[lifecycle]}</TooltipContent>
+                    <TooltipContent side="bottom">
+                        <LifecycleHintLine hint={LIFECYCLE_HINTS[lifecycle]} />
+                    </TooltipContent>
                 </Tooltip>
             ))}
         </div>
+    )
+}
+
+/** One state's line, with the command it names set in the mono face the rest of the app uses. */
+function LifecycleHintLine({ hint }: { hint: LifecycleHint }) {
+    if (hint.command === null) return <>{hint.lead}</>
+    return (
+        <>
+            {hint.lead} <code className="font-mono">{hint.command}</code>
+            {hint.tail}
+        </>
     )
 }
 

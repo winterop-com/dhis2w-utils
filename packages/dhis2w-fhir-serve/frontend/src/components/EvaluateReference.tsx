@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { exampleGroups, type EvaluationExample, type EvaluationLanguage } from '@/lib/evaluate'
-import { languageReference, type LanguageReference } from '@/lib/reference'
+import { languageReference, proseRuns, type LanguageReference } from '@/lib/reference'
 import { cn } from '@/lib/utils'
 
 /**
@@ -171,7 +171,7 @@ function ReferenceBody({ reference }: { reference: LanguageReference }) {
             <div className="space-y-2">
                 {reference.summary.map((paragraph) => (
                     <p key={paragraph} className="text-muted-foreground text-xs leading-relaxed">
-                        {paragraph}
+                        <ReferenceProse text={paragraph} />
                     </p>
                 ))}
                 <p className="text-muted-foreground text-xs">
@@ -188,14 +188,16 @@ function ReferenceBody({ reference }: { reference: LanguageReference }) {
                         </Badge>
                     </div>
                     {section.note !== undefined && (
-                        <p className="text-muted-foreground text-xs leading-relaxed">{section.note}</p>
+                        <p className="text-muted-foreground text-xs leading-relaxed">
+                            <ReferenceProse text={section.note} />
+                        </p>
                     )}
                     <dl className="grid gap-1.5">
                         {section.entries.map((entry) => (
                             <div key={entry.name} className="grid gap-0.5">
                                 <dt className="font-mono text-xs break-words">{entry.name}</dt>
                                 <dd className="text-muted-foreground text-xs leading-relaxed">
-                                    {entry.meaning}
+                                    <ReferenceProse text={entry.meaning} />
                                 </dd>
                             </div>
                         ))}
@@ -203,5 +205,28 @@ function ReferenceBody({ reference }: { reference: LanguageReference }) {
                 </section>
             ))}
         </div>
+    )
+}
+
+/**
+ * One line of reference prose, with the spellings it marks as a machine's set in the mono face.
+ *
+ * The entries are data and stay data, so a function name inside a sentence arrives marked rather
+ * than as an element - see `lib/reference.ts`. This is where the mark becomes a face: without it,
+ * every backtick in the panel would be a character on the screen instead of a change of type.
+ */
+function ReferenceProse({ text }: { text: string }) {
+    return (
+        <>
+            {proseRuns(text).map((run, position) =>
+                run.code ? (
+                    <code key={`${String(position)}:${run.text}`} className="font-mono">
+                        {run.text}
+                    </code>
+                ) : (
+                    <span key={`${String(position)}:${run.text}`}>{run.text}</span>
+                ),
+            )}
+        </>
     )
 }

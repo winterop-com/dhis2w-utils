@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { EvaluationLanguage } from '@/lib/evaluate'
-import { languageReference, referenceEntryCount } from '@/lib/reference'
+import { languageReference, proseRuns, referenceEntryCount } from '@/lib/reference'
 
 /**
  * The reference panel's content, checked for the two ways a reference goes wrong.
@@ -121,5 +121,66 @@ describe('the language reference', () => {
             .map((entry) => `${entry.name} ${entry.meaning}`)
             .join(' ')
         expect(said).toContain('identifier')
+    })
+})
+
+/** Every sentence the panel draws, from all three languages, as one flat list. */
+function everySentence(): string[] {
+    const sentences: string[] = []
+    for (const language of LANGUAGES) {
+        const reference = languageReference(language)
+        sentences.push(...reference.summary)
+        for (const section of reference.sections) {
+            if (section.note !== undefined) sentences.push(section.note)
+            for (const entry of section.entries) sentences.push(entry.meaning)
+        }
+    }
+    return sentences
+}
+
+describe('the mono spellings inside the prose', () => {
+    it('closes every mark it opens, so no sentence trails off into the mono face', () => {
+        for (const sentence of everySentence()) {
+            const marks = [...sentence].filter((character) => character === '`').length
+            expect(marks % 2, `unclosed mark in: ${sentence}`).toBe(0)
+        }
+    })
+
+    it('hands back no mark at all, so a reader sees a face rather than a character', () => {
+        for (const sentence of everySentence()) {
+            for (const run of proseRuns(sentence)) expect(run.text).not.toContain('`')
+        }
+    })
+
+    it('rebuilds the sentence it was given, so nothing is lost between data and screen', () => {
+        for (const sentence of everySentence()) {
+            const rebuilt = proseRuns(sentence)
+                .map((run) => run.text)
+                .join('')
+            expect(rebuilt).toBe(sentence.replaceAll('`', ''))
+        }
+    })
+
+    it('marks the inside of a pair and nothing else', () => {
+        expect(proseRuns('Step into an element - `Patient.name.given`')).toEqual([
+            { text: 'Step into an element - ', code: false },
+            { text: 'Patient.name.given', code: true },
+        ])
+    })
+
+    it('opens on a mono spelling without a blank run in front of it', () => {
+        expect(proseRuns('`exists()` answers a boolean')).toEqual([
+            { text: 'exists()', code: true },
+            { text: ' answers a boolean', code: false },
+        ])
+    })
+
+    it('leaves an unmarked sentence as the one run it is', () => {
+        expect(proseRuns('Age, and messages')).toEqual([{ text: 'Age, and messages', code: false }])
+    })
+
+    it('finds something to set in mono, or the mechanism is drawing nothing', () => {
+        const marked = everySentence().flatMap((sentence) => proseRuns(sentence).filter((run) => run.code))
+        expect(marked.length).toBeGreaterThan(20)
     })
 })

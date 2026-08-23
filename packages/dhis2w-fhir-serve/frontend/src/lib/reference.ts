@@ -16,6 +16,12 @@
  *
  * Everything here is data. Nothing fetches, nothing renders; `components/EvaluateReference.tsx` is
  * what draws it, and `lib/evaluate.ts` holds the runnable examples the same panel offers.
+ *
+ * HOW THE PROSE BELOW SPELLS A FUNCTION NAME. Every sentence here is written for a screen, and a
+ * function name inside one belongs in the mono face - which a string cannot carry. So the prose
+ * marks its machine spellings with backticks, the way the docs pages under `docs/fhir/` do, and
+ * `proseRuns` at the foot of this file turns them into elements. The marks are markup: they are
+ * never the characters a reader sees, and every one of them is closed.
  */
 
 import type { EvaluationLanguage } from '@/lib/evaluate'
@@ -457,6 +463,29 @@ const ELM_REFERENCE: LanguageReference = {
 export function languageReference(language: EvaluationLanguage): LanguageReference {
     if (language === 'fhirpath') return FHIRPATH_REFERENCE
     return language === 'cql' ? CQL_REFERENCE : ELM_REFERENCE
+}
+
+/** One run of reference prose: plain words, or a spelling that belongs in the mono face. */
+export interface ProseRun {
+    /** The words themselves, without the marks that decided which run they are. */
+    text: string
+    /** True when this run is machine spelling - a function, an operator, a literal, a path. */
+    code: boolean
+}
+
+/**
+ * One line of reference prose, split into the runs a screen sets differently.
+ *
+ * The odd runs are the marked ones: a sentence is `plain`, mono, `plain`, mono, and so on, so the
+ * position after splitting on the mark is the whole of what says which face a run takes. Empty runs
+ * are dropped, which is what makes a sentence that opens or closes on a marked spelling come out
+ * with no blank element at either end.
+ */
+export function proseRuns(text: string): ProseRun[] {
+    return text
+        .split('`')
+        .map((part, index) => ({ text: part, code: index % 2 === 1 }))
+        .filter((run) => run.text !== '')
 }
 
 /** How many things a reference states, which is what a panel's own heading counts. */

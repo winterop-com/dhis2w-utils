@@ -564,9 +564,15 @@ function triggerPlaceholder(scope: OrgUnitScope, placeholder: string): string {
 function NothingOffered({ scope }: { scope: OrgUnitScope }) {
     return (
         <p className="text-muted-foreground border-border rounded-lg border border-dashed px-2.5 py-2 text-xs">
-            {scope.restricted && scope.registryTotal > 0
-                ? `This form's organisation-unit assignment names no organisation unit this project publishes, so there is nothing to report from - the registry holds ${String(scope.registryTotal)}. A capture outside the form's assigned organisation units is refused when it reaches DHIS2.`
-                : 'This project publishes no organisation units, so there is nothing to report from. `[generate.organisation_units]` in fhir.toml is what selects them.'}
+            {scope.restricted && scope.registryTotal > 0 ? (
+                `This form's organisation-unit assignment names no organisation unit this project publishes, so there is nothing to report from - the registry holds ${String(scope.registryTotal)}. A capture outside the form's assigned organisation units is refused when it reaches DHIS2.`
+            ) : (
+                <>
+                    This project publishes no organisation units, so there is nothing to report
+                    from. <code className="font-mono">[generate.organisation_units]</code> in{' '}
+                    <code className="font-mono">fhir.toml</code> is what selects them.
+                </>
+            )}
         </p>
     )
 }

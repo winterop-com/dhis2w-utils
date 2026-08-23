@@ -237,7 +237,15 @@ export function OrgUnits() {
                 loading={registry.loading}
                 error={registry.error}
                 empty={tree.total === 0}
-                emptyMessage="This project publishes no organisation units. `[generate.organisation_units]` in fhir.toml is what selects them - a `root` of nothing and a `max_level` of 0 publishes none."
+                emptyMessage={
+                    <>
+                        This project publishes no organisation units.{' '}
+                        <code className="font-mono">[generate.organisation_units]</code> in{' '}
+                        <code className="font-mono">fhir.toml</code> is what selects them - a{' '}
+                        <code className="font-mono">root</code> of nothing and a{' '}
+                        <code className="font-mono">max_level</code> of 0 publishes none.
+                    </>
+                }
             >
                 <UnitTree
                     tree={tree}
@@ -250,7 +258,8 @@ export function OrgUnits() {
                     <p className="text-muted-foreground text-xs">
                         {tree.orphanCount} organisation unit{tree.orphanCount === 1 ? '' : 's'} name a
                         parent this project did not publish, so they are shown as roots. That is what a
-                        selection with a `root` or a `max_level` looks like from below.
+                        selection with a <code className="font-mono">root</code> or a{' '}
+                        <code className="font-mono">max_level</code> looks like from below.
                     </p>
                 )}
             </PageState>
@@ -713,7 +722,7 @@ function UnitHeader({
                             <button
                                 type="button"
                                 onClick={() => onSelect(ancestor.id)}
-                                className="text-primary hover:underline"
+                                className="interactive-link"
                             >
                                 {ancestor.name}
                             </button>
@@ -1190,7 +1199,7 @@ function FormRow({
         // floor so flex pressure can never collapse it to a zero-width - the invisible-link twin
         // of the ellipsis bug this row already fixed once.
         <li className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-            <Link to={`/forms/${formId}`} className="text-primary min-w-[8ch] flex-1 break-words hover:underline">
+            <Link to={`/forms/${formId}`} className="interactive-link min-w-[8ch] flex-1 break-words">
                 {questionnaire === null ? formId : formTitle(questionnaire)}
             </Link>
             {target !== null && (
@@ -1307,7 +1316,7 @@ function CapturedHere({
                             </li>
                         ))}
                     </ul>
-                    <Link to="/responses" className="text-primary text-sm hover:underline">
+                    <Link to="/responses" className="interactive-link text-sm">
                         All responses
                     </Link>
                 </div>

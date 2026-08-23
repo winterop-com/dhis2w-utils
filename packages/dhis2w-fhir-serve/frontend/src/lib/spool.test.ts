@@ -57,14 +57,30 @@ describe('the lifecycle vocabulary', () => {
     it('gives every state a label and a hint, so no filter renders a blank tooltip', () => {
         for (const lifecycle of RESPONSE_LIFECYCLES) {
             expect(LIFECYCLE_LABELS[lifecycle]).not.toBe('')
-            expect(LIFECYCLE_HINTS[lifecycle]).not.toBe('')
+            expect(LIFECYCLE_HINTS[lifecycle].lead).not.toBe('')
         }
     })
 
+    it('keeps the commands out of the prose, so nothing renders a backtick as a character', () => {
+        for (const lifecycle of RESPONSE_LIFECYCLES) {
+            const hint = LIFECYCLE_HINTS[lifecycle]
+            expect(`${hint.lead}${hint.tail}`).not.toContain('`')
+            // A state with no command has nothing to say after one either.
+            if (hint.command === null) expect(hint.tail).toBe('')
+            else expect(hint.command).not.toBe('')
+        }
+    })
+
+    it('names the command that drains the spool, so the queue depth reads as an instruction', () => {
+        expect(LIFECYCLE_HINTS.received.command).toBe('d2w fhir forward')
+    })
+
     it('says of a withdrawal what remains rather than that something was deleted', () => {
+        const withdrawn = LIFECYCLE_HINTS.withdrawn
         expect(LIFECYCLE_LABELS.withdrawn).toBe('Withdrawn')
-        expect(LIFECYCLE_HINTS.withdrawn).toContain('hidden copy')
-        expect(LIFECYCLE_HINTS.withdrawn).not.toContain('deleted')
+        expect(withdrawn.command).toBe('d2w fhir withdraw')
+        expect(withdrawn.tail).toContain('hidden copy')
+        expect(`${withdrawn.lead}${withdrawn.tail}`).not.toContain('deleted')
     })
 })
 

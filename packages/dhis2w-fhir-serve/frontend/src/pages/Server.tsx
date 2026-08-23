@@ -66,9 +66,12 @@ export function Server() {
             <PageState
                 loading={checking && capability === null}
                 error={
-                    reachability === 'unreachable'
-                        ? 'No answer from /metadata. Is `d2w fhir serve --ui` still running?'
-                        : null
+                    reachability === 'unreachable' ? (
+                        <>
+                            No answer from <code className="font-mono">/metadata</code>. Is{' '}
+                            <code className="font-mono">d2w fhir serve --ui</code> still running?
+                        </>
+                    ) : null
                 }
                 empty={capability === null}
                 emptyMessage="The server answered, but not with a CapabilityStatement."

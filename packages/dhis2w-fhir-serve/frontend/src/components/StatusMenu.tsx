@@ -98,9 +98,15 @@ export function StatusMenu() {
                         <p className="font-medium">{igLabel}</p>
                     ) : (
                         <p className="text-muted-foreground">
-                            {reachability === 'ok'
-                                ? 'Answering, but not as a FHIR endpoint.'
-                                : 'No answer from the server. Is `d2w fhir serve --ui` still running?'}
+                            {reachability === 'ok' ? (
+                                'Answering, but not as a FHIR endpoint.'
+                            ) : (
+                                <>
+                                    No answer from the server. Is{' '}
+                                    <code className="font-mono">d2w fhir serve --ui</code> still
+                                    running?
+                                </>
+                            )}
                         </p>
                     )}
                     {software && (

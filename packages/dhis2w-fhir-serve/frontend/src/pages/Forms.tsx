@@ -52,7 +52,15 @@ export function Forms() {
                 loading={loading}
                 error={error}
                 empty={resources.length === 0}
-                emptyMessage="This project publishes no Questionnaires. Run `make generate` then `make sushi` to compile the implementation guide, or serve it with --live."
+                emptyMessage={
+                    <>
+                        This project publishes no Questionnaires. Run{' '}
+                        <code className="font-mono">d2w fhir generate</code>, then{' '}
+                        <code className="font-mono">make sushi</code> to compile the implementation
+                        guide - or serve straight from the DHIS2 instance with{' '}
+                        <code className="font-mono">--live</code>.
+                    </>
+                }
             >
                 <div className="space-y-8">
                     {catalog.dataSets.length > 0 && (

@@ -340,3 +340,139 @@ describe('every theme paints every token', () => {
         }
     })
 })
+
+/**
+ * The interactive rule, read off the stylesheet and then off everything that draws with it.
+ *
+ * WHY THIS IS ASSERTED AGAINST SOURCE TEXT. The rule is "a thing that navigates wears the accent,
+ * and a thing that does not never does", and the way it is broken is not by editing index.css - it
+ * is by writing a new row somewhere with the old hand-rolled hover on it, which looks right in the
+ * one screenshot the author takes and is wrong on every other screen. Nothing at runtime can catch
+ * that: a page that spells its own hover renders, it just renders a second vocabulary. So the
+ * spellings the classes replaced are named here and refused wherever they reappear.
+ *
+ * The shadcn primitives under `components/ui` are excluded. They are vendored, they are regenerated
+ * from upstream, and their `link` variants are the button and badge shapes rather than prose links.
+ */
+describe('the interactive rule', () => {
+    /** Every source file this app is written in, as text, keyed by path. */
+    const sources = import.meta.glob<string>('../**/*.{ts,tsx}', { query: '?raw', import: 'default', eager: true })
+
+    /** The app's own files - the vendored primitives and the suites are neither written nor read here. */
+    const ours = Object.entries(sources).filter(
+        ([path]) => !path.includes('/components/ui/') && !path.includes('.test.'),
+    )
+
+    it('has files to read, so a glob that matched nothing cannot pass as a clean sweep', () => {
+        expect(ours.length).toBeGreaterThan(40)
+    })
+
+    it('declares all four classes, because a page adopting three of them is a page half-painted', () => {
+        for (const rule of ['.interactive {', '.interactive-title {', '.interactive-mark {', '.interactive-link {']) {
+            expect(indexCss).toContain(rule)
+        }
+    })
+
+    it('spends the accent on the hover fill and on a link at rest, and on nothing else', () => {
+        expect(indexCss).toContain('.interactive:hover {')
+        expect(indexCss).toContain('.interactive-link {')
+        // A link is coloured before the pointer arrives - the half of the rule a hover cannot serve
+        // on a touch screen, where there is no hover at all.
+        const link = indexCss.slice(indexCss.indexOf('.interactive-link {'))
+        expect(link.slice(0, link.indexOf('}'))).toContain('color: var(--accent-foreground)')
+    })
+
+    it('leaves no row wearing a hand-rolled hover in place of the class', () => {
+        for (const [path, source] of ours) {
+            expect(source, `${path} spells its own row hover`).not.toContain('hover:bg-accent cursor-pointer')
+            expect(source, `${path} spells its own row hover`).not.toContain('cursor-pointer hover:bg-accent')
+        }
+    })
+
+    it('leaves no link painting itself, now that a link at rest is a class', () => {
+        for (const [path, source] of ours) {
+            if (!source.includes('hover:underline')) continue
+            expect(source, `${path} paints a link by hand`).not.toContain('text-primary')
+        }
+    })
+
+    it('ends every list of rows that open with the mark that says they open', () => {
+        // A chevron per listing page: on a list, the mark is what says these open before anything
+        // is hovered, and a page that took the hover fill without it took half the affordance.
+        for (const page of ['Forms', 'Responses', 'Terminology', 'TrackedEntities']) {
+            const source = ours.find(([path]) => path.endsWith(`/pages/${page}.tsx`))?.[1]
+            expect(source, `no source read for ${page}`).toBeDefined()
+            expect(source, `${page} takes the fill without the mark`).toContain('interactive-mark')
+            expect(source, `${page} names no row that opens`).toContain('interactive-title')
+        }
+    })
+})
+
+/** A line that is prose for a person rather than a note for a reader of the source. */
+function isCode(line: string): boolean {
+    const trimmed = line.trimStart()
+    return !trimmed.startsWith('*') && !trimmed.startsWith('//') && !trimmed.startsWith('/*')
+}
+
+/**
+ * The complete single- and double-quoted literals on one line.
+ *
+ * Scanned rather than matched with an expression, because a pattern reaching from a quote to the
+ * next mark walks straight through a template literal: `item.path !== ''` followed later by a
+ * `${...}` is two apostrophes with a mark between them, and no sentence at all.
+ */
+function quotedLiterals(line: string): string[] {
+    const found: string[] = []
+    let quote: string | null = null
+    let opened = 0
+    for (let index = 0; index < line.length; index += 1) {
+        const character = line[index]
+        if (character === '\\') {
+            index += 1
+            continue
+        }
+        if (quote === null) {
+            if (character === "'" || character === '"') {
+                quote = character
+                opened = index + 1
+            }
+            continue
+        }
+        if (character === quote) {
+            found.push(line.slice(opened, index))
+            quote = null
+        }
+    }
+    return found
+}
+
+/**
+ * The one spelling a browser renders as a character rather than as a face.
+ *
+ * A backtick is how these sources mark machine spelling in a COMMENT, and how `lib/reference.ts`
+ * marks it in prose that is data and gets a renderer for exactly that reason. Anywhere else - in a
+ * sentence a component hands to the screen - it is a character a reader sees, and the fix is the
+ * `<code className="font-mono">` element the rest of the app's prose already uses.
+ */
+describe('prose the screen is handed', () => {
+    const sources = import.meta.glob<string>('../**/*.{ts,tsx}', { query: '?raw', import: 'default', eager: true })
+
+    it('hands the screen no sentence with a mark left in it', () => {
+        for (const [path, source] of Object.entries(sources)) {
+            // `lib/reference.ts` is the one module whose marks are markup: they are data, they are
+            // paired, and `proseRuns` turns every one of them into an element before it is drawn.
+            // The suites hold fixtures - a server's own diagnostic is quoted as the server wrote it.
+            if (path.includes('/components/ui/') || path.includes('.test.')) continue
+            if (path.endsWith('/reference.ts')) continue
+            for (const [index, line] of source.split('\n').entries()) {
+                if (!isCode(line)) continue
+                for (const literal of quotedLiterals(line)) {
+                    // A mark with words around it is a sentence; a mark on its own is a character a
+                    // parser is looking for, which `lib/codelang.ts` does when it colours a string.
+                    if (!literal.includes('`') || !literal.includes(' ')) continue
+                    expect.fail(`${path}:${String(index + 1)} renders a mark as a character: ${literal}`)
+                }
+            }
+        }
+    })
+})

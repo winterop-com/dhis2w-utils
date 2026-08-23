@@ -40,13 +40,42 @@ export const LIFECYCLE_LABELS: Record<ResponseLifecycle, string> = {
     withdrawn: 'Withdrawn',
 }
 
+/**
+ * One line about a state, split where the command it names sits in the sentence.
+ *
+ * Two of the four states are reached by running something, and naming that command is most of what
+ * the line is worth saying. A command is machine spelling and belongs in the mono face - which a
+ * plain sentence cannot carry, and which backticks in a string only pretend to. So the sentence
+ * arrives in three pieces and whoever draws it sets the middle one in mono.
+ */
+export interface LifecycleHint {
+    /** The sentence up to the command, or the whole of it when the state names no command. */
+    lead: string
+    /** The command that moves a receipt into or out of this state; null when none does. */
+    command: string | null
+    /**
+     * What the sentence says after the command, its own leading space or punctuation included.
+     *
+     * The spacing rides here rather than in whoever draws it because only the sentence knows
+     * whether a space or a full stop follows the command. Empty when there is no command.
+     */
+    tail: string
+}
+
 /** One line per state, for the filter tooltips and the empty-state prose. */
-export const LIFECYCLE_HINTS: Record<ResponseLifecycle, string> = {
-    received: 'Captured, not yet sent to DHIS2. `d2w fhir forward` sends it.',
-    forwarded: 'Translated, posted, and accepted by DHIS2.',
-    rejected: 'Posted and refused by DHIS2. The import report says why.',
-    withdrawn:
-        'Accepted by DHIS2, then withdrawn from it by `d2w fhir withdraw`. The instance keeps a hidden copy.',
+export const LIFECYCLE_HINTS: Record<ResponseLifecycle, LifecycleHint> = {
+    received: {
+        lead: 'Captured, not yet sent to DHIS2.',
+        command: 'd2w fhir forward',
+        tail: ' sends it.',
+    },
+    forwarded: { lead: 'Translated, posted, and accepted by DHIS2.', command: null, tail: '' },
+    rejected: { lead: 'Posted and refused by DHIS2. The import report says why.', command: null, tail: '' },
+    withdrawn: {
+        lead: 'Accepted by DHIS2, then withdrawn from it by',
+        command: 'd2w fhir withdraw',
+        tail: '. The instance keeps a hidden copy.',
+    },
 }
 
 /**
