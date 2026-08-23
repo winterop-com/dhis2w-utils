@@ -1531,6 +1531,27 @@ described, and the git history is where it was built. What is left:
   backticks read as code; settle the parked vocabulary decisions (nav labels,
   lifecycle labels, the application's own name).
 
+- **The record at device frequency - an event-scale projection.** The record read
+  is one entity-scoped request with the events nested inside, which is
+  person-scale thinking: a person holds dozens of events, a cold-chain fridge
+  reporting every 15 minutes holds thirty-five thousand a year, and one nested
+  read of that is neither kind to DHIS2 nor to the caller. The projection
+  paper's person-level note is the reserved shape: extend `d2w fhir sync` to
+  hold events beside the entities, serve the record read from the copy with the
+  same as-of honesty the register search states, and keep the per-request live
+  read for person-scale registers where it is the better trade.
+
+- **Population questions stay DHIS2's, until a measure runner earns its place.**
+  "How many females registered in 2019" is an analytics question, and DHIS2's
+  own analytics tables are the right engine for it - the projection is an
+  operational search index (documents plus identifier, name, and type indexes),
+  not a column store, and teaching it aggregation would rebuild what DHIS2
+  already does well. The FHIR-native shape for such questions is a CQL measure
+  evaluated over a population, which the engine can already score for one
+  context; a population runner that feeds it from the projection is the
+  reserved future slice, and a columnar sidecar is a decision for the day that
+  slice is real.
+
 - **A 1.8.0 release.** The last published version predates the build
   investigation, the substitution dial, the auth postures, the synced
   projection, the evaluate surface, and the subject-generic registers.
