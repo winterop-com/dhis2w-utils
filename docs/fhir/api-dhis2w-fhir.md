@@ -203,10 +203,10 @@ What [`d2w fhir doctor`](201-doctor.md) concluded about one instance, as
 models rather than as terminal output. A `DoctorReport` carries one `DoctorPhaseResult` per
 phase - the outcome, the one line it is read by, the reason a phase that did not run gives,
 and every `DoctorFinding` it raised with the field path a mismatch was found at. The graders
-are the pure half of the runner: `grade_forward`, `grade_capture`, and `grade_oracle` turn a
-phase's own report into the verdict it is recorded under, over `ForwardReport`,
-`CaptureOutcome`, and `FamilyOutcome`, and `render_doctor_markdown` turns the whole run into
-the report file a handover is read from.
+are the pure half of the runner: `grade_forward`, `grade_capture`, `grade_oracle`, and
+`grade_drift` turn a phase's own report into the verdict it is recorded under, over
+`ForwardReport`, `CaptureOutcome`, `FamilyOutcome`, and `DriftReport`, and
+`render_doctor_markdown` turns the whole run into the report file a handover is read from.
 
 `run_doctor` is the other half, and what it does to the machine is part of its contract: it
 mints a workspace directory (or writes into the one `DoctorOptions.workspace` names) and
@@ -216,6 +216,20 @@ application in process, and posts a synthetic corpus at the instance under valid
 mode. A caller that cannot afford that wants the graders rather than the run.
 
 ::: dhis2w_fhir.doctor
+
+### Drift between a published guide and the instance
+
+Whether the guide already on disk still describes the instance it was generated from.
+`detect_drift` reads the instance for everything one project publishes and names every
+organisation unit, option, question, and program stage that moved inside that project's own
+selection scope; `read_published_guide` is its offline half, projecting the published
+artifacts onto the objects the comparison is about. The three comparators -
+`compare_organisation_units`, `compare_option_set`, and `compare_form` - are pure over a
+`PublishedGuide` side and an instance side, so a caller can grade a snapshot it holds without
+opening a connection. Every finding is a `DriftFinding` naming what moved, which direction it
+moved in, and what each side says about it.
+
+::: dhis2w_fhir.drift
 
 ### The capture spool
 

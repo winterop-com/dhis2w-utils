@@ -1,0 +1,37 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-sex-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-sex-cm",
+  "name": "D2Sex_CM",
+  "title": "DHIS2 sex values as FHIR administrative gender codes",
+  "description": "Every value of the tracked entity attribute this project nominates as a person's sex, mapped onto the R4 administrative-gender code the register publishes as Patient.gender. DHIS2 states no such mapping, so the rows are this instance's own statement, made in [ips.identity] and published here so a consumer resolves a served gender without holding that file.",
+  "status": "draft",
+  "experimental": true,
+  "targetCanonical": "http://hl7.org/fhir/ValueSet/administrative-gender",
+  "group": [
+    {
+      "source": "http://dhis2.org/fhir/tracked-entity-attribute/cejWyOfXge6",
+      "target": "http://hl7.org/fhir/administrative-gender",
+      "element": [
+        {
+          "code": "Female",
+          "target": [
+            {
+              "code": "female",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "Male",
+          "target": [
+            {
+              "code": "male",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

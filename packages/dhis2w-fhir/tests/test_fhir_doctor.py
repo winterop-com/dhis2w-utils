@@ -390,7 +390,7 @@ def _programs(request: httpx.Request) -> httpx.Response:
 
 
 def _mock_whole_instance() -> None:
-    """Mock every endpoint a whole doctor run touches, across all nine phases.
+    """Mock every endpoint a whole doctor run touches, across all ten phases.
 
     The routes answer repeatedly on purpose: generate, validate, the live store, and forward each open
     a client of their own, so a route that answered once would fail the phase that asked second.
@@ -470,7 +470,7 @@ async def test_a_whole_run_reaches_a_verdict_with_no_phase_left_blocked(
     report = await run_doctor(_profile(), DoctorOptions(workspace=tmp_path / "workspace", live=True, samples=5))
 
     assert [phase.phase for phase in report.phases] == list(DOCTOR_PHASE_ORDER)
-    assert len(report.phases) == 9
+    assert len(report.phases) == 10
     blocked = [phase.phase for phase in report.phases if phase.outcome is DoctorOutcome.BLOCKED]
     assert blocked == [], f"phases that never ran: {blocked}"
     assert all(phase.evidence or phase.reason for phase in report.phases)
@@ -482,6 +482,9 @@ async def test_a_whole_run_reaches_a_verdict_with_no_phase_left_blocked(
     assert outcomes[DoctorPhase.COMPILE] is DoctorOutcome.SKIPPED
     # The oracle was asked, rather than skipped for want of `--live`.
     assert outcomes[DoctorPhase.ORACLE] is not DoctorOutcome.SKIPPED
+    # Nothing published sits above the working directory this run was launched from, so drift is
+    # skipped with that reason rather than pretending a throwaway project is a published guide.
+    assert outcomes[DoctorPhase.DRIFT] is DoctorOutcome.SKIPPED
 
     assert report.dhis2_version == "2.42.0"
     assert report.version_tree == "v42"

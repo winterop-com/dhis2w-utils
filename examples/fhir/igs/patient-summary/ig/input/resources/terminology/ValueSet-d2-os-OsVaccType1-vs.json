@@ -1,0 +1,46 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-os-OsVaccType1-vs",
+  "extension": [
+    {
+      "extension": [
+        {
+          "url": "attributeId",
+          "valueString": "AtrFhirOpS1"
+        },
+        {
+          "url": "attributeCode",
+          "valueString": "FHIR_CODE_SYSTEM_URI"
+        },
+        {
+          "url": "value",
+          "valueString": "http://snomed.info/sct"
+        }
+      ],
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-attribute-value"
+    }
+  ],
+  "url": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-OsVaccType1-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "OsVaccType1"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "VACCINE_TYPE"
+    }
+  ],
+  "name": "D2OS_OsVaccType1_VS",
+  "title": "Vaccine type",
+  "description": "DHIS2 option set Vaccine type (OsVaccType1). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-OsVaccType1-cs"
+      }
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "kpDoH80fwdX",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "kpDoH80fwdX"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226259"
+    }
+  ],
+  "name": "MCH Static",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+          "code": "level-4",
+          "display": "Level 4"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/EZPwuUTeIIG"
+  },
+  "active": true
+}

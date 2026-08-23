@@ -1,0 +1,27 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-os-x31y45jvIQL-vs",
+  "url": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-x31y45jvIQL-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "x31y45jvIQL"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "x31y45jvIQL"
+    }
+  ],
+  "name": "D2OS_x31y45jvIQL_VS",
+  "title": "MNCH Infant Feeding",
+  "description": "DHIS2 option set MNCH Infant Feeding (x31y45jvIQL). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-x31y45jvIQL-cs"
+      }
+    ]
+  }
+}

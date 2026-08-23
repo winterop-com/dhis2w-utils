@@ -1,0 +1,69 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-f38bstJioPs-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-os-f38bstJioPs-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "f38bstJioPs"
+  },
+  "name": "D2OS_f38bstJioPs_CM",
+  "title": "MNCH Baby ARVs",
+  "description": "DHIS2 option set MNCH Baby ARVs (f38bstJioPs). Every concept of D2OS_f38bstJioPs_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-f38bstJioPs-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-f38bstJioPs-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "Cd0gtHGmlwS",
+          "display": "NVP only",
+          "target": [
+            {
+              "code": "Cd0gtHGmlwS",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "ww8JVblo4SI",
+          "display": "Others",
+          "target": [
+            {
+              "code": "ww8JVblo4SI",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-f38bstJioPs-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "Cd0gtHGmlwS",
+          "display": "NVP only",
+          "target": [
+            {
+              "code": "NVP only",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "ww8JVblo4SI",
+          "display": "Others",
+          "target": [
+            {
+              "code": "Others",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

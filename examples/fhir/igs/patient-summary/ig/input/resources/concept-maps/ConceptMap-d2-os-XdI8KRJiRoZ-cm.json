@@ -1,0 +1,89 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-XdI8KRJiRoZ-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-os-XdI8KRJiRoZ-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "XdI8KRJiRoZ"
+  },
+  "name": "D2OS_XdI8KRJiRoZ_CM",
+  "title": "MNCH Yes No",
+  "description": "DHIS2 option set MNCH Yes No (XdI8KRJiRoZ). Every concept of D2OS_XdI8KRJiRoZ_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-XdI8KRJiRoZ-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-XdI8KRJiRoZ-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "AAgDQGRuOHB",
+          "display": "Yes",
+          "target": [
+            {
+              "code": "AAgDQGRuOHB",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "kzKxayEMqZB",
+          "display": "No",
+          "target": [
+            {
+              "code": "kzKxayEMqZB",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "T6ZEg0zYzbL",
+          "display": "Unknown",
+          "target": [
+            {
+              "code": "T6ZEg0zYzbL",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-XdI8KRJiRoZ-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "AAgDQGRuOHB",
+          "display": "Yes",
+          "target": [
+            {
+              "code": "Yes",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "kzKxayEMqZB",
+          "display": "No",
+          "target": [
+            {
+              "code": "No",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "T6ZEg0zYzbL",
+          "display": "Unknown",
+          "target": [
+            {
+              "code": "Unknown",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

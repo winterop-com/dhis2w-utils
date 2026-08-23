@@ -343,12 +343,12 @@ d2w fhir            FHIR IG generation (SUSHI/FSH + pre-built JSON, package dhis
                         answered; refuses an id that is not there before
                         anything moves
   doctor                Scaffold a throwaway project against the ambient profile
-                        and drive the whole chain through it in nine typed
+                        and drive the whole chain through it in ten typed
                         phases (connect, scaffold, generate, compile, validate,
-                        serve, capture, forward, oracle), each PASS / WARN /
-                        FAIL / SKIPPED / BLOCKED with a stated reason; only a
-                        FAIL exits 1, and reports/fhir-doctor-report.md is the
-                        artifact a handover is read from
+                        serve, capture, forward, oracle, drift), each PASS /
+                        WARN / FAIL / SKIPPED / BLOCKED with a stated reason;
+                        only a FAIL exits 1, and reports/fhir-doctor-report.md
+                        is the artifact a handover is read from
 
   Every command with an instance behind it narrates its steps on stderr - a
   spinner on a terminal, plain [k/N] lines when redirected - and takes
@@ -3031,7 +3031,7 @@ Two operator verbs sit beside the drain and touch no instance at all.
 ### Check an instance
 
 `d2w fhir doctor` is the conformance runner: it scaffolds a throwaway project
-against the ambient profile and drives the entire chain through it in nine
+against the ambient profile and drives the entire chain through it in ten
 typed phases.
 
 - **connect** - version detected, plugin tree named.
@@ -3058,6 +3058,18 @@ typed phases.
   UID resolved back against the DHIS2 collection it names, plus a seeded sample
   per family deep-compared field by field, with the field path stated on every
   mismatch and the DHIS2 object always the authority.
+- **drift** - the only phase whose subject is not the throwaway project. Run
+  from a directory a `fhir.toml` sits in or above, it reads that guide's
+  published artifacts off disk - the trees the served store and
+  `check-artifacts` read - and names every organisation unit, option, tracked
+  entity attribute, data element, and program stage the instance now holds
+  inside that project's own selection scope that the guide does not, in both
+  directions and on renames alike. Warning-class throughout: a guide is out of
+  date rather than broken, so drift never exits 1. Tracked entity types are
+  left to `d2w fhir validate`'s `unmapped-tracked-entity-type` checklist and
+  cross-referenced in one line rather than re-reported. Skipped, with the
+  reason, from a directory holding no project or from a project that was
+  generated but never compiled.
 
 Each phase reports PASS / WARN / FAIL / SKIPPED / BLOCKED with a stated reason,
 a failure never stops a phase that does not depend on it, and only a FAIL exits
@@ -3135,7 +3147,8 @@ renders each module.
 | The same refusal read off disk | `check_publishable_artifacts`, `ArtifactCheckReport`, `ArtifactFinding` |
 | Scaffolding | `init_project`, `refresh_project`, `read_project_scaffold_state`, `ProjectScaffoldState`, `normalize_project_name`, `preserves_every_line` |
 | Validation, producing a report rather than rendering one | `validate_codes`, `resolve_validation_context`, `resolve_validation_scope`, `resolve_code_source`, `ValidationContext`, `display_code` |
-| The conformance runner | `run_doctor`, `DoctorOptions`, `DoctorReport`, `DoctorPhase`, `DoctorOutcome`, `DoctorPhaseResult`, `DoctorFinding`, `PhaseOutcome`, `CaptureOutcome`, `FamilyOutcome`, `resolve_doctor_profile`, `render_doctor_markdown`, `phase_evidence`, `generate_findings`, and the graders `grade`, `grade_capture`, `grade_forward`, `grade_oracle` |
+| The conformance runner | `run_doctor`, `DoctorOptions`, `DoctorReport`, `DoctorPhase`, `DoctorOutcome`, `DoctorPhaseResult`, `DoctorFinding`, `PhaseOutcome`, `CaptureOutcome`, `FamilyOutcome`, `resolve_doctor_profile`, `resolve_published_project`, `render_doctor_markdown`, `phase_evidence`, `generate_findings`, `drift_findings`, and the graders `grade`, `grade_capture`, `grade_forward`, `grade_oracle`, `grade_drift` |
+| Drift between a published guide and the instance | `detect_drift`, `read_published_guide`, `compare_organisation_units`, `compare_option_set`, `compare_form`, `registry_scope_line`, `DriftReport`, `DriftFinding`, `DriftSubject`, `DriftKind`, `PublishedGuide`, `PublishedForm`, `PublishedOptionSet`, `PublishedObject`, `InstanceForm`, `InstanceOptionSet`, `InstanceOption`, `InstanceObject`, `DRIFT_REMEDY` |
 | Refusal records on the spool | `record_refusal`, `read_refusal_record`, `ForwardRefusalRecord`, `RefusalReason`, `SPOOL_RELATIVE_PATH`, `REFUSAL_RECORD_SUFFIX`, `QUARANTINE_REASON_SUFFIX`, `DRAIN_LOCK_FILE_NAME`, `ORPHAN_TEMPORARY_FILE_AGE_SECONDS` |
 | The profile a run resolves | `GenerationProfile`, `resolve_generation_profile` |
 

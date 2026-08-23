@@ -1,0 +1,104 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-section-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-section-cm",
+  "name": "D2Section_CM",
+  "title": "DHIS2 program stages and data elements as International Patient Summary sections",
+  "description": "Every DHIS2 program stage and data element this project nominates as feeding a section of an International Patient Summary, mapped onto that section's LOINC code. DHIS2 states no such mapping - it marks no data element as an immunisation, a problem, or an allergy - so the rows are this instance's own statement, made in [ips.sections] and published here so a consumer can audit which recorded values a served summary carries without holding that file.",
+  "status": "draft",
+  "experimental": true,
+  "group": [
+    {
+      "source": "http://dhis2.org/fhir/id/program-stage",
+      "target": "http://loinc.org",
+      "element": [
+        {
+          "code": "A03MvHHogjR",
+          "target": [
+            {
+              "code": "11369-6",
+              "display": "History of Immunization Narrative",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "ZzYYXq4fJie",
+          "target": [
+            {
+              "code": "11369-6",
+              "display": "History of Immunization Narrative",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://dhis2.org/fhir/id/data-element",
+      "target": "http://loinc.org",
+      "element": [
+        {
+          "code": "FqlgKAG8HOu",
+          "target": [
+            {
+              "code": "11369-6",
+              "display": "History of Immunization Narrative",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "bx6fsa0t90x",
+          "target": [
+            {
+              "code": "11369-6",
+              "display": "History of Immunization Narrative",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "ebaJjqltK5N",
+          "target": [
+            {
+              "code": "11369-6",
+              "display": "History of Immunization Narrative",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "pOe0ogW4OWd",
+          "target": [
+            {
+              "code": "11369-6",
+              "display": "History of Immunization Narrative",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "rxBfISxXS2U",
+          "target": [
+            {
+              "code": "11369-6",
+              "display": "History of Immunization Narrative",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "vTUhAUZFoys",
+          "target": [
+            {
+              "code": "11369-6",
+              "display": "History of Immunization Narrative",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "kzmwOrwmzbW",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "kzmwOrwmzbW"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226249"
+    }
+  ],
+  "name": "Seria MCHP",
+  "description": "DHIS2 organisation unit Seria MCHP (kzmwOrwmzbW), level 4 - physical location.",
+  "status": "active",
+  "position": {
+    "longitude": -10.9216,
+    "latitude": 9.4654
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMC45MjE2LDkuNDY1NF0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJrem13T3J3bXpiVyIsImxldmVsIjo0LCJuYW1lIjoiU2VyaWEgTUNIUCJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Seria MCHP (kzmwOrwmzbW)",
+        "size": 147
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/kzmwOrwmzbW"
+  },
+  "partOf": {
+    "reference": "Location/OTFepb1k9Db"
+  }
+}

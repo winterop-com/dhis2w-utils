@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "PaqugoqjRIj",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "PaqugoqjRIj"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226225"
+    }
+  ],
+  "name": "Sulima (Koinadugu)",
+  "description": "DHIS2 organisation unit Sulima (Koinadugu) (PaqugoqjRIj), level 3 - physical location.",
+  "status": "active",
+  "position": {
+    "longitude": -11.254062,
+    "latitude": 9.828207
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6W1tbLTExLjA0NzEsOS44MDU5XSxbLTExLjA1MDMsOS44MDI1XSxbLTExLjA1NjYsOS43OTQ4XSxbLTExLjA1ODUsOS43OTIxXSxbLTExLjA2MTgsOS43ODUzXSxbLTExLjA2MjcsOS43ODNdLFstMTEuMDY0LDkuNzc3MV0sWy0xMS4wNjU0LDkuNzc0OF0sWy0xMS4wNjc4LDkuNzcyXSxbLTExLjA3NjIsOS43NjM3XSxbLTExLjA3OTEsOS43NjA1XSxbLTExLjA4MDksOS43NTc5XSxbLTExLjA4MjgsOS43NTRdLFstMTEuMDg0OSw5Ljc1MTNdLFstMTEuMDkwMiw5Ljc0NTddLFstMTEuMDkyMSw5Ljc0MjZdLFstMTEuMDkzNCw5LjczNjldLFstMTEuMDk1NSw5LjczMTddLFstMTEuMDk3Miw5LjcyNDldLFstMTEuMDk5LDkuNzIyXSxbLTExLjEwMTQsOS43MTkzXSxbLTExLjEwNzYsOS43MTMzXSxbLTExLjExMTQsOS43MTA0XSxbLTExLjExNDcsOS43MDldLFstMTEuMTE4OSw5LjcwNjZdLFstMTEuMTIyMSw5LjcwNTNdLFstMTEuMTI2NCw5LjcwMjldLFstMTEuMTMzNCw5LjcwMDNdLFstMTEuMTQwNiw5LjY5NTldLFstMTEuMTQ0Myw5LjY5NF0sWy0xMS4xNDY4LDkuNjkyXSxbLTExLjE0OTgsOS42ODg1XSxbLTExLjE1NTUsOS42ODY0XSxbLTExLjE2LDkuNjg0NV0sWy0xMS4xNjM3LDkuNjgzOF0sWy0xMS4xNjk1LDkuNjgzNV0sWy0xMS4xNzMzLDkuNjgzXSxbLTExLjE3OTYsOS42ODA1XSxbLTExLjE4MjUsOS42OF0sWy0xMS4xODU1LDkuNjc5OF0sWy0xMS4yMDY5LDkuNjc5OV0sWy0xMS4yMTA3LDkuNjc5M10sWy0xMS4yMTYyLDkuNjc3MV0sWy0xMS4yMjIsOS42NzU2XSxbLTExLjIyNzMsOS42NzMyXSxbLTExLjIzMDEsOS42NzI3XSxbLTExLjIzNzMsOS42NzIzXSxbLTExLjI2NjMsOS42NzI1XSxbLTExLjI3MjQsOS42NzIyXSxbLTExLjI3NTMsOS42NzE1XSxbLTExLjI4MDYsOS42Njk0XSxbLTExLjI4NTUsOS42Njg3XSxbLTExLjI5NDcsOS42Njg3XSxbLTExLjI5ODcsOS42Njg0XSxbLTExLjMwMTUsOS42Njc4XSxbLTExLjMwNiw5LjY2NTldLFstMTEuMzA4Nyw5LjY2NTNdLFstMTEuMzE1NSw5LjY2NDRdLFstMTEuMzI0OCw5LjY2MDFdLFstMTEuMzI3MSw5LjY1ODRdLFstMTEuMzMxMiw5LjY1NDNdLFstMTEuMzMzOSw5LjY1MV0sWy0xMS4zMzgsOS42NDNdLFstMTEuMzQxNiw5LjYzNDddLFstMTEuMzQzMyw5LjYyOTRdLFstMTEuMzQ2MSw5LjYyODZdLFstMTEuMzQ5Myw5LjYzMDRdLFstMTEuMzUxNyw5LjYzMzFdLFstMTEuMzU1Miw5LjYzNzZdLFstMTEuMzU3Niw5LjYzODZdLFstMTEuMzYwNiw5LjYzOV0sWy0xMS4zODY5LDkuNjM4OF0sWy0xMS4zOTMyLDkuNjM4Nl0sWy0xMS4zOTUyLDkuNjQxNF0sWy0xMS4zOTY4LDkuNjQzMV0sWy0xMS4zOTg3LDkuNjQ0Ml0sWy0xMS4zOTU5LDkuNjUwMl0sWy0xMS4zOTQ2LDkuNjUzNV0sWy0xMS4zOTIyLDkuNjU4N10sWy0xMS4zOTA4LDkuNjY0Nl0sWy0xMS4zODg2LDkuNjY5OV0sWy0xMS4zODc0LDkuNjc0OV0sWy0xMS4zODU4LDkuNjc4MV0sWy0xMS4zODE0LDkuNjgzOV0sWy0xMS4zNzc4LDkuNjkxNF0sWy0xMS4zNzY0LDkuNjk3M10sWy0xMS4zNzQyLDkuNzAyNl0sWy0xMS4zNzM3LDkuNzA1MV0sWy0xMS4zNzMyLDkuNzEwNF0sWy0xMS4zNzI1LDkuNzEyOV0sWy0xMS4zNzA0LDkuNzE4M10sWy0xMS4zNyw5LjcyMjFdLFstMTEuMzY5Nyw5LjcyNzldLFstMTEuMzY5LDkuNzMxNl0sWy0xMS4zNjcxLDkuNzM2MV0sWy0xMS4zNjY2LDkuNzM4Nl0sWy0xMS4zNjYsOS43NDM5XSxbLTExLjM2NTQsOS43NDY1XSxbLTExLjM2MzUsOS43NTFdLFstMTEuMzYyOSw5Ljc1NDZdLFstMTEuMzYyNyw5Ljc2MDVdLFstMTEuMzYyMSw5Ljc2NDJdLFstMTEuMzU5OSw5Ljc3MDFdLFstMTEuMzU5Miw5Ljc3NTFdLFstMTEuMzU5Miw5Ljc4MjldLFstMTEuMzU4NSw5Ljc4N10sWy0xMS4zNTYzLDkuNzkyOF0sWy0xMS4zNTU4LDkuNzk2Nl0sWy0xMS4zNTU0LDkuODAzNF0sWy0xMS4zNTQ2LDkuODA2OF0sWy0xMS4zNTI5LDkuODEwNV0sWy0xMS4zNTIxLDkuODE0N10sWy0xMS4zNTIxLDkuODIwMV0sWy0xMS4zNTI1LDkuODIzNF0sWy0xMS4zNTMzLDkuODI1NV0sWy0xMS4zNTUzLDkuODI5MV0sWy0xMS4zNTY3LDkuODMyM10sWy0xMS4zNTkxLDkuODM2NV0sWy0xMS4zNjA1LDkuODM5N10sWy0xMS4zNjI1LDkuODQzM10sWy0xMS4zNjQ0LDkuODQ3Ml0sWy0xMS4zNjY2LDkuODUwMV0sWy0xMS4zNzA0LDkuODUzNF0sWy0xMS4zNzU1LDkuODU2MV0sWy0xMS4zNzg2LDkuODU4NF0sWy0xMS4zODM4LDkuODYzM10sWy0xMS4zODc4LDkuODY3N10sWy0xMS4zODk1LDkuODddLFstMTEuMzkyLDkuODc0N10sWy0xMS4zOTYzLDkuODgwMV0sWy0xMS4zOTg1LDkuODg0M10sWy0xMS40MDEsOS44ODg2XSxbLTExLjQwMjQsOS44OTE4XSxbLTExLjQwNDgsOS44OTZdLFstMTEuNDA2Miw5Ljg5OTJdLFstMTEuNDA4MSw5LjkwMjhdLFstMTEuNDA5Miw5LjkwNjNdLFstMTEuNDA5NCw5LjkxMDJdLFstMTEuNDA5Niw5LjkzOF0sWy0xMS40MDk4LDkuOTQzOV0sWy0xMS40MTAzLDkuOTQ2N10sWy0xMS40MTI2LDkuOTUyMV0sWy0xMS40MTMzLDkuOTU0Nl0sWy0xMS40MTM5LDkuOTU5OV0sWy0xMS40MTQ2LDkuOTYyNF0sWy0xMS40MTY4LDkuOTY3OF0sWy0xMS40MTc1LDkuOTcyOV0sWy0xMS40MTc3LDkuOTk4N10sWy0xMS40NDU2LDkuOTk5Ml0sWy0xMS4zOTA5LDkuOTk4OV0sWy0xMS4zMTM5LDkuOTk4NF0sWy0xMS4yNDI5LDkuOTk5N10sWy0xMS4yMDY3LDEwLjAwMDRdLFstMTEuMjA2LDEwLjBdLFstMTEuMTk0Nyw5Ljk5MTFdLFstMTEuMTc1LDkuOTc1OF0sWy0xMS4xNzEzLDkuOTY2Ml0sWy0xMS4xNjcxLDkuOTQ0OF0sWy0xMS4xNjQ2LDkuOTEyNl0sWy0xMS4xNjAyLDkuODkwNV0sWy0xMS4xNTQ0LDkuODc5Ml0sWy0xMS4xNDI4LDkuODY5MV0sWy0xMS4wOTczLDkuODQ3OV0sWy0xMS4wOTYyLDkuODQ1Nl0sWy0xMS4wNjk4LDkuODI4MV0sWy0xMS4wNDcxLDkuODA1OV1dXSwidHlwZSI6IlBvbHlnb24ifSwicHJvcGVydGllcyI6eyJkaGlzMklkIjoiUGFxdWdvcWpSSWoiLCJsZXZlbCI6MywibmFtZSI6IlN1bGltYSAoS29pbmFkdWd1KSJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Sulima (Koinadugu) (PaqugoqjRIj)",
+        "size": 3096
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-3",
+        "display": "Level 3"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/PaqugoqjRIj"
+  },
+  "partOf": {
+    "reference": "Location/qhqAxPSTUXp"
+  }
+}

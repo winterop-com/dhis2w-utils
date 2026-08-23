@@ -21,10 +21,12 @@ its own project, in its own throwaway directory, and cleans up after itself.
 - get a one-command verdict on whether this instance works with the toolchain
 - read the phase table and tell a broken instance from a noisy one
 - explain what the oracle phase proves, and in which direction
+- find out whether the guide you already published still describes the instance
 
 ```bash
 d2w -p laos fhir doctor           # the whole chain, one verdict
 d2w -p laos fhir doctor --live    # and let the instance judge the output
+cd my-guide && d2w fhir doctor    # and check that guide for drift as well
 ```
 
 ## When to run it
@@ -40,7 +42,9 @@ instance changes under you.
   of the run says whether anything downstream noticed.
 - **A metadata change.** A country renamed half its facilities. Run
   `--live` and the oracle says whether what the toolchain would serve still
-  derives from what the instance now holds.
+  derives from what the instance now holds. Run it from your project
+  directory and the drift phase says the same thing about the guide you
+  already published.
 - **A bug report.** "Forwarding fails on our instance." A doctor run is the
   smallest complete reproduction, and its markdown report is the attachment.
 
@@ -53,7 +57,7 @@ workspace is deleted when the run ends unless you name one.
 A run ends on one line:
 
 ```
-verdict: BROKEN: 6 pass, 2 warn, 1 fail, 0 skipped, 0 blocked; forward failed - this
+verdict: BROKEN: 6 pass, 3 warn, 1 fail, 0 skipped, 0 blocked; forward failed - this
 instance breaks the toolchain as configured
 ```
 
@@ -73,7 +77,7 @@ A failure does not stop the run. Only a phase that structurally depends on
 a missing input is blocked - no store means no capture - so one broken
 thing does not hide the six working ones behind it.
 
-## The nine phases
+## The ten phases
 
 **connect** opens a client against the profile, detects the instance's
 version from `/api/system/info`, and states which of the `v41` / `v42` /
@@ -133,6 +137,12 @@ are not held against the instance.
 
 **oracle** is the phase doctor exists for, and it runs on `--live`.
 
+**drift** is the one phase whose subject is not the throwaway project. Run
+from a directory a `fhir.toml` sits in or above, it reads the guide already
+published there and names everything the instance now holds inside that
+project's own selection that the guide does not. Run from anywhere else it
+is skipped, with that as the reason.
+
 ## The oracle, explained
 
 Every other phase asks: *does the toolchain run?* The oracle asks a harder
@@ -162,10 +172,59 @@ test that says the toolchain agrees with itself. The oracle says whether it
 agrees with the country's own data, today, and it names the field path -
 `name`, `title`, `identifier[1].value` - where it stopped agreeing.
 
+## Drift, explained
+
+A guide is a photograph. `d2w fhir generate` reads the instance once, the
+compiler turns that reading into artifacts, and from then on the artifacts
+say what the instance said on the day they were written. DHIS2 keeps moving.
+A chiefdom is split, an option is added to a set, a question is dropped from
+a stage - and nothing in the published guide knows.
+
+The drift phase is that comparison. It reads the artifacts on disk - the
+same trees `d2w fhir serve` and `d2w fhir check-artifacts` read - and asks
+the instance for everything they claim, in five classes:
+
+| Class | Published side | Instance side |
+| --- | --- | --- |
+| Organisation units | the `Location` of every unit the registry carries | the hierarchy under `root`, down to `max_level` |
+| Options | the concepts of every published option-set `CodeSystem` | that option set's options today |
+| Tracked entity attributes | the questions of a registration form | the program's or the type's attributes |
+| Data elements | the questions of a data set, event, or stage form | that object's data elements |
+| Program stages | the stage forms a tracker program publishes | that program's stages |
+
+Each class reports in both directions and on renames alike: something the
+instance gained, something it lost, and something whose name changed under a
+UID that did not. A rename matters because the published name is what a
+reader of the guide sees - `D2TEA_CS` carries every attribute's name, a
+`CodeSystem` concept carries every option's - so a guide calling an object
+what the instance no longer calls it is wrong the way documentation is wrong.
+
+**Scope is the whole discipline.** Drift is measured inside
+`[generate.organisation_units]` and the selection tables, and nowhere else. An
+organisation unit outside the registry root is not drift - the project never
+asked for it - so a one-district guide against a national instance reports
+one district's worth of movement, not a thousand facilities it never claimed.
+
+**Drift is a warning, never a failure.** A guide describing the instance as it
+stood last month still serves, still captures, and still forwards. It is out
+of date, not broken, so drift never exits 1. The remedy is the same sentence
+for every finding, which is why it is stated once on the phase rather than
+once per row:
+
+```
+run `d2w fhir generate`, then `make sushi`, to publish the instance as it now stands
+```
+
+Tracked entity **types** are deliberately not here. `d2w fhir validate`
+already names every type the project never typed, under
+`unmapped-tracked-entity-type`, and the drift phase points at that checklist
+rather than repeating it.
+
 ## Reading a real run
 
 A whole `--live` run against a 2.43.1 instance carrying the Sierra Leone demo
-database. It opens with what it connected to:
+database, launched from a project directory so the drift phase has a
+published guide to read. It opens with what it connected to:
 
 ```
                                       fhir doctor
@@ -175,7 +234,7 @@ database. It opens with what it connected to:
 │DHIS2 version │ 2.43.1 (plugin tree v43)                                              │
 │workspace     │ /home/you/doctor-ws                                                   │
 └──────────────┴───────────────────────────────────────────────────────────────────────┘
-                                       phases (9)
+                                      phases (10)
 ┏━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃Phase    ┃ Outcome ┃ Seconds ┃ What it found                                          ┃
 ┡━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
@@ -207,6 +266,13 @@ database. It opens with what it connected to:
 │         │         │         │ object(s), 1 resolved, 1 deep-compared; programs: 2    │
 │         │         │         │ resource(s) over 2 DHIS2 object(s), 2 resolved, 2      │
 │         │         │         │ deep-compared                                          │
+│drift    │ warn    │ 0.3     │ 2 object(s) moved since the guide was published: 16    │
+│         │         │         │ organisation unit(s), 12 option set(s), and 6 form(s)  │
+│         │         │         │ read against the hierarchy under O6uvpzGd5pu down to   │
+│         │         │         │ level 3. run `d2w fhir generate`, then `make sushi`, to│
+│         │         │         │ publish the instance as it now stands. tracked entity  │
+│         │         │         │ types are graded by `d2w fhir validate` under          │
+│         │         │         │ `unmapped-tracked-entity-type`, not here               │
 └─────────┴─────────┴─────────┴────────────────────────────────────────────────────────┘
 ```
 
@@ -214,7 +280,7 @@ Read the phase table first and the findings second. The table says which leg
 of the chain broke; the findings table under it says what to do about it:
 
 ```
-                                      findings (5)
+                                      findings (7)
 ┏━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃Phase    ┃ Severity ┃ Subject        ┃ Where ┃ What                                   ┃
 ┡━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
@@ -227,6 +293,12 @@ of the chain broke; the findings table under it says what to do about it:
 │         │          │                │       │ Western Area (at6UHUQatSo)             │
 │forward  │ error    │ E1300          │ -     │ 1 response(s): Generated by ProgramRule│
 │         │          │                │       │ (`...`) - `...`.                       │
+│drift    │ warning  │ organisation   │ added │ the instance holds it in the registry  │
+│         │          │ unit Kpaka     │       │ scope this project publishes; the guide│
+│         │          │ (OuNewChief1)  │       │ publishes nothing for it               │
+│drift    │ warning  │ option         │ added │ the instance holds it in the published │
+│         │          │ Rotavirus      │       │ option set Vaccine type (OsVaccType1); │
+│         │          │ (OptVacRot01)  │       │ the guide publishes nothing for it     │
 └─────────┴──────────┴────────────────┴───────┴────────────────────────────────────────┘
 ```
 
@@ -238,6 +310,12 @@ doing: it scoped the run to one subtree, so that subtree's own root has a
 parent nobody selected. One finding is one row: several generate targets read
 the same source notes, and a note three of them raised is still one fact about
 the instance.
+
+The two `drift` rows are the other half of the story the oracle tells. The
+oracle says the served output still derives from the instance; drift says the
+guide on disk no longer covers all of it - somebody added a chiefdom and a
+vaccine option since the last generate. Neither is a failure, and the exit
+code reflects that.
 
 Two things to expect on the timings. `compile` is effectively the whole run -
 it dwarfs everything else put together, because it is a real FSH compile in
@@ -253,6 +331,7 @@ it re-reads a seeded sample rather than the instance.
 | `--all-targets` | Scaffold empty selection tables: every data set, every program, every level. |
 | `--live` | Run the oracle phase. |
 | `--samples N` | How many resources per family the oracle deep-compares (default 5). |
+| (none) | Drift has no flag. It runs whenever the working directory sits in a project, and is skipped with a reason when it does not. |
 | `--no-progress` | Do not narrate each phase as it completes. |
 
 The instance and the JSON output both come from root flags, exactly as they
@@ -267,23 +346,26 @@ d2w --json -p laos fhir doctor      # the typed report on stdout, narration on s
 
 One instance per run, named the same way everywhere.
 
-The narration is one `[k/9]` line per phase as it completes, which is the
+The narration is one `[k/10]` line per phase as it completes, which is the
 form a redirected log wants:
 
 ```
-running 9 step(s)
-[1/9] connect: pass - http://localhost:8080 is DHIS2 2.43.1, bound to the v43 tree
-[2/9] scaffold: pass - 13 file(s) into /home/you/doctor-ws; ...
-[3/9] generate: warn - 322 file(s) across 7 target(s), 4 note(s)
-[4/9] compile: pass - docker fhir-ig sushi compiled 84 resource(s)
-[5/9] validate: warn - 1,634 object(s) swept; 0 selection error(s), 5 selection warning(s),
+running 10 step(s)
+[1/10] connect: pass - http://localhost:8080 is DHIS2 2.43.1, bound to the v43 tree
+[2/10] scaffold: pass - 13 file(s) into /home/you/doctor-ws; ...
+[3/10] generate: warn - 322 file(s) across 7 target(s), 4 note(s)
+[4/10] compile: pass - docker fhir-ig sushi compiled 84 resource(s)
+[5/10] validate: warn - 1,634 object(s) swept; 0 selection error(s), 5 selection warning(s),
 0 error(s) and 5 warning(s) instance-wide
-[6/9] serve: pass - 355 resource(s) from the compiled guide: ...
-[7/9] capture: pass - 5 form(s), 5 generated, 5 accepted as 201
-[8/9] forward: fail - 5 spooled, 5 translated, 0 refused, 5 posted (validate only),
+[6/10] serve: pass - 355 resource(s) from the compiled guide: ...
+[7/10] capture: pass - 5 form(s), 5 generated, 5 accepted as 201
+[8/10] forward: fail - 5 spooled, 5 translated, 0 refused, 5 posted (validate only),
 3 accepted, 1 rejected, 1 unverifiable
-[9/9] oracle: pass - organisation units: 108 resource(s) over 107 DHIS2 object(s), ...
-BROKEN: 6 pass, 2 warn, 1 fail, 0 skipped, 0 blocked
+[9/10] oracle: pass - organisation units: 108 resource(s) over 107 DHIS2 object(s), ...
+[10/10] drift: warn - 2 object(s) moved since the guide was published: 16 organisation
+unit(s), 12 option set(s), and 6 form(s) read against the hierarchy under O6uvpzGd5pu
+down to level 3. run `d2w fhir generate`, then `make sushi`, ...
+BROKEN: 5 pass, 3 warn, 1 fail, 0 skipped, 0 blocked
 ```
 
 ## The written report
@@ -305,6 +387,9 @@ That file is the artifact. Attach it to the handover.
   subtree, chosen to be representative rather than complete. Use
   `--all-targets` when you want the whole instance, and expect it to take
   correspondingly longer.
+- Its drift phase is **not** a diff of your project. It reads the artifacts
+  a build publishes from, so a project generated but never compiled has no
+  forms to compare and the phase says so.
 - It has **no MCP tool**. A run writes a project tree, shells out to a
   compiler, and posts a corpus through a server it started - a write-heavy
   orchestration with no read-only shape a tool could honestly advertise.
@@ -317,5 +402,7 @@ That file is the artifact. Attach it to the handover.
   with the full md / csv / pdf reports.
 - [Forward captured responses](201-forward.md) - what the forward phase is
   a dry run of.
+- [Regeneration and hand-authoring](401-regeneration-and-hand-authoring.md) -
+  what a regenerate keeps and what it rewrites, once drift says to run one.
 - [Troubleshooting](201-troubleshooting.md) - the failure modes doctor
   names, one by one.

@@ -1,0 +1,64 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-os-XdI8KRJiRoZ-cs",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-XdI8KRJiRoZ-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "XdI8KRJiRoZ"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "XdI8KRJiRoZ"
+    }
+  ],
+  "name": "D2OS_XdI8KRJiRoZ_CS",
+  "title": "MNCH Yes No",
+  "description": "DHIS2 option set MNCH Yes No (XdI8KRJiRoZ). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 3,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-XdI8KRJiRoZ-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 option code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "AAgDQGRuOHB",
+      "display": "Yes",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "Yes"
+        }
+      ]
+    },
+    {
+      "code": "kzKxayEMqZB",
+      "display": "No",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "No"
+        }
+      ]
+    },
+    {
+      "code": "T6ZEg0zYzbL",
+      "display": "Unknown",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "Unknown"
+        }
+      ]
+    }
+  ]
+}

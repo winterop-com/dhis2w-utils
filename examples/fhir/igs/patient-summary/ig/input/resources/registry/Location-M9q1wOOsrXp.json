@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "M9q1wOOsrXp",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "M9q1wOOsrXp"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226264"
+    }
+  ],
+  "name": "Yara MCHP",
+  "description": "DHIS2 organisation unit Yara MCHP (M9q1wOOsrXp), level 4 - physical location.",
+  "status": "active",
+  "position": {
+    "longitude": -11.5822,
+    "latitude": 9.2701
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS41ODIyLDkuMjcwMV0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJNOXExd09Pc3JYcCIsImxldmVsIjo0LCJuYW1lIjoiWWFyYSBNQ0hQIn0sInR5cGUiOiJGZWF0dXJlIn0=",
+        "title": "Yara MCHP (M9q1wOOsrXp)",
+        "size": 146
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/M9q1wOOsrXp"
+  },
+  "partOf": {
+    "reference": "Location/Lt8U7GVWvSR"
+  }
+}

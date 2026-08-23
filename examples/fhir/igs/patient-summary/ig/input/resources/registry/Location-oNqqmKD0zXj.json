@@ -1,0 +1,38 @@
+{
+  "resourceType": "Location",
+  "id": "oNqqmKD0zXj",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "oNqqmKD0zXj"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_758909"
+    }
+  ],
+  "name": "Tambaliabalia MCHP",
+  "description": "DHIS2 organisation unit Tambaliabalia MCHP (oNqqmKD0zXj), level 4 - physical location.",
+  "status": "active",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/oNqqmKD0zXj"
+  },
+  "partOf": {
+    "reference": "Location/OTFepb1k9Db"
+  }
+}

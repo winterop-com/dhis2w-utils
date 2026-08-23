@@ -1,0 +1,27 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-os-OGmE3wUMEzu-vs",
+  "url": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-OGmE3wUMEzu-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "OGmE3wUMEzu"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "OGmE3wUMEzu"
+    }
+  ],
+  "name": "D2OS_OGmE3wUMEzu_VS",
+  "title": "MNCH Infant HIV Test Type",
+  "description": "DHIS2 option set MNCH Infant HIV Test Type (OGmE3wUMEzu). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-OGmE3wUMEzu-cs"
+      }
+    ]
+  }
+}

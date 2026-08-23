@@ -665,20 +665,32 @@ layer](design/conversion.md).
 ## The conformance runner
 
 `d2w fhir doctor` runs the whole chain against one instance and reports what
-the instance breaks, in nine phases: **connect**, **scaffold** (a throwaway
+the instance breaks, in ten phases: **connect**, **scaffold** (a throwaway
 project on a deliberately coherent probe - one data set, one event program, one
 tracker program, and a registry root the selected forms are actually assigned
 under), **generate**, **compile** (a real FSH compiler where one exists,
 skipped where none does), **validate**, **serve** (the store built in process,
 no socket and no subprocess), **capture** (every published form filled by
 `$generate` and posted back, holding the endpoint to its own 201 invariant),
-**forward** (the spool drained under validate-only), and **oracle**.
+**forward** (the spool drained under validate-only), **oracle**, and **drift**.
 
 The oracle phase needs `--live`: the DHIS2 instance judges the served resources
 object by object across four families - organisation units, option sets, data
 sets, programs - resolving every served UID in batches and deep-comparing a
 seeded sample. It is the only phase that can say the guide is *wrong* rather
 than merely unbuildable.
+
+The drift phase is the one phase whose subject is not the throwaway project. It
+reads the guide the working directory sits in - through
+`conversion.artifacts.load_compiled_artifacts`, the same reader the served store
+and `check-artifacts` use, so no third reader of the published trees exists -
+and names every organisation unit, option, tracked entity attribute, data
+element, and program stage the instance now holds inside that project's own
+selection scope that the guide does not. The published project is resolved
+before the run writes anything, so the workspace it is about to scaffold can
+never be mistaken for a published guide. Drift is warning-class throughout: a
+guide is out of date rather than broken, and the remedy is one sentence -
+regenerate, then compile.
 
 Outcomes are pass, warn, fail, skipped (this machine does not offer it) and
 blocked (a dependency produced no input). Only a failure exits 1, so a warning

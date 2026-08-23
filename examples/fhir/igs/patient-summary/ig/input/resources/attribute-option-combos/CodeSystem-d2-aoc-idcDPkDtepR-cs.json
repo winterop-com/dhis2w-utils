@@ -1,0 +1,74 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-aoc-idcDPkDtepR-cs",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-aoc-idcDPkDtepR-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/category-combo",
+      "value": "idcDPkDtepR"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/category-combo-code",
+      "value": "idcDPkDtepR"
+    }
+  ],
+  "name": "D2AOC_idcDPkDtepR_CS",
+  "title": "Project",
+  "description": "DHIS2 attribute option combos of category combo Project (idcDPkDtepR). A data set on this combo keys every value it holds by one of them. Concept codes are DHIS2 category option combo UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 4,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-aoc-idcDPkDtepR-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 category option combo code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "pO5CEqK6c1s",
+      "display": "Improve access to clean water",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_1452092"
+        }
+      ]
+    },
+    {
+      "code": "sSeEjeQ0Rgt",
+      "display": "Improve access to medicines",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_1452091"
+        }
+      ]
+    },
+    {
+      "code": "BqblOcSwGey",
+      "display": "Provide access to primary health care",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_1452093"
+        }
+      ]
+    },
+    {
+      "code": "oawMLLH7OjA",
+      "display": "Provide access to basic education",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_1452090"
+        }
+      ]
+    }
+  ]
+}
