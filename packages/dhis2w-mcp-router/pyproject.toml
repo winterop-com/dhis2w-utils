@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-mcp-router"
-version = "1.8.0"
+version = "1.9.0.dev0"
 description = "Domain-neutral MCP router: front many upstream MCP servers behind two meta-tools (search + dispatch) so an agent gets lazy, searchable tool discovery instead of a huge up-front tool payload."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
