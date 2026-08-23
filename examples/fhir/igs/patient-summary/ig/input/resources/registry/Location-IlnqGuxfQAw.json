@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "IlnqGuxfQAw",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "IlnqGuxfQAw"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226216"
+    }
+  ],
+  "name": "Sinkunia CHC",
+  "description": "DHIS2 organisation unit Sinkunia CHC (IlnqGuxfQAw), level 4 - physical location.",
+  "status": "active",
+  "position": {
+    "longitude": -11.4291,
+    "latitude": 9.863
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS40MjkxLDkuODYzXSwidHlwZSI6IlBvaW50In0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6IklsbnFHdXhmUUF3IiwibGV2ZWwiOjQsIm5hbWUiOiJTaW5rdW5pYSBDSEMifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Sinkunia CHC (IlnqGuxfQAw)",
+        "size": 148
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/IlnqGuxfQAw"
+  },
+  "partOf": {
+    "reference": "Location/Mr4au3jR9bt"
+  }
+}

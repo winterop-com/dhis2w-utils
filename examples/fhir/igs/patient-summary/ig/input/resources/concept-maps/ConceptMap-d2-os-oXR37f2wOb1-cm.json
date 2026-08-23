@@ -1,0 +1,109 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-oXR37f2wOb1-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-os-oXR37f2wOb1-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "oXR37f2wOb1"
+  },
+  "name": "D2OS_oXR37f2wOb1_CM",
+  "title": "MNCH Infant HIV test",
+  "description": "DHIS2 option set MNCH Infant HIV test (oXR37f2wOb1). Every concept of D2OS_oXR37f2wOb1_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-oXR37f2wOb1-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-oXR37f2wOb1-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "fWI0UiNZgMy",
+          "display": "Positive",
+          "target": [
+            {
+              "code": "fWI0UiNZgMy",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "IRW6CQw66J7",
+          "display": "Negative",
+          "target": [
+            {
+              "code": "IRW6CQw66J7",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "JWyCKF6i9l1",
+          "display": "Positive (Confirmed)",
+          "target": [
+            {
+              "code": "JWyCKF6i9l1",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "nzR5kXqejCc",
+          "display": "Negative (Confirmed)",
+          "target": [
+            {
+              "code": "nzR5kXqejCc",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-oXR37f2wOb1-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "fWI0UiNZgMy",
+          "display": "Positive",
+          "target": [
+            {
+              "code": "Positive",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "IRW6CQw66J7",
+          "display": "Negative",
+          "target": [
+            {
+              "code": "Negative",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "JWyCKF6i9l1",
+          "display": "Positive (Confirmed)",
+          "target": [
+            {
+              "code": "Postive √",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "nzR5kXqejCc",
+          "display": "Negative (Confirmed)",
+          "target": [
+            {
+              "code": "Negative-Conf",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

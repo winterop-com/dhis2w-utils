@@ -1,0 +1,38 @@
+{
+  "resourceType": "Location",
+  "id": "oDAoqMWcsJQ",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "oDAoqMWcsJQ"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226226"
+    }
+  ],
+  "name": "Kaliyereh MCHP",
+  "description": "DHIS2 organisation unit Kaliyereh MCHP (oDAoqMWcsJQ), level 4 - physical location.",
+  "status": "active",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/oDAoqMWcsJQ"
+  },
+  "partOf": {
+    "reference": "Location/PaqugoqjRIj"
+  }
+}

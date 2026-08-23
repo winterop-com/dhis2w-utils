@@ -1,0 +1,38 @@
+{
+  "resourceType": "Location",
+  "id": "bPHn9IgjKLC",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "bPHn9IgjKLC"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226237"
+    }
+  ],
+  "name": "Nasarah Clinic",
+  "description": "DHIS2 organisation unit Nasarah Clinic (bPHn9IgjKLC), level 4 - physical location.",
+  "status": "active",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/bPHn9IgjKLC"
+  },
+  "partOf": {
+    "reference": "Location/VGAFxBXz16y"
+  }
+}

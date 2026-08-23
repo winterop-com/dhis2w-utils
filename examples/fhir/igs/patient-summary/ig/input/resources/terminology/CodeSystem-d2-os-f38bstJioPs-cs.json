@@ -1,0 +1,54 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-os-f38bstJioPs-cs",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-f38bstJioPs-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "f38bstJioPs"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "f38bstJioPs"
+    }
+  ],
+  "name": "D2OS_f38bstJioPs_CS",
+  "title": "MNCH Baby ARVs",
+  "description": "DHIS2 option set MNCH Baby ARVs (f38bstJioPs). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 2,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-f38bstJioPs-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 option code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "Cd0gtHGmlwS",
+      "display": "NVP only",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "NVP only"
+        }
+      ]
+    },
+    {
+      "code": "ww8JVblo4SI",
+      "display": "Others",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "Others"
+        }
+      ]
+    }
+  ]
+}

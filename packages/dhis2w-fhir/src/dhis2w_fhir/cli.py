@@ -2966,8 +2966,9 @@ def doctor_command(
 ) -> None:
     """Run the whole FHIR toolchain against this profile's instance and report what the instance breaks.
 
-    Nine phases in a throwaway workspace: connect, scaffold, generate, compile, validate, serve,
-    capture, forward, oracle. Each reports pass, warn, fail, skipped, or blocked with its reason.
+    Ten phases: connect, scaffold, generate, compile, validate, serve, capture, forward, oracle,
+    drift. Each reports pass, warn, fail, skipped, or blocked with its reason. The first nine run in
+    a throwaway workspace; drift reads the published guide the working directory sits in.
 
     The instance comes from `d2w -p <name>` and the ambient profile resolution, as `d2w fhir serve` does.
 
@@ -2978,6 +2979,11 @@ def doctor_command(
 
     `--live` adds the oracle: the DHIS2 objects behind a seeded sample of the served resources are
     fetched back and the instance decides whether the served output still derives from them.
+
+    The drift phase asks the other question: run from a project directory, it names every
+    organisation unit, option, question, and program stage the instance holds inside that project's
+    own selection that the published guide does not. Drift is a warning - the guide is out of date
+    rather than broken - so it never exits 1.
 
     The run writes reports/fhir-doctor-report.md, into the workspace when one was named and into the
     working directory otherwise.

@@ -1,0 +1,109 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-kzgQRhOCadd-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-os-kzgQRhOCadd-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "kzgQRhOCadd"
+  },
+  "name": "D2OS_kzgQRhOCadd_CM",
+  "title": "MNCH Polio doses (0-3)",
+  "description": "DHIS2 option set MNCH Polio doses (0-3) (kzgQRhOCadd). Every concept of D2OS_kzgQRhOCadd_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-kzgQRhOCadd-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-kzgQRhOCadd-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "sXfZuRdvhl5",
+          "display": "Dose 0",
+          "target": [
+            {
+              "code": "sXfZuRdvhl5",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "lFFqylGiWLk",
+          "display": "Dose 1",
+          "target": [
+            {
+              "code": "lFFqylGiWLk",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "Xr0M5yEhtpT",
+          "display": "Dose 2",
+          "target": [
+            {
+              "code": "Xr0M5yEhtpT",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "VBGXfSXgJzv",
+          "display": "Dose 3",
+          "target": [
+            {
+              "code": "VBGXfSXgJzv",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-kzgQRhOCadd-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "sXfZuRdvhl5",
+          "display": "Dose 0",
+          "target": [
+            {
+              "code": "0",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "lFFqylGiWLk",
+          "display": "Dose 1",
+          "target": [
+            {
+              "code": "1",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "Xr0M5yEhtpT",
+          "display": "Dose 2",
+          "target": [
+            {
+              "code": "2",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "VBGXfSXgJzv",
+          "display": "Dose 3",
+          "target": [
+            {
+              "code": "3",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

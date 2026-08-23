@@ -1,0 +1,27 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-os-f38bstJioPs-vs",
+  "url": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-f38bstJioPs-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "f38bstJioPs"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "f38bstJioPs"
+    }
+  ],
+  "name": "D2OS_f38bstJioPs_VS",
+  "title": "MNCH Baby ARVs",
+  "description": "DHIS2 option set MNCH Baby ARVs (f38bstJioPs). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-f38bstJioPs-cs"
+      }
+    ]
+  }
+}

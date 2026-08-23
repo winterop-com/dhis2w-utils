@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "kuqKh33SPgg",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "kuqKh33SPgg"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226230"
+    }
+  ],
+  "name": "Falaba CHC",
+  "description": "DHIS2 organisation unit Falaba CHC (kuqKh33SPgg), level 4 - physical location.",
+  "status": "active",
+  "position": {
+    "longitude": -11.3208,
+    "latitude": 9.8571
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS4zMjA4LDkuODU3MV0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJrdXFLaDMzU1BnZyIsImxldmVsIjo0LCJuYW1lIjoiRmFsYWJhIENIQyJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Falaba CHC (kuqKh33SPgg)",
+        "size": 147
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/kuqKh33SPgg"
+  },
+  "partOf": {
+    "reference": "Location/PaqugoqjRIj"
+  }
+}

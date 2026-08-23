@@ -1,0 +1,38 @@
+{
+  "resourceType": "Location",
+  "id": "jj1MhWhHqta",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "jj1MhWhHqta"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226222"
+    }
+  ],
+  "name": "Kasanikoro MCHP",
+  "description": "DHIS2 organisation unit Kasanikoro MCHP (jj1MhWhHqta), level 4 - physical location.",
+  "status": "active",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/jj1MhWhHqta"
+  },
+  "partOf": {
+    "reference": "Location/vEvs2ckGNQj"
+  }
+}

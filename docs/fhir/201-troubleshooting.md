@@ -89,6 +89,24 @@ for a generated file, edit the file for a hand-authored one. [The build
 refuses before it begins](201-build-and-publish.md#the-build-refuses-before-it-begins)
 covers the scan.
 
+**The guide is not wrong, only old:**
+
+```text
+drift  warn  2 object(s) moved since the guide was published: ... run
+`d2w fhir generate`, then `make sushi`, to publish the instance as it now stands
+```
+
+Cause: not a refusal. `d2w fhir doctor` run from a project directory compared
+the artifacts on disk against the instance and found objects the instance now
+holds inside this project's own selection that the guide does not - an
+organisation unit added to the registry scope, an option added to a published
+set, a question added to a form, a program stage that publishes none. It is a
+warning and exits 0: a guide describing the instance as it stood last month
+still serves, still captures, and still forwards. Fix: regenerate, then
+compile, exactly as the line says. [Drift,
+explained](201-doctor.md#drift-explained) covers what is compared and why
+tracked entity types are not.
+
 **A code-sourced naming run refuses on unusable stems:**
 
 ```text

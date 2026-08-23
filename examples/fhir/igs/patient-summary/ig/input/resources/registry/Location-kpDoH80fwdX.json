@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "kpDoH80fwdX",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "kpDoH80fwdX"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226259"
+    }
+  ],
+  "name": "MCH Static",
+  "description": "DHIS2 organisation unit MCH Static (kpDoH80fwdX), level 4 - physical location.",
+  "status": "active",
+  "position": {
+    "longitude": -11.30152,
+    "latitude": 9.5283
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS4zMDE1Miw5LjUyODNdLCJ0eXBlIjoiUG9pbnQifSwicHJvcGVydGllcyI6eyJkaGlzMklkIjoia3BEb0g4MGZ3ZFgiLCJsZXZlbCI6NCwibmFtZSI6Ik1DSCBTdGF0aWMifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "MCH Static (kpDoH80fwdX)",
+        "size": 148
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/kpDoH80fwdX"
+  },
+  "partOf": {
+    "reference": "Location/EZPwuUTeIIG"
+  }
+}

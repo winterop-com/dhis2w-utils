@@ -1,0 +1,38 @@
+{
+  "resourceType": "Location",
+  "id": "qO2JLjYrg91",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "qO2JLjYrg91"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_758919"
+    }
+  ],
+  "name": "Bandakarifaia MCHP",
+  "description": "DHIS2 organisation unit Bandakarifaia MCHP (qO2JLjYrg91), level 4 - physical location.",
+  "status": "active",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/qO2JLjYrg91"
+  },
+  "partOf": {
+    "reference": "Location/J4GiUImJZoE"
+  }
+}

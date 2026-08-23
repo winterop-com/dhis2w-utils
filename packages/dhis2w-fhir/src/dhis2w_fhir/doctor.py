@@ -3,8 +3,9 @@
 Doctor scaffolds a throwaway project against the ambient DHIS2 profile, generates the IG source
 from that instance, compiles it when a compiler is on the machine, serves it in process, captures a
 synthetic corpus through the served endpoint, drains that corpus at the instance under validate-only
-mode, and finally lets the instance judge the served resources object by object. Every phase reports
-one typed result, and a failure never stops a phase that does not depend on it.
+mode, lets the instance judge the served resources object by object, and closes by asking whether the
+guide already on disk still describes the instance it was generated from. Every phase reports one
+typed result, and a failure never stops a phase that does not depend on it.
 
 The direction of judgement is the whole point of the oracle phase: the DHIS2 instance is the
 authority and the served output is what is on trial, never the reverse. A mismatch is a fact about
@@ -20,8 +21,13 @@ contract rather than a surprise: it mints a workspace directory (or writes into 
 `docker run` when a compiler is on the machine, writes compiled resources under
 `ig/fsh-generated/resources`, runs an ASGI application in process, and posts a synthetic corpus at
 the instance under validate-only mode. A caller that cannot afford any of that wants the phases it
-grades rather than the run: `grade`, `grade_capture`, `grade_forward`, and `grade_oracle` are pure
-over `DoctorFinding`, `CaptureOutcome`, `FamilyOutcome`, and `ForwardReport`.
+grades rather than the run: `grade`, `grade_capture`, `grade_forward`, `grade_oracle`, and `grade_drift` are
+pure over `DoctorFinding`, `CaptureOutcome`, `FamilyOutcome`, `ForwardReport`, and `DriftReport`.
+
+The drift phase is the one phase whose subject is not the throwaway project. It reads the published
+guide the working directory sits in, so `resolve_published_project` runs before anything is written
+and returns nothing for a working directory inside the workspace: a project this run generated
+seconds ago can only agree with the instance, and a phase that always passes says nothing.
 """
 
 from __future__ import annotations
@@ -46,7 +52,16 @@ from dhis2w_core.client_context import open_client
 from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir import service
-from dhis2w_fhir.config import FhirProject, UnknownFhirConfigKeyError, load_project, write_fhir_config
+from dhis2w_fhir.config import (
+    FhirProject,
+    MalformedFhirConfigError,
+    NoFhirProjectError,
+    UnknownFhirConfigKeyError,
+    load_project,
+    write_fhir_config,
+)
+from dhis2w_fhir.conversion.artifacts import CompiledArtifactReadError, CompiledIgMissingError
+from dhis2w_fhir.drift import detect_drift
 from dhis2w_fhir.foundation import CAPTURE_SERVER_READ_RESOURCE_TYPES
 from dhis2w_fhir.names import code_or_uid, flatten_whitespace, pascal
 from dhis2w_fhir.scaffold.schemas import DEFAULT_SUSHI_TIMEOUT_SECONDS, InitOptions
@@ -58,6 +73,7 @@ if TYPE_CHECKING:
     from dhis2w_client import Dhis2Client
     from dhis2w_core.progress import ProgressReporter
 
+    from dhis2w_fhir.drift import DriftReport
     from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import ForwardReport
 
@@ -79,11 +95,14 @@ __all__ = [
     "DoctorReport",
     "FamilyOutcome",
     "PhaseOutcome",
+    "drift_findings",
     "generate_findings",
     "grade",
     "grade_capture",
+    "grade_drift",
     "grade_forward",
     "grade_oracle",
+    "resolve_published_project",
     "phase_evidence",
     "render_doctor_markdown",
     "resolve_doctor_profile",
@@ -103,6 +122,7 @@ class DoctorPhase(StrEnum):
     CAPTURE = "capture"
     FORWARD = "forward"
     ORACLE = "oracle"
+    DRIFT = "drift"
 
 
 class DoctorOutcome(StrEnum):
@@ -444,6 +464,51 @@ def grade_oracle(families: Sequence[FamilyOutcome]) -> PhaseOutcome:
     return grade(DoctorPhase.ORACLE, "; ".join(family.summary for family in families), findings)
 
 
+def drift_findings(report: DriftReport) -> list[DoctorFinding]:
+    """Every object that moved since the guide was published, as the findings the drift phase reports.
+
+    Drift is warning-class throughout, which is the line doctor already draws: a failure means the
+    toolchain does not work against this instance, and a guide describing the instance as it stood
+    last month still serves, still captures, and still forwards. It is out of date, not broken, and
+    the exit code says so - only a `fail` exits 1.
+    """
+    return [
+        DoctorFinding(
+            phase=DoctorPhase.DRIFT,
+            severity="warning",
+            subject=finding.title,
+            detail=finding.detail,
+            field_path=finding.kind.value,
+        )
+        for finding in report.findings
+    ]
+
+
+def grade_drift(report: DriftReport) -> PhaseOutcome:
+    """Grade the drift phase: a moved object is a note about the guide, never a break in the toolchain."""
+    return grade(DoctorPhase.DRIFT, report.evidence, drift_findings(report))
+
+
+def resolve_published_project(workspace: Path) -> FhirProject | None:
+    """The published project this run checks for drift: the one the working directory sits in, or none.
+
+    Doctor's own workspace is not it. The run scaffolds and generates that project seconds before the
+    drift phase reads it, so it can only ever agree with the instance - and a phase that always
+    passes says nothing. A published guide is one somebody generated and compiled at some point in
+    the past, which is exactly what a `fhir.toml` found by walking up from the working directory is.
+    """
+    try:
+        project = load_project()
+    except (NoFhirProjectError, MalformedFhirConfigError, UnknownFhirConfigKeyError):
+        return None
+    return None if _is_inside(project.project_root, workspace) else project
+
+
+def _is_inside(candidate: Path, directory: Path) -> bool:
+    """Whether one path is the given directory or sits under it."""
+    return candidate.resolve() == directory or directory in candidate.resolve().parents
+
+
 def resolve_doctor_profile() -> GenerationProfile:
     """The instance doctor runs against: `d2w -p`, then `DHIS2_PROFILE`, then a nearby project, then the default.
 
@@ -731,6 +796,9 @@ class _DoctorRun:
         self._compiled = False
         self._dhis2_version: str | None = None
         self._version_tree: str | None = None
+        # Resolved before anything is written, so the throwaway project the run is about to scaffold
+        # can never be mistaken for the published guide the drift phase reads.
+        self._published = resolve_published_project(self._workspace)
 
     async def execute(self) -> DoctorReport:
         """Run every phase in order and assemble the report, removing a minted workspace on every exit path."""
@@ -768,6 +836,7 @@ class _DoctorRun:
         await self._capture(stack, served=served)
         await self._forward(served=served)
         await self._oracle(served=served)
+        await self._drift()
 
     async def _connect(self, stack: AsyncExitStack) -> bool:
         """Read the instance's version off the run's client, and say which plugin tree bound to it.
@@ -1105,6 +1174,46 @@ class _DoctorRun:
             self._progress.tick(f"judging {family.label}")
             families.append(await _judge_family(client, family, self._served, identifier_base, self._options.samples))
         self._record_graded(DoctorPhase.ORACLE, grade_oracle(families), started)
+
+    async def _drift(self) -> None:
+        """Say whether the instance has moved since the guide in the working directory was published.
+
+        The only phase whose subject is a project somebody else wrote. Every phase before it asks
+        whether this toolchain works against this instance; this one asks whether the guide already
+        on disk still describes it, which is a question no amount of re-generating can answer.
+        """
+        self._progress.start(DoctorPhase.DRIFT.value, "checking the published guide against the instance")
+        started = time.perf_counter()
+        project = self._published
+        if project is None:
+            self._record(
+                DoctorPhase.DRIFT,
+                DoctorOutcome.SKIPPED,
+                "",
+                started,
+                reason=(
+                    "no published guide to check - run doctor from a directory a `fhir.toml` sits in "
+                    "or above, and drift is measured against what that project publishes"
+                ),
+            )
+            return
+        client = self._require_client()
+        try:
+            report = await detect_drift(client, project)
+        except CompiledIgMissingError as error:
+            self._record(DoctorPhase.DRIFT, DoctorOutcome.SKIPPED, "", started, reason=str(error))
+            return
+        except (
+            Dhis2ClientError,
+            httpx.HTTPError,
+            CompiledArtifactReadError,
+            LookupError,
+            ValueError,
+            OSError,
+        ) as error:
+            self._record(DoctorPhase.DRIFT, DoctorOutcome.FAILED, str(error), started)
+            return
+        self._record_graded(DoctorPhase.DRIFT, grade_drift(report), started)
 
     def _require_client(self) -> Dhis2Client:
         """The connected client, which every phase after `connect` runs with."""

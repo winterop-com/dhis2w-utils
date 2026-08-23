@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "bqSIIRuZ1qj",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "bqSIIRuZ1qj"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226229"
+    }
+  ],
+  "name": "Koindukura MCHP",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+          "code": "level-4",
+          "display": "Level 4"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/PaqugoqjRIj"
+  },
+  "active": true
+}

@@ -121,6 +121,9 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         "fhir/cli/doctor_live_oracle.sh",
         "fhir/cli/doctor_report.sh",
         "fhir/cli/doctor_json.sh",
+        # Same whole chain, and it needs a project directory holding a guide
+        # that was generated and compiled at some earlier point to read.
+        "fhir/cli/doctor_drift.sh",
         # Every `examples/fhir/client/` example stands its own fixture up —
         # `_fixture.py` scaffolds a project, builds the translation context off
         # the instance, and starts a `d2w fhir serve --live` facade it stops at

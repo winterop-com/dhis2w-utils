@@ -8,8 +8,8 @@
 set -euo pipefail
 
 # The whole chain against the ambient profile's instance: connect, scaffold, generate,
-# compile, validate, serve, capture, forward. Nine phases, one verdict line, exit 1 only
-# when a phase failed. Everything happens in a temporary directory that is removed when
+# compile, validate, serve, capture, forward, oracle, drift. Ten phases, one verdict line,
+# exit 1 only when a phase failed. Everything happens in a temporary directory that is removed when
 # the run ends - doctor never writes to the instance and never publishes anything.
 #
 # The instance is named the way `d2w fhir serve` names it: the root flag, or DHIS2_PROFILE.
