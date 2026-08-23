@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-client"
-version = "1.8.0.dev0"
+version = "1.8.0"
 description = "Async DHIS2 API client with pluggable auth (Basic, PAT, OAuth2/OIDC) and pydantic models."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
