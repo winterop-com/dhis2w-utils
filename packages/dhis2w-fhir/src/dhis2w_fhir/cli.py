@@ -1269,12 +1269,15 @@ def check_artifacts_command(
         raise typer.Exit(code=1)
 
 
-#: What a caller is told when the serve extra is not installed. `LookupError` renders through the
-#: CLI error funnel as a one-line message, which is what an install instruction wants to be.
-_SERVE_PACKAGE_MISSING = (
-    "`d2w fhir serve` needs the dhis2w-fhir-serve package. Install it with "
-    "`uv add dhis2w-fhir-serve` or `pip install 'dhis2w-cli[serve]'`."
-)
+#: What a caller is told when the serve extra is not installed, naming the command they actually
+#: ran. `LookupError` renders through the CLI error funnel as a one-line message, which is what an
+#: install instruction wants to be.
+def _serve_package_missing(command: str) -> str:
+    """The install instruction, under the name of the command that needed the package."""
+    return (
+        f"`d2w fhir {command}` needs the dhis2w-fhir-serve package. Install it with "
+        "`uv add dhis2w-fhir-serve` or `pip install 'dhis2w-cli[serve]'`."
+    )
 
 
 class PortInUseError(LookupError):
@@ -1492,7 +1495,7 @@ def serve_command(
     try:
         from dhis2w_fhir_serve import ServeAuthConfigurationError, ServeSettings, configure_logging, create_app
     except ImportError as error:
-        raise LookupError(_SERVE_PACKAGE_MISSING) from error
+        raise LookupError(_serve_package_missing("serve")) from error
 
     project = load_project(directory)
     # The precedence, the profile, and the preflight on the compiled guide belong to
@@ -2558,7 +2561,7 @@ def sync_command(
     try:
         from dhis2w_fhir_serve import SYNC_STEPS, ServeSettings
     except ImportError as error:
-        raise LookupError(_SERVE_PACKAGE_MISSING) from error
+        raise LookupError(_serve_package_missing("sync")) from error
 
     from dhis2w_fhir import service
 
