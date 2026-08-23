@@ -96,7 +96,7 @@ def test_a_project_nominating_no_sex_publishes_no_map() -> None:
 
 
 def test_the_artifact_lands_in_the_concept_map_directory_under_its_own_prefix() -> None:
-    """Three families share `concept-maps/` now, so each sweeps the names its own tokens produce."""
+    """Four families share `concept-maps/`, so each sweeps the names its own tokens produce."""
     artifacts = build_administrative_gender_concept_map_artifacts(_NOMINATIONS, _CONFIG, _CANONICAL, ig_status="draft")
 
     assert [artifact.relative_path for artifact in artifacts] == ["concept-maps/ConceptMap-d2-sex-cm.json"]

@@ -50,6 +50,7 @@ _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
     "resources/questionnaires/schemas.py": {GenerateNoteCategory.SELECTION_GAP: 1},
     "service.py": {
         GenerateNoteCategory.BUILD_COST: 1,
+        GenerateNoteCategory.COMPILE_REMOVED: 1,
         GenerateNoteCategory.EMPTY_SELECTION: 4,
         GenerateNoteCategory.FORM_STRUCTURE: 2,
         GenerateNoteCategory.INSTANCE_DATA_GAP: 3,
@@ -74,6 +75,7 @@ _ECHO_VERDICTS: dict[GenerateNoteCategory, bool] = {
     GenerateNoteCategory.ANSWER_FALLBACK: False,
     GenerateNoteCategory.INSTANCE_DATA_GAP: False,
     GenerateNoteCategory.BUILD_COST: False,
+    GenerateNoteCategory.COMPILE_REMOVED: False,
     GenerateNoteCategory.NAME_SUBSTITUTION: False,
     GenerateNoteCategory.CODE_FALLBACK: True,
     GenerateNoteCategory.CODE_COLLISION: True,

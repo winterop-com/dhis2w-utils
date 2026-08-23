@@ -1,0 +1,70 @@
+# fhir.toml - configuration for `d2w fhir generate` (scaffolded by `d2w fhir init`).
+# Only the essentials live here; every available option is documented with its default
+# in fhir.toml.example beside this file, and explained in depth at
+# https://winterop-com.github.io/dhis2w-utils/fhir/301-fhir-toml/
+
+profile = "local_basic"           # DHIS2 profile to read metadata from
+
+[ig]
+id = "dhis2.fhir.examples.patient-summary"
+canonical = "http://example.org/fhir/examples/patient-summary"
+name = "ExamplesPatientSummary"
+title = "Patient summary example guide"
+publisher = "dhis2w-utils examples"
+# "draft" while building; "active" for production - drives the sushi-config status
+# and the status and experimental flag on every generated CodeSystem/ValueSet/Questionnaire.
+status = "draft"
+
+[generate.data_sets]
+include_ids = ["TuL8IOPzpHh"]
+
+[generate.event_programs]
+include_ids = ["EVTsupVis01"]
+
+[generate.tracker_programs]
+include_ids = ["IpHINAT79UW"]
+
+# Edited in by hand after `d2w fhir init`; README.md explains each line.
+
+[generate.option_sets]
+include_ids = ["OsVaccType1"]
+
+[generate.categories]
+include_ids = ["GLevLNI9wkl"]
+
+[generate.organisation_units]
+root = "qhqAxPSTUXp"
+max_level = 4
+
+# Publish a patient summary at `$summary`. False by default - a clinical document
+# about a person is a posture a deployment states rather than one it inherits.
+[ips]
+enabled = true
+
+# Who a person is. DHIS2 has no name field and no sex field, so this instance says
+# which of its tracked entity attributes carry them, and what its two sex values mean
+# in the four words `Patient.gender` is bound to.
+[ips.identity]
+name = "w75KJ2mc4zz"              # First name
+sex = "cejWyOfXge6"               # Gender
+
+[ips.identity.administrative_gender]
+Female = "female"
+Male = "male"
+
+# Which recorded values are doses. Child Programme records one data element per
+# vaccine, the value saying that the dose was given or which dose of the series it
+# was - so the data element is the vaccine and the value is the dose.
+[ips.sections.immunizations]
+program_stages = [
+    "A03MvHHogjR",                # Birth
+    "ZzYYXq4fJie",                # Baby Postnatal
+]
+dose_data_elements = [
+    "bx6fsa0t90x",                # MCH BCG dose
+    "ebaJjqltK5N",                # MCH OPV dose
+    "FqlgKAG8HOu",                # MCH Measles dose
+    "vTUhAUZFoys",                # MCH Penta dose
+    "rxBfISxXS2U",                # MCH Yellow fever dose
+    "pOe0ogW4OWd",                # MCH DPT dose
+]

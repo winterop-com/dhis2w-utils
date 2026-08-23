@@ -27,6 +27,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`generate.sh`](cli/generate.sh) | `d2w fhir generate` — the whole IG source from one pass over the instance | yes |
 | [`generate_foundation.sh`](cli/generate_foundation.sh) | `d2w fhir generate foundation` — the instance-independent artifacts, no client opened | yes |
 | [`generate_option_sets.sh`](cli/generate_option_sets.sh) | `d2w fhir generate option-sets` — one named target alone | yes |
+| [`generate_stale_compile.sh`](cli/generate_stale_compile.sh) | `d2w fhir generate` — a run that rewrites a FSH source removes the compile of the sources before it | yes |
 | [`generate_hostile_names.sh`](cli/generate_hostile_names.sh) | `d2w fhir generate --substitute-hostile-names` — publish a DHIS2 name the IG publisher cannot build, in wording it can | yes |
 | [`validate.sh`](cli/validate.sh) | `d2w fhir validate` — the FHIR-safety gate, exit 1 on errors | yes |
 | [`validate_code_source.sh`](cli/validate_code_source.sh) | `d2w fhir validate --code-source code` — preview a concept-code migration | yes |
@@ -35,6 +36,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`serve_auth_postures.sh`](cli/serve_auth_postures.sh) | `d2w fhir serve --auth` - the four postures: the bind refusal an absent key earns, `token`, `dhis2` read as the caller, `jwt` and its issuer | yes |
 | [`serve_projection_search.sh`](cli/serve_projection_search.sh) | `[serve.search] backend = "projection"` - `_content` and the as-of header from the synced copy, and the refusal without one | yes |
 | [`serve_record.sh`](cli/serve_record.sh) | `GET /tracked-entities/{uid}/events` - one entity's own record as the responses its stage forms describe, one event on its own, and the `events` dial that withholds it | yes |
+| [`summary.sh`](cli/summary.sh) | `GET /Patient/{uid}/$summary` - one person's International Patient Summary: the sections that state their own emptiness, the doses read off their own events, the identifier form, and the `[ips] enabled` dial that withholds the lot | yes |
 | [`registers_many_types.sh`](cli/registers_many_types.sh) | Many tracked entity types, two of them one `Device` register: the union, `_tag`, and the checklist for the types nobody typed | no: creates and removes tracked entity types, programmes, and entities |
 | [`corrections.sh`](cli/corrections.sh) | `[forward] corrections` / `withdrawals` - a marked submission refused at the capture door, then received | yes |
 | [`forward.sh`](cli/forward.sh) | `d2w fhir forward` — drain the spool into DHIS2: dry run, `--import`, the three states | no: docker compile, binds a port, `--import` writes to the instance |

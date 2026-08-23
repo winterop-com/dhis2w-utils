@@ -283,6 +283,7 @@ from dhis2w_fhir_serve.store import (
     StoreSummary,
     load_compiled_store,
 )
+from dhis2w_fhir_serve.summary import SummaryDoses, recorded_doses
 from dhis2w_fhir_serve.synthesize import (
     DEFAULT_PERIOD_TYPE,
     GENERATED_STATUS,
@@ -474,6 +475,7 @@ __all__ = [
     "read_serve_tokens",
     "RECEIVED_RESPONSES_RELATIVE_PATH",
     "RecordDisabledError",
+    "recorded_doses",
     "RecordedEvent",
     "RecordedValue",
     "RecordPage",
@@ -538,6 +540,7 @@ __all__ = [
     "StoreEntry",
     "StoreSummary",
     "success_outcome",
+    "SummaryDoses",
     "SYNC_STEPS",
     "SyncCursorMove",
     "SyncMode",

@@ -261,7 +261,7 @@ def register_resource_types(request: Request) -> tuple[str, ...]:
 
 async def search_register(request: Request, resource_type: str) -> Response:
     """Answer the entities a search names, or - naming none - one page of the register."""
-    lookup = await _live_lookup(request, resource_type)
+    lookup = await register_lookup(request, resource_type)
     honored: list[HonoredParameter] = []
     tokens: list[IdentifierToken] = []
     contents: list[tuple[str, ...]] = []
@@ -290,7 +290,7 @@ async def search_register(request: Request, resource_type: str) -> Response:
         return await _projection_search_response(
             lookup, resource_type, tokens, tuple(contents), service_base, tuple(honored), cap
         )
-    entities = await _matching_entities(lookup, resource_type, tokens)
+    entities = await matching_entities(lookup, resource_type, tokens)
     entries = _entries(entities, lookup.surface, resource_type, service_base)
     return bundle_response(service_base, resource_type, tuple(honored), entries, cap)
 
@@ -333,11 +333,23 @@ def _require_answerable_parameters(
         raise UnsupportedSearchParameterError(resource_type, name, tuple(sorted(answerable - {COUNT_PARAMETER})))
 
 
+async def registered_tracked_entity(lookup: RegisterLookup, tracked_entity_uid: str) -> TrackerTrackedEntity | None:
+    """Read one entity of this register as the caller, or None where this register serves nobody under that UID.
+
+    The read and the type check together, because a caller that may not see somebody and a somebody
+    of a type this resource is not served over are the same answer to whoever asked: no such person
+    here. `dhis2w_fhir_serve.routes.summary` reads a subject through this, so a summary can never be
+    assembled about a person the register itself would not serve.
+    """
+    entity = await _read(lookup.reader, tracked_entity_uid)
+    return entity if entity is not None and _is_served_as(entity, lookup) else None
+
+
 async def read_registered_entity(request: Request, resource_type: str, tracked_entity_uid: str) -> Response:
     """Answer one entity by its DHIS2 tracked entity UID, which is what a search result links to."""
-    lookup = await _live_lookup(request, resource_type)
-    entity = await _read(lookup.reader, tracked_entity_uid)
-    if entity is None or not _is_served_as(entity, lookup):
+    lookup = await register_lookup(request, resource_type)
+    entity = await registered_tracked_entity(lookup, tracked_entity_uid)
+    if entity is None:
         raise NotFoundError(resource_type, tracked_entity_uid)
     registered = registered_entity_for(entity, lookup.surface.index, resource_type)
     return JSONResponse(
@@ -358,7 +370,7 @@ def _is_served_as(entity: TrackerTrackedEntity, lookup: RegisterLookup) -> bool:
     return entity.trackedEntityType in lookup.tracked_entity_type_uids
 
 
-async def _live_lookup(request: Request, resource_type: str) -> RegisterLookup:
+async def register_lookup(request: Request, resource_type: str) -> RegisterLookup:
     """What a lookup runs against, refusing every way this process serves none of it.
 
     The config comes first: a project whose `[serve.tracked_entities]` serves nothing serves nothing
@@ -814,7 +826,7 @@ def _entries(
     ]
 
 
-async def _matching_entities(
+async def matching_entities(
     lookup: RegisterLookup,
     resource_type: str,
     tokens: tuple[IdentifierToken, ...] | list[IdentifierToken],

@@ -89,6 +89,17 @@ for a generated file, edit the file for a hand-authored one. [The build
 refuses before it begins](201-build-and-publish.md#the-build-refuses-before-it-begins)
 covers the scan.
 
+**Every finding sits under `fsh-generated/`, right after a generate that
+changed posture:** those findings are a stale compile, not stale sources. The
+sources on disk are the ones the run just wrote; `ig/fsh-generated/` is SUSHI's
+compile of the sources before it, and the scan reads it because the publisher
+does. A current `d2w fhir generate` removes that tree whenever it rewrites a
+FSH source and names it in a note, so a project that reaches this state has a
+compile written back after the run - or a generate from a lock that predates
+the removal. Fix: run `make sushi` and scan again, or `make build`, which
+compiles first. No source edit and no rename in DHIS2 is part of the answer -
+the scan comes back clean once the compile is of the sources on disk.
+
 **The guide is not wrong, only old:**
 
 ```text
@@ -106,7 +117,6 @@ still serves, still captures, and still forwards. Fix: regenerate, then
 compile, exactly as the line says. [Drift,
 explained](201-doctor.md#drift-explained) covers what is compared and why
 tracked entity types are not.
-
 **A code-sourced naming run refuses on unusable stems:**
 
 ```text

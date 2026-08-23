@@ -431,6 +431,8 @@ identically either way. What needs live is the register.
 | `POST /QuestionnaireResponse` | the only write |
 | `GET\|POST /Questionnaire/{id}/$generate` | a synthetic response against that form |
 | `GET /ConceptMap/$translate` | a published coding back to its DHIS2 identifiers |
+| `GET /{type}/{id}/$summary` | one person's International Patient Summary, as a document Bundle |
+| `GET /{type}/$summary?identifier=` | the same document for the one person an identifier names |
 | `GET /spool` | every receipt with its lifecycle, counts, and import rollups |
 | `GET /uiconfig` | basemaps, the DHIS2 base URL, the register configuration |
 | `GET /tracked-entities/{uid}/enrollments` | one entity's program enrollments |
@@ -484,6 +486,35 @@ it at request time for whichever resource types the surface serves, so the
 served set follows the published map rather than a hardcoded `Patient`.
 Refusals are ordered so the message names the real reason - disabled by
 configuration, not live, no published type, or not in this surface.
+
+### The patient summary
+
+`$summary` is a second reading of reads that already exist: the person as the
+register projects them, and the doses as the record projects them. Nothing about
+it opens a third way into DHIS2.
+
+- **The assembly is a library and not a route.** `dhis2w_fhir.summary` takes a
+  projected subject and a sequence of doses and returns the IPS document Bundle -
+  a `Composition` coded `60591-5`, the three sections the IPS requires
+  (`11450-4`, `48765-2`, `10160-0`) each carrying an `emptyReason`, and an
+  Immunizations section (`11369-6`) holding one `Immunization` per recorded dose.
+  It opens no connection, reads no store, and knows nothing about a request, so
+  `d2w fhir` is as free to call it as the server is. Every id is derived from a
+  DHIS2 identifier through `uuid5`, so two assemblies of an unchanged record
+  differ in `Bundle.timestamp` and `Composition.date` and nowhere else.
+- **The mapping is `dhis2w_fhir.ips`**, beside the identity nominations and for
+  the same reason: DHIS2 marks no data element as an immunisation, so
+  `[ips.sections.immunizations]` naming the stages and the dose data elements is
+  the instance's own statement or there is nothing to carry.
+- **The doses are read in `dhis2w_fhir_serve.summary`**, through the very
+  `RecordProjection` that `GET /tracked-entities/{uid}/events` runs on, so a
+  value can never be typed one way in the record and another inside a summary. A
+  mapped stage the guide publishes no form for contributes no dose and is named
+  in the section's own narrative.
+- **The routes are `dhis2w_fhir_serve.routes.summary`**, mounting the IPS's own
+  two addresses and gating in the order the gates cost something: `[ips] enabled`
+  first, then the register's gates, then `[serve.tracked_entities] events` and
+  only where a clinical section is mapped.
 
 ### The materialized projection
 
@@ -689,6 +720,8 @@ attributes.py                DHIS2 metadata attribute projection + code index
 notes.py                     The typed note kinds every target reports through
 writer.py                    The two sync sweeps and the generated header
 status.py                    [ig] status -> FHIR status + experimental
+ips.py                       The [ips] nominations: identity, section mappings
+summary.py                   The IPS document assembly, as a library
 spool.py                     The read side of .serve/responses
 doctor.py                    The nine-phase conformance runner
 r4/                          Frozen, alias-aware R4 models; JSON is dumped from these
@@ -713,7 +746,8 @@ register/                    index, surface, wire, listing, projection
 projection/                  base, schema, sqlite_store, sqlite_names,
                              dhis2_names, sync, serving, factory
 routes/                      capture, read, register, generate, translate,
-                             spool, uiconfig, enrollments, context
+                             summary, spool, uiconfig, enrollments, context
+summary.py                   The doses one record holds, off the projection
 synthesize.py                $generate
 spool.py                     The write side of .serve/responses
 errors.py, log.py, ui.py     OperationOutcome handlers, logging, the UI mounts

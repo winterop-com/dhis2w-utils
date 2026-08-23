@@ -148,7 +148,7 @@ class RecordProjection(BaseModel):
 
     def project_event(self, record: TrackedEntityRecord, event: RecordedEvent) -> ProjectedEvent:
         """Build the document one event is served as, or state the stage this project publishes no form for."""
-        index = self._form_for(event.program_stage_uid)
+        index = self.form_for(event.program_stage_uid)
         if index is None:
             return ProjectedEvent(event_uid=event.event_uid, unpublished_stage_uid=event.program_stage_uid or "")
         authored = self._authored(event)
@@ -170,7 +170,7 @@ class RecordProjection(BaseModel):
             ),
         )
 
-    def _form_for(self, program_stage_uid: str | None) -> CaptureIndex | None:
+    def form_for(self, program_stage_uid: str | None) -> CaptureIndex | None:
         """The served form one program stage published, or None when this project publishes none for it.
 
         The lookup is by the DHIS2 identifier the generated Questionnaire carries, which is the same

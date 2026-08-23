@@ -57,6 +57,12 @@ surface.
   `grade_oracle` over `DoctorFinding`, `CaptureOutcome`, and `FamilyOutcome`). Read
   `run_doctor`'s own docstring first: it writes a workspace, shells out to a compiler, and
   posts a corpus, which the graders do not.
+- Assemble one person's International Patient Summary out of a projected subject and the
+  doses somebody already read (`build_patient_summary`, `AssembledSummary`, `RecordedDose`,
+  `summary_caveat`, `REQUIRED_SECTIONS`, `IpsSection`), and publish the section mapping
+  behind it as a ConceptMap (`build_section_concept_map`,
+  `build_section_concept_map_artifacts`). The assembly opens no connection and reads no
+  store, so a command is as free to call it as a served facade is.
 - Record why a spooled response was refused, and read the record back (`record_refusal`,
   `read_refusal_record`, `ForwardRefusalRecord`, `RefusalReason`, `SPOOL_RELATIVE_PATH`).
   `ForwardRefusalRecord` is the declared type of `SpooledReceipt.refusal`, so a caller
@@ -92,6 +98,24 @@ recent_periods("Monthly", 3, datetime.date(2026, 8, 2))
 ### Project configuration
 
 ::: dhis2w_fhir.config
+
+### The patient summary
+
+The `[ips]` tables and the document they reach. `dhis2w_fhir.ips` holds the two
+nominations an instance makes about a person - which tracked entity attribute carries
+their name, birth date, and sex, and which recorded values are doses - because DHIS2
+states neither and a guess would be indistinguishable from a fact.
+`dhis2w_fhir.summary` assembles those into the IPS document Bundle, as a pure function
+of what a caller already read, and states in the document itself what it is and is not.
+The section mapping is published beside the vocabularies it maps, as `D2Section_CM`, so a
+consumer audits the assignment without ever holding the project's `fhir.toml` -
+[Terminology and ConceptMaps](401-terminology-and-conceptmaps.md#the-sections-a-recorded-value-feeds)
+covers the shape, and `build_section_concept_map` and
+`build_section_concept_map_artifacts` are the builders behind it.
+
+::: dhis2w_fhir.ips
+
+::: dhis2w_fhir.summary
 
 ### DHIS2 attribute values
 

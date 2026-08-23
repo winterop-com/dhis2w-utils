@@ -96,6 +96,7 @@ from dhis2w_fhir.r4 import (
     Extension,
 )
 
+from dhis2w_fhir_serve.register.projection import PERSON_RESOURCE_TYPES
 from dhis2w_fhir_serve.spool import current_instant
 from dhis2w_fhir_serve.store import CONCEPT_MAP_RESOURCE_TYPE
 
@@ -188,6 +189,28 @@ CONTENT_SEARCH_DOCUMENTATION = (
     "entity's DHIS2 attribute values is a name, and will not guess: DHIS2 states no such mapping. "
     "The match is a substring and not a transliteration, so a name stored in one script is not "
     "found from another."
+)
+
+#: The IPS operation the facade answers over the people in its register, and the definition it
+#: conforms to. Both are the IPS's own: `OperationDefinition/summary` is published by
+#: `hl7.fhir.uv.ips` on `Patient` at instance and type level, so this server implements a named
+#: operation rather than inventing one (`docs/fhir/design/ips.md` R6).
+SUMMARY_OPERATION_CODE = "summary"
+SUMMARY_OPERATION_DEFINITION = "http://hl7.org/fhir/uv/ips/OperationDefinition/summary"
+
+#: What the `$summary` operation states on the register entry it is answered under.
+#:
+#: The IPS defines `summary` on `Patient` at instance and type level and declares exactly that one
+#: operation in its own Server CapabilityStatement, so this entry names the IPS's definition rather
+#: than one this project publishes - the operation is theirs and this is an implementation of it.
+SUMMARY_DOCUMENTATION = (
+    "Assemble this person's International Patient Summary: one FHIR document Bundle, a Composition "
+    "carrying the three sections the IPS requires, and the sections this project maps carrying "
+    "entries read from that person's own record. `GET /{type}/{id}/$summary` names one person by "
+    "their DHIS2 tracked entity UID; `GET /{type}/$summary?identifier=` resolves one through the "
+    "same identifier search this register answers, and refuses a value several people hold. Every "
+    "document states in its own `Composition.text` which sections carry no mapping and that it does "
+    "not claim the Creator (IPS) actor's obligations."
 )
 
 #: What a register entry adds where the record is served: where to read what happened to one of them.
@@ -384,7 +407,7 @@ def build_server_capability(
             for resource_type in SERVED_READ_RESOURCE_TYPES
             if resource_type in store_summary.counts_by_type
         ),
-        *_register_resources(settings, register_surface),
+        *_register_resources(settings, register_surface, project.config.ips.enabled),
     ]
     return CapabilityStatement(
         status="active",
@@ -451,7 +474,7 @@ def _security_services(posture: ServeAuth) -> list[CodeableConcept]:
 
 
 def _register_resources(
-    settings: ServeSettings, register_surface: RegisterSurface
+    settings: ServeSettings, register_surface: RegisterSurface, summaries: bool
 ) -> list[CapabilityStatementResource]:
     """Declare one entry per FHIR resource the register answers, and none when it answers nothing.
 
@@ -472,6 +495,11 @@ def _register_resources(
     The listing is stated in each resource's documentation rather than as another search parameter:
     `_count` is a FHIR-wide parameter and `page` is this server's own naming of the cursor, and
     neither is a search parameter of the resource in the sense `searchParam` enumerates.
+
+    `summaries` is `[ips] enabled`, and it decides whether the entries carrying people declare
+    `$summary`. It rides the entry rather than the server, for the reason `$translate` and
+    `$generate` do: `rest.operation` would send a client following this document to `[base]/$summary`,
+    which is not an address this server answers, and a resource operation's URL is the resource's.
     """
     if not settings.live or not register_surface.serves_tracked_entities():
         return []
@@ -480,6 +508,7 @@ def _register_resources(
         CapabilityStatementResource(
             type=register.resource_type,
             documentation=_register_documentation(settings, register_surface, register),
+            operation=_summary_operation(summaries, register.resource_type),
             interaction=[
                 CapabilityStatementInteraction(code="read"),
                 CapabilityStatementInteraction(code="search-type"),
@@ -518,6 +547,25 @@ def _register_resources(
             ],
         )
         for register in register_surface.registers()
+    ]
+
+
+def _summary_operation(summaries: bool, resource_type: str) -> list[CapabilityStatementOperation] | None:
+    """Declare `$summary` on a register entry that answers it, and on no other.
+
+    Two conditions, and both are already true of the route: the project has to turn the surface on
+    with `[ips] enabled`, and the resource has to be one R4 gives a person. A `Specimen` register is
+    a register of samples, and declaring a patient summary on it would advertise an interaction
+    every request to it refuses by name.
+    """
+    if not summaries or resource_type not in PERSON_RESOURCE_TYPES:
+        return None
+    return [
+        CapabilityStatementOperation(
+            name=SUMMARY_OPERATION_CODE,
+            definition=SUMMARY_OPERATION_DEFINITION,
+            documentation=SUMMARY_DOCUMENTATION,
+        )
     ]
 
 

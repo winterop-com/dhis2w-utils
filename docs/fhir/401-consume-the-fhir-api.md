@@ -55,10 +55,12 @@ $ curl -s localhost:8389/metadata | jq '.software, .implementation.description'
 ```
 
 Each operation is declared on the resource entry whose URL answers it -
-`$generate` on `Questionnaire`, served at `/Questionnaire/{id}/$generate`, and
-`$translate` on `ConceptMap`, served at `/ConceptMap/$translate` - and only when
-the store holds that type. So a client that follows the statement reaches an
-endpoint that answers, and `/metadata` never advertises what the store cannot do.
+`$generate` on `Questionnaire`, served at `/Questionnaire/{id}/$generate`,
+`$translate` on `ConceptMap`, served at `/ConceptMap/$translate`, and
+[`$summary`](#summary-one-persons-international-patient-summary) on each register
+entry whose subjects are people - and only when the store holds that type. So a
+client that follows the statement reaches an endpoint that answers, and
+`/metadata` never advertises what the store cannot do.
 
 ## `Accept` and the service base
 
@@ -397,7 +399,10 @@ comes back holding it.
 
 `GET /Patient/{trackedEntityUid}` reads one person, which is what each Bundle
 entry's `fullUrl` points at. A UID the instance does not hold is a 404 there -
-a read, unlike a search, names a specific resource.
+a read, unlike a search, names a specific resource. The very resource this
+address answers with is the subject of that person's
+[`$summary`](#summary-one-persons-international-patient-summary), so who a
+summary is about and who the register serves can never disagree.
 
 ### The listing: what the instance holds, a page at a time
 
@@ -700,6 +705,133 @@ about them:
 $ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events'
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this facade serves no `events`: this project publishes who its tracked entities are and not what was recorded about them; set `[serve.tracked_entities] events = true` in fhir.toml and serve again"}]}
 ```
+
+## `$summary`: one person's International Patient Summary
+
+The register says who somebody is and the record says what has happened to them.
+`$summary` is one document over both, in the shape the
+[International Patient Summary](https://hl7.org/fhir/uv/ips/) defines: a FHIR
+document Bundle whose first entry is a `Composition` coded `60591-5` and whose
+remaining entries are the resources its sections point at. The operation had a
+name before this project existed - the IPS publishes
+`OperationDefinition/summary` on `Patient` - so a client that speaks IPS reaches
+it without learning an address this project invented.
+
+Two forms, both `GET`, both live-only. Name the person by their DHIS2 tracked
+entity UID:
+
+```console
+$ curl -s 'localhost:8391/Patient/PLoWmEuLJl2/$summary'
+```
+
+or let the register's own identifier search find them, on the same token grammar
+`GET /Patient?identifier=` answers - a system-qualified token, or a bare value
+tried against every key the register searches:
+
+```console
+$ curl -s 'localhost:8391/Patient/$summary?identifier=SCEN-A-0001'
+```
+
+An identifier several people hold is refused rather than answered: a summary is
+about one person, and handing back the first match would be the server picking
+which one. Every parameter other than `identifier` is refused too, since the
+operation takes one input and answers one document.
+
+**What comes back.** The `Composition`, the subject as the register already
+serves them, and one `Immunization` per recorded dose:
+
+```json
+{
+  "resourceType": "Bundle",
+  "id": "PLoWmEuLJl2-ips",
+  "type": "document",
+  "identifier": {"system": "urn:ietf:rfc:3986", "value": "urn:uuid:1f6b..."},
+  "timestamp": "2026-08-18T09:14:02+00:00",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:9c02...",
+      "resource": {
+        "resourceType": "Composition",
+        "id": "PLoWmEuLJl2-ips",
+        "status": "final",
+        "type": {"coding": [{"system": "http://loinc.org", "code": "60591-5", "display": "Patient summary Document"}]},
+        "subject": {"reference": "urn:uuid:4ad1..."},
+        "title": "International Patient Summary",
+        "section": [
+          {
+            "title": "Problems",
+            "code": {"coding": [{"system": "http://loinc.org", "code": "11450-4", "display": "Problem list - Reported"}]},
+            "emptyReason": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/list-empty-reason", "code": "unavailable"}]}
+          },
+          {"title": "Allergies and Intolerances", "code": {"coding": [{"code": "48765-2"}]}, "emptyReason": {"coding": [{"code": "unavailable"}]}},
+          {"title": "Medication Summary", "code": {"coding": [{"code": "10160-0"}]}, "emptyReason": {"coding": [{"code": "unavailable"}]}},
+          {
+            "title": "Immunizations",
+            "code": {"coding": [{"system": "http://loinc.org", "code": "11369-6", "display": "History of Immunization Narrative"}]},
+            "entry": [{"reference": "urn:uuid:07e5..."}]
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+Problems, Allergies and Intolerances, and Medication Summary are the three
+sections the IPS requires, and each states an `emptyReason` of `unavailable`
+rather than carrying content nobody nominated: DHIS2 marks no data element as a
+problem, an allergy, or a medication. Immunizations is the one section a project
+maps, through
+[`[ips.sections.immunizations]`](301-what-goes-in.md#ips-sections) - the data
+element is the vaccine and its value is the dose - and the doses come off the
+same record `/tracked-entities/{uid}/events` serves. `Immunization.vaccineCode`
+carries the data element's own DHIS2 coding, under the namespace
+[`D2Section_CM`](401-terminology-and-conceptmaps.md#the-sections-a-recorded-value-feeds)
+maps out of. Every entry is addressed by a `urn:uuid` derived from the DHIS2
+identity, so two reads of an unchanged record name the same resources and differ
+only in `Bundle.timestamp` and `Composition.date`.
+
+**The caveat is part of the answer, and it rides twice.** `Composition.text` says
+in the document what the document is and is not, and the same sentence comes back
+on the response as `X-DHIS2W-Summary-Caveat` - the idiom
+`X-DHIS2W-Projection-As-Of` uses for the same reason, one fact stated where
+resources are read and stated again where responses are:
+
+```console
+$ curl -sD - -o /dev/null 'localhost:8391/Patient/PLoWmEuLJl2/$summary' | grep -i summary-caveat
+x-dhis2w-summary-caveat: Immunizations is mapped and carries 3 doses read from this person's own record. Problems, Allergies and Intolerances, Medication Summary are the three sections the IPS requires, and each states an empty reason rather than carrying content nobody nominated: DHIS2 marks no data element as a problem, an allergy, or a medication, and this project has nominated none. This document is a valid IPS Bundle and does not claim the Creator (IPS) actor's obligations.
+```
+
+A project that maps no clinical section at all is still answered, and the caveat
+says that instead: no section is mapped, the three required ones state an empty
+reason, and the document is a valid IPS Bundle that claims none of the Creator
+(IPS) actor's obligations. A mapped section with no dose recorded for this person
+is a different fact and reads differently - the section is present with an empty
+reason of its own.
+
+**Two refusals.** [`[ips] enabled`](301-what-goes-in.md#ips-enabled) is false by
+default, and a summary is a clinical document about a person rather than
+something a deployment inherits:
+
+```console
+$ curl -s 'localhost:8391/Patient/PLoWmEuLJl2/$summary'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this server assembles no `Patient` summary: this project sets `[ips] enabled` to false, so it publishes who its subjects are and what was recorded about them and no summary over either; set it true in fhir.toml and serve again to answer `$summary`"}]}
+```
+
+And the operation is scoped to the people. The register serves whatever resource
+types a project maps its tracked entity types onto, and a summary of a cold chain
+fridge is a document nobody has defined, so `$summary` is answered on `Patient`,
+`Person`, `Practitioner`, and `RelatedPerson` and refused by name on the rest:
+
+```console
+$ curl -s 'localhost:8391/Device/geghdTobFoE/$summary'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`$summary` is a patient summary and `Device` names no person: this server answers it on `Patient`, `Person`, `Practitioner`, `RelatedPerson` alone. Whatever is served under `Device` is served at its own address as usual; a summary of it is a document nobody has defined."}]}
+```
+
+`/metadata` declares the operation on each register entry that answers it and on
+no other, naming `summary` and the IPS's own definition at
+`http://hl7.org/fhir/uv/ips/OperationDefinition/summary`, so a client reads where
+a summary lives rather than probing for it.
 
 ## `$translate`: generated codes back to DHIS2 identifiers
 

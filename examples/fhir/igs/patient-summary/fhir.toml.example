@@ -1,0 +1,206 @@
+# fhir.toml.example - every option `d2w fhir generate` and `d2w fhir serve` understand,
+# with its default. Copy what you need into fhir.toml; omitted options keep these defaults.
+#
+# Nothing reads this file. It is the catalog you copy option lines out of, which is also the
+# easiest way to get an option's spelling right: fhir.toml refuses a name it does not declare.
+#
+# Every option is explained in depth - what it controls, when to change it, and what the
+# error looks like when it is wrong - at
+# https://winterop-com.github.io/dhis2w-utils/fhir/
+# A pointer like `-> 301-generation#timezone` names the page and the section there.
+
+# Which saved DHIS2 server connection to read from; `-p` then `DHIS2_PROFILE` win over
+# this line, in that order. -> 301-identity#profile
+# profile = "myserver"
+
+[ig]
+# Who this guide is and where it lives on the web. -> 301-identity
+id = "dhis2.fhir.examples.patient-summary"
+canonical = "http://example.org/fhir/examples/patient-summary"       # the guide's permanent web address -> 301-identity#canonical
+name = "ExamplesPatientSummary"
+title = "Patient summary example guide"
+publisher = "dhis2w-utils examples"
+# "draft" while building; "active" for production. -> 301-identity#status
+status = "draft"
+
+[generate]
+# Web-address stem of the DHIS2 identifiers every published entry carries. -> 301-generation#identifier_system_base
+identifier_system_base = "http://dhis2.org/fhir"
+# Whether a published concept's code is its DHIS2 id or its DHIS2 code; reaches option sets,
+# categories, and category option combos. `d2w fhir validate --code-source code` reports what
+# switching would cost before you switch. -> 301-generation#concept_code_source
+concept_code_source = "id"
+# IANA time zone the server's clock times are read in ("Asia/Vientiane"). -> 301-generation#timezone
+# timezone = "Asia/Vientiane"
+# Languages to publish translations for (absent = every language found). -> 301-generation#locales
+# Reaches concept designations, form and vocabulary titles, question labels, the guidance text
+# under a question or a section, and the words a form puts on its dates.
+# locales = ["lo", "en"]
+
+[generate.naming]
+# How every generated thing is named; changing these renames the whole guide. -> 301-generation#naming
+# Build names from DHIS2 ids or DHIS2 codes: "id", "code-or-id", or "code". -> 301-generation#source
+source = "id"
+# Name pieces: letters/digits starting with a letter; "" drops a piece. -> 301-generation#the-token-rule
+prefix = "D2"                       # in front of every generated name -> 301-generation#prefix
+option_set = "OS"                   # -> 301-generation#option_set
+category = "CAT"                    # -> 301-generation#category
+attribute_option_combo = "AOC"      # -> 301-generation#attribute_option_combo
+organisation_unit = "OU"            # the one piece that must stay non-empty -> 301-generation#organisation_unit
+data_set = "DS"                     # -> 301-generation#data_set
+program = "PR"                      # -> 301-generation#program
+program_stage = "PS"                # -> 301-generation#program_stage
+tracked_entity_type = "TET"         # the person-only registration form -> 301-generation#tracked_entity_type
+
+[generate.option_sets]
+# Option sets to publish code lists for, by UID (absent = all). -> 301-what-goes-in#option-sets
+# include_ids = ["Qdm5fPK5Ra9"]
+
+[generate.categories]
+# Categories to publish code lists for, by UID (absent = all). -> 301-what-goes-in#categories
+# include_ids = ["O5P6e8yu1T6"]
+# DHIS2's built-in "default" category is skipped unless opted back in. -> 301-what-goes-in#include_default
+# include_default = false
+
+[generate.data_sets]
+# Data sets to publish as forms, by UID (absent = all data sets). -> 301-what-goes-in#data-sets
+# A UID that matches nothing on the instance is named in the run's notes. -> 301-what-goes-in#reading-the-notes
+# include_ids = ["BfMAe6Itzgt"]
+
+[generate.event_programs]
+# Event programs (no registration) to publish as forms, by UID (absent = all). -> 301-what-goes-in#event-programs
+# include_ids = ["VBqh0ynB2wv"]
+
+[generate.tracker_programs]
+# Tracker programs (with registration), one form per stage, by UID (absent = all). -> 301-what-goes-in#tracker-programs
+# include_ids = ["IpHINAT79UW"]
+
+[generate.tracked_entity_forms]
+# Tracked entity types publishing a person-only registration form, by UID
+# (absent = the types the selected tracker programs register). -> 301-what-goes-in#tracked-entity-forms
+# include_ids = ["nEenWmSyUEp"]
+
+[generate.tracked_entity_types]
+# What each tracked entity type is; a type not named here is a person. -> 301-what-goes-in#tracked_entity_types
+# UIDs only - the guide reads the names off DHIS2 and publishes the whole
+# resolution as the D2TET vocabulary and its ConceptMap.
+# "Kd6Nk9wnAJa" = "Group"             # e.g. a livestock herd
+# "Bx8L1nQ4EiP" = "Location"          # e.g. a water point
+
+[generate.examples]
+# Example filled-in responses per form: 0 turns them off, 10 is the ceiling. -> 301-what-goes-in#per_target
+per_target = 1
+# "synthetic" invents the values; "instance" copies real ones - demo servers only. -> 301-what-goes-in#examples-source
+source = "synthetic"
+
+[generate.organisation_units]
+# Which part of the organisation unit tree the guide covers - the size lever. -> 301-what-goes-in#organisation-units
+# Top organisation unit to start from, by UID (absent = the whole tree). -> 301-what-goes-in#root
+# root = "ImspTQPwCqd"
+# Deepest level to include (absent = every level). -> 301-what-goes-in#max_level
+# max_level = 4
+# Also publish the organisation unit code list. -> 301-what-goes-in#terminology
+terminology = false
+
+[serve]
+# How `d2w fhir serve` (and `make serve`) runs this project; a flag wins over these. -> 301-serving
+host = "127.0.0.1"                  # this computer only; changing it opens the server up -> 301-serving#host
+port = 8080                         # a local dev DHIS2 commonly owns 8080; port = 8090 avoids the clash -> 301-serving#port
+strict_codes = false                # true refuses an out-of-list answer instead of warning -> 301-serving#strict_codes
+capture = true                      # false publishes the guide and receives nothing - the viewer posture -> 301-serving#capture
+ui = false                          # true also serves the data-entry screens at / -> 301-serving#ui
+# Where the received forms are kept, relative to this folder unless it starts with "/". The
+# forwarder drains this same directory. -> 301-serving#spool_dir
+spool_dir = ".serve/responses"
+
+[serve.tracked_entities]
+# What a live run answers about the instance's tracked entities; a compiled guide answers none
+# of it, and no command-line flag overrides this table. -> 301-serving#tracked_entities
+enabled = true                      # false answers nothing about tracked entities, even under --live -> 301-serving#tracked_entities-enabled
+listing = true                      # false keeps identifier search and drops the browse listing -> 301-serving#tracked_entities-listing
+events = true                       # false keeps identity and drops one entity's own record -> 301-serving#tracked_entities-events
+page_size = 20                      # rows per page when the caller asks for no size -> 301-serving#tracked_entities-page_size
+page_size_limit = 100               # the largest page anyone may ask for; a bigger ask gets this -> 301-serving#tracked_entities-page_size_limit
+# Tracked entity types the register covers, by UID
+# (absent = the types the published registration forms register). -> 301-serving#tracked_entities-tracked_entity_types
+# tracked_entity_types = ["nEenWmSyUEp"]
+# Tracked entity attributes an identifier search keys on, by UID
+# (absent = the attributes DHIS2 declares unique or searchable). -> 301-serving#tracked_entities-search_attributes
+# search_attributes = ["lZGmxYbs97q"]
+
+[serve.search]
+# What answers a search for a person. `dhis2` is the instance itself: one exact-match query per
+# key while the caller waits. `projection` is the synced copy below: one indexed query, plus
+# `_content` for a search across every value a person holds. Either way the record behind a match
+# is read from the instance under the caller's own credentials, so DHIS2 decides who may be seen.
+# No command-line flag overrides this table. -> 301-serving#search
+backend = "dhis2"                   # the DHIS2 instance answers every search -> 301-serving#search-backend
+
+# A durable copy of the mapped scope of the instance, held as FHIR and filled by `d2w fhir sync`.
+# Nothing here is required: `store = "none"` is no copy at all, which is what a facade that reads
+# the instance per request has always been. DHIS2 stays the record; the sync is the only writer;
+# deleting the file is supported, and `d2w fhir sync --rebuild` does the same thing on purpose.
+# -> 301-serving#projection
+[serve.projection]
+store = "none"                      # "none" or "sqlite" -> 301-serving#projection-store
+# Where a sqlite copy lives, relative to the project root unless absolute.
+# path = ".serve/projection.sqlite"  # -> 301-serving#projection-path
+# How far back before its own watermark an incremental sync re-reads, in seconds. The window is
+# what stops a row written in the instant of a poll from falling off the edge of it.
+# overlap_seconds = 300              # -> 301-serving#projection-overlap
+
+# The map backgrounds the organisation unit map offers - the one outbound call. The screens'
+# layer control lists these in order, opens on the first, and always carries a None entry
+# beside them, so drawing the boundaries on a plain canvas is a click. `basemaps = []` offers
+# nothing but None, which is the fully offline posture. -> 301-serving#basemaps
+[[serve.basemaps]]
+name = "OpenStreetMap"
+url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+# A second layer someone can switch to. Satellite imagery is the usual reason to want one -
+# a facility pin lands on a roof rather than on a blank field - and every provider of it wants
+# an account, a key, and an attribution line of their own. Uncomment, name yours, and read
+# their terms; this project credits OpenStreetMap's tiles and no others.
+# [[serve.basemaps]]
+# name = "Satellite"
+# url = "https://tiles.example.org/satellite/{z}/{x}/{y}.jpg?api_key=YOUR_KEY"
+
+[ips]
+# Whether this project serves a patient summary at all, at `GET /Patient/{uid}/$summary`.
+# A clinical document about a person is a posture a deployment states rather than one it
+# inherits, so it is off until a line here turns it on. -> 301-what-goes-in#ips-enabled
+enabled = false
+
+[ips.identity]
+# Which tracked entity attribute holds a person's name, birth date, and sex on this instance.
+# DHIS2 has no field that means any of the three, so a served person carries a name only when
+# a line here says which attribute it is. UIDs only - names and codes are not unique in DHIS2.
+# Nominate nothing and the register answers exactly what it always did. -> 301-what-goes-in#ips-identity
+# name = "w75KJ2mc4zz"               # published as Patient.name[0].text -> 301-what-goes-in#ips-name
+# birth_date = "iESIqZ0R0R0"         # published as Patient.birthDate -> 301-what-goes-in#ips-birth_date
+# sex = "cejWyOfXge6"                # read through the map below -> 301-what-goes-in#ips-sex
+
+[ips.identity.administrative_gender]
+# What each value of the sex attribute means, in FHIR's four words: male, female, other, unknown.
+# The key is the value DHIS2 stores - an option's DHIS2 code where the attribute is option-set
+# bound. `d2w fhir generate` publishes these rows as the D2Sex_CM concept map, so a consumer
+# reads the translation without holding this file. -> 301-what-goes-in#ips-administrative_gender
+# "Male" = "male"
+# "Female" = "female"
+
+[ips.sections.immunizations]
+# Which recorded values a summary's Immunizations section carries. DHIS2 marks no data element
+# as an immunisation, so the section is stated here or it is empty. A DHIS2 immunisation form
+# records one data element per vaccine with the value saying which dose it was, so the data
+# element is the vaccine and the value is the dose. The two lists arrive together or not at all,
+# and `d2w fhir generate` publishes them as the D2Section_CM concept map, so a consumer reads
+# which values a summary carries without holding this file. -> 301-what-goes-in#ips-sections
+# program_stages = ["A03MvHHogjR", "ZzYYXq4fJie"]      # -> 301-what-goes-in#ips-program_stages
+# dose_data_elements = ["bx6fsa0t90x", "FqlgKAG8HOu"]  # -> 301-what-goes-in#ips-dose_data_elements
+
+[forward]
+# How `d2w fhir forward` drains this project; a flag on the command line wins over these. -> 301-serving#forward
+live = true                         # false refuses instead, naming generate and sushi -> 301-serving#live
+import = false                      # true makes a bare forward commit; false is the dry run -> 301-serving#import
+register_completeness = true        # false imports the values and marks no data set complete -> 301-serving#register_completeness
+overwrites = "allow"                # "refuse" leaves a response holding an already-sent value queued -> 301-serving#overwrites

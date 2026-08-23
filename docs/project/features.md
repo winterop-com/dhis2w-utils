@@ -643,6 +643,16 @@ summary row per target. Notes go to `reports/fhir-generate-notes.md` with one
 counted hint on the terminal, counting the kinds that only restate a `validate`
 finding apart; `--details` prints them inline.
 
+- **A run that rewrites FSH removes the compile it no longer matches.** Any
+  target that writes or sweeps a file under `ig/input/fsh/` removes
+  `ig/fsh-generated/` - SUSHI's output and nobody else's, which
+  `d2w fhir check-artifacts`, `d2w fhir serve`, `d2w fhir forward`, and
+  `make build` all read - so the tree on disk is never new sources beside an old
+  compile. One `compile-removed` note per run names the directory and
+  `make sushi`; the target that writes only predefined JSON leaves the compile
+  alone, an unchanged regenerate leaves it alone, and `ig/temp/` (the
+  publisher's scratch) and `ig/output/` (a published site) are never touched.
+
 #### Targets and selection
 
 - **Four target tables** select what is published:
@@ -930,11 +940,24 @@ Published as two FHIR-native artifacts:
   at all where no `sex` is nominated. The register reads the file rather than the
   map, because the nominations the map depends on are published nowhere; the map
   is what makes the translation auditable from the guide alone.
+- **`D2Section_CM`** is the second such map: one `equal` row per DHIS2 object
+  `[ips.sections]` nominates as feeding a section of an International Patient
+  Summary, in two groups - the stages under `{base}/id/program-stage` and the
+  dose data elements under `{base}/id/data-element`, both onto LOINC, both onto
+  `11369-6` for the one section a mapping reaches. The sources are the DHIS2
+  identifier namespaces rather than the generated concept codes, because a
+  concept code moves with `[generate.naming] source` and a UID namespace never
+  does. Written by the `questionnaires` target as
+  `concept-maps/ConceptMap-d2-section-cm.json`, rows sorted by UID so an
+  unchanged `fhir.toml` regenerates the same bytes, a namespace with no
+  nomination getting no group rather than an empty one, and no file at all where
+  no section is mapped. The server assembles a summary from the file and
+  publishes the map for audit - the posture `D2Sex_CM` already has.
 - **The one directory the map families share** states ownership by file-name
   prefix (`sync_json_artifacts(owned_prefix=...)`), so each family sweeps only
   the ids its own naming token produces (`ConceptMap-d2-os-`,
-  `ConceptMap-d2-cat-`, `ConceptMap-d2-aoc-`, `ConceptMap-d2-sex`) and one
-  `path-resource` glob covers them all.
+  `ConceptMap-d2-cat-`, `ConceptMap-d2-aoc-`, `ConceptMap-d2-sex`,
+  `ConceptMap-d2-section`) and one `path-resource` glob covers them all.
 - **Every identifier namespace a map targets is published as a CodeSystem too**,
   at the same URL, with `content: complete` and every identifier the guide's own
   maps name enumerated in it - `{base}/id/option` and `{base}/id/option-code`
@@ -1095,6 +1118,35 @@ registration form become `Questionnaire` instances.
 - **One mapping surface, so a synced copy and a live read agree.** The nominations
   ride `TrackedEntityIndex`, which `registered_entity_for` is the sole consumer
   of, so `d2w fhir sync` writes the same bytes the register answers with.
+
+#### What a summary carries about them
+
+- **`[ips] enabled`** is the dial the whole summary surface hangs off, and it is
+  false by default. A patient summary is a clinical document about a person, so
+  publishing one is a decision a deployment states rather than one it inherits.
+  False, `$summary` answers a `not-supported` OperationOutcome naming the key and
+  the line that would turn it on; the register, the record, and everything else
+  the facade serves are untouched either way.
+- **`[ips.sections]`** nominates which recorded values belong in which section of
+  a summary, one sub-table per section. `immunizations` is the one section a
+  mapping reaches, and any other key is refused by name - a project writing
+  `[ips.sections.problems]` is told the key is not one rather than left with a
+  table that quietly does nothing.
+- **`[ips.sections.immunizations]`** takes `program_stages` and
+  `dose_data_elements`, both lists of DHIS2 UIDs and both required together. The
+  stages are the ones whose events record doses; the data elements are the ones
+  inside them that each record a dose of one vaccine, which is the shape a DHIS2
+  immunisation form has - so **the data element is the vaccine and its value is
+  the dose**, and `Immunization.vaccineCode` carries the data element's own DHIS2
+  coding. A value that is not a UID is refused, and so is either list without the
+  other: a stage with no data element nominated records nothing a summary reads,
+  and a data element with no stage names values on events nobody said were doses.
+- **The IPS binds `vaccineCode` preferably rather than requiredly**, which is what
+  lets this section carry real doses out of a DHIS2 coding while an international
+  vaccine vocabulary is still missing.
+- **The guide publishes the mapping as `D2Section_CM`**, so a consumer audits
+  which recorded values a served summary carries without ever holding the
+  project's `fhir.toml`.
 
 #### The data dictionary
 
@@ -1269,8 +1321,8 @@ DHIS2 translations are carried through across the whole surface, filtered by
 - **Every note a generate target raises is a `GenerateNote`** carrying its
   kind - `selection-mismatch`, `selection-closure`, `empty-selection`,
   `selection-gap`, `refused-form`, `form-structure`, `skipped-question`,
-  `answer-fallback`, `instance-data-gap`, `build-cost`, `code-fallback`,
-  `code-collision`, `stem-fallback` - beside its text and an `echoes_validate`
+  `answer-fallback`, `instance-data-gap`, `build-cost`, `compile-removed`,
+  `code-fallback`, `code-collision`, `stem-fallback` - beside its text and an `echoes_validate`
   verdict derived from it.
 - **A bare run counts the three kinds that merely restate a `fhir validate`
   finding apart** from what generation itself found
@@ -1743,6 +1795,55 @@ reads that table.
   resource at all - which is where the record's address is stated too, on the
   QuestionnaireResponse entry whose documents it answers with and on every
   register entry, so a client that found somebody learns where their record is.
+
+#### `$summary`
+
+- **The IPS's own two addresses**, so a client that speaks International Patient
+  Summary reaches this without learning a route this project invented.
+  `GET /{type}/{uid}/$summary` names one person by their DHIS2 tracked entity UID;
+  `GET /{type}/$summary?identifier=` resolves one through the register's own
+  identifier search, on the same token grammar `GET /Patient?identifier=` answers.
+  An identifier several people hold is refused rather than answered, because a
+  summary is about one person and handing back the first match would be the server
+  picking which one, and every parameter but `identifier` is refused too.
+- **Scoped to the people.** The register serves nine resource types over whatever
+  tracked entity types a project maps onto them, and a summary of a cold chain
+  fridge is a document nobody has defined - so `$summary` is answered on `Patient`,
+  `Person`, `Practitioner`, and `RelatedPerson`, and refused on the rest with a
+  message naming the four it does answer on.
+- **An IPS document Bundle** is what comes back: a `Composition` coded LOINC
+  `60591-5` leading the Bundle, the subject exactly as `GET /{type}/{uid}` serves
+  them, and one `Immunization` per recorded dose. The three sections the IPS
+  requires - Problems `11450-4`, Allergies and Intolerances `48765-2`, Medication
+  Summary `10160-0` - each carry an `emptyReason` of `unavailable` rather than
+  content nobody nominated, and Immunizations `11369-6` carries the doses
+  `[ips.sections.immunizations]` mapped. Nothing is invented to fill a section: an
+  unmapped stage does not become a free-text Observation.
+- **Nothing new is read.** The subject is the register's own projection and the
+  doses come off the record projection `GET /tracked-entities/{uid}/events` runs
+  on, so a value cannot be typed one way in the record and another inside a
+  summary. A summary with no mapped section reads no record at all, which is why
+  `[serve.tracked_entities] events` is checked only where one is mapped.
+- **Deterministic.** Every id is derived from a DHIS2 identifier through `uuid5`
+  rather than minted per call, the sections are in a fixed order, and the doses
+  keep the record's own order - so two assemblies of an unchanged record differ in
+  `Bundle.timestamp` and `Composition.date` and nowhere else.
+- **The caveat is part of the document and rides beside it.** `Composition.text`
+  states what the document is and is not - which sections carry no mapping, and
+  that this is a valid IPS Bundle claiming none of the Creator (IPS) actor's
+  obligations - and the same sentence comes back as `X-DHIS2W-Summary-Caveat`, the
+  two-place idiom `X-DHIS2W-Projection-As-Of` uses. The all-empty case is served
+  rather than refused, saying so; a mapped section with no dose for this person is
+  a different fact and reads differently, and a mapped stage the guide publishes no
+  form for is named in the section's own narrative rather than passed over.
+- **`meta.profile` names no IPS StructureDefinition**, because a live run publishes
+  and resolves none: the IG is a vocabulary this document conforms to, not a
+  dependency the generated country guide takes on.
+- **Declared in `/metadata`** on each register entry whose subjects are people
+  and on no other, naming `summary` and the IPS's own
+  `OperationDefinition/summary`, so a client reads where a summary lives rather
+  than probing for it. The whole surface sits behind `[ips] enabled`, whose
+  refusal names the key and the line that would turn it on.
 
 #### `$translate`
 

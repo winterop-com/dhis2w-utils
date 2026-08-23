@@ -1491,13 +1491,15 @@ Everything this section used to hold has shipped, and a roadmap states what is
 next rather than what happened - section 2 is where the built surface is
 described, and the git history is where it was built. What is left:
 
-- **The IPS document.** The record it summarises can now be read: one tracked
-  entity's events are served at `GET /tracked-entities/{uid}/events`, each as
-  the QuestionnaireResponse its programme stage's published form describes, and
-  a summary is a projection over that. The IPS working paper carries five
-  reserved decisions and a prototype ready to walk. What the record still leaves
-  to the summary is the clinical vocabulary: the events carry the codes this
-  guide publishes, and no mapping from those onto SNOMED CT or LOINC exists.
+- **The rest of the IPS document's sections.** `GET /Patient/{uid}/$summary`
+  assembles the document, and one clinical section is mapped: Immunizations,
+  through `[ips.sections.immunizations]`. Every further section arrives the same
+  way - an owner writes a mapping, `d2w fhir generate` publishes it as
+  `D2Section_CM`, the served summary carries it - and none is built into the
+  code. Results, Vital Signs, and Problems are the likely order on the fleet as
+  it stands. What still bounds all of them is the clinical vocabulary: the
+  events carry the codes this guide publishes, and no mapping from those onto
+  SNOMED CT or LOINC exists.
 
 - **Native FHIR resource intake - the capture contract's second door.** Today a
   capture is a QuestionnaireResponse; clients that already speak Observation,
@@ -1530,6 +1532,27 @@ described, and the git history is where it was built. What is left:
   `PageState` messages to rendered nodes so the ten strings carrying literal
   backticks read as code; settle the parked vocabulary decisions (nav labels,
   lifecycle labels, the application's own name).
+
+- **The record at device frequency - an event-scale projection.** The record read
+  is one entity-scoped request with the events nested inside, which is
+  person-scale thinking: a person holds dozens of events, a cold-chain fridge
+  reporting every 15 minutes holds thirty-five thousand a year, and one nested
+  read of that is neither kind to DHIS2 nor to the caller. The projection
+  paper's person-level note is the reserved shape: extend `d2w fhir sync` to
+  hold events beside the entities, serve the record read from the copy with the
+  same as-of honesty the register search states, and keep the per-request live
+  read for person-scale registers where it is the better trade.
+
+- **Population questions stay DHIS2's, until a measure runner earns its place.**
+  "How many females registered in 2019" is an analytics question, and DHIS2's
+  own analytics tables are the right engine for it - the projection is an
+  operational search index (documents plus identifier, name, and type indexes),
+  not a column store, and teaching it aggregation would rebuild what DHIS2
+  already does well. The FHIR-native shape for such questions is a CQL measure
+  evaluated over a population, which the engine can already score for one
+  context; a population runner that feeds it from the projection is the
+  reserved future slice, and a columnar sidecar is a decision for the day that
+  slice is real.
 
 - **A 1.8.0 release.** The last published version predates the build
   investigation, the substitution dial, the auth postures, the synced
@@ -1683,18 +1706,14 @@ described, and the git history is where it was built. What is left:
   the record hangs off is still typed JSON rather than the ratified resource
   (decision 5.2), and a timeline is where a corrected or withdrawn event would
   first be visible as such.
-- **IPS - the International Patient Summary.** The capstone consumer of the
-  history: assemble the HL7 IPS document (R4, the `hl7.fhir.uv.ips` shapes)
-  for one person from what the instance holds - identity from the Patient
-  projection, enrollments as episodes, event data as the summary's sections
-  where a mapping to IPS section semantics exists, and honest absence
-  everywhere it does not (the projection's no-invented-demographics rule
-  scales to no-invented-clinical-content). Owner-requested; the record it
-  summarises is served, so what it waits on is the mappings rather than a read.
-  The working paper behind this item is
-  [The IPS document](ips.md): what IPS v2.0.1 requires section by section, the
-  identity and section gaps measured against the register projection, and a
-  recommendation with the owner decisions it reserves.
+- **The summary's remaining shapes.** The document itself is served -
+  `$summary` on the register's people, identity from the Patient projection,
+  Immunizations from a stated mapping, honest absence everywhere else. What is
+  still open here is what sits around it: enrollments as episodes rather than as
+  typed JSON (decision 5.2), and the section mappings section 9's phase 3 leaves
+  unranked. The working paper is [The IPS document](ips.md): what IPS v2.0.1
+  requires section by section, the identity and section gaps measured against
+  the register projection, and the reasoning every settled decision came out of.
 
 - **`d2w fhir push`** - outbound delivery of the generated resources into a real
   FHIR system: transaction bundles against a target server, with the DHIS2

@@ -1,6 +1,6 @@
 # Event program example guide
 
-> One of eight in the [example IG catalog](../README.md). Verified by `make verify-igs`.
+> One of nine in the [example IG catalog](../README.md). Verified by `make verify-igs`.
 
 **The story: a program without registration.** No person is created, no
 enrollment is opened, and nothing is followed over time - a visit happens

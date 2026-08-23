@@ -1,6 +1,6 @@
 # Example Implementation Guide projects
 
-Eight complete `d2w fhir init` project trees, one per feature story, all built
+Nine complete `d2w fhir init` project trees, one per feature story, all built
 against the seeded local DHIS2 instance (`make dhis2-run`, DHIS2 2.43.1). Where
 [`../cli/`](../cli/) shows one command apiece and [`../client/`](../client/README.md)
 shows one library call apiece, these show the whole thing: a project you can read
@@ -19,6 +19,7 @@ nothing that `d2w fhir generate` or SUSHI writes.
 | [`terminology-strict`](terminology-strict/) | Concept codes taken from DHIS2 codes rather than DHIS2 UIDs, and what that trades | EPI Stock, Supervision visit, ANC follow-up; Kambia |
 | [`registry-district`](registry-district/) | One district's organisation units as Organization and Location pairs, boundaries and all | EPI Stock, Supervision visit, ANC follow-up; Bonthe |
 | [`facility-mixed`](facility-mixed/) | One of every capture kind at once - the flagship | EPI Stock, Antenatal care visit, Child Programme; Koinadugu |
+| [`patient-summary`](patient-summary/) | An International Patient Summary at `$summary`: who a person is, which recorded values are doses, and what the document says about itself | EPI Stock, Supervision visit, Child Programme; Koinadugu |
 | [`refused-names`](refused-names/) | The exhibit: a selection `d2w fhir generate` refuses, and why refusing in seconds beats failing in hours | Child Health, Supervision visit, ANC follow-up; Kambia |
 
 ## The identity scheme
@@ -83,7 +84,7 @@ from that, and neither is the scaffold's fault:
 - **`uv.lock` is not committed, and never written.** The catalog drives every
   guide through the workspace `d2w`, never through a project environment of its
   own, so no guide here has ever been `uv sync`ed. A per-guide lock would pin the
-  same commit eight times and go stale eight times. A real project you scaffold
+  same commit nine times and go stale nine times. A real project you scaffold
   from these does commit its lock - [Set up an IG
   project](../../../docs/fhir/201-set-up-a-project.md#install-the-pinned-toolchain)
   says why.
@@ -94,7 +95,7 @@ from that, and neither is the scaffold's fault:
 hand-authored stubs (`ig/input/fsh/aliases.fsh`, `ig/input/pagecontent/index.md`)
 is what `d2w fhir init` writes today, byte for byte. When the scaffold gains a
 line - a new `path-resource` glob, a new `.gitignore` entry, a new menu item -
-one command brings all eight up to date:
+one command brings all nine up to date:
 
 ```bash
 for guide in examples/fhir/igs/*/; do uv run d2w fhir init "$guide" --refresh; done
