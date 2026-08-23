@@ -23,6 +23,7 @@ from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.routes.uiconfig import (
     OPENSTREETMAP_ATTRIBUTION,
     UI_CONFIG_PATH,
+    FilterableAttributeUiConfig,
     RegisteredTypeUiConfig,
     RegisterUiConfig,
     TrackedEntitiesUiConfig,
@@ -34,10 +35,13 @@ from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import load_compiled_store
 from fastapi import FastAPI
 from fixture_project import (
+    REGISTRATION_CODED_ATTRIBUTE,
     REGISTRATION_TRACKED_ENTITY_TYPE_UID,
+    SEX_VALUE_SET,
     SPECIMEN_RESOURCE_TYPE,
     SPECIMEN_TRACKED_ENTITY_TYPE_NAME,
     SPECIMEN_TRACKED_ENTITY_TYPE_UID,
+    SPECIMEN_UNIQUE_ATTRIBUTE,
 )
 
 #: The layers the app under test is started with unless a test overrides the `basemaps` fixture.
@@ -169,17 +173,37 @@ def test_the_register_is_reported_as_a_live_run_resolves_it(capture_project: Fhi
     `registers` is the shape the screens act on: one entry per FHIR resource the published map names,
     each carrying the tracked entity types riding it under the names the instance holds - which is
     what lets a page title a section "Specimen batch" rather than calling a sample a person.
+
+    Each also carries what it is filtered by, and the two entries carry different attributes: a
+    register of people is filtered by what a person's forms ask and a register of samples by what a
+    sample's do. The coded one names the ValueSet its values are drawn from, which is the difference
+    between a control a screen can draw as a select and one it has to draw as a box.
     """
     index = TrackedEntityIndex.from_store(capture_project, load_compiled_store(capture_project))
     registers = [
         RegisterUiConfig(
             resource="Patient",
             types=[RegisteredTypeUiConfig(uid=REGISTRATION_TRACKED_ENTITY_TYPE_UID, name="Person")],
+            filter_attributes=[
+                FilterableAttributeUiConfig(uid="TeaNationId", name="National identifier", value_type="TEXT"),
+                FilterableAttributeUiConfig(uid="TeaBirthDat", name="Date of birth", value_type="DATE"),
+                FilterableAttributeUiConfig(
+                    uid=REGISTRATION_CODED_ATTRIBUTE, name="Sex", value_type="TEXT", value_set=SEX_VALUE_SET
+                ),
+                FilterableAttributeUiConfig(uid="TeaHousehld", name="Household size", value_type="INTEGER_POSITIVE"),
+                FilterableAttributeUiConfig(uid="TeaSystemId", name="Programme identifier", value_type="TEXT"),
+                FilterableAttributeUiConfig(uid="TeaConsent1", name="Consent given", value_type="TRUE_ONLY"),
+            ],
         ),
         RegisterUiConfig(
             resource=SPECIMEN_RESOURCE_TYPE,
             types=[
                 RegisteredTypeUiConfig(uid=SPECIMEN_TRACKED_ENTITY_TYPE_UID, name=SPECIMEN_TRACKED_ENTITY_TYPE_NAME)
+            ],
+            filter_attributes=[
+                FilterableAttributeUiConfig(
+                    uid=SPECIMEN_UNIQUE_ATTRIBUTE, name="Laboratory reference", value_type="TEXT"
+                )
             ],
         ),
     ]

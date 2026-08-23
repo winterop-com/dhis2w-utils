@@ -113,8 +113,42 @@ class RegisteredTypeUiConfig(BaseModel):
     """The name the instance holds for the type, as `D2TET_CM` published it, or None when it published none."""
 
 
+class FilterableAttributeUiConfig(BaseModel):
+    """One tracked entity attribute a register is filtered by, and what a screen needs to offer it.
+
+    Four facts, and each of them is one a control cannot be drawn without. `uid` is what
+    `d2-attribute={uid}|{value}` names, `name` is what a label reads, `value_type` is what DHIS2 says
+    the values are, and `value_set` is the vocabulary a coded attribute's values come from - so an
+    attribute bound to a DHIS2 option set is drawn as a choice over the published ValueSet's concepts,
+    and one bound to nothing is drawn as a box the person types into.
+
+    IT IS HERE AS WELL AS IN `/metadata` FOR THE REASON `types` IS. The CapabilityStatement's
+    `d2-attribute` entry names the same attributes in its documentation, because that is where a FHIR
+    client reads what a search parameter means - but it names them in prose, and a screen drawing a
+    select over a vocabulary needs the canonical as a value rather than as a sentence.
+
+    WHAT IT DOES NOT CARRY IS THE VALUES. A coded attribute's concepts are published as a CodeSystem
+    and a ValueSet this server already serves, so the canonical is the whole of what crosses; copying
+    the concepts here would be a second statement of a vocabulary that can go stale against the first.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    uid: str
+    """The DHIS2 tracked entity attribute UID - the left half of a `d2-attribute` filter's value."""
+
+    name: str | None = None
+    """The name the instance holds for the attribute, as `D2TEA_CS` published it, or None when it published none."""
+
+    value_type: str | None = None
+    """The DHIS2 value type of the attribute's values, or None where this guide publishes none."""
+
+    value_set: str | None = None
+    """The canonical of the ValueSet a coded attribute's values come from, or None where nothing binds it."""
+
+
 class RegisterUiConfig(BaseModel):
-    """One FHIR resource type this run serves from the instance, and the types that ride it."""
+    """One FHIR resource type this run serves from the instance, the types that ride it, and what filters it."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -122,6 +156,18 @@ class RegisterUiConfig(BaseModel):
     """The FHIR resource type - the path a screen reads and pages under."""
 
     types: list[RegisteredTypeUiConfig] = Field(default_factory=list)
+
+    filter_attributes: list[FilterableAttributeUiConfig] = Field(default_factory=list)
+    """The attributes `d2-attribute` filters this register by, in the order its forms ask them.
+
+    EQUALITY IS ALL ANY OF THEM ANSWERS. A screen offering these as a filter has to say so - the
+    control matches the value exactly and case-insensitively, it does not match a prefix, and a person
+    typing half a district's name gets nobody rather than a shorter list. `_content` is the search
+    that matches part of a value, and it is a different control.
+
+    Empty when this run serves no register, and empty for a register whose types the guide publishes
+    no form for: a filter over attributes nobody declared would be a control with nothing behind it.
+    """
 
 
 class TrackedEntitiesUiConfig(BaseModel):
@@ -153,7 +199,12 @@ class TrackedEntitiesUiConfig(BaseModel):
     """Whether a register search naming no identifier answers with a page of the register."""
 
     registers: list[RegisterUiConfig] = Field(default_factory=list)
-    """One entry per FHIR resource type served, empty when this process serves none."""
+    """One entry per FHIR resource type served, each carrying its types and what it filters by.
+
+    Empty when this process serves none. The filter declaration rides the register rather than the
+    table above it because two registers of one run filter on different attributes: a register of
+    people is filtered by what a person's forms ask, and a register of samples by what a sample's do.
+    """
 
 
 class AuthUiConfig(BaseModel):
@@ -248,6 +299,15 @@ def tracked_entities_config(*, live: bool, surface: RegisterSurface) -> TrackedE
                 types=[
                     RegisteredTypeUiConfig(uid=published.uid, name=published.name)
                     for published in register.tracked_entity_types
+                ],
+                filter_attributes=[
+                    FilterableAttributeUiConfig(
+                        uid=attribute.attribute_uid,
+                        name=attribute.display,
+                        value_type=attribute.value_type,
+                        value_set=attribute.value_set,
+                    )
+                    for attribute in register.filter_attributes
                 ],
             )
             for register in (surface.registers() if enabled else ())

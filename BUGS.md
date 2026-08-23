@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-108 entries grouped by area. **Status tags** carry the result of the most
+109 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -140,6 +140,7 @@ filing.
 - [#104](#104-post-apimetadataimportstrategydelete-sorts-a-bundle-in-creation-order-so-a-type-and-the-attribute-it-collects-cannot-be-removed-in-one-post) — `DELETE` metadata import sorts in creation order; a type + its attribute cannot go in one post
 - [#105](#105-a-soft-deleted-tracked-entity-blocks-deletion-of-its-tracked-entity-type-and-no-tracker-query-will-show-the-row-that-is-blocking-it) — a soft-deleted tracked entity blocks its type's deletion and no query will show it
 - [#106](#106-get-apitrackertrackedentitiestrackedentitytype-answers-an-empty-page-for-a-type-no-accessible-program-tracks-however-many-entities-of-it-the-instance-holds) — a type no program tracks reads back as an empty register, silently
+- [#109](#109-filtertrackedentityattributeeqvalue-on-apitrackertrackedentities-matches-without-regard-to-case-so-eq-is-not-equality) — a tracked entity attribute `filter=...:eq:...` ignores case, so `eq` is not exact
 
 ### v43-specific
 
@@ -5965,6 +5966,59 @@ gets a tracker program: `examples/fhir/cli/registers_many_types.sh` creates one 
 programme per demo type and says why in its section 2.
 
 **How to know it's fixed:** the two reads above answer with `E` before any program exists.
+
+**Verifier:** none yet.
+
+---
+
+### 109. `filter=<trackedEntityAttribute>:eq:<value>` on `/api/tracker/trackedEntities` matches without regard to case, so `eq` is not equality
+
+**Observed on:** DHIS2 `2.43.0` (`dhis2/core:43` from Docker Hub, `make dhis2-run DHIS2_VERSION=v43`),
+seeded demo database. Login as `admin/district`.
+
+**What a caller is trying to do.** Filter a register by the value of a tracked entity
+attribute, and know from the operator's name what the filter will and will not match.
+`eq` is documented as the equality operator, beside `like` for the case-insensitive
+substring; a caller reads that pair and concludes that `eq` is exact.
+
+**Repro (against any seeded instance):**
+
+```bash
+BASE='http://localhost:8080/api/tracker/trackedEntities?trackedEntityType=nEenWmSyUEp&ouMode=ACCESSIBLE&fields=trackedEntity&pageSize=1&totalPages=true'
+
+# The value as the instance stores it.
+curl -sf -u admin:district "$BASE&filter=cejWyOfXge6:eq:Female" | python3 -c "import json,sys; print(json.load(sys.stdin)['pager']['total'])"
+# 243
+
+# The same value in lower case, which no record holds.
+curl -sf -u admin:district "$BASE&filter=cejWyOfXge6:eq:female" | python3 -c "import json,sys; print(json.load(sys.stdin)['pager']['total'])"
+# 243
+```
+
+**Expected.** `eq` compares the value as stored: `female` matches the records holding
+`female` and no others, which on this instance is none. A caller wanting the
+case-insensitive comparison asks for it - `like` is right there, and `ilike`-style
+behaviour under a name that says `eq` cannot be opted out of.
+
+**Actual.** Both spellings answer 243. The comparison folds case, and no parameter turns
+that off, so there is no way to ask this endpoint for the records holding exactly
+`Female` and not the ones holding `FEMALE`.
+
+**Why it matters beyond tidiness.** An instance can legitimately hold two option codes
+that differ only in case, and a filter that cannot tell them apart cannot answer a
+question about either. It also makes the operator's name misleading in exactly the
+direction that is hard to notice: a caller tests with the stored spelling, sees the right
+answer, and never learns the filter is wider than the name says.
+
+**Workaround applied in this repo:** none in the request - `dhis2w_fhir_serve.register.wire`
+sends `eq` as it is. What the workaround shapes is the OTHER backend: the register's value
+filter (`d2-attribute`, `dhis2w_fhir_serve.register.filtering`) is answered from the
+materialized projection as well as from the instance, so the projection matches the FOLDED
+value (`ProjectedNameRow.folded`) to keep the two backends answering the same records. The
+declarations - `/metadata`'s search parameter documentation, `/uiconfig`, and
+`docs/fhir/301-serving.md` - all state that the filter ignores case, and name this entry.
+
+**How to know it's fixed:** the second `curl` above answers `0`.
 
 **Verifier:** none yet.
 

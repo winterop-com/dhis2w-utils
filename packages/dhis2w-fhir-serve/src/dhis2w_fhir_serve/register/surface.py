@@ -45,12 +45,21 @@ from dhis2w_fhir_serve.register.index import PublishedAttribute, PublishedTracke
 
 
 class ServedRegister(BaseModel):
-    """One FHIR resource type this run serves, and the tracked entity types that ride it."""
+    """One FHIR resource type this run serves, the tracked entity types that ride it, and what filters it."""
 
     model_config = ConfigDict(frozen=True)
 
     resource_type: str
     tracked_entity_types: tuple[PublishedTrackedEntityType, ...] = ()
+
+    filter_attributes: tuple[PublishedAttribute, ...] = ()
+    """The attributes `d2-attribute` filters this register by - what its types' own forms ask.
+
+    The union over the register's types, in the order the types ride it, each attribute once: two
+    types published as one resource are one register, and an attribute both of them collect is one
+    filter. It is read off the guide and narrowed by nothing - `register.filtering` argues why there
+    is no config dial here where `search_attributes` has one.
+    """
 
 
 class RegisterSurface(BaseModel):
@@ -97,7 +106,11 @@ class RegisterSurface(BaseModel):
         for served in self.served_types:
             grouped.setdefault(served.resource_type, []).append(served)
         return tuple(
-            ServedRegister(resource_type=resource_type, tracked_entity_types=tuple(types))
+            ServedRegister(
+                resource_type=resource_type,
+                tracked_entity_types=tuple(types),
+                filter_attributes=self._filter_attributes(types),
+            )
             for resource_type, types in grouped.items()
         )
 
@@ -122,6 +135,21 @@ class RegisterSurface(BaseModel):
             if attribute.identifier_system == system:
                 return attribute
         return None
+
+    def filter_attributes_for(self, resource_type: str) -> tuple[PublishedAttribute, ...]:
+        """The attributes one register is filtered by, empty where this run serves no such register."""
+        for register in self.registers():
+            if register.resource_type == resource_type:
+                return register.filter_attributes
+        return ()
+
+    def _filter_attributes(self, types: list[PublishedTrackedEntityType]) -> tuple[PublishedAttribute, ...]:
+        """The attributes one resource's types collect between them, each once, in the order they ride it."""
+        found: dict[str, PublishedAttribute] = {}
+        for served in types:
+            for attribute in self.index.attributes_asked_of(served.uid):
+                found.setdefault(attribute.attribute_uid, attribute)
+        return tuple(found.values())
 
 
 def _types_named(

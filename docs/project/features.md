@@ -1712,6 +1712,30 @@ reads that table.
   rather than thinning its pages; and a tag naming a type that resource is not
   served over is an empty searchset rather than a refusal. Declared as a
   `searchParam` on every register entry of `/metadata`.
+- **`d2-attribute` filters the register by what a record holds**, where
+  `identifier` names who it is. `d2-attribute={trackedEntityAttributeUid}|{value}`
+  is one attribute and one value; the parameter repeated narrows to whoever holds
+  every value named, and a comma is part of the value rather than a separator,
+  because a DHIS2 attribute value may contain one. **It answers equality and
+  nothing else** - no prefix, no substring, no range, no `:missing` - forgiving
+  case alone, because DHIS2's own `eq` on a tracked entity attribute is
+  case-insensitive (BUGS.md 109) and one operator must not mean two things across
+  the backends. It narrows the listing, the identifier search, `_content`, and the
+  `_count=0` count alike, and rides every `next` and `previous` link. Under
+  `backend = "dhis2"` it becomes a `filter=<uid>:eq:<value>` on the tracker query,
+  repeated once per filter and ANDed by the endpoint; under `"projection"` it is
+  one indexed read of the attribute values the sync already wrote.
+- **What each register filters on is declared per register, in two places.**
+  `/metadata` names the attributes in the `d2-attribute` `searchParam`'s
+  documentation - each with its name, its DHIS2 value type, and the canonical of
+  the published ValueSet where DHIS2 binds an option set - and `/uiconfig` carries
+  the same set as values under `tracked_entities.registers[].filter_attributes[]`,
+  so a screen draws a select over a coded attribute and a box over the rest. The
+  set is what the published registration forms ask of that register's own tracked
+  entity types, so a register of specimens filters on a sample's attributes and
+  never on a person's; there is no config dial narrowing it, because it filters on
+  values every response already carries. An attribute a register does not filter
+  on is a 400 naming the ones it does, never an empty searchset.
 - **Every search runs through a `NameSearchIndex`**, which answers with tracked
   entity identifiers and never with records; each match is then read back by UID
   under the credentials the request runs as, so DHIS2 authorizes every record
@@ -1728,9 +1752,9 @@ reads that table.
   `searchable`, which a superuser is not held to. The tracked entity types come
   from the registration forms the store publishes, and an unmatched identifier
   or an unpublished system is an empty searchset rather than a 404. Every
-  parameter the register cannot apply is refused with a 400 naming `identifier`
-  as the one it answers on, rather than answered with the register dressed as a
-  match set.
+  parameter the register cannot apply is refused with a 400 naming the ones it
+  does answer - `identifier`, `_tag`, `d2-attribute`, and `_content` under the
+  synced backend - rather than answered with the register dressed as a match set.
 - **A search naming no parameter at all is the listing** rather than an empty
   search: the register paged, for a client with no identifier to type. It takes
   `_count` (clamped to `[serve.tracked_entities] page_size_limit` rather than

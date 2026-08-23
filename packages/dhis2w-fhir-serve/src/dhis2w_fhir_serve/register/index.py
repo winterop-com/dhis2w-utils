@@ -7,6 +7,12 @@ for that translation is already in the store, put there by the generate targets:
   `{base}/id/tracked-entity-type`. The set of those values is the set of types this project's forms
   register into, and one of them is what `/api/tracker/trackedEntities` requires - the endpoint
   refuses a query naming neither a type nor a program (E1003).
+- That same form's questions ARE that type's attributes: one question per attribute, keyed by the
+  attribute's DHIS2 UID, and a `#choice` question naming the ValueSet DHIS2's option set is
+  published as. So the form answers two things nothing else does - which attributes each type
+  collects, and which of them have a vocabulary a caller could enumerate - and those are exactly
+  what the register declares as filterable (`register.filtering`). `D2TEA_CS` cannot answer either:
+  it publishes every attribute the project's forms ask anywhere, without saying whose.
 - `D2TET_CM` maps each published type onto the FHIR resource type its registrations are served as:
   one row per type, the row's code the type UID, its display the name the instance holds, its target
   the resource. **That map is the contract.** `[generate.tracked_entity_types]` is what generated it,
@@ -117,6 +123,16 @@ class PublishedAttribute(BaseModel):
     identifier_system: str
     """The system a value of this attribute is carried under when DHIS2 declares the attribute unique."""
 
+    value_set: str | None = None
+    """The ValueSet a registration form binds the attribute's answers to, where DHIS2 binds an option set.
+
+    Read off the published form rather than off `D2TEA_CS`, because the option set is a binding
+    rather than a property of the attribute: the vocabulary already rides the question as
+    `answerValueSet`, and the concepts in it are already published as a CodeSystem beside it. A
+    consumer offered the value filter reads this canonical to draw the values as a choice; an
+    attribute nothing binds carries None, and its values are whatever text the instance holds.
+    """
+
     def is_search_key(self) -> bool:
         """Whether a bare identifier value is looked for under this attribute by default."""
         return self.unique or self.searchable
@@ -148,6 +164,19 @@ class TrackedEntityIndex(BaseModel):
     identifier_system_base: str
     tracked_entity_types: tuple[PublishedTrackedEntityType, ...] = ()
     attributes: tuple[PublishedAttribute, ...] = ()
+    tracked_entity_type_attribute_uids: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+    """Which tracked entity attributes each registered type's own forms ask, in the order they ask them.
+
+    The join is one registration form's `linkId`s onto the type that form registers: a registration
+    Questionnaire's questions ARE the type's attributes, one question per attribute, each keyed by
+    the attribute's DHIS2 UID. Two forms registering one type - the program's and the type's own -
+    contribute one union, because a person registered through either holds the same attributes.
+
+    `attributes` alone cannot answer this: `D2TEA_CS` publishes every attribute the project's forms
+    ask anywhere, so a register of specimens would otherwise declare a person's date of birth
+    filterable. What a type collects is the form's to say.
+    """
+
     program_names: dict[str, str] = Field(default_factory=dict)
     organisation_unit_names: dict[str, str] = Field(default_factory=dict)
     identity: IdentityNominations = Field(default_factory=IdentityNominations)
@@ -170,12 +199,15 @@ class TrackedEntityIndex(BaseModel):
         organisation_unit_names: dict[str, str] = {}
         attributes: tuple[PublishedAttribute, ...] = ()
         mapping: dict[str, PublishedTrackedEntityType] = {}
+        asked: dict[str, dict[str, None]] = {}
+        bound_value_sets: dict[str, str] = {}
         for entry in store.entries:
             if entry.resource_type == QUESTIONNAIRE_RESOURCE_TYPE:
                 registered = _identifier_values(entry, tracked_entity_type_system)
                 if not registered:
                     continue
                 registered_type_uids.extend(registered)
+                _record_asked_attributes(entry, registered, asked, bound_value_sets)
                 _record_name(entry, program_system, program_names, "title")
             elif entry.resource_type == CODE_SYSTEM_RESOURCE_TYPE and (
                 entry.resource_id == naming.tracked_entity_attribute_code_system_id
@@ -188,6 +220,7 @@ class TrackedEntityIndex(BaseModel):
             elif entry.resource_type in REGISTRY_RESOURCE_TYPES:
                 _record_name(entry, organisation_unit_system, organisation_unit_names, "name")
         identity = project.config.ips.identity
+        attributes = _bound(attributes, bound_value_sets)
         _refuse_unfillable_nominations(identity, attributes)
         return cls(
             tracked_entity_system=f"{base}/id/{TRACKED_ENTITY_IDENTIFIER_SEGMENT}",
@@ -198,6 +231,9 @@ class TrackedEntityIndex(BaseModel):
             identifier_system_base=base,
             tracked_entity_types=_registered_types(registered_type_uids, mapping),
             attributes=attributes,
+            tracked_entity_type_attribute_uids={
+                type_uid: tuple(attribute_uids) for type_uid, attribute_uids in asked.items()
+            },
             program_names=program_names,
             organisation_unit_names=organisation_unit_names,
             identity=identity,
@@ -231,6 +267,25 @@ class TrackedEntityIndex(BaseModel):
         """The attribute whose values are carried under one identifier system, or None."""
         return self._attributes_by_system.get(system)
 
+    def attributes_asked_of(self, tracked_entity_type_uid: str) -> tuple[PublishedAttribute, ...]:
+        """The attributes one tracked entity type's registration forms ask, in the order they ask them.
+
+        An attribute a form asks and `D2TEA_CS` publishes nothing about is still one of them, carrying
+        the identifier system its UID gives it and nothing else - the same reading `_attributes_named`
+        takes of an attribute an operator names, and for the same reason: the instance holds the
+        values whether or not this project's vocabulary happened to describe them.
+        """
+        return tuple(
+            self._attributes_by_uid.get(attribute_uid)
+            or PublishedAttribute(
+                attribute_uid=attribute_uid,
+                identifier_system=tracked_entity_attribute_identifier_system(
+                    self.identifier_system_base, attribute_uid
+                ),
+            )
+            for attribute_uid in self.tracked_entity_type_attribute_uids.get(tracked_entity_type_uid, ())
+        )
+
     def search_key_attributes(self) -> tuple[PublishedAttribute, ...]:
         """Every attribute DHIS2 declares unique or searchable - the set a bare identifier value is searched across."""
         return tuple(attribute for attribute in self.attributes if attribute.is_search_key())
@@ -257,6 +312,60 @@ class TrackedEntityIndex(BaseModel):
 def _identifier_values(entry: StoreEntry, system: str) -> tuple[str, ...]:
     """Every value one resource carries under one identifier system, in the order it carries them."""
     return tuple(token.value for token in entry.identifiers if token.system == system)
+
+
+def _record_asked_attributes(
+    entry: StoreEntry,
+    registered_type_uids: tuple[str, ...],
+    asked: dict[str, dict[str, None]],
+    bound_value_sets: dict[str, str],
+) -> None:
+    """Join one registration form's questions onto the type it registers, and onto what they bind.
+
+    A registration Questionnaire asks one question per tracked entity attribute, keyed by the
+    attribute's DHIS2 UID - so the form's `linkId`s are the attributes that type collects, in the
+    order the instance orders them. A `#choice` question names the ValueSet its answers come from,
+    which is the option set DHIS2 binds the attribute to, and that canonical is the one thing a
+    consumer needs to offer the attribute's values as a choice rather than as a text box.
+    """
+    for link_id, value_set in _questions(entry.body.get("item")).items():
+        for type_uid in registered_type_uids:
+            asked.setdefault(type_uid, {})[link_id] = None
+        if value_set is not None:
+            bound_value_sets.setdefault(link_id, value_set)
+
+
+def _questions(items: Any) -> dict[str, str | None]:
+    """Every question one form asks, keyed by its `linkId`, carrying the ValueSet it binds if any.
+
+    Walked rather than read one level deep: nothing stops a registration form grouping its questions,
+    and a grouped attribute is one the register would otherwise silently decline to filter by.
+    """
+    found: dict[str, str | None] = {}
+    if not isinstance(items, list):
+        return found
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        link_id = item.get("linkId")
+        if isinstance(link_id, str) and link_id:
+            value_set = item.get("answerValueSet")
+            found.setdefault(link_id, value_set if isinstance(value_set, str) and value_set else None)
+        for nested_link_id, nested_value_set in _questions(item.get("item")).items():
+            found.setdefault(nested_link_id, nested_value_set)
+    return found
+
+
+def _bound(
+    attributes: tuple[PublishedAttribute, ...], bound_value_sets: dict[str, str]
+) -> tuple[PublishedAttribute, ...]:
+    """Carry each published attribute's option-set binding onto it, where a form binds one."""
+    return tuple(
+        attribute
+        if attribute.attribute_uid not in bound_value_sets
+        else attribute.model_copy(update={"value_set": bound_value_sets[attribute.attribute_uid]})
+        for attribute in attributes
+    )
 
 
 def _record_name(entry: StoreEntry, system: str, names: dict[str, str], element: str) -> None:
