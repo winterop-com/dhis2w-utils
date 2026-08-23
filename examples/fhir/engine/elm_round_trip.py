@@ -14,9 +14,11 @@ That makes ELM the interchange format, and it cuts both ways here:
 
 This example does both in one pass and compares the answers, which is the check that matters: the
 round trip is only worth anything if the numbers survive it. The compared set reaches past literals
-into a query with a where clause, an aggregate, and a retrieve over the bundle, because those are
-where a round trip stops being a formality. What it still does not carry is printed at the end
-rather than left out of the comparison quietly.
+into a query with a where clause, an aggregate, a retrieve over the bundle, the calendar (dates,
+times, and an interval of dates), and both forms of `case`, because those are where a round trip
+stops being a formality: a date is four values in ELM rather than one string, and a `case` carries a
+list of when-clauses plus an else. What it still does not carry is printed at the end rather than
+left out of the comparison quietly.
 
 Usage:
     uv run python examples/fhir/engine/elm_round_trip.py
@@ -53,6 +55,23 @@ define "Is Nothing Recorded": "Nothing Recorded" is null
 define "Large Doses": "Dose Numbers" N where N > 1
 define "Dose Count": Count("Dose Numbers")
 define "Girls": [Patient] P where P.gender = 'female' return P.id
+define "Campaign Start": @2024-01-15
+define "Campaign Opened At": @2024-01-15T09:00:00
+define "Clinic Opens": @T08:30
+define "Campaign": Interval[@2024-01-15, @2024-03-31]
+define "Started In Campaign": "Campaign Start" in "Campaign"
+define "Coverage Band":
+  case
+    when "Doses Expected" >= 4 then 'full'
+    when "Doses Expected" >= 2 then 'partial'
+    else 'none'
+  end
+define "Programme Code":
+  case "Programme"
+    when 'Child Programme' then 'CHILD'
+    when 'Adult Programme' then 'ADULT'
+    else 'OTHER'
+  end
 """
 
 #: The definitions compared across the two evaluators.
@@ -67,13 +86,17 @@ COMPARED_DEFINITIONS = (
     "Large Doses",
     "Dose Count",
     "Girls",
+    "Campaign Start",
+    "Campaign Opened At",
+    "Clinic Opens",
+    "Campaign",
+    "Started In Campaign",
+    "Coverage Band",
+    "Programme Code",
 )
 
 #: What the round trip does not carry yet, kept out of the comparison rather than hidden from it.
-OPEN_GAPS = (
-    "a date literal (`@2024-01-15`) serializes to a shape the ELM evaluator reads as null",
-    "decimal division keeps CQL's eight-place precision but ELM's answer is unpadded",
-)
+OPEN_GAPS = ("decimal division keeps CQL's eight-place precision but ELM's answer is unpadded",)
 
 
 class RoundTripComparison(BaseModel):
@@ -144,7 +167,7 @@ def main() -> None:
     print("Every answer above survived the round trip, which is what makes ELM an interchange format")
     print("rather than a debugging dump: publish the ELM, and the logic travels with it.")
     print()
-    print("Two things the round trip does not carry yet, stated rather than quietly left out:")
+    print("What the round trip does not carry yet, stated rather than quietly left out:")
     for gap in OPEN_GAPS:
         print(f"  - {gap}")
 

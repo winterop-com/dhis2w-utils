@@ -44,6 +44,19 @@ def _builtin_to_decimal(value: Any) -> Decimal | None:
         return None
 
 
+def _iso_offset(offset_hours: Any) -> str | None:
+    """The ISO suffix an ELM `timezoneOffset` in hours stands for, `Z` at zero."""
+    hours = _builtin_to_decimal(offset_hours)
+    if hours is None:
+        return None
+    if hours == 0:
+        return "Z"
+    total_minutes = int(round(float(hours) * 60))
+    sign = "-" if total_minutes < 0 else "+"
+    total_minutes = abs(total_minutes)
+    return f"{sign}{total_minutes // 60:02d}:{total_minutes % 60:02d}"
+
+
 class ELMExpressionVisitor:
     """Evaluates ELM expression nodes using type-based dispatch."""
 
@@ -952,14 +965,17 @@ class ELMExpressionVisitor:
 
     def _eval_case(self, node: dict[str, Any]) -> Any:
         """Evaluate case expression."""
+        # Which form this is comes from whether a comparand was written, not from what it evaluates
+        # to: a comparand that evaluates to null is still a comparand, and its whens are values to
+        # compare against rather than conditions to test.
         comparand = node.get("comparand")
-        comparand_value = self.evaluate(comparand) if comparand else None
+        comparand_value = self.evaluate(comparand) if comparand is not None else None
 
         for item in node.get("caseItem", []):
             when_expr = item.get("when")
             when_value = self.evaluate(when_expr)
 
-            if comparand_value is not None:
+            if comparand is not None:
                 # With comparand: compare values
                 if when_value == comparand_value:
                     return self.evaluate(item.get("then"))
@@ -2465,61 +2481,60 @@ class ELMExpressionVisitor:
             second=now.second,
         )
 
-    def _eval_time_of_day(self, node: dict[str, Any]) -> str:
+    def _eval_time_of_day(self, node: dict[str, Any]) -> FHIRTime:
         """Evaluate TimeOfDay()."""
         from datetime import datetime
 
         now = datetime.now()
-        return f"{now.hour:02d}:{now.minute:02d}:{now.second:02d}"
+        return FHIRTime(hour=now.hour, minute=now.minute, second=now.second, millisecond=now.microsecond // 1000)
+
+    def _component(self, node: dict[str, Any], name: str) -> int | None:
+        """One date or time component of an ELM node, as an integer, or None when it is unstated.
+
+        Zero is a component like any other: midnight has hour 0 and the top of a minute has second 0,
+        so the presence of a component is read from None and never from truthiness.
+        """
+        value = self.evaluate(node.get(name))
+        return None if value is None else int(value)
 
     def _eval_date_constructor(self, node: dict[str, Any]) -> FHIRDate | None:
         """Evaluate Date constructor."""
-        year = self.evaluate(node.get("year"))
-        month = self.evaluate(node.get("month"))
-        day = self.evaluate(node.get("day"))
-
+        year = self._component(node, "year")
         if year is None:
             return None
 
-        return FHIRDate(year=int(year), month=int(month) if month else None, day=int(day) if day else None)
+        return FHIRDate(year=year, month=self._component(node, "month"), day=self._component(node, "day"))
 
     def _eval_datetime_constructor(self, node: dict[str, Any]) -> FHIRDateTime | None:
         """Evaluate DateTime constructor."""
-        year = self.evaluate(node.get("year"))
-        month = self.evaluate(node.get("month"))
-        day = self.evaluate(node.get("day"))
-        hour = self.evaluate(node.get("hour"))
-        minute = self.evaluate(node.get("minute"))
-        second = self.evaluate(node.get("second"))
-
+        year = self._component(node, "year")
         if year is None:
             return None
 
+        offset = self.evaluate(node.get("timezoneOffset"))
         return FHIRDateTime(
-            year=int(year),
-            month=int(month) if month else None,
-            day=int(day) if day else None,
-            hour=int(hour) if hour else None,
-            minute=int(minute) if minute else None,
-            second=int(second) if second else None,
+            year=year,
+            month=self._component(node, "month"),
+            day=self._component(node, "day"),
+            hour=self._component(node, "hour"),
+            minute=self._component(node, "minute"),
+            second=self._component(node, "second"),
+            millisecond=self._component(node, "millisecond"),
+            tz_offset=None if offset is None else _iso_offset(offset),
         )
 
-    def _eval_time_constructor(self, node: dict[str, Any]) -> str | None:
+    def _eval_time_constructor(self, node: dict[str, Any]) -> FHIRTime | None:
         """Evaluate Time constructor."""
-        hour = self.evaluate(node.get("hour"))
-        minute = self.evaluate(node.get("minute"))
-        second = self.evaluate(node.get("second"))
-
+        hour = self._component(node, "hour")
         if hour is None:
             return None
 
-        parts = [f"{int(hour):02d}"]
-        if minute is not None:
-            parts.append(f"{int(minute):02d}")
-            if second is not None:
-                parts.append(f"{int(second):02d}")
-
-        return ":".join(parts)
+        return FHIRTime(
+            hour=hour,
+            minute=self._component(node, "minute"),
+            second=self._component(node, "second"),
+            millisecond=self._component(node, "millisecond"),
+        )
 
     def _eval_duration_between(self, node: dict[str, Any]) -> int | None:
         """Evaluate duration between two dates/datetimes.
@@ -2630,20 +2645,18 @@ class ELMExpressionVisitor:
             return operand
         return None
 
-    def _eval_time_from(self, node: dict[str, Any]) -> str | None:
+    def _eval_time_from(self, node: dict[str, Any]) -> FHIRTime | None:
         """Extract time from datetime."""
         operand = self._get_unary_operand(node)
         if operand is None:
             return None
-        if isinstance(operand, FHIRDateTime):
-            parts = []
-            if operand.hour is not None:
-                parts.append(f"{operand.hour:02d}")
-                if operand.minute is not None:
-                    parts.append(f"{operand.minute:02d}")
-                    if operand.second is not None:
-                        parts.append(f"{operand.second:02d}")
-            return ":".join(parts) if parts else None
+        if isinstance(operand, FHIRDateTime) and operand.hour is not None:
+            return FHIRTime(
+                hour=operand.hour,
+                minute=operand.minute,
+                second=operand.second,
+                millisecond=operand.millisecond,
+            )
         return None
 
     def _eval_timezone_offset_from(self, node: dict[str, Any]) -> float | None:

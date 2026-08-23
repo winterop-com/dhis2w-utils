@@ -100,7 +100,7 @@ class TestLiteralSerialization:
         serializer = ELMSerializer()
         elm = serializer.serialize_expression("@2024-01-15")
         assert elm["type"] == "Date"
-        assert "2024-01-15" in elm["value"]
+        assert [elm["year"]["value"], elm["month"]["value"], elm["day"]["value"]] == ["2024", "1", "15"]
 
     def test_datetime_literal(self) -> None:
         """Test datetime literal serialization."""
@@ -295,9 +295,10 @@ class TestControlFlowSerialization:
     def test_case_expression(self) -> None:
         """Test case expression serialization."""
         serializer = ELMSerializer()
-        elm = serializer.serialize_expression("case when true then 1 when false then 2 end")
+        elm = serializer.serialize_expression("case when true then 1 when false then 2 else 3 end")
         assert elm["type"] == "Case"
-        assert "caseItem" in elm
+        assert len(elm["caseItem"]) == 2
+        assert elm["else"]["value"] == "3"
 
 
 class TestCollectionSerialization:

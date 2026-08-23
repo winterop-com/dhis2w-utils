@@ -415,6 +415,45 @@ class Observation(DomainResource):
     dataAbsentReason: CodeableConcept | None = None
 
 
+class ImmunizationProtocolApplied(BackboneElement):
+    """`Immunization.protocolApplied` - which dose of a series one administration was.
+
+    `doseNumberString` rather than `doseNumberPositiveInt` because a DHIS2 option code naming a dose
+    is a code and not always a number: `Dose 0` and `IPT 1` are both dose numbers an instance states,
+    and reading either as an integer would either fail or invent one.
+    """
+
+    series: str | None = None
+    doseNumberString: str | None = None
+
+
+class Immunization(DomainResource):
+    """A FHIR R4 Immunization - one dose a summary's Immunizations section names.
+
+    The four elements the International Patient Summary asks a Creator to populate where they are
+    known are `status`, `vaccineCode`, `patient`, and `occurrence[x]`, and each of them is a fact
+    DHIS2 states about a recorded dose. `vaccineCode`'s binding in the IPS is **preferred** rather
+    than required, so a dose recorded against a DHIS2 data element is published with the DHIS2
+    coding and violates no profile - which is what lets this section carry real content while an
+    international vaccine vocabulary is still missing.
+    """
+
+    resourceType: Literal["Immunization"] = "Immunization"
+    id: str | None = None
+    meta: Meta | None = None
+    text: Narrative | None = None
+    extension: list[Extension] | None = None
+    identifier: list[Identifier] | None = None
+    status: Literal["completed", "entered-in-error", "not-done"] | None = None
+    vaccineCode: CodeableConcept | None = None
+    patient: Reference | None = None
+    encounter: Reference | None = None
+    occurrenceDateTime: str | None = None
+    occurrenceString: str | None = None
+    location: Reference | None = None
+    protocolApplied: list[ImmunizationProtocolApplied] | None = None
+
+
 class Location(DomainResource):
     """A FHIR R4 Location as generated from the physical place of one DHIS2 organisation unit."""
 
