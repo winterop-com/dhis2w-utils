@@ -5995,3 +5995,48 @@ rendered page shows `5 to &lt; 15 years, Female`. The refusal and the rewrite bo
 at that point.
 
 **Verifier:** none yet.
+
+### 107. The IG publisher's concept anchor slug strips whitespace, so two distinct codes render one duplicate anchor id
+
+**Version observed:** HL7 `fhir-ig-publisher` 2.3.2 (`publisher.jar`), FHIR R4, rendering a
+CodeSystem generated from DHIS2 2.43 metadata.
+
+**What a caller is trying to do.** Publish a `content: complete` CodeSystem enumerating every
+option code a national instance holds. DHIS2 option codes are free text, and an instance
+legitimately holds both `Pre eclampsia` and `Preeclampsia` as distinct codes on different
+option sets. A complete CodeSystem must state both - dropping either would claim a code the
+guide's ConceptMaps still reference.
+
+**Repro.** A CodeSystem holding two concepts whose codes differ only in whitespace:
+
+```json
+{"resourceType": "CodeSystem", "id": "anchor-repro", "status": "active",
+ "content": "complete", "url": "http://example.org/anchor-repro",
+ "concept": [
+   {"code": "Pre eclampsia", "display": "Pre eclampsia"},
+   {"code": "Preeclampsia", "display": "Preeclampsia"}
+ ]}
+```
+
+Build the guide. The rendered `CodeSystem-anchor-repro.html` carries the same anchor id for
+both concept rows, and QA reports it - on the real guide, as:
+
+```text
+Internal error in location for message: 'Error @1, 2: Found / expecting a token name',
+loc = '.../CodeSystem-d2-option-code-id-cs.html',
+err = 'The html source has duplicate anchor Ids: d2-option-code-id-cs-Preeclampsia'
+```
+
+**Expected.** The publisher owns its anchor scheme; two distinct codes should render two
+distinct anchors (an ordinal suffix on the collision would do), or the QA message should name
+the two source codes rather than reporting an internal error against a location the message
+itself calls malformed.
+
+**Actual.** One anchor id for both rows, a QA error per collision, and an `Internal error in
+location` line above it. The build still exits 0 - the errors are QA-level.
+
+**Workaround applied in this repo:** none in the emission - `resources/identifier_terminology.py`
+deliberately keeps both codes, because merging codes that differ only in characters the
+publisher's slug strips would make a `content: complete` claim false
+(`_distinct_concepts` dedupes exact duplicates only). The QA errors are cosmetic and counted
+among a guide's expected errors; `docs/fhir/201-troubleshooting.md` names the symptom.
