@@ -14,12 +14,14 @@ app shows them).
 - narrow which option sets and categories become code lists
 - say what each tracked entity type is published as, scope the
   organisation-unit registry, and choose how example responses are made
+- say which tracked entity attribute holds a person's name, birth date, and sex
 - tell a misspelled UID from a missing object after a run
 
 This page covers the options that decide which of your DHIS2 metadata the
-guide covers: the six selection tables (option sets, categories, data sets,
-event programs, tracker programs, tracked entity forms), the organisation unit
-scope, what tracked entity types are, and the example responses. These are the
+guide covers and what it means: the six selection tables (option sets,
+categories, data sets, event programs, tracker programs, tracked entity forms),
+the organisation unit scope, what tracked entity types are, the example
+responses, and which attribute carries which fact about a person. These are the
 options an M&E officer changes most often - adding a data set to the guide is
 one line here.
 
@@ -498,6 +500,133 @@ and safe everywhere.
 pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
 generate.examples.source
   Input should be 'synthetic' or 'instance' [type=literal_error, input_value='real', input_type=str]
+```
+
+## The `[ips.identity]` table { #ips-identity }
+
+Every other table on this page says which of your DHIS2 metadata the guide
+covers. This one says what a piece of it *means*: which tracked entity
+attribute holds a person's name, which holds their birth date, and which holds
+their sex.
+
+**Why anybody has to say.** DHIS2 has no name field, no sex field, and no
+date-of-birth field. It has tracked entity attributes, and which of them mean
+those things is a decision each instance made for itself, usually differently -
+one instance splits a name across `First name` and `Last name`, the next keeps
+`Full name`, the third keeps neither and identifies people by a household
+register number. A server that matched on attribute names would be guessing,
+and a wrong name on a patient record is a worse answer than none. So a person
+served out of your register carries a name when a line here says which
+attribute it is, and not otherwise.
+
+**What it reaches today.** The register: the `Patient` a live run answers
+`GET /Patient/{uid}` with, and every match in a search
+([Serving it](301-serving.md#tracked_entities-resources)). It reaches nothing
+else yet. The design behind it, including what it is a first step toward, is
+[the IPS document](design/ips.md).
+
+**Example.**
+
+```toml
+[ips.identity]
+name = "w75KJ2mc4zz"          # First name
+birth_date = "iESIqZ0R0R0"    # Date of birth
+sex = "cejWyOfXge6"           # Gender
+
+[ips.identity.administrative_gender]
+"Male" = "male"
+"Female" = "female"
+```
+
+A person served out of that instance carries `name`, `birthDate`, and
+`gender`.
+
+**Only UIDs, never names.** Attribute names are not unique in DHIS2 and change
+without notice - the same rule the selection tables run under. The guide
+already publishes the names it reads off your instance as the `D2TEA`
+vocabulary, so nothing is lost by writing the id.
+
+**Nothing is replaced, and nothing is removed.** The attribute's own value
+still rides the served resource as a labelled extra, exactly as it did before
+you nominated anything. A nomination adds a reading of a value; a reader who
+disagrees with it can still see what DHIS2 holds.
+
+**Default:** absent - **If you leave it out:** the register answers exactly
+what it always answered: the record's DHIS2 id, the values of the attributes
+DHIS2 declares unique, and the rest as labelled extras. Nothing about a person
+changes until you write a line here.
+
+### `name` { #ips-name }
+
+**In plain words.** The tracked entity attribute whose value is published as
+the person's name.
+
+**One attribute, published as free text.** There is no `family_name` key and no
+given/family split. FHIR is satisfied by a name given as plain text, and which
+half of a person's name an attribute holds is a fact DHIS2 does not state - an
+instance keeping given and family names apart nominates the one it wants read
+rather than having this project guess. The value is published as written, with
+only leading and trailing spaces dropped.
+
+**If you get it wrong:** a value that is not a UID is refused when the file
+loads, naming the key. An attribute your guide publishes as something other
+than free text refuses the run when the server starts, naming the key and the
+value type it found.
+
+### `birth_date` { #ips-birth_date }
+
+**In plain words.** The tracked entity attribute whose value is published as
+the person's birth date. The attribute must be a DHIS2 date.
+
+**What happens to a person who has none.** The element is kept and its absence
+is stated in the record itself, under the standard FHIR extension for exactly
+that. Two different absences are told apart: `unknown` where the instance holds
+no value at all, and `error` where it holds one this server cannot read as a
+date. A person is a row, not the table - nominating an attribute is a statement
+about the attribute, not a promise about everybody in the register.
+
+**If you get it wrong:** as `name`, and an attribute your guide publishes as
+anything but a DHIS2 `DATE` refuses the run.
+
+### `sex` { #ips-sex }
+
+**In plain words.** The tracked entity attribute whose values
+`administrative_gender` below reads as the person's gender. The attribute must
+be free text, and in practice it is bound to an option set.
+
+**If you get it wrong:** a `sex` nominated with no map under it is refused when
+the file loads - it would publish no gender for anybody, which is not a posture
+anyone asks for on purpose.
+
+### `administrative_gender` { #ips-administrative_gender }
+
+**In plain words.** What each value of that attribute means, in FHIR's four
+words: `male`, `female`, `other`, `unknown`. FHIR admits those four and no
+others, so this is a translation rather than a rename, and somebody has to
+write it.
+
+**The key is the value DHIS2 stores.** On an attribute bound to an option set
+that is the option's DHIS2 code - `Male`, not the option's name and not its
+UID. Look at what the Maintenance app shows under the option's **Code**.
+
+**What a value the map does not mention does.** The person is served with no
+`gender` at all. The value itself is still there as a labelled extra, so
+nothing is hidden - there is simply no FHIR word for it, and inventing one
+would be the guess this table exists to avoid.
+
+**It is published, not private.** `d2w fhir generate` writes these rows out as
+a concept map in the guide, so somebody reading your published guide can check
+the translation without holding your `fhir.toml`
+([Terminology and ConceptMaps](401-terminology-and-conceptmaps.md#the-sex-values-a-person-is-served-under)).
+
+**If you get it wrong:** a fifth word is refused when the file loads, naming
+the value that was mapped and listing the four that are allowed:
+
+```text
+pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
+ips.identity
+  Value error, the DHIS2 value 'M' is mapped to 'man', which is not one of R4's
+  administrative-gender codes: name one of male, female, other, unknown
 ```
 
 Next: [How things are generated](301-generation.md) - identifiers, codes,

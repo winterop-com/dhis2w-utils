@@ -66,6 +66,15 @@ class CaptureNaming(BaseModel):
     tracked_entity_system: str
     tracker_enrollment_system: str
     program_identifier_system: str
+    program_stage_identifier_system: str
+    """Identifier system a served Questionnaire names the DHIS2 program stage it was generated from under.
+
+    What finds the form one recorded event answers: an event states its stage's UID, and the stage's
+    form is the served Questionnaire carrying that UID under this system. The join is by identifier
+    rather than by canonical, because what a form is called follows `[generate.naming] source` and
+    what it is about does not.
+    """
+
     generate_seed_system: str
     """Identifier system the seed a `$generate` response was drawn from is stated under."""
 
@@ -99,6 +108,7 @@ class CaptureNaming(BaseModel):
             tracked_entity_system=_identifier_system(base, "TrackedEntity"),
             tracker_enrollment_system=_identifier_system(base, "TrackerEnrollment"),
             program_identifier_system=_identifier_system(base, "Program"),
+            program_stage_identifier_system=_identifier_system(base, "ProgramStage"),
             generate_seed_system=f"{canonical}/{GENERATE_SEED_IDENTIFIER_SEGMENT}",
             aggregate_response_profile_url=_definition_url(canonical, names.aggregate_response_profile_id),
             event_response_profile_url=_definition_url(canonical, names.event_response_profile_id),

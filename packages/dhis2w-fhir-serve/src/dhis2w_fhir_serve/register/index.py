@@ -26,6 +26,18 @@ for that translation is already in the store, put there by the generate targets:
 
 A project that publishes no registration form has no tracked entity type, and every lookup here
 answers empty. That is the honest reading of a guide with nobody in it, and the route says so.
+
+ONE FACT HERE COMES FROM `fhir.toml` RATHER THAN FROM THE GUIDE, AND ONLY ONE. `[ips.identity]`
+nominates which tracked entity attribute carries a person's name, birth date, and sex, and the guide
+publishes that nomination nowhere: `D2TEA_CS` states what an attribute is called and what type its
+values are, and no artifact states what one *means*. So the nominations are read from the project
+here and checked against the vocabulary while the server starts - a nomination whose published value
+type cannot fill the element it was nominated for refuses the run, naming the key and the type it
+found (`docs/fhir/design/ips.md` section 4, "Value-shape validation"). The map from a sex value onto
+`administrative-gender` is published as a ConceptMap by `d2w fhir generate`, so a consumer audits the
+translation without holding this file, but what the server performs it reads from the file - the
+nominations the map depends on are not published, and half a dial read from an artifact and half
+from a file would be worse than either.
 """
 
 from __future__ import annotations
@@ -37,6 +49,7 @@ from dhis2w_fhir.foundation.tracked_entity_attribute_values import (
     tracked_entity_attribute_identifier_system,
     tracked_entity_attribute_value_extension_url,
 )
+from dhis2w_fhir.ips import IdentityNominations, nominated_value_type_issues
 from dhis2w_fhir.r4 import CodeSystem, ConceptMap
 from dhis2w_fhir.r4.schemas import DEFAULT_SUBJECT_RESOURCE_TYPE
 from dhis2w_fhir.resources.examples.documents import TRACKED_ENTITY_IDENTIFIER_SEGMENT
@@ -64,13 +77,24 @@ REGISTRY_RESOURCE_TYPES = ("Organization", "Location")
 ORGANISATION_UNIT_IDENTIFIER_SEGMENT = "org-unit"
 PROGRAM_IDENTIFIER_SEGMENT = "program"
 
-#: The `D2TEA_CS` concept properties this index reads: the DHIS2 code, and the two flags that make
-#: an attribute a search key - uniqueness, and the searchability DHIS2 declares for a lookup.
+#: The `D2TEA_CS` concept properties this index reads: the DHIS2 code, the two flags that make an
+#: attribute a search key - uniqueness, and the searchability DHIS2 declares for a lookup - and the
+#: DHIS2 value type an identity nomination is checked against.
 CODE_CONCEPT_PROPERTY = "dhis2-code"
 UNIQUE_CONCEPT_PROPERTY = "unique"
 SEARCHABLE_CONCEPT_PROPERTY = "searchable"
+VALUE_TYPE_CONCEPT_PROPERTY = "value-type"
 
 logger = logging.getLogger(LOGGER_NAME)
+
+
+class NominatedAttributeError(ValueError):
+    """A `[ips.identity]` nomination the published vocabulary says cannot fill the element it names.
+
+    Raised while the index is built, so a run that would publish a birth date read off a phone number
+    never opens its socket. It is the failure mode `[generate.tracked_entity_types]` has for a
+    resource type that is not one, moved to the one check that needs the guide in hand.
+    """
 
 
 class PublishedAttribute(BaseModel):
@@ -84,6 +108,9 @@ class PublishedAttribute(BaseModel):
     unique: bool = False
     searchable: bool = False
     """Whether DHIS2 declares the attribute searchable in any context this guide publishes."""
+
+    value_type: str | None = None
+    """The DHIS2 value type `D2TEA_CS` publishes for the attribute, or None where it publishes none."""
 
     identifier_system: str
     """The system a value of this attribute is carried under when DHIS2 declares the attribute unique."""
@@ -121,6 +148,8 @@ class TrackedEntityIndex(BaseModel):
     attributes: tuple[PublishedAttribute, ...] = ()
     program_names: dict[str, str] = Field(default_factory=dict)
     organisation_unit_names: dict[str, str] = Field(default_factory=dict)
+    identity: IdentityNominations = Field(default_factory=IdentityNominations)
+    """The `[ips.identity]` nominations this project states - the one fact here read from `fhir.toml`."""
 
     _attributes_by_uid: dict[str, PublishedAttribute] = PrivateAttr(default_factory=dict)
     _attributes_by_system: dict[str, PublishedAttribute] = PrivateAttr(default_factory=dict)
@@ -156,6 +185,8 @@ class TrackedEntityIndex(BaseModel):
                 mapping = _mapped_tracked_entity_types(entry)
             elif entry.resource_type in REGISTRY_RESOURCE_TYPES:
                 _record_name(entry, organisation_unit_system, organisation_unit_names, "name")
+        identity = project.config.ips.identity
+        _refuse_unfillable_nominations(identity, attributes)
         return cls(
             tracked_entity_system=f"{base}/id/{TRACKED_ENTITY_IDENTIFIER_SEGMENT}",
             tracked_entity_type_system=tracked_entity_type_system,
@@ -167,6 +198,7 @@ class TrackedEntityIndex(BaseModel):
             attributes=attributes,
             program_names=program_names,
             organisation_unit_names=organisation_unit_names,
+            identity=identity,
         )
 
     def model_post_init(self, context: Any, /) -> None:
@@ -290,11 +322,14 @@ def _published_attributes(entry: StoreEntry, identifier_system_base: str) -> tup
         if concept.code is None:
             continue
         code: str | None = None
+        value_type: str | None = None
         unique = False
         searchable = False
         for concept_property in concept.property or []:
             if concept_property.code == CODE_CONCEPT_PROPERTY:
                 code = concept_property.valueString
+            elif concept_property.code == VALUE_TYPE_CONCEPT_PROPERTY:
+                value_type = concept_property.valueCode or concept_property.valueString
             elif concept_property.code == UNIQUE_CONCEPT_PROPERTY:
                 unique = bool(concept_property.valueBoolean)
             elif concept_property.code == SEARCHABLE_CONCEPT_PROPERTY:
@@ -306,7 +341,39 @@ def _published_attributes(entry: StoreEntry, identifier_system_base: str) -> tup
                 code=code,
                 unique=unique,
                 searchable=searchable,
+                value_type=value_type,
                 identifier_system=tracked_entity_attribute_identifier_system(identifier_system_base, concept.code),
             )
         )
     return tuple(published)
+
+
+def _refuse_unfillable_nominations(identity: IdentityNominations, attributes: tuple[PublishedAttribute, ...]) -> None:
+    """Refuse the run when a nominated attribute's published value type cannot fill its FHIR element.
+
+    An attribute the guide publishes nothing about is not refused - it is outside this project's
+    selection, and the run is told so once rather than stopped. `[serve.tracked_entities]
+    search_attributes` already settles that an operator naming an attribute outstates what the
+    vocabulary happens to carry about it, and the nomination is read either way.
+    """
+    if not identity.nominates_anything():
+        return
+    value_types = {
+        attribute.attribute_uid: attribute.value_type for attribute in attributes if attribute.value_type is not None
+    }
+    issues = nominated_value_type_issues(identity, value_types)
+    if issues:
+        # Logged before it is raised, because the store is built inside the server's own startup:
+        # what reaches the terminal otherwise is a traceback with the sentence at the bottom of it,
+        # and the sentence is the whole of what an operator has to read.
+        refusal = "\n".join(issue.message() for issue in issues)
+        for line in refusal.splitlines():
+            logger.error("%s", line)
+        raise NominatedAttributeError(refusal)
+    for attribute_uid in identity.nominated_attribute_uids():
+        if attribute_uid not in value_types:
+            logger.warning(
+                "[ips.identity] nominates tracked entity attribute %s, which this guide publishes nothing "
+                "about: its value type could not be checked, and its values are served as nominated",
+                attribute_uid,
+            )

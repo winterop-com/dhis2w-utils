@@ -25,6 +25,7 @@ from dhis2w_fhir.config import (
     GenerateConfig,
     HostileNamePosture,
     IgConfig,
+    IpsConfig,
     MalformedFhirConfigError,
     NamingConfig,
     NoFhirProjectError,
@@ -181,6 +182,20 @@ from dhis2w_fhir.foundation import (
 )
 from dhis2w_fhir.hostile_names import HostileNameConfirmation, HostileNameGate, HostileNameRewrite
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, normalize_locale
+from dhis2w_fhir.ips import (
+    ADMINISTRATIVE_GENDER_CODE_SYSTEM_URL,
+    ADMINISTRATIVE_GENDER_CODES,
+    ADMINISTRATIVE_GENDER_VALUE_SET_URL,
+    DATA_ABSENT_ERROR,
+    DATA_ABSENT_UNKNOWN,
+    NOMINATION_VALUE_TYPES,
+    AdministrativeGender,
+    IdentityNominations,
+    NominatedValueTypeIssue,
+    ServedIdentity,
+    nominated_value_type_issues,
+    served_identity,
+)
 from dhis2w_fhir.names import (
     DHIS2_UID_LENGTH,
     CodeStemError,
@@ -217,6 +232,15 @@ from dhis2w_fhir.period import (
     PeriodValue,
     parse_period,
     recent_periods,
+)
+from dhis2w_fhir.resources.administrative_gender import (
+    ADMINISTRATIVE_GENDER_MAP_DESCRIPTION,
+    ADMINISTRATIVE_GENDER_MAP_TITLE,
+    administrative_gender_map_file_prefix,
+    administrative_gender_map_id,
+    administrative_gender_map_name,
+    build_administrative_gender_concept_map,
+    build_administrative_gender_concept_map_artifacts,
 )
 from dhis2w_fhir.resources.attribute_combos import (
     ATTRIBUTE_COMBO_DIRECTORY,
@@ -605,6 +629,15 @@ from dhis2w_fhir.writer import (
 )
 
 __all__ = [
+    "ADMINISTRATIVE_GENDER_CODE_SYSTEM_URL",
+    "ADMINISTRATIVE_GENDER_CODES",
+    "ADMINISTRATIVE_GENDER_MAP_DESCRIPTION",
+    "administrative_gender_map_file_prefix",
+    "administrative_gender_map_id",
+    "administrative_gender_map_name",
+    "ADMINISTRATIVE_GENDER_MAP_TITLE",
+    "ADMINISTRATIVE_GENDER_VALUE_SET_URL",
+    "AdministrativeGender",
     "aggregate_cells",
     "aggregate_generate_note",
     "aggregate_note",
@@ -647,6 +680,8 @@ __all__ = [
     "BOUNDS_BY_VALUE_TYPE",
     "build_aborting_code",
     "build_aborting_name",
+    "build_administrative_gender_concept_map",
+    "build_administrative_gender_concept_map_artifacts",
     "build_assignment_artifacts",
     "build_attribute_combo_artifacts",
     "build_attribute_combo_concept_map_artifacts",
@@ -743,6 +778,8 @@ __all__ = [
     "ConversionResult",
     "ConversionTargetKind",
     "CorrectionPosture",
+    "DATA_ABSENT_ERROR",
+    "DATA_ABSENT_UNKNOWN",
     "DATA_ELEMENT_TERMINOLOGY",
     "DATA_VALUE_SET_ELEMENTS",
     "DataDictionaryDocumentBuild",
@@ -882,11 +919,13 @@ __all__ = [
     "HostileNameGate",
     "HostileNamePosture",
     "HostileNameRewrite",
+    "IdentityNominations",
     "IgConfig",
     "IMPORT_REPORT_SUFFIX",
     "init_project",
     "InitOptions",
     "INTRO_SUFFIX",
+    "IpsConfig",
     "is_default_category",
     "is_dhis2_uid",
     "is_disaggregated",
@@ -929,6 +968,9 @@ __all__ = [
     "NamingSource",
     "NamingSystemDeclaration",
     "NoFhirProjectError",
+    "nominated_value_type_issues",
+    "NominatedValueTypeIssue",
+    "NOMINATION_VALUE_TYPES",
     "normalize_locale",
     "normalize_project_name",
     "NumericBounds",
@@ -1055,6 +1097,8 @@ __all__ = [
     "ServeAuth",
     "ServeAuthScope",
     "ServeConfig",
+    "served_identity",
+    "ServedIdentity",
     "ServeJwtConfig",
     "SeverityBreakdown",
     "SITE_PAGE_FILENAMES",

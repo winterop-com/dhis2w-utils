@@ -187,7 +187,7 @@ Four pages cover the file between them:
 | Page | Sections covered |
 | --- | --- |
 | [Who the guide is](301-identity.md) | `profile`, `[ig]` - which DHIS2 server it reads, and the guide's own identity |
-| [What goes in](301-what-goes-in.md) | the six selection tables, `[generate.tracked_entity_types]`, `[generate.organisation_units]`, `[generate.examples]` - which of your DHIS2 metadata the guide covers |
+| [What goes in](301-what-goes-in.md) | the six selection tables, `[generate.tracked_entity_types]`, `[generate.organisation_units]`, `[generate.examples]`, `[ips.identity]` - which of your DHIS2 metadata the guide covers, and which attribute carries which fact about a person |
 | [How things are generated](301-generation.md) | `[generate]`, `[generate.naming]` - identifier addresses, code choices, time zone, languages, and everything about naming |
 | [Serving it](301-serving.md) | `[serve]`, `[serve.tracked_entities]`, `[serve.search]`, `[serve.projection]`, `[[serve.basemaps]]`, `[forward]` - how the local capture server runs, what it answers about people, what answers a search for one, where the synced copy of the register lives, and how forwarding behaves |
 
@@ -256,6 +256,10 @@ the file refuses.
 | `[forward]` | [`overwrites`](301-serving.md#overwrites) | `"allow"` | whether a figure a previous submission already sent is sent again and named, or the form left in the queue |
 | `[forward]` | [`corrections`](201-forward.md#where-a-runs-posture-comes-from) | `"off"` | whether this deployment accepts a submission that names the receipt it amends |
 | `[forward]` | [`withdrawals`](201-forward.md#withdraw-what-you-forwarded) | `"off"` | whether `d2w fhir withdraw` may take back from DHIS2 what a forwarded receipt landed |
+| `[ips.identity]` | [`name`](301-what-goes-in.md#ips-name) | unset | which tracked entity attribute holds a person's name |
+| `[ips.identity]` | [`birth_date`](301-what-goes-in.md#ips-birth_date) | unset | which tracked entity attribute holds a person's birth date |
+| `[ips.identity]` | [`sex`](301-what-goes-in.md#ips-sex) | unset | which tracked entity attribute holds a person's sex |
+| `[ips.identity.administrative_gender]` | [value = gender](301-what-goes-in.md#ips-administrative_gender) | unset | what each value of that attribute means, in FHIR's four words |
 
 What the generated output itself looks like from the inside - the identifier
 families, the code-list structures - is the integrate-tier's territory:

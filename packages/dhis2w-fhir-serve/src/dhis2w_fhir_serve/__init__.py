@@ -67,6 +67,7 @@ from dhis2w_fhir_serve.errors import (
     NotServedFromCompiledIgError,
     ProjectionEmptyError,
     ProjectionNotConfiguredError,
+    RecordDisabledError,
     RegisterDisabledError,
     RegisterListingDisabledError,
     ServeError,
@@ -84,6 +85,14 @@ from dhis2w_fhir_serve.evaluation import (
     evaluate_source,
     json_safe,
     syntax_diagnostic,
+)
+from dhis2w_fhir_serve.history.projection import ProjectedEvent, ProjectedRecord, RecordProjection
+from dhis2w_fhir_serve.history.wire import (
+    TRACKED_ENTITY_RECORD_FIELDS,
+    RecordedEvent,
+    RecordedValue,
+    TrackedEntityRecord,
+    fetch_tracked_entity_record,
 )
 from dhis2w_fhir_serve.live import build_live_store, open_live_client
 from dhis2w_fhir_serve.log import RequestLogMiddleware, configure_logging
@@ -150,7 +159,12 @@ from dhis2w_fhir_serve.projection.sync import (
     SyncResourceCounts,
     run_sync,
 )
-from dhis2w_fhir_serve.register.index import PublishedAttribute, PublishedTrackedEntityType, TrackedEntityIndex
+from dhis2w_fhir_serve.register.index import (
+    NominatedAttributeError,
+    PublishedAttribute,
+    PublishedTrackedEntityType,
+    TrackedEntityIndex,
+)
 from dhis2w_fhir_serve.register.listing import (
     COUNT_PARAMETER,
     PAGE_PARAMETER,
@@ -158,7 +172,7 @@ from dhis2w_fhir_serve.register.listing import (
     RegisterListingPage,
     read_listing_page,
 )
-from dhis2w_fhir_serve.register.projection import registered_entity_for
+from dhis2w_fhir_serve.register.projection import PERSON_RESOURCE_TYPES, registered_entity_for
 from dhis2w_fhir_serve.register.surface import RegisterSurface, ServedRegister
 from dhis2w_fhir_serve.register.wire import (
     INCLUDE_DELETED_PARAMETER,
@@ -203,6 +217,11 @@ from dhis2w_fhir_serve.routes.evaluate import (
     InlineResourceContext,
     RegisteredEntityContext,
     StoredResourceContext,
+)
+from dhis2w_fhir_serve.routes.history import (
+    TRACKED_ENTITY_EVENT_PATH,
+    TRACKED_ENTITY_EVENTS_PATH,
+    RecordPage,
 )
 from dhis2w_fhir_serve.routes.negotiation import require_json_is_acceptable
 from dhis2w_fhir_serve.routes.spool import (
@@ -368,6 +387,7 @@ __all__ = [
     "fetch_issuer_discovery",
     "fetch_published_keys",
     "fetch_tracked_entity",
+    "fetch_tracked_entity_record",
     "FHIR_JSON_MEDIA_TYPE",
     "FHIRPATH_RESULT_NAME",
     "find_translations",
@@ -405,6 +425,7 @@ __all__ = [
     "NameQuery",
     "NameSearchIndex",
     "new_response_id",
+    "NominatedAttributeError",
     "NoPublishedSubjectTypeError",
     "NotFoundError",
     "NotServedError",
@@ -419,13 +440,16 @@ __all__ = [
     "page_of",
     "PAGE_PARAMETER",
     "PassThroughUnavailableError",
+    "PERSON_RESOURCE_TYPES",
     "poll_enrollments",
     "POLL_ORDER",
     "POLL_PAGE_SIZE",
     "poll_tracked_entities",
     "preflight_auth",
+    "ProjectedEvent",
     "ProjectedIdentifierRow",
     "ProjectedNameRow",
+    "ProjectedRecord",
     "ProjectedResource",
     "ProjectedResourceKey",
     "ProjectedResourceRow",
@@ -449,6 +473,11 @@ __all__ = [
     "read_listing_page",
     "read_serve_tokens",
     "RECEIVED_RESPONSES_RELATIVE_PATH",
+    "RecordDisabledError",
+    "RecordedEvent",
+    "RecordedValue",
+    "RecordPage",
+    "RecordProjection",
     "register_error_handlers",
     "register_reader",
     "register_routes",
@@ -523,10 +552,14 @@ __all__ = [
     "TouchedPage",
     "TouchedRow",
     "TRACKED_ENTITY_ENROLLMENTS_PATH",
+    "TRACKED_ENTITY_EVENT_PATH",
+    "TRACKED_ENTITY_EVENTS_PATH",
     "TRACKED_ENTITY_FIELDS",
+    "TRACKED_ENTITY_RECORD_FIELDS",
     "TrackedEntityEnrollment",
     "TrackedEntityEnrollments",
     "TrackedEntityIndex",
+    "TrackedEntityRecord",
     "TranslateRequest",
     "TranslationMatch",
     "UiBundleMissingError",

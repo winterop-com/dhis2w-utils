@@ -1491,11 +1491,13 @@ Everything this section used to hold has shipped, and a roadmap states what is
 next rather than what happened - section 2 is where the built surface is
 described, and the git history is where it was built. What is left:
 
-- **The history surface, then the IPS document.** History is the requirements
-  list the capture comparison produced; the IPS document follows it, because a
-  summary of a person is only worth publishing once the record it summarises
-  can be read. The IPS working paper carries five reserved decisions and a
-  prototype ready to walk.
+- **The IPS document.** The record it summarises can now be read: one tracked
+  entity's events are served at `GET /tracked-entities/{uid}/events`, each as
+  the QuestionnaireResponse its programme stage's published form describes, and
+  a summary is a projection over that. The IPS working paper carries five
+  reserved decisions and a prototype ready to walk. What the record still leaves
+  to the summary is the clinical vocabulary: the events carry the codes this
+  guide publishes, and no mapping from those onto SNOMED CT or LOINC exists.
 
 - **Native FHIR resource intake - the capture contract's second door.** Today a
   capture is a QuestionnaireResponse; clients that already speak Observation,
@@ -1661,37 +1663,35 @@ described, and the git history is where it was built. What is left:
   entity type is served as, `Patient` being only the default. Each is read from the
   instance per request, and
   each offered or withheld by `[serve.tracked_entities]`, whose defaults offer everything and
-  whose reason to exist is the deployment that wants less. What remains is the data
-  half: the same facade answering FHIR
-  consumers **from DHIS2's data**, not just its metadata - stored
-  QuestionnaireResponses served from live `dataValueSets` / tracker reads (the
-  instance-sourced example builders already prove the projection), so a FHIR client
-  can round-trip: capture through the guide, read back through the guide, without
-  ever speaking the DHIS2 API. Serve's `--live` mode is the natural host (it already
-  holds a client at startup); the open questions are freshness (per-request reads
-  versus a refresh cadence against a national instance's latencies) and scope (which
-  consumers get the read surface - the capture UI's Responses page reading live DHIS2
-  would be its first customer, closing the loop the receipts deliberately do not:
-  a receipt is the submission as received, the output leg is what DHIS2 made of it).
+  whose reason to exist is the deployment that wants less. The tracker half of the
+  data leg is served beside them: `GET /tracked-entities/{uid}/events` answers one
+  entity's own events as the QuestionnaireResponses their programme stages'
+  published forms describe, so a FHIR client can round-trip a tracker event -
+  capture through the guide, read back through the guide, without ever speaking the
+  DHIS2 API. What remains of the data leg is the aggregate half: no `dataValueSets`
+  read is proxied, so "what does DHIS2 hold for this form, this period, this
+  organisation unit" is still a question this facade does not answer. Two customers
+  are waiting for the half that shipped: the capture UI's Responses page reading
+  live DHIS2 beside its receipts, and the entity timeline the screens do not draw
+  yet.
 
-- **Tracked entity history.** From a person - or any tracked entity type the
-  screens browse - to their record over time: the enrollments the listing
-  already serves, opened into the events under each with their data values,
-  rendered as the entity's timeline in the capture UI and served through the
-  facade as the output leg's data half's first concrete surface. The reads are
-  entity-scoped throughout (the owner-aware discipline BUGS.md 69 forces), and
-  the ratified enrollment resource (EpisodeOfCare for Patient subjects,
-  decision 5.2) is the FHIR shape the history hangs off. The owner's framing:
-  browse the register, open one entity, get its history.
+- **The record on the screens.** The facade serves it -
+  `GET /tracked-entities/{uid}/events`, entity-scoped throughout, each event as
+  the response its stage's own form describes - and the capture UI does not draw
+  it. The owner's framing is the shape of the screen: browse the register, open
+  one entity, get its history. Two things sit beside that work: the enrollment
+  the record hangs off is still typed JSON rather than the ratified resource
+  (decision 5.2), and a timeline is where a corrected or withdrawn event would
+  first be visible as such.
 - **IPS - the International Patient Summary.** The capstone consumer of the
   history: assemble the HL7 IPS document (R4, the `hl7.fhir.uv.ips` shapes)
   for one person from what the instance holds - identity from the Patient
   projection, enrollments as episodes, event data as the summary's sections
   where a mapping to IPS section semantics exists, and honest absence
   everywhere it does not (the projection's no-invented-demographics rule
-  scales to no-invented-clinical-content). Owner-requested; sequenced after
-  tracked entity history, since a summary is a projection of a record the
-  facade must first serve. The working paper behind this item is
+  scales to no-invented-clinical-content). Owner-requested; the record it
+  summarises is served, so what it waits on is the mappings rather than a read.
+  The working paper behind this item is
   [The IPS document](ips.md): what IPS v2.0.1 requires section by section, the
   identity and section gaps measured against the register projection, and a
   recommendation with the owner decisions it reserves.

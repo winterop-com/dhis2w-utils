@@ -17,6 +17,13 @@ The QuestionnaireResponse entry is the one that says what the facade is: respons
 and stored as receipts. Reading one back returns the submission as it arrived, never a live view
 of what DHIS2 now holds.
 
+Where a live run serves the record, that entry says the other half too: what DHIS2 now holds about one
+tracked entity is read at `/tracked-entities/{uid}/events`, in the same shape and under the same
+profiles. It is stated in the documentation rather than declared as an interaction because it is not
+one - the address is the tracked entity's, and `read` and `search-type` on this type are the receipts.
+The register's own entries carry the pointer as well, so a client that found somebody learns where
+their record is without reading the whole statement.
+
 A process serving `[serve] capture = false` declares that entry without `create`, and with nothing
 else about it changed. The receipts it already holds are read and searched at the same address, so
 dropping their interactions would be this statement claiming less than the server does. `$generate`
@@ -183,6 +190,12 @@ CONTENT_SEARCH_DOCUMENTATION = (
     "found from another."
 )
 
+#: What a register entry adds where the record is served: where to read what happened to one of them.
+REGISTER_RECORD_DOCUMENTATION = (
+    "What one of them has been through is read at `GET /tracked-entities/{uid}/events`, as one "
+    "QuestionnaireResponse per event of their enrollments."
+)
+
 #: What a register entry states about several identifiers in one search, which widen rather than narrow.
 IDENTIFIER_UNION_DOCUMENTATION = (
     "Several identifiers are alternatives rather than conditions: comma-separated values and the "
@@ -204,6 +217,21 @@ RESPONSE_DOCUMENTATION = "One response per request; stored responses are receipt
 #: What that entry states instead on a server that receives nothing, since "one per request" would
 #: describe an interaction this process refuses.
 RESPONSE_VIEWER_DOCUMENTATION = "Stored responses are receipts of what was submitted; this server receives no new ones"
+
+#: What the same entry adds where the record is served, which is the other half of the same sentence.
+#:
+#: A receipt and a record are two documents of one resource type answering two questions, and a client
+#: reading this entry has to be able to tell them apart before it asks: a receipt is what a client sent
+#: and is read at `QuestionnaireResponse/{id}`, and a record is what the instance holds now and is read
+#: under the tracked entity it belongs to. The address is stated here rather than declared as an
+#: interaction because it is not one: `read` and `search-type` on this entry are the receipts.
+RECORD_DOCUMENTATION = (
+    "What the instance holds about one tracked entity now is a different read, at "
+    "`GET /tracked-entities/{uid}/events`: every event of that entity's enrollments, newest first, each "
+    "as the response the program stage's own published form describes, and each read from DHIS2 at "
+    "request time under the authorization of whoever asked. `_count` and `page` walk it, and one event "
+    "is read at `GET /tracked-entities/{uid}/events/{eventUid}`."
+)
 
 _REST_DOCUMENTATION = (
     "One QuestionnaireResponse per request on create; every other interaction is a read over the "
@@ -345,7 +373,12 @@ def build_server_capability(
     names = FoundationNaming.from_naming(project.config.generate.naming)
     store_mode = "live" if settings.live else "compiled"
     resources = [
-        _response_resource(project, canonical, capture=settings.capture),
+        _response_resource(
+            project,
+            canonical,
+            capture=settings.capture,
+            record=settings.live and register_surface.serves_events(),
+        ),
         *(
             _read_resource(resource_type, project.config.generate.identifier_system_base, canonical, names)
             for resource_type in SERVED_READ_RESOURCE_TYPES
@@ -504,9 +537,10 @@ def _register_documentation(
         f"{register_documentation(register.resource_type, _type_labels(register))} {IDENTIFIER_UNION_DOCUMENTATION}"
     )
     listing = LISTING_DOCUMENTATION if register_surface.serves_listing() else LISTING_OFF_DOCUMENTATION
+    record = f" {REGISTER_RECORD_DOCUMENTATION}" if register_surface.serves_events() else ""
     if settings.search.backend is not SearchBackend.PROJECTION:
-        return f"{stated} {listing}"
-    return f"{stated} {listing} {PROJECTION_DOCUMENTATION}"
+        return f"{stated} {listing}{record}"
+    return f"{stated} {listing} {PROJECTION_DOCUMENTATION}{record}"
 
 
 def _operations(
@@ -537,19 +571,28 @@ def _operations(
     return None
 
 
-def _response_resource(project: FhirProject, canonical: str, *, capture: bool) -> CapabilityStatementResource:
+def _response_resource(
+    project: FhirProject, canonical: str, *, capture: bool, record: bool = False
+) -> CapabilityStatementResource:
     """Declare the capture type: create where this server receives, read and search either way.
 
     The profiles are `CAPTURED_FORM_KINDS` resolved through the project's own naming, which is the
     same list `d2-capture-server.fsh` declares - a statement of what this facade both validates on
     receipt and translates into a DHIS2 payload on forward. They stay declared with capture off,
     because they are what the receipts on disk conform to and a client reading one still resolves them.
+
+    `record` states the other half of what this resource type means here: where a live run serves one
+    tracked entity's own events, the same profiles describe documents read from the instance rather
+    than received from a client, and the entry says which address answers which question. The
+    interactions are unchanged, because a record is read under the tracked entity it belongs to and
+    not at this type's own address.
     """
     declarations = build_captured_response_profile_declarations(project.config.generate)
+    stated = RESPONSE_DOCUMENTATION if capture else RESPONSE_VIEWER_DOCUMENTATION
     return CapabilityStatementResource(
         type=QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE,
         supportedProfile=[f"{canonical}/StructureDefinition/{declaration.profile_id}" for declaration in declarations],
-        documentation=RESPONSE_DOCUMENTATION if capture else RESPONSE_VIEWER_DOCUMENTATION,
+        documentation=f"{stated}. {RECORD_DOCUMENTATION}" if record else stated,
         interaction=[
             *([CapabilityStatementInteraction(code="create")] if capture else []),
             CapabilityStatementInteraction(code="read"),

@@ -434,6 +434,8 @@ identically either way. What needs live is the register.
 | `GET /spool` | every receipt with its lifecycle, counts, and import rollups |
 | `GET /uiconfig` | basemaps, the DHIS2 base URL, the register configuration |
 | `GET /tracked-entities/{uid}/enrollments` | one entity's program enrollments |
+| `GET /tracked-entities/{uid}/events` | one entity's record: a searchset of its events as QuestionnaireResponses |
+| `GET /tracked-entities/{uid}/events/{eventUid}` | one event of that record |
 
 Fixed paths mount before the read catch-alls and the UI shell mounts last, so a
 UI route never shadows a FHIR one. Every GET also answers HEAD. Three of these
@@ -469,10 +471,13 @@ Five modules:
   clients, and a page never mixes tracked entity types.
 - `projection.py` builds the served resource: the UID as `id` and as the first
   identifier, one identifier per unique attribute value, the type as a
-  `meta.tag`, and every remaining attribute value as an extension. It fills no
-  `Patient.name`, no `gender`, no `birthDate` - **no demographics are
-  invented**, because DHIS2 attribute semantics are per-instance and a guess
-  would be indistinguishable from a fact.
+  `meta.tag`, and every remaining attribute value as an extension. It fills
+  `Patient.name`, `gender`, and `birthDate` from `[ips.identity]` and from
+  nothing else - **no demographics are invented**, because DHIS2 attribute
+  semantics are per-instance and a guess would be indistinguishable from a
+  fact. The reading lives in `dhis2w_fhir.ips`, the nominations reach the
+  server on `TrackedEntityIndex`, and a project that nominates nothing serves
+  the same bytes it served before the table existed.
 
 `routes/register.py` mounts no path of its own: `routes/read.py` dispatches to
 it at request time for whichever resource types the surface serves, so the

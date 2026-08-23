@@ -4,10 +4,17 @@
 read router mounts last and every router carrying a fixed path mounts ahead of it. `/metadata`,
 `/spool`, `/uiconfig`, `/whoami`, `/evaluate`, and `/cds-services` are one-segment fixed paths and
 all sit in that group, as do the deeper fixed paths under them - the
-`/tracked-entities/{uid}/enrollments` listing, `/terminology/validate-code` and
+`/tracked-entities/{uid}/enrollments` listing and the `/tracked-entities/{uid}/events` record beside
+it, `/terminology/validate-code` and
 `/terminology/lookup`, and one service's `/cds-services/{id}`. FHIR resource types are PascalCase,
 so a lowercase segment can never be one the read router should have claimed, whichever depth it
 sits at.
+
+The record router is in the FHIR group and the enrollment listing beside it is not, which is the one
+distinction that group draws: a record answers a Bundle of the QuestionnaireResponses this guide
+publishes, so a client that takes no JSON is refused before it runs, while the listing answers this
+facade's own typed JSON. `dhis2w_fhir_serve.routes.history` and `dhis2w_fhir_serve.routes.enrollments`
+each argue their own shape.
 
 `/whoami` is the one path a posture adds rather than a scope guards. Every other route is mounted by
 every run and the posture only decides which of them carry the check; that one answers who the
@@ -147,6 +154,7 @@ def serve_routers(
     from dhis2w_fhir_serve.routes.enrollments import router as enrollments_router
     from dhis2w_fhir_serve.routes.evaluate import router as evaluate_router
     from dhis2w_fhir_serve.routes.generate import router as generate_router
+    from dhis2w_fhir_serve.routes.history import router as history_router
     from dhis2w_fhir_serve.routes.read import router as read_router
     from dhis2w_fhir_serve.routes.root import build_root_router
     from dhis2w_fhir_serve.routes.spool import router as spool_router
@@ -156,7 +164,14 @@ def serve_routers(
     from dhis2w_fhir_serve.routes.whoami import router as whoami_router
 
     submissions = capture_router if capture else capture_refusal_router
-    fhir = (metadata_router, submissions, build_root_router(serve_ui), translate_router, generate_router)
+    fhir = (
+        metadata_router,
+        submissions,
+        build_root_router(serve_ui),
+        translate_router,
+        generate_router,
+        history_router,
+    )
     # `/whoami` exists only where a posture does: a server that checks nobody has nobody to name, and
     # it leads the group because it is the one router that answers about the caller rather than about
     # what is served. See `dhis2w_fhir_serve.routes.whoami`.

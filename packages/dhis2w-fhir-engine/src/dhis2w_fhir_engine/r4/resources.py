@@ -108,10 +108,12 @@ class ContactPoint(Element):
 
 
 class HumanName(Element):
-    """A person's name; the generated contacts carry the DHIS2 free text in `text`.
+    """A person's name; the generated contacts and a nominated DHIS2 attribute both carry it in `text`.
 
-    `family` and `given` are the parts a nominated DHIS2 attribute fills one of - a name assembled
-    from two attributes states which half each one was, rather than folding both into `text`.
+    `text` alone satisfies the IPS invariant `ips-pat-1`, which asks for `family`, `given`, **or**
+    `text`. `family` and `given` are here for a name a document was handed already split; nothing in
+    this project splits one, because which half of a person's name an attribute holds is a fact
+    DHIS2 does not state.
     """
 
     text: str | None = None
@@ -280,8 +282,17 @@ class RegisteredEntity(DomainResource):
     Specimen for the samples, whatever a project states. The elements are the four every R4 resource
     in that map carries and DHIS2 states without interpretation: `identifier` for the tracked entity
     UID and the values of the attributes DHIS2 declares unique, `meta.tag` for the tracked entity
-    type, and `extension` for every other attribute value the entity holds. Nothing the target
-    resource otherwise defines is filled in - see `dhis2w_fhir_serve.register.projection`.
+    type, and `extension` for every other attribute value the entity holds.
+
+    The three demographic elements below are filled from a nomination and from nothing else. DHIS2
+    has no name field, no sex field, and no date-of-birth field, so which attribute means which of
+    them is stated in `[ips.identity]` per instance or it is not stated at all; a project that
+    nominates nothing serves the four elements above and no others. They sit at the end of the model
+    rather than in R4's own element order so that a served resource is byte-identical to what this
+    register answered before the nomination existed. `birthDate_element` carries the `_birthDate`
+    sibling the way `Patient` does, because a nominated birth date the instance holds no readable
+    value for states its absence there - see `dhis2w_fhir.ips` and
+    `dhis2w_fhir_serve.register.projection`.
     """
 
     resourceType: str
@@ -289,6 +300,14 @@ class RegisteredEntity(DomainResource):
     meta: Meta | None = None
     identifier: list[Identifier] | None = None
     extension: list[Extension] | None = None
+    name: list[HumanName] | None = None
+    gender: Literal["male", "female", "other", "unknown"] | None = None
+    birthDate: str | None = None
+    birthDate_element: Element | None = Field(
+        default=None,
+        validation_alias=AliasChoices("_birthDate", "birthDate_element"),
+        serialization_alias="_birthDate",
+    )
 
 
 class Patient(DomainResource):

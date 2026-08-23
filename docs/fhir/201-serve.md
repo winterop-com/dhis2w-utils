@@ -112,10 +112,13 @@ read of the store ever talks to DHIS2 again; the connection stays because the
 register routes answer from the instance rather than from the store, and they
 are the only ones that do. `GET /Patient?identifier=` finds one tracked
 entity, `GET /Patient` with no parameters pages through the ones the instance
-holds, and `GET /tracked-entities/{uid}/enrollments` lists the programs one of
-them is enrolled in - all three documented in
+holds, `GET /tracked-entities/{uid}/enrollments` lists the programs one of
+them is enrolled in, and `GET /tracked-entities/{uid}/events` answers what has
+happened to one of them - every event of their enrollments, each served as the
+response its program stage's own published form describes. All four are
+documented in
 [Consume the FHIR API](401-consume-the-fhir-api.md#the-register-search-identifier),
-and all three shaped by
+and all four shaped by
 [`[serve.tracked_entities]`](301-serving.md#tracked_entities), which is how a project offers
 less than all of them.
 
@@ -125,7 +128,7 @@ project's published map states each type is, so an instance whose types are
 herds or specimen batches is read at that type's own resource rather than at
 `Patient` ([what goes in](301-what-goes-in.md#tracked_entity_types)).
 
-A compiled run holds no client, so all three answer a `not-supported`
+A compiled run holds no client, so all four answer a `not-supported`
 OperationOutcome and `/metadata` declares no register resource at all. What `--live` serves is
 byte-identical to what the compiled store would have served for the same
 metadata, because both come out of the same JSON builders - the CodeSystem and
@@ -367,6 +370,7 @@ the instance, exactly as it arrived:
 | `GET /Patient?identifier=...` | The caller |
 | `GET /Patient` (the register listing, and its `_count=0` total) | The caller |
 | `GET /tracked-entities/{uid}/enrollments` | The caller |
+| `GET /tracked-entities/{uid}/events` (the record, and one event of it) | The caller |
 | `POST /evaluate` with a `registered` context | The caller |
 | The store built at startup | The facade's profile |
 | The instance address `/uiconfig` hands the screens | The facade's profile |
@@ -674,12 +678,20 @@ it back through `GET /QuestionnaireResponse/{id}` tells you *what was
 submitted*, never what DHIS2 now holds. DHIS2 remains the system of record;
 a receipt is evidence of a submission, not a view of data.
 
-That matters because two obvious questions have different answers today:
+That matters because two obvious questions are answered at two addresses:
 
-- *"What did this client send me?"* - answered, by reading the spool.
-- *"What does DHIS2 currently hold for this form, period, and organisation unit?"* -
-  not answered here. Querying current data through FHIR is a read-proxy this
-  facade does not implement.
+- *"What did this client send me?"* - the spool, read at
+  `GET /QuestionnaireResponse/{id}` and `GET /spool`.
+- *"What does DHIS2 hold about this person now?"* - the record, read at
+  `GET /tracked-entities/{uid}/events` on a `--live` run: every event of that
+  entity's enrollments, in the same shape and under the same profiles, read from
+  the instance while you wait. It is scoped to one tracked entity, so it answers
+  "this person" and never "this form, this period, this organisation unit" - the
+  aggregate half of the read leg is not built.
+
+The two are never mixed. A receipt keeps the id the submission was accepted
+under whatever DHIS2 later made of it; a record carries the DHIS2 event UID and
+whatever the instance holds under it this second.
 
 Writing a receipt into DHIS2 is a separate, explicit act:
 [`d2w fhir forward`](201-forward.md). Until you run it, accepting a capture

@@ -582,6 +582,13 @@ entities an instance holds. The served surface is never called "patients", and
 its path is `/tracked-entities/{uid}/enrollments`, because what it holds is not
 always people.
 
+**record**
+: In this toolkit, one tracked entity's events over time, served at
+`/tracked-entities/{uid}/events` - each event as the `QuestionnaireResponse` its
+programme stage's published form describes. A *record* is what DHIS2 holds now; a
+*receipt* is what a client once submitted, and the two are different documents at
+different addresses even though both are QuestionnaireResponses.
+
 **identifier**
 : In DHIS2, loosely any of UID, code, or name. In FHIR, a specific element with
 a `system` and a `value`, and distinct from `id`. When these pages say

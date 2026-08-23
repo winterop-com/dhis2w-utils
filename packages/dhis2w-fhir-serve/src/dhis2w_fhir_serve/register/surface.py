@@ -87,6 +87,10 @@ class RegisterSurface(BaseModel):
         """True when a search naming no identifier is answered with a page rather than a refusal."""
         return self.serves_tracked_entities() and self.tracked_entities.listing
 
+    def serves_events(self) -> bool:
+        """True when one entity's own record is answered here, as well as its identity."""
+        return self.serves_tracked_entities() and self.tracked_entities.events
+
     def registers(self) -> tuple[ServedRegister, ...]:
         """One entry per FHIR resource type this register serves, in the order its types are registered."""
         grouped: dict[str, list[PublishedTrackedEntityType]] = {}

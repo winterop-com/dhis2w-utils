@@ -118,6 +118,7 @@ spool_dir = ".serve/responses"
 # of it, and no command-line flag overrides this table. -> 301-serving#tracked_entities
 enabled = true                      # false answers nothing about tracked entities, even under --live -> 301-serving#tracked_entities-enabled
 listing = true                      # false keeps identifier search and drops the browse listing -> 301-serving#tracked_entities-listing
+events = true                       # false keeps identity and drops one entity's own record -> 301-serving#tracked_entities-events
 page_size = 20                      # rows per page when the caller asks for no size -> 301-serving#tracked_entities-page_size
 page_size_limit = 100               # the largest page anyone may ask for; a bigger ask gets this -> 301-serving#tracked_entities-page_size_limit
 # Tracked entity types the register covers, by UID
@@ -163,6 +164,23 @@ url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 # [[serve.basemaps]]
 # name = "Satellite"
 # url = "https://tiles.example.org/satellite/{z}/{x}/{y}.jpg?api_key=YOUR_KEY"
+
+[ips.identity]
+# Which tracked entity attribute holds a person's name, birth date, and sex on this instance.
+# DHIS2 has no field that means any of the three, so a served person carries a name only when
+# a line here says which attribute it is. UIDs only - names and codes are not unique in DHIS2.
+# Nominate nothing and the register answers exactly what it always did. -> 301-what-goes-in#ips-identity
+# name = "w75KJ2mc4zz"               # published as Patient.name[0].text -> 301-what-goes-in#ips-name
+# birth_date = "iESIqZ0R0R0"         # published as Patient.birthDate -> 301-what-goes-in#ips-birth_date
+# sex = "cejWyOfXge6"                # read through the map below -> 301-what-goes-in#ips-sex
+
+[ips.identity.administrative_gender]
+# What each value of the sex attribute means, in FHIR's four words: male, female, other, unknown.
+# The key is the value DHIS2 stores - an option's DHIS2 code where the attribute is option-set
+# bound. `d2w fhir generate` publishes these rows as the D2Sex_CM concept map, so a consumer
+# reads the translation without holding this file. -> 301-what-goes-in#ips-administrative_gender
+# "Male" = "male"
+# "Female" = "female"
 
 [forward]
 # How `d2w fhir forward` drains this project; a flag on the command line wins over these. -> 301-serving#forward
