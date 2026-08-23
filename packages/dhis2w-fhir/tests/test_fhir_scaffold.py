@@ -768,3 +768,38 @@ def test_refresh_keeps_the_sushi_timeout_no_other_file_records(tmp_path: Path) -
     assert state.options.sushi_timeout == 5400
     assert "ig/fsh.ini" in refresh_project(tmp_path).unchanged_files
     assert (tmp_path / "ig" / "fsh.ini").read_text(encoding="utf-8") == "[FSH]\ntimeout = 5400\n"
+
+
+def test_every_committed_guide_example_matches_the_current_render() -> None:
+    """Each guide's committed fhir.toml.example is byte-identical to what the scaffold renders today.
+
+    The scaffold template is pinned to the config schema by the round-trip test above; the copies
+    committed under examples/fhir/igs/ are what a reader browsing the repository sees, and nothing
+    else asserts they kept up. A config table added without resweeping the guides passed silently
+    twice before this test existed; now it is a failure naming the guide, and the fix it names is
+    the one that always works: delete the guide's fhir.toml.example and run
+    `d2w fhir init --refresh .` in the guide.
+    """
+    from dhis2w_fhir.scaffold import build_scaffold_files
+    from dhis2w_fhir.scaffold.refresh import read_project_scaffold_state
+
+    repository_root = Path(__file__).resolve().parents[3]
+    guides = sorted((repository_root / "examples" / "fhir" / "igs").glob("*/fhir.toml"))
+    assert guides, "no committed guides found - the path layout moved"
+    stale: list[str] = []
+    for config_path in guides:
+        guide = config_path.parent
+        committed = guide / "fhir.toml.example"
+        if not committed.is_file():
+            stale.append(f"{guide.name}: fhir.toml.example is missing")
+            continue
+        state = read_project_scaffold_state(guide)
+        rendered = {
+            f.relative_path: f.content for f in build_scaffold_files(state.options, copyright_year=state.copyright_year)
+        }
+        if committed.read_text(encoding="utf-8") != rendered["fhir.toml.example"]:
+            stale.append(f"{guide.name}: fhir.toml.example does not match the current render")
+    assert not stale, (
+        "committed guide examples have gone stale - in each guide, delete fhir.toml.example and "
+        "run `d2w fhir init --refresh .`:\n  " + "\n  ".join(stale)
+    )
