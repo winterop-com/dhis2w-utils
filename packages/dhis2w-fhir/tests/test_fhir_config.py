@@ -22,7 +22,7 @@ from dhis2w_fhir.config import (
     load_project,
     write_fhir_config,
 )
-from dhis2w_fhir.ips import IdentityNominations
+from dhis2w_fhir.ips import IdentityNominations, ImmunizationsMapping, SectionMappings
 from pydantic import ValidationError
 
 _MINIMAL_TOML = """
@@ -607,13 +607,67 @@ def test_a_misspelled_key_in_the_identity_table_gets_the_same_treatment(tmp_path
 
 
 def test_a_misspelled_key_in_the_ips_table_gets_the_same_treatment(tmp_path: Path) -> None:
-    """The `[ips]` table declares one sub-table today, and refuses the name of a second nobody built."""
-    path = _write(tmp_path, after='\n[ips.sections]\n"A03MvHHogjR" = "Immunizations"\n')
+    """The `[ips]` table declares what it declares, and refuses the name of a key nobody built."""
+    path = _write(tmp_path, after="\n[ips]\nenable = true\n")
 
     with pytest.raises(UnknownFhirConfigKeyError) as raised:
         load_fhir_config(path)
 
-    assert raised.value.diagnostics == ("fhir.toml: unknown key 'sections' in [ips]",)
+    assert raised.value.diagnostics == ("fhir.toml: unknown key 'enable' in [ips]\n  did you mean 'enabled'?",)
+
+
+def test_the_sections_table_refuses_a_section_nobody_mapped(tmp_path: Path) -> None:
+    """`[ips.sections]` declares one section today, and a project naming another is told the key is not one."""
+    path = _write(tmp_path, after='\n[ips.sections.problems]\ndata_elements = ["a3kGcGDCuk6"]\n')
+
+    with pytest.raises(UnknownFhirConfigKeyError) as raised:
+        load_fhir_config(path)
+
+    assert raised.value.diagnostics == ("fhir.toml: unknown key 'problems' in [ips.sections]",)
+
+
+def test_the_immunizations_table_refuses_a_stage_with_no_data_element(tmp_path: Path) -> None:
+    """One list without the other maps no dose, so the file refuses the pair broken."""
+    path = _write(tmp_path, after='\n[ips.sections.immunizations]\nprogram_stages = ["A03MvHHogjR"]\n')
+
+    with pytest.raises(ValidationError) as raised:
+        load_fhir_config(path)
+
+    assert "dose_data_elements names no data element" in str(raised.value)
+
+
+def test_the_immunizations_table_refuses_a_data_element_that_is_not_a_uid(tmp_path: Path) -> None:
+    """Every nomination names a DHIS2 object by UID; a name here would nominate nothing."""
+    path = _write(
+        tmp_path,
+        after=(
+            '\n[ips.sections.immunizations]\nprogram_stages = ["A03MvHHogjR"]\ndose_data_elements = ["MCH BCG dose"]\n'
+        ),
+    )
+
+    with pytest.raises(ValidationError) as raised:
+        load_fhir_config(path)
+
+    assert "is not a DHIS2 UID" in str(raised.value)
+
+
+def test_the_sections_table_survives_a_config_round_trip(tmp_path: Path) -> None:
+    """The section mapping writes to fhir.toml and loads back off it, exactly as the identity table does."""
+    path = tmp_path / "fhir.toml"
+    config = _make_config()
+    config.ips = IpsConfig(
+        enabled=True,
+        sections=SectionMappings(
+            immunizations=ImmunizationsMapping(
+                program_stages=("A03MvHHogjR", "ZzYYXq4fJie"),
+                dose_data_elements=("bx6fsa0t90x", "FqlgKAG8HOu"),
+            )
+        ),
+    )
+
+    write_fhir_config(path, config)
+
+    assert load_fhir_config(path).ips == config.ips
 
 
 def test_the_identity_table_survives_a_config_round_trip(tmp_path: Path) -> None:

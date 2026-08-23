@@ -1,6 +1,6 @@
 # Tracker registration example guide
 
-> One of eight in the [example IG catalog](../README.md). Verified by `make verify-igs`.
+> One of nine in the [example IG catalog](../README.md). Verified by `make verify-igs`.
 
 **The story: a person, an enrollment, and the visits that follow.** A tracker
 program is the one DHIS2 form kind whose answers are about somebody rather than

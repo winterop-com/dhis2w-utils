@@ -1,11 +1,18 @@
-"""The identity dial: which tracked entity attribute carries a person's name, birth date, and sex.
+"""The `[ips]` tables: which attribute carries a person's identity, and which stage data is a dose.
 
-`docs/fhir/design/ips.md` section 4 is the argument in full. DHIS2 has no name field, no sex field,
-and no date-of-birth field; which of an instance's tracked entity attributes mean those things is a
-decision every instance makes for itself, usually differently. So a name is nominated or it is
-nothing, and this module holds the nomination and the reading of it. Section 9's phase 1 is what it
-serves: the nominations fill `Patient.name`, `Patient.birthDate`, and `Patient.gender` on the
-register projection, before any summary document exists.
+`docs/fhir/design/ips.md` sections 4 and 5 are the argument in full, and they are one argument made
+twice. DHIS2 has no name field, no sex field, and no date-of-birth field, and it marks no data
+element as an immunisation, a problem, or an allergy. Which of an instance's tracked entity
+attributes mean those demographic things, and which of its data elements belong in which section of
+a patient summary, are decisions every instance makes for itself, usually differently. So both are
+nominated or both are nothing, and this module holds the two nominations and the reading of them.
+
+`[ips.identity]` fills `Patient.name`, `Patient.birthDate`, and `Patient.gender` on the register
+projection, which is what section 9's phase 1 asked of it - before any summary document exists.
+`[ips.sections]` says which recorded values a summary's clinical sections carry, and phase 2 maps
+exactly one section: `Immunizations`. A section with no table is a section this project maps
+nothing into, and the document states that rather than inventing content for it
+(`dhis2w_fhir.summary`).
 
 **Only UIDs, never names.** Attribute names are not unique in DHIS2 and change without notice, and
 the guide already publishes the names it reads off the instance as `D2TEA_CS`.
@@ -47,7 +54,9 @@ __all__ = [
     "NOMINATION_VALUE_TYPES",
     "AdministrativeGender",
     "IdentityNominations",
+    "ImmunizationsMapping",
     "NominatedValueTypeIssue",
+    "SectionMappings",
     "ServedIdentity",
     "nominated_value_type_issues",
     "served_identity",
@@ -172,6 +181,99 @@ class IdentityNominations(BaseModel):
     def nominated_attribute_uids(self) -> tuple[str, ...]:
         """Every attribute this table nominates, once each, in the order the keys are declared."""
         return tuple(dict.fromkeys(uid for uid in (self.name, self.birth_date, self.sex) if uid is not None))
+
+
+class ImmunizationsMapping(BaseModel):
+    """Which recorded values are doses - the `[ips.sections.immunizations]` table.
+
+    `docs/fhir/design/ips.md` section 6 puts the Immunizations row at `WITH A MAPPING` and says what
+    the mapping has to state: dose events in an immunisation program stage, with the event's own date
+    as the occurrence. This table states exactly that, in two lists.
+
+    `program_stages` names the stages whose events record doses. `dose_data_elements` names the data
+    elements inside them that each record a dose of one vaccine - which is the shape a DHIS2
+    immunisation form actually has: `MCH BCG dose`, `MCH Measles dose`, `MCH Penta dose`, one element
+    per vaccine, the value saying that a dose was given or which dose of the series it was. So **the
+    data element is the vaccine and the value is the dose**, and `Immunization.vaccineCode` carries
+    the data element's own DHIS2 coding. The IPS binds `vaccineCode` **preferably** rather than
+    requiredly, so publishing a DHIS2 coding there violates no profile - which is what lets this
+    section carry real doses while an international vaccine vocabulary is still missing (section 5).
+
+    Both lists are required together. A stage with no data element nominated records nothing this
+    reads, and a data element with no stage names values on events nobody said were doses; either
+    alone maps nothing, which is the failure mode `[ips.identity]` refuses the same way.
+
+    An empty table maps nothing, which is what every project that never wrote it states.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    program_stages: tuple[str, ...] = ()
+    """The program stages whose events carry doses, by UID."""
+
+    dose_data_elements: tuple[str, ...] = ()
+    """The data elements inside those stages that each record a dose of one vaccine, by UID."""
+
+    @field_validator("program_stages", "dose_data_elements")
+    @classmethod
+    def _dhis2_uids(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Every nomination names a DHIS2 object by UID - a name or a code here would nominate nothing."""
+        for stated in value:
+            if not is_dhis2_uid(stated):
+                raise ValueError(
+                    f"{stated!r} is not a DHIS2 UID (one letter followed by ten alphanumeric places): "
+                    "nominate the object by its UID, since names and codes are not unique in DHIS2 and "
+                    "change without notice"
+                )
+        return value
+
+    @model_validator(mode="after")
+    def _stages_and_elements_arrive_together(self) -> ImmunizationsMapping:
+        """One list without the other maps no dose at all, so the file refuses the pair broken."""
+        if self.program_stages and not self.dose_data_elements:
+            raise ValueError(
+                "[ips.sections.immunizations] program_stages names a stage and dose_data_elements names "
+                "no data element: state which of that stage's data elements each record a dose"
+            )
+        if self.dose_data_elements and not self.program_stages:
+            raise ValueError(
+                "[ips.sections.immunizations] dose_data_elements names a data element and program_stages "
+                "names no stage: state which program stage's events those values are recorded on"
+            )
+        return self
+
+    def maps_anything(self) -> bool:
+        """Whether this table maps a single dose, which is what every caller asks first."""
+        return bool(self.program_stages and self.dose_data_elements)
+
+    def records_dose(self, program_stage_uid: str | None, data_element_uid: str) -> bool:
+        """Whether one value of one stage's event is a dose this table nominated."""
+        if program_stage_uid is None:
+            return False
+        return program_stage_uid in self.program_stages and data_element_uid in self.dose_data_elements
+
+
+class SectionMappings(BaseModel):
+    """Which recorded values belong in which section of a summary - the `[ips.sections]` tables.
+
+    One sub-table per IPS section this project maps, and `immunizations` is the only one phase 2
+    ships: `docs/fhir/design/ips.md` section 9 says why it goes first, and section 6 says why every
+    other section needs its own nomination rather than a general rule. A section named here that this
+    version does not map is refused by name, so a project writing `[ips.sections.problems]` today is
+    told the key is not one rather than left with a table that quietly does nothing.
+
+    An absent table maps no section at all. The summary is still served - the owner's call, and
+    `dhis2w_fhir.summary` states the caveat that goes with it - with its three required sections
+    carrying an empty reason and its recommended sections omitted.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    immunizations: ImmunizationsMapping = Field(default_factory=ImmunizationsMapping)
+
+    def maps_anything(self) -> bool:
+        """Whether a single clinical section of a summary is mapped, which decides the document's caveat."""
+        return self.immunizations.maps_anything()
 
 
 class ServedIdentity(BaseModel):

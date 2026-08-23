@@ -3,8 +3,22 @@
 What an International Patient Summary requires, measured against the published IG,
 against what this project's register projection actually holds, and against the two
 gaps that stand between them. This is the working paper behind the IPS item in roadmap
-[9.3](roadmap.md#93-long-term); the decisions themselves stay with the owner, and this
-page is the basis for making them.
+[9.3](roadmap.md#93-long-term).
+
+**Where this stands.** Every decision section 10 put to the owner is answered, and phases 1 and
+2 of section 9's recommendation are the code this repository runs. The identity dial is
+[`[ips.identity]`](../301-what-goes-in.md#ips-identity), the section mapping is
+[`[ips.sections]`](../301-what-goes-in.md#ips-sections) with its map published as
+`D2Section_CM`, and the serving surface is `$summary` on the register's person-shaped
+resources, gated by [`[ips] enabled`](../301-what-goes-in.md#ips-enabled). A summary
+whose clinical sections are all empty is served, with the caveat stated in the
+document's own `Composition.text` and beside the response. Phase 3 - every further
+section - is open, and arrives the way phase 2 did: an owner writes a mapping, the
+generator publishes it, the served summary reads it.
+
+The argument below is what those decisions were made from, and it is kept because a
+reader who wants to know why a section is empty needs the reasoning rather than the
+outcome.
 
 Everything asserted about the IPS here was read off **HL7 International Patient Summary
 Implementation Guide v2.0.1 (STU 2)**, package `hl7.fhir.uv.ips#2.0.1`, based on FHIR
@@ -14,27 +28,28 @@ cardinality is the argument.
 
 ## The short version
 
-An IPS is not blocked by anything technical. It is blocked by two things nobody has
-said yet: **which tracked entity attribute is a person's name, birth date, and sex**,
-and **which DHIS2 data elements belong in which IPS section**. Neither is a fact DHIS2
-holds; both are per-instance nominations. Until an owner states them, the honest IPS
-this toolchain can build is a valid document with a data-absent name, a data-absent
-birth date, and three required sections carrying an empty reason - which the IG
-explicitly permits and explicitly says is not conformance with the Creator actor.
-Whether that document is worth serving at all is the sharpest question this paper
-reserves.
+An IPS is not blocked by anything technical. It is bounded by two things DHIS2 does not
+say: **which tracked entity attribute is a person's name, birth date, and sex**, and
+**which DHIS2 data elements belong in which IPS section**. Neither is a fact DHIS2
+holds; both are per-instance nominations, and both are now written down in `fhir.toml`.
+An instance that nominates nothing still gets a summary - a valid document with a
+data-absent name, a data-absent birth date, and three required sections carrying an
+empty reason, which the IG explicitly permits and explicitly says is not conformance
+with the Creator actor. Whether that document was worth serving at all was the sharpest
+question this paper asked; the answer was yes, with the caveat stated in the document.
 
 ## 1. How to use this document
 
-This paper tees up five owner calls, listed in full in section 10: the identity
-nominations that fill `Patient.name` / `birthDate` / `gender`, where section mappings
-come from, what the serving surface is called, whether a summary with no mapped
-clinical section may be built at all, and in what order the three phases land. It is a
-decision document, not a plan of record - the recommendation in
-section 9 is a recommendation. It rests throughout on **the record the facade serves**:
-a summary is a projection of a record, and `GET /tracked-entities/{uid}/events` is
-where that record is read - one entity's events, each as the response its programme
-stage's published form describes (section 3).
+This paper put five calls to the owner, listed with their answers in section 10: the
+identity nominations that fill `Patient.name` / `birthDate` / `gender`, where section
+mappings come from, what the serving surface is called, whether a summary with no
+mapped clinical section may be built at all, and in what order the three phases land.
+It is a decision document rather than a plan of record - the recommendation in section 9
+is a recommendation, and section 10 says which parts of it were taken. It rests
+throughout on **the record the facade serves**: a summary is a projection of a record,
+and `GET /tracked-entities/{uid}/events` is where that record is read - one entity's
+events, each as the response its programme stage's published form describes
+(section 3).
 
 ## 2. What an IPS is
 
@@ -470,7 +485,18 @@ section 6's `WITH A MAPPING` rows from per-instance nomination to shared termino
 making phase 3 a generation problem rather than a configuration one. If that source
 appears, option B in section 5 wins outright.
 
-## 10. Owner decisions this paper reserves
+## 10. The decisions this paper put to the owner
+
+Each was answered, and the answer is what the toolchain does. They are listed as
+questions because the question is what a reader needs in order to weigh the answer.
+
+| Decision | The answer |
+| --- | --- |
+| The `[ips.identity]` nominations | The dial exists: `name`, `birth_date`, `sex`, and a four-code `administrative_gender` map beside `sex`. One text name, no given/family split |
+| The section mapping source | Option C. `fhir.toml` is the input, `D2Section_CM` is the published output, and the server performs the file |
+| The serving surface and its name | `$summary`, scoped to the register resources FHIR gives a person, in both the instance and the identifier form, gated by `[ips] enabled` |
+| Whether an all-empty summary may be built | It is served, with the caveat stated in `Composition.text` and beside the response |
+| Sequencing | Phase 1, then phase 2. Phase 3 is open and unranked |
 
 - **The `[ips.identity]` nominations.** Whether the identity dial exists at all; if it
   does, its key names, whether `sex` is nominated separately from its option-to-code

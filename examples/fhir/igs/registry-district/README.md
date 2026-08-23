@@ -1,6 +1,6 @@
 # District registry example guide
 
-> One of eight in the [example IG catalog](../README.md). Verified by `make verify-igs`.
+> One of nine in the [example IG catalog](../README.md). Verified by `make verify-igs`.
 
 **The story: where the forms are reported.** Every guide publishes an
 organisation-unit registry, because a form nobody can say where it was filled in

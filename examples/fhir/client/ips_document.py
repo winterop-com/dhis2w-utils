@@ -3,13 +3,13 @@
 An IPS is one FHIR `document`: a Bundle whose first entry is a Composition and whose remaining
 entries are the resources that Composition's sections point at.
 
-**This is a working prototype ahead of the decisions the IPS working paper reserves for the owner**
-([`docs/fhir/design/ips.md`](../../../docs/fhir/design/ips.md), section 10). The section mapping is
-still stated in this file as constants, so that the call can be read off a document instead of
-argued in the abstract. The identity half no longer is: `[ips.identity]` ships, and
-[`identity_nominations.py`](identity_nominations.py) is the reading this file predates. This one
-keeps its own constants so that the document it builds stays runnable against a project whose
-`fhir.toml` nominates nothing.
+**This is the assembly done by hand, in typed Python, against a live instance.** The served
+surface is `d2w fhir serve --live` answering `GET /Patient/{uid}/$summary`
+([`../cli/summary.sh`](../cli/summary.sh) walks it), and it maps its one section through
+[`[ips.sections]`](../../../docs/fhir/301-what-goes-in.md#ips-sections) rather than through
+constants. This file states its own nominations instead, and maps a different section - **Results**
+rather than Immunizations - so that what it shows is how a section is assembled at all, over a
+project whose `fhir.toml` nominates nothing.
 
 **What it maps.** `Patient.name` from the two tracked entity attributes nominated below as the given
 and family halves - DHIS2 has no name field, so a name is a nomination or it is nothing. Then the
@@ -146,7 +146,8 @@ class AssembledSummary(BaseModel):
 #: which is why `birth_date` names none - and why the subject's birth date is a stated absence.
 IDENTITY = IdentityNomination(given_name="w75KJ2mc4zz", family_name="zDhUuAYrxNC", sex="cejWyOfXge6")
 
-#: Which data elements belong in which IPS section - the paper's `[ips.sections]`, for one section.
+#: Which data elements belong in which IPS section - what `[ips.sections]` states for a served
+#: summary, stated here for the one section this file assembles.
 RESULTS_DATA_ELEMENTS = ("a3kGcGDCuk6", "UXz7xuGCEhU", "GQY2lXrypjO")
 
 #: The concept the IPS leaves for a section a system holds nothing about, now that v2.0.1 has

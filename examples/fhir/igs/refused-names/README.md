@@ -1,6 +1,6 @@
 # Refused names example guide
 
-> One of eight in the [example IG catalog](../README.md). Verified by `make verify-igs`.
+> One of nine in the [example IG catalog](../README.md). Verified by `make verify-igs`.
 
 **This guide does not build, on purpose.** It is the exhibit: a selection whose
 DHIS2 names carry a raw `<`, and a `d2w fhir generate` that refuses to write a

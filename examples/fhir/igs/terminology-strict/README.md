@@ -1,6 +1,6 @@
 # Strict terminology example guide
 
-> One of eight in the [example IG catalog](../README.md). Verified by `make verify-igs`.
+> One of nine in the [example IG catalog](../README.md). Verified by `make verify-igs`.
 
 **The story: whose code is the concept's code.** Generation codes every
 published concept by its DHIS2 UID, because a UID is unique, stable, and always

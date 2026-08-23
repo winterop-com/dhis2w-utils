@@ -497,6 +497,20 @@ it - so the shape a client reads back is the shape a client would post.
 
 ::: dhis2w_fhir_serve.routes.history
 
+### The patient summary
+
+`GET /{type}/{id}/$summary` and `GET /{type}/$summary?identifier=` - the IPS's own two
+addresses, answered on the register resources R4 gives a person and refused by name on the rest.
+A summary reads nothing new: the subject is the resource the register already serves, and the
+doses come off the very record projection above, read through the immunisation mapping
+`[ips.sections.immunizations]` states. `dhis2w_fhir.summary` assembles the document; these two
+modules are what finds the doses and what answers the request, with the document's caveat riding
+the response as well as `Composition.text`.
+
+::: dhis2w_fhir_serve.summary
+
+::: dhis2w_fhir_serve.routes.summary
+
 ### Read and search routes
 
 `GET /{type}/{id}` and `GET /{type}`, answered from the store for every definitional resource and

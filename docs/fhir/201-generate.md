@@ -142,7 +142,7 @@ What each target writes, and where:
 | `foundation` | `ig/input/fsh/foundation/` - the identifier aliases and NamingSystems, the `D2Period` / `D2FormType` / `D2AttributeValue` and tracker extensions, the response profiles, `$generate`, and the capture CapabilityStatement. Depends on `fhir.toml` alone; never touches DHIS2. Prerequisite for a compiling IG. |
 | `option-sets` | Pre-built CodeSystem/ValueSet JSON into `ig/input/resources/terminology/`, ConceptMaps into `resources/concept-maps/`. |
 | `categories` | Its own CodeSystem/ValueSet JSON into `ig/input/resources/categories/`, ConceptMaps into `resources/concept-maps/`. |
-| `questionnaires` | One Questionnaire per data set (`fsh/data-sets/`), per event program (`fsh/event-programs/`), per tracker stage plus the program's registration form (`fsh/tracker-programs/<program stem>/`), per tracked entity type's person-only registration form (`fsh/tracked-entity-types/`), the shared data dictionary (`fsh/data-dictionary/`), assignment Lists (`resources/assignments/`), and attribute-option-combo terminology (`resources/attribute-option-combos/`). |
+| `questionnaires` | One Questionnaire per data set (`fsh/data-sets/`), per event program (`fsh/event-programs/`), per tracker stage plus the program's registration form (`fsh/tracker-programs/<program stem>/`), per tracked entity type's person-only registration form (`fsh/tracked-entity-types/`), the shared data dictionary (`fsh/data-dictionary/`), assignment Lists (`resources/assignments/`), attribute-option-combo terminology (`resources/attribute-option-combos/`), and the two ConceptMaps that map an instance's own statements outward - `D2Sex_CM` and `D2Section_CM` - into `resources/concept-maps/`. |
 | `examples` | One `Usage: #example` response per target into `fsh/examples/<target stem>-<n>.fsh`. |
 | `org-units` | Profiles and level terminology into `fsh/organization/`; the registry as pre-built JSON - `Organization-<stem>.json` + `Location-<stem>.json` per unit - into `resources/registry/`. |
 | `pages` | Six site pages plus per-artifact intros into `ig/input/pagecontent/` - markdown, not FSH. |
@@ -164,6 +164,31 @@ subdirectory it emptied. Hand-authored files are safe by the same rule the
 whole tree follows: the sweep only deletes files carrying the generated
 header, so `ig/input/pagecontent/index.md` and any markdown you drop beside
 it survive every regenerate.
+
+**A run that rewrites FSH removes the compile.** `ig/fsh-generated/` is SUSHI's
+output and nobody else's, and the moment a target writes a FSH source it holds
+resources compiled from sources that no longer exist. So the run removes it and
+says which tree went and why:
+
+```console
+note: removed ig/fsh-generated: it held SUSHI's compile of FSH sources this run
+rewrote, and check-artifacts, serve, forward and `make build` all read that
+tree. Run `make sushi` in the project to compile the sources this run wrote.
+```
+
+`make sushi` writes it again from the sources on disk, and `make build` runs the
+publisher's own SUSHI before it publishes, so a build needs nothing extra.
+Serving and forwarding read the compiled tree too, and each already refuses a
+project holding none by naming those same two steps - generate, then `make
+sushi` - so a serve right after a generate is the flow those pages already
+teach. `d2w fhir serve --live` reads the instance instead and needs no compile
+at all.
+
+A regenerate that writes nothing leaves the compile where it is: the sources it
+was compiled from are still the sources on disk. Nothing else is removed -
+`ig/temp/` is the IG publisher's own scratch, which no command reads between
+builds, and `ig/output/` is a published site, which is a thing to replace
+deliberately rather than to discard on a source edit.
 
 **The pre-built resources are not committed.** The scaffolded `.gitignore`
 covers `ig/input/resources/` - thousands of regenerable files - while

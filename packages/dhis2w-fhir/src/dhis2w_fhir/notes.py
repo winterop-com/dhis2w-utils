@@ -40,6 +40,9 @@ class GenerateNoteCategory(StrEnum):
     #: What the emitted volume costs the IG publisher's own build.
     BUILD_COST = "build-cost"
 
+    #: The compiled guide removed, because this run rewrote the FSH sources SUSHI compiled it from.
+    COMPILE_REMOVED = "compile-removed"
+
     #: A DHIS2 name the IG publisher's build cannot survive, published in rewritten wording.
     NAME_SUBSTITUTION = "name-substitution"
 

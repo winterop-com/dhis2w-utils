@@ -1,6 +1,6 @@
 # Minimal aggregate example guide
 
-> One of eight in the [example IG catalog](../README.md). Verified by `make verify-igs`.
+> One of nine in the [example IG catalog](../README.md). Verified by `make verify-igs`.
 
 **The story: the smallest complete guide.** Every selection table is set to the
 fewest objects the toolchain accepts, the registry covers one district, and no
@@ -53,4 +53,4 @@ make sushi
 ```
 
 `make clean` removes everything those two steps wrote. From the repository root,
-`make verify-igs` does all of it for all eight guides.
+`make verify-igs` does all of it for all nine guides.

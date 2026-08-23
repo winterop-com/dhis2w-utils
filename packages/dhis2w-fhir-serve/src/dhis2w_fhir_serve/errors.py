@@ -158,6 +158,51 @@ class RecordDisabledError(ServeError):
         self.resource_type = resource_type
 
 
+class SummaryDisabledError(ServeError):
+    """This project publishes no patient summary: `[ips] enabled` is false.
+
+    Same status and issue code as every other "this server does not serve that here", with the key
+    named so an operator reads it as a decision this project wrote down rather than as a missing
+    feature. A summary is a clinical document about a person, and `docs/fhir/design/ips.md` R7 puts
+    it behind a key for that reason - offering one is a posture a deployment states rather than one
+    it inherits.
+    """
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str) -> None:
+        super().__init__(
+            f"this server assembles no `{resource_type}` summary: this project sets `[ips] enabled` to "
+            "false, so it publishes who its subjects are and what was recorded about them and no "
+            "summary over either; set it true in fhir.toml and serve again to answer `$summary`"
+        )
+        self.resource_type = resource_type
+
+
+class SummaryNotSupportedForSubjectError(ServeError):
+    """`$summary` was asked of a register whose subjects are not people.
+
+    The IPS defines `$summary` on `Patient` and nowhere else, and this register serves nine resource
+    types over whatever tracked entity types a project maps onto them. A summary of a cold-chain
+    fridge is not a narrower version of a patient summary - it is a different document nobody has
+    defined - so the refusal names the resources this server does answer it on rather than pretending
+    the operation half-applies.
+    """
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str, person_resource_types: tuple[str, ...]) -> None:
+        named = ", ".join(f"`{person}`" for person in person_resource_types)
+        super().__init__(
+            f"`$summary` is a patient summary and `{resource_type}` names no person: this server answers "
+            f"it on {named} alone. Whatever is served under `{resource_type}` is served at its own "
+            "address as usual; a summary of it is a document nobody has defined."
+        )
+        self.resource_type = resource_type
+
+
 class ProjectionNotConfiguredError(ServeError):
     """A search was told to read the materialized projection and this process holds none.
 
