@@ -1491,31 +1491,48 @@ Everything this section used to hold has shipped, and a roadmap states what is
 next rather than what happened - section 2 is where the built surface is
 described, and the git history is where it was built. What is left:
 
-- **The corrections and withdrawals slices, now unblocked.** A drain names the
-  values a previous submission already sent - on the terminal, in the report,
-  and in a dry run before anything changes - and `[forward] overwrites` decides
-  what it does about them: `"allow"`, the default, posts the value and names it,
-  which is DHIS2's own last-write-wins semantics taken as a posture rather than
-  inherited by omission; `"refuse"` sends no payload holding one and leaves the
-  response queued with every covered cell written down beside it. That was
-  decision D8, and nothing waits on it now. See
-  [Corrections and withdrawals](data-lifecycle.md), which carries the slices and
-  their order; `[forward] corrections` and `[forward] withdrawals` are next.
+- **The history surface, then the IPS document.** History is the requirements
+  list the capture comparison produced; the IPS document follows it, because a
+  summary of a person is only worth publishing once the record it summarises
+  can be read. The IPS working paper carries five reserved decisions and a
+  prototype ready to walk.
 
-- **Authentication for the served facade.** There is none, and the
-  CapabilityStatement declares no `rest.security`, so a client cannot discover
-  that there is nothing to authenticate against. Loopback-by-default is the
-  current mitigation and it is a demo posture rather than a deployment one. The
-  scope decision comes first - a gate on the write path, or OAuth2 against the
-  same identity provider the client already speaks - because it decides whether
-  this is one slice or several.
+- **Native FHIR resource intake - the capture contract's second door.** Today a
+  capture is a QuestionnaireResponse; clients that already speak Observation,
+  Immunization, Patient, and Encounter should be able to post those directly,
+  with the same spool, translation, and forward behind them. Design paper
+  first: which resources, how a resource names its form-equivalent scope, and
+  what a refusal looks like when it names neither.
 
-- **The history surface, then the IPS document.** Both were deferred behind the
-  storage and compliance work and neither is blocked now. History is the
-  requirements list the capture comparison produced; the IPS document follows
-  it, because a summary of a person is only worth publishing once the record it
-  summarises can be read.
+- **The search-engine step of the register.** The projection answers membership
+  and substring search; transliteration ("Somsack" finding a Lao name) and
+  typo tolerance are the failing test class the projection paper reserved for
+  an OpenSearch-backed index. The seam (`NameSearchIndex`) is exported and
+  waiting.
 
+- **Register filters that need declarations.** Organisation-unit scoping (which
+  unit fact, a declared search parameter, self/children/descendants modes, an
+  ancestor path in the projection) and per-attribute value filters (one
+  composite token parameter plus a per-register declaration of filterable
+  attributes, value types, and option-set canonicals). Both are designed;
+  each is its own slice.
+
+- **Evaluation results as a FHIR resource.** `POST /evaluate` answers a shape of
+  this project's own; a `$evaluate` operation answering `Parameters` - one
+  parameter per define, an `OperationOutcome` part per refusal - makes the
+  screen's table a rendering of a wire-true resource. Measure scoring already
+  answers `MeasureReport`.
+
+- **The capture UI's remaining chrome.** Adopt the interactive-row treatment on
+  the three table pages still wearing bare rows (the recipe is written); widen
+  `PageState` messages to rendered nodes so the ten strings carrying literal
+  backticks read as code; settle the parked vocabulary decisions (nav labels,
+  lifecycle labels, the application's own name).
+
+- **A 1.8.0 release.** The last published version predates the build
+  investigation, the substitution dial, the auth postures, the synced
+  projection, the evaluate surface, and the subject-generic registers.
+  Handwritten notes, per the release doctrine.
 
 ### 9.2 Mid-term
 
