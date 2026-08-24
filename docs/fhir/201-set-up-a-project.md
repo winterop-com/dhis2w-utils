@@ -134,9 +134,8 @@ check        Scan the artifacts on disk for what aborts the IG publisher (offlin
 cache-init   Ensure the shared package-cache volume is writable by the publisher user
 sushi        Compile FSH to FHIR resources
 build        Run the full IG publisher
-serve        Serve the compiled IG as a FHIR endpoint (run generate + sushi first)
-serve-live   Serve straight from the DHIS2 instance, no compile needed
-serve-ui     Serve the FHIR endpoint plus the capture UI at / (open the printed URL in a browser)
+serve        Serve the compiled IG as a FHIR endpoint, with the capture UI at / (run generate + sushi first)
+serve-live   Serve straight from the DHIS2 instance, with the capture UI at / - no compile needed
 forward      Dry-run the capture spool against DHIS2 - validate only, nothing written, nothing moved
 forward-import Import the capture spool into DHIS2 and file every receipt by what it became
 clean        Remove build output (keeps ig/input-cache, the terminology cache the next build reuses)

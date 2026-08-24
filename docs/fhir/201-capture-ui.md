@@ -38,7 +38,7 @@ a checkout needs `make build-frontend` once.
 same-origin with them, at the same address:
 
 ```bash
-d2w fhir serve --ui          # or `make serve-ui` in a scaffolded project
+d2w fhir serve --ui          # what `make serve` and `make serve-live` run in a scaffolded project
 ```
 
 Open the address it prints. The UI reads the very endpoint it is served

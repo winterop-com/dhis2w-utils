@@ -104,16 +104,11 @@ build-bind: cache-init  ## Run the publisher straight over the mounted project, 
 
 .PHONY: serve serve-live
 
-serve:  ## Serve the compiled IG as a FHIR endpoint (run generate + sushi first)
-	$(D2W) fhir serve
-
-serve-live:  ## Serve straight from the DHIS2 instance, no compile needed
-	$(D2W) fhir serve --live
-
-.PHONY: serve-ui
-
-serve-ui:  ## Serve the FHIR endpoint plus the capture UI at / (open the printed URL in a browser)
+serve:  ## Serve the compiled IG as a FHIR endpoint, with the capture UI at / (run generate + sushi first)
 	$(D2W) fhir serve --ui
+
+serve-live:  ## Serve straight from the DHIS2 instance, with the capture UI at / - no compile needed
+	$(D2W) fhir serve --live --ui
 
 .PHONY: forward forward-import
 
