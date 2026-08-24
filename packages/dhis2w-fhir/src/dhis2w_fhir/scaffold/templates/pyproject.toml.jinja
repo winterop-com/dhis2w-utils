@@ -15,12 +15,10 @@ dependencies = [
     "dhis2w-fhir-serve",
 ]
 
-[tool.uv.sources]
-# All three packages resolve from the repository so the whole toolchain comes from one
-# commit - a d2w whose fhir plugin is a different build than its core is not a
-# combination anyone tests. Delete the entries once you prefer PyPI releases, and they
-# come from there instead. dhis2w-fhir-serve is what `d2w fhir serve` runs on; drop it
-# if this project never serves its IG.
-dhis2w-cli = { git = "https://github.com/winterop-com/dhis2w-utils", subdirectory = "packages/dhis2w-cli", branch = "main" }
-dhis2w-fhir = { git = "https://github.com/winterop-com/dhis2w-utils", subdirectory = "packages/dhis2w-fhir", branch = "main" }
-dhis2w-fhir-serve = { git = "https://github.com/winterop-com/dhis2w-utils", subdirectory = "packages/dhis2w-fhir-serve", branch = "main" }
+# The three packages resolve from PyPI, and their own dependency floors keep the CLI,
+# the generator, and the server on one release - a d2w whose fhir plugin is a different
+# build than its core is not a combination anyone tests. uv.lock pins the exact
+# versions. dhis2w-fhir-serve is what `d2w fhir serve` runs on, and its wheel ships the
+# capture UI; drop it if this project never serves its IG. To track the repository's
+# main branch instead of releases, add a [tool.uv.sources] entry per package:
+# dhis2w-cli = { git = "https://github.com/winterop-com/dhis2w-utils", subdirectory = "packages/dhis2w-cli", branch = "main" }

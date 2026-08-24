@@ -406,28 +406,20 @@ def test_pyproject_declares_the_toolchain_project() -> None:
     assert project["project"]["dependencies"] == ["dhis2w-cli", "dhis2w-fhir", "dhis2w-fhir-serve"]
 
 
-def test_pyproject_sources_the_whole_toolchain_from_one_commit() -> None:
-    """All three packages resolve from the repository, so the CLI, the plugin, and the server are one build."""
+def test_pyproject_resolves_the_toolchain_from_pypi() -> None:
+    """The scaffolded project pins releases: no uv source entries, and the lock carries the exact versions.
+
+    A git-sourced install builds from the repository, which ships no capture UI - the built
+    frontend lives only in the published dhis2w-fhir-serve wheel - so a fresh project pinning
+    main could never `make serve`. Releases are the default; the comment shows a reader how to
+    opt into tracking main.
+    """
     body = _by_path()["pyproject.toml"]
-    sources = tomllib.loads(body)["tool"]["uv"]["sources"]
-    assert sources == {
-        "dhis2w-cli": {
-            "git": "https://github.com/winterop-com/dhis2w-utils",
-            "subdirectory": "packages/dhis2w-cli",
-            "branch": "main",
-        },
-        "dhis2w-fhir": {
-            "git": "https://github.com/winterop-com/dhis2w-utils",
-            "subdirectory": "packages/dhis2w-fhir",
-            "branch": "main",
-        },
-        "dhis2w-fhir-serve": {
-            "git": "https://github.com/winterop-com/dhis2w-utils",
-            "subdirectory": "packages/dhis2w-fhir-serve",
-            "branch": "main",
-        },
-    }
-    assert "drop it\n# if this project never serves its IG" in body
+    parsed = tomllib.loads(body)
+    assert "tool" not in parsed
+    assert "resolve from PyPI" in body
+    assert "wheel ships the\n# capture UI" in body
+    assert '# dhis2w-cli = { git = "https://github.com/winterop-com/dhis2w-utils"' in body
     assert "uv lock --upgrade" in body
 
 
