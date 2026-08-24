@@ -28,6 +28,7 @@ from dhis2w_fhir.config import (
     CorrectionPosture,
     FhirProject,
     GenerateConfig,
+    HostileNamePosture,
     NoFhirProjectError,
     OverwritePosture,
     WithdrawalPosture,
@@ -845,10 +846,22 @@ def resolve_code_source(config: GenerateConfig, override: str | None) -> Literal
     raise ValueError(f"code_source must be 'id' or 'code', not {override!r}")
 
 
+def resolve_hostile_names_posture(
+    config: GenerateConfig, override: HostileNamePosture | None
+) -> HostileNamePosture | None:
+    """Effective hostile-names posture for a validate run: the CLI override, else the configured value.
+
+    None all the way down is a posture of its own - the run asks, and a run with nothing to ask on
+    refuses - which grades exactly as `refuse` does, so validate keeps it rather than folding it in.
+    """
+    return override or config.hostile_names
+
+
 async def validate_codes(
     profile: Profile,
     config: GenerateConfig,
     code_source: str | None = None,
+    hostile_names: HostileNamePosture | None = None,
     *,
     reporter: ProgressReporter | None = None,
     client: Dhis2Client | None = None,
@@ -858,11 +871,16 @@ async def validate_codes(
     The run first resolves the configured selection into a `ValidationScope`, so every finding's
     severity means build impact on this project's IG rather than instance-wide alarm.
 
+    `hostile_names` overrides the project's `[generate] hostile_names` for this run, which is the
+    what-if reading `d2w fhir validate --hostile-names` asks for; with none the project's own
+    posture decides how the name findings are graded.
+
     `client` is a connection the caller already holds open, which the run reads through and leaves
     open; with none, the profile opens one for the length of the call, under the sweep's own read
     ceiling rather than the client's ordinary one.
     """
     effective_source = resolve_code_source(config, code_source)
+    effective_posture = resolve_hostile_names_posture(config, hostile_names)
     progress = _StepAnnouncer(reporter, VALIDATE_CODES_STEPS)
     progress.step("connecting")
     async with _instance_connection(profile, client, timeout=_SWEEP_TIMEOUT_SECONDS) as client:
@@ -884,7 +902,9 @@ async def validate_codes(
         progress.complete(f"{len(models):,} read")
     progress.step("findings", "building report")
     option_sets = [_option_set_input(model) for model in models]
-    report = build_code_validation(option_sets, collections, config, effective_source, scope=scope)
+    report = build_code_validation(
+        option_sets, collections, config, effective_source, scope=scope, hostile_names=effective_posture
+    )
     progress.complete(f"{len(report.findings):,} finding(s)")
     return report
 

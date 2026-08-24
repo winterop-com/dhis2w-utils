@@ -19,6 +19,7 @@ optional - see [scope](#read-the-scope-column) for what having one changes.
 
 - run the FHIR-safety check and read its verdict off the terminal
 - say what an error, a warning, and an info each cost your build
+- read a grade against the posture your project generates under
 - use the code-source dial to preview a code migration
 - hand the written report to whoever owns the metadata
 
@@ -51,6 +52,8 @@ wrote /home/you/demo-ig/reports/fhir-validate-report.pdf
 │code coverage      │ 1/1433 (selection objects whose code can serve as an     │
 │                   │ identity stem)                                           │
 │code source        │ id                                                       │
+│hostile names      │ refuse - every name is published exactly as DHIS2 states  │
+│                   │ it                                                       │
 └───────────────────┴──────────────────────────────────────────────────────────┘
                findings by category (7)
 ┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┓
@@ -71,7 +74,10 @@ error: 4 error(s) found; exiting 1 (--no-fail to suppress)
 
 That run is a 2.43.1 instance carrying the Sierra Leone demo database plus a
 few added programs, and it is the instance every transcript in this series
-was taken against. The three `wrote` lines are echoed before the tables so a
+was taken against. Its project states `hostile_names = "refuse"`, which is
+why four names are errors; the scaffold writes `"substitute"`, under which the
+same four are informational - see
+[Grade under your hostile-names posture](#grade-under-your-hostile-names-posture). The three `wrote` lines are echoed before the tables so a
 redirected log still names the files. The PDF writer can add a line of its
 own naming a glyph the bundled font has no drawing for - `Font
 MPDFAA+NotoSans is missing the following glyphs` - which is a note about the
@@ -92,7 +98,7 @@ hygiene:
 
 | Severity | Meaning |
 | --- | --- |
-| error | Your build will abort. An in-scope `<`, in a code on an identifier surface or in any object's name - both land in HTML the publisher writes unescaped and then strict-parses. The only findings that gate exit 1. |
+| error | Your build will abort. An in-scope `<`, in a code on an identifier surface or in a name the guide publishes byte-true - both land in HTML the publisher writes unescaped and then strict-parses. The only findings that gate exit 1. Whether a name is published byte-true is [`hostile_names`](#grade-under-your-hostile-names-posture). |
 | warning | An in-scope degradation the build survives - a code falling back to the UID, a `>` or `&` malforming a page. |
 | info | Instance hygiene: the same defects on objects the build never reads - a code-migration watchlist, not build noise. |
 
@@ -118,6 +124,48 @@ configured IG emits, `instance` for the rest.
 Outside a project every selection table is empty, which selects everything
 of its kind - so the whole instance grades as being on the build path.
 Inside a project, findings grade against that project's own selection.
+
+## Grade under your hostile-names posture
+
+A severity says what an object costs *this* project, and half of that is
+[`hostile_names`](301-generation.md#hostile_names) - the `[generate]` key that
+decides what a generate run does with a DHIS2 name the published guide cannot
+carry as it stands. Validate reads the same key, and the summary's **hostile
+names** row says which reading produced the counts above it.
+
+| Posture | What a name carrying `<` is graded |
+| --- | --- |
+| `"substitute"` | **info**. The guide publishes the name rewritten, the build survives, and the finding states both spellings: `published as 'Vitamin A given to under 5y' - the name is rewritten for publication (hostile_names = "substitute"); DHIS2 keeps 'Vitamin A given to < 5y'`. |
+| `"refuse"` | **error**. The guide publishes the name byte-true, so the build aborts and the remedy is to change the name in DHIS2. |
+| unset | **error**. An unanswered run refuses, so the grade is the refusing one. |
+
+Only what the rewrite settles moves. A name carrying `>` or `&` stays a
+**warning** under either posture, because the rewrite reads `<` and nothing
+else, so the page is malformed either way; when one name carries both, the
+finding states the published spelling and keeps the warning the leftover
+character earns. Under `"substitute"` a `spaced-code` finding names the
+hyphenated code the guide publishes - `published as 'Pre-eclampsia' - each
+space becomes a hyphen for publication` - instead of describing the quoted FSH
+form, which that posture never emits.
+
+**`template-hostile-code` is an error under either posture.** A code is an
+identifier a consumer joins on, so the substitution rewrites a space in a code
+and never a `<`: the code reaches the guide exactly as DHIS2 states it, and
+`d2w fhir generate` refuses the run whichever posture is set. The finding says
+so, and the remedy stays the same - change the code in DHIS2.
+
+`--hostile-names substitute` and `--hostile-names refuse` read the instance
+under the other posture without touching `fhir.toml`, which answers "what
+would this project cost if we changed our mind?":
+
+```bash
+d2w fhir validate --hostile-names refuse
+```
+
+The flag beats the config; the config beats unset. Exit 1 follows the graded
+severities, so a `"substitute"` project carrying nothing but rewritten names
+exits 0 - which is what lets `make refresh` run validate mid-chain and keep
+going.
 
 ## Know what the five passes cover
 
@@ -162,9 +210,13 @@ served register does with several types is
 Every pass also checks the object's **name** for one thing that has nothing
 to do with codes: `template-hostile-name`, raised on any name carrying `<`,
 `>`, or `&`, which the IG publisher's template injects into HTML unescaped
-and then strict-parses. A name containing `<` is an **error**: the publisher
-cannot read back the page it just wrote, and the build fails. `>` and `&`
-cost a malformed page the build survives, so they are warnings.
+and then strict-parses. A name containing `<` is an **error** wherever the
+guide publishes it byte-true: the publisher cannot read back the page it just
+wrote, and the build fails. Under `hostile_names = "substitute"` the guide
+publishes that name rewritten and the finding is informational -
+[Grade under your hostile-names posture](#grade-under-your-hostile-names-posture).
+`>` and `&` cost a malformed page the build survives, so they are warnings
+under either posture.
 
 Its sibling `template-hostile-code` grades the same three characters the same
 way, on the collections whose codes become identifier values (`optionSets`,
@@ -179,7 +231,8 @@ is what the finding is for.
 
 ### The name grade and the generate refusal are the same statement
 
-A `template-hostile-name` error on the build path and a `d2w fhir generate`
+Under `hostile_names = "refuse"` - and unset, which refuses - a
+`template-hostile-name` error on the build path and a `d2w fhir generate`
 refusal name the same objects, and they do so **in both directions**:
 
 - every name graded `error` in the `selection` scope here refuses a generate
@@ -192,7 +245,9 @@ their options, categories and their category options, organisation units, data
 sets, event programs, tracker programs and their stages, tracked entity types,
 and the questions all of those ask - data elements and tracked entity
 attributes. Whichever command you run first, the other one has nothing new to
-tell you about names. Codes are the asymmetry that remains, and deliberately:
+tell you about names. Under `"substitute"` the parity holds the other way:
+neither command stops, because the guide publishes wording the build survives.
+Codes are the asymmetry that remains, and deliberately:
 a data element's code becomes a concept property the publisher escapes rather
 than an identifier value it does not, so `template-hostile-code` is raised only
 on the six collections above and generate gates codes only there.
@@ -224,7 +279,8 @@ The code-stem pass works the same dial for naming: under
 validate error is also a generate refusal.
 `spaced-code` is the info-grade
 neighbour: a code with spaces is FHIR-valid but emits in the quoted
-`#"..."` FSH form.
+`#"..."` FSH form - unless `hostile_names = "substitute"`, under which the
+finding names the hyphenated code the guide publishes instead.
 
 ## Hand over the report
 

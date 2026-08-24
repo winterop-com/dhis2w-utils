@@ -395,6 +395,14 @@ outcome: a value assigned against an object's peers, or a decision made at emit
 time. Nothing is found under the default `source = "id"`, which is the point -
 the passes grade a migration you have not made yet.
 
+Grading also reads `[generate] hostile_names`, because a severity means what an
+object costs *this* project: under `"substitute"` a name carrying `<` is
+rewritten for publication, so the finding on it is informational and names both
+spellings, while `"refuse"` and unset keep it an error. `--hostile-names` reads
+the instance under the other posture without touching `fhir.toml`, and the
+summary, the Markdown report, and the PDF cover each state the posture the run
+graded under.
+
 Reports go to `reports/` in markdown, CSV, and PDF, all named
 `fhir-validate-report`. `--no-fail` keeps the exit code at 0, and no
 `fhir.toml` is required, because the sweep is a property of the instance rather

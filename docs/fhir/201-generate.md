@@ -255,8 +255,12 @@ skipped object leaves a guide that disagrees with its own selection - a
 Questionnaire referencing terminology nobody wrote.
 
 **This is the same statement `d2w fhir validate` makes, in both directions.**
-Every name graded a `selection`-scoped `template-hostile-name` error there
-refuses a run here, and every name refused here is graded that error there. It
+Validate reads the same `hostile_names` posture this run does, so under
+`"refuse"` - and unset, which refuses - every name graded a `selection`-scoped
+`template-hostile-name` error there refuses a run here, and every name refused
+here is graded that error there. Under `"substitute"` neither command stops, and
+validate grades those names informational naming the wording published in their
+place. It
 holds over every kind of object a selection publishes: option sets and their
 options, categories and their category options, organisation units, data sets,
 event programs, tracker programs and their stages, tracked entity types, and the

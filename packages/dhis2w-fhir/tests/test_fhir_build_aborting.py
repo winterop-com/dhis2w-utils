@@ -18,9 +18,14 @@ import pytest
 import respx
 from dhis2w_core.profile import resolve_profile
 from dhis2w_fhir import InitOptions, load_project, service
+from dhis2w_fhir.config import HostileNamePosture
+from dhis2w_fhir.hostile_names import HostileNameGate
 from dhis2w_fhir.validation import build_aborting_code, build_aborting_name
 
 _HOST = "https://dhis2.example"
+
+#: The finding category both parity walks read, one for the error grade and one for the note.
+_NAME_CATEGORY = "template-hostile-name"
 
 #: The code that aborted a 55-minute build on a real instance: the '<' opens a tag in the cell.
 _ABORTING_CODE = "ENTO - IRS < 6 Months"
@@ -559,14 +564,19 @@ _SELECTABLE_OBJECT_KINDS: list[tuple[str, str]] = [
 ]
 
 
-async def _parity_project(directory: Path) -> None:
-    """Scaffold the parity project: every kind selected, and no examples, so nothing reads data values."""
+async def _parity_project(directory: Path, posture: str = "refuse") -> None:
+    """Scaffold the parity project: every kind selected, and no examples, so nothing reads data values.
+
+    The posture is written explicitly because it is half of what the parity means. `refuse` is the
+    reading the two-way walk asserts - a validate error is a generate refusal - and `substitute` is
+    the reading where neither happens, so a test that wants one has to say which.
+    """
     await _scaffold_project(directory)
     config_path = directory / "fhir.toml"
-    config_path.write_text(
-        f"{config_path.read_text(encoding='utf-8')}\n[generate.examples]\nper_target = 0\n",
-        encoding="utf-8",
+    scaffolded = config_path.read_text(encoding="utf-8").replace(
+        'hostile_names = "substitute"', f'hostile_names = "{posture}"'
     )
+    config_path.write_text(f"{scaffolded}\n[generate.examples]\nper_target = 0\n", encoding="utf-8")
 
 
 @respx.mock
@@ -607,6 +617,44 @@ async def test_a_name_validate_grades_an_error_is_a_name_generate_refuses(
         await service.generate_full(resolve_profile("probe"), project)
 
     assert uid in str(raised.value)
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    ("uid", "collection"), _SELECTABLE_OBJECT_KINDS, ids=[uid for uid, _ in _SELECTABLE_OBJECT_KINDS]
+)
+async def test_under_substitute_the_same_name_is_a_note_and_the_run_completes(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+    uid: str,
+    collection: str,
+) -> None:
+    """The other posture, both ways: the guide rewrites the name, so validate notes it and generate writes it.
+
+    Same instance, same object, same walk - only the project's `hostile_names` differs. Every
+    finding the refusing walk grades an error is graded info here, and the generate run that
+    refuses there completes here, which is the parity `make refresh` depends on.
+    """
+    mock_system_info("v42")
+    await _parity_project(tmp_path, posture="substitute")
+    instance = _parity_instance()
+    _poison(instance, uid)
+    _mock_parity_instance(instance)
+    project = load_project(tmp_path)
+
+    report = await service.validate_codes(resolve_profile("probe"), project.config.generate)
+    graded = [finding for finding in report.findings if finding.uid == uid and finding.category == _NAME_CATEGORY]
+    assert graded, f"validate raised no name finding on {uid}"
+    assert graded[0].severity == "info"
+    assert graded[0].resource_type == collection
+    assert "rewritten for publication" in graded[0].message
+    assert report.error_count == 0
+
+    generated = await service.generate_full(
+        resolve_profile("probe"), project, gate=HostileNameGate(HostileNamePosture.SUBSTITUTE)
+    )
+    assert generated.questionnaires.questionnaire_count > 0
 
 
 @respx.mock

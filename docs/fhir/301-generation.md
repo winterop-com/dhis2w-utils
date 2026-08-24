@@ -169,6 +169,15 @@ behaves as `"refuse"` does.
 picture is in [Answer the hostile-name
 question](201-generate.md#answer-the-hostile-name-question).
 
+**What validate does with it:** `d2w fhir validate` reads this key too, and its
+summary says which posture produced the counts. Under `"substitute"` a name
+carrying `<` is graded informational and the finding names the wording the guide
+publishes; under `"refuse"` and unset it stays an error. A code carrying `<` is
+an error under either posture, because the substitution rewrites a space in a
+code and never a `<`. `d2w fhir validate --hostile-names <posture>` reads the
+instance under the other posture without touching this file - [Grade under your
+hostile-names posture](201-validate.md#grade-under-your-hostile-names-posture).
+
 **If you get it wrong:** any value except the two stops the run:
 
 ```text
