@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from dhis2w_cli.main import build_app
 from dhis2w_fhir import FhirValidationReport, GenerateFullReport, GenerateReport, LoadSetReport
+from dhis2w_fhir.config import HostileNamePosture
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory
 from dhis2w_fhir.validation.schemas import CodeCoverage, SurfaceCodeCoverage, ValidationFinding
 from typer.testing import CliRunner
@@ -701,6 +702,66 @@ def test_validate_rejects_an_unknown_code_source(fhir_project: Path) -> None:  #
     result = _runner.invoke(build_app(), ["fhir", "validate", "--code-source", "uid"])
     assert result.exit_code != 0
     assert "--code-source" in result.output
+
+
+def test_validate_hostile_names_override_reaches_the_service(fhir_project: Path) -> None:  # noqa: ARG001
+    """`--hostile-names substitute` is passed through as the posture the run grades under."""
+    mock = AsyncMock(return_value=FhirValidationReport(hostile_names=HostileNamePosture.SUBSTITUTE))
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--hostile-names", "substitute"])
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.args[3] is HostileNamePosture.SUBSTITUTE
+
+
+def test_validate_hostile_names_defaults_to_the_project(fhir_project: Path) -> None:  # noqa: ARG001
+    """Without the flag the service is handed no override, so the project's own posture decides."""
+    mock = AsyncMock(return_value=FhirValidationReport())
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate"])
+    assert result.exit_code == 0, result.output
+    assert mock.await_args is not None
+    assert mock.await_args.args[3] is None
+
+
+def test_validate_rejects_an_unknown_hostile_names_posture(fhir_project: Path) -> None:  # noqa: ARG001
+    """The posture is enumerated, so an unknown value is a usage error naming the flag."""
+    result = _runner.invoke(build_app(), ["fhir", "validate", "--hostile-names", "rewrite"])
+    assert result.exit_code != 0
+    assert "--hostile-names" in result.output
+
+
+@pytest.mark.parametrize(
+    ("posture", "expected"),
+    [
+        (HostileNamePosture.SUBSTITUTE, "a name carrying '<' is rewritten for publication"),
+        (HostileNamePosture.REFUSE, "every name is published exactly as DHIS2 states it"),
+        (None, "not set"),
+    ],
+    ids=["substitute", "refuse", "unset"],
+)
+def test_validate_summary_states_the_posture_it_graded_under(
+    fhir_project: Path,  # noqa: ARG001
+    posture: HostileNamePosture | None,
+    expected: str,
+) -> None:
+    """A severity is unreadable without the posture, so the summary says which one produced it."""
+    mock = AsyncMock(return_value=FhirValidationReport(hostile_names=posture))
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate"])
+    assert result.exit_code == 0, result.output
+    assert "hostile names" in result.stderr
+    assert expected in result.stderr
+
+
+def test_validate_reports_state_the_posture_they_graded_under(fhir_project: Path) -> None:
+    """The written Markdown carries the same posture line the terminal summary does."""
+    mock = AsyncMock(return_value=FhirValidationReport(hostile_names=HostileNamePosture.SUBSTITUTE))
+    with patch("dhis2w_fhir.service.validate_codes", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "validate", "--format", "md"])
+    assert result.exit_code == 0, result.output
+    markdown = (fhir_project / "reports" / "fhir-validate-report.md").read_text(encoding="utf-8")
+    assert "- hostile names: substitute - a name carrying '<' is rewritten for publication" in markdown
 
 
 def test_a_warning_is_counted_in_the_rollup_and_left_to_the_report(fhir_project: Path) -> None:

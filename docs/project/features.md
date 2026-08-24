@@ -1424,6 +1424,18 @@ semantics `generate` uses.
   after every resource has been rendered. Both errors are also generate
   refusals, through the shared `build_aborting_code` / `build_aborting_name`
   predicates.
+- **The run grades under the project's `[generate] hostile_names` posture**,
+  and the summary row, the Markdown report, and the PDF cover each state which
+  posture produced the counts. Under `"substitute"` a name carrying `<` is
+  rewritten for publication, so its finding is `info` and its message names both
+  spellings (`published as 'Vitamin A given to under 5y' ... DHIS2 keeps
+  'Vitamin A given to < 5y'`), and a `spaced-code` finding names the hyphenated
+  code the guide publishes; under `"refuse"` and unset the grading is the
+  refusing one. `template-hostile-code` is an error under either posture,
+  because the code substituter rewrites a space in a code and never a `<`.
+  `--hostile-names substitute|refuse` reads the instance under the other posture
+  for a what-if run; the flag beats the config, the config beats unset, and exit
+  1 follows the graded severities.
 - **The name grade and the generate refusal hold in both directions.** Every
   name graded a `selection`-scoped `template-hostile-name` error refuses a
   `d2w fhir generate` run, and every name generate refuses is graded that error

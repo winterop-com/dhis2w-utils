@@ -84,6 +84,22 @@ emits, resolved with the same semantics `generate` uses:
 Each finding carries the verdict as `scope`: `selection` for objects the build emits,
 `instance` for the rest. With no scope resolved every finding is graded as selected,
 which is the unit-test path - `validate_codes` always resolves a real scope.
+
+## Severity also means the posture the project generates under
+
+`[generate] hostile_names` decides what a generate run does with the DHIS2 names and codes the
+guide cannot carry as they stand, and it decides half of what a validate finding means. Under
+`"refuse"` - and unset, which refuses - a selected name carrying `<` really does abort the build,
+so it is an error and the remedy is to change the name in DHIS2. Under `"substitute"` the very
+same name is rewritten for publication, the build survives, and the honest grade is informational:
+the finding states what the guide publishes and what DHIS2 keeps, rather than demanding a change
+nothing is waiting on.
+
+Only the findings a substitution actually settles move. A name carrying `>` or `&` stays a warning
+under either posture, because `substitute_build_aborting_text` rewrites `<` and nothing else, so
+the page is malformed either way. And `template-hostile-code` stays an error under either posture:
+the code substituter rewrites a space in a code and never a `<`, so a `<`-carrying code reaches
+`_refuse_build_aborting_objects` and refuses the run whatever the posture says.
 """
 
 from __future__ import annotations
@@ -91,6 +107,8 @@ from __future__ import annotations
 from collections import Counter
 from typing import TYPE_CHECKING, Literal
 
+from dhis2w_fhir.coded import carries_substitutable_code, substituted_code
+from dhis2w_fhir.config import HostileNamePosture
 from dhis2w_fhir.foundation.attribute_values import (
     ATTRIBUTE_CODE_SUB_EXTENSION,
     ATTRIBUTE_VALUE_CONTEXT_RESOURCE_TYPES,
@@ -119,6 +137,7 @@ from dhis2w_fhir.validation.schemas import (
     ValidationFinding,
     ValidationScope,
 )
+from dhis2w_fhir.validation.substitution import substitute_build_aborting_text
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
@@ -224,34 +243,46 @@ def build_code_validation(
     code_source: Literal["id", "code"] | None = None,
     *,
     scope: ValidationScope | None = None,
+    hostile_names: HostileNamePosture | None = None,
 ) -> FhirValidationReport:
     """Run all three validation passes; findings sort by severity, resource type, then name.
 
     `scope` is the resolved emission scope severity grades against; with None every finding is
     graded as selected and no code coverage is computed - the offline path unit tests exercise,
     while `validate_codes` always resolves a real scope.
+
+    `hostile_names` overrides the project's `[generate] hostile_names` for this run, which is what
+    `d2w fhir validate --hostile-names` states: a what-if reading of the same instance under the
+    other posture.
     """
     effective_source = code_source or config.concept_code_source
+    posture = hostile_names or config.hostile_names
+    substituting = posture is HostileNamePosture.SUBSTITUTE
     findings: list[ValidationFinding] = []
     option_count = 0
     for option_set in sorted(option_sets, key=lambda item: (item.name, item.uid)):
         option_count += len(option_set.options)
         set_in_scope = _in_scope(scope, "optionSets", option_set.uid)
-        findings.extend(_option_findings(option_set, effective_source, config.locales, in_scope=set_in_scope))
+        findings.extend(
+            _option_findings(
+                option_set, effective_source, config.locales, in_scope=set_in_scope, substituting=substituting
+            )
+        )
         findings.extend(
             _rescoped(finding, set_in_scope)
-            for finding in _template_hostile_option_findings(option_set, config.locales)
+            for finding in _template_hostile_option_findings(option_set, config.locales, substituting=substituting)
         )
     findings.extend(_stem_findings(collections, config, scope))
     object_count = 0
     for collection in sorted(collections, key=lambda item: item.resource):
         object_count += len(collection.items)
-        findings.extend(_collection_findings(collection, scope))
+        findings.extend(_collection_findings(collection, scope, substituting=substituting))
     attributes = _swept_attributes(collections)
     findings.extend(_attribute_findings(attributes))
     findings.extend(_tracked_entity_type_findings(collections, config, scope))
     findings.sort(key=lambda finding: (_SEVERITY_RANK[finding.severity], finding.resource_type, finding.name))
     return FhirValidationReport(
+        hostile_names=posture,
         option_set_count=len(option_sets),
         option_count=option_count,
         attribute_count=len(attributes),
@@ -378,30 +409,73 @@ def _template_hostile_severity(character: str) -> Literal["error", "warning"]:
     return "error" if character == _BUILD_ABORTING_CHARACTER else "warning"
 
 
-def _template_hostile_finding(resource_type: str, uid: str, name: str, code: str | None) -> ValidationFinding | None:
+def _substituted_name_message(name: str, published: str) -> str:
+    """Say what the guide publishes in one build-aborting name's place, and what DHIS2 keeps."""
+    return (
+        f"published as {published!r} - the name is rewritten for publication "
+        f'(hostile_names = "substitute"); DHIS2 keeps {name!r}'
+    )
+
+
+def _survivable_character_clause(character: str) -> str:
+    """Say what a character the rewrite leaves in place still costs the published pages."""
+    return (
+        f"the published name still contains {character!r}, which the IG publisher template injects into HTML "
+        "unescaped, so pages for this resource render malformed"
+    )
+
+
+def _template_hostile_grade(
+    name: str, character: str, *, substituting: bool
+) -> tuple[Literal["error", "warning", "info"], str]:
+    """The severity and wording one hostile name carries under the posture this run grades under.
+
+    Under `substitute` the run is graded against the name the guide really publishes: with the `<`
+    rewritten away nothing aborts, so the finding is informational and states both spellings. A
+    character the rewrite does not touch keeps its own grade, because the published page is
+    malformed either way.
+    """
+    if not substituting or not build_aborting_name(name):
+        return _template_hostile_severity(character), _template_hostile_message(name, character)
+    published = substitute_build_aborting_text(name)
+    remaining = _template_hostile_character(published)
+    if remaining is None:
+        return "info", _substituted_name_message(name, published)
+    return "warning", f"{_substituted_name_message(name, published)}; {_survivable_character_clause(remaining)}"
+
+
+def _template_hostile_finding(
+    resource_type: str, uid: str, name: str, code: str | None, *, substituting: bool
+) -> ValidationFinding | None:
     """Flag one object whose name carries a character the publisher's template cannot survive."""
     character = _template_hostile_character(name)
     if character is None:
         return None
+    severity, message = _template_hostile_grade(name, character, substituting=substituting)
     return ValidationFinding(
-        severity=_template_hostile_severity(character),
+        severity=severity,
         category="template-hostile-name",
         resource_type=resource_type,
         uid=uid,
         name=name,
         code=code,
-        message=_template_hostile_message(name, character),
+        message=message,
     )
 
 
 def _template_hostile_code_finding(
-    resource_type: str, uid: str, name: str, code: str | None, *, in_scope: bool
+    resource_type: str, uid: str, name: str, code: str | None, *, in_scope: bool, substituting: bool
 ) -> ValidationFinding | None:
     """Flag one object whose code reaches an identifier value, the one page surface written unescaped.
 
     Only an in-scope `<` code is an error - the configured build really dies on it. Out of scope
     the same code is instance hygiene, but the message keeps saying what it would do to a build
     the moment the object were selected.
+
+    The posture changes the wording and never the grade. A code is an identifier a consumer joins
+    on, so the substitute posture rewrites a space in it and never a `<`: the code is published as
+    DHIS2 states it, `_refuse_build_aborting_objects` meets it unchanged, and the run is refused
+    under `substitute` exactly as it is under `refuse`.
     """
     if resource_type not in _CODE_IDENTIFIER_COLLECTIONS:
         return None
@@ -424,6 +498,12 @@ def _template_hostile_code_finding(
             "so this code lands on a page surface the publisher does not escape; only '<' is confirmed to "
             "abort a build, which is why only '<' can be an error"
         )
+    remedy = (
+        "the substitution rewrites a space in a code and never '<', so this code is published exactly as DHIS2 "
+        "states it and the run is refused all the same; change the code in DHIS2"
+        if substituting and aborts
+        else "change the code in DHIS2"
+    )
     return ValidationFinding(
         severity=_degraded("error" if aborts else "warning", in_scope),
         scope=_scope_label(in_scope),
@@ -434,27 +514,21 @@ def _template_hostile_code_finding(
         code=code,
         message=f"code {display_code(code or '')} contains {character!r}; a {resource_type} code becomes an "
         f"identifier value, which the IG publisher writes into a table cell unescaped and then strict-parses, "
-        f"{consequence}; change the code in DHIS2",
+        f"{consequence}; {remedy}",
     )
 
 
-def _template_hostile_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[ValidationFinding]:
+def _template_hostile_option_findings(
+    option_set: OptionSetIn, locales: list[str], *, substituting: bool
+) -> list[ValidationFinding]:
     """Flag the option names the sweep cannot see - options are excluded from it, and land in page tables."""
     findings: list[ValidationFinding] = []
     for option in sorted(option_set.options, key=lambda item: item.uid):
         character = _template_hostile_character(option.name)
         if character is None:
             continue
-        findings.append(
-            _option_finding(
-                option_set,
-                option,
-                _template_hostile_severity(character),
-                "template-hostile-name",
-                _template_hostile_message(option.name, character),
-                locales,
-            )
-        )
+        severity, message = _template_hostile_grade(option.name, character, substituting=substituting)
+        findings.append(_option_finding(option_set, option, severity, "template-hostile-name", message, locales))
     return findings
 
 
@@ -506,7 +580,9 @@ def _tracked_entity_type_findings(
     return findings
 
 
-def _collection_findings(collection: MetadataCollectionIn, scope: ValidationScope | None) -> list[ValidationFinding]:
+def _collection_findings(
+    collection: MetadataCollectionIn, scope: ValidationScope | None, *, substituting: bool
+) -> list[ValidationFinding]:
     """Instance-wide sweep checks: names, codes, and per-collection duplicates, graded by build impact.
 
     An in-scope defect is a warning - the build survives, degraded (the one exception is the
@@ -518,10 +594,12 @@ def _collection_findings(collection: MetadataCollectionIn, scope: ValidationScop
     for item in sorted(collection.items, key=lambda entry: entry.uid):
         name = item.name or item.uid
         in_scope = _in_scope(scope, collection.resource, item.uid)
-        hostile = _template_hostile_finding(collection.resource, item.uid, name, item.code)
+        hostile = _template_hostile_finding(collection.resource, item.uid, name, item.code, substituting=substituting)
         if hostile is not None:
             findings.append(_rescoped(hostile, in_scope))
-        hostile_code = _template_hostile_code_finding(collection.resource, item.uid, name, item.code, in_scope=in_scope)
+        hostile_code = _template_hostile_code_finding(
+            collection.resource, item.uid, name, item.code, in_scope=in_scope, substituting=substituting
+        )
         if hostile_code is not None:
             findings.append(hostile_code)
         if item.code is None:
@@ -697,7 +775,12 @@ def _stem_finding(resource_type: str, subject: StemSubject, defect: str, source:
 
 
 def _option_findings(
-    option_set: OptionSetIn, code_source: Literal["id", "code"], locales: list[str], *, in_scope: bool
+    option_set: OptionSetIn,
+    code_source: Literal["id", "code"],
+    locales: list[str],
+    *,
+    in_scope: bool,
+    substituting: bool,
 ) -> list[ValidationFinding]:
     """Deep option checks: invalid, missing, spaced, and duplicated codes within one set.
 
@@ -706,7 +789,7 @@ def _option_findings(
     Every finding then follows its owning set's scope - an option of an unselected set is
     instance hygiene whatever mode the run is in.
     """
-    findings = _raw_option_findings(option_set, locales)
+    findings = _raw_option_findings(option_set, locales, substituting=substituting)
     if code_source != "code":
         findings = [
             _downgraded(finding) if finding.category in _CODE_MODE_CATEGORIES else finding for finding in findings
@@ -719,7 +802,22 @@ def _downgraded(finding: ValidationFinding) -> ValidationFinding:
     return finding.model_copy(update={"severity": "info", "message": finding.message + _UID_MODE_SUFFIX})
 
 
-def _raw_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[ValidationFinding]:
+def _spaced_code_message(code: str, *, substituting: bool) -> str:
+    """What a space in an option code costs, or what the guide publishes in its place under `substitute`.
+
+    The published spelling is `substituted_code`, the very function the run's code substituter
+    assigns from, so the message and the emitted concept code can never disagree - except where two
+    codes hyphenate onto one spelling, which the run de-collides with an ordinal suffix.
+    """
+    if not substituting:
+        return 'code contains spaces; FHIR-valid but emitted in the quoted #"..." form'
+    return (
+        f"code contains spaces; published as {substituted_code(code)!r} - each space becomes a hyphen for "
+        f'publication (hostile_names = "substitute"); DHIS2 keeps {code!r}'
+    )
+
+
+def _raw_option_findings(option_set: OptionSetIn, locales: list[str], *, substituting: bool) -> list[ValidationFinding]:
     """Deep option checks at their code-mode, in-scope severities, before any downgrade.
 
     None of these grade error: an option code lands in a concept-code slot rather than in an
@@ -768,14 +866,14 @@ def _raw_option_findings(option_set: OptionSetIn, locales: list[str]) -> list[Va
                     locales,
                 )
             )
-        if " " in option.code:
+        if carries_substitutable_code(option.code):
             findings.append(
                 _option_finding(
                     option_set,
                     option,
                     "info",
                     "spaced-code",
-                    'code contains spaces; FHIR-valid but emitted in the quoted #"..." form',
+                    _spaced_code_message(option.code, substituting=substituting),
                     locales,
                 )
             )

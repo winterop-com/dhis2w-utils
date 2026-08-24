@@ -1036,6 +1036,15 @@ def validate_command(
             "findings are informational; run with code to see what switching would cost.",
         ),
     ] = None,
+    hostile_names: Annotated[
+        HostileNamePosture | None,
+        typer.Option(
+            "--hostile-names",
+            help="Override `\\[generate]` hostile_names for this run. Under substitute a name carrying '<' "
+            "is rewritten for publication, so the findings on those names are graded informational; "
+            "under refuse they abort the build and stay errors.",
+        ),
+    ] = None,
     details: Annotated[
         bool,
         typer.Option("--details", help="List every finding individually instead of the rolled-up category counts."),
@@ -1049,6 +1058,13 @@ def validate_command(
     the same codes), a warning degrades an emitted resource, and an info is instance hygiene on
     objects the build never reads. Each finding carries that verdict as its scope - `selection`
     for objects the configured selection emits, `instance` for the rest.
+
+    The run grades under the project's `[generate] hostile_names` posture, and the summary states
+    which one it read. Under `substitute` a DHIS2 name carrying '<' is rewritten for publication
+    and the build survives it, so the finding on that name is informational and says what the guide
+    publishes; under `refuse` - and unset, which refuses - the same name aborts the build and stays
+    an error. A DHIS2 code carrying '<' is an error under either posture: the substitution rewrites
+    a space in a code and never a '<'.
 
     The terminal says what the state is: a summary, a count per severity, scope, and category, and
     every error by name, because an error is what gates the build and the user has to know which
@@ -1067,7 +1083,13 @@ def validate_command(
     context = service.resolve_validation_context()
     with _progress(VALIDATE_CODES_STEPS, enabled=progress) as reporter:
         report = asyncio.run(
-            service.validate_codes(context.generation.profile, context.config, requested_source, reporter=reporter)
+            service.validate_codes(
+                context.generation.profile,
+                context.config,
+                requested_source,
+                hostile_names,
+                reporter=reporter,
+            )
         )
     project_config = find_project_fhir_config()
     default_root = project_config.parent if project_config else Path.cwd()
@@ -1114,6 +1136,7 @@ def validate_command(
                 ]
             )
         summary_rows.append(DetailRow("code source", service.resolve_code_source(context.config, requested_source)))
+        summary_rows.append(DetailRow("hostile names", report.hostile_names_line))
         render_detail("fhir validate", summary_rows, console=STDERR_CONSOLE)
         _render_finding_rollup(report)
         listed = [finding for finding in report.findings if details or finding.severity == "error"]

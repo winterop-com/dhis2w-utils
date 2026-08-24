@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from dhis2w_fhir.config import HostileNamePosture
 from dhis2w_fhir.notes import pluralize
 
 #: The sweep collection each `ValidationScope` surface answers for - every other collection is never in scope.
@@ -179,8 +180,15 @@ class FhirValidationReport(BaseModel):
 
     `code_coverage` is present exactly when the run resolved a `ValidationScope`, so a renderer
     can use it to tell a scope-aware report from a scope-less one.
+
+    `hostile_names` is the posture the run graded under - the project's `[generate] hostile_names`
+    unless a flag overrode it. It is on the report rather than only on the run because a severity
+    means nothing without it: under `substitute` a name carrying `<` is rewritten for publication,
+    so the finding on it is a note rather than a blocker, and every renderer states which reading
+    produced the counts it prints.
     """
 
+    hostile_names: HostileNamePosture | None = None
     option_set_count: int = 0
     option_count: int = 0
     attribute_count: int = 0
@@ -225,6 +233,23 @@ class FhirValidationReport(BaseModel):
         """Number of info findings on the configured build path."""
         return self._selection_count("info")
 
+    @property
+    def hostile_names_line(self) -> str:
+        """The posture the findings were graded under, in the one wording every renderer prints."""
+        return HOSTILE_NAME_GRADING_LINES[self.hostile_names]
+
     def _selection_count(self, severity: str) -> int:
         """Count the selection-scoped findings of one severity."""
         return sum(1 for finding in self.findings if finding.scope == "selection" and finding.severity == severity)
+
+
+#: What each posture means for the grade a finding carries, said once for the terminal summary, the
+#: Markdown report, and the PDF cover. A severity is unreadable without it: the same DHIS2 name is a
+#: blocker under one posture and a note under the other.
+HOSTILE_NAME_GRADING_LINES: dict[HostileNamePosture | None, str] = {
+    HostileNamePosture.SUBSTITUTE: (
+        "substitute - a name carrying '<' is rewritten for publication, so it is graded informational"
+    ),
+    HostileNamePosture.REFUSE: "refuse - every name is published exactly as DHIS2 states it",
+    None: "not set - every name is published exactly as DHIS2 states it",
+}

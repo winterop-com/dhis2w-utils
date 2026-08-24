@@ -32,6 +32,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`generate_spaced_codes.sh`](cli/generate_spaced_codes.sh) | `d2w fhir generate --substitute-hostile-names` — publish a DHIS2 code carrying a space with the space hyphenated, the DHIS2 code stated beside it | yes |
 | [`validate.sh`](cli/validate.sh) | `d2w fhir validate` — the FHIR-safety gate, exit 1 on errors | yes |
 | [`validate_code_source.sh`](cli/validate_code_source.sh) | `d2w fhir validate --code-source code` — preview a concept-code migration | yes |
+| [`validate_hostile_names.sh`](cli/validate_hostile_names.sh) | `d2w fhir validate --hostile-names` — grade the same instance under each hostile-names posture | yes |
 | [`spool.sh`](cli/spool.sh) | `d2w fhir spool`, `requeue` — the capture queue, read and rewound offline | yes |
 | [`serve.sh`](cli/serve.sh) | `d2w fhir serve` — compile, serve, post a load set, read the receipts | no: docker compile, binds a port |
 | [`serve_auth_postures.sh`](cli/serve_auth_postures.sh) | `d2w fhir serve --auth` - the four postures: the bind refusal an absent key earns, `token`, `dhis2` read as the caller, `jwt` and its issuer | yes |
