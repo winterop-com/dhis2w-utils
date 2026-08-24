@@ -18,6 +18,14 @@ publisher = "{{ publisher }}"
 # "draft" while building; "active" for production - drives the sushi-config status
 # and the status and experimental flag on every generated CodeSystem/ValueSet/Questionnaire.
 status = "{{ status }}"
+
+[generate]
+# A DHIS2 name carrying '<' ("Female, <15y") aborts the IG publisher's final pass.
+# "substitute" publishes such names rewritten readably ("Female, under 15y") and
+# prints every rewrite; DHIS2 itself is never modified, and every emitted
+# identifier stays exactly as it is. "refuse" publishes names byte-true and
+# refuses the run instead; removing the key makes each run ask.
+hostile_names = "substitute"
 {% if max_level %}
 
 [generate.organisation_units]
