@@ -4,7 +4,7 @@ import re
 from datetime import UTC, datetime
 
 import pytest
-from dhis2w_fhir.config import GenerateConfig, NamingConfig
+from dhis2w_fhir.config import GenerateConfig, HostileNamePosture, NamingConfig
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.validation import build_code_validation, render_validation_markdown
 from dhis2w_fhir.validation.pdf import render_validation_pdf
@@ -700,3 +700,177 @@ def test_the_pdf_renders_at_every_contents_page_boundary(resource_type_count: in
     rendered = render_validation_pdf(report, target="probe", generated_at=datetime(2026, 1, 1, tzinfo=UTC))
 
     assert rendered.startswith(b"%PDF")
+
+
+#: A validate run reading a project that publishes rewritten names and hyphenated codes.
+_SUBSTITUTE_CONFIG = GenerateConfig(concept_code_source="code", hostile_names=HostileNamePosture.SUBSTITUTE)
+
+#: The same project answering the same question with today's refusal instead.
+_REFUSE_CONFIG = GenerateConfig(concept_code_source="code", hostile_names=HostileNamePosture.REFUSE)
+
+#: A play 2.42 data element whose name the guide publishes rewritten under `substitute`.
+_VITAMIN_NAME = "Vitamin A given to < 5y"
+
+
+def _graded(config: GenerateConfig, name: str, code: str | None = None) -> ValidationFinding:
+    """The single name finding one data set raises under the posture the given config states."""
+    report = build_code_validation(
+        [],
+        [MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name=name, code=code)])],
+        config,
+    )
+    findings = _hostile(report)
+    assert len(findings) == 1
+    return findings[0]
+
+
+def test_under_substitute_a_build_aborting_name_is_informational_and_states_both_spellings() -> None:
+    """The guide rewrites the name, so the finding says what is published rather than demanding a change."""
+    finding = _graded(_SUBSTITUTE_CONFIG, _VITAMIN_NAME)
+    assert finding.severity == "info"
+    assert finding.message == (
+        "published as 'Vitamin A given to under 5y' - the name is rewritten for publication "
+        "(hostile_names = \"substitute\"); DHIS2 keeps 'Vitamin A given to < 5y'"
+    )
+    assert "change the name in DHIS2" not in finding.message
+
+
+@pytest.mark.parametrize(
+    "config", [_REFUSE_CONFIG, GenerateConfig(concept_code_source="code")], ids=["refuse", "unset"]
+)
+def test_under_refuse_and_unset_the_same_name_stays_an_error(config: GenerateConfig) -> None:
+    """Both postures publish the name byte-true, so the build really does abort and the grade holds."""
+    finding = _graded(config, _VITAMIN_NAME)
+    assert finding.severity == "error"
+    assert "so `make build` fails" in finding.message
+    assert "change the name in DHIS2" in finding.message
+
+
+def test_a_survivable_character_stays_a_warning_under_substitute() -> None:
+    """The rewrite touches '<' and nothing else, so a '>' name malforms its pages under either posture."""
+    finding = _graded(_SUBSTITUTE_CONFIG, "Mortality > 5 years")
+    assert finding.severity == "warning"
+    assert "render malformed" in finding.message
+    assert "rewritten for publication" not in finding.message
+
+
+def test_a_name_carrying_both_keeps_the_grade_the_rewrite_cannot_remove() -> None:
+    """With the '<' rewritten away a '>' is still in the published name, so the page is still malformed."""
+    finding = _graded(_SUBSTITUTE_CONFIG, "Age < 5 & > 1")
+    assert finding.severity == "warning"
+    assert "published as 'Age under 5 & > 1'" in finding.message
+    assert "the published name still contains '>'" in finding.message
+
+
+def test_under_substitute_an_option_name_is_downgraded_by_the_deep_pass_too() -> None:
+    """An option's name is rewritten exactly as a data set's is, so the deep pass grades it the same way."""
+    report = build_code_validation(
+        [_set("Os1aaaaaaaa", "Age band", [OptionIn(uid="Op1aaaaaaaa", code="LT5", name="< 5 years")])],
+        [],
+        _SUBSTITUTE_CONFIG,
+    )
+    findings = _hostile(report)
+    assert [finding.severity for finding in findings] == ["info"]
+    assert "published as 'under 5 years'" in findings[0].message
+
+
+def test_under_substitute_a_spaced_code_states_the_hyphenated_form_it_publishes() -> None:
+    """The published concept code is the hyphenated one, so the finding names it beside the DHIS2 code."""
+    report = build_code_validation(
+        [_set("Os1aaaaaaaa", "Diagnosis", [OptionIn(uid="Op1aaaaaaaa", code="Pre eclampsia", name="Pre eclampsia")])],
+        [],
+        _SUBSTITUTE_CONFIG,
+    )
+    spaced = [finding for finding in report.findings if finding.category == "spaced-code"]
+    assert len(spaced) == 1
+    assert spaced[0].severity == "info"
+    assert spaced[0].message == (
+        "code contains spaces; published as 'Pre-eclampsia' - each space becomes a hyphen for "
+        "publication (hostile_names = \"substitute\"); DHIS2 keeps 'Pre eclampsia'"
+    )
+
+
+def test_without_substitute_a_spaced_code_keeps_saying_what_the_quoted_form_costs() -> None:
+    """Nothing rewrites the code, so the finding keeps stating the form the guide really emits."""
+    report = build_code_validation(
+        [_set("Os1aaaaaaaa", "Diagnosis", [OptionIn(uid="Op1aaaaaaaa", code="Pre eclampsia", name="Pre eclampsia")])],
+        [],
+        _REFUSE_CONFIG,
+    )
+    spaced = [finding for finding in report.findings if finding.category == "spaced-code"]
+    assert [finding.message for finding in spaced] == [
+        'code contains spaces; FHIR-valid but emitted in the quoted #"..." form'
+    ]
+
+
+def test_a_build_aborting_code_stays_an_error_under_substitute() -> None:
+    """The code substituter rewrites a space and never a '<', so the run is refused under either posture."""
+    report = build_code_validation(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="optionSets",
+                items=[MetadataItemIn(uid="csRsm0D7guY", name="MAL ENTO: IRS 6 Months", code=_HOSTILE_CODE)],
+            )
+        ],
+        _SUBSTITUTE_CONFIG,
+    )
+    findings = _hostile_code(report)
+    assert [finding.severity for finding in findings] == ["error"]
+    assert "the substitution rewrites a space in a code and never '<'" in findings[0].message
+    assert "change the code in DHIS2" in findings[0].message
+
+
+def test_the_flag_overrides_the_project_in_both_directions() -> None:
+    """A what-if run reads the instance under the other posture, whichever way round it is asked."""
+    collections = [
+        MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name=_VITAMIN_NAME)])
+    ]
+    over_refuse = build_code_validation([], collections, _REFUSE_CONFIG, hostile_names=HostileNamePosture.SUBSTITUTE)
+    over_substitute = build_code_validation(
+        [], collections, _SUBSTITUTE_CONFIG, hostile_names=HostileNamePosture.REFUSE
+    )
+    assert [finding.severity for finding in _hostile(over_refuse)] == ["info"]
+    assert [finding.severity for finding in _hostile(over_substitute)] == ["error"]
+    assert over_refuse.hostile_names is HostileNamePosture.SUBSTITUTE
+    assert over_substitute.hostile_names is HostileNamePosture.REFUSE
+
+
+def test_a_substitute_posture_project_carrying_only_rewritten_names_reports_no_error() -> None:
+    """The exit code follows the graded severities, so `make refresh` runs clean past validate."""
+    report = build_code_validation(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="dataSets",
+                items=[
+                    MetadataItemIn(uid="Ds1aaaaaaaa", name=_VITAMIN_NAME, code="DS_VITA"),
+                    MetadataItemIn(uid="Ds2aaaaaaaa", name=_MORTALITY_NAME, code="DS_MORT"),
+                ],
+            )
+        ],
+        _SUBSTITUTE_CONFIG,
+    )
+    assert report.error_count == 0
+    assert report.info_count == 2
+
+
+@pytest.mark.parametrize(
+    ("posture", "expected"),
+    [
+        (HostileNamePosture.SUBSTITUTE, "substitute - a name carrying '<' is rewritten for publication"),
+        (HostileNamePosture.REFUSE, "refuse - every name is published exactly as DHIS2 states it"),
+        (None, "not set - every name is published exactly as DHIS2 states it"),
+    ],
+    ids=["substitute", "refuse", "unset"],
+)
+def test_every_renderer_states_the_posture_the_run_graded_under(
+    posture: HostileNamePosture | None, expected: str
+) -> None:
+    """The report carries the posture, and the Markdown says it in the line the terminal prints."""
+    report = build_code_validation([], [], GenerateConfig(hostile_names=posture))
+    assert report.hostile_names is posture
+    assert report.hostile_names_line.startswith(expected)
+    markdown = render_validation_markdown(report, "probe", _GENERATED_AT)
+    assert f"- hostile names: {report.hostile_names_line}" in markdown
+    assert render_validation_pdf(report, target="probe", generated_at=_GENERATED_AT).startswith(b"%PDF")

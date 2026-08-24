@@ -113,6 +113,13 @@ profile 'demo' saved to /home/you/my-ig/.dhis2/profiles.toml
 `uv run` drives the toolchain the last step pinned, so the check runs against
 the versions `uv.lock` records rather than whatever `d2w` is on your PATH.
 
+The scaffold wrote `hostile_names = "substitute"` into `fhir.toml`, under which
+a DHIS2 name carrying `<` is rewritten for publication and nothing stops. This
+walkthrough shows the gate instead, so change that one line to
+`hostile_names = "refuse"` before running the check. Both roads are real and
+[`hostile_names`](301-generation.md#hostile_names) is where to choose between
+them; validate grades under whichever one the file states.
+
 ```console
 $ uv run d2w fhir validate
 running 5 step(s)
@@ -137,6 +144,8 @@ running 5 step(s)
 │code coverage      │ 1/1428 (selection objects whose code can serve as an   │
 │                   │ identity stem)                                         │
 │code source        │ id                                                     │
+│hostile names      │ refuse - every name is published exactly as DHIS2       │
+│                   │ states it                                              │
 └───────────────────┴────────────────────────────────────────────────────────┘
                findings by category (6)
 ┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┓
@@ -187,11 +196,15 @@ spaces in them, and eight findings about objects the instance holds but this
 project does not select. [Validate the
 instance](201-validate.md#read-severity-as-build-impact) explains every grade.
 
-Two honest ways forward, and both are real:
+Three honest ways forward, and all of them are real:
 
 - **Fix the names in DHIS2** and run validate again. On your own instance this
   is the one to take: rename the six so no name carries a `<`, and clear the
   `>` and `&` warnings while you are in there.
+- **Publish them rewritten.** Put `hostile_names = "substitute"` back and the
+  guide publishes `Vitamin A given to under 5y` while DHIS2 keeps the name it
+  holds. Validate then grades those six informational and the build survives
+  them - [`hostile_names`](301-generation.md#hostile_names) is the whole story.
 - **Keep them out of the selection.** A guide publishes what its `fhir.toml`
   names, and nothing obliges it to name everything. Step 5 takes this road,
   because the demo database is not yours to rename.

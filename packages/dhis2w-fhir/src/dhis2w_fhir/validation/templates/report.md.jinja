@@ -7,6 +7,7 @@ Generated: {{ generated_at }}
 - resource types swept: {{ report.resource_type_count }} ({{ report.object_count }} objects)
 - option sets (deep pass): {{ report.option_set_count }} ({{ report.option_count }} options)
 - attributes (deep pass): {{ report.attribute_count }}
+- hostile names: {{ report.hostile_names_line }}
 - findings: {{ report.error_count }} errors, {{ report.warning_count }} warnings, {{ report.info_count }} infos
 {% if report.code_coverage is not none %}
 - selection findings: {{ report.selection_error_count }} errors, {{ report.selection_warning_count }} warnings, {{ report.selection_info_count }} infos

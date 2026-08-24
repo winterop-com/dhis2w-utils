@@ -9987,6 +9987,13 @@ the same codes), a warning degrades an emitted resource, and an info is instance
 objects the build never reads. Each finding carries that verdict as its scope - `selection`
 for objects the configured selection emits, `instance` for the rest.
 
+The run grades under the project&#x27;s ` hostile_names` posture, and the summary states
+which one it read. Under `substitute` a DHIS2 name carrying &#x27;&lt;&#x27; is rewritten for publication
+and the build survives it, so the finding on that name is informational and says what the guide
+publishes; under `refuse` - and unset, which refuses - the same name aborts the build and stays
+an error. A DHIS2 code carrying &#x27;&lt;&#x27; is an error under either posture: the substitution rewrites
+a space in a code and never a &#x27;&lt;&#x27;.
+
 The terminal says what the state is: a summary, a count per severity, scope, and category, and
 every error by name, because an error is what gates the build and the user has to know which
 object holds it. The written report is where a warning is read one row at a time; `--details`
@@ -10003,6 +10010,7 @@ $ d2w fhir validate [OPTIONS]
 * `--output-dir <directory>`: Directory to write the report files into, one per format, all named fhir-validate-report (default: reports/ under the project root, else the working directory).
 * `--format <str>`: Comma-separated report formats to write: md, csv, pdf.  [default: md,csv,pdf]
 * `--code-source <id|code>`: Override `[generate]` concept_code_source for this run. In id mode the option code findings are informational; run with code to see what switching would cost.
+* `--hostile-names <refuse|substitute>`: Override `[generate]` hostile_names for this run. Under substitute a name carrying &#x27;&lt;&#x27; is rewritten for publication, so the findings on those names are graded informational; under refuse they abort the build and stay errors.
 * `--details`: List every finding individually instead of the rolled-up category counts.
 * `--fail / --no-fail`: Exit 1 when errors are found.  [default: fail]
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
