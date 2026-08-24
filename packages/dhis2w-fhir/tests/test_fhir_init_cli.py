@@ -244,7 +244,7 @@ def test_init_refresh_never_writes_fhir_toml(workdir: Path) -> None:
     """fhir.toml holds the IG identity, the profile, and the generation tables - all the user's."""
     project = _scaffold(workdir)
     config_path = project / "fhir.toml"
-    body = config_path.read_text(encoding="utf-8") + '\n[generate]\nconcept_code_source = "code"\n'
+    body = config_path.read_text(encoding="utf-8") + "\n[serve]\nport = 8390\n"
     config_path.write_text(body, encoding="utf-8")
 
     result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])

@@ -30,6 +30,12 @@ identifier_system_base = "http://dhis2.org/fhir"
 # categories, and category option combos. `d2w fhir validate --code-source code` reports what
 # switching would cost before you switch. -> 301-generation#concept_code_source
 concept_code_source = "id"
+# What a run does with a DHIS2 name carrying '<', which aborts the IG publisher's final pass.
+# "substitute" publishes such names rewritten readably ("Female, <15y" -> "Female, under 15y")
+# and prints every rewrite; DHIS2 itself is never modified, and every emitted identifier stays
+# exactly as it is. "refuse" publishes names byte-true and refuses the run instead. Absent, each
+# run asks on a terminal and refuses without one. -> 301-generation#hostile_names
+# hostile_names = "substitute"
 # IANA time zone the server's clock times are read in ("Asia/Vientiane"). -> 301-generation#timezone
 # timezone = "Asia/Vientiane"
 # Languages to publish translations for (absent = every language found). -> 301-generation#locales
