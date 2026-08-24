@@ -492,7 +492,7 @@ def _tracked_entity_type_concepts(
         CodeSystemConcept(
             code=entry.uid,
             display=flatten_whitespace(entry.name),
-            property=_code_property(entry.code) or None,
+            property=_code_property(entry.dhis2_code) or None,
             designation=_designations(entry.translations, locales),
         )
         for entry in published
@@ -969,7 +969,7 @@ def _data_element_concepts(
     """One concept per referenced data element, carrying its DHIS2 code and its domain type."""
     concepts: list[CodeSystemConcept] = []
     for item in sorted(data_elements.values(), key=lambda entry: (entry.name, entry.uid)):
-        properties = _code_property(item.code)
+        properties = _code_property(item.dhis2_code)
         domain = domain_code(item.domain_type)
         if domain is not None:
             properties.append(CodeSystemConceptProperty(code=_DOMAIN_PROPERTY, valueCode=domain))
@@ -1005,7 +1005,7 @@ def _tracked_entity_attribute_concepts(referenced: ReferencedObjects, locales: l
             code=item.uid,
             display=flatten_whitespace(item.name),
             property=[
-                *_code_property(item.code),
+                *_code_property(item.dhis2_code),
                 CodeSystemConceptProperty(code=_VALUE_TYPE_PROPERTY, valueCode=item.value_type),
                 CodeSystemConceptProperty(code=_UNIQUE_PROPERTY, valueBoolean=item.unique),
                 CodeSystemConceptProperty(
@@ -1038,7 +1038,7 @@ def _option_combo_concepts(
     concepts: list[CodeSystemConcept] = []
     for option_combo in sorted(option_combos.values(), key=lambda entry: (entry.name, entry.uid)):
         properties = [
-            *_code_property(option_combo.code),
+            *_code_property(option_combo.dhis2_code),
             *([] if decomposition is None else decomposition.properties_for(option_combo.uid)),
         ]
         concepts.append(

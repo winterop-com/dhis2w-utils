@@ -6,6 +6,7 @@ however the components are arranged internally.
 """
 
 from dhis2w_fhir.attributes import AttributeCodeIndex, AttributeValueIn
+from dhis2w_fhir.coded import CodedProjectionIn, CodeSubstitutions
 from dhis2w_fhir.config import (
     BASEMAP_DISABLED,
     DEFAULT_BASEMAP_NAME,
@@ -205,7 +206,7 @@ from dhis2w_fhir.foundation import (
     tracked_entity_attribute_value_extension_url,
     tracked_entity_attribute_value_extensions,
 )
-from dhis2w_fhir.hostile_names import HostileNameConfirmation, HostileNameGate, HostileNameRewrite
+from dhis2w_fhir.hostile_names import HostileNameGate, HostileRewrite, HostileRewriteConfirmation
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, normalize_locale
 from dhis2w_fhir.ips import (
     ADMINISTRATIVE_GENDER_CODE_SYSTEM_URL,
@@ -808,7 +809,9 @@ __all__ = [
     "code_system_canonical",
     "CodeCoverage",
     "CodedAnswerMode",
+    "CodedProjectionIn",
     "CodeStemError",
+    "CodeSubstitutions",
     "collect_artifacts",
     "collect_referenced_objects",
     "compare_form",
@@ -982,10 +985,10 @@ __all__ = [
     "grade_oracle",
     "grouping_identifiers",
     "GroupingIdentifier",
-    "HostileNameConfirmation",
     "HostileNameGate",
     "HostileNamePosture",
-    "HostileNameRewrite",
+    "HostileRewrite",
+    "HostileRewriteConfirmation",
     "IdentityNominations",
     "IgConfig",
     "IMMUNIZATIONS_SECTION",

@@ -107,10 +107,9 @@ def _concept(organisation_unit: OrganisationUnitIn, config: GenerateConfig) -> C
     properties = [CodeSystemConceptProperty(code=_LEVEL_PROPERTY, valueInteger=organisation_unit.level)]
     if organisation_unit.parent_uid is not None:
         properties.append(CodeSystemConceptProperty(code=_PARENT_PROPERTY, valueCode=organisation_unit.parent_uid))
-    if organisation_unit.code is not None:
-        properties.append(
-            CodeSystemConceptProperty(code=_CODE_PROPERTY, valueString=flatten_whitespace(organisation_unit.code))
-        )
+    dhis2_code = organisation_unit.dhis2_code
+    if dhis2_code is not None:
+        properties.append(CodeSystemConceptProperty(code=_CODE_PROPERTY, valueString=flatten_whitespace(dhis2_code)))
     designations = [
         CodeSystemConceptDesignation(language=translation.locale, value=flatten_whitespace(translation.value))
         for translation in name_translations(organisation_unit.translations, config.locales)

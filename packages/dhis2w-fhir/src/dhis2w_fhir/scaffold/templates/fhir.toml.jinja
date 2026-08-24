@@ -20,11 +20,14 @@ publisher = "{{ publisher }}"
 status = "{{ status }}"
 
 [generate]
-# A DHIS2 name carrying '<' ("Female, <15y") aborts the IG publisher's final pass.
-# "substitute" publishes such names rewritten readably ("Female, under 15y") and
-# prints every rewrite; DHIS2 itself is never modified, and every emitted
-# identifier stays exactly as it is. "refuse" publishes names byte-true and
-# refuses the run instead; removing the key makes each run ask.
+# A DHIS2 name carrying '<' ("Female, <15y") aborts the IG publisher's final pass,
+# and a DHIS2 code carrying a space ("Pre eclampsia") collides on the publisher's
+# anchors and needs escaping in every URL below them. "substitute" publishes such
+# names rewritten readably ("Female, under 15y") and such codes hyphenated
+# ("Pre-eclampsia"), and prints every rewrite; DHIS2 itself is never modified, no
+# UID is touched, and each rewritten concept states its DHIS2 code as a
+# `dhis2-code` property. "refuse" publishes names and codes byte-true and refuses
+# the run on a '<' name instead; removing the key makes each run ask.
 hostile_names = "substitute"
 {% if max_level %}
 

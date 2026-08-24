@@ -55,7 +55,13 @@ from dhis2w_fhir.period import parse_period
 from dhis2w_fhir.r4 import (
     Attachment,
     CodeSystem,
+    CodeSystemConcept,
+    CodeSystemConceptProperty,
     Coding,
+    ConceptMap,
+    ConceptMapGroup,
+    ConceptMapGroupElement,
+    ConceptMapGroupElementTarget,
     Extension,
     Identifier,
     Location,
@@ -1162,6 +1168,57 @@ def test_the_combos_concept_map_carries_the_uid_a_hand_written_code_system_lost(
 
     assert {entry.concept_code: entry.option_uid for entry in without_map.entries}["PRJ_WATER"] == "PRJ_WATER"
     assert {entry.concept_code: entry.option_uid for entry in with_map.entries}["PRJ_WATER"] == "Aoc1aaaaaaa"
+
+
+def test_a_substituted_concept_lowers_to_the_dhis2_code_not_the_published_one() -> None:
+    """The round-trip a substitute-posture guide has to keep: DHIS2 gets what DHIS2 holds.
+
+    The concept publishes `Pre-eclampsia` and the ConceptMap's code group states the same, because
+    the published vocabulary is self-consistent. Only the `dhis2-code` property carries the DHIS2
+    spelling, and it is that spelling a data value is written with.
+    """
+    system = f"{_CANONICAL}/CodeSystem/d2-os-OsSpc000001-cs"
+    published = CodeSystem(
+        id="d2-os-OsSpc000001-cs",
+        url=system,
+        status="draft",
+        content="complete",
+        concept=[
+            CodeSystemConcept(
+                code="Pre-eclampsia",
+                display="Pre eclampsia",
+                property=[
+                    CodeSystemConceptProperty(code="dhis2-id", valueCode="OpSpc000001"),
+                    CodeSystemConceptProperty(code="dhis2-code", valueString="Pre eclampsia"),
+                ],
+            )
+        ],
+    )
+    naming = ConversionNaming.from_config(_CODE_CONCEPTS, _CANONICAL)
+    concept_map = ConceptMap(
+        id="d2-os-OsSpc000001-cm",
+        url=f"{_CANONICAL}/ConceptMap/d2-os-OsSpc000001-cm",
+        status="draft",
+        group=[
+            ConceptMapGroup(
+                source=system,
+                target=naming.option_code_system,
+                element=[
+                    ConceptMapGroupElement(
+                        code="Pre-eclampsia",
+                        target=[ConceptMapGroupElementTarget(code="Pre-eclampsia", equivalence="equivalent")],
+                    )
+                ],
+            )
+        ],
+    )
+
+    table = build_option_table(published, naming, [concept_map])
+    entry = next(entry for entry in table.entries if entry.concept_code == "Pre-eclampsia")
+
+    assert entry.option_code == "Pre eclampsia"
+    assert entry.option_uid == "OpSpc000001"
+    assert entry.wire_value == "Pre eclampsia"
 
 
 def test_a_lenient_run_resolves_a_combo_sent_in_the_other_spelling_and_says_so() -> None:

@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.coded import DHIS2_CODE_PROPERTY, DHIS2_ID_PROPERTY, code_substitutions
 from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_extension_url,
     attribute_value_extensions,
@@ -113,8 +114,8 @@ _ID_SUFFIX = "-vs"
 
 #: The concept-property declarations, each of which takes its `uri` from the configured identifier base.
 _PROPERTY_DECLARATIONS = (
-    CodeSystemProperty(code="dhis2-code", description="DHIS2 category option code.", type="string"),
-    CodeSystemProperty(code="dhis2-id", description="DHIS2 category option UID.", type="code"),
+    CodeSystemProperty(code=DHIS2_CODE_PROPERTY, description="DHIS2 category option code.", type="string"),
+    CodeSystemProperty(code=DHIS2_ID_PROPERTY, description="DHIS2 category option UID.", type="code"),
 )
 
 
@@ -322,6 +323,7 @@ def build_category_identifier_artifacts(
         build_category_concept_maps(categories, config, canonical, ig_status=ig_status),
         config,
         ig_status=ig_status,
+        substitutions=code_substitutions(categories),
     )
 
 

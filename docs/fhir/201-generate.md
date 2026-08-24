@@ -316,17 +316,17 @@ So a run has three outcomes, and you choose which:
 
 | Outcome | How you get it | What happens |
 | --- | --- | --- |
-| Refuse | `--refuse-hostile-names`, or `hostile_names = "refuse"` | The run writes nothing and names the object, exactly as above. |
-| Ask | neither flag, no dial, and a terminal | The names are shown with their rewrites and you answer yes or no. |
-| Substitute | `--substitute-hostile-names`, or `hostile_names = "substitute"` | The guide publishes the rewritten wording, and every rewrite is noted. |
+| Refuse | `--refuse-hostile-names`, or `hostile_names = "refuse"` | The run writes nothing and names the object, exactly as above. Every code is published byte-true. |
+| Ask | neither flag, no dial, and a terminal | The names and codes are shown with their rewrites and you answer yes or no. |
+| Substitute | `--substitute-hostile-names`, or `hostile_names = "substitute"` | The guide publishes the rewritten wording and the hyphenated codes, and every rewrite is noted. |
 
 A flag beats the `fhir.toml` dial, and the dial beats the question. With no
 terminal to ask on - a script, a CI job - the run never hangs on a prompt: it
-prints the same block, names the two flags, and leaves every name as DHIS2
-states it.
+prints the same block, names the two flags, and leaves every name and code as
+DHIS2 states it.
 
-The rewrite is wording, not escaping. `<` becomes the word it stands for, so a
-reader of the guide reads a sentence:
+The name rewrite is wording, not escaping. `<` becomes the word it stands for, so
+a reader of the guide reads a sentence:
 
 | DHIS2 name | Published name |
 | --- | --- |
@@ -334,21 +334,46 @@ reader of the guide reads a sentence:
 | `Male, <15y` | `Male, under 15y` |
 | `Age <= 5` | `Age at most 5` |
 
-**Nothing else moves.** DHIS2 is never written to. No code, no UID, and no
-identifier value is touched - only names - so the ConceptMaps still take a
-published concept back to the DHIS2 object it came from, byte for byte. A DHIS2
-*code* carrying `<` still refuses the run whichever answer you give, because a
-code is an identifier a consumer joins on and a renamed identifier is a
-different identifier.
+**Codes carrying a space are rewritten too, and only under `substitute`.** A
+space is legal in an R4 `code`, so nothing refuses `Pre eclampsia` - and the IG
+publisher's anchor slug strips whitespace, so it and a literal `Preeclampsia`
+render one anchor id (BUGS.md 107), while every URL, CQL quotation, and
+terminology server below the guide escapes or quotes the space at its own
+discretion. Each space becomes a hyphen:
 
-Every rewritten name lands in the notes as a `name-substitution` note - one per
-distinct DHIS2 name, however many resources carry it - so the notes report is the
-record of where the guide and the instance say different words:
+| DHIS2 code | Published code |
+| --- | --- |
+| `Pre eclampsia` | `Pre-eclampsia` |
+| `IPT 1` | `IPT-1` |
+| `Pre eclampsia`, where the instance also holds `Pre-eclampsia` | `Pre-eclampsia-2` |
+
+The ordinal is assigned in sorted order, so the same selection publishes the same
+codes on every run.
+
+**DHIS2 is never written to, and nothing is lost.** No UID is touched. Every
+rewritten concept states the DHIS2 code byte-true as a `dhis2-code` property - in
+the option-set, category, and category-option-combo vocabularies and in the
+`.../id/*-code` identifier CodeSystems alike - and the ConceptMaps keep taking a
+published concept back to its DHIS2 UID. The capture path reads that property, so
+a QuestionnaireResponse answering with a published code still writes the DHIS2
+code to DHIS2. A DHIS2 *code* carrying `<` still refuses the run whichever answer
+you give: `<` opens a tag in the table cell an identifier value lands in, and no
+rewrite of it would be an identifier anybody could join on.
+
+Every rewrite lands in the notes - a `name-substitution` note per distinct DHIS2
+name and a `code-substitution` note per distinct DHIS2 code, however many
+resources carry them - so the notes report is the record of where the guide and
+the instance say different things:
 
 ```text
 note: the DHIS2 name '5 to < 15 years, Female' carries '<', which the IG
 publisher's build cannot survive; the guide publishes '5 to under 15 years,
 Female' and DHIS2 keeps the name it holds
+
+note: the DHIS2 code 'IPT 1' carries a space, which the IG publisher's anchors
+and every URL downstream of them handle at their own discretion; the guide
+publishes 'IPT-1' and states the DHIS2 code beside it as a `dhis2-code` concept
+property
 ```
 
 Substitution reaches further than the refusal does. The refusal reads the names

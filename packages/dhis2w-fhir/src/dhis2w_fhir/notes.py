@@ -46,6 +46,9 @@ class GenerateNoteCategory(StrEnum):
     #: A DHIS2 name the IG publisher's build cannot survive, published in rewritten wording.
     NAME_SUBSTITUTION = "name-substitution"
 
+    #: A DHIS2 code carrying a space, published with the space hyphenated.
+    CODE_SUBSTITUTION = "code-substitution"
+
     #: A DHIS2 code unusable as a concept code, so the UID stands in for it.
     CODE_FALLBACK = "code-fallback"
 

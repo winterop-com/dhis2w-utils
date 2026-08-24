@@ -45,6 +45,31 @@ def _code_mode_code_system() -> dict[str, Any]:
     }
 
 
+def _substituted_code_system() -> dict[str, Any]:
+    """A code-mode CodeSystem from a substitute-posture run: the code hyphenated, the DHIS2 one beside it."""
+    return {
+        "resourceType": "CodeSystem",
+        "id": "d2-os-OsSpc000001-cs",
+        "url": f"{CANONICAL}/CodeSystem/d2-os-OsSpc000001-cs",
+        "status": "draft",
+        "content": "complete",
+        "property": [
+            {"code": "dhis2-id", "description": "DHIS2 option UID.", "type": "code"},
+            {"code": "dhis2-code", "description": "DHIS2 option code.", "type": "string"},
+        ],
+        "concept": [
+            {
+                "code": "Pre-eclampsia",
+                "display": "Pre eclampsia",
+                "property": [
+                    {"code": "dhis2-id", "valueCode": "OpSpc000001"},
+                    {"code": "dhis2-code", "valueString": "Pre eclampsia"},
+                ],
+            }
+        ],
+    }
+
+
 def _ambiguous_code_system() -> dict[str, Any]:
     """A CodeSystem where two options were given the same DHIS2 code - a defect the server cannot resolve."""
     return {
@@ -113,6 +138,24 @@ def test_a_code_mode_concept_carries_the_option_code_and_its_uid() -> None:
     assert resolved.dhis2_code == HYGIENE_OPTION_CODE
     assert resolved.concept_code == HYGIENE_OPTION_CODE
     assert resolved.matched_by == "concept-code"
+
+
+def test_a_substituted_concept_resolves_to_the_dhis2_code_the_instance_holds() -> None:
+    """A substitute-posture guide publishes `Pre-eclampsia` and states `Pre eclampsia` beside it.
+
+    Whichever spelling the client sends, the option lowers to the DHIS2 code - the rewrite is the
+    guide's, and DHIS2 never sees it.
+    """
+    resolver = _resolver(_substituted_code_system())
+
+    published = resolver.resolve("Pre-eclampsia", strict=True)
+    sent_as_dhis2 = resolver.resolve("Pre eclampsia", strict=False)
+
+    assert published.concept_code == "Pre-eclampsia"
+    assert published.dhis2_code == "Pre eclampsia"
+    assert published.option_uid == "OpSpc000001"
+    assert sent_as_dhis2.matched_by == "dhis2-code"
+    assert sent_as_dhis2.dhis2_code == "Pre eclampsia"
 
 
 def test_a_uid_sent_against_a_code_mode_system_resolves_on_the_uid_tier() -> None:

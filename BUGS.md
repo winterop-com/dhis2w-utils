@@ -6153,8 +6153,19 @@ itself calls malformed.
 **Actual.** One anchor id for both rows, a QA error per collision, and an `Internal error in
 location` line above it. The build still exits 0 - the errors are QA-level.
 
-**Workaround applied in this repo:** none in the emission - `resources/identifier_terminology.py`
-deliberately keeps both codes, because merging codes that differ only in characters the
-publisher's slug strips would make a `content: complete` claim false
-(`_distinct_concepts` dedupes exact duplicates only). The QA errors are cosmetic and counted
-among a guide's expected errors; `docs/fhir/201-troubleshooting.md` names the symptom.
+**Workaround applied in this repo:** posture-dependent, and never a merge. Two codes that differ
+only in whitespace stay two concepts either way - merging them would make a `content: complete`
+claim false, and `_distinct_concepts` in
+`packages/dhis2w-fhir/src/dhis2w_fhir/resources/identifier_terminology.py` still dedupes exact
+duplicates only.
+
+Under `hostile_names = "substitute"` the run publishes no space-carrying code at all:
+`packages/dhis2w-fhir/src/dhis2w_fhir/hostile_names.py` hyphenates every space in a DHIS2 code
+before emission (`packages/dhis2w-fhir/src/dhis2w_fhir/coded.py` holds the rewrite and the
+de-collision ordinal), so `Pre eclampsia` is published as `Pre-eclampsia`, `Preeclampsia` keeps
+its own spelling, and the two anchor ids differ. The DHIS2 code rides along byte-true as a
+`dhis2-code` concept property, so nothing about the join back to the instance is lost.
+
+Under `hostile_names = "refuse"` and with the key unset, the codes reach the guide byte-true and
+the QA errors remain - cosmetic, and counted among a guide's expected errors.
+`docs/fhir/201-troubleshooting.md` names the symptom and both postures.

@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dhis2w_fhir.coded import DHIS2_CODE_PROPERTY, DHIS2_ID_PROPERTY, code_substitutions
 from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_extension_url,
     attribute_value_extensions,
@@ -138,8 +139,8 @@ _ID_SUFFIX = "-vs"
 
 #: The concept-property declarations, each of which takes its `uri` from the configured identifier base.
 _PROPERTY_DECLARATIONS = (
-    CodeSystemProperty(code="dhis2-code", description="DHIS2 option code.", type="string"),
-    CodeSystemProperty(code="dhis2-id", description="DHIS2 option UID.", type="code"),
+    CodeSystemProperty(code=DHIS2_CODE_PROPERTY, description="DHIS2 option code.", type="string"),
+    CodeSystemProperty(code=DHIS2_ID_PROPERTY, description="DHIS2 option UID.", type="code"),
 )
 
 
@@ -392,6 +393,7 @@ def build_option_set_identifier_artifacts(
         build_option_set_concept_maps(option_sets, config, canonical, ig_status=ig_status),
         config,
         ig_status=ig_status,
+        substitutions=code_substitutions(option_sets),
     )
 
 
@@ -707,19 +709,26 @@ def _concept_for(option: OptionIn, code: str, config: GenerateConfig) -> CodeSys
 
     Every concept carries the pair: in code mode the UID rides along as `dhis2-id`, in id mode
     the DHIS2 code rides along as `dhis2-code` - falling back to the UID when there is no usable code.
+    A code-mode concept whose published code is a substitute-posture rewrite carries `dhis2-code`
+    too, stating the DHIS2 code byte-true, so a consumer joins the concept back to DHIS2 on the
+    spelling the instance holds rather than on the one the guide publishes.
     """
     designations = [
         CodeSystemConceptDesignation(language=translation.locale, value=flatten_whitespace(translation.value))
         for translation in name_translations(option.translations, config.locales)
     ]
     if config.concept_code_source == "code":
-        carried = CodeSystemConceptProperty(code="dhis2-id", valueCode=option.uid)
+        carried = [CodeSystemConceptProperty(code=DHIS2_ID_PROPERTY, valueCode=option.uid)]
+        if option.original_code is not None:
+            carried.append(CodeSystemConceptProperty(code=DHIS2_CODE_PROPERTY, valueString=option.original_code))
     else:
-        carried = CodeSystemConceptProperty(code="dhis2-code", valueString=code_or_uid(option.code, option.uid))
+        carried = [
+            CodeSystemConceptProperty(code=DHIS2_CODE_PROPERTY, valueString=code_or_uid(option.dhis2_code, option.uid))
+        ]
     return CodeSystemConcept(
         code=code,
         display=flatten_whitespace(option.name),
-        property=[carried],
+        property=carried,
         designation=designations or None,
     )
 
