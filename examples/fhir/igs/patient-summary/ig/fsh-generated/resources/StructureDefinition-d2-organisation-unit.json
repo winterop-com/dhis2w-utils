@@ -1,0 +1,55 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-organisation-unit",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit",
+  "name": "D2OrganisationUnit",
+  "title": "DHIS2 organisation unit",
+  "status": "draft",
+  "experimental": true,
+  "description": "The DHIS2 organisation unit an event was captured at, as a reference to the unit's Location.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "QuestionnaireResponse"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 organisation unit",
+        "definition": "The DHIS2 organisation unit an event was captured at, as a reference to the unit's Location."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

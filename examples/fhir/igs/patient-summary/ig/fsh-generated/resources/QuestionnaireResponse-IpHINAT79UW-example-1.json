@@ -1,0 +1,84 @@
+{
+  "resourceType": "QuestionnaireResponse",
+  "id": "IpHINAT79UW-example-1",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-registration-response"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit",
+      "valueReference": {
+        "reference": "Location/ImspTQPwCqd"
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-enrollment",
+      "valueIdentifier": {
+        "system": "http://dhis2.org/fhir/id/tracker-enrollment",
+        "value": "jvImhO30zrp"
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-enrolled-at",
+      "valueDateTime": "2026-08-05T08:00:00Z"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+      "valueCode": "tracker"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-incident-at",
+      "valueDateTime": "2026-08-01T09:00:00Z"
+    }
+  ],
+  "subject": {
+    "identifier": {
+      "system": "http://dhis2.org/fhir/id/tracked-entity",
+      "value": "ByaTNM2MoVs"
+    },
+    "type": "Patient"
+  },
+  "questionnaire": "http://example.org/fhir/examples/patient-summary/Questionnaire/IpHINAT79UW",
+  "status": "completed",
+  "authored": "2026-07-29T22:00:00Z",
+  "item": [
+    {
+      "linkId": "w75KJ2mc4zz",
+      "answer": [
+        {
+          "valueString": "Example First name"
+        }
+      ]
+    },
+    {
+      "linkId": "zDhUuAYrxNC",
+      "answer": [
+        {
+          "valueString": "Example Last name"
+        }
+      ]
+    },
+    {
+      "linkId": "cejWyOfXge6",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "Mnp3oXrpAbK",
+            "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-pC3N9N77UmT-cs",
+            "display": "Female"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "lZGmxYbs97q",
+      "answer": [
+        {
+          "valueString": "Unique ID ByaTNM2MoVs"
+        }
+      ]
+    }
+  ]
+}

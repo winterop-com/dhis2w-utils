@@ -1,0 +1,204 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "IpHINAT79UW",
+  "url": "http://example.org/fhir/examples/patient-summary/Questionnaire/IpHINAT79UW",
+  "title": "Child Programme",
+  "description": "DHIS2 tracker program Child Programme (IpHINAT79UW) as a registration form: the tracked entity attributes captured when a person is enrolled in the program.",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+      "valueCode": "tracker"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-collects-incident-date",
+      "valueBoolean": true
+    },
+    {
+      "extension": [
+        {
+          "url": "enrollmentDate",
+          "valueString": "Date of enrollment"
+        },
+        {
+          "url": "incidentDate",
+          "valueString": "Date of birth"
+        }
+      ],
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-date-labels"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-assignment",
+      "valueReference": {
+        "reference": "List/d2-pr-IpHINAT79UW-org-units"
+      }
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "NAgjOfWMXg6"
+        },
+        {
+          "url": "name",
+          "valueString": "Ask for comment for low apgar"
+        },
+        {
+          "url": "condition",
+          "valueString": "#{apgarscore} >= 0 && #{apgarscore} < 4 && #{apgarcomment} == ''"
+        },
+        {
+          "url": "action",
+          "valueCode": "SHOWWARNING"
+        },
+        {
+          "url": "description",
+          "valueString": "Show warrning if Apgar is between 0 and 4 and there is no comment provided."
+        }
+      ],
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-program-rule"
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "tTPMkizzUZg"
+        },
+        {
+          "url": "name",
+          "valueString": "Demand comment if apgar is under zero"
+        },
+        {
+          "url": "condition",
+          "valueString": "#{apgarscore} <0 && #{apgarcomment} == ''"
+        },
+        {
+          "url": "action",
+          "valueCode": "SHOWERROR"
+        },
+        {
+          "url": "description",
+          "valueString": "If Apgar is provided as being under zero and there is no comment for the anomaly, show an error message."
+        }
+      ],
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-program-rule"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "IpHINAT79UW"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program-code",
+      "value": "IpHINAT79UW"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/tracked-entity-type",
+      "value": "nEenWmSyUEp"
+    }
+  ],
+  "name": "D2PR_IpHINAT79UW",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "code": "tracker",
+      "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "w75KJ2mc4zz",
+      "code": [
+        {
+          "code": "w75KJ2mc4zz",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tea-cs",
+          "display": "First name"
+        }
+      ],
+      "text": "First name",
+      "type": "string",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "First name"
+        },
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "zDhUuAYrxNC",
+      "code": [
+        {
+          "code": "zDhUuAYrxNC",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tea-cs",
+          "display": "Last name"
+        }
+      ],
+      "text": "Last name",
+      "type": "string",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "Last name"
+        },
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "cejWyOfXge6",
+      "code": [
+        {
+          "code": "cejWyOfXge6",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tea-cs",
+          "display": "Gender"
+        }
+      ],
+      "text": "Gender",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-pC3N9N77UmT-vs",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "Gender"
+        },
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-entity-level",
+          "valueBoolean": false
+        }
+      ]
+    },
+    {
+      "linkId": "lZGmxYbs97q",
+      "code": [
+        {
+          "code": "lZGmxYbs97q",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tea-cs",
+          "display": "Unique ID"
+        }
+      ],
+      "text": "Unique ID",
+      "type": "string",
+      "readOnly": true,
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "Unique identiifer"
+        },
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    }
+  ]
+}

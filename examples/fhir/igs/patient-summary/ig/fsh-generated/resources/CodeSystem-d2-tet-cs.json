@@ -1,0 +1,20 @@
+{
+  "resourceType": "CodeSystem",
+  "status": "draft",
+  "content": "complete",
+  "name": "D2TET_CS",
+  "id": "d2-tet-cs",
+  "title": "DHIS2 tracked entity types",
+  "description": "DHIS2 tracked entity types the generated forms register an entity as. Concept codes are DHIS2 tracked entity type UIDs.",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tet-cs",
+  "concept": [
+    {
+      "code": "nEenWmSyUEp",
+      "display": "Person"
+    }
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-tet-vs",
+  "count": 1
+}

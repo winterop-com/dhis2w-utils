@@ -1,0 +1,380 @@
+{
+  "resourceType": "StructureMap",
+  "id": "d2-aggregate-response-to-data-value-set",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureMap/d2-aggregate-response-to-data-value-set",
+  "title": "DHIS2 aggregate response to data value set",
+  "description": "How one aggregate QuestionnaireResponse becomes the DHIS2 data value set it is imported as, element by element. The map is the conversion contract a third party builds their own bridge from; it is not executed at runtime, and the rules whose meaning exceeds what a transform can state carry that on their own documentation.",
+  "name": "D2AggregateResponseToDataValueSet",
+  "status": "draft",
+  "experimental": true,
+  "structure": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/QuestionnaireResponse",
+      "mode": "source",
+      "alias": "QuestionnaireResponse"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-data-value-set",
+      "mode": "target",
+      "alias": "DataValueSet"
+    }
+  ],
+  "group": [
+    {
+      "name": "AggregateResponseToDataValueSet",
+      "typeMode": "none",
+      "documentation": "One aggregate QuestionnaireResponse becomes one data value set.",
+      "input": [
+        {
+          "name": "response",
+          "type": "QuestionnaireResponse",
+          "mode": "source"
+        },
+        {
+          "name": "dataValueSet",
+          "type": "DataValueSet",
+          "mode": "target"
+        }
+      ],
+      "rule": [
+        {
+          "name": "dataSet",
+          "documentation": "The data set is a fact about the form rather than about the response: it is the http://dhis2.org/fhir/id/data-set identifier of the Questionnaire the response answers, so an engine executing this map needs that Questionnaire in scope.",
+          "source": [
+            {
+              "context": "response",
+              "element": "questionnaire",
+              "variable": "questionnaire"
+            }
+          ],
+          "target": [
+            {
+              "context": "dataValueSet",
+              "contextType": "variable",
+              "element": "dataSet",
+              "transform": "evaluate",
+              "parameter": [
+                {
+                  "valueId": "questionnaire"
+                },
+                {
+                  "valueString": "resolve().identifier.where(system = 'http://dhis2.org/fhir/id/data-set').value"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "period",
+          "documentation": "The DHIS2 ISO period is what the import is keyed by. The date range the same extension carries is a rendering of that period, and a range disagreeing with the ISO period is ignored rather than obeyed.",
+          "source": [
+            {
+              "context": "response",
+              "element": "extension",
+              "variable": "reportingPeriod",
+              "condition": "url = 'http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-period'"
+            }
+          ],
+          "rule": [
+            {
+              "name": "periodIsoExtension",
+              "source": [
+                {
+                  "context": "reportingPeriod",
+                  "element": "extension",
+                  "variable": "isoExtension",
+                  "condition": "url = 'iso'"
+                }
+              ],
+              "rule": [
+                {
+                  "name": "periodIso",
+                  "source": [
+                    {
+                      "context": "isoExtension",
+                      "element": "value",
+                      "variable": "iso"
+                    }
+                  ],
+                  "target": [
+                    {
+                      "context": "dataValueSet",
+                      "contextType": "variable",
+                      "element": "period",
+                      "transform": "copy",
+                      "parameter": [
+                        {
+                          "valueId": "iso"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "orgUnit",
+          "documentation": "The organisation unit is the http://dhis2.org/fhir/id/org-unit identifier of the published Location the response is subject to, so an engine executing this map needs the Location registry in scope. Reading the UID off the reference's own id is only correct where the guide names its Locations by DHIS2 id.",
+          "source": [
+            {
+              "context": "response",
+              "element": "subject",
+              "variable": "subject"
+            }
+          ],
+          "target": [
+            {
+              "context": "dataValueSet",
+              "contextType": "variable",
+              "element": "orgUnit",
+              "transform": "evaluate",
+              "parameter": [
+                {
+                  "valueId": "subject"
+                },
+                {
+                  "valueString": "resolve().identifier.where(system = 'http://dhis2.org/fhir/id/org-unit').value"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "attributeOptionCombo",
+          "documentation": "The response names its attribute option combo as a coding of the vocabulary its own form declares. The code is the DHIS2 UID wherever the guide's concept codes are DHIS2 ids; where they are DHIS2 codes, the combo's own ConceptMap translates the code onto http://dhis2.org/fhir/id/category-option-combo and this rule is that translation's input. A data set on the default category combo names no combo at all, and DHIS2 fills the field itself.",
+          "source": [
+            {
+              "context": "response",
+              "element": "extension",
+              "variable": "attributeOptionComboExtension",
+              "condition": "url = 'http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-attribute-option-combo'"
+            }
+          ],
+          "rule": [
+            {
+              "name": "attributeOptionComboCoding",
+              "source": [
+                {
+                  "context": "attributeOptionComboExtension",
+                  "element": "value",
+                  "variable": "coding"
+                }
+              ],
+              "rule": [
+                {
+                  "name": "attributeOptionComboCode",
+                  "source": [
+                    {
+                      "context": "coding",
+                      "element": "code",
+                      "variable": "comboCode"
+                    }
+                  ],
+                  "target": [
+                    {
+                      "context": "dataValueSet",
+                      "contextType": "variable",
+                      "element": "attributeOptionCombo",
+                      "transform": "copy",
+                      "parameter": [
+                        {
+                          "valueId": "comboCode"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "completeDate",
+          "documentation": "The report is complete on the day the response records itself as authored. `authored` carries an offset and DHIS2 stores a zone-less wall clock, so a bridge reads the instant in the project's own time zone before taking its date part; the substring below is the structural claim, not the zone arithmetic.",
+          "source": [
+            {
+              "context": "response",
+              "element": "authored",
+              "variable": "authored"
+            }
+          ],
+          "target": [
+            {
+              "context": "dataValueSet",
+              "contextType": "variable",
+              "element": "completeDate",
+              "transform": "evaluate",
+              "parameter": [
+                {
+                  "valueId": "authored"
+                },
+                {
+                  "valueString": "toString().substring(0, 10)"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "dataValues",
+          "source": [
+            {
+              "context": "response",
+              "element": "item",
+              "variable": "item"
+            }
+          ],
+          "dependent": [
+            {
+              "name": "ResponseItemToDataValues",
+              "variable": [
+                "item",
+                "dataValueSet"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ResponseItemToDataValues",
+      "typeMode": "none",
+      "documentation": "One answered item becomes one data value. A form's questions sit under section groups and a group carries no data value of its own, so the group recurses into its children and writes only where an answer is.",
+      "input": [
+        {
+          "name": "item",
+          "mode": "source"
+        },
+        {
+          "name": "dataValueSet",
+          "type": "DataValueSet",
+          "mode": "target"
+        }
+      ],
+      "rule": [
+        {
+          "name": "nestedItem",
+          "source": [
+            {
+              "context": "item",
+              "element": "item",
+              "variable": "childItem"
+            }
+          ],
+          "dependent": [
+            {
+              "name": "ResponseItemToDataValues",
+              "variable": [
+                "childItem",
+                "dataValueSet"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "answeredItem",
+          "source": [
+            {
+              "context": "item",
+              "element": "answer",
+              "variable": "answer"
+            }
+          ],
+          "target": [
+            {
+              "context": "dataValueSet",
+              "contextType": "variable",
+              "element": "dataValues",
+              "variable": "dataValue",
+              "transform": "create"
+            }
+          ],
+          "rule": [
+            {
+              "name": "dataElement",
+              "documentation": "The link-id grammar is the whole disaggregation contract: an undisaggregated question is answered on the data element UID alone, and one cell of a category grid on the data element UID, a dot, and the category option combo UID.",
+              "source": [
+                {
+                  "context": "item",
+                  "element": "linkId",
+                  "variable": "linkId"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "dataElement",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueId": "linkId"
+                    },
+                    {
+                      "valueString": "substring(0, iif(contains('.'), indexOf('.'), length()))"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "categoryOptionCombo",
+              "source": [
+                {
+                  "context": "item",
+                  "element": "linkId",
+                  "variable": "linkId"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "categoryOptionCombo",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueId": "linkId"
+                    },
+                    {
+                      "valueString": "iif(contains('.'), substring(indexOf('.') + 1), {})"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "value",
+              "documentation": "Every DHIS2 data value is a string on the wire, and which string an answer becomes is the one part of this map a transform cannot state: a TRUE_ONLY question answered false drops the whole cell, a MULTI_TEXT answer is the comma-joined set of its codes, a decimal keeps the lexical form it was captured in, a coded answer is resolved through the question's own terminology, and a zoned timestamp is read to the wall clock DHIS2 stores. `dhis2w_fhir.conversion.values` is the reference implementation of that table.",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "variable": "answerValue"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueId": "answerValue"
+                    },
+                    {
+                      "valueString": "toString()"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

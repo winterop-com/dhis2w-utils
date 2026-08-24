@@ -1,0 +1,56 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-organisation-unit-level",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+  "name": "D2OrganisationUnitLevel",
+  "title": "DHIS2 organisation unit level",
+  "status": "draft",
+  "experimental": true,
+  "description": "The level of the DHIS2 organisation unit hierarchy a place sits at, as a code of the published level CodeSystem.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Location"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 organisation unit level",
+        "definition": "The level of the DHIS2 organisation unit hierarchy a place sits at, as a code of the published level CodeSystem."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "Coding"
+          }
+        ],
+        "binding": {
+          "strength": "extensible",
+          "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-ou-level-vs"
+        }
+      }
+    ]
+  }
+}

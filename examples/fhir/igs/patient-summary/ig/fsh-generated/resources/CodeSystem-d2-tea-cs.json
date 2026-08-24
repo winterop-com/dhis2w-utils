@@ -1,0 +1,216 @@
+{
+  "resourceType": "CodeSystem",
+  "status": "draft",
+  "content": "complete",
+  "name": "D2TEA_CS",
+  "id": "d2-tea-cs",
+  "title": "DHIS2 tracked entity attributes",
+  "description": "DHIS2 tracked entity attributes captured by the generated tracker registration forms. Concept codes are DHIS2 tracked entity attribute UIDs.",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tea-cs",
+  "concept": [
+    {
+      "code": "w75KJ2mc4zz",
+      "display": "First name",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "MMD_PER_NAM"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": true
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable-IpHINAT79UW",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable-nEenWmSyUEp",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "code": "cejWyOfXge6",
+      "display": "Gender",
+      "property": [
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": true
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable-IpHINAT79UW",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "code": "zDhUuAYrxNC",
+      "display": "Last name",
+      "property": [
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": true
+        },
+        {
+          "code": "generated",
+          "valueBoolean": false
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable-IpHINAT79UW",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable-nEenWmSyUEp",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "code": "lZGmxYbs97q",
+      "display": "Unique ID",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "MMD_PER_ID"
+        },
+        {
+          "code": "value-type",
+          "valueCode": "TEXT"
+        },
+        {
+          "code": "unique",
+          "valueBoolean": true
+        },
+        {
+          "code": "searchable",
+          "valueBoolean": false
+        },
+        {
+          "code": "generated",
+          "valueBoolean": true
+        },
+        {
+          "code": "pattern",
+          "valueString": "RANDOM(#######)"
+        },
+        {
+          "code": "display-in-list",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable-IpHINAT79UW",
+          "valueBoolean": false
+        },
+        {
+          "code": "searchable-nEenWmSyUEp",
+          "valueBoolean": false
+        }
+      ]
+    }
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-tea-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 tracked entity attribute code.",
+      "type": "string"
+    },
+    {
+      "code": "value-type",
+      "uri": "http://dhis2.org/fhir/property/value-type",
+      "description": "DHIS2 tracked entity attribute value type.",
+      "type": "code"
+    },
+    {
+      "code": "unique",
+      "uri": "http://dhis2.org/fhir/property/unique",
+      "description": "Whether DHIS2 declares the tracked entity attribute unique.",
+      "type": "boolean"
+    },
+    {
+      "code": "searchable",
+      "uri": "http://dhis2.org/fhir/property/searchable",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in any context this guide publishes.",
+      "type": "boolean"
+    },
+    {
+      "code": "generated",
+      "uri": "http://dhis2.org/fhir/property/generated",
+      "description": "Whether DHIS2 mints the tracked entity attribute's value itself.",
+      "type": "boolean"
+    },
+    {
+      "code": "pattern",
+      "uri": "http://dhis2.org/fhir/property/pattern",
+      "description": "The DHIS2 reserved-value pattern a generated tracked entity attribute is minted from.",
+      "type": "string"
+    },
+    {
+      "code": "display-in-list",
+      "uri": "http://dhis2.org/fhir/property/display-in-list",
+      "description": "Whether DHIS2 shows the tracked entity attribute in the working lists of any context this guide publishes.",
+      "type": "boolean"
+    },
+    {
+      "code": "searchable-IpHINAT79UW",
+      "uri": "http://dhis2.org/fhir/property/searchable-IpHINAT79UW",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in tracker program Child Programme (IpHINAT79UW).",
+      "type": "boolean"
+    },
+    {
+      "code": "searchable-nEenWmSyUEp",
+      "uri": "http://dhis2.org/fhir/property/searchable-nEenWmSyUEp",
+      "description": "Whether DHIS2 declares the tracked entity attribute searchable in tracked entity type Person (nEenWmSyUEp).",
+      "type": "boolean"
+    }
+  ],
+  "count": 4
+}

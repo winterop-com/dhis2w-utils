@@ -1,0 +1,296 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "ZzYYXq4fJie",
+  "url": "http://example.org/fhir/examples/patient-summary/Questionnaire/ZzYYXq4fJie",
+  "title": "Child Programme - Baby Postnatal",
+  "description": "DHIS2 tracker program stage Baby Postnatal (ZzYYXq4fJie) of program Child Programme (IpHINAT79UW) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+      "valueCode": "tracker-event"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-repeatable",
+      "valueBoolean": false
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-assignment",
+      "valueReference": {
+        "reference": "List/d2-pr-IpHINAT79UW-org-units"
+      }
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "NAgjOfWMXg6"
+        },
+        {
+          "url": "name",
+          "valueString": "Ask for comment for low apgar"
+        },
+        {
+          "url": "condition",
+          "valueString": "#{apgarscore} >= 0 && #{apgarscore} < 4 && #{apgarcomment} == ''"
+        },
+        {
+          "url": "action",
+          "valueCode": "SHOWWARNING"
+        },
+        {
+          "url": "description",
+          "valueString": "Show warrning if Apgar is between 0 and 4 and there is no comment provided."
+        }
+      ],
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-program-rule"
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "tTPMkizzUZg"
+        },
+        {
+          "url": "name",
+          "valueString": "Demand comment if apgar is under zero"
+        },
+        {
+          "url": "condition",
+          "valueString": "#{apgarscore} <0 && #{apgarcomment} == ''"
+        },
+        {
+          "url": "action",
+          "valueCode": "SHOWERROR"
+        },
+        {
+          "url": "description",
+          "valueString": "If Apgar is provided as being under zero and there is no comment for the anomaly, show an error message."
+        }
+      ],
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-program-rule"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage",
+      "value": "ZzYYXq4fJie"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage-code",
+      "value": "ZzYYXq4fJie"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "IpHINAT79UW"
+    }
+  ],
+  "name": "D2PS_ZzYYXq4fJie",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "code": "tracker-event",
+      "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "GQY2lXrypjO",
+      "code": [
+        {
+          "code": "GQY2lXrypjO",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Infant Weight (g)"
+        }
+      ],
+      "text": "Infant Weight (g)",
+      "type": "decimal",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "Infant weight in grams"
+        }
+      ]
+    },
+    {
+      "linkId": "X8zyunlgUfM",
+      "code": [
+        {
+          "code": "X8zyunlgUfM",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Infant Feeding"
+        }
+      ],
+      "text": "Infant Feeding",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-x31y45jvIQL-vs"
+    },
+    {
+      "linkId": "FqlgKAG8HOu",
+      "code": [
+        {
+          "code": "FqlgKAG8HOu",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Measles dose"
+        }
+      ],
+      "text": "Measles dose",
+      "type": "boolean"
+    },
+    {
+      "linkId": "vTUhAUZFoys",
+      "code": [
+        {
+          "code": "vTUhAUZFoys",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Penta dose"
+        }
+      ],
+      "text": "Penta dose",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-kzgQRhOCadd-vs"
+    },
+    {
+      "linkId": "rxBfISxXS2U",
+      "code": [
+        {
+          "code": "rxBfISxXS2U",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Yellow fever dose"
+        }
+      ],
+      "text": "Yellow fever dose",
+      "type": "boolean"
+    },
+    {
+      "linkId": "lNNb3truQoi",
+      "code": [
+        {
+          "code": "lNNb3truQoi",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH IPT dose"
+        }
+      ],
+      "text": "IPT dose",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-nH8Y04zS7UV-vs"
+    },
+    {
+      "linkId": "pOe0ogW4OWd",
+      "code": [
+        {
+          "code": "pOe0ogW4OWd",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH DPT dose"
+        }
+      ],
+      "text": "DPT dose",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-udkr3ihaeD3-vs"
+    },
+    {
+      "linkId": "HLmTEmupdX0",
+      "code": [
+        {
+          "code": "HLmTEmupdX0",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Vit A"
+        }
+      ],
+      "text": "Vit A",
+      "type": "boolean"
+    },
+    {
+      "linkId": "cYGaxwK615G",
+      "code": [
+        {
+          "code": "cYGaxwK615G",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Infant HIV Test Result"
+        }
+      ],
+      "text": "Infant HIV Test Result",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-oXR37f2wOb1-vs"
+    },
+    {
+      "linkId": "hDZbpskhqDd",
+      "code": [
+        {
+          "code": "hDZbpskhqDd",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH HIV Test Type"
+        }
+      ],
+      "text": "HIV Test Type",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-OGmE3wUMEzu-vs"
+    },
+    {
+      "linkId": "sj3j9Hwc7so",
+      "code": [
+        {
+          "code": "sj3j9Hwc7so",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Child ARVs"
+        }
+      ],
+      "text": "Child ARVs",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-dgsftM0rXu2-vs",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "ARVs for child postnatal visits."
+        }
+      ]
+    },
+    {
+      "linkId": "aei1xRjSU2l",
+      "code": [
+        {
+          "code": "aei1xRjSU2l",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Septrin Given"
+        }
+      ],
+      "text": "Septrin Given",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-XdI8KRJiRoZ-vs"
+    },
+    {
+      "linkId": "BeynU4L6VCQ",
+      "code": [
+        {
+          "code": "BeynU4L6VCQ",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Results given to caretaker"
+        }
+      ],
+      "text": "Results given to caretaker",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-XdI8KRJiRoZ-vs"
+    },
+    {
+      "linkId": "OuJ6sgPyAbC",
+      "code": [
+        {
+          "code": "OuJ6sgPyAbC",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Visit Comment"
+        }
+      ],
+      "text": "Visit comment (optional)",
+      "type": "text",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "Free text comment used to put additional information for a visit."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "resourceType": "Location",
+  "id": "d2-location-example",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "code": "level-2",
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "display": "Level 2"
+      }
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "qhqAxPSTUXp"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226213"
+    }
+  ],
+  "status": "active",
+  "name": "Koinadugu",
+  "description": "A worked D2Location: DHIS2 organisation unit Koinadugu (qhqAxPSTUXp) as the physical place, managed by the D2Organization of the same unit.",
+  "position": {
+    "longitude": -11.344954,
+    "latitude": 9.452197
+  },
+  "managingOrganization": {
+    "reference": "Organization/d2-organization-example"
+  }
+}

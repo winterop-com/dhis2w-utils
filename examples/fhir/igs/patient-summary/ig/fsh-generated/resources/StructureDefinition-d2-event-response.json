@@ -1,0 +1,79 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-event-response",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-event-response",
+  "name": "D2EventResponse",
+  "title": "DHIS2 event response",
+  "status": "draft",
+  "experimental": true,
+  "description": "One submission of a DHIS2 event program form: the values captured for one event at one organisation unit, answered on the linkIds of the event program's Questionnaire.",
+  "fhirVersion": "4.0.1",
+  "kind": "resource",
+  "abstract": false,
+  "type": "QuestionnaireResponse",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/QuestionnaireResponse",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "QuestionnaireResponse.extension",
+        "path": "QuestionnaireResponse.extension",
+        "slicing": {
+          "discriminator": [
+            {
+              "type": "value",
+              "path": "url"
+            }
+          ],
+          "ordered": false,
+          "rules": "open"
+        },
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2FormType",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2FormType",
+        "short": "The DHIS2 form kind this response answers.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2FormType.value[x]",
+        "path": "QuestionnaireResponse.extension.value[x]",
+        "fixedCode": "event"
+      },
+      {
+        "id": "QuestionnaireResponse.questionnaire",
+        "path": "QuestionnaireResponse.questionnaire",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.subject",
+        "path": "QuestionnaireResponse.subject",
+        "min": 1,
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.authored",
+        "path": "QuestionnaireResponse.authored",
+        "min": 1
+      }
+    ]
+  }
+}

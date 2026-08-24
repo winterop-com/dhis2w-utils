@@ -1,0 +1,52 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-entity-level",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-entity-level",
+  "name": "D2EntityLevel",
+  "title": "DHIS2 entity level",
+  "status": "draft",
+  "experimental": true,
+  "description": "Whether a registration question's answer belongs to the tracked entity itself - true for a tracked entity attribute of the program's tracked entity type, false for an attribute only the program asks, whose answer belongs to the enrollment.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Questionnaire.item"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 entity level",
+        "definition": "Whether a registration question's answer belongs to the tracked entity itself - true for a tracked entity attribute of the program's tracked entity type, false for an attribute only the program asks, whose answer belongs to the enrollment."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-entity-level"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "boolean"
+          }
+        ]
+      }
+    ]
+  }
+}

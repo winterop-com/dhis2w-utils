@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2CategoryOptionIdentifierSystem",
+  "description": "The identifier system for DHIS2 category option UIDs. Every generated artifact representing a DHIS2 category option carries the source object's UID under this system.",
+  "name": "D2CategoryOptionIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/category-option",
+      "preferred": true
+    }
+  ]
+}

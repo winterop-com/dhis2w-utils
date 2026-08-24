@@ -1,0 +1,63 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-tracker-enrollment",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-enrollment",
+  "name": "D2TrackerEnrollment",
+  "title": "DHIS2 tracker enrollment",
+  "status": "draft",
+  "experimental": true,
+  "description": "The DHIS2 tracker enrollment a response belongs to, carried as the enrollment UID. A registration response mints the UID of the enrollment it creates; an event response names the enrollment it was captured under.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "QuestionnaireResponse"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 tracker enrollment",
+        "definition": "The DHIS2 tracker enrollment a response belongs to, carried as the enrollment UID. A registration response mints the UID of the enrollment it creates; an event response names the enrollment it was captured under."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-enrollment"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "Identifier"
+          }
+        ]
+      },
+      {
+        "id": "Extension.value[x].system",
+        "path": "Extension.value[x].system",
+        "min": 1,
+        "fixedUri": "http://dhis2.org/fhir/id/tracker-enrollment"
+      },
+      {
+        "id": "Extension.value[x].value",
+        "path": "Extension.value[x].value",
+        "min": 1
+      }
+    ]
+  }
+}

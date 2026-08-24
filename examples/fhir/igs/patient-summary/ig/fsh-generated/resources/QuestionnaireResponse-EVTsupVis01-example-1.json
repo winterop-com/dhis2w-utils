@@ -1,0 +1,39 @@
+{
+  "resourceType": "QuestionnaireResponse",
+  "id": "EVTsupVis01-example-1",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-event-response"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+      "valueCode": "event"
+    }
+  ],
+  "questionnaire": "http://example.org/fhir/examples/patient-summary/Questionnaire/EVTsupVis01",
+  "status": "completed",
+  "subject": {
+    "reference": "Location/ImspTQPwCqd"
+  },
+  "authored": "2026-08-10T16:00:00Z",
+  "item": [
+    {
+      "linkId": "s46m5MS0hxu",
+      "answer": [
+        {
+          "valueInteger": 148
+        }
+      ]
+    },
+    {
+      "linkId": "YtbsuPPo010",
+      "answer": [
+        {
+          "valueDecimal": 40.9
+        }
+      ]
+    }
+  ]
+}

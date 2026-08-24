@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2CategoryComboIdentifierSystem",
+  "description": "The identifier system for DHIS2 category combo UIDs. Every generated artifact representing a DHIS2 category combo carries the source object's UID under this system.",
+  "name": "D2CategoryComboIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/category-combo",
+      "preferred": true
+    }
+  ]
+}

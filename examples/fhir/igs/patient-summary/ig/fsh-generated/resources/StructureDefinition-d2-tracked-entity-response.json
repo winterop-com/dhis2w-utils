@@ -1,0 +1,112 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-tracked-entity-response",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracked-entity-response",
+  "name": "D2TrackedEntityResponse",
+  "title": "DHIS2 tracked entity response",
+  "status": "draft",
+  "experimental": true,
+  "description": "One submission of a DHIS2 tracked entity type's registration form: the attributes the type itself collects, captured when a person is registered without being enrolled in any program. The response mints the tracked entity it creates, and names no enrollment at all - there is none, which is the whole point of the form.",
+  "fhirVersion": "4.0.1",
+  "kind": "resource",
+  "abstract": false,
+  "type": "QuestionnaireResponse",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/QuestionnaireResponse",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "QuestionnaireResponse.extension",
+        "path": "QuestionnaireResponse.extension",
+        "slicing": {
+          "discriminator": [
+            {
+              "type": "value",
+              "path": "url"
+            }
+          ],
+          "ordered": false,
+          "rules": "open"
+        },
+        "min": 2
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2OrganisationUnit",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2OrganisationUnit",
+        "short": "The DHIS2 organisation unit the subject is registered at, which becomes the organisation unit of the tracked entity.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2FormType",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2FormType",
+        "short": "The DHIS2 form kind this response answers.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2FormType.value[x]",
+        "path": "QuestionnaireResponse.extension.value[x]",
+        "fixedCode": "tracked-entity"
+      },
+      {
+        "id": "QuestionnaireResponse.questionnaire",
+        "path": "QuestionnaireResponse.questionnaire",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.subject",
+        "path": "QuestionnaireResponse.subject",
+        "short": "The DHIS2 tracked entity this registration creates, named by identifier rather than by reference: this guide publishes no Patient resource, so the identifier is the person. The client mints the value as a DHIS2 UID, and nothing on the instance holds it until this response is imported.",
+        "min": 1,
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://hl7.org/fhir/StructureDefinition/Patient"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.subject.identifier",
+        "path": "QuestionnaireResponse.subject.identifier",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.subject.identifier.system",
+        "path": "QuestionnaireResponse.subject.identifier.system",
+        "min": 1,
+        "fixedUri": "http://dhis2.org/fhir/id/tracked-entity"
+      },
+      {
+        "id": "QuestionnaireResponse.subject.identifier.value",
+        "path": "QuestionnaireResponse.subject.identifier.value",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.authored",
+        "path": "QuestionnaireResponse.authored",
+        "min": 1
+      }
+    ]
+  }
+}

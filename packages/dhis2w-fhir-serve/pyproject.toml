@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-fhir-serve"
-version = "1.8.0"
+version = "1.8.1"
 description = "FHIR facade server for a generated IG - serves the compiled or live-built resources and receives QuestionnaireResponse captures; mounted as `d2w fhir serve`."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
@@ -16,8 +16,8 @@ classifiers = [
 ]
 dependencies = [
     "aiosqlite>=0.22",
-    "dhis2w-fhir>=1.8.0,<2.0",
-    "dhis2w-fhir-engine>=1.8.0,<2.0",
+    "dhis2w-fhir>=1.8.1,<2.0",
+    "dhis2w-fhir-engine>=1.8.1,<2.0",
     "fastapi>=0.141.1",
     "joserfc>=1.7.0",
     "sqlalchemy[asyncio]>=2.0.52",

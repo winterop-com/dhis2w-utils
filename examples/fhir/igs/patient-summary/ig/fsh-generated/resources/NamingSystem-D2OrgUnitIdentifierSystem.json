@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2OrgUnitIdentifierSystem",
+  "description": "The identifier system for DHIS2 organisation unit UIDs. Every generated artifact representing a DHIS2 organisation unit carries the source object's UID under this system.",
+  "name": "D2OrgUnitIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/org-unit",
+      "preferred": true
+    }
+  ]
+}

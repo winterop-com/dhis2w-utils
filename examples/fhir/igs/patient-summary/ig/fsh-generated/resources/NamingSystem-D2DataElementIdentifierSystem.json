@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2DataElementIdentifierSystem",
+  "description": "The identifier system for DHIS2 data element UIDs. Every generated artifact representing a DHIS2 data element carries the source object's UID under this system.",
+  "name": "D2DataElementIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/data-element",
+      "preferred": true
+    }
+  ]
+}

@@ -1,0 +1,2459 @@
+{
+  "resourceType": "ImplementationGuide",
+  "id": "dhis2.fhir.examples.patient-summary",
+  "url": "http://example.org/fhir/examples/patient-summary/ImplementationGuide/dhis2.fhir.examples.patient-summary",
+  "version": "0.1.0",
+  "name": "ExamplesPatientSummary",
+  "title": "Patient summary example guide",
+  "status": "draft",
+  "publisher": "dhis2w-utils examples",
+  "description": "Patient summary example guide, generated from DHIS2 metadata by d2w fhir.",
+  "packageId": "dhis2.fhir.examples.patient-summary",
+  "license": "CC0-1.0",
+  "fhirVersion": [
+    "4.0.1"
+  ],
+  "definition": {
+    "resource": [
+      {
+        "reference": {
+          "reference": "Location/dWOAzMcK2Wt"
+        },
+        "description": "DHIS2 organisation unit Alkalia CHP (dWOAzMcK2Wt), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Alkalia CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/dWOAzMcK2Wt"
+        },
+        "exampleBoolean": false,
+        "name": "Alkalia CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/tlMeFk8C4CG"
+        },
+        "description": "DHIS2 organisation unit Badala MCHP (tlMeFk8C4CG), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Badala MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/tlMeFk8C4CG"
+        },
+        "exampleBoolean": false,
+        "name": "Badala MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/Jiymtq0A01x"
+        },
+        "description": "DHIS2 organisation unit Bafodia CHC (Jiymtq0A01x), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Bafodia CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/Jiymtq0A01x"
+        },
+        "exampleBoolean": false,
+        "name": "Bafodia CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/wYLjA4vN6Y9"
+        },
+        "description": "DHIS2 organisation unit Bambukoro MCHP (wYLjA4vN6Y9), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Bambukoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/wYLjA4vN6Y9"
+        },
+        "exampleBoolean": false,
+        "name": "Bambukoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/qO2JLjYrg91"
+        },
+        "description": "DHIS2 organisation unit Bandakarifaia MCHP (qO2JLjYrg91), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Bandakarifaia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/qO2JLjYrg91"
+        },
+        "exampleBoolean": false,
+        "name": "Bandakarifaia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/U7yKrx2QVet"
+        },
+        "description": "DHIS2 organisation unit Bandaperie CHP (U7yKrx2QVet), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Bandaperie CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/U7yKrx2QVet"
+        },
+        "exampleBoolean": false,
+        "name": "Bandaperie CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/PMsF64R6OJX"
+        },
+        "description": "DHIS2 organisation unit Bendugu (Mongo) CHC (PMsF64R6OJX), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Bendugu (Mongo) CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/PMsF64R6OJX"
+        },
+        "exampleBoolean": false,
+        "name": "Bendugu (Mongo) CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/MwfWgjMRgId"
+        },
+        "description": "DHIS2 organisation unit Bumbukoro MCHP (MwfWgjMRgId), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Bumbukoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/MwfWgjMRgId"
+        },
+        "exampleBoolean": false,
+        "name": "Bumbukoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "List/d2-pr-IpHINAT79UW-org-units"
+        },
+        "exampleBoolean": false,
+        "name": "Child Programme - assigned organisation units"
+      },
+      {
+        "reference": {
+          "reference": "Location/Xytauldn2QJ"
+        },
+        "description": "DHIS2 organisation unit Dalakuru CHP (Xytauldn2QJ), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Dalakuru CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/Xytauldn2QJ"
+        },
+        "exampleBoolean": false,
+        "name": "Dalakuru CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/DErmFP7bri7"
+        },
+        "description": "DHIS2 organisation unit Dankawalie MCHP (DErmFP7bri7), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Dankawalie MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/DErmFP7bri7"
+        },
+        "exampleBoolean": false,
+        "name": "Dankawalie MCHP"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-cat-GLevLNI9wkl-cs"
+        },
+        "description": "DHIS2 category default (GLevLNI9wkl). Concept codes are DHIS2 category option UIDs.",
+        "exampleBoolean": false,
+        "name": "default"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-cat-GLevLNI9wkl-vs"
+        },
+        "description": "DHIS2 category default (GLevLNI9wkl). Concept codes are DHIS2 category option UIDs.",
+        "exampleBoolean": false,
+        "name": "default"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-cat-GLevLNI9wkl-cm"
+        },
+        "description": "DHIS2 category default (GLevLNI9wkl). Every concept of D2CAT_GLevLNI9wkl_CS mapped to its DHIS2 category option UID and, where the category option carries one, its DHIS2 category option code.",
+        "exampleBoolean": false,
+        "name": "default"
+      },
+      {
+        "reference": {
+          "reference": "Location/Mr4au3jR9bt"
+        },
+        "description": "DHIS2 organisation unit Dembelia Sinkunia (Mr4au3jR9bt), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Dembelia Sinkunia"
+      },
+      {
+        "reference": {
+          "reference": "Organization/Mr4au3jR9bt"
+        },
+        "exampleBoolean": false,
+        "name": "Dembelia Sinkunia"
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-aggregate-response"
+        },
+        "name": "DHIS2 aggregate response",
+        "description": "One submission of a DHIS2 data set form: the values captured for one organisation unit, one reporting period, and one attribute option combo, answered on the linkIds of the data set's Questionnaire.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureMap/d2-aggregate-response-to-data-value-set"
+        },
+        "name": "DHIS2 aggregate response to data value set",
+        "description": "How one aggregate QuestionnaireResponse becomes the DHIS2 data value set it is imported as, element by element. The map is the conversion contract a third party builds their own bridge from; it is not executed at runtime, and the rules whose meaning exceeds what a transform can state carry that on their own documentation.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-attribute-option-combo"
+        },
+        "name": "DHIS2 attribute option combo",
+        "description": "The DHIS2 attribute option combo one aggregate response's values are keyed under, drawn from the ValueSet the form's D2AttributeOptionCombos extension names. Absent means the default attribute option combo.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-attribute-option-combos"
+        },
+        "name": "DHIS2 attribute option combos",
+        "description": "The attribute option combos a form's responses may be keyed under, as the canonical of the ValueSet publishing them. Absent means the form's data set rides the default category combo, and its responses carry no D2AttributeOptionCombo extension.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-attribute-value"
+        },
+        "name": "DHIS2 attribute value",
+        "description": "One DHIS2 attribute value: the attribute it belongs to, the code DHIS2 gave that attribute, and the value the object holds.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CapabilityStatement/d2-capture-server"
+        },
+        "name": "DHIS2 capture server",
+        "description": "The interactions a server capturing DHIS2 data as QuestionnaireResponses supports: one response created per request, against the aggregate, event, tracker registration, tracker event, or tracked entity response profile, plus read and search over the definitional resources a capture client resolves a form from.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2CategoryCodeIdentifierSystem"
+        },
+        "name": "DHIS2 category codes",
+        "description": "The identifier system for DHIS2 category codes. DHIS2 codes are optional, so this slot repeats the UID whenever the category has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2CategoryComboCodeIdentifierSystem"
+        },
+        "name": "DHIS2 category combo codes",
+        "description": "The identifier system for DHIS2 category combo codes. DHIS2 codes are optional, so this slot repeats the UID whenever the category combo has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2CategoryComboIdentifierSystem"
+        },
+        "name": "DHIS2 category combo UIDs",
+        "description": "The identifier system for DHIS2 category combo UIDs. Every generated artifact representing a DHIS2 category combo carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2CategoryOptionCodeIdentifierSystem"
+        },
+        "name": "DHIS2 category option codes",
+        "description": "The identifier system for DHIS2 category option codes. DHIS2 codes are optional, so this slot repeats the UID whenever the category option has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-category-option-code-id-cs"
+        },
+        "description": "Every DHIS2 category option code this guide's concept maps target, enumerated. D2CategoryOptionCodeIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+        "exampleBoolean": false,
+        "name": "DHIS2 category option codes in use"
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2CategoryOptionComboCodeIdentifierSystem"
+        },
+        "name": "DHIS2 category option combo codes",
+        "description": "The identifier system for DHIS2 category option combo codes. DHIS2 codes are optional, so this slot repeats the UID whenever the category option combo has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-category-option-combo-code-id-cs"
+        },
+        "description": "Every DHIS2 category option combo code this guide's concept maps target, enumerated. D2CategoryOptionComboCodeIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+        "exampleBoolean": false,
+        "name": "DHIS2 category option combo codes in use"
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2CategoryOptionComboIdentifierSystem"
+        },
+        "name": "DHIS2 category option combo UIDs",
+        "description": "The identifier system for DHIS2 category option combo UIDs. Every generated artifact representing a DHIS2 category option combo carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-category-option-combo-id-cs"
+        },
+        "description": "Every DHIS2 category option combo UID this guide's concept maps target, enumerated. D2CategoryOptionComboIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+        "exampleBoolean": false,
+        "name": "DHIS2 category option combo UIDs in use"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-coc-vs"
+        },
+        "name": "DHIS2 category option combos",
+        "description": "DHIS2 category option combos the generated questionnaires disaggregate by. Concept codes are DHIS2 category option combo UIDs.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-coc-cs"
+        },
+        "name": "DHIS2 category option combos",
+        "description": "DHIS2 category option combos the generated questionnaires disaggregate by. Concept codes are DHIS2 category option combo UIDs.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2CategoryOptionIdentifierSystem"
+        },
+        "name": "DHIS2 category option UIDs",
+        "description": "The identifier system for DHIS2 category option UIDs. Every generated artifact representing a DHIS2 category option carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-category-option-id-cs"
+        },
+        "description": "Every DHIS2 category option UID this guide's concept maps target, enumerated. D2CategoryOptionIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+        "exampleBoolean": false,
+        "name": "DHIS2 category option UIDs in use"
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2CategoryIdentifierSystem"
+        },
+        "name": "DHIS2 category UIDs",
+        "description": "The identifier system for DHIS2 category UIDs. Every generated artifact representing a DHIS2 category carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2DataElementCodeIdentifierSystem"
+        },
+        "name": "DHIS2 data element codes",
+        "description": "The identifier system for DHIS2 data element codes. DHIS2 codes are optional, so this slot repeats the UID whenever the data element has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2DataElementIdentifierSystem"
+        },
+        "name": "DHIS2 data element UIDs",
+        "description": "The identifier system for DHIS2 data element UIDs. Every generated artifact representing a DHIS2 data element carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-de-vs"
+        },
+        "name": "DHIS2 data elements",
+        "description": "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-de-cs"
+        },
+        "name": "DHIS2 data elements",
+        "description": "DHIS2 data elements captured by the generated questionnaires. Concept codes are DHIS2 data element UIDs.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2DataSetCodeIdentifierSystem"
+        },
+        "name": "DHIS2 data set codes",
+        "description": "The identifier system for DHIS2 data set codes. DHIS2 codes are optional, so this slot repeats the UID whenever the data set has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2DataSetIdentifierSystem"
+        },
+        "name": "DHIS2 data set UIDs",
+        "description": "The identifier system for DHIS2 data set UIDs. Every generated artifact representing a DHIS2 data set carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-data-value-set"
+        },
+        "name": "DHIS2 data value set",
+        "description": "The `/api/dataValueSets` envelope one aggregate QuestionnaireResponse is imported as: the data set, the reporting period, the organisation unit, and the attribute option combo the report is keyed by, plus one data value per answered question. This is the DHIS2 wire shape stated in FHIR terms, so a map targeting it says where each DHIS2 field comes from.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-date-labels"
+        },
+        "name": "DHIS2 date labels",
+        "description": "The words a DHIS2 instance puts on the dates a form captures: the date the enrollment began, the date of the incident it follows, and the date the event happened. A slice is present only where the instance states a label, so a form the instance labels nothing on carries no extension at all, and a capture client then falls back to its own wording.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-description"
+        },
+        "name": "DHIS2 description",
+        "description": "The free text a DHIS2 instance holds about the object a question or a group is asked from - the description of a data element, of a tracked entity attribute, or of a form section. It is guidance for the person filling the form, which is why it rides the item rather than the item's text, and it is present only where the instance states one.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-enrolled-at"
+        },
+        "name": "DHIS2 enrollment date",
+        "description": "The moment a DHIS2 tracker enrollment began - the enrolledAt of the enrollment a registration response creates.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-entity-level"
+        },
+        "name": "DHIS2 entity level",
+        "description": "Whether a registration question's answer belongs to the tracked entity itself - true for a tracked entity attribute of the program's tracked entity type, false for an attribute only the program asks, whose answer belongs to the enrollment.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-event-response"
+        },
+        "name": "DHIS2 event response",
+        "description": "One submission of a DHIS2 event program form: the values captured for one event at one organisation unit, answered on the linkIds of the event program's Questionnaire.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-form-type"
+        },
+        "name": "DHIS2 form type",
+        "description": "The kind of DHIS2 form a Questionnaire came from, carried on the responses captured against it.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-form-type-vs"
+        },
+        "name": "DHIS2 form types",
+        "description": "The DHIS2 form kinds a Questionnaire is generated from.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-form-type-cs"
+        },
+        "name": "DHIS2 form types",
+        "description": "The DHIS2 form kinds a Questionnaire is generated from.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-incident-at"
+        },
+        "name": "DHIS2 incident date",
+        "description": "The moment the incident a DHIS2 tracker enrollment follows occurred - the occurredAt of the enrollment. A registration form states on D2CollectsIncidentDate whether its program collects one, and a response to a form declaring false carries none.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-location"
+        },
+        "name": "DHIS2 Location",
+        "description": "The physical place of a DHIS2 organisation unit.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2OptionCodeIdentifierSystem"
+        },
+        "name": "DHIS2 option codes",
+        "description": "The identifier system for DHIS2 option codes. DHIS2 codes are optional, so this slot repeats the UID whenever the option has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-option-code-id-cs"
+        },
+        "description": "Every DHIS2 option code this guide's concept maps target, enumerated. D2OptionCodeIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+        "exampleBoolean": false,
+        "name": "DHIS2 option codes in use"
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2OptionSetCodeIdentifierSystem"
+        },
+        "name": "DHIS2 option set codes",
+        "description": "The identifier system for DHIS2 option set codes. DHIS2 codes are optional, so this slot repeats the UID whenever the option set has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2OptionSetIdentifierSystem"
+        },
+        "name": "DHIS2 option set UIDs",
+        "description": "The identifier system for DHIS2 option set UIDs. Every generated artifact representing a DHIS2 option set carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2OptionIdentifierSystem"
+        },
+        "name": "DHIS2 option UIDs",
+        "description": "The identifier system for DHIS2 option UIDs. Every generated artifact representing a DHIS2 option carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-option-id-cs"
+        },
+        "description": "Every DHIS2 option UID this guide's concept maps target, enumerated. D2OptionIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+        "exampleBoolean": false,
+        "name": "DHIS2 option UIDs in use"
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-organisation-unit"
+        },
+        "name": "DHIS2 organisation unit",
+        "description": "The DHIS2 organisation unit an event was captured at, as a reference to the unit's Location.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-organisation-unit-assignment"
+        },
+        "name": "DHIS2 organisation unit assignment",
+        "description": "The organisation units a form may be captured against, as a reference to the List of their Locations. Absent means every unit the registry publishes.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2OrgUnitCodeIdentifierSystem"
+        },
+        "name": "DHIS2 organisation unit codes",
+        "description": "The identifier system for DHIS2 organisation unit codes. DHIS2 codes are optional, so this slot repeats the UID whenever the organisation unit has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-organisation-unit-level"
+        },
+        "name": "DHIS2 organisation unit level",
+        "description": "The level of the DHIS2 organisation unit hierarchy a place sits at, as a code of the published level CodeSystem.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-ou-level-vs"
+        },
+        "name": "DHIS2 organisation unit levels",
+        "description": "Hierarchy levels of the DHIS2 organisation unit tree.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-ou-level-cs"
+        },
+        "name": "DHIS2 organisation unit levels",
+        "description": "Hierarchy levels of the DHIS2 organisation unit tree.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2OrgUnitIdentifierSystem"
+        },
+        "name": "DHIS2 organisation unit UIDs",
+        "description": "The identifier system for DHIS2 organisation unit UIDs. Every generated artifact representing a DHIS2 organisation unit carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-organization"
+        },
+        "name": "DHIS2 Organization",
+        "description": "An organisation unit imported from DHIS2.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-period-type"
+        },
+        "name": "DHIS2 period type",
+        "description": "The DHIS2 period type an aggregate form is reported under - the reporting frequency of the data set the Questionnaire was generated from. A response to the form states one period of this type on D2Period, so a client knows which ISO period format the instance accepts before it builds one. Only an aggregate form declares it, because only a data set has a reporting frequency.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-period-type-vs"
+        },
+        "name": "DHIS2 period types",
+        "description": "The period types DHIS2 registers, each with the ISO period format it is written in.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-period-type-cs"
+        },
+        "name": "DHIS2 period types",
+        "description": "The period types DHIS2 registers, each with the ISO period format it is written in.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2ProgramCodeIdentifierSystem"
+        },
+        "name": "DHIS2 program codes",
+        "description": "The identifier system for DHIS2 program codes. DHIS2 codes are optional, so this slot repeats the UID whenever the program has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-collects-incident-date"
+        },
+        "name": "DHIS2 program collects an incident date",
+        "description": "Whether the DHIS2 tracker program a registration form enrols a person into collects the date of the incident the enrollment follows. True means every enrollment the program creates states that date and a response to this form carries D2IncidentAt; false means the program collects none and a response carries none. Only a registration form declares it, because only a program has enrollments.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-program-rule"
+        },
+        "name": "DHIS2 program rule",
+        "description": "One DHIS2 program rule this form does not express: the expression the instance evaluates, what it does, and the rule's own identity. Non-normative - it states that the server may refuse an answer this form admits.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-program-rule-action-vs"
+        },
+        "name": "DHIS2 program rule actions",
+        "description": "What a DHIS2 program rule does when its condition holds.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-program-rule-action-cs"
+        },
+        "name": "DHIS2 program rule actions",
+        "description": "What a DHIS2 program rule does when its condition holds.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2ProgramStageCodeIdentifierSystem"
+        },
+        "name": "DHIS2 program stage codes",
+        "description": "The identifier system for DHIS2 program stage codes. DHIS2 codes are optional, so this slot repeats the UID whenever the program stage has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2ProgramStageIdentifierSystem"
+        },
+        "name": "DHIS2 program stage UIDs",
+        "description": "The identifier system for DHIS2 program stage UIDs. Every generated artifact representing a DHIS2 program stage carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-section-cm"
+        },
+        "description": "Every DHIS2 program stage and data element this project nominates as feeding a section of an International Patient Summary, mapped onto that section's LOINC code. DHIS2 states no such mapping - it marks no data element as an immunisation, a problem, or an allergy - so the rows are this instance's own statement, made in [ips.sections] and published here so a consumer can audit which recorded values a served summary carries without holding that file.",
+        "exampleBoolean": false,
+        "name": "DHIS2 program stages and data elements as International Patient Summary sections"
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2ProgramIdentifierSystem"
+        },
+        "name": "DHIS2 program UIDs",
+        "description": "The identifier system for DHIS2 program UIDs. Every generated artifact representing a DHIS2 program carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-period"
+        },
+        "name": "DHIS2 reporting period",
+        "description": "A DHIS2 reporting period: its ISO identifier, its period type, and the dates it covers.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-sex-cm"
+        },
+        "description": "Every value of the tracked entity attribute this project nominates as a person's sex, mapped onto the R4 administrative-gender code the register publishes as Patient.gender. DHIS2 states no such mapping, so the rows are this instance's own statement, made in [ips.identity] and published here so a consumer resolves a served gender without holding that file.",
+        "exampleBoolean": false,
+        "name": "DHIS2 sex values as FHIR administrative gender codes"
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-repeatable"
+        },
+        "name": "DHIS2 stage is repeatable",
+        "description": "Whether one enrollment may capture this DHIS2 tracker program stage more than once. True means a person can be given several events of the stage - a follow-up visit, a repeat measurement - and false means the enrollment holds at most one. Only a tracker program stage form declares it, and it declares it either way, so a reader never has to guess.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-subject-exists"
+        },
+        "name": "DHIS2 subject exists",
+        "description": "Whether the tracked entity a registration response is subject to is already held by the DHIS2 instance. True means the subject identifier names a person the instance already stores, and the response enrols that person rather than creating one - so it is imported as an enrollment alone, with no tracked entity beside it. Absent or false means the response creates the person it names, which is what a registration does by default.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-tracked-entity-attribute-value"
+        },
+        "name": "DHIS2 tracked entity attribute value",
+        "description": "One DHIS2 tracked entity attribute value: the attribute it answers, the code DHIS2 gave that attribute, and the value the tracked entity holds. A value of an attribute DHIS2 declares unique is an identifier instead and does not appear here.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-tea-vs"
+        },
+        "name": "DHIS2 tracked entity attributes",
+        "description": "DHIS2 tracked entity attributes captured by the generated tracker registration forms. Concept codes are DHIS2 tracked entity attribute UIDs.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-tea-cs"
+        },
+        "name": "DHIS2 tracked entity attributes",
+        "description": "DHIS2 tracked entity attributes captured by the generated tracker registration forms. Concept codes are DHIS2 tracked entity attribute UIDs.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-tracked-entity-response"
+        },
+        "name": "DHIS2 tracked entity response",
+        "description": "One submission of a DHIS2 tracked entity type's registration form: the attributes the type itself collects, captured when a person is registered without being enrolled in any program. The response mints the tracked entity it creates, and names no enrollment at all - there is none, which is the whole point of the form.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2TrackedEntityTypeCodeIdentifierSystem"
+        },
+        "name": "DHIS2 tracked entity type codes",
+        "description": "The identifier system for DHIS2 tracked entity type codes. DHIS2 codes are optional, so this slot repeats the UID whenever the tracked entity type has no code or its code is not a valid FHIR code.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2TrackedEntityTypeIdentifierSystem"
+        },
+        "name": "DHIS2 tracked entity type UIDs",
+        "description": "The identifier system for DHIS2 tracked entity type UIDs. Every generated artifact representing a DHIS2 tracked entity type carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-tet-vs"
+        },
+        "name": "DHIS2 tracked entity types",
+        "description": "DHIS2 tracked entity types the generated forms register an entity as. Concept codes are DHIS2 tracked entity type UIDs.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-tet-cs"
+        },
+        "name": "DHIS2 tracked entity types",
+        "description": "DHIS2 tracked entity types the generated forms register an entity as. Concept codes are DHIS2 tracked entity type UIDs.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-tet-cm"
+        },
+        "name": "DHIS2 tracked entity types as FHIR resource types",
+        "description": "Every DHIS2 tracked entity type the generated forms register, mapped onto the FHIR resource type its registrations are published as. A type this project maps to nothing is a Patient.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2TrackedEntityIdentifierSystem"
+        },
+        "name": "DHIS2 tracked entity UIDs",
+        "description": "The identifier system for DHIS2 tracked entity UIDs. Every generated artifact representing a DHIS2 tracked entity carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-tracker-enrollment"
+        },
+        "name": "DHIS2 tracker enrollment",
+        "description": "The DHIS2 tracker enrollment a response belongs to, carried as the enrollment UID. A registration response mints the UID of the enrollment it creates; an event response names the enrollment it was captured under.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "NamingSystem/D2TrackerEnrollmentIdentifierSystem"
+        },
+        "name": "DHIS2 tracker enrollment UIDs",
+        "description": "The identifier system for DHIS2 tracker enrollment UIDs. Every generated artifact representing a DHIS2 tracker enrollment carries the source object's UID under this system.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-tracker-event-response"
+        },
+        "name": "DHIS2 tracker event response",
+        "description": "One submission of a DHIS2 tracker program stage form: the values captured for one event of one enrollment, answered on the linkIds of the stage's Questionnaire and subject to the tracked entity by identifier.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/d2-tracker-registration-response"
+        },
+        "name": "DHIS2 tracker registration response",
+        "description": "One submission of a DHIS2 tracker program's registration form: the tracked entity attributes captured when a person is enrolled, answered on the linkIds of the program's Questionnaire. The response mints both DHIS2 identities it creates - the tracked entity it is subject to and the enrollment its extension names - so a client can capture the enrollment's first stage events in the same breath, before either identity exists on the instance. A response stating D2SubjectExists enrols a person the instance already holds instead, and then mints the enrollment alone.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "Location/Lt8U7GVWvSR"
+        },
+        "description": "DHIS2 organisation unit Diang (Lt8U7GVWvSR), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Diang"
+      },
+      {
+        "reference": {
+          "reference": "Organization/Lt8U7GVWvSR"
+        },
+        "exampleBoolean": false,
+        "name": "Diang"
+      },
+      {
+        "reference": {
+          "reference": "Location/aIsnJuZbmVA"
+        },
+        "description": "DHIS2 organisation unit Dogoloya CHP (aIsnJuZbmVA), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Dogoloya CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/aIsnJuZbmVA"
+        },
+        "exampleBoolean": false,
+        "name": "Dogoloya CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/RpjUEvgWSNO"
+        },
+        "description": "DHIS2 organisation unit Dulukoro MCHP (RpjUEvgWSNO), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Dulukoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/RpjUEvgWSNO"
+        },
+        "exampleBoolean": false,
+        "name": "Dulukoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/ADeZNq1pKsu"
+        },
+        "description": "DHIS2 organisation unit Durukoro MCHP (ADeZNq1pKsu), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Durukoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/ADeZNq1pKsu"
+        },
+        "exampleBoolean": false,
+        "name": "Durukoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "List/d2-ds-TuL8IOPzpHh-org-units"
+        },
+        "exampleBoolean": false,
+        "name": "EPI Stock - assigned organisation units"
+      },
+      {
+        "reference": {
+          "reference": "Location/d2-location-example"
+        },
+        "name": "Example DHIS2 Location - Koinadugu (qhqAxPSTUXp)",
+        "description": "A worked D2Location: DHIS2 organisation unit Koinadugu (qhqAxPSTUXp) as the physical place, managed by the D2Organization of the same unit.",
+        "exampleCanonical": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+      },
+      {
+        "reference": {
+          "reference": "Organization/d2-organization-example"
+        },
+        "name": "Example DHIS2 Organization - Koinadugu (qhqAxPSTUXp)",
+        "description": "A worked D2Organization: DHIS2 organisation unit Koinadugu (qhqAxPSTUXp) as the legal entity, carrying both DHIS2 identifiers and its hierarchy level.",
+        "exampleCanonical": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organization"
+      },
+      {
+        "reference": {
+          "reference": "QuestionnaireResponse/IpHINAT79UW-example-1"
+        },
+        "name": "Example response - Child Programme",
+        "description": "Example QuestionnaireResponse against the DHIS2 tracker program registration Child Programme (IpHINAT79UW).",
+        "exampleCanonical": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-registration-response"
+      },
+      {
+        "reference": {
+          "reference": "QuestionnaireResponse/ZzYYXq4fJie-example-1"
+        },
+        "name": "Example response - Child Programme - Baby Postnatal",
+        "description": "Example QuestionnaireResponse against the DHIS2 tracker program stage Child Programme - Baby Postnatal (ZzYYXq4fJie).",
+        "exampleCanonical": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-event-response"
+      },
+      {
+        "reference": {
+          "reference": "QuestionnaireResponse/A03MvHHogjR-example-1"
+        },
+        "name": "Example response - Child Programme - Birth",
+        "description": "Example QuestionnaireResponse against the DHIS2 tracker program stage Child Programme - Birth (A03MvHHogjR).",
+        "exampleCanonical": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-event-response"
+      },
+      {
+        "reference": {
+          "reference": "QuestionnaireResponse/TuL8IOPzpHh-example-1"
+        },
+        "name": "Example response - EPI Stock",
+        "description": "Example QuestionnaireResponse against the DHIS2 data set EPI Stock (TuL8IOPzpHh).",
+        "exampleCanonical": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-aggregate-response"
+      },
+      {
+        "reference": {
+          "reference": "QuestionnaireResponse/nEenWmSyUEp-example-1"
+        },
+        "name": "Example response - Person",
+        "description": "Example QuestionnaireResponse against the DHIS2 tracked entity type registration Person (nEenWmSyUEp).",
+        "exampleCanonical": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracked-entity-response"
+      },
+      {
+        "reference": {
+          "reference": "QuestionnaireResponse/EVTsupVis01-example-1"
+        },
+        "name": "Example response - Supervision visit",
+        "description": "Example QuestionnaireResponse against the DHIS2 event program Supervision visit (EVTsupVis01).",
+        "exampleCanonical": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-event-response"
+      },
+      {
+        "reference": {
+          "reference": "Location/K6oyIMh7Lee"
+        },
+        "description": "DHIS2 organisation unit Fadugu CHC (K6oyIMh7Lee), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Fadugu CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/K6oyIMh7Lee"
+        },
+        "exampleBoolean": false,
+        "name": "Fadugu CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/kuqKh33SPgg"
+        },
+        "description": "DHIS2 organisation unit Falaba CHC (kuqKh33SPgg), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Falaba CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/kuqKh33SPgg"
+        },
+        "exampleBoolean": false,
+        "name": "Falaba CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/fmLRqcL9sWF"
+        },
+        "description": "DHIS2 organisation unit Fankoya MCHP (fmLRqcL9sWF), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Fankoya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/fmLRqcL9sWF"
+        },
+        "exampleBoolean": false,
+        "name": "Fankoya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/NMcx2jmra3c"
+        },
+        "description": "DHIS2 organisation unit Firawa CHC (NMcx2jmra3c), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Firawa CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/NMcx2jmra3c"
+        },
+        "exampleBoolean": false,
+        "name": "Firawa CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/iEkBZnMDarP"
+        },
+        "description": "DHIS2 organisation unit Folosaba Dembelia (iEkBZnMDarP), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Folosaba Dembelia"
+      },
+      {
+        "reference": {
+          "reference": "Organization/iEkBZnMDarP"
+        },
+        "exampleBoolean": false,
+        "name": "Folosaba Dembelia"
+      },
+      {
+        "reference": {
+          "reference": "Location/JKhjdiwoQZu"
+        },
+        "description": "DHIS2 organisation unit Foria CHP (JKhjdiwoQZu), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Foria CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/JKhjdiwoQZu"
+        },
+        "exampleBoolean": false,
+        "name": "Foria CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/TbiRD4Bsz4Z"
+        },
+        "description": "DHIS2 organisation unit Fulamansa MCHP (TbiRD4Bsz4Z), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Fulamansa MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/TbiRD4Bsz4Z"
+        },
+        "exampleBoolean": false,
+        "name": "Fulamansa MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/JttXgTlQAGE"
+        },
+        "description": "DHIS2 organisation unit Ganya MCHP (JttXgTlQAGE), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Ganya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/JttXgTlQAGE"
+        },
+        "exampleBoolean": false,
+        "name": "Ganya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/y77LiPqLMoq"
+        },
+        "description": "DHIS2 organisation unit Gbenikoro MCHP (y77LiPqLMoq), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Gbenikoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/y77LiPqLMoq"
+        },
+        "exampleBoolean": false,
+        "name": "Gbenikoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/D7UVRRE9iUC"
+        },
+        "description": "DHIS2 organisation unit Gbentu CHP (D7UVRRE9iUC), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Gbentu CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/D7UVRRE9iUC"
+        },
+        "exampleBoolean": false,
+        "name": "Gbentu CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/SCc0TNTDJED"
+        },
+        "description": "DHIS2 organisation unit Gberia Timbakor MCHP (SCc0TNTDJED), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Gberia Timbakor MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/SCc0TNTDJED"
+        },
+        "exampleBoolean": false,
+        "name": "Gberia Timbakor MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/qELjt3LRkSD"
+        },
+        "description": "DHIS2 organisation unit Gberifeh MCHP (qELjt3LRkSD), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Gberifeh MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/qELjt3LRkSD"
+        },
+        "exampleBoolean": false,
+        "name": "Gberifeh MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/LFpl1falVZi"
+        },
+        "description": "DHIS2 organisation unit Gbindi CHP (LFpl1falVZi), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Gbindi CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/LFpl1falVZi"
+        },
+        "exampleBoolean": false,
+        "name": "Gbindi CHP"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-pC3N9N77UmT-cm"
+        },
+        "description": "DHIS2 option set Gender (pC3N9N77UmT). Every concept of D2OS_pC3N9N77UmT_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "Gender"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-pC3N9N77UmT-cs"
+        },
+        "description": "DHIS2 option set Gender (pC3N9N77UmT). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "Gender"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-pC3N9N77UmT-vs"
+        },
+        "description": "DHIS2 option set Gender (pC3N9N77UmT). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "Gender"
+      },
+      {
+        "reference": {
+          "reference": "OperationDefinition/d2-generate"
+        },
+        "name": "Generate a synthetic response",
+        "description": "Generate one synthetic QuestionnaireResponse against a served Questionnaire: every question answered with a value its own type, bounds, and terminology binding admit, in the context its form kind's response profile requires. The generated response is immediately postable to the same server's QuestionnaireResponse endpoint, which is what a capture client's fill-with-test-data button and an API-driven stress corpus both need.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "Location/HDOnfLXKkYs"
+        },
+        "description": "DHIS2 organisation unit Hamdalai MCHP (HDOnfLXKkYs), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Hamdalai MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/HDOnfLXKkYs"
+        },
+        "exampleBoolean": false,
+        "name": "Hamdalai MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/UCwtaCrNUls"
+        },
+        "description": "DHIS2 organisation unit Heremakono MCHP (UCwtaCrNUls), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Heremakono MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/UCwtaCrNUls"
+        },
+        "exampleBoolean": false,
+        "name": "Heremakono MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/T3iVyvrCpZ0"
+        },
+        "description": "DHIS2 organisation unit Kagbasia MCHP (T3iVyvrCpZ0), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kagbasia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/T3iVyvrCpZ0"
+        },
+        "exampleBoolean": false,
+        "name": "Kagbasia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/NJolnlvYgLr"
+        },
+        "description": "DHIS2 organisation unit Kakoya MCHP (NJolnlvYgLr), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kakoya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/NJolnlvYgLr"
+        },
+        "exampleBoolean": false,
+        "name": "Kakoya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/oDAoqMWcsJQ"
+        },
+        "description": "DHIS2 organisation unit Kaliyereh MCHP (oDAoqMWcsJQ), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kaliyereh MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/oDAoqMWcsJQ"
+        },
+        "exampleBoolean": false,
+        "name": "Kaliyereh MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/iqd7BiRHor0"
+        },
+        "description": "DHIS2 organisation unit Kamadu Sokuralla MCHP (iqd7BiRHor0), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kamadu Sokuralla MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/iqd7BiRHor0"
+        },
+        "exampleBoolean": false,
+        "name": "Kamadu Sokuralla MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/F9zWBqG5Pmi"
+        },
+        "description": "DHIS2 organisation unit kamaron CHP (F9zWBqG5Pmi), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "kamaron CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/F9zWBqG5Pmi"
+        },
+        "exampleBoolean": false,
+        "name": "kamaron CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/eCfxBe1lnxb"
+        },
+        "description": "DHIS2 organisation unit kamaron MCHP (eCfxBe1lnxb), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "kamaron MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/eCfxBe1lnxb"
+        },
+        "exampleBoolean": false,
+        "name": "kamaron MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/zO5hgxxfU4T"
+        },
+        "description": "DHIS2 organisation unit kamba mamudia (zO5hgxxfU4T), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "kamba mamudia"
+      },
+      {
+        "reference": {
+          "reference": "Organization/zO5hgxxfU4T"
+        },
+        "exampleBoolean": false,
+        "name": "kamba mamudia"
+      },
+      {
+        "reference": {
+          "reference": "Location/DF76ZjQtFSg"
+        },
+        "description": "DHIS2 organisation unit Kamba Mamudia MCHP (DF76ZjQtFSg), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kamba Mamudia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/DF76ZjQtFSg"
+        },
+        "exampleBoolean": false,
+        "name": "Kamba Mamudia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/AGrsLyKWrVX"
+        },
+        "description": "DHIS2 organisation unit Kania MCHP (AGrsLyKWrVX), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kania MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/AGrsLyKWrVX"
+        },
+        "exampleBoolean": false,
+        "name": "Kania MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/jj1MhWhHqta"
+        },
+        "description": "DHIS2 organisation unit Kasanikoro MCHP (jj1MhWhHqta), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kasanikoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/jj1MhWhHqta"
+        },
+        "exampleBoolean": false,
+        "name": "Kasanikoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/vEvs2ckGNQj"
+        },
+        "description": "DHIS2 organisation unit Kasonko (vEvs2ckGNQj), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kasonko"
+      },
+      {
+        "reference": {
+          "reference": "Organization/vEvs2ckGNQj"
+        },
+        "exampleBoolean": false,
+        "name": "Kasonko"
+      },
+      {
+        "reference": {
+          "reference": "Location/qhqAxPSTUXp"
+        },
+        "description": "DHIS2 organisation unit Koinadugu (qhqAxPSTUXp), level 2 - physical location.",
+        "exampleBoolean": false,
+        "name": "Koinadugu"
+      },
+      {
+        "reference": {
+          "reference": "Organization/qhqAxPSTUXp"
+        },
+        "exampleBoolean": false,
+        "name": "Koinadugu"
+      },
+      {
+        "reference": {
+          "reference": "Location/hMBotMwWnU1"
+        },
+        "description": "DHIS2 organisation unit Koinadugu II CHP (hMBotMwWnU1), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Koinadugu II CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/hMBotMwWnU1"
+        },
+        "exampleBoolean": false,
+        "name": "Koinadugu II CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/bqSIIRuZ1qj"
+        },
+        "description": "DHIS2 organisation unit Koindukura MCHP (bqSIIRuZ1qj), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Koindukura MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/bqSIIRuZ1qj"
+        },
+        "exampleBoolean": false,
+        "name": "Koindukura MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/HC2NlwpoXfb"
+        },
+        "description": "DHIS2 organisation unit Kombilie MCHP (HC2NlwpoXfb), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kombilie MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/HC2NlwpoXfb"
+        },
+        "exampleBoolean": false,
+        "name": "Kombilie MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/p310xqwAJge"
+        },
+        "description": "DHIS2 organisation unit Kondembaia CHC (p310xqwAJge), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kondembaia CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/p310xqwAJge"
+        },
+        "exampleBoolean": false,
+        "name": "Kondembaia CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/OynYyQiFu82"
+        },
+        "description": "DHIS2 organisation unit Kondeya MCHP (OynYyQiFu82), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kondeya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/OynYyQiFu82"
+        },
+        "exampleBoolean": false,
+        "name": "Kondeya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/CvYsZipdHMN"
+        },
+        "description": "DHIS2 organisation unit Kumala CHP (CvYsZipdHMN), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kumala CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/CvYsZipdHMN"
+        },
+        "exampleBoolean": false,
+        "name": "Kumala CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/Ep5iWL1UKvF"
+        },
+        "description": "DHIS2 organisation unit Kurubonla CHC (Ep5iWL1UKvF), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Kurubonla CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/Ep5iWL1UKvF"
+        },
+        "exampleBoolean": false,
+        "name": "Kurubonla CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/rs87nYgwbKv"
+        },
+        "description": "DHIS2 organisation unit Lengekoro MCHP (rs87nYgwbKv), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Lengekoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/rs87nYgwbKv"
+        },
+        "exampleBoolean": false,
+        "name": "Lengekoro MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/gowgzHWc8FT"
+        },
+        "description": "DHIS2 organisation unit Manna MCHP (gowgzHWc8FT), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Manna MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/gowgzHWc8FT"
+        },
+        "exampleBoolean": false,
+        "name": "Manna MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/GyH8bjdOTsD"
+        },
+        "description": "DHIS2 organisation unit Mansadu MCHP (GyH8bjdOTsD), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Mansadu MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/GyH8bjdOTsD"
+        },
+        "exampleBoolean": false,
+        "name": "Mansadu MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/eKoXODABUJe"
+        },
+        "description": "DHIS2 organisation unit Masofinia MCHP (eKoXODABUJe), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Masofinia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/eKoXODABUJe"
+        },
+        "exampleBoolean": false,
+        "name": "Masofinia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/kpDoH80fwdX"
+        },
+        "description": "DHIS2 organisation unit MCH Static (kpDoH80fwdX), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "MCH Static"
+      },
+      {
+        "reference": {
+          "reference": "Organization/kpDoH80fwdX"
+        },
+        "exampleBoolean": false,
+        "name": "MCH Static"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-dgsftM0rXu2-cm"
+        },
+        "description": "DHIS2 option set MNCH ARVs (dgsftM0rXu2). Every concept of D2OS_dgsftM0rXu2_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "MNCH ARVs"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-dgsftM0rXu2-cs"
+        },
+        "description": "DHIS2 option set MNCH ARVs (dgsftM0rXu2). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH ARVs"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-dgsftM0rXu2-vs"
+        },
+        "description": "DHIS2 option set MNCH ARVs (dgsftM0rXu2). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH ARVs"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-f38bstJioPs-cm"
+        },
+        "description": "DHIS2 option set MNCH Baby ARVs (f38bstJioPs). Every concept of D2OS_f38bstJioPs_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "MNCH Baby ARVs"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-f38bstJioPs-cs"
+        },
+        "description": "DHIS2 option set MNCH Baby ARVs (f38bstJioPs). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Baby ARVs"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-f38bstJioPs-vs"
+        },
+        "description": "DHIS2 option set MNCH Baby ARVs (f38bstJioPs). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Baby ARVs"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-udkr3ihaeD3-cm"
+        },
+        "description": "DHIS2 option set MNCH DPT doses (1-3) (udkr3ihaeD3). Every concept of D2OS_udkr3ihaeD3_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "MNCH DPT doses (1-3)"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-udkr3ihaeD3-cs"
+        },
+        "description": "DHIS2 option set MNCH DPT doses (1-3) (udkr3ihaeD3). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH DPT doses (1-3)"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-udkr3ihaeD3-vs"
+        },
+        "description": "DHIS2 option set MNCH DPT doses (1-3) (udkr3ihaeD3). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH DPT doses (1-3)"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-x31y45jvIQL-cm"
+        },
+        "description": "DHIS2 option set MNCH Infant Feeding (x31y45jvIQL). Every concept of D2OS_x31y45jvIQL_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "MNCH Infant Feeding"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-x31y45jvIQL-cs"
+        },
+        "description": "DHIS2 option set MNCH Infant Feeding (x31y45jvIQL). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Infant Feeding"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-x31y45jvIQL-vs"
+        },
+        "description": "DHIS2 option set MNCH Infant Feeding (x31y45jvIQL). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Infant Feeding"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-oXR37f2wOb1-cm"
+        },
+        "description": "DHIS2 option set MNCH Infant HIV test (oXR37f2wOb1). Every concept of D2OS_oXR37f2wOb1_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "MNCH Infant HIV test"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-oXR37f2wOb1-cs"
+        },
+        "description": "DHIS2 option set MNCH Infant HIV test (oXR37f2wOb1). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Infant HIV test"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-oXR37f2wOb1-vs"
+        },
+        "description": "DHIS2 option set MNCH Infant HIV test (oXR37f2wOb1). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Infant HIV test"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-OGmE3wUMEzu-cm"
+        },
+        "description": "DHIS2 option set MNCH Infant HIV Test Type (OGmE3wUMEzu). Every concept of D2OS_OGmE3wUMEzu_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "MNCH Infant HIV Test Type"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-OGmE3wUMEzu-cs"
+        },
+        "description": "DHIS2 option set MNCH Infant HIV Test Type (OGmE3wUMEzu). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Infant HIV Test Type"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-OGmE3wUMEzu-vs"
+        },
+        "description": "DHIS2 option set MNCH Infant HIV Test Type (OGmE3wUMEzu). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Infant HIV Test Type"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-nH8Y04zS7UV-cm"
+        },
+        "description": "DHIS2 option set MNCH IPT (nH8Y04zS7UV). Every concept of D2OS_nH8Y04zS7UV_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "MNCH IPT"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-nH8Y04zS7UV-cs"
+        },
+        "description": "DHIS2 option set MNCH IPT (nH8Y04zS7UV). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH IPT"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-nH8Y04zS7UV-vs"
+        },
+        "description": "DHIS2 option set MNCH IPT (nH8Y04zS7UV). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH IPT"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-kzgQRhOCadd-cm"
+        },
+        "description": "DHIS2 option set MNCH Polio doses (0-3) (kzgQRhOCadd). Every concept of D2OS_kzgQRhOCadd_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "MNCH Polio doses (0-3)"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-kzgQRhOCadd-cs"
+        },
+        "description": "DHIS2 option set MNCH Polio doses (0-3) (kzgQRhOCadd). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Polio doses (0-3)"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-kzgQRhOCadd-vs"
+        },
+        "description": "DHIS2 option set MNCH Polio doses (0-3) (kzgQRhOCadd). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Polio doses (0-3)"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-XdI8KRJiRoZ-cm"
+        },
+        "description": "DHIS2 option set MNCH Yes No (XdI8KRJiRoZ). Every concept of D2OS_XdI8KRJiRoZ_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "MNCH Yes No"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-XdI8KRJiRoZ-cs"
+        },
+        "description": "DHIS2 option set MNCH Yes No (XdI8KRJiRoZ). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Yes No"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-XdI8KRJiRoZ-vs"
+        },
+        "description": "DHIS2 option set MNCH Yes No (XdI8KRJiRoZ). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "MNCH Yes No"
+      },
+      {
+        "reference": {
+          "reference": "Location/OTFepb1k9Db"
+        },
+        "description": "DHIS2 organisation unit Mongo (OTFepb1k9Db), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Mongo"
+      },
+      {
+        "reference": {
+          "reference": "Organization/OTFepb1k9Db"
+        },
+        "exampleBoolean": false,
+        "name": "Mongo"
+      },
+      {
+        "reference": {
+          "reference": "Location/lBMmM0HBp4s"
+        },
+        "description": "DHIS2 organisation unit Musaia (Koinadugu) CHC (lBMmM0HBp4s), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Musaia (Koinadugu) CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/lBMmM0HBp4s"
+        },
+        "exampleBoolean": false,
+        "name": "Musaia (Koinadugu) CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/bPHn9IgjKLC"
+        },
+        "description": "DHIS2 organisation unit Nasarah Clinic (bPHn9IgjKLC), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Nasarah Clinic"
+      },
+      {
+        "reference": {
+          "reference": "Organization/bPHn9IgjKLC"
+        },
+        "exampleBoolean": false,
+        "name": "Nasarah Clinic"
+      },
+      {
+        "reference": {
+          "reference": "Location/GFk45MOxzJJ"
+        },
+        "description": "DHIS2 organisation unit Neya (GFk45MOxzJJ), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Neya"
+      },
+      {
+        "reference": {
+          "reference": "Organization/GFk45MOxzJJ"
+        },
+        "exampleBoolean": false,
+        "name": "Neya"
+      },
+      {
+        "reference": {
+          "reference": "Location/J4GiUImJZoE"
+        },
+        "description": "DHIS2 organisation unit Nieni (J4GiUImJZoE), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Nieni"
+      },
+      {
+        "reference": {
+          "reference": "Organization/J4GiUImJZoE"
+        },
+        "exampleBoolean": false,
+        "name": "Nieni"
+      },
+      {
+        "reference": {
+          "reference": "Location/EO6ghLtWv4W"
+        },
+        "description": "DHIS2 organisation unit Porpon MCHP (EO6ghLtWv4W), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Porpon MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/EO6ghLtWv4W"
+        },
+        "exampleBoolean": false,
+        "name": "Porpon MCHP"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-aoc-idcDPkDtepR-cs"
+        },
+        "description": "DHIS2 attribute option combos of category combo Project (idcDPkDtepR). A data set on this combo keys every value it holds by one of them. Concept codes are DHIS2 category option combo UIDs.",
+        "exampleBoolean": false,
+        "name": "Project"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-aoc-idcDPkDtepR-vs"
+        },
+        "description": "DHIS2 attribute option combos of category combo Project (idcDPkDtepR). A data set on this combo keys every value it holds by one of them. Concept codes are DHIS2 category option combo UIDs.",
+        "exampleBoolean": false,
+        "name": "Project"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-aoc-idcDPkDtepR-cm"
+        },
+        "description": "DHIS2 category combo Project (idcDPkDtepR). Every concept of D2AOC_idcDPkDtepR_CS mapped to its DHIS2 category option combo UID and, where the combo carries one, its DHIS2 category option combo code.",
+        "exampleBoolean": false,
+        "name": "Project"
+      },
+      {
+        "reference": {
+          "reference": "Questionnaire/IpHINAT79UW"
+        },
+        "name": "Questionnaire - Child Programme",
+        "description": "DHIS2 tracker program Child Programme (IpHINAT79UW) as a registration form: the tracked entity attributes captured when a person is enrolled in the program.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "Questionnaire/ZzYYXq4fJie"
+        },
+        "name": "Questionnaire - Child Programme - Baby Postnatal",
+        "description": "DHIS2 tracker program stage Baby Postnatal (ZzYYXq4fJie) of program Child Programme (IpHINAT79UW) as a data capture form.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "Questionnaire/A03MvHHogjR"
+        },
+        "name": "Questionnaire - Child Programme - Birth",
+        "description": "DHIS2 tracker program stage Birth (A03MvHHogjR) of program Child Programme (IpHINAT79UW) as a data capture form.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "Questionnaire/TuL8IOPzpHh"
+        },
+        "name": "Questionnaire - EPI Stock",
+        "description": "DHIS2 data set EPI Stock (TuL8IOPzpHh) as a data capture form.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "Questionnaire/nEenWmSyUEp"
+        },
+        "name": "Questionnaire - Person",
+        "description": "DHIS2 tracked entity type Person (nEenWmSyUEp) as a registration form: the tracked entity attributes the type itself collects, captured when a person is registered without being enrolled in any program.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "Questionnaire/EVTsupVis01"
+        },
+        "name": "Questionnaire - Supervision visit",
+        "description": "DHIS2 event program Supervision visit (EVTsupVis01) as a data capture form.",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "Location/SKJoPDgjELa"
+        },
+        "description": "DHIS2 organisation unit Samamaia MCHP (SKJoPDgjELa), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Samamaia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/SKJoPDgjELa"
+        },
+        "exampleBoolean": false,
+        "name": "Samamaia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/G6LbealddgU"
+        },
+        "description": "DHIS2 organisation unit Sawuria CHP (G6LbealddgU), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Sawuria CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/G6LbealddgU"
+        },
+        "exampleBoolean": false,
+        "name": "Sawuria CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/xX4lIVqF4yb"
+        },
+        "description": "DHIS2 organisation unit Senekedugu MCHP (xX4lIVqF4yb), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Senekedugu MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/xX4lIVqF4yb"
+        },
+        "exampleBoolean": false,
+        "name": "Senekedugu MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/VGAFxBXz16y"
+        },
+        "description": "DHIS2 organisation unit Sengbeh (VGAFxBXz16y), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Sengbeh"
+      },
+      {
+        "reference": {
+          "reference": "Organization/VGAFxBXz16y"
+        },
+        "exampleBoolean": false,
+        "name": "Sengbeh"
+      },
+      {
+        "reference": {
+          "reference": "Location/ZOZ4s2gTPj7"
+        },
+        "description": "DHIS2 organisation unit Serekolia MCHP (ZOZ4s2gTPj7), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Serekolia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/ZOZ4s2gTPj7"
+        },
+        "exampleBoolean": false,
+        "name": "Serekolia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/kzmwOrwmzbW"
+        },
+        "description": "DHIS2 organisation unit Seria MCHP (kzmwOrwmzbW), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Seria MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/kzmwOrwmzbW"
+        },
+        "exampleBoolean": false,
+        "name": "Seria MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/IlnqGuxfQAw"
+        },
+        "description": "DHIS2 organisation unit Sinkunia CHC (IlnqGuxfQAw), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Sinkunia CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/IlnqGuxfQAw"
+        },
+        "exampleBoolean": false,
+        "name": "Sinkunia CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/PLoeN9CaL7z"
+        },
+        "description": "DHIS2 organisation unit SLRCS (Koinadugu) Clinic (PLoeN9CaL7z), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "SLRCS (Koinadugu) Clinic"
+      },
+      {
+        "reference": {
+          "reference": "Organization/PLoeN9CaL7z"
+        },
+        "exampleBoolean": false,
+        "name": "SLRCS (Koinadugu) Clinic"
+      },
+      {
+        "reference": {
+          "reference": "Location/SmhR2aaKLjw"
+        },
+        "description": "DHIS2 organisation unit sonkoya MCHP (SmhR2aaKLjw), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "sonkoya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/WjO2puYKysP"
+        },
+        "description": "DHIS2 organisation unit Sonkoya MCHP (WjO2puYKysP), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Sonkoya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/SmhR2aaKLjw"
+        },
+        "exampleBoolean": false,
+        "name": "sonkoya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/WjO2puYKysP"
+        },
+        "exampleBoolean": false,
+        "name": "Sonkoya MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/PaqugoqjRIj"
+        },
+        "description": "DHIS2 organisation unit Sulima (Koinadugu) (PaqugoqjRIj), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Sulima (Koinadugu)"
+      },
+      {
+        "reference": {
+          "reference": "Organization/PaqugoqjRIj"
+        },
+        "exampleBoolean": false,
+        "name": "Sulima (Koinadugu)"
+      },
+      {
+        "reference": {
+          "reference": "Location/GvstqlRRnpV"
+        },
+        "description": "DHIS2 organisation unit Sumbaria MCHP (GvstqlRRnpV), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Sumbaria MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/GvstqlRRnpV"
+        },
+        "exampleBoolean": false,
+        "name": "Sumbaria MCHP"
+      },
+      {
+        "reference": {
+          "reference": "List/d2-pr-EVTsupVis01-org-units"
+        },
+        "exampleBoolean": false,
+        "name": "Supervision visit - assigned organisation units"
+      },
+      {
+        "reference": {
+          "reference": "Location/oNqqmKD0zXj"
+        },
+        "description": "DHIS2 organisation unit Tambaliabalia MCHP (oNqqmKD0zXj), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Tambaliabalia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/oNqqmKD0zXj"
+        },
+        "exampleBoolean": false,
+        "name": "Tambaliabalia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/oiSllOTiHNx"
+        },
+        "description": "DHIS2 organisation unit Thellia CHP (oiSllOTiHNx), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Thellia CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/oiSllOTiHNx"
+        },
+        "exampleBoolean": false,
+        "name": "Thellia CHP"
+      },
+      {
+        "reference": {
+          "reference": "ConceptMap/d2-os-OsVaccType1-cm"
+        },
+        "description": "DHIS2 option set Vaccine type (OsVaccType1). Every concept of D2OS_OsVaccType1_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+        "exampleBoolean": false,
+        "name": "Vaccine type"
+      },
+      {
+        "reference": {
+          "reference": "CodeSystem/d2-os-OsVaccType1-cs"
+        },
+        "description": "DHIS2 option set Vaccine type (OsVaccType1). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "Vaccine type"
+      },
+      {
+        "reference": {
+          "reference": "ValueSet/d2-os-OsVaccType1-vs"
+        },
+        "description": "DHIS2 option set Vaccine type (OsVaccType1). Concept codes are DHIS2 option UIDs.",
+        "exampleBoolean": false,
+        "name": "Vaccine type"
+      },
+      {
+        "reference": {
+          "reference": "Location/m0PiiU5BteW"
+        },
+        "description": "DHIS2 organisation unit Walia MCHP (m0PiiU5BteW), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Walia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/m0PiiU5BteW"
+        },
+        "exampleBoolean": false,
+        "name": "Walia MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/XrF5AvaGcuw"
+        },
+        "description": "DHIS2 organisation unit Wara Wara Bafodia (XrF5AvaGcuw), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Wara Wara Bafodia"
+      },
+      {
+        "reference": {
+          "reference": "Organization/XrF5AvaGcuw"
+        },
+        "exampleBoolean": false,
+        "name": "Wara Wara Bafodia"
+      },
+      {
+        "reference": {
+          "reference": "Location/EZPwuUTeIIG"
+        },
+        "description": "DHIS2 organisation unit Wara Wara Yagala (EZPwuUTeIIG), level 3 - physical location.",
+        "exampleBoolean": false,
+        "name": "Wara Wara Yagala"
+      },
+      {
+        "reference": {
+          "reference": "Organization/EZPwuUTeIIG"
+        },
+        "exampleBoolean": false,
+        "name": "Wara Wara Yagala"
+      },
+      {
+        "reference": {
+          "reference": "Location/M9q1wOOsrXp"
+        },
+        "description": "DHIS2 organisation unit Yara MCHP (M9q1wOOsrXp), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Yara MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/M9q1wOOsrXp"
+        },
+        "exampleBoolean": false,
+        "name": "Yara MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/wxMmC45UyNw"
+        },
+        "description": "DHIS2 organisation unit Yarawadu MCHP (wxMmC45UyNw), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Yarawadu MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/wxMmC45UyNw"
+        },
+        "exampleBoolean": false,
+        "name": "Yarawadu MCHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/MErVkzdbsP5"
+        },
+        "description": "DHIS2 organisation unit Yataya CHP (MErVkzdbsP5), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Yataya CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/MErVkzdbsP5"
+        },
+        "exampleBoolean": false,
+        "name": "Yataya CHP"
+      },
+      {
+        "reference": {
+          "reference": "Location/qxbsDd9QYv6"
+        },
+        "description": "DHIS2 organisation unit Yiffin CHC (qxbsDd9QYv6), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Yiffin CHC"
+      },
+      {
+        "reference": {
+          "reference": "Organization/qxbsDd9QYv6"
+        },
+        "exampleBoolean": false,
+        "name": "Yiffin CHC"
+      },
+      {
+        "reference": {
+          "reference": "Location/esMAQ4vs4kM"
+        },
+        "description": "DHIS2 organisation unit Yiraia CHP (esMAQ4vs4kM), level 4 - physical location.",
+        "exampleBoolean": false,
+        "name": "Yiraia CHP"
+      },
+      {
+        "reference": {
+          "reference": "Organization/esMAQ4vs4kM"
+        },
+        "exampleBoolean": false,
+        "name": "Yiraia CHP"
+      }
+    ],
+    "page": {
+      "nameUrl": "toc.html",
+      "title": "Table of Contents",
+      "generation": "html",
+      "page": [
+        {
+          "nameUrl": "index.html",
+          "title": "Home",
+          "generation": "markdown"
+        },
+        {
+          "nameUrl": "capture.html",
+          "title": "Capture",
+          "generation": "markdown"
+        },
+        {
+          "nameUrl": "forms.html",
+          "title": "Forms",
+          "generation": "markdown"
+        },
+        {
+          "nameUrl": "identifiers.html",
+          "title": "Identifiers",
+          "generation": "markdown"
+        },
+        {
+          "nameUrl": "periods.html",
+          "title": "Periods",
+          "generation": "markdown"
+        },
+        {
+          "nameUrl": "registry.html",
+          "title": "Registry",
+          "generation": "markdown"
+        },
+        {
+          "nameUrl": "terminology.html",
+          "title": "Terminology",
+          "generation": "markdown"
+        }
+      ]
+    },
+    "parameter": [
+      {
+        "code": "copyrightyear",
+        "value": "2026+"
+      },
+      {
+        "code": "releaselabel",
+        "value": "ci-build"
+      },
+      {
+        "code": "excludexml",
+        "value": "true"
+      },
+      {
+        "code": "excludettl",
+        "value": "true"
+      },
+      {
+        "code": "special-url",
+        "value": "http://dhis2.org/fhir/id/option"
+      },
+      {
+        "code": "special-url",
+        "value": "http://dhis2.org/fhir/id/option-code"
+      },
+      {
+        "code": "special-url",
+        "value": "http://dhis2.org/fhir/id/category-option"
+      },
+      {
+        "code": "special-url",
+        "value": "http://dhis2.org/fhir/id/category-option-code"
+      },
+      {
+        "code": "special-url",
+        "value": "http://dhis2.org/fhir/id/category-option-combo"
+      },
+      {
+        "code": "special-url",
+        "value": "http://dhis2.org/fhir/id/category-option-combo-code"
+      },
+      {
+        "code": "path-resource",
+        "value": "input/resources/registry/*"
+      },
+      {
+        "code": "path-resource",
+        "value": "input/resources/terminology/*"
+      },
+      {
+        "code": "path-resource",
+        "value": "input/resources/concept-maps/*"
+      },
+      {
+        "code": "path-resource",
+        "value": "input/resources/categories/*"
+      },
+      {
+        "code": "path-resource",
+        "value": "input/resources/attribute-option-combos/*"
+      },
+      {
+        "code": "path-resource",
+        "value": "input/resources/assignments/*"
+      }
+    ]
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-tracker-registration-response",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-registration-response",
+  "name": "D2TrackerRegistrationResponse",
+  "title": "DHIS2 tracker registration response",
+  "status": "draft",
+  "experimental": true,
+  "description": "One submission of a DHIS2 tracker program's registration form: the tracked entity attributes captured when a person is enrolled, answered on the linkIds of the program's Questionnaire. The response mints both DHIS2 identities it creates - the tracked entity it is subject to and the enrollment its extension names - so a client can capture the enrollment's first stage events in the same breath, before either identity exists on the instance. A response stating D2SubjectExists enrols a person the instance already holds instead, and then mints the enrollment alone.",
+  "fhirVersion": "4.0.1",
+  "kind": "resource",
+  "abstract": false,
+  "type": "QuestionnaireResponse",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/QuestionnaireResponse",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "QuestionnaireResponse.extension",
+        "path": "QuestionnaireResponse.extension",
+        "slicing": {
+          "discriminator": [
+            {
+              "type": "value",
+              "path": "url"
+            }
+          ],
+          "ordered": false,
+          "rules": "open"
+        },
+        "min": 4
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2OrganisationUnit",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2OrganisationUnit",
+        "short": "The DHIS2 organisation unit the person is enrolled at, which becomes the organisation unit of both the tracked entity and the enrollment. A response naming a person the instance already holds does not move that person: the organisation unit is the enrollment's alone.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2TrackerEnrollment",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2TrackerEnrollment",
+        "short": "The DHIS2 enrollment this registration creates. The client mints the value as a DHIS2 UID - eleven characters, the first a letter - so the response names the enrollment its own stage responses will be captured against before any of them is sent.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-enrollment"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2EnrolledAt",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2EnrolledAt",
+        "short": "When the enrollment begins.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-enrolled-at"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2IncidentAt",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2IncidentAt",
+        "short": "When the incident the enrollment follows occurred. Carried by a response to a form whose program collects one, and absent otherwise.",
+        "min": 0,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-incident-at"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2SubjectExists",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2SubjectExists",
+        "short": "Whether the person this response is subject to is already held by the DHIS2 instance. True means the subject identifier names an existing tracked entity and the response enrols that person, so it is imported as an enrollment on its own. Absent or false means the client minted the subject identifier and the response creates the person along with the enrollment. A response stating true answers only the questions the program asks: an answer belonging to the person's own record cannot ride an enrollment, and rewriting the record of a person this contract does not own is not something an enrollment does.",
+        "min": 0,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-subject-exists"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2FormType",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2FormType",
+        "short": "The DHIS2 form kind this response answers.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2FormType.value[x]",
+        "path": "QuestionnaireResponse.extension.value[x]",
+        "fixedCode": "tracker"
+      },
+      {
+        "id": "QuestionnaireResponse.questionnaire",
+        "path": "QuestionnaireResponse.questionnaire",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.subject",
+        "path": "QuestionnaireResponse.subject",
+        "short": "The DHIS2 tracked entity this registration enrols, named by identifier rather than by reference: this guide publishes no Patient resource, so the identifier is the person. The client mints the value as a DHIS2 UID, the same way it mints the enrollment - unless the response carries D2SubjectExists as true, and the value is then the UID of a person the instance already holds.",
+        "min": 1,
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://hl7.org/fhir/StructureDefinition/Patient"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.subject.identifier",
+        "path": "QuestionnaireResponse.subject.identifier",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.subject.identifier.system",
+        "path": "QuestionnaireResponse.subject.identifier.system",
+        "min": 1,
+        "fixedUri": "http://dhis2.org/fhir/id/tracked-entity"
+      },
+      {
+        "id": "QuestionnaireResponse.subject.identifier.value",
+        "path": "QuestionnaireResponse.subject.identifier.value",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.authored",
+        "path": "QuestionnaireResponse.authored",
+        "min": 1
+      }
+    ]
+  }
+}

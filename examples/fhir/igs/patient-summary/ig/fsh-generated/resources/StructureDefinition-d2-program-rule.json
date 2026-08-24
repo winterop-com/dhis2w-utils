@@ -1,0 +1,190 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-program-rule",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-program-rule",
+  "name": "D2ProgramRule",
+  "title": "DHIS2 program rule",
+  "status": "draft",
+  "experimental": true,
+  "description": "One DHIS2 program rule this form does not express: the expression the instance evaluates, what it does, and the rule's own identity. Non-normative - it states that the server may refuse an answer this form admits.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Questionnaire"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 program rule",
+        "definition": "One DHIS2 program rule this form does not express: the expression the instance evaluates, what it does, and the rule's own identity. Non-normative - it states that the server may refuse an answer this form admits."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "min": 4
+      },
+      {
+        "id": "Extension.extension:rule",
+        "path": "Extension.extension",
+        "sliceName": "rule",
+        "short": "The UID of the DHIS2 program rule.",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:rule.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:rule.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "rule"
+      },
+      {
+        "id": "Extension.extension:rule.value[x]",
+        "path": "Extension.extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "id"
+          }
+        ]
+      },
+      {
+        "id": "Extension.extension:name",
+        "path": "Extension.extension",
+        "sliceName": "name",
+        "short": "The name the instance holds the rule under.",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:name.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:name.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "name"
+      },
+      {
+        "id": "Extension.extension:name.value[x]",
+        "path": "Extension.extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "string"
+          }
+        ]
+      },
+      {
+        "id": "Extension.extension:description",
+        "path": "Extension.extension",
+        "sliceName": "description",
+        "short": "The rule's free text, absent when the instance states none.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:description.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:description.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "description"
+      },
+      {
+        "id": "Extension.extension:description.value[x]",
+        "path": "Extension.extension.value[x]",
+        "type": [
+          {
+            "code": "string"
+          }
+        ]
+      },
+      {
+        "id": "Extension.extension:condition",
+        "path": "Extension.extension",
+        "sliceName": "condition",
+        "short": "The DHIS2 expression the server evaluates, exactly as the instance holds it.",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:condition.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:condition.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "condition"
+      },
+      {
+        "id": "Extension.extension:condition.value[x]",
+        "path": "Extension.extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "string"
+          }
+        ]
+      },
+      {
+        "id": "Extension.extension:action",
+        "path": "Extension.extension",
+        "sliceName": "action",
+        "short": "What the rule does when its condition holds.",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:action.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:action.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "action"
+      },
+      {
+        "id": "Extension.extension:action.value[x]",
+        "path": "Extension.extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "code"
+          }
+        ],
+        "binding": {
+          "strength": "required",
+          "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-program-rule-action-vs"
+        }
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-program-rule"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "max": "0"
+      }
+    ]
+  }
+}

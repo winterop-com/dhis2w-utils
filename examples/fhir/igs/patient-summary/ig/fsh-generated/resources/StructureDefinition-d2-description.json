@@ -1,0 +1,52 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-description",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+  "name": "D2Description",
+  "title": "DHIS2 description",
+  "status": "draft",
+  "experimental": true,
+  "description": "The free text a DHIS2 instance holds about the object a question or a group is asked from - the description of a data element, of a tracked entity attribute, or of a form section. It is guidance for the person filling the form, which is why it rides the item rather than the item's text, and it is present only where the instance states one.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Questionnaire.item"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 description",
+        "definition": "The free text a DHIS2 instance holds about the object a question or a group is asked from - the description of a data element, of a tracked entity attribute, or of a form section. It is guidance for the person filling the form, which is why it rides the item rather than the item's text, and it is present only where the instance states one."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "string"
+          }
+        ]
+      }
+    ]
+  }
+}

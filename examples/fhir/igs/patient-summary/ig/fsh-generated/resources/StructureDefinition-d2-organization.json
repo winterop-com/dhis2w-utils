@@ -1,0 +1,97 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-organization",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organization",
+  "name": "D2Organization",
+  "title": "DHIS2 Organization",
+  "status": "draft",
+  "experimental": true,
+  "description": "An organisation unit imported from DHIS2.",
+  "fhirVersion": "4.0.1",
+  "kind": "resource",
+  "abstract": false,
+  "type": "Organization",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Organization",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Organization.identifier",
+        "path": "Organization.identifier",
+        "slicing": {
+          "discriminator": [
+            {
+              "type": "value",
+              "path": "system"
+            }
+          ],
+          "rules": "open"
+        },
+        "min": 2
+      },
+      {
+        "id": "Organization.identifier:dhis2id",
+        "path": "Organization.identifier",
+        "sliceName": "dhis2id",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Organization.identifier:dhis2id.system",
+        "path": "Organization.identifier.system",
+        "min": 1,
+        "patternUri": "http://dhis2.org/fhir/id/org-unit"
+      },
+      {
+        "id": "Organization.identifier:dhis2code",
+        "path": "Organization.identifier",
+        "sliceName": "dhis2code",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Organization.identifier:dhis2code.system",
+        "path": "Organization.identifier.system",
+        "min": 1,
+        "patternUri": "http://dhis2.org/fhir/id/org-unit-code"
+      },
+      {
+        "id": "Organization.active",
+        "path": "Organization.active",
+        "min": 1
+      },
+      {
+        "id": "Organization.type",
+        "path": "Organization.type",
+        "min": 1,
+        "binding": {
+          "strength": "extensible",
+          "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-ou-level-vs"
+        }
+      },
+      {
+        "id": "Organization.name",
+        "path": "Organization.name",
+        "min": 1
+      },
+      {
+        "id": "Organization.partOf",
+        "path": "Organization.partOf",
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organization"
+            ],
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-hierarchy",
+                "valueBoolean": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

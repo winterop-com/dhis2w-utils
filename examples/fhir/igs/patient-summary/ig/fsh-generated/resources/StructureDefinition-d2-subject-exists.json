@@ -1,0 +1,52 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-subject-exists",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-subject-exists",
+  "name": "D2SubjectExists",
+  "title": "DHIS2 subject exists",
+  "status": "draft",
+  "experimental": true,
+  "description": "Whether the tracked entity a registration response is subject to is already held by the DHIS2 instance. True means the subject identifier names a person the instance already stores, and the response enrols that person rather than creating one - so it is imported as an enrollment alone, with no tracked entity beside it. Absent or false means the response creates the person it names, which is what a registration does by default.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "QuestionnaireResponse"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 subject exists",
+        "definition": "Whether the tracked entity a registration response is subject to is already held by the DHIS2 instance. True means the subject identifier names a person the instance already stores, and the response enrols that person rather than creating one - so it is imported as an enrollment alone, with no tracked entity beside it. Absent or false means the response creates the person it names, which is what a registration does by default."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-subject-exists"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "boolean"
+          }
+        ]
+      }
+    ]
+  }
+}

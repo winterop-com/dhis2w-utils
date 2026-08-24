@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2OptionSetIdentifierSystem",
+  "description": "The identifier system for DHIS2 option set UIDs. Every generated artifact representing a DHIS2 option set carries the source object's UID under this system.",
+  "name": "D2OptionSetIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/option-set",
+      "preferred": true
+    }
+  ]
+}

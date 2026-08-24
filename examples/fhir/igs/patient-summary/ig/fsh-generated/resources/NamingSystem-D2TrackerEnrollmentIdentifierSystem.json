@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2TrackerEnrollmentIdentifierSystem",
+  "description": "The identifier system for DHIS2 tracker enrollment UIDs. Every generated artifact representing a DHIS2 tracker enrollment carries the source object's UID under this system.",
+  "name": "D2TrackerEnrollmentIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/tracker-enrollment",
+      "preferred": true
+    }
+  ]
+}

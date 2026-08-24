@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2ProgramIdentifierSystem",
+  "description": "The identifier system for DHIS2 program UIDs. Every generated artifact representing a DHIS2 program carries the source object's UID under this system.",
+  "name": "D2ProgramIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/program",
+      "preferred": true
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "resourceType": "CodeSystem",
+  "status": "draft",
+  "content": "complete",
+  "name": "D2COC_CS",
+  "id": "d2-coc-cs",
+  "title": "DHIS2 category option combos",
+  "description": "DHIS2 category option combos the generated questionnaires disaggregate by. Concept codes are DHIS2 category option combo UIDs.",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+  "concept": [
+    {
+      "code": "pn1upwnbxfn",
+      "display": "Damages",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_360271"
+        }
+      ]
+    },
+    {
+      "code": "fsFN9T4ck3E",
+      "display": "Expired",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_360270"
+        }
+      ]
+    },
+    {
+      "code": "TxaWpw1pN5G",
+      "display": "VVM Change",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_360272"
+        }
+      ]
+    }
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-coc-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 category option combo code.",
+      "type": "string"
+    }
+  ],
+  "count": 3
+}

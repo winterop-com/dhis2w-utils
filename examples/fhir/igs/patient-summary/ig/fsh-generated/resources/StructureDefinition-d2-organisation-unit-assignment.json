@@ -1,0 +1,55 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-organisation-unit-assignment",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-assignment",
+  "name": "D2OrganisationUnitAssignment",
+  "title": "DHIS2 organisation unit assignment",
+  "status": "draft",
+  "experimental": true,
+  "description": "The organisation units a form may be captured against, as a reference to the List of their Locations. Absent means every unit the registry publishes.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Questionnaire"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 organisation unit assignment",
+        "definition": "The organisation units a form may be captured against, as a reference to the List of their Locations. Absent means every unit the registry publishes."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-assignment"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://hl7.org/fhir/StructureDefinition/List"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

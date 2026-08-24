@@ -1,0 +1,60 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-form-type",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+  "name": "D2FormType",
+  "title": "DHIS2 form type",
+  "status": "draft",
+  "experimental": true,
+  "description": "The kind of DHIS2 form a Questionnaire came from, carried on the responses captured against it.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Questionnaire"
+    },
+    {
+      "type": "element",
+      "expression": "QuestionnaireResponse"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 form type",
+        "definition": "The kind of DHIS2 form a Questionnaire came from, carried on the responses captured against it."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "code"
+          }
+        ],
+        "binding": {
+          "strength": "required",
+          "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-form-type-vs"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2TrackedEntityIdentifierSystem",
+  "description": "The identifier system for DHIS2 tracked entity UIDs. Every generated artifact representing a DHIS2 tracked entity carries the source object's UID under this system.",
+  "name": "D2TrackedEntityIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/tracked-entity",
+      "preferred": true
+    }
+  ]
+}

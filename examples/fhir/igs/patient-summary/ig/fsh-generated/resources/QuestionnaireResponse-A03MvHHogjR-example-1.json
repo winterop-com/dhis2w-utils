@@ -1,0 +1,108 @@
+{
+  "resourceType": "QuestionnaireResponse",
+  "id": "A03MvHHogjR-example-1",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-event-response"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit",
+      "valueReference": {
+        "reference": "Location/ImspTQPwCqd"
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-enrollment",
+      "valueIdentifier": {
+        "system": "http://dhis2.org/fhir/id/tracker-enrollment",
+        "value": "VJV3arKomV0"
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+      "valueCode": "tracker-event"
+    }
+  ],
+  "subject": {
+    "identifier": {
+      "system": "http://dhis2.org/fhir/id/tracked-entity",
+      "value": "yhpvt4pX4xD"
+    },
+    "type": "Patient"
+  },
+  "questionnaire": "http://example.org/fhir/examples/patient-summary/Questionnaire/A03MvHHogjR",
+  "status": "completed",
+  "authored": "2026-08-20T12:00:00Z",
+  "item": [
+    {
+      "linkId": "a3kGcGDCuk6",
+      "answer": [
+        {
+          "valueDecimal": 23.3
+        }
+      ]
+    },
+    {
+      "linkId": "H6uSAMO5WLD",
+      "answer": [
+        {
+          "valueString": "Example MCH Apgar comment"
+        }
+      ]
+    },
+    {
+      "linkId": "UXz7xuGCEhU",
+      "answer": [
+        {
+          "valueDecimal": 66.6
+        }
+      ]
+    },
+    {
+      "linkId": "wQLfBvPrXqq",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "ww8JVblo4SI",
+            "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-f38bstJioPs-cs",
+            "display": "Others"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "bx6fsa0t90x",
+      "answer": [
+        {
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "ebaJjqltK5N",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "VBGXfSXgJzv",
+            "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-kzgQRhOCadd-cs",
+            "display": "Dose 3"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "X8zyunlgUfM",
+      "answer": [
+        {
+          "valueCoding": {
+            "code": "odMfnhhpjUj",
+            "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-x31y45jvIQL-cs",
+            "display": "Mixed"
+          }
+        }
+      ]
+    }
+  ]
+}

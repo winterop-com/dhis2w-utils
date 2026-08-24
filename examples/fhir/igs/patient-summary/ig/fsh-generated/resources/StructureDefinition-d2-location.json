@@ -1,0 +1,153 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-location",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location",
+  "name": "D2Location",
+  "title": "DHIS2 Location",
+  "status": "draft",
+  "experimental": true,
+  "description": "The physical place of a DHIS2 organisation unit.",
+  "fhirVersion": "4.0.1",
+  "kind": "resource",
+  "abstract": false,
+  "type": "Location",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Location",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Location.extension",
+        "path": "Location.extension",
+        "slicing": {
+          "discriminator": [
+            {
+              "type": "value",
+              "path": "url"
+            }
+          ],
+          "ordered": false,
+          "rules": "open"
+        },
+        "min": 1
+      },
+      {
+        "id": "Location.extension:boundary",
+        "path": "Location.extension",
+        "sliceName": "boundary",
+        "short": "The unit's DHIS2 geometry, carried as a GeoJSON Feature in the attachment.",
+        "min": 0,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "Location.extension:level",
+        "path": "Location.extension",
+        "sliceName": "level",
+        "short": "The DHIS2 organisation unit level this place sits at.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "Location.identifier",
+        "path": "Location.identifier",
+        "slicing": {
+          "discriminator": [
+            {
+              "type": "value",
+              "path": "system"
+            }
+          ],
+          "rules": "open"
+        },
+        "min": 2
+      },
+      {
+        "id": "Location.identifier:dhis2id",
+        "path": "Location.identifier",
+        "sliceName": "dhis2id",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Location.identifier:dhis2id.system",
+        "path": "Location.identifier.system",
+        "min": 1,
+        "patternUri": "http://dhis2.org/fhir/id/org-unit"
+      },
+      {
+        "id": "Location.identifier:dhis2code",
+        "path": "Location.identifier",
+        "sliceName": "dhis2code",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Location.identifier:dhis2code.system",
+        "path": "Location.identifier.system",
+        "min": 1,
+        "patternUri": "http://dhis2.org/fhir/id/org-unit-code"
+      },
+      {
+        "id": "Location.status",
+        "path": "Location.status",
+        "min": 1
+      },
+      {
+        "id": "Location.name",
+        "path": "Location.name",
+        "min": 1
+      },
+      {
+        "id": "Location.position",
+        "path": "Location.position",
+        "mustSupport": true
+      },
+      {
+        "id": "Location.managingOrganization",
+        "path": "Location.managingOrganization",
+        "min": 1,
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organization"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "Location.partOf",
+        "path": "Location.partOf",
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+            ],
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-hierarchy",
+                "valueBoolean": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

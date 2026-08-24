@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2TrackedEntityTypeCodeIdentifierSystem",
+  "description": "The identifier system for DHIS2 tracked entity type codes. DHIS2 codes are optional, so this slot repeats the UID whenever the tracked entity type has no code or its code is not a valid FHIR code.",
+  "name": "D2TrackedEntityTypeCodeIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/tracked-entity-type-code",
+      "preferred": true
+    }
+  ]
+}

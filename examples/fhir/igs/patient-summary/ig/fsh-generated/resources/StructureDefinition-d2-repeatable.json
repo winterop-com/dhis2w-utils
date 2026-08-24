@@ -1,0 +1,52 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-repeatable",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-repeatable",
+  "name": "D2Repeatable",
+  "title": "DHIS2 stage is repeatable",
+  "status": "draft",
+  "experimental": true,
+  "description": "Whether one enrollment may capture this DHIS2 tracker program stage more than once. True means a person can be given several events of the stage - a follow-up visit, a repeat measurement - and false means the enrollment holds at most one. Only a tracker program stage form declares it, and it declares it either way, so a reader never has to guess.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Questionnaire"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 stage is repeatable",
+        "definition": "Whether one enrollment may capture this DHIS2 tracker program stage more than once. True means a person can be given several events of the stage - a follow-up visit, a repeat measurement - and false means the enrollment holds at most one. Only a tracker program stage form declares it, and it declares it either way, so a reader never has to guess."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-repeatable"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "boolean"
+          }
+        ]
+      }
+    ]
+  }
+}

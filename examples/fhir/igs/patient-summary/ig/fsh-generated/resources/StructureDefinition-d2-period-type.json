@@ -1,0 +1,56 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-period-type",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-period-type",
+  "name": "D2PeriodType",
+  "title": "DHIS2 period type",
+  "status": "draft",
+  "experimental": true,
+  "description": "The DHIS2 period type an aggregate form is reported under - the reporting frequency of the data set the Questionnaire was generated from. A response to the form states one period of this type on D2Period, so a client knows which ISO period format the instance accepts before it builds one. Only an aggregate form declares it, because only a data set has a reporting frequency.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Questionnaire"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 period type",
+        "definition": "The DHIS2 period type an aggregate form is reported under - the reporting frequency of the data set the Questionnaire was generated from. A response to the form states one period of this type on D2Period, so a client knows which ISO period format the instance accepts before it builds one. Only an aggregate form declares it, because only a data set has a reporting frequency."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-period-type"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "code"
+          }
+        ],
+        "binding": {
+          "strength": "required",
+          "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-period-type-vs"
+        }
+      }
+    ]
+  }
+}

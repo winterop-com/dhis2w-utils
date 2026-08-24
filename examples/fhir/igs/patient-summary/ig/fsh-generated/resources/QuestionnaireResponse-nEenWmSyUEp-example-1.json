@@ -1,0 +1,57 @@
+{
+  "resourceType": "QuestionnaireResponse",
+  "id": "nEenWmSyUEp-example-1",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracked-entity-response"
+    ]
+  },
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit",
+      "valueReference": {
+        "reference": "Location/ImspTQPwCqd"
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+      "valueCode": "tracked-entity"
+    }
+  ],
+  "subject": {
+    "identifier": {
+      "system": "http://dhis2.org/fhir/id/tracked-entity",
+      "value": "SwMn9pN9cTo"
+    },
+    "type": "Patient"
+  },
+  "questionnaire": "http://example.org/fhir/examples/patient-summary/Questionnaire/nEenWmSyUEp",
+  "status": "completed",
+  "authored": "2026-08-11T14:00:00Z",
+  "item": [
+    {
+      "linkId": "w75KJ2mc4zz",
+      "answer": [
+        {
+          "valueString": "Example First name"
+        }
+      ]
+    },
+    {
+      "linkId": "zDhUuAYrxNC",
+      "answer": [
+        {
+          "valueString": "Example Last name"
+        }
+      ]
+    },
+    {
+      "linkId": "lZGmxYbs97q",
+      "answer": [
+        {
+          "valueString": "Unique ID SwMn9pN9cTo"
+        }
+      ]
+    }
+  ]
+}

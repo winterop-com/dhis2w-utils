@@ -1,0 +1,234 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "A03MvHHogjR",
+  "url": "http://example.org/fhir/examples/patient-summary/Questionnaire/A03MvHHogjR",
+  "title": "Child Programme - Birth",
+  "description": "DHIS2 tracker program stage Birth (A03MvHHogjR) of program Child Programme (IpHINAT79UW) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+      "valueCode": "tracker-event"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-repeatable",
+      "valueBoolean": false
+    },
+    {
+      "extension": [
+        {
+          "url": "eventDate",
+          "valueString": "Report date"
+        }
+      ],
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-date-labels"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-assignment",
+      "valueReference": {
+        "reference": "List/d2-pr-IpHINAT79UW-org-units"
+      }
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "NAgjOfWMXg6"
+        },
+        {
+          "url": "name",
+          "valueString": "Ask for comment for low apgar"
+        },
+        {
+          "url": "condition",
+          "valueString": "#{apgarscore} >= 0 && #{apgarscore} < 4 && #{apgarcomment} == ''"
+        },
+        {
+          "url": "action",
+          "valueCode": "SHOWWARNING"
+        },
+        {
+          "url": "description",
+          "valueString": "Show warrning if Apgar is between 0 and 4 and there is no comment provided."
+        }
+      ],
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-program-rule"
+    },
+    {
+      "extension": [
+        {
+          "url": "rule",
+          "valueId": "tTPMkizzUZg"
+        },
+        {
+          "url": "name",
+          "valueString": "Demand comment if apgar is under zero"
+        },
+        {
+          "url": "condition",
+          "valueString": "#{apgarscore} <0 && #{apgarcomment} == ''"
+        },
+        {
+          "url": "action",
+          "valueCode": "SHOWERROR"
+        },
+        {
+          "url": "description",
+          "valueString": "If Apgar is provided as being under zero and there is no comment for the anomaly, show an error message."
+        }
+      ],
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-program-rule"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage",
+      "value": "A03MvHHogjR"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program-stage-code",
+      "value": "A03MvHHogjR"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "IpHINAT79UW"
+    }
+  ],
+  "name": "D2PS_A03MvHHogjR",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "code": "tracker-event",
+      "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "a3kGcGDCuk6",
+      "code": [
+        {
+          "code": "a3kGcGDCuk6",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Apgar Score"
+        }
+      ],
+      "text": "Apgar Score",
+      "type": "decimal",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "Apgar is a quick test performed on a baby at 1 and 5 minutes after birth. The 1-minute score determines how well the baby tolerated the birthing process. The 5-minute score tells the doctor how well the baby is doing outside the mother's womb."
+        }
+      ]
+    },
+    {
+      "linkId": "H6uSAMO5WLD",
+      "code": [
+        {
+          "code": "H6uSAMO5WLD",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Apgar comment"
+        }
+      ],
+      "text": "Apgar comment",
+      "type": "text",
+      "enableWhen": [
+        {
+          "question": "a3kGcGDCuk6",
+          "operator": "<=",
+          "answerDecimal": 7
+        },
+        {
+          "question": "a3kGcGDCuk6",
+          "operator": "exists",
+          "answerBoolean": false
+        }
+      ],
+      "enableBehavior": "any"
+    },
+    {
+      "linkId": "UXz7xuGCEhU",
+      "code": [
+        {
+          "code": "UXz7xuGCEhU",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Weight (g)"
+        }
+      ],
+      "text": "Weight (g)",
+      "type": "decimal"
+    },
+    {
+      "linkId": "wQLfBvPrXqq",
+      "code": [
+        {
+          "code": "wQLfBvPrXqq",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH ARV at birth"
+        }
+      ],
+      "text": "ARV at birth",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-f38bstJioPs-vs",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "Onlu used for birth details."
+        }
+      ]
+    },
+    {
+      "linkId": "bx6fsa0t90x",
+      "code": [
+        {
+          "code": "bx6fsa0t90x",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH BCG dose"
+        }
+      ],
+      "text": "BCG dose",
+      "type": "boolean"
+    },
+    {
+      "linkId": "ebaJjqltK5N",
+      "code": [
+        {
+          "code": "ebaJjqltK5N",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH OPV dose"
+        }
+      ],
+      "text": "OPV dose",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-kzgQRhOCadd-vs"
+    },
+    {
+      "linkId": "X8zyunlgUfM",
+      "code": [
+        {
+          "code": "X8zyunlgUfM",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "MCH Infant Feeding"
+        }
+      ],
+      "text": "Infant Feeding",
+      "type": "choice",
+      "answerValueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-x31y45jvIQL-vs"
+    },
+    {
+      "linkId": "uf3svrmp8Oj",
+      "code": [
+        {
+          "code": "uf3svrmp8Oj",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Birth certificate"
+        }
+      ],
+      "text": "Birth certificate",
+      "type": "attachment"
+    }
+  ]
+}

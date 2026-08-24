@@ -1,0 +1,309 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "TuL8IOPzpHh",
+  "url": "http://example.org/fhir/examples/patient-summary/Questionnaire/TuL8IOPzpHh",
+  "title": "EPI Stock",
+  "description": "DHIS2 data set EPI Stock (TuL8IOPzpHh) as a data capture form.",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+      "valueCode": "aggregate"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-period-type",
+      "valueCode": "Monthly"
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-assignment",
+      "valueReference": {
+        "reference": "List/d2-ds-TuL8IOPzpHh-org-units"
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-attribute-option-combos",
+      "valueCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-aoc-idcDPkDtepR-vs"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/data-set",
+      "value": "TuL8IOPzpHh"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/data-set-code",
+      "value": "DS_1149441"
+    }
+  ],
+  "name": "D2DS_TuL8IOPzpHh",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Location"
+  ],
+  "code": [
+    {
+      "code": "aggregate",
+      "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "cZnQDuF3IDz",
+      "code": [
+        {
+          "code": "cZnQDuF3IDz",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU discarded BCG"
+        }
+      ],
+      "text": "Stock PHU discarded BCG",
+      "type": "group",
+      "item": [
+        {
+          "linkId": "cZnQDuF3IDz.fsFN9T4ck3E",
+          "code": [
+            {
+              "code": "fsFN9T4ck3E",
+              "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+              "display": "Expired"
+            }
+          ],
+          "text": "Expired",
+          "type": "decimal"
+        },
+        {
+          "linkId": "cZnQDuF3IDz.pn1upwnbxfn",
+          "code": [
+            {
+              "code": "pn1upwnbxfn",
+              "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+              "display": "Damages"
+            }
+          ],
+          "text": "Damages",
+          "type": "decimal"
+        },
+        {
+          "linkId": "cZnQDuF3IDz.TxaWpw1pN5G",
+          "code": [
+            {
+              "code": "TxaWpw1pN5G",
+              "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+              "display": "VVM Change"
+            }
+          ],
+          "text": "VVM Change",
+          "type": "decimal"
+        }
+      ]
+    },
+    {
+      "linkId": "FvKdfA2SuWI",
+      "code": [
+        {
+          "code": "FvKdfA2SuWI",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU discarded Measles"
+        }
+      ],
+      "text": "Stock PHU discarded Measles",
+      "type": "group",
+      "item": [
+        {
+          "linkId": "FvKdfA2SuWI.fsFN9T4ck3E",
+          "code": [
+            {
+              "code": "fsFN9T4ck3E",
+              "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+              "display": "Expired"
+            }
+          ],
+          "text": "Expired",
+          "type": "decimal"
+        },
+        {
+          "linkId": "FvKdfA2SuWI.pn1upwnbxfn",
+          "code": [
+            {
+              "code": "pn1upwnbxfn",
+              "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+              "display": "Damages"
+            }
+          ],
+          "text": "Damages",
+          "type": "decimal"
+        },
+        {
+          "linkId": "FvKdfA2SuWI.TxaWpw1pN5G",
+          "code": [
+            {
+              "code": "TxaWpw1pN5G",
+              "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+              "display": "VVM Change"
+            }
+          ],
+          "text": "VVM Change",
+          "type": "decimal"
+        }
+      ]
+    },
+    {
+      "linkId": "WVrH6j3Wfye",
+      "code": [
+        {
+          "code": "WVrH6j3Wfye",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU discarded OPV"
+        }
+      ],
+      "text": "Stock PHU discarded OPV",
+      "type": "group",
+      "item": [
+        {
+          "linkId": "WVrH6j3Wfye.fsFN9T4ck3E",
+          "code": [
+            {
+              "code": "fsFN9T4ck3E",
+              "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+              "display": "Expired"
+            }
+          ],
+          "text": "Expired",
+          "type": "decimal"
+        },
+        {
+          "linkId": "WVrH6j3Wfye.pn1upwnbxfn",
+          "code": [
+            {
+              "code": "pn1upwnbxfn",
+              "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+              "display": "Damages"
+            }
+          ],
+          "text": "Damages",
+          "type": "decimal"
+        },
+        {
+          "linkId": "WVrH6j3Wfye.TxaWpw1pN5G",
+          "code": [
+            {
+              "code": "TxaWpw1pN5G",
+              "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-coc-cs",
+              "display": "VVM Change"
+            }
+          ],
+          "text": "VVM Change",
+          "type": "decimal"
+        }
+      ]
+    },
+    {
+      "linkId": "p1MDHOT6ENy",
+      "code": [
+        {
+          "code": "p1MDHOT6ENy",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU dispensed BCG"
+        }
+      ],
+      "text": "Stock PHU dispensed BCG",
+      "type": "decimal"
+    },
+    {
+      "linkId": "lVknokmR4Ip",
+      "code": [
+        {
+          "code": "lVknokmR4Ip",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU dispensed Measles"
+        }
+      ],
+      "text": "Stock PHU dispensed Measles",
+      "type": "decimal"
+    },
+    {
+      "linkId": "FTINmL2lehN",
+      "code": [
+        {
+          "code": "FTINmL2lehN",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU dispensed OPV"
+        }
+      ],
+      "text": "Stock PHU dispensed OPV",
+      "type": "decimal"
+    },
+    {
+      "linkId": "axVhq1itoQD",
+      "code": [
+        {
+          "code": "axVhq1itoQD",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU received BCG"
+        }
+      ],
+      "text": "Stock PHU received BCG",
+      "type": "decimal"
+    },
+    {
+      "linkId": "XNrjXqZrHD8",
+      "code": [
+        {
+          "code": "XNrjXqZrHD8",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU received Measles"
+        }
+      ],
+      "text": "Stock PHU received Measles",
+      "type": "decimal"
+    },
+    {
+      "linkId": "nGCLjZDn0Q4",
+      "code": [
+        {
+          "code": "nGCLjZDn0Q4",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU received OPV"
+        }
+      ],
+      "text": "Stock PHU received OPV",
+      "type": "decimal"
+    },
+    {
+      "linkId": "t99PL3gUxIl",
+      "code": [
+        {
+          "code": "t99PL3gUxIl",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU start balance BCG"
+        }
+      ],
+      "text": "Stock PHU start balance BCG",
+      "type": "decimal"
+    },
+    {
+      "linkId": "vEAo4KwsAzl",
+      "code": [
+        {
+          "code": "vEAo4KwsAzl",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU start balance Measles"
+        }
+      ],
+      "text": "Stock PHU start balance Measles",
+      "type": "decimal"
+    },
+    {
+      "linkId": "iuSIObmKutb",
+      "code": [
+        {
+          "code": "iuSIObmKutb",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-de-cs",
+          "display": "Stock PHU start balance OPV"
+        }
+      ],
+      "text": "Stock PHU start balance OPV",
+      "type": "decimal"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-tet-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-tet-cm",
+  "title": "DHIS2 tracked entity types as FHIR resource types",
+  "description": "Every DHIS2 tracked entity type the generated forms register, mapped onto the FHIR resource type its registrations are published as. A type this project maps to nothing is a Patient.",
+  "name": "D2TET_CM",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-tet-vs",
+  "targetCanonical": "http://hl7.org/fhir/ValueSet/resource-types",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tet-cs",
+      "target": "http://hl7.org/fhir/resource-types",
+      "element": [
+        {
+          "code": "nEenWmSyUEp",
+          "display": "Person",
+          "target": [
+            {
+              "code": "Patient",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

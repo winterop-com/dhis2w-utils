@@ -1,0 +1,127 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-tracker-event-response",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-event-response",
+  "name": "D2TrackerEventResponse",
+  "title": "DHIS2 tracker event response",
+  "status": "draft",
+  "experimental": true,
+  "description": "One submission of a DHIS2 tracker program stage form: the values captured for one event of one enrollment, answered on the linkIds of the stage's Questionnaire and subject to the tracked entity by identifier.",
+  "fhirVersion": "4.0.1",
+  "kind": "resource",
+  "abstract": false,
+  "type": "QuestionnaireResponse",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/QuestionnaireResponse",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "QuestionnaireResponse.extension",
+        "path": "QuestionnaireResponse.extension",
+        "slicing": {
+          "discriminator": [
+            {
+              "type": "value",
+              "path": "url"
+            }
+          ],
+          "ordered": false,
+          "rules": "open"
+        },
+        "min": 3
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2OrganisationUnit",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2OrganisationUnit",
+        "short": "The DHIS2 organisation unit the event was captured at.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2TrackerEnrollment",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2TrackerEnrollment",
+        "short": "The DHIS2 tracker enrollment the event belongs to.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-tracker-enrollment"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2FormType",
+        "path": "QuestionnaireResponse.extension",
+        "sliceName": "D2FormType",
+        "short": "The DHIS2 form kind this response answers.",
+        "min": 1,
+        "max": "1",
+        "type": [
+          {
+            "code": "Extension",
+            "profile": [
+              "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.extension:D2FormType.value[x]",
+        "path": "QuestionnaireResponse.extension.value[x]",
+        "fixedCode": "tracker-event"
+      },
+      {
+        "id": "QuestionnaireResponse.questionnaire",
+        "path": "QuestionnaireResponse.questionnaire",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.subject",
+        "path": "QuestionnaireResponse.subject",
+        "min": 1,
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://hl7.org/fhir/StructureDefinition/Patient"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "QuestionnaireResponse.subject.identifier",
+        "path": "QuestionnaireResponse.subject.identifier",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.subject.identifier.system",
+        "path": "QuestionnaireResponse.subject.identifier.system",
+        "min": 1,
+        "fixedUri": "http://dhis2.org/fhir/id/tracked-entity"
+      },
+      {
+        "id": "QuestionnaireResponse.subject.identifier.value",
+        "path": "QuestionnaireResponse.subject.identifier.value",
+        "min": 1
+      },
+      {
+        "id": "QuestionnaireResponse.authored",
+        "path": "QuestionnaireResponse.authored",
+        "min": 1
+      }
+    ]
+  }
+}

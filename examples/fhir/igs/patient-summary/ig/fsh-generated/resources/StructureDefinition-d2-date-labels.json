@@ -1,0 +1,126 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-date-labels",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-date-labels",
+  "name": "D2DateLabels",
+  "title": "DHIS2 date labels",
+  "status": "draft",
+  "experimental": true,
+  "description": "The words a DHIS2 instance puts on the dates a form captures: the date the enrollment began, the date of the incident it follows, and the date the event happened. A slice is present only where the instance states a label, so a form the instance labels nothing on carries no extension at all, and a capture client then falls back to its own wording.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Questionnaire"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 date labels",
+        "definition": "The words a DHIS2 instance puts on the dates a form captures: the date the enrollment began, the date of the incident it follows, and the date the event happened. A slice is present only where the instance states a label, so a form the instance labels nothing on carries no extension at all, and a capture client then falls back to its own wording."
+      },
+      {
+        "id": "Extension.extension:enrollmentDate",
+        "path": "Extension.extension",
+        "sliceName": "enrollmentDate",
+        "short": "What this instance calls the date a tracker enrollment began.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:enrollmentDate.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:enrollmentDate.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "enrollmentDate"
+      },
+      {
+        "id": "Extension.extension:enrollmentDate.value[x]",
+        "path": "Extension.extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "string"
+          }
+        ]
+      },
+      {
+        "id": "Extension.extension:incidentDate",
+        "path": "Extension.extension",
+        "sliceName": "incidentDate",
+        "short": "What this instance calls the date of the incident a tracker enrollment follows.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:incidentDate.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:incidentDate.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "incidentDate"
+      },
+      {
+        "id": "Extension.extension:incidentDate.value[x]",
+        "path": "Extension.extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "string"
+          }
+        ]
+      },
+      {
+        "id": "Extension.extension:eventDate",
+        "path": "Extension.extension",
+        "sliceName": "eventDate",
+        "short": "What this instance calls the date an event was captured on.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:eventDate.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:eventDate.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "eventDate"
+      },
+      {
+        "id": "Extension.extension:eventDate.value[x]",
+        "path": "Extension.extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "string"
+          }
+        ]
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-date-labels"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "max": "0"
+      }
+    ]
+  }
+}

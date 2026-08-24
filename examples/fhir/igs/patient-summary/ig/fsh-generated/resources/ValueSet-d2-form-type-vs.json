@@ -1,0 +1,17 @@
+{
+  "resourceType": "ValueSet",
+  "status": "draft",
+  "name": "D2FormType_VS",
+  "id": "d2-form-type-vs",
+  "title": "DHIS2 form types",
+  "description": "The DHIS2 form kinds a Questionnaire is generated from.",
+  "url": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-form-type-vs",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-form-type-cs"
+      }
+    ]
+  }
+}

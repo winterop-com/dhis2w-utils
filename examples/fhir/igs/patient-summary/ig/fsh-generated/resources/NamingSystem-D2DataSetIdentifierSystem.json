@@ -1,0 +1,16 @@
+{
+  "resourceType": "NamingSystem",
+  "id": "D2DataSetIdentifierSystem",
+  "description": "The identifier system for DHIS2 data set UIDs. Every generated artifact representing a DHIS2 data set carries the source object's UID under this system.",
+  "name": "D2DataSetIdentifierSystem",
+  "status": "draft",
+  "kind": "identifier",
+  "date": "2026-08-01",
+  "uniqueId": [
+    {
+      "type": "uri",
+      "value": "http://dhis2.org/fhir/id/data-set",
+      "preferred": true
+    }
+  ]
+}

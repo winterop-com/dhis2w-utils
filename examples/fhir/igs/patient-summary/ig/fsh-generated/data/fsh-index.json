@@ -1,0 +1,706 @@
+[
+  {
+    "outputFile": "CapabilityStatement-d2-capture-server.json",
+    "fshName": "D2CaptureServer",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-capture-server.fsh",
+    "startLine": 3,
+    "endLine": 44
+  },
+  {
+    "outputFile": "CodeSystem-d2-coc-cs.json",
+    "fshName": "D2COC_CS",
+    "fshType": "CodeSystem",
+    "fshFile": "data-dictionary/category-option-combos.fsh",
+    "startLine": 3,
+    "endLine": 24
+  },
+  {
+    "outputFile": "CodeSystem-d2-de-cs.json",
+    "fshName": "D2DE_CS",
+    "fshType": "CodeSystem",
+    "fshFile": "data-dictionary/data-elements.fsh",
+    "startLine": 3,
+    "endLine": 268
+  },
+  {
+    "outputFile": "CodeSystem-d2-form-type-cs.json",
+    "fshName": "D2FormType_CS",
+    "fshType": "CodeSystem",
+    "fshFile": "foundation/d2-form-type.fsh",
+    "startLine": 17,
+    "endLine": 30
+  },
+  {
+    "outputFile": "CodeSystem-d2-ou-level-cs.json",
+    "fshName": "D2OU_Level_CS",
+    "fshType": "CodeSystem",
+    "fshFile": "organization/org-unit-levels.fsh",
+    "startLine": 3,
+    "endLine": 14
+  },
+  {
+    "outputFile": "CodeSystem-d2-period-type-cs.json",
+    "fshName": "D2PeriodType_CS",
+    "fshType": "CodeSystem",
+    "fshFile": "foundation/d2-period.fsh",
+    "startLine": 39,
+    "endLine": 70
+  },
+  {
+    "outputFile": "CodeSystem-d2-program-rule-action-cs.json",
+    "fshName": "D2ProgramRuleAction_CS",
+    "fshType": "CodeSystem",
+    "fshFile": "foundation/d2-program-rule.fsh",
+    "startLine": 33,
+    "endLine": 60
+  },
+  {
+    "outputFile": "CodeSystem-d2-tea-cs.json",
+    "fshName": "D2TEA_CS",
+    "fshType": "CodeSystem",
+    "fshFile": "data-dictionary/tracked-entity-attributes.fsh",
+    "startLine": 3,
+    "endLine": 111
+  },
+  {
+    "outputFile": "CodeSystem-d2-tet-cs.json",
+    "fshName": "D2TET_CS",
+    "fshType": "CodeSystem",
+    "fshFile": "data-dictionary/tracked-entity-types.fsh",
+    "startLine": 3,
+    "endLine": 12
+  },
+  {
+    "outputFile": "ConceptMap-d2-tet-cm.json",
+    "fshName": "D2TET_CM",
+    "fshType": "Instance",
+    "fshFile": "data-dictionary/tracked-entity-types.fsh",
+    "startLine": 24,
+    "endLine": 40
+  },
+  {
+    "outputFile": "Location-d2-location-example.json",
+    "fshName": "D2LocationExample",
+    "fshType": "Instance",
+    "fshFile": "organization/registry-examples.fsh",
+    "startLine": 17,
+    "endLine": 33
+  },
+  {
+    "outputFile": "NamingSystem-D2CategoryCodeIdentifierSystem.json",
+    "fshName": "D2CategoryCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 94,
+    "endLine": 105
+  },
+  {
+    "outputFile": "NamingSystem-D2CategoryComboCodeIdentifierSystem.json",
+    "fshName": "D2CategoryComboCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 146,
+    "endLine": 157
+  },
+  {
+    "outputFile": "NamingSystem-D2CategoryComboIdentifierSystem.json",
+    "fshName": "D2CategoryComboIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 133,
+    "endLine": 144
+  },
+  {
+    "outputFile": "NamingSystem-D2CategoryIdentifierSystem.json",
+    "fshName": "D2CategoryIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 81,
+    "endLine": 92
+  },
+  {
+    "outputFile": "NamingSystem-D2CategoryOptionCodeIdentifierSystem.json",
+    "fshName": "D2CategoryOptionCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 120,
+    "endLine": 131
+  },
+  {
+    "outputFile": "NamingSystem-D2CategoryOptionComboCodeIdentifierSystem.json",
+    "fshName": "D2CategoryOptionComboCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 250,
+    "endLine": 261
+  },
+  {
+    "outputFile": "NamingSystem-D2CategoryOptionComboIdentifierSystem.json",
+    "fshName": "D2CategoryOptionComboIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 237,
+    "endLine": 248
+  },
+  {
+    "outputFile": "NamingSystem-D2CategoryOptionIdentifierSystem.json",
+    "fshName": "D2CategoryOptionIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 107,
+    "endLine": 118
+  },
+  {
+    "outputFile": "NamingSystem-D2DataElementCodeIdentifierSystem.json",
+    "fshName": "D2DataElementCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 224,
+    "endLine": 235
+  },
+  {
+    "outputFile": "NamingSystem-D2DataElementIdentifierSystem.json",
+    "fshName": "D2DataElementIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 211,
+    "endLine": 222
+  },
+  {
+    "outputFile": "NamingSystem-D2DataSetCodeIdentifierSystem.json",
+    "fshName": "D2DataSetCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 172,
+    "endLine": 183
+  },
+  {
+    "outputFile": "NamingSystem-D2DataSetIdentifierSystem.json",
+    "fshName": "D2DataSetIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 159,
+    "endLine": 170
+  },
+  {
+    "outputFile": "NamingSystem-D2OptionCodeIdentifierSystem.json",
+    "fshName": "D2OptionCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 68,
+    "endLine": 79
+  },
+  {
+    "outputFile": "NamingSystem-D2OptionIdentifierSystem.json",
+    "fshName": "D2OptionIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 55,
+    "endLine": 66
+  },
+  {
+    "outputFile": "NamingSystem-D2OptionSetCodeIdentifierSystem.json",
+    "fshName": "D2OptionSetCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 42,
+    "endLine": 53
+  },
+  {
+    "outputFile": "NamingSystem-D2OptionSetIdentifierSystem.json",
+    "fshName": "D2OptionSetIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 29,
+    "endLine": 40
+  },
+  {
+    "outputFile": "NamingSystem-D2OrgUnitCodeIdentifierSystem.json",
+    "fshName": "D2OrgUnitCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 16,
+    "endLine": 27
+  },
+  {
+    "outputFile": "NamingSystem-D2OrgUnitIdentifierSystem.json",
+    "fshName": "D2OrgUnitIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 3,
+    "endLine": 14
+  },
+  {
+    "outputFile": "NamingSystem-D2ProgramCodeIdentifierSystem.json",
+    "fshName": "D2ProgramCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 198,
+    "endLine": 209
+  },
+  {
+    "outputFile": "NamingSystem-D2ProgramIdentifierSystem.json",
+    "fshName": "D2ProgramIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 185,
+    "endLine": 196
+  },
+  {
+    "outputFile": "NamingSystem-D2ProgramStageCodeIdentifierSystem.json",
+    "fshName": "D2ProgramStageCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 276,
+    "endLine": 287
+  },
+  {
+    "outputFile": "NamingSystem-D2ProgramStageIdentifierSystem.json",
+    "fshName": "D2ProgramStageIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 263,
+    "endLine": 274
+  },
+  {
+    "outputFile": "NamingSystem-D2TrackedEntityIdentifierSystem.json",
+    "fshName": "D2TrackedEntityIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 315,
+    "endLine": 326
+  },
+  {
+    "outputFile": "NamingSystem-D2TrackedEntityTypeCodeIdentifierSystem.json",
+    "fshName": "D2TrackedEntityTypeCodeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 302,
+    "endLine": 313
+  },
+  {
+    "outputFile": "NamingSystem-D2TrackedEntityTypeIdentifierSystem.json",
+    "fshName": "D2TrackedEntityTypeIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 289,
+    "endLine": 300
+  },
+  {
+    "outputFile": "NamingSystem-D2TrackerEnrollmentIdentifierSystem.json",
+    "fshName": "D2TrackerEnrollmentIdentifierSystem",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-naming-systems.fsh",
+    "startLine": 328,
+    "endLine": 339
+  },
+  {
+    "outputFile": "OperationDefinition-d2-generate.json",
+    "fshName": "D2GenerateOperation",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-generate-operation.fsh",
+    "startLine": 3,
+    "endLine": 34
+  },
+  {
+    "outputFile": "Organization-d2-organization-example.json",
+    "fshName": "D2OrganizationExample",
+    "fshType": "Instance",
+    "fshFile": "organization/registry-examples.fsh",
+    "startLine": 3,
+    "endLine": 15
+  },
+  {
+    "outputFile": "Questionnaire-A03MvHHogjR.json",
+    "fshName": "Questionnaire-A03MvHHogjR",
+    "fshType": "Instance",
+    "fshFile": "tracker-programs/IpHINAT79UW/A03MvHHogjR.fsh",
+    "startLine": 3,
+    "endLine": 82
+  },
+  {
+    "outputFile": "Questionnaire-EVTsupVis01.json",
+    "fshName": "Questionnaire-EVTsupVis01",
+    "fshType": "Instance",
+    "fshFile": "event-programs/EVTsupVis01.fsh",
+    "startLine": 3,
+    "endLine": 32
+  },
+  {
+    "outputFile": "Questionnaire-IpHINAT79UW.json",
+    "fshName": "Questionnaire-IpHINAT79UW",
+    "fshType": "Instance",
+    "fshFile": "tracker-programs/IpHINAT79UW/registration.fsh",
+    "startLine": 3,
+    "endLine": 71
+  },
+  {
+    "outputFile": "Questionnaire-TuL8IOPzpHh.json",
+    "fshName": "Questionnaire-TuL8IOPzpHh",
+    "fshType": "Instance",
+    "fshFile": "data-sets/TuL8IOPzpHh.fsh",
+    "startLine": 3,
+    "endLine": 108
+  },
+  {
+    "outputFile": "Questionnaire-ZzYYXq4fJie.json",
+    "fshName": "Questionnaire-ZzYYXq4fJie",
+    "fshType": "Instance",
+    "fshFile": "tracker-programs/IpHINAT79UW/ZzYYXq4fJie.fsh",
+    "startLine": 3,
+    "endLine": 106
+  },
+  {
+    "outputFile": "Questionnaire-nEenWmSyUEp.json",
+    "fshName": "Questionnaire-nEenWmSyUEp",
+    "fshType": "Instance",
+    "fshFile": "tracked-entity-types/nEenWmSyUEp.fsh",
+    "startLine": 3,
+    "endLine": 46
+  },
+  {
+    "outputFile": "QuestionnaireResponse-A03MvHHogjR-example-1.json",
+    "fshName": "QuestionnaireResponse-A03MvHHogjR-example-1",
+    "fshType": "Instance",
+    "fshFile": "examples/A03MvHHogjR-1.fsh",
+    "startLine": 3,
+    "endLine": 32
+  },
+  {
+    "outputFile": "QuestionnaireResponse-EVTsupVis01-example-1.json",
+    "fshName": "QuestionnaireResponse-EVTsupVis01-example-1",
+    "fshType": "Instance",
+    "fshFile": "examples/EVTsupVis01-1.fsh",
+    "startLine": 3,
+    "endLine": 17
+  },
+  {
+    "outputFile": "QuestionnaireResponse-IpHINAT79UW-example-1.json",
+    "fshName": "QuestionnaireResponse-IpHINAT79UW-example-1",
+    "fshType": "Instance",
+    "fshFile": "examples/IpHINAT79UW-1.fsh",
+    "startLine": 3,
+    "endLine": 28
+  },
+  {
+    "outputFile": "QuestionnaireResponse-TuL8IOPzpHh-example-1.json",
+    "fshName": "QuestionnaireResponse-TuL8IOPzpHh-example-1",
+    "fshType": "Instance",
+    "fshFile": "examples/TuL8IOPzpHh-1.fsh",
+    "startLine": 3,
+    "endLine": 56
+  },
+  {
+    "outputFile": "QuestionnaireResponse-ZzYYXq4fJie-example-1.json",
+    "fshName": "QuestionnaireResponse-ZzYYXq4fJie-example-1",
+    "fshType": "Instance",
+    "fshFile": "examples/ZzYYXq4fJie-1.fsh",
+    "startLine": 3,
+    "endLine": 46
+  },
+  {
+    "outputFile": "QuestionnaireResponse-nEenWmSyUEp-example-1.json",
+    "fshName": "QuestionnaireResponse-nEenWmSyUEp-example-1",
+    "fshType": "Instance",
+    "fshFile": "examples/nEenWmSyUEp-1.fsh",
+    "startLine": 3,
+    "endLine": 22
+  },
+  {
+    "outputFile": "StructureDefinition-d2-aggregate-response.json",
+    "fshName": "D2AggregateResponse",
+    "fshType": "Profile",
+    "fshFile": "foundation/d2-responses.fsh",
+    "startLine": 3,
+    "endLine": 20
+  },
+  {
+    "outputFile": "StructureDefinition-d2-attribute-option-combo.json",
+    "fshName": "D2AttributeOptionCombo",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-attribute-option-combo.fsh",
+    "startLine": 3,
+    "endLine": 14
+  },
+  {
+    "outputFile": "StructureDefinition-d2-attribute-option-combos.json",
+    "fshName": "D2AttributeOptionCombos",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-attribute-option-combos.fsh",
+    "startLine": 3,
+    "endLine": 12
+  },
+  {
+    "outputFile": "StructureDefinition-d2-attribute-value.json",
+    "fshName": "D2AttributeValue",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-attribute-value.fsh",
+    "startLine": 3,
+    "endLine": 30
+  },
+  {
+    "outputFile": "StructureDefinition-d2-collects-incident-date.json",
+    "fshName": "D2CollectsIncidentDate",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-enrollment-dates.fsh",
+    "startLine": 25,
+    "endLine": 34
+  },
+  {
+    "outputFile": "StructureDefinition-d2-data-value-set.json",
+    "fshName": "D2DataValueSet",
+    "fshType": "Logical",
+    "fshFile": "foundation/d2-data-value-set.fsh",
+    "startLine": 6,
+    "endLine": 20
+  },
+  {
+    "outputFile": "StructureDefinition-d2-date-labels.json",
+    "fshName": "D2DateLabels",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-date-labels.fsh",
+    "startLine": 3,
+    "endLine": 23
+  },
+  {
+    "outputFile": "StructureDefinition-d2-description.json",
+    "fshName": "D2Description",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-description.fsh",
+    "startLine": 3,
+    "endLine": 12
+  },
+  {
+    "outputFile": "StructureDefinition-d2-enrolled-at.json",
+    "fshName": "D2EnrolledAt",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-enrollment-dates.fsh",
+    "startLine": 3,
+    "endLine": 12
+  },
+  {
+    "outputFile": "StructureDefinition-d2-entity-level.json",
+    "fshName": "D2EntityLevel",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-entity-level.fsh",
+    "startLine": 3,
+    "endLine": 12
+  },
+  {
+    "outputFile": "StructureDefinition-d2-event-response.json",
+    "fshName": "D2EventResponse",
+    "fshType": "Profile",
+    "fshFile": "foundation/d2-responses.fsh",
+    "startLine": 22,
+    "endLine": 35
+  },
+  {
+    "outputFile": "StructureDefinition-d2-form-type.json",
+    "fshName": "D2FormType",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-form-type.fsh",
+    "startLine": 3,
+    "endLine": 15
+  },
+  {
+    "outputFile": "StructureDefinition-d2-incident-at.json",
+    "fshName": "D2IncidentAt",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-enrollment-dates.fsh",
+    "startLine": 14,
+    "endLine": 23
+  },
+  {
+    "outputFile": "StructureDefinition-d2-location.json",
+    "fshName": "D2Location",
+    "fshType": "Profile",
+    "fshFile": "organization/profiles.fsh",
+    "startLine": 22,
+    "endLine": 43
+  },
+  {
+    "outputFile": "StructureDefinition-d2-organisation-unit-assignment.json",
+    "fshName": "D2OrganisationUnitAssignment",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-organisation-unit-assignment.fsh",
+    "startLine": 3,
+    "endLine": 12
+  },
+  {
+    "outputFile": "StructureDefinition-d2-organisation-unit-level.json",
+    "fshName": "D2OrganisationUnitLevel",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-organisation-unit-level.fsh",
+    "startLine": 3,
+    "endLine": 13
+  },
+  {
+    "outputFile": "StructureDefinition-d2-organisation-unit.json",
+    "fshName": "D2OrganisationUnit",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-organisation-unit.fsh",
+    "startLine": 3,
+    "endLine": 12
+  },
+  {
+    "outputFile": "StructureDefinition-d2-organization.json",
+    "fshName": "D2Organization",
+    "fshType": "Profile",
+    "fshFile": "organization/profiles.fsh",
+    "startLine": 3,
+    "endLine": 20
+  },
+  {
+    "outputFile": "StructureDefinition-d2-period-type.json",
+    "fshName": "D2PeriodType",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-period.fsh",
+    "startLine": 27,
+    "endLine": 37
+  },
+  {
+    "outputFile": "StructureDefinition-d2-period.json",
+    "fshName": "D2Period",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-period.fsh",
+    "startLine": 3,
+    "endLine": 25
+  },
+  {
+    "outputFile": "StructureDefinition-d2-program-rule.json",
+    "fshName": "D2ProgramRule",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-program-rule.fsh",
+    "startLine": 3,
+    "endLine": 31
+  },
+  {
+    "outputFile": "StructureDefinition-d2-repeatable.json",
+    "fshName": "D2Repeatable",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-repeatable.fsh",
+    "startLine": 3,
+    "endLine": 12
+  },
+  {
+    "outputFile": "StructureDefinition-d2-subject-exists.json",
+    "fshName": "D2SubjectExists",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-subject-exists.fsh",
+    "startLine": 3,
+    "endLine": 12
+  },
+  {
+    "outputFile": "StructureDefinition-d2-tracked-entity-attribute-value.json",
+    "fshName": "D2TrackedEntityAttributeValue",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-tracked-entity-attribute-value.fsh",
+    "startLine": 3,
+    "endLine": 22
+  },
+  {
+    "outputFile": "StructureDefinition-d2-tracked-entity-response.json",
+    "fshName": "D2TrackedEntityResponse",
+    "fshType": "Profile",
+    "fshFile": "foundation/d2-responses.fsh",
+    "startLine": 92,
+    "endLine": 113
+  },
+  {
+    "outputFile": "StructureDefinition-d2-tracker-enrollment.json",
+    "fshName": "D2TrackerEnrollment",
+    "fshType": "Extension",
+    "fshFile": "foundation/d2-tracker-enrollment.fsh",
+    "startLine": 3,
+    "endLine": 15
+  },
+  {
+    "outputFile": "StructureDefinition-d2-tracker-event-response.json",
+    "fshName": "D2TrackerEventResponse",
+    "fshType": "Profile",
+    "fshFile": "foundation/d2-responses.fsh",
+    "startLine": 68,
+    "endLine": 90
+  },
+  {
+    "outputFile": "StructureDefinition-d2-tracker-registration-response.json",
+    "fshName": "D2TrackerRegistrationResponse",
+    "fshType": "Profile",
+    "fshFile": "foundation/d2-responses.fsh",
+    "startLine": 37,
+    "endLine": 66
+  },
+  {
+    "outputFile": "StructureMap-d2-aggregate-response-to-data-value-set.json",
+    "fshName": "D2AggregateResponseToDataValueSet",
+    "fshType": "Instance",
+    "fshFile": "foundation/d2-aggregate-map.fsh",
+    "startLine": 8,
+    "endLine": 182
+  },
+  {
+    "outputFile": "ValueSet-d2-coc-vs.json",
+    "fshName": "D2COC_VS",
+    "fshType": "ValueSet",
+    "fshFile": "data-dictionary/category-option-combos.fsh",
+    "startLine": 26,
+    "endLine": 32
+  },
+  {
+    "outputFile": "ValueSet-d2-de-vs.json",
+    "fshName": "D2DE_VS",
+    "fshType": "ValueSet",
+    "fshFile": "data-dictionary/data-elements.fsh",
+    "startLine": 270,
+    "endLine": 276
+  },
+  {
+    "outputFile": "ValueSet-d2-form-type-vs.json",
+    "fshName": "D2FormType_VS",
+    "fshType": "ValueSet",
+    "fshFile": "foundation/d2-form-type.fsh",
+    "startLine": 32,
+    "endLine": 38
+  },
+  {
+    "outputFile": "ValueSet-d2-ou-level-vs.json",
+    "fshName": "D2OU_Level_VS",
+    "fshType": "ValueSet",
+    "fshFile": "organization/org-unit-levels.fsh",
+    "startLine": 16,
+    "endLine": 22
+  },
+  {
+    "outputFile": "ValueSet-d2-period-type-vs.json",
+    "fshName": "D2PeriodType_VS",
+    "fshType": "ValueSet",
+    "fshFile": "foundation/d2-period.fsh",
+    "startLine": 72,
+    "endLine": 78
+  },
+  {
+    "outputFile": "ValueSet-d2-program-rule-action-vs.json",
+    "fshName": "D2ProgramRuleAction_VS",
+    "fshType": "ValueSet",
+    "fshFile": "foundation/d2-program-rule.fsh",
+    "startLine": 62,
+    "endLine": 68
+  },
+  {
+    "outputFile": "ValueSet-d2-tea-vs.json",
+    "fshName": "D2TEA_VS",
+    "fshType": "ValueSet",
+    "fshFile": "data-dictionary/tracked-entity-attributes.fsh",
+    "startLine": 113,
+    "endLine": 119
+  },
+  {
+    "outputFile": "ValueSet-d2-tet-vs.json",
+    "fshName": "D2TET_VS",
+    "fshType": "ValueSet",
+    "fshFile": "data-dictionary/tracked-entity-types.fsh",
+    "startLine": 14,
+    "endLine": 20
+  }
+]

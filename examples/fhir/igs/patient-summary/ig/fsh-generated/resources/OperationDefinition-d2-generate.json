@@ -1,0 +1,39 @@
+{
+  "resourceType": "OperationDefinition",
+  "id": "d2-generate",
+  "url": "http://example.org/fhir/examples/patient-summary/OperationDefinition/d2-generate",
+  "title": "Generate a synthetic response",
+  "description": "Generate one synthetic QuestionnaireResponse against a served Questionnaire: every question answered with a value its own type, bounds, and terminology binding admit, in the context its form kind's response profile requires. The generated response is immediately postable to the same server's QuestionnaireResponse endpoint, which is what a capture client's fill-with-test-data button and an API-driven stress corpus both need.",
+  "name": "D2GenerateOperation",
+  "status": "draft",
+  "experimental": true,
+  "date": "2026-08-01",
+  "kind": "operation",
+  "affectsState": false,
+  "code": "generate",
+  "comment": "This is a custom operation, not SDC's $populate. $populate means fill this form from real context about a real subject; $generate invents data, and the two must never be confused.",
+  "resource": [
+    "Questionnaire"
+  ],
+  "system": false,
+  "type": false,
+  "instance": true,
+  "parameter": [
+    {
+      "name": "seed",
+      "use": "in",
+      "min": 0,
+      "max": "1",
+      "type": "integer",
+      "documentation": "The seed the generated values are drawn from. The same seed against the same served form returns the same response, so a client can reproduce a submission by naming its seed. Absent, the server draws one and states it on the generated response's identifier."
+    },
+    {
+      "name": "return",
+      "use": "out",
+      "min": 1,
+      "max": "1",
+      "type": "QuestionnaireResponse",
+      "documentation": "The generated QuestionnaireResponse, declaring the response profile of the form's own DHIS2 form kind and identified by the seed it was generated from."
+    }
+  ]
+}

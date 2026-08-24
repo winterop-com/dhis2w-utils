@@ -1,0 +1,36 @@
+{
+  "resourceType": "CodeSystem",
+  "status": "draft",
+  "content": "complete",
+  "name": "D2FormType_CS",
+  "id": "d2-form-type-cs",
+  "title": "DHIS2 form types",
+  "description": "The DHIS2 form kinds a Questionnaire is generated from.",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-form-type-cs",
+  "concept": [
+    {
+      "code": "aggregate",
+      "display": "Aggregate data set form"
+    },
+    {
+      "code": "event",
+      "display": "Event program form"
+    },
+    {
+      "code": "tracker",
+      "display": "Tracker registration form"
+    },
+    {
+      "code": "tracker-event",
+      "display": "Tracker program stage form"
+    },
+    {
+      "code": "tracked-entity",
+      "display": "Tracked entity type registration form"
+    }
+  ],
+  "experimental": true,
+  "caseSensitive": true,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-form-type-vs",
+  "count": 5
+}

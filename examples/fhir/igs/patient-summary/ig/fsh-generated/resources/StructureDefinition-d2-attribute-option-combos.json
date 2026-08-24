@@ -1,0 +1,55 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-attribute-option-combos",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-attribute-option-combos",
+  "name": "D2AttributeOptionCombos",
+  "title": "DHIS2 attribute option combos",
+  "status": "draft",
+  "experimental": true,
+  "description": "The attribute option combos a form's responses may be keyed under, as the canonical of the ValueSet publishing them. Absent means the form's data set rides the default category combo, and its responses carry no D2AttributeOptionCombo extension.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Questionnaire"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 attribute option combos",
+        "definition": "The attribute option combos a form's responses may be keyed under, as the canonical of the ValueSet publishing them. Absent means the form's data set rides the default category combo, and its responses carry no D2AttributeOptionCombo extension."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-attribute-option-combos"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "canonical",
+            "targetProfile": [
+              "http://hl7.org/fhir/StructureDefinition/ValueSet"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

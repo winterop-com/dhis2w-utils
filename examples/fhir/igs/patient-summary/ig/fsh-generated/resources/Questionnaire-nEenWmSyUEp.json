@@ -1,0 +1,104 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "nEenWmSyUEp",
+  "url": "http://example.org/fhir/examples/patient-summary/Questionnaire/nEenWmSyUEp",
+  "title": "Person",
+  "description": "DHIS2 tracked entity type Person (nEenWmSyUEp) as a registration form: the tracked entity attributes the type itself collects, captured when a person is registered without being enrolled in any program.",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-form-type",
+      "valueCode": "tracked-entity"
+    }
+  ],
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/tracked-entity-type",
+      "value": "nEenWmSyUEp"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/tracked-entity-type-code",
+      "value": "nEenWmSyUEp"
+    }
+  ],
+  "name": "D2TET_nEenWmSyUEp",
+  "status": "draft",
+  "experimental": true,
+  "subjectType": [
+    "Patient"
+  ],
+  "code": [
+    {
+      "code": "tracked-entity",
+      "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-form-type-cs"
+    }
+  ],
+  "item": [
+    {
+      "linkId": "w75KJ2mc4zz",
+      "code": [
+        {
+          "code": "w75KJ2mc4zz",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tea-cs",
+          "display": "First name"
+        }
+      ],
+      "text": "First name",
+      "type": "string",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "First name"
+        },
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "zDhUuAYrxNC",
+      "code": [
+        {
+          "code": "zDhUuAYrxNC",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tea-cs",
+          "display": "Last name"
+        }
+      ],
+      "text": "Last name",
+      "type": "string",
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "Last name"
+        },
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    },
+    {
+      "linkId": "lZGmxYbs97q",
+      "code": [
+        {
+          "code": "lZGmxYbs97q",
+          "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-tea-cs",
+          "display": "Unique ID"
+        }
+      ],
+      "text": "Unique ID",
+      "type": "string",
+      "readOnly": true,
+      "extension": [
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-description",
+          "valueString": "Unique identiifer"
+        },
+        {
+          "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-entity-level",
+          "valueBoolean": true
+        }
+      ]
+    }
+  ]
+}

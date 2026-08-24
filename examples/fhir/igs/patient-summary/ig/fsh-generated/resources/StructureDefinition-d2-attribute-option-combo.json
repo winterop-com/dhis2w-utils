@@ -1,0 +1,62 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-attribute-option-combo",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-attribute-option-combo",
+  "name": "D2AttributeOptionCombo",
+  "title": "DHIS2 attribute option combo",
+  "status": "draft",
+  "experimental": true,
+  "description": "The DHIS2 attribute option combo one aggregate response's values are keyed under, drawn from the ValueSet the form's D2AttributeOptionCombos extension names. Absent means the default attribute option combo.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "QuestionnaireResponse"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 attribute option combo",
+        "definition": "The DHIS2 attribute option combo one aggregate response's values are keyed under, drawn from the ValueSet the form's D2AttributeOptionCombos extension names. Absent means the default attribute option combo."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-attribute-option-combo"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "Coding"
+          }
+        ]
+      },
+      {
+        "id": "Extension.value[x].system",
+        "path": "Extension.value[x].system",
+        "min": 1
+      },
+      {
+        "id": "Extension.value[x].code",
+        "path": "Extension.value[x].code",
+        "min": 1
+      }
+    ]
+  }
+}

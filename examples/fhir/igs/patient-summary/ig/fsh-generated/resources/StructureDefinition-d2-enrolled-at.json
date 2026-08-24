@@ -1,0 +1,52 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-enrolled-at",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-enrolled-at",
+  "name": "D2EnrolledAt",
+  "title": "DHIS2 enrollment date",
+  "status": "draft",
+  "experimental": true,
+  "description": "The moment a DHIS2 tracker enrollment began - the enrolledAt of the enrollment a registration response creates.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "QuestionnaireResponse"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 enrollment date",
+        "definition": "The moment a DHIS2 tracker enrollment began - the enrolledAt of the enrollment a registration response creates."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-enrolled-at"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "dateTime"
+          }
+        ]
+      }
+    ]
+  }
+}

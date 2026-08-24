@@ -1,0 +1,138 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-period",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-period",
+  "name": "D2Period",
+  "title": "DHIS2 reporting period",
+  "status": "draft",
+  "experimental": true,
+  "description": "A DHIS2 reporting period: its ISO identifier, its period type, and the dates it covers.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "QuestionnaireResponse"
+    },
+    {
+      "type": "element",
+      "expression": "MeasureReport"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 reporting period",
+        "definition": "A DHIS2 reporting period: its ISO identifier, its period type, and the dates it covers."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "min": 2
+      },
+      {
+        "id": "Extension.extension:iso",
+        "path": "Extension.extension",
+        "sliceName": "iso",
+        "short": "The DHIS2 ISO period identifier (e.g. 202401).",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:iso.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:iso.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "iso"
+      },
+      {
+        "id": "Extension.extension:iso.value[x]",
+        "path": "Extension.extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "string"
+          }
+        ]
+      },
+      {
+        "id": "Extension.extension:type",
+        "path": "Extension.extension",
+        "sliceName": "type",
+        "short": "The DHIS2 period type this identifier is expressed in.",
+        "min": 1,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:type.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:type.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "type"
+      },
+      {
+        "id": "Extension.extension:type.value[x]",
+        "path": "Extension.extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "code"
+          }
+        ],
+        "binding": {
+          "strength": "required",
+          "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-period-type-vs"
+        }
+      },
+      {
+        "id": "Extension.extension:period",
+        "path": "Extension.extension",
+        "sliceName": "period",
+        "short": "The date range the ISO period resolves to.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension:period.extension",
+        "path": "Extension.extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.extension:period.url",
+        "path": "Extension.extension.url",
+        "fixedUri": "period"
+      },
+      {
+        "id": "Extension.extension:period.value[x]",
+        "path": "Extension.extension.value[x]",
+        "type": [
+          {
+            "code": "Period"
+          }
+        ]
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-period"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "max": "0"
+      }
+    ]
+  }
+}

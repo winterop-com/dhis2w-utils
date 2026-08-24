@@ -479,13 +479,20 @@ def test_makefile_check_skips_when_the_pinned_toolchain_lacks_the_command() -> N
 
 
 def test_makefile_serves_the_ig_off_disk_and_straight_from_the_instance() -> None:
-    """`serve` reads the compiled IG, `serve-live` builds it from the instance, and both are declared phony."""
+    """`serve` reads the compiled IG, `serve-live` builds it from the instance, both carry the capture UI."""
     makefile = _by_path()["Makefile"]
-    assert "serve:  ## Serve the compiled IG as a FHIR endpoint (run generate + sushi first)" in makefile
-    assert "\t$(D2W) fhir serve\n" in makefile
-    assert "serve-live:  ## Serve straight from the DHIS2 instance, no compile needed" in makefile
-    assert "\t$(D2W) fhir serve --live\n" in makefile
+    assert (
+        "serve:  ## Serve the compiled IG as a FHIR endpoint, with the capture UI at / (run generate + sushi first)"
+        in makefile
+    )
+    assert "\t$(D2W) fhir serve --ui\n" in makefile
+    assert (
+        "serve-live:  ## Serve straight from the DHIS2 instance, with the capture UI at / - no compile needed"
+        in makefile
+    )
+    assert "\t$(D2W) fhir serve --live --ui\n" in makefile
     assert ".PHONY: serve serve-live" in makefile
+    assert "serve-ui" not in makefile
 
 
 def test_makefile_refresh_chains_the_full_rebuild_and_keeps_the_caches() -> None:

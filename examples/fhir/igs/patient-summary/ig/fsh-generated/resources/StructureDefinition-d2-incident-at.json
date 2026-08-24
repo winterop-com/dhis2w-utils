@@ -1,0 +1,52 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "d2-incident-at",
+  "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-incident-at",
+  "name": "D2IncidentAt",
+  "title": "DHIS2 incident date",
+  "status": "draft",
+  "experimental": true,
+  "description": "The moment the incident a DHIS2 tracker enrollment follows occurred - the occurredAt of the enrollment. A registration form states on D2CollectsIncidentDate whether its program collects one, and a response to a form declaring false carries none.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "QuestionnaireResponse"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "DHIS2 incident date",
+        "definition": "The moment the incident a DHIS2 tracker enrollment follows occurred - the occurredAt of the enrollment. A registration form states on D2CollectsIncidentDate whether its program collects one, and a response to a form declaring false carries none."
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-incident-at"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "dateTime"
+          }
+        ]
+      }
+    ]
+  }
+}
