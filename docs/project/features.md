@@ -624,16 +624,33 @@ chain in one command.
   prints the count, up to ten `before -> after` samples, and asks, while a run
   with no terminal names the two flags and rewrites nothing rather than hanging a
   script on a prompt. A flag beats the dial, the dial beats the question. DHIS2 is
-  never written to, and names only: no code, UID, or identifier value is
-  rewritten, so the ConceptMaps still take a published concept back to its DHIS2
-  object, and a code carrying `<` refuses the run under either answer. The rewrite
-  lands where DHIS2 metadata enters the emission inputs, before a single identity,
-  stem, or decomposition is planned off a name, so every target inherits one
-  spelling - which is also how it covers the class no refusal reaches: a DHIS2
-  form name and a category option combo name, which become question text and data
-  dictionary concept displays (one national selection generated cleanly and handed
-  the publisher 738 of them). Every rewrite is a `name-substitution` note, one per
-  distinct DHIS2 name.
+  never written to and no UID is rewritten, so the ConceptMaps still take a
+  published concept back to its DHIS2 object, and a code carrying `<` refuses the
+  run under either answer. The rewrite lands where DHIS2 metadata enters the
+  emission inputs, before a single identity, stem, or decomposition is planned off
+  a name, so every target inherits one spelling - which is also how it covers the
+  class no refusal reaches: a DHIS2 form name and a category option combo name,
+  which become question text and data dictionary concept displays (one national
+  selection generated cleanly and handed the publisher 738 of them). Every rewrite
+  is a `name-substitution` note, one per distinct DHIS2 name.
+- **The substitute posture hyphenates every code carrying a space.** An R4 `code`
+  admits single internal spaces, so `Pre eclampsia` is legal FHIR and nothing
+  refuses it - and the publisher's anchor slug strips the whitespace, so it and a
+  literal `Preeclampsia` render one anchor id (BUGS.md 107), while every URL, CQL
+  quotation, and terminology server below the guide handles the space at its own
+  discretion. Under `substitute` each space becomes a hyphen, everywhere the guide
+  publishes a DHIS2 code: the option-set, category, and category-option-combo
+  vocabularies under `concept_code_source = "code"`, the `.../id/*-code`
+  identifier CodeSystems the ConceptMaps target, the ConceptMap rows themselves,
+  and the identifier values that name the same namespaces - so the published
+  vocabulary is self-consistent. Two codes that would land on one published code
+  are separated by an ordinal suffix (`Pre-eclampsia-2`), assigned in sorted order
+  so the same selection publishes the same codes every run. Every rewritten
+  concept states the DHIS2 code byte-true as a `dhis2-code` property, which is
+  what the capture path reads: a QuestionnaireResponse answering with the
+  published code lowers to the DHIS2 code on the import payload. Under `refuse`
+  and unset, every code reaches the guide byte-true. Every rewrite is a
+  `code-substitution` note, one per distinct DHIS2 code.
 
 ### Generate the IG source
 

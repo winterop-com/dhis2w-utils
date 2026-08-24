@@ -10347,8 +10347,8 @@ $ d2w fhir generate [OPTIONS] COMMAND [ARGS]...
 **Options**:
 
 * `--details`: Print every note inline instead of writing them to the notes report.
-* `--substitute-hostile-names`: Publish a DHIS2 name carrying &#x27;&lt;&#x27; in rewritten wording (&quot;5 to &lt; 15 years&quot; becomes &quot;5 to under 15 years&quot;) instead of being asked. DHIS2 is never modified.
-* `--refuse-hostile-names`: Refuse the run over a DHIS2 name carrying &#x27;&lt;&#x27; instead of being asked, so the name is changed in DHIS2 before a build is spent on it.
+* `--substitute-hostile-names`: Publish a DHIS2 name carrying &#x27;&lt;&#x27; in rewritten wording (&quot;5 to &lt; 15 years&quot; becomes &quot;5 to under 15 years&quot;) and a DHIS2 code carrying a space with the space hyphenated (&quot;Pre eclampsia&quot; becomes &quot;Pre-eclampsia&quot;), instead of being asked. DHIS2 is never modified, and each rewritten concept states its DHIS2 code as a `dhis2-code` property.
+* `--refuse-hostile-names`: Refuse the run over a DHIS2 name carrying &#x27;&lt;&#x27; instead of being asked, so the name is changed in DHIS2 before a build is spent on it. Every code is published byte-true.
 * `--progress / --no-progress`: Narrate each step on stderr as it completes.  [default: progress]
 * `--help`: Show this message and exit.
 

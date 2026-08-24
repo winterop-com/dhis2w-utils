@@ -111,22 +111,46 @@ generate.concept_code_source
 
 ### `hostile_names`
 
-**In plain words.** What the run does when a DHIS2 name carries a `<`. The IG
-publisher writes a name into pages it re-reads as HTML after writing, and a `<`
-opens a tag there, so the build dies hours in - after every resource has already
-been rendered. DHIS2 names carry the character legitimately: an age band is
-called `5 to < 15 years, Female`.
+**In plain words.** What the run does with the two DHIS2 strings a published
+guide carries badly.
 
-**The two values.** `"refuse"` writes nothing and names the object, so the name
-is changed in DHIS2 or left out of the selection. `"substitute"` publishes the
-name in wording the publisher survives - `5 to under 15 years, Female` - and
-notes every name it rewrote. DHIS2 is never written to either way, and no code,
-UID, or identifier value is ever rewritten.
+A **name carrying `<`** kills the build. The IG publisher writes a name into
+pages it re-reads as HTML after writing, and a `<` opens a tag there, so the
+build dies hours in - after every resource has already been rendered. DHIS2 names
+carry the character legitimately: an age band is called `5 to < 15 years,
+Female`.
+
+A **code carrying a space** builds fine and hurts afterwards. An R4 `code` admits
+single internal spaces, so `Pre eclampsia` is legal FHIR; the publisher's anchor
+slug then strips the whitespace, so `Pre eclampsia` and `Preeclampsia` render one
+anchor id and its QA pass reports a duplicate (BUGS.md #107). Below the guide,
+every URL has to escape the space, every CQL reference has to quote it, and each
+terminology server round-trips it at its own discretion.
+
+**The two values.** `"refuse"` publishes both byte-true: it writes nothing and
+names the object when a name carries `<`, so the name is changed in DHIS2 or left
+out of the selection, and it publishes a space-carrying code exactly as DHIS2
+states it - a space is legal, so nothing about it is refused.
+
+`"substitute"` publishes the name in wording the publisher survives - `5 to under
+15 years, Female` - and the code with every space hyphenated - `Pre-eclampsia` -
+and notes each rewrite. DHIS2 is never written to either way, and no UID is ever
+rewritten.
+
+**What a rewritten code preserves.** Every published code stays joinable back to
+the instance. Each rewritten concept states the DHIS2 code beside it as a
+`dhis2-code` concept property, in the option-set, category, and category-option-
+combo vocabularies and in the `.../id/*-code` identifier CodeSystems alike, and
+the ConceptMaps keep taking a published concept to its DHIS2 UID. Two DHIS2 codes
+that would land on one published code - `Pre eclampsia` beside a literal
+`Pre-eclampsia` - are separated by an ordinal suffix: `Pre-eclampsia-2`. The
+capture path reads the `dhis2-code` property, so a QuestionnaireResponse
+answering with a published code still writes the DHIS2 code to DHIS2.
 
 **When you would set it.** Set `"substitute"` for a project whose instance names
 age bands the way most instances do, so nobody has to answer the same question on
-every run. Set `"refuse"` for a guide whose published names must repeat the
-instance byte for byte, and take the rename in DHIS2 when one carries a `<`.
+every run. Set `"refuse"` for a guide whose published names and codes must repeat
+the instance byte for byte, and take the rename in DHIS2 when one carries a `<`.
 
 **Example.**
 
@@ -136,9 +160,9 @@ hostile_names = "substitute"
 ```
 
 **Default:** unset - **If you leave it out:** `d2w fhir generate` shows the names
-and their rewrites and asks, when it has a terminal to ask on. Run from a script
-or a CI job it asks nobody and rewrites nothing, so an unattended run behaves as
-`"refuse"` does.
+and codes and their rewrites and asks, when it has a terminal to ask on. Run from
+a script or a CI job it asks nobody and rewrites nothing, so an unattended run
+behaves as `"refuse"` does.
 
 **One run at a time:** `d2w fhir generate --substitute-hostile-names` and
 `--refuse-hostile-names` answer it for a single run and beat this key. The whole

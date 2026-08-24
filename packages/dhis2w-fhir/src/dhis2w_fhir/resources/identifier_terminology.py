@@ -24,9 +24,10 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_fhir.coded import DHIS2_CODE_PROPERTY, CodeSubstitutions
 from dhis2w_fhir.foundation.schemas import IDENTIFIER_SYSTEM_SUBJECTS, FoundationNaming
 from dhis2w_fhir.names import join_id_tokens
-from dhis2w_fhir.r4 import CodeSystem, CodeSystemConcept
+from dhis2w_fhir.r4 import CodeSystem, CodeSystemConcept, CodeSystemConceptProperty, CodeSystemProperty
 from dhis2w_fhir.status import experimental_for_status
 from dhis2w_fhir.writer import JsonArtifact
 
@@ -51,6 +52,7 @@ class _IdentifierSystemProfile(BaseModel):
     name: str
     title: str
     description: str
+    property_base: str
 
 
 class _TargetedIdentifier(BaseModel):
@@ -63,7 +65,11 @@ class _TargetedIdentifier(BaseModel):
 
 
 def build_identifier_code_systems(
-    concept_maps: list[ConceptMap], config: GenerateConfig, *, ig_status: IgStatus
+    concept_maps: list[ConceptMap],
+    config: GenerateConfig,
+    *,
+    ig_status: IgStatus,
+    substitutions: CodeSubstitutions | None = None,
 ) -> list[CodeSystem]:
     """Build one complete CodeSystem per DHIS2 identifier namespace the given ConceptMaps target.
 
@@ -71,18 +77,28 @@ def build_identifier_code_systems(
     never leave its new target system un-enumerated. A target system that is not a declared DHIS2
     identifier namespace - the core FHIR resource-type system the tracked entity type map targets,
     say - is left alone: the publisher already holds it.
+
+    `substitutions` is what a substitute-posture run published in place of the DHIS2 codes carrying
+    a space. A map states the published code, so the code enumerated here is the published one; the
+    concept carries the DHIS2 code beside it as a `dhis2-code` property.
     """
     profiles = _identifier_system_profiles(config)
     gathered = _targeted_identifiers(concept_maps)
+    rewrites = substitutions if substitutions is not None else CodeSubstitutions()
     return [
-        _build_code_system(profiles[url], identifiers, ig_status=ig_status)
+        _build_code_system(profiles[url], identifiers, ig_status=ig_status, substitutions=rewrites)
         for url, identifiers in sorted(gathered.items())
         if url in profiles
     ]
 
 
 def build_identifier_code_system_artifacts(
-    directory: str, concept_maps: list[ConceptMap], config: GenerateConfig, *, ig_status: IgStatus
+    directory: str,
+    concept_maps: list[ConceptMap],
+    config: GenerateConfig,
+    *,
+    ig_status: IgStatus,
+    substitutions: CodeSubstitutions | None = None,
 ) -> list[JsonArtifact]:
     """Build one `<directory>/CodeSystem-<id>.json` per identifier namespace the given ConceptMaps target."""
     return [
@@ -90,15 +106,22 @@ def build_identifier_code_system_artifacts(
             relative_path=f"{directory}/CodeSystem-{code_system.id}.json",
             content=f"{code_system.model_dump_json(exclude_none=True, by_alias=True, indent=2)}\n",
         )
-        for code_system in build_identifier_code_systems(concept_maps, config, ig_status=ig_status)
+        for code_system in build_identifier_code_systems(
+            concept_maps, config, ig_status=ig_status, substitutions=substitutions
+        )
     ]
 
 
 def _build_code_system(
-    profile: _IdentifierSystemProfile, identifiers: list[_TargetedIdentifier], *, ig_status: IgStatus
+    profile: _IdentifierSystemProfile,
+    identifiers: list[_TargetedIdentifier],
+    *,
+    ig_status: IgStatus,
+    substitutions: CodeSubstitutions,
 ) -> CodeSystem:
     """Build one namespace's CodeSystem: every targeted identifier, enumerated once and marked complete."""
-    concepts = _distinct_concepts(identifiers)
+    concepts = _distinct_concepts(identifiers, substitutions)
+    carries_rewrite = any(concept.property for concept in concepts)
     return CodeSystem(
         id=profile.code_system_id,
         url=profile.url,
@@ -109,12 +132,25 @@ def _build_code_system(
         experimental=experimental_for_status(ig_status),
         caseSensitive=True,
         content="complete",
+        property=[_dhis2_code_declaration(profile)] if carries_rewrite else None,
         count=len(concepts),
         concept=concepts,
     )
 
 
-def _distinct_concepts(identifiers: list[_TargetedIdentifier]) -> list[CodeSystemConcept]:
+def _dhis2_code_declaration(profile: _IdentifierSystemProfile) -> CodeSystemProperty:
+    """The `dhis2-code` declaration a namespace enumerating rewritten codes carries."""
+    return CodeSystemProperty(
+        code=DHIS2_CODE_PROPERTY,
+        uri=f"{profile.property_base}/{DHIS2_CODE_PROPERTY}",
+        description="The DHIS2 code byte-true, where this guide published a rewritten one.",
+        type="string",
+    )
+
+
+def _distinct_concepts(
+    identifiers: list[_TargetedIdentifier], substitutions: CodeSubstitutions
+) -> list[CodeSystemConcept]:
     """One concept per identifier, the first display a code was seen under winning, in the order given.
 
     A namespace is enumerated off every map that targets it, and two DHIS2 objects legitimately
@@ -123,10 +159,25 @@ def _distinct_concepts(identifiers: list[_TargetedIdentifier]) -> list[CodeSyste
     code stated twice yields two rows carrying one anchor id, which its own QA pass reports as a
     duplicate anchor on the rendered page. The invariant is enforced here, at the one place a
     concept list is built, rather than left to each caller's gathering step.
+
+    A code this run published in place of a space-carrying DHIS2 code carries the DHIS2 code as a
+    `dhis2-code` property, so the namespace still takes a consumer back to the instance byte-true.
     """
     concepts: dict[str, CodeSystemConcept] = {}
     for entry in identifiers:
-        concepts.setdefault(entry.code, CodeSystemConcept(code=entry.code, display=entry.display))
+        original = substitutions.original_for(entry.code)
+        concepts.setdefault(
+            entry.code,
+            CodeSystemConcept(
+                code=entry.code,
+                display=entry.display,
+                property=(
+                    None
+                    if original is None
+                    else [CodeSystemConceptProperty(code=DHIS2_CODE_PROPERTY, valueString=original)]
+                ),
+            ),
+        )
     return list(concepts.values())
 
 
@@ -161,6 +212,7 @@ def _identifier_system_profiles(config: GenerateConfig) -> dict[str, _Identifier
     """
     prefix = FoundationNaming.from_naming(config.naming).definition_prefix
     base = config.identifier_system_base
+    property_base = f"{base}/property"
     profiles: dict[str, _IdentifierSystemProfile] = {}
     for subject in IDENTIFIER_SYSTEM_SUBJECTS:
         profiles[f"{base}/id/{subject.segment}"] = _IdentifierSystemProfile(
@@ -169,6 +221,7 @@ def _identifier_system_profiles(config: GenerateConfig) -> dict[str, _Identifier
             name=f"{prefix}{subject.token}IdentifierSystem_CS",
             title=f"DHIS2 {subject.label} UIDs in use",
             description=_description(subject.label, "UID", f"{prefix}{subject.token}IdentifierSystem"),
+            property_base=property_base,
         )
         if not subject.has_code:
             continue
@@ -178,6 +231,7 @@ def _identifier_system_profiles(config: GenerateConfig) -> dict[str, _Identifier
             name=f"{prefix}{subject.token}CodeIdentifierSystem_CS",
             title=f"DHIS2 {subject.label} codes in use",
             description=_description(subject.label, "code", f"{prefix}{subject.token}CodeIdentifierSystem"),
+            property_base=property_base,
         )
     return profiles
 

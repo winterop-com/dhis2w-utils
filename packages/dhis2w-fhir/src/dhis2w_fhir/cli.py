@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
     from dhis2w_fhir.config import FhirProject, ProjectionConfig
     from dhis2w_fhir.doctor import DoctorReport
-    from dhis2w_fhir.hostile_names import HostileNameGate, HostileNameRewrite
+    from dhis2w_fhir.hostile_names import HostileNameGate, HostileRewrite
     from dhis2w_fhir.notes import GenerateNote
     from dhis2w_fhir.service import (
         ForwardOutcome,
@@ -139,7 +139,7 @@ class GenerateDecisions(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     hostile_names: HostileNamePosture | None = None
-    """What to do with a DHIS2 name the IG publisher's build cannot survive; None asks."""
+    """What to do with a DHIS2 name carrying '<' and a DHIS2 code carrying a space; None asks."""
 
 
 #: How many rewrites the warning block shows before it counts the rest. Enough to recognise the
@@ -181,8 +181,8 @@ def _has_terminal() -> bool:
     return sys.stdin.isatty()
 
 
-def _confirm_hostile_names(rewrites: list[HostileNameRewrite]) -> bool:
-    """Ask whether the guide may publish rewritten names, and refuse without a terminal to ask on."""
+def _confirm_hostile_names(rewrites: list[HostileRewrite]) -> bool:
+    """Ask whether the guide may publish rewritten names and codes, and refuse without a terminal to ask on."""
     _print_hostile_name_warning(rewrites)
     if not _has_terminal():
         _line(
@@ -192,45 +192,75 @@ def _confirm_hostile_names(rewrites: list[HostileNameRewrite]) -> bool:
         _line(_HOSTILE_NAME_RULE)
         return False
     _line(_HOSTILE_NAME_RULE)
-    return typer.confirm("Rewrite these names for publication?", default=False)
+    return typer.confirm("Rewrite these names and codes for publication?", default=False)
 
 
-def _print_hostile_name_warning(rewrites: list[HostileNameRewrite]) -> None:
-    """Print what the run found, what a rewrite changes, and what it leaves alone."""
-    from dhis2w_fhir.notes import pluralize, verb_for_count
-
-    distinct = list({rewrite.original: rewrite for rewrite in rewrites}.values())
+def _print_hostile_name_warning(rewrites: list[HostileRewrite]) -> None:
+    """Print what the run found, what each rewrite changes, and what it leaves alone."""
+    distinct = list({(rewrite.subject, rewrite.original): rewrite for rewrite in rewrites}.values())
+    names = [rewrite for rewrite in distinct if rewrite.subject == "name"]
+    codes = [rewrite for rewrite in distinct if rewrite.subject == "code"]
     _line("")
     _line(_HOSTILE_NAME_RULE)
-    _line("DHIS2 names the IG publisher cannot build")
+    _line("DHIS2 names and codes the published guide rewrites")
     _line(_HOSTILE_NAME_RULE)
-    _line(
-        f"{pluralize(len(distinct), 'selected DHIS2 name')} "
-        f"{verb_for_count(len(distinct), 'carries', 'carry')} '<'. A name reaches the guide byte-true, and "
-        "the IG publisher writes it into pages it strict-parses after writing, so `make build` aborts in its "
-        "last pass, once every resource has already been rendered."
-    )
-    _line("")
+    if names:
+        _print_hostile_name_finding(names)
+    if codes:
+        _print_hostile_code_finding(codes)
     _line(
         "Rewriting them changes the published guide and nothing else. DHIS2 is never modified: the instance "
-        "keeps every name exactly as it stands, no code or UID is touched, and the ConceptMaps keep the "
-        "original identifiers, so a consumer can still join a published concept back to its DHIS2 object."
+        "keeps every name and code exactly as it stands, no UID is touched, every rewritten concept states "
+        "its DHIS2 code as a `dhis2-code` property, and the ConceptMaps keep taking a published concept back "
+        "to its DHIS2 object."
     )
     _line("")
-    shown = distinct[:_HOSTILE_NAME_SAMPLE_SIZE]
-    remainder = len(distinct) - len(shown)
-    _line("As they would be published:" if not remainder else f"{len(shown)} of them, as they would be published:")
-    for rewrite in shown:
-        _line(f"  {rewrite.original!r} -> {rewrite.rewritten!r}")
-    if remainder:
-        _line(f"  and {remainder} more.")
+    _print_hostile_sample(distinct)
     _line("")
     _line(
-        "Leaving them publishes every name exactly as DHIS2 states it, which is what "
+        "Leaving them publishes every name and code exactly as DHIS2 states it, which is what "
         '--refuse-hostile-names and `hostile_names = "refuse"` in fhir.toml do without asking. The run then '
         "refuses when one of the gated names carries '<', and `d2w fhir check-artifacts` reports what "
         "reaches the disk either way."
     )
+
+
+def _print_hostile_name_finding(names: list[HostileRewrite]) -> None:
+    """State what a DHIS2 name carrying '<' costs the guide's build."""
+    from dhis2w_fhir.notes import pluralize, verb_for_count
+
+    _line(
+        f"{pluralize(len(names), 'selected DHIS2 name')} "
+        f"{verb_for_count(len(names), 'carries', 'carry')} '<'. A name reaches the guide byte-true, and "
+        "the IG publisher writes it into pages it strict-parses after writing, so `make build` aborts in its "
+        "last pass, once every resource has already been rendered."
+    )
+    _line("")
+
+
+def _print_hostile_code_finding(codes: list[HostileRewrite]) -> None:
+    """State what a DHIS2 code carrying a space costs the guide and everything downstream of it."""
+    from dhis2w_fhir.notes import pluralize, verb_for_count
+
+    _line(
+        f"{pluralize(len(codes), 'selected DHIS2 code')} "
+        f"{verb_for_count(len(codes), 'carries', 'carry')} a space. A space is legal in an R4 code, so "
+        "nothing refuses it - but the IG publisher's anchor slug strips whitespace, so 'Pre eclampsia' and "
+        "'Preeclampsia' render one anchor id, and every URL, CQL quotation, and terminology server "
+        "downstream handles the space at its own discretion. Each space becomes a hyphen."
+    )
+    _line("")
+
+
+def _print_hostile_sample(distinct: list[HostileRewrite]) -> None:
+    """Show a sample of the rewrites, each labelled by whether it is a name or a code."""
+    shown = distinct[:_HOSTILE_NAME_SAMPLE_SIZE]
+    remainder = len(distinct) - len(shown)
+    _line("As they would be published:" if not remainder else f"{len(shown)} of them, as they would be published:")
+    for rewrite in shown:
+        _line(f"  {rewrite.subject}: {rewrite.original!r} -> {rewrite.rewritten!r}")
+    if remainder:
+        _line(f"  and {remainder} more.")
 
 
 @contextmanager
@@ -703,7 +733,9 @@ def generate_callback(
         typer.Option(
             "--substitute-hostile-names",
             help="Publish a DHIS2 name carrying '<' in rewritten wording (\"5 to < 15 years\" becomes "
-            '"5 to under 15 years") instead of being asked. DHIS2 is never modified.',
+            '"5 to under 15 years") and a DHIS2 code carrying a space with the space hyphenated '
+            '("Pre eclampsia" becomes "Pre-eclampsia"), instead of being asked. DHIS2 is never '
+            "modified, and each rewritten concept states its DHIS2 code as a `dhis2-code` property.",
         ),
     ] = False,
     refuse_hostile_names: Annotated[
@@ -711,7 +743,7 @@ def generate_callback(
         typer.Option(
             "--refuse-hostile-names",
             help="Refuse the run over a DHIS2 name carrying '<' instead of being asked, so the name is "
-            "changed in DHIS2 before a build is spent on it.",
+            "changed in DHIS2 before a build is spent on it. Every code is published byte-true.",
         ),
     ] = False,
     progress: ProgressOption = True,
