@@ -114,11 +114,13 @@ check.) Three facts make the project reproducible:
   and deliberately does not cover `uv.lock`.
 - **`.python-version` pins the interpreter** (`3.13`, matching
   `requires-python`). An older project gains it via `d2w fhir init --refresh`.
-- **`[tool.uv.sources]` sources all three packages from one commit** of the
-  dhis2w-utils repository on `main`, and the lock pins the concrete commit.
-  A CLI paired with a plugin from a different build is not a combination
-  anyone tests. Delete the entries once you prefer PyPI releases, and they
-  resolve from there instead.
+- **The three packages resolve from PyPI as one release.** Each package's own
+  dependency floors hold the CLI, the generator, and the server to the same
+  version, and the lock pins the exact one - a CLI paired with a plugin from a
+  different build is not a combination anyone tests. The published wheels are
+  also what ships the capture UI. To track the repository's `main` branch
+  instead of releases, add a `[tool.uv.sources]` git entry per package; the
+  scaffolded `pyproject.toml` shows the shape.
 
 Every scaffolded make target drives `d2w` through `uv run`, so `make
 validate` and `make generate` are `uv run d2w fhir validate` / `uv run d2w
