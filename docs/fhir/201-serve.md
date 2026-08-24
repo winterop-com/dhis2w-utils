@@ -58,7 +58,8 @@ d2w fhir serve
 ```
 
 (In a scaffolded project the Makefile wraps both: `make sushi` is the docker
-run above, `make serve` is `uv run d2w fhir serve`.)
+run above, `make serve` is `uv run d2w fhir serve --ui` - the same endpoint
+plus the capture UI at `/`.)
 
 Then, from another shell, ask the server what it is:
 

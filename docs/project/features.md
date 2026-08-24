@@ -557,8 +557,9 @@ chain in one command.
 
 - **The scaffolded Makefile.** `make refresh` chains clean-all, upgrade,
   generate, a non-fatal validate, sushi, and build. `make update` re-runs the
-  scaffold refresh. `make serve` / `make serve-live` / `make serve-ui` read the
-  `[serve]` table; `make forward` / `make forward-import` drive the drain.
+  scaffold refresh. `make serve` / `make serve-live` read the `[serve]` table
+  and serve the capture UI at `/`; `make forward` / `make forward-import` drive
+  the drain.
   `make check` is the artifact scan below, and `make build` runs it first.
 - **`make build` builds on the container's own disk.** Docker on macOS reaches a
   mounted host directory over a network-style filesystem, and the publisher's
@@ -1578,7 +1579,7 @@ bound to loopback by default that loads the project once at startup.
 - **Configuration.** `host`, `port`, `auth`, `auth_scope`, `strict_codes`,
   `capture`, `ui`, and
   `spool_dir` fall back to the `[serve]` table of `fhir.toml`, which
-  `make serve` / `make serve-live` / `make serve-ui` read too, with flags
+  `make serve` / `make serve-live` read too, with flags
   beating the table beating the defaults and `--strict-codes` /
   `--no-strict-codes` reaching all three levels.
   The precedence is `ServeSettings.resolve`, in `dhis2w-fhir-serve`, so an
@@ -2174,7 +2175,8 @@ implementation of it.
 
 ### Capture in the browser
 
-`d2w fhir serve --ui` (or `[serve] ui`, or `make serve-ui`) adds a browser
+`d2w fhir serve --ui` (or `[serve] ui`; the scaffolded `make serve` and
+`make serve-live` pass it) adds a browser
 capture UI at `/`, same-origin with the FHIR routes so it reads the very
 endpoint it is served from with no URL to configure. It is a React 19 +
 TypeScript + Tailwind v4 + shadcn/ui app under
