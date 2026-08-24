@@ -64,8 +64,42 @@ jobs:
       - name: Sync workspace
         run: make install
 
+      # The capture UI ships inside the dhis2w-fhir-serve wheel as static/,
+      # and the repository holds only its source - so this leg builds it
+      # before the wheel, and the guard below refuses a wheel without it.
+      # Every other package's wheel carries no frontend and skips both steps.
+      - name: Install pnpm
+        if: matrix.package == 'dhis2w-fhir-serve'
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Install Node
+        if: matrix.package == 'dhis2w-fhir-serve'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: packages/dhis2w-fhir-serve/frontend/pnpm-lock.yaml
+
+      - name: Build the capture UI into the package
+        if: matrix.package == 'dhis2w-fhir-serve'
+        run: make build-frontend
+
       - name: Build wheel + sdist
         run: uv build --package ${{ matrix.package }}
+
+      - name: Refuse a serve wheel without the capture UI
+        if: matrix.package == 'dhis2w-fhir-serve'
+        run: |
+          python3 - <<'EOF'
+          import glob, sys, zipfile
+          wheel = glob.glob("dist/dhis2w_fhir_serve-*.whl")[0]
+          names = zipfile.ZipFile(wheel).namelist()
+          if "dhis2w_fhir_serve/static/index.html" not in names:
+              sys.exit(f"{wheel} carries no built capture UI - static/index.html is missing")
+          print(f"{wheel}: capture UI present")
+          EOF
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
