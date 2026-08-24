@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-bench"
-version = "1.8.2"
+version = "1.8.3"
 description = "Local-LLM benchmark harness for DHIS2 agents: coding, mcp-bridge, and full-mcp."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
