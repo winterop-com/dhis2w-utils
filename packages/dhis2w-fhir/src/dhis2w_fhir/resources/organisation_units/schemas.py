@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dhis2w_fhir.attributes import AttributeValueIn
+from dhis2w_fhir.coded import CodedProjectionIn
 from dhis2w_fhir.foundation.schemas import TerminologyPairProfile, TerminologyPropertyDeclaration
 from dhis2w_fhir.i18n import TranslationIn
 
@@ -63,7 +64,7 @@ class GeoPoint(BaseModel):
     latitude: float
 
 
-class OrganisationUnitIn(BaseModel):
+class OrganisationUnitIn(CodedProjectionIn):
     """The organisation-unit projection consumed by the emitter.
 
     `latitude`/`longitude` hold the Point coordinates, or the area-weighted centroid for
@@ -79,7 +80,6 @@ class OrganisationUnitIn(BaseModel):
     uid: str
     name: str
     short_name: str | None = None
-    code: str | None = None
     description: str | None = None
     level: int
     path: str

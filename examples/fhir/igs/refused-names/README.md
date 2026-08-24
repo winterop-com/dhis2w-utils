@@ -107,9 +107,11 @@ survive; the guide publishes 'under 1y' and DHIS2 keeps the name it holds
 
 That is the answer for an instance whose age bands are all named this way -
 `<1y`, `<5`, `Vitamin A given to < 5y` - where renaming them is a change to a
-production instance made to satisfy a publisher. DHIS2 is never written to, and
-names only: no code, UID, or identifier value moves, so the ConceptMaps still
-take every published concept back to the object it came from. `[generate]
+production instance made to satisfy a publisher. DHIS2 is never written to and no
+UID moves, so the ConceptMaps still take every published concept back to the
+object it came from. The same posture also hyphenates a DHIS2 code carrying a
+space, stating the DHIS2 code beside the published one as a `dhis2-code`
+concept property; this selection's codes carry none. `[generate]
 hostile_names = "substitute"` is the same answer, standing, for one project;
 this guide deliberately states neither, so it stays the refusal exhibit. The
 whole picture is in [Answer the hostile-name

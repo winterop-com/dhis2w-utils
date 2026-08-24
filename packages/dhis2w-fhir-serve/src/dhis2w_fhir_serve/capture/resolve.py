@@ -165,15 +165,24 @@ def _option(concept: CodeSystemConcept) -> ResolvedCoding:
     A `dhis2-id` property means the concept code is the DHIS2 option code and the property is the
     UID; without it the concept code is the UID and `dhis2-code`, when the option has one, is the
     code. Reading both directions off the same concept is what makes the fallback tiers possible.
+
+    A `dhis2-code` property wins over the concept code wherever both are stated: that is a
+    substitute-posture guide saying it published one spelling and DHIS2 holds another, and the
+    DHIS2 one is what a client sending the instance's own code would name the option by.
     """
     concept_code = concept.code or ""
     properties = {entry.code: entry for entry in concept.property or []}
+    carried_code = properties.get(OPTION_CODE_PROPERTY)
+    stated_code = None if carried_code is None else (carried_code.valueString or carried_code.valueCode)
     carried_uid = properties.get(OPTION_UID_PROPERTY)
     if carried_uid is not None:
         uid = carried_uid.valueCode or carried_uid.valueString or concept_code
         return ResolvedCoding(
-            option_uid=uid, dhis2_code=concept_code, concept_code=concept_code, display=concept.display
+            option_uid=uid,
+            dhis2_code=stated_code if stated_code is not None else concept_code,
+            concept_code=concept_code,
+            display=concept.display,
         )
-    carried_code = properties.get(OPTION_CODE_PROPERTY)
-    code = None if carried_code is None else (carried_code.valueString or carried_code.valueCode)
-    return ResolvedCoding(option_uid=concept_code, dhis2_code=code, concept_code=concept_code, display=concept.display)
+    return ResolvedCoding(
+        option_uid=concept_code, dhis2_code=stated_code, concept_code=concept_code, display=concept.display
+    )

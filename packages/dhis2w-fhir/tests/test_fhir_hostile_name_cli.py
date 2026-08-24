@@ -109,7 +109,7 @@ def test_the_substitute_flag_publishes_the_rewritten_name(fhir_project: Path) ->
 
     assert result.exit_code == 0, result.output
     assert screened == [_REWRITTEN_NAME]
-    assert "Rewrite these names" not in result.output
+    assert "Rewrite these names and codes" not in result.output
 
 
 def test_the_refuse_flag_leaves_the_name_as_dhis2_states_it(fhir_project: Path) -> None:  # noqa: ARG001
@@ -185,11 +185,36 @@ def test_a_terminal_is_asked_and_yes_rewrites(fhir_project: Path) -> None:  # no
 
     assert result.exit_code == 0, result.output
     assert screened == [_REWRITTEN_NAME]
-    assert "DHIS2 names the IG publisher cannot build" in result.output
-    assert f"{_HOSTILE_NAME!r} -> {_REWRITTEN_NAME!r}" in result.output
+    assert "DHIS2 names and codes the published guide rewrites" in result.output
+    assert f"name: {_HOSTILE_NAME!r} -> {_REWRITTEN_NAME!r}" in result.output
     assert "DHIS2 is never modified" in result.output
-    assert "ConceptMaps keep the original identifiers" in result.output
-    assert "Rewrite these names for publication?" in result.output
+    assert "ConceptMaps keep taking a published concept back" in result.output
+    assert "Rewrite these names and codes for publication?" in result.output
+
+
+def test_the_banner_names_a_rewritten_code_and_what_it_preserves(fhir_project: Path) -> None:  # noqa: ARG001
+    """A space-carrying code is shown beside the names, labelled, with the property that recovers it."""
+    screened: list[str] = []
+
+    def stub() -> AsyncMock:
+        """A stubbed generate screening one option set whose code carries a space."""
+
+        async def _generate(*_args: Any, gate: HostileNameGate | None = None, **_kwargs: Any) -> GenerateReport:
+            """Screen one option set and record the code the run would publish."""
+            assert gate is not None
+            option_set = OptionSetIn(uid="Os1aaaaaaaa", name=_HOSTILE_NAME, code="Pre eclampsia")
+            screened.append(gate.screen([option_set], [])[0].code or "")
+            return GenerateReport(project_root=Path("/project"), target_directory="terminology")
+
+        return AsyncMock(side_effect=_generate)
+
+    result = _invoke(["fhir", "generate", "option-sets"], stub(), stdin="y\n", a_terminal=True)
+
+    assert result.exit_code == 0, result.output
+    assert screened == ["Pre-eclampsia"]
+    assert "code: 'Pre eclampsia' -> 'Pre-eclampsia'" in result.output
+    assert "1 selected DHIS2 code carries a space" in result.output
+    assert "`dhis2-code` property" in result.output
 
 
 def test_a_terminal_answering_no_leaves_every_name_alone(fhir_project: Path) -> None:  # noqa: ARG001
@@ -213,4 +238,4 @@ def test_a_script_is_never_hung_on_the_question(fhir_project: Path) -> None:  # 
     assert "no terminal to ask on" in result.output
     assert "--substitute-hostile-names" in result.output
     assert "--refuse-hostile-names" in result.output
-    assert "Rewrite these names for publication?" not in result.output
+    assert "Rewrite these names and codes for publication?" not in result.output

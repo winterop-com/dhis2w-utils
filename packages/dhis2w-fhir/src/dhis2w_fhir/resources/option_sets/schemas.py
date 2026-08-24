@@ -7,6 +7,7 @@ from typing import ClassVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.attributes import AttributeValueIn
+from dhis2w_fhir.coded import CodedProjectionIn
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.notes import GenerateNote
 
@@ -22,19 +23,18 @@ class OptionSetSelection(BaseModel):
     include_ids: list[str] = Field(default_factory=list)
 
 
-class OptionIn(BaseModel):
+class OptionIn(CodedProjectionIn):
     """The option projection consumed by the emitter."""
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
-    code: str | None = None
     name: str
     sort_order: int | None = None
     translations: list[TranslationIn] = Field(default_factory=list)
 
 
-class ConceptSourceIn(BaseModel):
+class ConceptSourceIn(CodedProjectionIn):
     """A DHIS2 object whose ordered members become the concepts of one emitted CodeSystem.
 
     An option set and a category are the same shape - a named, coded, translated parent
@@ -52,7 +52,6 @@ class ConceptSourceIn(BaseModel):
     member_label: ClassVar[str]
 
     uid: str
-    code: str | None = None
     name: str
     description: str | None = None
     options: list[OptionIn] = Field(default_factory=list)

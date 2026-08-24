@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.attributes import AttributeValueIn
+from dhis2w_fhir.coded import CodedProjectionIn
 from dhis2w_fhir.i18n import (
     ENROLLMENT_DATE_LABEL_PROPERTY,
     EXECUTION_DATE_LABEL_PROPERTY,
@@ -402,7 +403,7 @@ class NumericBounds(BaseModel):
     maximum_value: int | None = None
 
 
-class CategoryOptionComboIn(BaseModel):
+class CategoryOptionComboIn(CodedProjectionIn):
     """One category option combo of a data element's disaggregation.
 
     `category_option_uids` is what the combo is composed of - "Fixed, <1y" is the Fixed option met
@@ -414,7 +415,6 @@ class CategoryOptionComboIn(BaseModel):
 
     uid: str
     name: str
-    code: str | None = None
     category_option_uids: list[str] = Field(default_factory=list)
 
 
@@ -435,7 +435,7 @@ class CategoryAxisIn(BaseModel):
     option_uids: list[str] = Field(default_factory=list)
 
 
-class CategoryComboIn(BaseModel):
+class CategoryComboIn(CodedProjectionIn):
     """One DHIS2 category combo, its option combos included - a disaggregation or a data set's own key.
 
     A data element carries one to say how its question splits into cells; a data set carries one
@@ -452,7 +452,6 @@ class CategoryComboIn(BaseModel):
 
     uid: str
     name: str
-    code: str | None = None
     is_default: bool = False
     categories: list[CategoryAxisIn] = Field(default_factory=list)
     option_combos: list[CategoryOptionComboIn] = Field(default_factory=list)
@@ -488,7 +487,7 @@ def ordered_option_combos(combo: CategoryComboIn) -> list[CategoryOptionComboIn]
     return sorted(combo.option_combos, key=sort_key)
 
 
-class QuestionnaireItemIn(BaseModel):
+class QuestionnaireItemIn(CodedProjectionIn):
     """One data element or tracked entity attribute as a question: its value type, its option set, its disaggregation.
 
     `domain_type` is the DHIS2 `AGGREGATE` / `TRACKER` split a data element carries, emitted as a
@@ -535,7 +534,6 @@ class QuestionnaireItemIn(BaseModel):
 
     uid: str
     name: str
-    code: str | None = None
     form_name: str | None = None
     description: str | None = None
     translations: list[TranslationIn] = Field(default_factory=list)
@@ -581,7 +579,7 @@ class QuestionnaireSectionIn(BaseModel):
     items: list[QuestionnaireItemIn] = Field(default_factory=list)
 
 
-class ProgramContextIn(BaseModel):
+class ProgramContextIn(CodedProjectionIn):
     """The tracker program one stage belongs to.
 
     The identity its questionnaires carry in titles, identifiers, and intros. `code` is the
@@ -595,7 +593,6 @@ class ProgramContextIn(BaseModel):
 
     uid: str
     name: str
-    code: str | None = None
     translations: list[TranslationIn] = Field(default_factory=list)
     tracked_entity_type_uid: str | None = None
 
@@ -655,7 +652,7 @@ class ProgramRuleIn(BaseModel):
     actions: list[ProgramRuleActionIn] = Field(default_factory=list)
 
 
-class QuestionnaireSourceIn(BaseModel):
+class QuestionnaireSourceIn(CodedProjectionIn):
     """One DHIS2 data set, event program, or tracker program stage as the projection the emitter consumes.
 
     `sections` carries the form when it has them and `flat_items` carries the rest, so a
@@ -693,7 +690,6 @@ class QuestionnaireSourceIn(BaseModel):
 
     uid: str
     name: str
-    code: str | None = None
     description: str | None = None
     translations: list[TranslationIn] = Field(default_factory=list)
     kind: FormKind
@@ -954,7 +950,7 @@ def form_subject_type(source: QuestionnaireSourceIn, tracked_entity_types: Mappi
     return tracked_entity_type_subject_type(uid, tracked_entity_types)
 
 
-class PublishedTrackedEntityType(BaseModel):
+class PublishedTrackedEntityType(CodedProjectionIn):
     """One DHIS2 tracked entity type the run publishes: its identity, its names, and the resource it is.
 
     The boundary object between the tracked-entity-type vocabulary and everything that reads it.
@@ -968,7 +964,6 @@ class PublishedTrackedEntityType(BaseModel):
 
     uid: str
     name: str
-    code: str | None = None
     translations: list[TranslationIn] = Field(default_factory=list)
     resource_type: str
     mapped: bool

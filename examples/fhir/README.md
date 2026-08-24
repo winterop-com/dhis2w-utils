@@ -29,6 +29,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`generate_option_sets.sh`](cli/generate_option_sets.sh) | `d2w fhir generate option-sets` — one named target alone | yes |
 | [`generate_stale_compile.sh`](cli/generate_stale_compile.sh) | `d2w fhir generate` — a run that rewrites a FSH source removes the compile of the sources before it | yes |
 | [`generate_hostile_names.sh`](cli/generate_hostile_names.sh) | `d2w fhir generate --substitute-hostile-names` — publish a DHIS2 name the IG publisher cannot build, in wording it can | yes |
+| [`generate_spaced_codes.sh`](cli/generate_spaced_codes.sh) | `d2w fhir generate --substitute-hostile-names` — publish a DHIS2 code carrying a space with the space hyphenated, the DHIS2 code stated beside it | yes |
 | [`validate.sh`](cli/validate.sh) | `d2w fhir validate` — the FHIR-safety gate, exit 1 on errors | yes |
 | [`validate_code_source.sh`](cli/validate_code_source.sh) | `d2w fhir validate --code-source code` — preview a concept-code migration | yes |
 | [`spool.sh`](cli/spool.sh) | `d2w fhir spool`, `requeue` — the capture queue, read and rewound offline | yes |

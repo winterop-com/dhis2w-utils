@@ -1274,7 +1274,9 @@ def _emit_option_sets(
     )
     _refuse_build_aborting_objects(
         [
-            _CodedObject(resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.code)
+            _CodedObject(
+                resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.dhis2_code
+            )
             for option_set in option_sets
         ]
     )
@@ -1371,7 +1373,7 @@ def _emit_categories(
     )
     _refuse_build_aborting_objects(
         [
-            _CodedObject(resource_type="categories", uid=category.uid, name=category.name, code=category.code)
+            _CodedObject(resource_type="categories", uid=category.uid, name=category.name, code=category.dhis2_code)
             for category in categories
         ]
     )
@@ -1790,7 +1792,9 @@ async def _emit_examples(
     _refuse_build_aborting_form_objects(sources)
     _refuse_build_aborting_objects(
         [
-            _CodedObject(resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.code)
+            _CodedObject(
+                resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.dhis2_code
+            )
             for option_set in option_sets
         ]
     )
@@ -2453,7 +2457,7 @@ def _coded_source(source: QuestionnaireSourceIn) -> _CodedObject:
         resource_type=_SOURCE_CODE_COLLECTIONS[source.kind],
         uid=source.uid,
         name=source.name,
-        code=source.code,
+        code=source.dhis2_code,
     )
 
 
@@ -2633,7 +2637,7 @@ def _emit_organisation_units(
                 resource_type="organisationUnits",
                 uid=organisation_unit.uid,
                 name=organisation_unit.name,
-                code=organisation_unit.code,
+                code=organisation_unit.dhis2_code,
             )
             for organisation_unit in organisation_units
         ]
@@ -2768,7 +2772,9 @@ def _emit_pages(
     _refuse_build_aborting_form_objects(sources)
     _refuse_build_aborting_objects(
         [
-            _CodedObject(resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.code)
+            _CodedObject(
+                resource_type="optionSets", uid=option_set.uid, name=option_set.name, code=option_set.dhis2_code
+            )
             for option_set in option_sets
         ]
         + [
@@ -2776,7 +2782,7 @@ def _emit_pages(
                 resource_type="organisationUnits",
                 uid=organisation_unit.uid,
                 name=organisation_unit.name,
-                code=organisation_unit.code,
+                code=organisation_unit.dhis2_code,
             )
             for organisation_unit in organisation_units
         ]

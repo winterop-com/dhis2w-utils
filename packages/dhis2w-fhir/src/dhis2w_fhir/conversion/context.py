@@ -242,22 +242,27 @@ def _option_entry(concept: CodeSystemConcept) -> OptionEntry | None:
     UID - unless the two are equal, which is the code-mode fall-back and leaves the DHIS2 code
     unrecoverable from this document. Without that property the concept code is the UID and
     `dhis2-code` carries the option code, already fallen back to the UID where DHIS2 held none.
+
+    A `dhis2-code` property wins over the concept code wherever both are stated: that is a
+    substitute-posture run saying the guide published one spelling and DHIS2 holds another, and it
+    is the DHIS2 one a data value is written with.
     """
     concept_code = concept.code
     if not concept_code:
         return None
     properties = {entry.code: entry for entry in concept.property or []}
+    carried_code = properties.get(OPTION_CODE_PROPERTY)
+    stated_code = None if carried_code is None else (carried_code.valueString or carried_code.valueCode)
     carried_uid = properties.get(OPTION_UID_PROPERTY)
     if carried_uid is not None:
         option_uid = carried_uid.valueCode or carried_uid.valueString or concept_code
+        published = None if concept_code == option_uid else concept_code
         return OptionEntry(
             concept_code=concept_code,
             option_uid=option_uid,
-            option_code=None if concept_code == option_uid else concept_code,
+            option_code=stated_code if stated_code is not None else published,
         )
-    carried_code = properties.get(OPTION_CODE_PROPERTY)
-    option_code = None if carried_code is None else (carried_code.valueString or carried_code.valueCode)
-    return OptionEntry(concept_code=concept_code, option_uid=concept_code, option_code=option_code)
+    return OptionEntry(concept_code=concept_code, option_uid=concept_code, option_code=stated_code)
 
 
 def _mapped_entries(
@@ -271,6 +276,10 @@ def _mapped_entries(
     Two terminology families reach this table through one call - the option sets and the attribute
     option combos - and each names its own pair of DHIS2 target namespaces. A map only ever carries
     one family's targets, so reading both pairs resolves either without the caller saying which.
+
+    The map fills a code the concept left unrecoverable; it never overrides one the concept stated.
+    A substitute-posture guide states the published code on both sides of its own vocabulary, so the
+    map's code target is what the guide publishes and only the concept property holds the DHIS2 one.
     """
     codes = _mapped_codes(system, (naming.option_code_system, naming.attribute_option_combo_code_system), concept_maps)
     uids = _mapped_codes(system, (naming.option_uid_system, naming.attribute_option_combo_uid_system), concept_maps)
@@ -279,7 +288,7 @@ def _mapped_entries(
     return tuple(
         entry.model_copy(
             update={
-                "option_code": codes.get(entry.concept_code, entry.option_code),
+                "option_code": entry.option_code if entry.option_code is not None else codes.get(entry.concept_code),
                 "option_uid": uids.get(entry.concept_code, entry.option_uid),
             }
         )

@@ -26,7 +26,7 @@ _NOTE_CONSTRUCTORS = frozenset({"generate_note", "aggregate_generate_note"})
 #: and recorded here, and a note that quietly changes kind fails the run. Adding a line is the point,
 #: not an obstacle - it is where the author of a new note decides whether validate already says it.
 _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
-    "hostile_names.py": {GenerateNoteCategory.NAME_SUBSTITUTION: 1},
+    "hostile_names.py": {GenerateNoteCategory.NAME_SUBSTITUTION: 1, GenerateNoteCategory.CODE_SUBSTITUTION: 1},
     "names.py": {GenerateNoteCategory.STEM_FALLBACK: 1},
     "resources/examples/__init__.py": {
         GenerateNoteCategory.ANSWER_FALLBACK: 1,
@@ -77,6 +77,7 @@ _ECHO_VERDICTS: dict[GenerateNoteCategory, bool] = {
     GenerateNoteCategory.BUILD_COST: False,
     GenerateNoteCategory.COMPILE_REMOVED: False,
     GenerateNoteCategory.NAME_SUBSTITUTION: False,
+    GenerateNoteCategory.CODE_SUBSTITUTION: False,
     GenerateNoteCategory.CODE_FALLBACK: True,
     GenerateNoteCategory.CODE_COLLISION: True,
     GenerateNoteCategory.STEM_FALLBACK: True,

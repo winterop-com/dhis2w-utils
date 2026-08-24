@@ -31,10 +31,11 @@ d2w fhir generate --refuse-hostile-names questionnaires \
 
 # The other answer. The guide publishes the wording the name stands for - "Vitamin A given to
 # under 5y" - and every rewrite lands in the notes, one per distinct DHIS2 name. DHIS2 itself
-# is never written to, and no code, UID, or identifier value is rewritten, so the ConceptMaps
-# still take every published concept back to the DHIS2 object it came from. Without either
-# flag the run shows the names with their rewrites and asks; with no terminal to ask on it
-# names both flags and rewrites nothing, so a script is never left hanging on a question.
+# is never written to and no UID is rewritten, so the ConceptMaps still take every published
+# concept back to the DHIS2 object it came from. The same posture hyphenates a DHIS2 code
+# carrying a space - see generate_spaced_codes.sh. Without either flag the run shows the
+# names and codes with their rewrites and asks; with no terminal to ask on it names both
+# flags and rewrites nothing, so a script is never left hanging on a question.
 # `[generate] hostile_names = "substitute"` is the same answer, standing, for one project.
 d2w fhir generate --substitute-hostile-names questionnaires
 
