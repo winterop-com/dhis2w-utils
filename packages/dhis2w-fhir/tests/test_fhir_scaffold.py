@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dhis2w_fhir.config import FhirProjectConfig, NoFhirProjectError
+from dhis2w_fhir.config import FhirProjectConfig, HostileNamePosture, NoFhirProjectError
 from dhis2w_fhir.resources.pages import SITE_PAGE_FILENAMES
 from dhis2w_fhir.scaffold import build_scaffold_files
 from dhis2w_fhir.scaffold.refresh import preserves_every_line, read_project_scaffold_state, refresh_project
@@ -139,10 +139,20 @@ def test_fhir_toml_round_trips() -> None:
 
 
 def test_fhir_toml_example_round_trips_to_defaults() -> None:
-    """fhir.toml.example documents every option, and its stated values ARE the defaults."""
+    """fhir.toml.example documents every option, and its stated values ARE the defaults.
+
+    The starter fhir.toml matches those defaults except for its one deliberate choice:
+    it states `hostile_names = "substitute"`, because almost every real instance carries
+    a name with '<' and the standing answer belongs in the file, not in a prompt.
+    """
     raw = tomllib.loads(_by_path()["fhir.toml.example"])
     config = FhirProjectConfig.model_validate(raw)
-    assert config == FhirProjectConfig.model_validate(tomllib.loads(_by_path()["fhir.toml"]))
+    assert config.generate.hostile_names is None
+    starter = FhirProjectConfig.model_validate(tomllib.loads(_by_path()["fhir.toml"]))
+    assert starter.generate.hostile_names == HostileNamePosture.SUBSTITUTE
+    starter_dump = starter.model_dump()
+    starter_dump["generate"]["hostile_names"] = None
+    assert config.model_dump() == starter_dump
     assert config.generate.naming.source == "id"
     assert config.generate.naming.option_set == "OS"
     assert config.generate.naming.organisation_unit == "OU"
@@ -683,7 +693,7 @@ def test_refresh_never_writes_fhir_toml(tmp_path: Path) -> None:
     """fhir.toml is the user's configuration: a refresh neither compares it nor writes it."""
     _write_project(tmp_path)
     config_path = tmp_path / "fhir.toml"
-    body = config_path.read_text(encoding="utf-8") + '\n[generate]\nconcept_code_source = "code"\n'
+    body = config_path.read_text(encoding="utf-8") + "\n[serve]\nport = 8390\n"
     config_path.write_text(body, encoding="utf-8")
 
     report = refresh_project(tmp_path)

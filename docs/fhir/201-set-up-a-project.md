@@ -74,8 +74,11 @@ The flags that matter, all optional:
 
 Every seeding flag is offline: values are written to `fhir.toml` as given and
 never checked against an instance. `init` writes a minimal `fhir.toml` holding
-just the IG identity, plus `fhir.toml.example` documenting every option with
-its default - copy what you need across; anything you omit keeps its default.
+the IG identity and one standing choice - `hostile_names = "substitute"`, since
+almost every instance names an age band with a `<` the IG publisher cannot
+survive ([what it does](301-generation.md#hostile_names)) - plus
+`fhir.toml.example` documenting every option with its default; copy what you
+need across, and anything you omit keeps its default.
 
 !!! tip "Eight worked starting points"
     [`examples/fhir/igs/`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/README.md)
