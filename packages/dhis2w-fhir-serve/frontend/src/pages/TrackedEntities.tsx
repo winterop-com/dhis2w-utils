@@ -1,11 +1,20 @@
-import { useCallback } from 'react'
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ChevronRight, Loader2 } from 'lucide-react'
 
 import { PageHeader, PageState } from '@/components/PageState'
 import { PatientSearchControl } from '@/components/PatientSearch'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
 import {
     Table,
     TableBody,
@@ -14,33 +23,44 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
+import { useAttributeFilterOptions } from '@/hooks/use-attribute-filter-options'
 import { useRegisterListing } from '@/hooks/use-register-listing'
 import { usePatientSearch } from '@/hooks/use-patient-search'
+import { useRegisterRefusal } from '@/hooks/use-register-refusal'
 import { useRegisterSearchKey } from '@/hooks/use-register-search-support'
 import { useTrackedEntityNaming, type TrackedEntityNaming } from '@/hooks/use-tracked-entity-naming'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import {
+    narrowedRegisterAttribute,
     narrowedRegisterType,
     patientLeadValue,
+    registerAttributeToken,
     registerAttributeValue,
     registerTableColumns,
     registerTypeChoices,
+    REGISTER_ATTRIBUTE_PARAMETER,
     REGISTER_QUERY_PARAMETER,
     REGISTER_TYPE_PARAMETER,
     trackedEntityAttributeLabel,
     trackedEntityTypeLabel,
     type PatientProjection,
+    type RegisterAttributeFilter,
     type RegisterTableColumns,
     type RegisterTypeChoice,
 } from '@/lib/patients'
 import {
     PEOPLE_RESOURCE_TYPE,
     REGISTER_TITLE,
+    registerFilterAttributes,
     registerSectionTitle,
+    registerSubject,
     registerTitle,
+    registerWords,
     servesPeopleOnly,
     trackedEntitySettings,
+    type FilterAttribute,
     type Register,
+    type RegisterWords,
     type TrackedEntitiesSettings,
 } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
@@ -79,11 +99,11 @@ function RegisterHeader({ title, people }: { title: string; people: boolean }) {
  * THE ONLY PAGE IN THIS APP THAT READS A DATABASE. Every other screen answers from the guide this
  * server loaded at startup; this one asks the DHIS2 instance at request time, which is why it exists
  * exactly when the server says it does. `/uiconfig` states three things and all three are honoured
- * here: a run that reaches no instance offers this page at all, a deployment that publishes the
- * search but declines the listing gets the box without the table - because paging through an
- * instance's whole set of tracked entities is a heavier thing to offer than looking one up by the
- * value on a card - and the resources the register serves decide what this page is called and how
- * many sections it has.
+ * here: a run that reaches no instance answers this address with the reason it serves no register,
+ * a deployment that publishes the search but declines the listing gets the box without the table -
+ * because paging through an instance's whole set of tracked entities is a heavier thing to offer
+ * than looking one up by the value on a card - and the resources the register serves decide what
+ * this page is called and how many sections it has.
  *
  * IT IS NAMED FOR WHAT IT HOLDS, in the instance's own words. A project tracking one type gets a page
  * headed by DHIS2's name for that type - Person, Specimen batch - with no section heading above the
@@ -120,11 +140,56 @@ export function TrackedEntities() {
     }
 
     const settings = trackedEntitySettings(config)
-    // A hash somebody kept from a run that reached a DHIS2 instance, opened against one that does
-    // not: there is no page to render and no refusal worth showing, so it goes where the navigation
-    // would have sent them.
-    if (!settings.enabled) return <Navigate to="/" replace />
+    // A hash somebody kept from a run that reached a DHIS2 instance, or a link they were sent,
+    // opened against one that does not. The address is answered rather than silently exchanged for
+    // another: a reader who asked for the register is told it is not served here, in this server's
+    // own words - see `RegisterNotServed`.
+    if (!settings.enabled) {
+        return <RegisterNotServed resource={settings.registers[0]?.resource ?? PEOPLE_RESOURCE_TYPE} />
+    }
     return <RegisterBrowser settings={settings} />
+}
+
+/** What this page is for, on a run that does not serve it - which is a fact about the page, not this run. */
+export const REGISTER_NOT_SERVED_DESCRIPTION =
+    'What a DHIS2 instance tracks is read here, on a run that reaches one.'
+
+/** What a screen says while it is still asking this server why it does not serve the register. */
+export const REGISTER_REFUSAL_PENDING = 'Asking this server why it does not answer for the register'
+
+/** What it says when the server refused without a word of its own to pass on. */
+export const REGISTER_NOT_SERVED =
+    'This server does not answer for the tracked entities of a DHIS2 instance, so there is nothing to read at this address.'
+
+/**
+ * One card saying the register is not served here, carrying the server's own reason for it.
+ *
+ * NOTHING IS INVENTED AND NOTHING IS HIDDEN. There are two ways to be a process that answers no
+ * register - a compiled implementation guide with no instance behind it, and a project that turns
+ * the register off - and they need different things done about them. Both are already written down
+ * by the server, in the OperationOutcome it refuses the register's own route with, so the card asks
+ * for that route and shows what came back. A run that refuses without a sentence gets the plain
+ * fact, which is all this UI knows on its own.
+ */
+export function RegisterNotServed({ resource }: { resource: string }) {
+    const refusal = useRegisterRefusal(resource)
+
+    return (
+        <>
+            {/* Headed as the register, because that is the address that was opened - and described
+                as what the page is for, which is a fact about the page rather than about this run.
+                Why this run does not serve it is the card's, in the server's own words. */}
+            <PageHeader title={REGISTER_TITLE} description={REGISTER_NOT_SERVED_DESCRIPTION} />
+            <Card>
+                <CardContent className="text-muted-foreground flex items-center gap-2 py-8 text-sm">
+                    {refusal.loading && <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />}
+                    <p data-testid="register-not-served">
+                        {refusal.loading ? REGISTER_REFUSAL_PENDING : (refusal.stated ?? REGISTER_NOT_SERVED)}
+                    </p>
+                </CardContent>
+            </Card>
+        </>
+    )
 }
 
 /**
@@ -178,6 +243,13 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
         },
         [setParameter],
     )
+    const askedAttribute = parameters.get(REGISTER_ATTRIBUTE_PARAMETER)
+    const setAskedAttribute = useCallback(
+        (next: string | null) => {
+            setParameter(REGISTER_ATTRIBUTE_PARAMETER, next)
+        },
+        [setParameter],
+    )
     // The box drives every section, so `usePatientSearch` runs once per resource inside the sections
     // themselves; this instance is the one whose state the box renders - errors and the empty answer
     // included - and it asks about the first resource, which is the one a person-only run has.
@@ -187,12 +259,14 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
     // Which parameter a server answers is a property of how that server was started rather than of one
     // resource type, so a run declaring `_content` declares it for every register it publishes.
     const searchKey = useRegisterSearchKey(leadResource)
+    const leadFilter = leadRegister === null ? null : narrowedRegisterAttribute(leadRegister, askedAttribute)
     const search = usePatientSearch(
         typed,
         true,
         leadResource,
         searchKey,
         leadRegister === null ? null : narrowedRegisterType(leadRegister, askedType),
+        leadFilter === null ? null : registerAttributeToken(leadFilter),
     )
     const people = servesPeopleOnly(settings)
 
@@ -219,6 +293,8 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
                         typed={typed}
                         askedType={askedType}
                         onType={setAskedType}
+                        askedAttribute={askedAttribute}
+                        onAttribute={setAskedAttribute}
                         naming={naming}
                         headed={settings.registers.length > 1}
                     />
@@ -226,48 +302,6 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
             </div>
         </>
     )
-}
-
-/**
- * The words one section uses for the things it holds.
- *
- * A section over people says "person" and "people", because that is what a clerk reading it is
- * looking at; a section over anything else says "tracked entity", because this project refuses to
- * guess what a DHIS2 type other than a person actually is and DHIS2's own word for the whole family
- * is the honest fallback. The resource decides it, section by section, so a mixed register still
- * calls its people people.
- */
-interface RegisterWords {
-    /** What a row is, in the sentence "Open the ___ identified by X". */
-    one: string
-    /** The empty state, whole. */
-    empty: string
-    /** What the listing-declined card says, whole. */
-    declined: string
-    /** The two paging sentences, given how many are shown and the total the instance stated. */
-    paging: (shown: number, total: number | null) => string
-}
-
-const PEOPLE_WORDS: RegisterWords = {
-    one: 'person',
-    empty: 'This DHIS2 instance holds nobody.',
-    declined:
-        'This server answers a search for one person and does not list everyone this DHIS2 instance holds.',
-    paging: (shown, total) =>
-        total === null
-            ? `Showing ${String(shown)} people. This DHIS2 instance stated no total.`
-            : `Showing ${String(shown)} of ${String(total)} people this DHIS2 instance holds as tracked entities.`,
-}
-
-const TRACKED_ENTITY_WORDS: RegisterWords = {
-    one: 'tracked entity',
-    empty: 'This DHIS2 instance holds none of these.',
-    declined:
-        'This server answers a search for one tracked entity and does not list every one this DHIS2 instance holds.',
-    paging: (shown, total) =>
-        total === null
-            ? `Showing ${String(shown)} tracked entities. This DHIS2 instance stated no total.`
-            : `Showing ${String(shown)} of ${String(total)} tracked entities this DHIS2 instance holds.`,
 }
 
 /**
@@ -282,6 +316,11 @@ const TRACKED_ENTITY_WORDS: RegisterWords = {
  * THE NARROWING IS THE SCOPE, NOT A SIEVE OVER THE PAGE. A chosen type rides the listing and the
  * search alike as `_tag`, because both answer about the same register; the walk starts again at the
  * server's first page, because a page token names a place inside a scope.
+ *
+ * SO DOES THE ATTRIBUTE VALUE FILTER, which is the second thing this register can be asked about:
+ * `d2-attribute={uid}|{value}` is which of these hold a given value, where the box above is who is
+ * named by one. `/uiconfig` states the attributes it answers over, and both controls ride the
+ * address so a narrowed register is a link that can be sent.
  */
 function RegisterSection({
     register,
@@ -289,6 +328,8 @@ function RegisterSection({
     typed,
     askedType,
     onType,
+    askedAttribute,
+    onAttribute,
     naming,
     headed,
 }: {
@@ -298,6 +339,9 @@ function RegisterSection({
     /** The type the address names, whichever register it belongs to - validated against this one. */
     askedType: string | null
     onType: (trackedEntityTypeUid: string | null) => void
+    /** The `{uid}|{value}` the address names, validated against the attributes this register filters by. */
+    askedAttribute: string | null
+    onAttribute: (token: string | null) => void
     naming: TrackedEntityNaming
     /** True when this page shows more than one resource, so a section needs to say which it is. */
     headed: boolean
@@ -305,17 +349,21 @@ function RegisterSection({
     const navigate = useNavigate()
     const searchKey = useRegisterSearchKey(register.resource)
     const selectedType = narrowedRegisterType(register, askedType)
-    const search = usePatientSearch(typed, true, register.resource, searchKey, selectedType)
+    const selectedFilter = narrowedRegisterAttribute(register, askedAttribute)
+    const filterToken = selectedFilter === null ? null : registerAttributeToken(selectedFilter)
+    const search = usePatientSearch(typed, true, register.resource, searchKey, selectedType, filterToken)
     const { page, loading, error, asOf, showNext, showPrevious } = useRegisterListing(
         register.resource,
         listing,
         selectedType,
+        filterToken,
     )
-    const words = register.resource === PEOPLE_RESOURCE_TYPE ? PEOPLE_WORDS : TRACKED_ENTITY_WORDS
-    // A search is on screen from the moment one is worth sending, which is the same rule that
-    // decides whether a request goes at all - so a table never shows a page of everything under a
-    // box that is already answering about somebody.
-    const searching = search.query !== null
+    const words = registerWords(registerSubject(register, selectedType))
+    // A search is on screen from the moment one is worth sending AND it answered, which is not the
+    // same rule that decides whether a request goes out: a search this server refused states its
+    // refusal in the box, and taking the page of everything away underneath it would leave the
+    // reader with a blank screen and nothing to go back to but clearing what they typed.
+    const searching = search.query !== null && search.error === null
     const choices = registerTypeChoices(register)
     // Which type each row is, stated per row only while several are on screen. One register narrowed
     // to one type has that type on every row, and the chip above the table already says which.
@@ -359,6 +407,13 @@ function RegisterSection({
             {headed && <h2 className="text-base font-semibold">{registerSectionTitle(register)}</h2>}
             {choices.length > 1 && (
                 <TrackedEntityTypeFilter choices={choices} selected={selectedType} onSelect={onType} />
+            )}
+            {registerFilterAttributes(register).length > 0 && (
+                <AttributeValueFilter
+                    attributes={registerFilterAttributes(register)}
+                    selected={selectedFilter}
+                    onSelect={onAttribute}
+                />
             )}
             {searching ? (
                 <>
@@ -451,6 +506,182 @@ function TrackedEntityTypeFilter({
         </div>
     )
 }
+
+/** The two controls of the attribute value filter, each named where it can be found by its name. */
+const ATTRIBUTE_FILTER_CONTROL_ID = 'register-attribute-filter-attribute'
+const ATTRIBUTE_FILTER_VALUE_ID = 'register-attribute-filter-value'
+
+/** What the filter says about the only kind of match this server answers with. */
+export const ATTRIBUTE_FILTER_EXACT_NOTE =
+    'The value is matched exactly, ignoring case. Part of a value is not a match.'
+
+/**
+ * Which of these hold a given attribute value - the register's second question, beside the first.
+ *
+ * THE BOX ABOVE ASKS WHO SOMEBODY IS; THIS ASKS WHICH OF THEM HOLD A VALUE. `identifier` searches the
+ * values that name a subject, and `d2-attribute={uid}|{value}` narrows the register to whoever holds
+ * one attribute's value - so a clerk with a card in their hand uses the first, and somebody asking
+ * which of an instance's focus areas sit in one locality uses this.
+ *
+ * IT MATCHES EXACTLY AND IT SAYS SO. `/metadata` documents equality and nothing else - no prefix, no
+ * substring, no range - so a person typing half a district's name gets nobody, and a control that let
+ * them find that out by themselves would be a control that lies by omission.
+ *
+ * THE ATTRIBUTES ARE THE SERVER'S OWN DECLARATION. `/uiconfig` states which attributes this register
+ * answers `d2-attribute` over, what DHIS2 says their values are, and the vocabulary a coded one draws
+ * from - so a value bound to a DHIS2 option set is chosen from the published ValueSet rather than
+ * typed, and everything else is typed into a control shaped by the value type.
+ */
+function AttributeValueFilter({
+    attributes,
+    selected,
+    onSelect,
+}: {
+    attributes: FilterAttribute[]
+    /** What the address is filtering by, or null when it filters by nothing. */
+    selected: RegisterAttributeFilter | null
+    onSelect: (token: string | null) => void
+}) {
+    const asked = selected === null ? null : registerAttributeToken(selected)
+    const [attributeUid, setAttributeUid] = useState(selected?.attributeUid ?? '')
+    const [value, setValue] = useState(selected?.value ?? '')
+    // THE ADDRESS WINS WHEN IT CHANGES. A link somebody was sent, and Back, both change what is
+    // being filtered for without anything having been typed here, so the controls adopt it. What
+    // they do NOT adopt is the address going empty - clearing a value keeps the attribute chosen,
+    // because the question somebody was asking has not changed, only the value they asked for.
+    const [adopted, setAdopted] = useState(asked)
+    if (asked !== adopted) {
+        setAdopted(asked)
+        setAttributeUid(selected?.attributeUid ?? attributeUid)
+        setValue(selected?.value ?? '')
+    }
+    const chosen = attributes.find((attribute) => attribute.uid === attributeUid) ?? null
+    const vocabulary = useAttributeFilterOptions(chosen?.value_set ?? null)
+
+    const apply = (next: string): void => {
+        setValue(next)
+        onSelect(attributeUid === '' || next === '' ? null : registerAttributeToken({ attributeUid, value: next }))
+    }
+
+    return (
+        <form
+            className="grid gap-1"
+            data-testid="register-attribute-filter"
+            onSubmit={(event) => {
+                event.preventDefault()
+                apply(value)
+            }}
+        >
+            <div className="flex flex-wrap items-end gap-2">
+                <div className="grid gap-1">
+                    <Label htmlFor={ATTRIBUTE_FILTER_CONTROL_ID} className="text-muted-foreground text-sm">
+                        Tracked entity attribute
+                    </Label>
+                    <Select
+                        value={attributeUid}
+                        onValueChange={(next) => {
+                            // A different attribute is a different question, so the value goes with
+                            // it rather than being carried over to be matched against another
+                            // attribute's values.
+                            setAttributeUid(next)
+                            setValue('')
+                            if (selected !== null) onSelect(null)
+                        }}
+                    >
+                        <SelectTrigger id={ATTRIBUTE_FILTER_CONTROL_ID} className="w-64">
+                            <SelectValue placeholder="Not chosen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {attributes.map((attribute) => (
+                                <SelectItem key={attribute.uid} value={attribute.uid}>
+                                    <span className={cn(attribute.name === null && 'font-mono text-xs')}>
+                                        {attribute.name ?? attribute.uid}
+                                    </span>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="grid gap-1">
+                    <Label htmlFor={ATTRIBUTE_FILTER_VALUE_ID} className="text-muted-foreground text-sm">
+                        Value
+                    </Label>
+                    {chosen === null || chosen.value_set === null || chosen.value_set === '' ? (
+                        <Input
+                            id={ATTRIBUTE_FILTER_VALUE_ID}
+                            className="w-56"
+                            type={valueInputType(chosen?.value_type ?? null)}
+                            disabled={chosen === null}
+                            value={value}
+                            onChange={(event) => setValue(event.target.value)}
+                        />
+                    ) : (
+                        <Select value={value} disabled={vocabulary.loading} onValueChange={apply}>
+                            <SelectTrigger id={ATTRIBUTE_FILTER_VALUE_ID} className="w-56">
+                                <SelectValue placeholder={vocabulary.loading ? 'Reading the values' : 'Not chosen'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {vocabulary.options.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                </div>
+                <Button type="submit" variant="outline" size="sm" disabled={chosen === null || value === ''}>
+                    Filter
+                </Button>
+                {selected !== null && (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setValue('')
+                            onSelect(null)
+                        }}
+                    >
+                        Clear
+                    </Button>
+                )}
+            </div>
+            <p className="text-muted-foreground text-xs">{ATTRIBUTE_FILTER_EXACT_NOTE}</p>
+            {vocabulary.error !== null && (
+                <p className="text-destructive text-xs">
+                    The values this attribute is drawn from could not be read: {vocabulary.error}
+                </p>
+            )}
+        </form>
+    )
+}
+
+/**
+ * The control one attribute's values are typed into, shaped by what DHIS2 says those values are.
+ *
+ * A date picker for a date and a number field for a number, because those are the two value types a
+ * browser can genuinely help with. Everything else is a plain box: DHIS2's remaining types are text
+ * with a convention on top, and a control that enforced the convention would refuse values the
+ * instance holds.
+ */
+function valueInputType(valueType: string | null): string {
+    if (valueType === 'DATE') return 'date'
+    if (valueType === 'EMAIL') return 'email'
+    if (valueType === null) return 'text'
+    return NUMERIC_VALUE_TYPES.has(valueType) ? 'number' : 'text'
+}
+
+/** The DHIS2 value types whose values are numbers, as `D2TEA_CS` spells them. */
+const NUMERIC_VALUE_TYPES = new Set([
+    'NUMBER',
+    'UNIT_INTERVAL',
+    'PERCENTAGE',
+    'INTEGER',
+    'INTEGER_POSITIVE',
+    'INTEGER_NEGATIVE',
+    'INTEGER_ZERO_OR_POSITIVE',
+])
 
 /**
  * Tracked entities, in the one shape this page shows one in - a page of them, or what a search found.

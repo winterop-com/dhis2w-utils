@@ -248,6 +248,51 @@ async function serveALiveInstance(page: Page): Promise<void> {
     await page.route('**/tracked-entities/*/enrollments', (route) =>
         route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ENROLLMENTS) }),
     )
+    await page.route('**/tracked-entities/*/events**', (route) =>
+        route.fulfill({ status: 200, contentType: FHIR_JSON, body: JSON.stringify(EVENTS) }),
+    )
+}
+
+/** When the one event this person's record holds happened, as DHIS2 dates it. */
+const EVENT_AT = '2026-02-14T00:00:00Z'
+
+/**
+ * What one person has been through, as `GET /tracked-entities/{uid}/events` answers it.
+ *
+ * One QuestionnaireResponse per DHIS2 event, carrying the stage form it answered and the date -
+ * which are the two facts the record renders. The answers ride along in the real shape and are not
+ * shown: a listing of visits is not a stack of filled-in forms.
+ */
+const EVENTS = {
+    resourceType: 'Bundle',
+    type: 'searchset',
+    total: 1,
+    link: [{ relation: 'self', url: `/tracked-entities/${PERSON_UID}/events?_count=20` }],
+    entry: [
+        {
+            resource: {
+                resourceType: 'QuestionnaireResponse',
+                id: 'EvtAncVis01',
+                questionnaire: `${CANONICAL}/Questionnaire/${STAGE_FORM}`,
+                status: 'completed',
+                authored: EVENT_AT,
+                subject: {
+                    type: 'Patient',
+                    identifier: { system: `${IDENTIFIER_BASE}/id/tracked-entity`, value: PERSON_UID },
+                },
+                extension: [
+                    {
+                        url: `${CANONICAL}/StructureDefinition/d2-tracker-enrollment`,
+                        valueIdentifier: {
+                            system: `${IDENTIFIER_BASE}/id/tracker-enrollment`,
+                            value: COMPLETED_ENROLLMENT,
+                        },
+                    },
+                ],
+            },
+            search: { mode: 'match' },
+        },
+    ],
 }
 
 /**
@@ -684,11 +729,23 @@ test.describe('the people this DHIS2 instance holds', () => {
         // has that word on the page for reasons that are nothing to do with the register.
         await expect(page.locator(REGISTER_NAV_LINK)).toHaveCount(0)
 
-        // And a link somebody kept from a run that did offer it goes back to the overview rather
-        // than to a page whose every read would be refused.
+        // And a link somebody kept from a run that did offer it is answered where it was opened,
+        // in this server's own words - the refusal `GET /Patient` really states on this process,
+        // read off the real server rather than composed in the browser.
         await page.goto('/#/tracked-entities')
-        await expect(page).toHaveURL(/#\/$/)
-        await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible()
+        await expect(page).toHaveURL(/#\/tracked-entities$/)
+        await expect(page.getByTestId('register-not-served')).toContainText(
+            'this process serves a compiled implementation guide',
+        )
+    })
+
+    test('answers a link to one record with the same refusal, rather than an empty page', async ({ page }) => {
+        await serveRegisterSettings(page, { enabled: false, listing: false })
+
+        await page.goto(`/#/tracked-entities/Patient/${PERSON_UID}`)
+        await expect(page.getByTestId('register-not-served')).toContainText(
+            'start it with `--live` to search the register',
+        )
     })
 
     test('is not in the navigation on a run that states it offers no people', async ({ page }) => {
@@ -798,6 +855,13 @@ test.describe('the people this DHIS2 instance holds', () => {
         await expect(
             page.getByText('DHIS2 accepts new events into a completed enrollment without complaint'),
         ).toBeVisible()
+
+        // And what they have been through, which is the third thing this server answers about one
+        // subject: one row per DHIS2 event, named by the published title of the stage form it
+        // answered - the uid the response carries is nowhere near a name on its own.
+        const events = page.getByTestId('tracked-entity-events')
+        await expect(events).toContainText('ANC follow-up - ANC visit')
+        await expect(events).toContainText('EvtAncVis01')
 
         // The way into the instance: Capture's enrollment dashboard, which is the screen that opens
         // a person - and it needs the program and the enrollment, which this listing states.
@@ -1025,10 +1089,12 @@ test.describe('the people this DHIS2 instance holds', () => {
         // Two types ride this run, so the listing is headed "Tracked entities" and the link back
         // to it says the same thing. Never "patients": this row is a specimen batch.
         await expect(page.getByRole('link', { name: 'Tracked entities' }).last()).toBeVisible()
+        // Worded from the tracked entity type the badge above already states - the instance's own
+        // name for it - rather than from the resource in the route, which is the projection.
         await expect(
-            page.getByText('which are what name this tracked entity', { exact: false }),
+            page.getByText('which are what name this Specimen batch', { exact: false }),
         ).toBeVisible()
-        // The page never calls it a person, which is the whole reason the copy is resource-aware.
+        // The page never calls it a person, which is the whole reason the copy follows the type.
         await expect(page.getByText('name this person', { exact: false })).toHaveCount(0)
     })
 })

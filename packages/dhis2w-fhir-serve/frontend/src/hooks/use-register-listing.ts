@@ -29,6 +29,8 @@ interface ListingPlace {
     resource: string
     /** The tracked entity type the walk is inside, or null when it is over every type the register serves. */
     trackedEntityTypeUid: string | null
+    /** The `{uid}|{value}` the walk is filtered by, or null when it is over every value the register holds. */
+    attributeFilter: string | null
     token: string | null
 }
 
@@ -46,6 +48,11 @@ interface ListingPlace {
  * starts the walk again at the server's first page: a token names a place inside a scope, and it
  * means nothing in the scope next door.
  *
+ * WHY THE ATTRIBUTE VALUE FILTER IS A THIRD. `d2-attribute={uid}|{value}` narrows the register to
+ * whoever holds that value exactly, and it is a scope for the same reason the tag is: a token names a
+ * place inside a scope, so changing what is being filtered for starts the walk at the server's first
+ * page rather than at a page of a set nobody is looking at any more.
+ *
  * WHY THE TOKEN IS THE WHOLE STATE. There is no page number here and no offset arithmetic: the
  * server states where the neighbours are and this hook holds the one token it was handed. Moving is
  * therefore always a move the server said was available, and a token is never constructed - which
@@ -62,8 +69,14 @@ export function useRegisterListing(
     resource: string,
     enabled: boolean,
     trackedEntityTypeUid: string | null = null,
+    attributeFilter: string | null = null,
 ): RegisterListingState {
-    const [place, setPlace] = useState<ListingPlace>({ resource, trackedEntityTypeUid, token: null })
+    const [place, setPlace] = useState<ListingPlace>({
+        resource,
+        trackedEntityTypeUid,
+        attributeFilter,
+        token: null,
+    })
     const [page, setPage] = useState<PatientPage>(NO_PATIENT_PAGE)
     const [loading, setLoading] = useState(enabled)
     const [error, setError] = useState<string | null>(null)
@@ -72,9 +85,11 @@ export function useRegisterListing(
     // read rather than written, so a new narrowing asks for its first page in the same render
     // instead of asking for the old scope's token first and correcting itself.
     const at: ListingPlace =
-        place.resource === resource && place.trackedEntityTypeUid === trackedEntityTypeUid
+        place.resource === resource &&
+        place.trackedEntityTypeUid === trackedEntityTypeUid &&
+        place.attributeFilter === attributeFilter
             ? place
-            : { resource, trackedEntityTypeUid, token: null }
+            : { resource, trackedEntityTypeUid, attributeFilter, token: null }
     const token = at.token
 
     useEffect(() => {
@@ -88,7 +103,7 @@ export function useRegisterListing(
         let cancelled = false
         setLoading(true)
         setError(null)
-        listRegister(resource, token, PATIENT_PAGE_SIZE, trackedEntityTypeUid)
+        listRegister(resource, token, PATIENT_PAGE_SIZE, trackedEntityTypeUid, attributeFilter)
             .then((answer) => {
                 if (cancelled) return
                 setPage(patientPage(answer.bundle))
@@ -105,17 +120,17 @@ export function useRegisterListing(
         return () => {
             cancelled = true
         }
-    }, [enabled, resource, token, trackedEntityTypeUid])
+    }, [attributeFilter, enabled, resource, token, trackedEntityTypeUid])
 
     const showNext = useCallback(() => {
         if (page.next === null) return
-        setPlace({ resource, trackedEntityTypeUid, token: page.next })
-    }, [page.next, resource, trackedEntityTypeUid])
+        setPlace({ resource, trackedEntityTypeUid, attributeFilter, token: page.next })
+    }, [attributeFilter, page.next, resource, trackedEntityTypeUid])
 
     const showPrevious = useCallback(() => {
         if (page.previous === null) return
-        setPlace({ resource, trackedEntityTypeUid, token: page.previous })
-    }, [page.previous, resource, trackedEntityTypeUid])
+        setPlace({ resource, trackedEntityTypeUid, attributeFilter, token: page.previous })
+    }, [attributeFilter, page.previous, resource, trackedEntityTypeUid])
 
     return { page, loading, error, asOf, showNext, showPrevious }
 }

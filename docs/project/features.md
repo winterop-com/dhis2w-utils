@@ -2539,7 +2539,10 @@ control per R4 item type.
 - **A lazily expanded tree over `partOf`**: children rendered only when a node
   is open, a filter that keeps the ancestors of every match so a matched
   facility is never shown detached, and a unit whose parent the project never
-  published shown as a flagged root rather than dropped.
+  published shown as a flagged root rather than dropped. The count in the panel
+  header says what the filter matches while one is on - *12 of 1,332
+  organisation units match* - because it sits above the tree and is read as a
+  count of what is on screen.
 - **Three resizable panes on wide viewports**, in a GIS tool's shape: the tree,
   the map as the always-visible centre canvas, and a collapsible inspector rail
   that opens on selection. Narrower viewports fall back to two columns with the
@@ -2548,16 +2551,22 @@ control per R4 item type.
   `D2OrganisationUnitLevel` coding rather than a count of `partOf` hops, its
   DHIS2 uid and organisation-unit-code identifiers, and its parent chain as
   clickable breadcrumbs.
-- **Which forms may be captured there**, shelved by DHIS2 kind as **Data sets**
-  and **Programs** (a tracker program's registration and stages grouped under
-  the program), with the assignment join in DHIS2's own vocabulary: the forms
+- **Which forms may be captured there**, shelved by DHIS2 kind as **Data sets**,
+  **Programs** (a tracker program's registration and stages grouped under the
+  program), and **Tracked entity registration** - the `tracked-entity` kind,
+  which registers whatever a project tracks and is a Focus area as often as a
+  Person - with the assignment join in DHIS2's own vocabulary: the forms
   assigned to this organisation unit badged and the ones assigned everywhere
   listed plainly, because a form carrying no `D2OrganisationUnitAssignment` is
   assigned everywhere and badging all of them at every unit would bury the one
-  that is not.
+  that is not. What a missing badge means is said once under the shelves, and
+  every row keeps its link out beside its own title rather than at the far edge
+  of the rail.
 - **Captured here**: the spool receipts naming the unit - lifecycle counts, the
-  five most recent linked to their pages, a descendant rollup, and the stated
-  scope, captures this server received rather than what DHIS2 holds.
+  five most recent linked to their pages, a descendant rollup worded on what is
+  above it (*3 captures below this organisation unit* where nothing names the
+  unit itself, *3 more below* where something does), and the stated scope,
+  captures this server received rather than what DHIS2 holds.
 - **Children**: the subtree as a mini tree that re-roots on selection.
 - **A MapLibre GL JS map** renders every decoded boundary and point over raster
   basemap tiles.
