@@ -5,7 +5,7 @@ import { ChevronRight } from 'lucide-react'
 import { KindBadge } from '@/components/KindBadge'
 import { PageHeader, PageState } from '@/components/PageState'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
-import { catalogueForms, isEventProgram, type ProgramGroup } from '@/lib/catalogue'
+import { TRACKED_ENTITY_FORM_SHELF, catalogueForms, isEventProgram, type ProgramGroup } from '@/lib/catalogue'
 import { formIdentifier, formTitle, formTypeOf, questionCount, type Questionnaire } from '@/lib/fhir'
 import { repeatsPerEnrollment } from '@/lib/questionnaire'
 import { cn } from '@/lib/utils'
@@ -46,7 +46,7 @@ export function Forms() {
         <>
             <PageHeader
                 title="Forms"
-                description="Questionnaires this server publishes, grouped by the DHIS2 capture model each came from: data sets, event programs, tracker programs, and people."
+                description="Questionnaires this server publishes, grouped by the DHIS2 capture model each came from: data sets, event programs, tracker programs, and tracked entity registration."
             />
             <PageState
                 loading={loading}
@@ -117,7 +117,7 @@ export function Forms() {
                     {catalog.people.length > 0 && (
                         <FormSection
                             testid="forms-people"
-                            heading="People"
+                            heading={TRACKED_ENTITY_FORM_SHELF}
                             count={catalog.people.length}
                             explainer="Registers a person in this DHIS2 instance without enrolling them in a program."
                         >

@@ -91,7 +91,7 @@ function TerminologyResource({
     resourceType: (typeof TERMINOLOGY_TYPES)[number]
     resourceId: string
 }) {
-    const { resource, loading, error } = useFhirResource<CodeSystem | ValueSet | ConceptMap>(
+    const { resource, loading, error, status } = useFhirResource<CodeSystem | ValueSet | ConceptMap>(
         resourceType,
         resourceId,
     )
@@ -119,6 +119,7 @@ function TerminologyResource({
             <PageState
                 loading={loading}
                 error={error}
+                status={status}
                 empty={resource === null && error === null && !loading}
                 emptyMessage={`This server holds no ${resourceType} under that id.`}
             >

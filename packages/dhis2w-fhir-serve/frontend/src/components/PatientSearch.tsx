@@ -62,8 +62,10 @@ const CONTENT_WORDS: SearchWords = {
 }
 
 /** What the box says, for the search this server declared. */
-export function searchWords(key: RegisterSearchKey): SearchWords {
-    return key === REGISTER_CONTENT_SEARCH_PARAMETER ? CONTENT_WORDS : IDENTIFIER_WORDS
+export function searchWords(key: RegisterSearchKey, peopleOnly = true): SearchWords {
+    const words = key === REGISTER_CONTENT_SEARCH_PARAMETER ? CONTENT_WORDS : IDENTIFIER_WORDS
+    if (peopleOnly) return words
+    return { ...words, empty: words.empty.replace('holds nobody', 'holds no record') }
 }
 
 /**
@@ -92,6 +94,7 @@ export function PatientSearchControl({
     onTyped,
     state,
     searchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
+    peopleOnly = true,
     children,
 }: {
     /** The id the label and the input find each other by; each mount needs its own. */
@@ -102,10 +105,12 @@ export function PatientSearchControl({
     state: PatientSearchState
     /** The parameter this server declared for the register, which is what the words follow. */
     searchKey?: RegisterSearchKey
+    /** False when the register carries types beside people, so the empty sentence names no person. */
+    peopleOnly?: boolean
     /** The matches, rendered however the surface around this box renders a person. */
     children?: ReactNode
 }) {
-    const words = searchWords(searchKey)
+    const words = searchWords(searchKey, peopleOnly)
     return (
         <div className="grid gap-2">
             <Label htmlFor={controlId}>{words.label}</Label>

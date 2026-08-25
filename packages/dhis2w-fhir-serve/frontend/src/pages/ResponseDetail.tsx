@@ -167,6 +167,7 @@ export function ResponseDetail() {
             <PageState
                 loading={stored.loading}
                 error={stored.error}
+                status={stored.status}
                 empty={stored.resource === null && stored.error === null && !stored.loading}
                 emptyMessage="This server holds no receipt under that id."
             >
