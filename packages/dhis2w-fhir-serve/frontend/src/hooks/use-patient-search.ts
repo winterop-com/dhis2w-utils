@@ -53,6 +53,11 @@ const NOTHING_ASKED: PatientSearchState = {
  * everything it answers - a search that ignored the narrowing would answer about people the table
  * beneath it is not showing. The tag rides the request as `_tag`; see `lib/api.searchRegister`.
  *
+ * SO DOES THE ATTRIBUTE VALUE FILTER. A register filtered to whoever holds one attribute value is
+ * filtered for everything it answers, so `d2-attribute={uid}|{value}` rides the search beside the
+ * tag - a search answering about somebody the table beneath it is filtering out would disagree with
+ * the page it is on.
+ *
  * WHY DEBOUNCED AND NOT PER KEYSTROKE. Every call here is a request this server makes of the DHIS2
  * instance - one read plus one filtered search per unique attribute the guide publishes - which
  * makes it the only read in this app whose cost lands on somebody else's database. An eleven
@@ -75,6 +80,7 @@ export function usePatientSearch(
     resource: string = PEOPLE_RESOURCE_TYPE,
     key: RegisterSearchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
     trackedEntityTypeUid: string | null = null,
+    attributeFilter: string | null = null,
 ): PatientSearchState {
     const [state, setState] = useState<PatientSearchState>(NOTHING_ASKED)
     const query = enabled ? patientSearchQuery(typed) : null
@@ -87,7 +93,7 @@ export function usePatientSearch(
         let cancelled = false
         setState((current) => ({ ...current, searching: true }))
         const timer = setTimeout(() => {
-            searchRegister(resource, query, key, trackedEntityTypeUid)
+            searchRegister(resource, query, key, trackedEntityTypeUid, attributeFilter)
                 .then((answer) => {
                     if (cancelled) return
                     setState({
@@ -113,7 +119,7 @@ export function usePatientSearch(
             cancelled = true
             clearTimeout(timer)
         }
-    }, [key, query, resource, trackedEntityTypeUid])
+    }, [attributeFilter, key, query, resource, trackedEntityTypeUid])
 
     return state
 }

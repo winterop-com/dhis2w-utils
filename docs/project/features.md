@@ -1471,7 +1471,12 @@ bound to loopback by default that loads the project once at startup.
   DHIS2 instance through one client opened during startup and held open for the
   life of the process: no read of the store touches DHIS2 again, but the
   connection stays because `Patient` and the enrollment listing answer from the
-  instance per request.
+  instance per request. A live build screens DHIS2's names and codes through the
+  project's own `[generate] hostile_names`, at the same choke point a generate
+  run screens at, so one project means one set of names whichever way it is
+  served. Under `substitute` a form is served under the name the compiled guide
+  publishes it under; under `refuse` and unset a live serve is byte-true and
+  aborts over no name, because serving is not generating.
 - **Four CodeSystem/ValueSet pairs the foundation FSH declares** are included -
   form type, period type, organisation-unit levels, and the organisation-unit
   code list `[generate.organisation_units] terminology` turns on - each built
@@ -1532,9 +1537,11 @@ bound to loopback by default that loads the project once at startup.
   `/metadata`, which stays open in every posture so a client can read the posture
   it has to meet; the capture UI's own files stay open too.
 - **`GET /whoami` names the caller, and carries the check under every scope.**
-  Mounted only where a posture is configured - under `auth = "none"` the path is
-  absent and answers 404, because a server that checks nobody has nobody to name.
-  It answers `{posture, username, name}`: the DHIS2 username under `dhis2`, the
+  A caller is named only where a posture is configured: under `auth = "none"` the
+  address answers 404 saying this server authenticates nobody, so it names nobody,
+  and that `/whoami` answers a caller only where `[serve] auth` states a posture -
+  the address's own refusal rather than the read catch-all calling `whoami` a
+  resource type nobody asked for. It answers `{posture, username, name}`: the DHIS2 username under `dhis2`, the
   `[serve.jwt] username_claim` claim under `jwt`, and no username at all under
   `token`, which names a deployment rather than a person. Wrong credentials meet
   the same 401 and the same OperationOutcome every other refusal carries. It is
@@ -1725,6 +1732,15 @@ reads that table.
   would miss exactly the people identifier search exists to find.
 - **A bare value** tries every key at once and folds the results deduplicated
   by tracked entity UID.
+- **A key whose value type cannot hold the value is left out, and a key DHIS2
+  refuses matched nobody.** The keys are the instance's own - every attribute
+  DHIS2 declares unique or searchable - so a clinic keeping a zip code
+  searchable puts a NUMBER key in the same fan-out as the names, and
+  `filter=<zip>:eq:Sebhat` draws a 400 rather than an empty page. The declared
+  value type settles it before the request goes out, and the 400 the rest can
+  still draw is that key matching nobody: the keys that could hold the value
+  answer, and one of the instance's keys never stands between a person and
+  their own record.
 - **One FHIR resource type is one register serving the UNION of its tracked
   entity types.** Two DHIS2 types mapped to `Device` - a cold-chain fridge and a
   delivery vehicle - are one `GET /Device` answering about both: no collision,
@@ -2309,9 +2325,12 @@ control per R4 item type.
   own program rules exist to prevent, and forwarded it becomes a real data
   value.
 - **Bounds are honoured client-side** on both the numeric and the `valueDate`
-  spellings of `minValue` / `maxValue`: the control wears the range, the hint
-  states it, and Submit refuses an answer outside it with the fact and nothing
-  else (*137 is above the highest value this form accepts, 100*).
+  spellings of `minValue` / `maxValue`: the hint states the range, and Submit
+  refuses an answer outside it with the fact and nothing else (*137 is above
+  100, the highest value this form accepts*). A box holding text the question
+  cannot record at all is refused the same way (*5.5 is not a whole number,
+  which is what this question records*), so an answer that would convert to
+  nothing is stated rather than dropped from the submission.
 - **A repeating `D2ProgramRule` declaration** is read off the form and stated
   where the form describes itself - *This DHIS2 instance enforces N more rules
   when the submission is imported* - each rule's name and DHIS2 description
@@ -2320,8 +2339,19 @@ control per R4 item type.
   can name but never evaluate.
 - **Every question is labelled with the DHIS2 uid it is known by**, and a
   **Fill with test data** button reads `$generate` and pours its answers into
-  the form to be edited rather than posting them blind; the drawn seed is
-  shown, so the same answers can be asked for again.
+  the form to be edited rather than posting them blind. The seed rides beside
+  the button as a box: a fill writes the drawn seed into it, the next fill asks
+  for whatever it holds, and the seed rides the submission - so the receipt
+  states which draw it came from and a reported bug can be drawn again.
+- **Only the Submit button submits a capture.** Enter in a text box - the
+  reporting period, a question, the person search - is swallowed, because HTML's
+  implicit submission would post a form somebody was still filling in and a
+  receipt is permanent.
+- **A coded question offering more than fifty options is searched, not
+  scrolled**: the same popover, cap, and *N more match - narrow the search to
+  reach them* footer the organisation-unit picker uses, matching a concept's
+  display and its code alike. A real terminology binding runs to five figures,
+  and a select over one mounts every row before it opens.
 - **A submission keeps the `$generate` skeleton's envelope** - the `D2Period`,
   the tracked entity and enrollment - rather than deriving DHIS2 period
   arithmetic client-side, so what the page posts carries capture-valid context
@@ -2435,6 +2465,11 @@ control per R4 item type.
   is in (received, forwarded, rejected), tinted by shared theme tokens,
   filterable by state or form, the state chips carrying the counts so the queue
   depth is on screen.
+- **A Quarantined section above the table** states what `/spool` counted as
+  `malformed` and names each file with the reason the facade could not read it
+  as a receipt. It is not a fifth state and has no row in the table - a
+  quarantined file has no form, no answers, and no id to open - so it is said
+  where a reader meets it rather than left to the API.
 - **`/responses/{id}`** is a deep-linkable receipt page opened by clicking a
   row: the answers joined to the questions the served Questionnaire asks, in
   that form's order, each with its enclosing groups (what turns a disaggregated
@@ -2468,7 +2503,10 @@ control per R4 item type.
 
 - **A listing per type** over all three terminology types, carrying each
   artifact's id, the DHIS2 identifiers it was generated from, and its concept
-  or mapping count, with one filter narrowing all three at once.
+  or mapping count, with one filter narrowing all three at once. The filter
+  lives in the address bar, so a narrowed listing is an address and the browser's
+  Back button brings the search back; a row whose own codes matched opens the
+  artifact already showing them.
 - **`/terminology/{resourceType}/{id}`** shows, for a CodeSystem, every concept
   with one column per declared property, headed by the property code as words
   with the declared description as the header's tooltip - the DHIS2 option code
@@ -2484,9 +2522,15 @@ control per R4 item type.
 - **A ValueSet expands through the CodeSystems it composes**, because the
   facade publishes no `$expand`; a ConceptMap shows every mapping one table per
   group with its target code and equivalence.
-- **Both detail pages carry a `$translate` tester** that asks the running
-  server about a typed or clicked concept code, optionally against one target
-  system, and renders the `Parameters` as match rows or the not-found message.
+- **A `$translate` tester on the pages that have an answer to give** - a
+  CodeSystem some served ConceptMap names as a group source, and every
+  ConceptMap - asking the running server about a typed or clicked concept code
+  and rendering the `Parameters` as match rows or the not-found message. A
+  system no map translates from carries neither the tester nor the per-row
+  button, because every press would be a refusal. A row of a map's group asks in
+  that group's direction; a concept row asks every map. The button is pinned to
+  the right edge of the table's own scroll box, and an ask brings the panel to
+  the reader.
 
 #### Organisation units
 
@@ -2495,7 +2539,10 @@ control per R4 item type.
 - **A lazily expanded tree over `partOf`**: children rendered only when a node
   is open, a filter that keeps the ancestors of every match so a matched
   facility is never shown detached, and a unit whose parent the project never
-  published shown as a flagged root rather than dropped.
+  published shown as a flagged root rather than dropped. The count in the panel
+  header says what the filter matches while one is on - *12 of 1,332
+  organisation units match* - because it sits above the tree and is read as a
+  count of what is on screen.
 - **Three resizable panes on wide viewports**, in a GIS tool's shape: the tree,
   the map as the always-visible centre canvas, and a collapsible inspector rail
   that opens on selection. Narrower viewports fall back to two columns with the
@@ -2504,16 +2551,22 @@ control per R4 item type.
   `D2OrganisationUnitLevel` coding rather than a count of `partOf` hops, its
   DHIS2 uid and organisation-unit-code identifiers, and its parent chain as
   clickable breadcrumbs.
-- **Which forms may be captured there**, shelved by DHIS2 kind as **Data sets**
-  and **Programs** (a tracker program's registration and stages grouped under
-  the program), with the assignment join in DHIS2's own vocabulary: the forms
+- **Which forms may be captured there**, shelved by DHIS2 kind as **Data sets**,
+  **Programs** (a tracker program's registration and stages grouped under the
+  program), and **Tracked entity registration** - the `tracked-entity` kind,
+  which registers whatever a project tracks and is a Focus area as often as a
+  Person - with the assignment join in DHIS2's own vocabulary: the forms
   assigned to this organisation unit badged and the ones assigned everywhere
   listed plainly, because a form carrying no `D2OrganisationUnitAssignment` is
   assigned everywhere and badging all of them at every unit would bury the one
-  that is not.
+  that is not. What a missing badge means is said once under the shelves, and
+  every row keeps its link out beside its own title rather than at the far edge
+  of the rail.
 - **Captured here**: the spool receipts naming the unit - lifecycle counts, the
-  five most recent linked to their pages, a descendant rollup, and the stated
-  scope, captures this server received rather than what DHIS2 holds.
+  five most recent linked to their pages, a descendant rollup worded on what is
+  above it (*3 captures below this organisation unit* where nothing names the
+  unit itself, *3 more below* where something does), and the stated scope,
+  captures this server received rather than what DHIS2 holds.
 - **Children**: the subtree as a mini tree that re-roots on selection.
 - **A MapLibre GL JS map** renders every decoded boundary and point over raster
   basemap tiles.
@@ -2582,7 +2635,25 @@ an identifier search and a paged listing on one page, with a detail route at
 - **Gated into the navigation** by the `tracked_entities` block `GET /uiconfig`
   carries beside the `capture` flag - `enabled`, `listing`, and `registers` -
   all three effective rather than as written, so a compiled run reports false
-  and no page is drawn.
+  and no entry is drawn.
+- **A link to a register this run does not serve is answered where it was
+  opened.** The address states one card carrying the server's own refusal, read
+  off `GET /{resource}` - *this process serves a compiled implementation guide;
+  start it with `--live` to search the register*, or the `fhir.toml` setting a
+  project turned the register off with - which are two different things to do
+  about it. Neither the listing nor the record silently exchanges the address
+  for the overview.
+- **The words follow the tracked entity types, never the FHIR resource.** A
+  guide maps whatever a project tracks onto whatever resource fits, and
+  `Patient` is the fallback for a subject FHIR has no resource for - so a
+  register served as `Patient` routinely carries a *Focus area* and a *Malaria
+  Entity* beside the people. A register is worded as people only where every
+  type riding it is a Person; narrowed to one type it speaks that type's own
+  name (*Open the Focus area identified by MGC694579*, *Showing 11 of 11 Focus
+  area tracked entities this DHIS2 instance holds*, never a pluralised DHIS2
+  name); anything else says *tracked entity*. The listing, the section, and the
+  record read one rule, so the record of a Focus area cannot call it a person
+  under a badge that says otherwise.
 - **`registers`** is the published `D2TET_CM` read for a screen: one entry per
   served FHIR resource with the tracked entity types riding it under the
   instance's own names, so the navigation entry and the page heading alike read
@@ -2600,14 +2671,28 @@ an identifier search and a paged listing on one page, with a detail route at
   A register serving one type shows no chips. Choosing one starts the paging
   again at the server's first page, because a page token names a place inside a
   scope.
+- **A register can be asked which of its entities hold an attribute value.**
+  `/uiconfig` states the attributes `d2-attribute` answers over per register,
+  with the DHIS2 value type of each and the ValueSet a coded one draws from; the
+  control beside the type chips picks one of them and takes its value - a choice
+  over the published vocabulary where one is bound, a date or number or plain
+  box otherwise - and sends `d2-attribute={uid}|{value}` on the listing and the
+  identifier search alike. A coded value goes on the wire as the `dhis2-code`
+  the published concept carries, which is what the instance holds, rather than
+  as the concept code, which is an option uid. The pair rides the address as
+  `?attribute=<uid>|<value>` beside `?q=` and `?type=`, so a filtered register
+  is a sendable link, and the control says what the server documents: the match
+  is exact, ignoring case, and part of a value is not a match.
 - **Each row carries what the projection states and no name column**, since
   DHIS2 states no attribute that means one. Every attribute the people on the
   page hold a value of gets a column of its own, named once in the header with
   the value alone in the cell; the attributes the published `D2TEA_CS` marks
   `display-in-list` lead - DHIS2's own answer to which values let a clerk
-  recognise somebody - and the order is the projection's where an instance marks
-  none. Five columns is the cap, with the remainder stated under the table and
-  shown in full on the record.
+  recognise somebody - and inside each half the order is the dictionary's own,
+  with an attribute it never published sorted after every one it did, by uid.
+  That order is a property of the register rather than of the page, so the five
+  columns are the same five on every page of a walk; the cap's remainder is
+  stated under the table and shown in full on the record.
 - **A column nothing on the page fills is not drawn.** The identifier column
   goes when no row carries a value of a unique attribute, rather than standing
   full of dashes; the tracked entity type column is drawn only while several
@@ -2615,9 +2700,17 @@ an identifier search and a paged listing on one page, with a detail route at
   stated once per record.
 - **The detail keeps showing everything**, heads itself with the tracked entity
   uid only once, and drops the badge beneath when no unique value names the
-  record. A total is shown only where DHIS2 stated one. The detail view carries
-  the person's identifiers, attribute values, and enrollments, with a completed
-  one warned (BUGS.md 70).
+  record. A total is shown only where DHIS2 stated one. The record carries the
+  subject's identifiers, attribute values in the same proportional face the
+  listing sets them in, its enrollments with a completed one warned (BUGS.md
+  70), and what it has been through: `GET /tracked-entities/{uid}/events` read
+  as one row per DHIS2 event, named by the published title of the stage form it
+  answered, with the date DHIS2 dates it - and the register's own words for an
+  instance holding none.
+- **A search this server refused leaves the page of everything standing.** The
+  box states the refusal; the listing under it is not taken away, because a
+  reader whose search failed is left with a blank page and nothing to go back to
+  but clearing what they typed.
 - **Only the matched entries of a searchset become rows.** R4 lets a server
   append entries beside its results, and the projection backend appends an
   `outcome` one; an entry stating `search.mode` of anything but `match` is

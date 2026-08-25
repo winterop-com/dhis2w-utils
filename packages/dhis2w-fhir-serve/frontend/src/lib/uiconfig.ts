@@ -37,14 +37,46 @@ export interface RegisteredType {
 }
 
 /**
+ * One tracked entity attribute a register can be filtered by, as the published map declares it.
+ *
+ * Four facts, and a control cannot be drawn without any of them: `uid` is the left half of the
+ * `d2-attribute={uid}|{value}` the request carries, `name` is what the picker reads, `value_type` is
+ * what DHIS2 says the values are, and `value_set` is the vocabulary a coded attribute's values are
+ * drawn from - so an attribute bound to a DHIS2 option set is offered as a choice over the published
+ * ValueSet, and one bound to nothing is offered as a box to type in.
+ *
+ * `FilterableAttributeUiConfig` in `dhis2w_fhir_serve.routes.uiconfig` is the wire model, field for
+ * field. The values themselves never cross here: they are a CodeSystem this server already serves.
+ */
+export interface FilterAttribute {
+    uid: string
+    /** The name the published dictionary holds for the attribute, or null when it published none. */
+    name: string | null
+    /** The DHIS2 value type - `TEXT`, `NUMBER`, `DATE` - or null where the guide publishes none. */
+    value_type: string | null
+    /** The canonical of the ValueSet a coded attribute's values come from, or null when none binds it. */
+    value_set: string | null
+}
+
+/**
  * One FHIR resource type this run serves from the DHIS2 instance, and the types riding it.
  *
  * `resource` is a path as much as a name: the register is read at `/{resource}` and paged there, so
  * a screen showing a section needs no second lookup to know where its rows come from.
+ *
+ * `filter_attributes` is what `d2-attribute` answers about on this register, in the order the
+ * project's forms ask them. Absent is read as an empty list, which is a register offering no such
+ * filter at all - a control over attributes nobody declared would have nothing behind it.
  */
 export interface Register {
     resource: string
     types: RegisteredType[]
+    filter_attributes?: FilterAttribute[]
+}
+
+/** The attributes one register is filtered by, with silence read as none. */
+export function registerFilterAttributes(register: Register): FilterAttribute[] {
+    return register.filter_attributes ?? []
 }
 
 /**
@@ -165,15 +197,147 @@ export function capturesSubmissions(config: UiConfig): boolean {
 export const CAPTURE_OFF_NOTICE = 'This server does not accept submissions'
 
 /**
- * Whether every tracked entity type this run serves is published as a person.
+ * The name DHIS2 gives the tracked entity type whose subjects are people.
  *
- * The overwhelmingly common deployment, and the one whose prose speaks of people rather than of
- * tracked entities: a section over people says "person" and "people", because that is what a clerk
- * reading it is looking at. A run serving nothing counts as one of those, because the pages it would
- * word are pages it does not offer.
+ * THE TYPE DECIDES THE WORDS, NOT THE RESOURCE. A guide maps whatever a project tracks onto whatever
+ * FHIR resource fits best, and `Patient` is the fallback for a subject FHIR has no resource for - so
+ * a register served as `Patient` routinely carries a Focus area and a Malaria Entity beside the
+ * people, and reading person-hood off the resource string calls a village somebody. What does say a
+ * type is a person is the instance's own name for it, which is the same string every other screen
+ * already reads.
+ *
+ * A type named anything else is not thereby a not-person: an instance spelling it in another language
+ * simply gets DHIS2's own word for the family, or its own name for the type, which is the fallback
+ * this project takes everywhere it cannot know something.
+ */
+export const PERSON_TYPE_NAME = 'Person'
+
+/** Whether one published type name is the name DHIS2 gives a type whose subjects are people. */
+export function namesAPerson(typeName: string | null): boolean {
+    return typeName !== null && typeName.trim().toLowerCase() === PERSON_TYPE_NAME.toLowerCase()
+}
+
+/**
+ * Who or what a register's screens are speaking about - the one decision every word on them follows.
+ *
+ * Three answers, and each is the most specific thing that is true. `people` is the deployment whose
+ * prose says "person" and "people", because a clerk reading it is looking at people. `type` is one
+ * tracked entity type by the instance's own name - "Focus area", "Specimen batch" - which is what a
+ * register narrowed to one of them holds. `tracked-entities` is DHIS2's own word for the family, and
+ * is what a page over several types that are not all people can honestly say.
+ */
+export type RegisterSubject =
+    | { kind: 'people' }
+    | { kind: 'type'; name: string }
+    | { kind: 'tracked-entities' }
+
+/** What one published type name makes the subject: a person, that type by name, or a tracked entity. */
+export function subjectOfTypeName(typeName: string | null): RegisterSubject {
+    if (namesAPerson(typeName)) return { kind: 'people' }
+    return typeName === null || typeName === '' ? { kind: 'tracked-entities' } : { kind: 'type', name: typeName }
+}
+
+/**
+ * What a set of tracked entity types makes the subject.
+ *
+ * One type speaks as itself. Several speak as people only when every one of them is a person, and as
+ * tracked entities otherwise - two types have no single name, and picking one of them to word the
+ * page by would name half of what is on it. None at all is a page with nothing to speak about, which
+ * is read as the family rather than as people.
+ */
+export function subjectOfTypes(types: readonly RegisteredType[]): RegisterSubject {
+    if (types.length === 1) return subjectOfTypeName(types[0].name)
+    if (types.length > 1 && types.every((type) => namesAPerson(type.name))) return { kind: 'people' }
+    return { kind: 'tracked-entities' }
+}
+
+/** What one register section is speaking about: the type it is narrowed to, else every type it serves. */
+export function registerSubject(register: Register, narrowedTypeUid: string | null): RegisterSubject {
+    const types =
+        narrowedTypeUid === null || narrowedTypeUid === ''
+            ? register.types
+            : register.types.filter((type) => type.uid === narrowedTypeUid)
+    return subjectOfTypes(types)
+}
+
+/**
+ * Whether every tracked entity type this run serves is a person, over every register it serves.
+ *
+ * The one reading the page description follows, and it is a fact about the types rather than about
+ * the resources they are projected onto - see `PERSON_TYPE_NAME`.
  */
 export function servesPeopleOnly(settings: TrackedEntitiesSettings): boolean {
-    return settings.registers.every((register) => register.resource === PEOPLE_RESOURCE_TYPE)
+    return subjectOfTypes(settings.registers.flatMap((register) => register.types)).kind === 'people'
+}
+
+/**
+ * The words one register's screens use for the things it holds, from one subject.
+ *
+ * ONE PLACE, THREE SCREENS. The listing, the row a person opens, and the section's own paging line
+ * all speak about the same subject, so a table calling its rows people while the badge above them
+ * says Focus area is not a wording slip to be fixed twice - it is two readings where there should be
+ * one. Every sentence below is built from the subject and nothing else.
+ *
+ * THE TYPE'S NAME IS USED AS DHIS2 SPELLS IT, SINGULAR. Turning "Focus area" into "Focus areas" means
+ * guessing at English morphology on a string that may be in any language, so a sentence that counts
+ * puts the plural on DHIS2's own word - "11 Focus area tracked entities" - and never on the name.
+ */
+export interface RegisterWords {
+    /** What one row is, in the sentence "Open the ___ identified by X". */
+    one: string
+    /** The empty state, whole. */
+    empty: string
+    /** What a page opened on a uid this instance holds nothing under says, whole. */
+    missing: string
+    /** What the listing-declined card says, whole. */
+    declined: string
+    /** The two paging sentences, given how many are shown and the total the instance stated. */
+    paging: (shown: number, total: number | null) => string
+}
+
+const PEOPLE_WORDS: RegisterWords = {
+    one: 'person',
+    empty: 'This DHIS2 instance holds nobody.',
+    missing: 'This DHIS2 instance holds nobody under that tracked entity uid.',
+    declined:
+        'This server answers a search for one person and does not list everyone this DHIS2 instance holds.',
+    paging: (shown, total) =>
+        total === null
+            ? `Showing ${String(shown)} people. This DHIS2 instance stated no total.`
+            : `Showing ${String(shown)} of ${String(total)} people this DHIS2 instance holds as tracked entities.`,
+}
+
+const TRACKED_ENTITY_WORDS: RegisterWords = {
+    one: 'tracked entity',
+    empty: 'This DHIS2 instance holds none of these.',
+    missing: 'This DHIS2 instance holds nothing under that tracked entity uid.',
+    declined:
+        'This server answers a search for one tracked entity and does not list every one this DHIS2 instance holds.',
+    paging: (shown, total) =>
+        total === null
+            ? `Showing ${String(shown)} tracked entities. This DHIS2 instance stated no total.`
+            : `Showing ${String(shown)} of ${String(total)} tracked entities this DHIS2 instance holds.`,
+}
+
+/** The words for one named tracked entity type, built around the name the instance holds for it. */
+function typeWords(name: string): RegisterWords {
+    return {
+        one: name,
+        empty: `This DHIS2 instance holds no ${name}.`,
+        missing: `This DHIS2 instance holds no ${name} under that tracked entity uid.`,
+        declined: `This server answers a search for one ${name} and does not list every ${name} this DHIS2 instance holds.`,
+        paging: (shown, total) =>
+            total === null
+                ? `Showing ${String(shown)} ${name} tracked entities. This DHIS2 instance stated no total.`
+                : `Showing ${String(shown)} of ${String(total)} ${name} tracked entities this DHIS2 instance holds.`,
+    }
+}
+
+/** The words for one subject - the one rule the register's three screens each read. */
+export function registerWords(subject: RegisterSubject): RegisterWords {
+    if (subject.kind === 'people') return PEOPLE_WORDS
+    if (subject.kind === 'type') return typeWords(subject.name)
+    return TRACKED_ENTITY_WORDS
 }
 
 /** What the register is called when this run serves several types, or one this guide did not name. */

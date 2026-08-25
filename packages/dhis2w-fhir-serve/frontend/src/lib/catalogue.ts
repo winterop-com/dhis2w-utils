@@ -16,6 +16,25 @@
 
 import { formIdentifier, formsByTitle, formTitle, formTypeOf, programOf, type Questionnaire } from '@/lib/fhir'
 
+/**
+ * What the shelf of `tracked-entity` forms is called, and what it says these forms do.
+ *
+ * NOT "PEOPLE". DHIS2 tracks whatever a project tracks, and a `tracked-entity` form is generated
+ * from a tracked entity type - which is a Person on one instance and a Focus area or a Malaria
+ * Entity on the next, all three of them on the same instance in the ordinary case. A shelf headed
+ * People listing two things that register nobody names half of what is under it. DHIS2's own word
+ * for the family is the one that is true of all of them.
+ *
+ * The strings live here rather than in the screens because two screens shelve this same set - the
+ * Forms page as a section, the organisation-units rail as a shelf - and a name kept in one of them
+ * is a name the other can disagree with.
+ */
+export const TRACKED_ENTITY_FORM_SHELF = 'Tracked entity registration'
+
+/** What that shelf says the forms on it do, at one organisation unit. */
+export const TRACKED_ENTITY_FORM_SHELF_NOTE =
+    'Registers a tracked entity here without enrolling it in a program.'
+
 /** One program's published capture surface: registration and stages together, or its one event form. */
 export interface ProgramGroup {
     /** The DHIS2 program uid, or the form's own id when it names no program. */
@@ -34,12 +53,12 @@ export interface FormCatalog {
     /** Event and tracker programs as groups, in title order; `isEventProgram` tells the two apart. */
     programs: ProgramGroup[]
     /**
-     * Person-only registration forms, in title order - the `tracked-entity` kind.
+     * Registration forms of the `tracked-entity` kind, in title order - see `TRACKED_ENTITY_FORM_SHELF`.
      *
      * A shelf of its own, and honestly so: this form is generated from a DHIS2 tracked entity type
      * rather than from a data set or a program, and it names no program to group under. Folding it
      * into the tracker section would put a form that enrols nobody under a heading that says a
-     * person is enrolled once and then visited; folding it into data sets would say it is a
+     * subject is enrolled once and then visited; folding it into data sets would say it is a
      * periodic report. It is neither, so it is its own thing.
      */
     people: Questionnaire[]

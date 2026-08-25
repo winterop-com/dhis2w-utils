@@ -37,7 +37,7 @@ import {
     type Questionnaire,
 } from '@/lib/fhir'
 import { formatInstant } from '@/lib/spool'
-import type { Register } from '@/lib/uiconfig'
+import { registerFilterAttributes, type Register } from '@/lib/uiconfig'
 
 /**
  * The extension a submission marks its subject as a person the instance already holds with.
@@ -219,6 +219,71 @@ export const REGISTER_QUERY_PARAMETER = 'q'
  * `_tag`, which is R4's token search over the `meta.tag` a register resource states its type in.
  */
 export const REGISTER_TYPE_PARAMETER = 'type'
+
+/**
+ * Where the register page carries the attribute value it is filtered to, so a filter is a link.
+ *
+ * `#/tracked-entities?attribute=<uid>|<value>` beside `?q=<value>` and `?type=<uid>`, on the same
+ * argument: a filtered register is a state of that screen rather than a document of its own.
+ *
+ * ONE PARAMETER HOLDING BOTH HALVES, SPELLED AS THE WIRE SPELLS THEM. The request carries
+ * `d2-attribute={uid}|{value}` and the address carries the same pair, so nothing has to be joined or
+ * taken apart twice, and a link somebody was sent says plainly which attribute is being asked about.
+ * The split is on the FIRST pipe alone, because a DHIS2 attribute value may contain one.
+ */
+export const REGISTER_ATTRIBUTE_PARAMETER = 'attribute'
+
+/**
+ * The search parameter the register answers an attribute value filter on.
+ *
+ * `d2-attribute={trackedEntityAttributeUid}|{value}`, and it MATCHES THE VALUE EXACTLY - equality
+ * and nothing else, case ignored the way DHIS2's own `eq` ignores it. `/metadata` documents the
+ * grammar and the attributes it answers over; `/uiconfig` states the same attributes as values a
+ * control can be drawn from. It narrows the listing and the identifier search alike and rides the
+ * paging links, so a walk stays inside the filter it started in.
+ */
+export const REGISTER_ATTRIBUTE_SEARCH_PARAMETER = 'd2-attribute'
+
+/** One attribute value filter: which tracked entity attribute, and the value it must hold exactly. */
+export interface RegisterAttributeFilter {
+    attributeUid: string
+    value: string
+}
+
+/** One filter as the address and the request both spell it: `{uid}|{value}`. */
+export function registerAttributeToken(filter: RegisterAttributeFilter): string {
+    return `${filter.attributeUid}|${filter.value}`
+}
+
+/**
+ * One `{uid}|{value}` read back into its halves, or null when there is no filter in it.
+ *
+ * A token naming an attribute and no value is not a filter: it is the state a control is in while
+ * somebody has chosen what to ask about and not yet said what to ask for, and sending it would ask
+ * the instance for everyone holding the empty string.
+ */
+export function parseRegisterAttributeToken(token: string | null): RegisterAttributeFilter | null {
+    if (token === null) return null
+    const marker = token.indexOf('|')
+    if (marker <= 0) return null
+    const value = token.slice(marker + 1)
+    return value === '' ? null : { attributeUid: token.slice(0, marker), value }
+}
+
+/**
+ * The filter one register is narrowed to, or null when it is narrowed by no attribute value.
+ *
+ * Validated against the register's own declaration, on the rule `narrowedRegisterType` follows: an
+ * attribute this register does not filter by would narrow every listing and every search to nothing,
+ * and an empty page reads as "this DHIS2 instance holds none of these" rather than as "that address
+ * named an attribute this register cannot be asked about".
+ */
+export function narrowedRegisterAttribute(register: Register, asked: string | null): RegisterAttributeFilter | null {
+    const filter = parseRegisterAttributeToken(asked)
+    if (filter === null) return null
+    const declared = registerFilterAttributes(register)
+    return declared.some((attribute) => attribute.uid === filter.attributeUid) ? filter : null
+}
 
 /** The search parameter that asks for a page of a given size. */
 export const PATIENT_COUNT_PARAMETER = '_count'
@@ -520,12 +585,18 @@ export interface RegisterTableColumns {
  * DERIVED FROM THE ROWS ON THE PAGE, because that is the only set that is certainly true: DHIS2
  * requires no attribute of an entity, the projection carries exactly what the instance holds, and a
  * column for an attribute nobody on this page has a value of would be a column of dashes. A page
- * whose rows hold different attributes gets the union of them, in the order they first appear.
+ * whose rows hold different attributes gets the union of them.
  *
- * ORDERED BY DHIS2'S OWN PREFERENCE. An administrator marks the attributes that belong in a listing
- * of a type's entities - the two or three a clerk recognises somebody by - and those lead. An
- * instance that marks none states no preference, and the columns stay in the order the projection
- * carried them. The preference decides the order, and therefore which columns survive the cap.
+ * ORDERED BY DHIS2'S OWN PREFERENCE, THEN BY THE PUBLISHED DICTIONARY. An administrator marks the
+ * attributes that belong in a listing of a type's entities - the two or three a clerk recognises
+ * somebody by - and those lead. Inside each half the order is the one `D2TEA_CS` publishes its
+ * concepts in, and an attribute the dictionary never published sorts after every one it did, by uid.
+ *
+ * THE ORDER IS THE SAME ON EVERY PAGE OF A WALK, which is the whole point of taking it off the
+ * dictionary rather than off the rows. Order of first appearance reshuffles the header each time
+ * Next is pressed - a value under a column a reader has just learned belongs to a different
+ * attribute one page later - and where an instance marks more attributes for listing than a table
+ * can hold side by side, it also changes which columns survive the cap.
  */
 export function registerTableColumns(
     rows: readonly PatientProjection[],
@@ -536,19 +607,22 @@ export function registerTableColumns(
     const codes = new Map<string, string | null>()
     for (const row of rows) {
         for (const value of row.attributeValues) {
-            // First appearance fixes the order; a later row's code fills one the first row left
-            // uncoded, since DHIS2 requires no code on a tracked entity attribute.
+            // A later row's code fills one an earlier row left uncoded, since DHIS2 requires no code
+            // on a tracked entity attribute.
             const known = codes.get(value.attributeUid) ?? null
             if (!codes.has(value.attributeUid) || (known === null && value.attributeCode !== null)) {
                 codes.set(value.attributeUid, value.attributeCode)
             }
         }
     }
-    const appearance = [...codes.keys()]
-    const ordered = [
-        ...appearance.filter((uid) => preferred.has(uid)),
-        ...appearance.filter((uid) => !preferred.has(uid)),
-    ]
+    const published = publishedOrder(names)
+    const rank = (attributeUid: string): number => published.get(attributeUid) ?? published.size
+    const ordered = [...codes.keys()].toSorted((left, right) => {
+        const preference = Number(preferred.has(right)) - Number(preferred.has(left))
+        if (preference !== 0) return preference
+        const place = rank(left) - rank(right)
+        return place === 0 ? left.localeCompare(right) : place
+    })
     const shown = ordered.slice(0, Math.max(limit, 0))
     return {
         identifiers: rows.some((row) => row.identifiers.length > 0),
@@ -558,6 +632,19 @@ export function registerTableColumns(
         })),
         hidden: ordered.length - shown.length,
     }
+}
+
+/**
+ * Where each attribute sits in the published dictionary, by uid.
+ *
+ * The names map is built by walking `D2TEA_CS`'s concepts in order and a `Map` keeps insertion
+ * order, so the dictionary's own sequence is already in hand - which is the order the project's
+ * forms ask the attributes in, and the closest thing to an intended order anything here has.
+ */
+function publishedOrder(names: ReadonlyMap<string, string>): Map<string, number> {
+    const places = new Map<string, number>()
+    for (const attributeUid of names.keys()) places.set(attributeUid, places.size)
+    return places
 }
 
 /** What one entity holds of one attribute, or null when this instance holds no value of it for them. */

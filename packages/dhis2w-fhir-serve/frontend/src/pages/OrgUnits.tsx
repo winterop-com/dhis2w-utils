@@ -17,7 +17,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useSpool, type SpoolState } from '@/hooks/use-spool'
 import { useUiConfig } from '@/hooks/use-ui-config'
-import { catalogueForms, isEventProgram, type ProgramGroup } from '@/lib/catalogue'
+import {
+    catalogueForms,
+    isEventProgram,
+    TRACKED_ENTITY_FORM_SHELF,
+    TRACKED_ENTITY_FORM_SHELF_NOTE,
+    type ProgramGroup,
+} from '@/lib/catalogue'
 import { maintenanceTargetOf } from '@/lib/dhis2'
 import { formIdentifier, formTitle, type Location, type Questionnaire, type ResourceList } from '@/lib/fhir'
 import {
@@ -27,6 +33,7 @@ import {
     descendantIdsOf,
     hasGeometry,
     levelLabel,
+    matchesUnit,
     matchingUnitIds,
     readGeometry,
     reportableFormsAt,
@@ -174,6 +181,16 @@ export function OrgUnits() {
     // the parameter alone), so the first click a person makes still behaves like a first click.
     const selected = tree.byId.get(requested) ?? (requested === '' ? (tree.roots[0] ?? null) : null)
     const filtered = useMemo(() => matchingUnitIds(tree, query), [tree, query])
+    // How many units answer the filter, which is not `filtered.size`: that set carries the
+    // ancestors of every match as well, because a match is unreachable in a tree whose parents are
+    // not on screen. Null is no filter at all.
+    const matchCount = useMemo(() => {
+        const needle = query.trim().toLowerCase()
+        if (needle === '') return null
+        let matching = 0
+        for (const node of tree.byId.values()) if (matchesUnit(node, needle)) matching += 1
+        return matching
+    }, [tree, query])
     const catalog = useMemo(
         () =>
             selected === null ? null : catalogueUnitForms(reportableFormsAt(assignmentIndex, selected.id), formsById),
@@ -215,8 +232,13 @@ export function OrgUnits() {
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-base font-semibold">Hierarchy</h3>
                 {!registry.loading && registry.error === null && (
+                    // While a filter is on, the number says what matches it - the count sits above
+                    // the tree and is read as a count of what is on screen, and the registry's
+                    // total over a tree showing a dozen rows is a number about something else.
                     <span className="text-muted-foreground text-xs">
-                        {tree.total.toLocaleString('en')} organisation unit{tree.total === 1 ? '' : 's'}
+                        {matchCount === null
+                            ? `${tree.total.toLocaleString('en')} organisation unit${tree.total === 1 ? '' : 's'}`
+                            : `${matchCount.toLocaleString('en')} of ${tree.total.toLocaleString('en')} organisation units match`}
                     </span>
                 )}
             </div>
@@ -944,12 +966,17 @@ function catalogueUnitForms(reportable: ReportableForms, formsById: Map<string, 
     }
 }
 
+/** What a row without an assignment badge means, which is a fact about most of the rows on screen. */
+const ASSIGNED_EVERYWHERE_NOTE =
+    'A form with no assignment badge is assigned everywhere, so it reports at every organisation unit.'
+
 /**
- * The reportable forms as rail sections: Data sets, Programs, People, and whatever fits none.
+ * The reportable forms as rail sections: Data sets, Programs, tracked entity registration, and the rest.
  *
  * THE WORDING IS DHIS2'S. A form whose assignment List names this unit carries the badge; a form
  * carrying no artifact is assigned everywhere, so it appears plainly - which keeps the one or two
- * forms with a real assignment answer from drowning among the ones that are everywhere by default.
+ * forms with a real assignment answer from drowning among the ones that are everywhere by default -
+ * and what that plainness means is said once, under the shelves.
  */
 function FormCatalogSections({
     catalog,
@@ -1045,16 +1072,14 @@ function FormCatalogSections({
                         <section className="space-y-2">
                             <h4
                                 className="text-sm font-semibold"
-                                aria-label={`People, ${String(catalog.people.length)}`}
+                                aria-label={`${TRACKED_ENTITY_FORM_SHELF}, ${String(catalog.people.length)}`}
                             >
-                                People
+                                {TRACKED_ENTITY_FORM_SHELF}
                                 <span className="text-muted-foreground ml-2 font-mono text-xs">
                                     {catalog.people.length}
                                 </span>
                             </h4>
-                            <p className="text-muted-foreground text-xs">
-                                Registers a person here without enrolling them in a program.
-                            </p>
+                            <p className="text-muted-foreground text-xs">{TRACKED_ENTITY_FORM_SHELF_NOTE}</p>
                             <ul className="space-y-1">
                                 {catalog.people.map((questionnaire) => (
                                     <FormRow
@@ -1093,6 +1118,11 @@ function FormCatalogSections({
                             </ul>
                         </section>
                     )}
+
+                    {/* What the absence of a badge means, said once under the shelves rather than
+                        as a badge on every row it is true of - which is most of them, and would
+                        drown the one or two forms whose assignment really names this unit. */}
+                    <p className="text-muted-foreground text-xs">{ASSIGNED_EVERYWHERE_NOTE}</p>
 
                     {unresolvedAssignmentFormIds.length > 0 && (
                         <p className="text-muted-foreground text-xs">
@@ -1199,18 +1229,23 @@ function FormRow({
         // floor so flex pressure can never collapse it to a zero-width - the invisible-link twin
         // of the ellipsis bug this row already fixed once.
         <li className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-            <Link to={`/forms/${formId}`} className="interactive-link min-w-[8ch] flex-1 break-words">
-                {questionnaire === null ? formId : formTitle(questionnaire)}
-            </Link>
-            {target !== null && (
-                <MaintenanceLink
-                    baseUrl={dhis2BaseUrl}
-                    object={target.object}
-                    uid={target.uid}
-                    subject={questionnaire === null ? formId : formTitle(questionnaire)}
-                    className="self-center"
-                />
-            )}
+            {/* The link out belongs to the title, so it sits inside the element that grows: with
+                the growth on the link alone, a row carrying no trailing badge threw its icon to
+                the far edge of the rail, where it read as belonging to the badges above it. */}
+            <span className="flex min-w-[8ch] flex-1 flex-wrap items-baseline gap-x-2 break-words">
+                <Link to={`/forms/${formId}`} className="interactive-link break-words">
+                    {questionnaire === null ? formId : formTitle(questionnaire)}
+                </Link>
+                {target !== null && (
+                    <MaintenanceLink
+                        baseUrl={dhis2BaseUrl}
+                        object={target.object}
+                        uid={target.uid}
+                        subject={questionnaire === null ? formId : formTitle(questionnaire)}
+                        className="self-center"
+                    />
+                )}
+            </span>
             {/* The space before the note is the whole reason it is written out: the title and the
                 note are two facts, and adjacent elements with nothing between them are read as one
                 word - "Child Programmeregistration". */}
@@ -1322,9 +1357,7 @@ function CapturedHere({
                 </div>
             </PageState>
             {belowCount > 0 && (
-                <p className="text-muted-foreground text-xs">
-                    {belowCount} more below this organisation unit.
-                </p>
+                <p className="text-muted-foreground text-xs">{belowLine(here.length, belowCount)}</p>
             )}
             <p className="text-muted-foreground text-xs">
                 Captures this server received. What the DHIS2 instance holds at this organisation
@@ -1332,6 +1365,20 @@ function CapturedHere({
             </p>
         </section>
     )
+}
+
+/**
+ * What the receipts under this organisation unit are, said as what they are rather than as "more".
+ *
+ * "1 more below" over a section stating that nothing names this unit is one more than nothing, which
+ * is a sentence about a list that is not there. So the count above decides which sentence this is:
+ * with receipts here these are further ones, and with none here they are simply what is below.
+ */
+function belowLine(hereCount: number, belowCount: number): string {
+    const captures = `capture${belowCount === 1 ? '' : 's'}`
+    return hereCount === 0
+        ? `${String(belowCount)} ${captures} below this organisation unit.`
+        : `${String(belowCount)} more below this organisation unit.`
 }
 
 /** The form a receipt answered, named by its served title while the store still serves it. */

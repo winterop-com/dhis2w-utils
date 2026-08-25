@@ -5,8 +5,11 @@ import {
     DEFAULT_UI_CONFIG,
     REGISTER_TITLE,
     registerSectionTitle,
+    registerSubject,
     registerTitle,
+    registerWords,
     servesPeopleOnly,
+    subjectOfTypeName,
     trackedEntitySettings,
     type UiConfig,
 } from '@/lib/uiconfig'
@@ -73,20 +76,100 @@ describe('what a run offers about the instance it tracks', () => {
     })
 })
 
-describe('what the register is called', () => {
-    it('is people alone when every served resource is Patient', () => {
+/** A register served as Patient over three types, two of which register nobody - the live shape. */
+const MIXED_PATIENT_REGISTER = {
+    resource: 'Patient',
+    types: [
+        { uid: 'nEenWmSyUEp', name: 'Person' },
+        { uid: 'We9I19a3vO1', name: 'Focus area' },
+        { uid: 'Zy2SEgA61ys', name: 'Malaria Entity' },
+    ],
+}
+
+describe('who a register speaks about', () => {
+    it('is people when every type riding it is a person', () => {
         expect(servesPeopleOnly({ enabled: true, listing: true, registers: [PEOPLE_REGISTER] })).toBe(true)
     })
 
-    it('is not people alone the moment one served resource is something else', () => {
+    it('is not people the moment one type riding it registers something else', () => {
         expect(
             servesPeopleOnly({ enabled: true, listing: true, registers: [PEOPLE_REGISTER, SPECIMEN_REGISTER] }),
         ).toBe(false)
     })
 
-    it('counts a run serving no register as people alone, since it names no page either way', () => {
-        expect(servesPeopleOnly({ enabled: false, listing: false, registers: [] })).toBe(true)
+    it('is not people because the resource is Patient, which is a projection rather than a subject', () => {
+        // The live shape: a Focus area and a Malaria Entity served as Patient beside the people.
+        // Reading person-hood off the resource string put "one person is one tracked entity" over
+        // eleven villages.
+        expect(servesPeopleOnly({ enabled: true, listing: true, registers: [MIXED_PATIENT_REGISTER] })).toBe(
+            false,
+        )
     })
+
+    it('is nobody in particular on a run serving no register, which speaks about nothing', () => {
+        expect(servesPeopleOnly({ enabled: false, listing: false, registers: [] })).toBe(false)
+    })
+
+    it('speaks as one type by the name the instance holds when the register is narrowed to it', () => {
+        expect(registerSubject(MIXED_PATIENT_REGISTER, 'We9I19a3vO1')).toEqual({
+            kind: 'type',
+            name: 'Focus area',
+        })
+        expect(registerSubject(MIXED_PATIENT_REGISTER, 'nEenWmSyUEp')).toEqual({ kind: 'people' })
+    })
+
+    it('speaks as tracked entities over a union it cannot name with one name', () => {
+        expect(registerSubject(MIXED_PATIENT_REGISTER, null)).toEqual({ kind: 'tracked-entities' })
+    })
+
+    it('speaks as tracked entities over a type the guide published no name for', () => {
+        expect(registerSubject({ resource: 'Patient', types: [{ uid: 'TetFridge01', name: null }] }, null)).toEqual(
+            { kind: 'tracked-entities' },
+        )
+    })
+
+    it('narrows to nothing on a type this register is not served over', () => {
+        expect(registerSubject(PEOPLE_REGISTER, 'TetSample01')).toEqual({ kind: 'tracked-entities' })
+    })
+})
+
+describe('the words a register speaks with', () => {
+    it('says person and people where the subject is people', () => {
+        const words = registerWords({ kind: 'people' })
+        expect(words.one).toBe('person')
+        expect(words.empty).toBe('This DHIS2 instance holds nobody.')
+        expect(words.missing).toBe('This DHIS2 instance holds nobody under that tracked entity uid.')
+        expect(words.paging(1, 2)).toBe('Showing 1 of 2 people this DHIS2 instance holds as tracked entities.')
+    })
+
+    it('says the name the instance holds where the subject is one type, and never pluralises it', () => {
+        const words = registerWords({ kind: 'type', name: 'Focus area' })
+        expect(words.one).toBe('Focus area')
+        expect(words.empty).toBe('This DHIS2 instance holds no Focus area.')
+        expect(words.declined).toContain('a search for one Focus area')
+        // The plural falls on DHIS2's own word, because guessing at the morphology of a name that
+        // may be in any language is the thing this project does not do.
+        expect(words.paging(11, 11)).toBe(
+            'Showing 11 of 11 Focus area tracked entities this DHIS2 instance holds.',
+        )
+    })
+
+    it('says tracked entity where it cannot say anything more specific', () => {
+        const words = registerWords({ kind: 'tracked-entities' })
+        expect(words.one).toBe('tracked entity')
+        expect(words.paging(25, null)).toBe('Showing 25 tracked entities. This DHIS2 instance stated no total.')
+    })
+
+    it('words one type by its name whatever a screen holds it as', () => {
+        // The detail page resolves one type and words itself from that, so the listing narrowed to
+        // Focus area and the record of one Focus area say the same word.
+        expect(registerWords(subjectOfTypeName('Focus area')).one).toBe('Focus area')
+        expect(registerWords(subjectOfTypeName('Person')).one).toBe('person')
+        expect(registerWords(subjectOfTypeName(null)).one).toBe('tracked entity')
+    })
+})
+
+describe('what the register is called', () => {
 
     it('titles a section with the names the instance holds, never the FHIR resource type', () => {
         expect(registerSectionTitle(SPECIMEN_REGISTER)).toBe('Specimen batch')

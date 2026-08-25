@@ -8,11 +8,16 @@ import {
     enrollmentsInProgram,
     holdsTrackedEntityAttributeConcepts,
     isCompletedEnrollment,
+    narrowedRegisterAttribute,
     narrowedRegisterType,
+    parseRegisterAttributeToken,
+    registerAttributeToken,
     registerAttributeValue,
     registerTableColumns,
     registerTypeChoices,
     REGISTER_ATTRIBUTE_COLUMNS,
+    REGISTER_ATTRIBUTE_PARAMETER,
+    REGISTER_ATTRIBUTE_SEARCH_PARAMETER,
     REGISTER_TYPE_PARAMETER,
     subjectExistsExtensionUrl,
     marksAnExistingSubject,
@@ -575,6 +580,63 @@ describe('which type a register is narrowed to', () => {
 })
 
 /**
+ * The attribute value filter, from the address to the wire and back.
+ *
+ * ONE PAIR, SPELLED ONE WAY. `?attribute=<uid>|<value>` in the browser and
+ * `d2-attribute=<uid>|<value>` on the request are the same two halves in the same spelling, so a
+ * filtered register is a link that can be sent and the request it produces is the one the server
+ * documented. What is tested here is the round trip: what a control writes into the address is what
+ * comes back out of it, values with a pipe in them included.
+ */
+describe('the attribute value a register is filtered by', () => {
+    const cold: Register = {
+        resource: 'Device',
+        types: [{ uid: 'TetFridge01', name: 'Fridge' }],
+        filter_attributes: [
+            { uid: 'TeaModel0001', name: 'Model', value_type: 'TEXT', value_set: null },
+            { uid: 'TeaCapacity1', name: 'Capacity in litres', value_type: 'NUMBER', value_set: null },
+        ],
+    }
+
+    it('rides the address under its own parameter, and the wire under the one the server documents', () => {
+        expect(REGISTER_ATTRIBUTE_PARAMETER).toBe('attribute')
+        expect(REGISTER_ATTRIBUTE_SEARCH_PARAMETER).toBe('d2-attribute')
+    })
+
+    it('writes and reads back the pair it was given', () => {
+        const filter = { attributeUid: 'TeaModel0001', value: 'MK-4' }
+        const token = registerAttributeToken(filter)
+        expect(token).toBe('TeaModel0001|MK-4')
+        expect(narrowedRegisterAttribute(cold, token)).toEqual(filter)
+    })
+
+    it('keeps a pipe inside a value, because a DHIS2 value may hold one', () => {
+        const filter = { attributeUid: 'TeaModel0001', value: 'MK-4|B' }
+        expect(narrowedRegisterAttribute(cold, registerAttributeToken(filter))).toEqual(filter)
+    })
+
+    it('is nothing while an attribute is chosen and no value is stated', () => {
+        // A control somebody has half-filled, which is a different state from a filter matching the
+        // empty string - and the request must not go out for it.
+        expect(parseRegisterAttributeToken('TeaModel0001|')).toBeNull()
+        expect(parseRegisterAttributeToken('TeaModel0001')).toBeNull()
+        expect(parseRegisterAttributeToken(null)).toBeNull()
+    })
+
+    it('is nothing when the address names an attribute this register does not filter by', () => {
+        // The same rule the type narrowing follows: a filter the server does not answer over would
+        // empty the page, and an empty page reads as an instance holding nobody.
+        expect(narrowedRegisterAttribute(cold, 'TeaNationId|19850312-4471')).toBeNull()
+    })
+
+    it('is nothing on a register declaring no filter attributes at all', () => {
+        expect(
+            narrowedRegisterAttribute({ resource: 'Device', types: [] }, 'TeaModel0001|MK-4'),
+        ).toBeNull()
+    })
+})
+
+/**
  * What the register table draws for one page of rows.
  *
  * ONE COLUMN PER ATTRIBUTE, derived from what the rows hold rather than from a declaration: DHIS2
@@ -639,7 +701,7 @@ describe('the columns one page of register rows earns', () => {
         ])
     })
 
-    it('keeps the order the projection carried when the instance marks nothing', () => {
+    it('takes the order from the published dictionary, not from the order the rows carried', () => {
         const columns = registerTableColumns(
             [
                 row('TeiPerson001', [
@@ -650,7 +712,54 @@ describe('the columns one page of register rows earns', () => {
             names,
             new Set(),
         )
-        expect(columns.attributes.map((column) => column.attributeUid)).toEqual(['TeaHousehld', 'TeaBirthDat'])
+        expect(columns.attributes.map((column) => column.attributeUid)).toEqual(['TeaBirthDat', 'TeaHousehld'])
+    })
+
+    it('gives every page of a walk the same columns in the same order', () => {
+        // WHY THIS IS THE CLAIM. The columns are derived from the rows on the page, and no two
+        // pages of a real instance hold their attributes in the same order - so an order taken off
+        // first appearance reshuffles the header on every press of Next, and a reader compares a
+        // value under a header that has moved. Both pages below hold the same three attributes,
+        // written in different orders, and one row on the second holds them all.
+        const header = (rows: ReturnType<typeof row>[]): string[] =>
+            registerTableColumns(rows, names, new Set(['TeaBirthDat'])).attributes.map(
+                (column) => column.attributeUid,
+            )
+        const first = header([
+            row('TeiPerson001', [
+                { attributeUid: 'TeaSex00001', value: 'OpFemale001' },
+                { attributeUid: 'TeaBirthDat', value: '1985-03-12' },
+                { attributeUid: 'TeaHousehld', value: '4' },
+            ]),
+        ])
+        const second = header([
+            row('TeiPerson002', [
+                { attributeUid: 'TeaHousehld', value: '6' },
+                { attributeUid: 'TeaSex00001', value: 'OpMale00001' },
+            ]),
+            row('TeiPerson003', [{ attributeUid: 'TeaBirthDat', value: '1991-07-04' }]),
+        ])
+        expect(first).toEqual(['TeaBirthDat', 'TeaHousehld', 'TeaSex00001'])
+        expect(second).toEqual(first)
+    })
+
+    it('sorts an attribute the guide published nothing for after every one it did, by uid', () => {
+        const columns = registerTableColumns(
+            [
+                row('TeiPerson001', [
+                    { attributeUid: 'TeaZebra0001', value: 'z' },
+                    { attributeUid: 'TeaAlpha0001', value: 'a' },
+                    { attributeUid: 'TeaSex00001', value: 'OpFemale001' },
+                ]),
+            ],
+            names,
+            new Set(),
+        )
+        expect(columns.attributes.map((column) => column.attributeUid)).toEqual([
+            'TeaSex00001',
+            'TeaAlpha0001',
+            'TeaZebra0001',
+        ])
     })
 
     it('stops at the cap and says how many attributes it is not showing', () => {
