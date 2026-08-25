@@ -197,12 +197,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                 )}
             </ResourceFacts>
 
-            <div
-                className={
-                    translatable ? 'grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]' : undefined
-                }
-            >
-            <div className="min-w-0 space-y-3">
+            <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-base font-semibold">Concepts</h3>
                     <FilterBox
@@ -230,7 +225,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                     </p>
                 ) : (
                     <>
-                        <div className="show-scrollbars max-h-[65vh] overflow-auto rounded-lg border">
+                        <div className="show-scrollbars max-h-[55vh] overflow-auto rounded-lg border">
                             <Table>
                                 <TableHeader className="bg-background sticky top-0 z-10">
                                     <TableRow>
@@ -301,11 +296,8 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
             </div>
 
             {codeSystem.url !== undefined && translatable && (
-                <div className="xl:sticky xl:top-6">
-                    <TranslateTester system={codeSystem.url} asked={asked} targetSystems={[]} />
-                </div>
+                <TranslateTester system={codeSystem.url} asked={asked} targetSystems={[]} />
             )}
-            </div>
         </div>
     )
 }
@@ -430,7 +422,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                             : nothingMatchesMessage(query)
                     }
                 >
-                    <div className="show-scrollbars max-h-[65vh] overflow-auto rounded-lg border">
+                    <div className="show-scrollbars max-h-[55vh] overflow-auto rounded-lg border">
                         <Table>
                             <TableHeader className="bg-background sticky top-0 z-10">
                                 <TableRow>
@@ -491,8 +483,6 @@ function ConceptMapDetail({ conceptMap }: { conceptMap: ConceptMap }) {
                 )}
             </ResourceFacts>
 
-            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
-            <div className="min-w-0 space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-base font-semibold">Mappings</h3>
                 <FilterBox
@@ -519,18 +509,13 @@ function ConceptMapDetail({ conceptMap }: { conceptMap: ConceptMap }) {
                 />
             ))}
 
-            </div>
-
             {sourceSystem !== undefined && (
-                <div className="xl:sticky xl:top-6">
-                    <TranslateTester
-                        system={sourceSystem}
-                        asked={asked}
-                        targetSystems={targetSystems(conceptMap)}
-                    />
-                </div>
+                <TranslateTester
+                    system={sourceSystem}
+                    asked={asked}
+                    targetSystems={targetSystems(conceptMap)}
+                />
             )}
-            </div>
         </div>
     )
 }
@@ -572,7 +557,7 @@ function MappingGroup({
                 </p>
             ) : (
                 <>
-                    <div className="show-scrollbars max-h-[65vh] overflow-auto rounded-lg border">
+                    <div className="show-scrollbars max-h-[55vh] overflow-auto rounded-lg border">
                         <Table>
                             <TableHeader className="bg-background sticky top-0 z-10">
                                 <TableRow>
