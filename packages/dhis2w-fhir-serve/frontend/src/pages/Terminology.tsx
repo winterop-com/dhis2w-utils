@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo, type ReactNode } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronRight, Search } from 'lucide-react'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
@@ -17,12 +17,15 @@ import {
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet } from '@/lib/fhir'
 import {
+    TERMINOLOGY_FILTER_PARAMETER,
     composedSystems,
-    enumeratedConceptCount,
+    countedNoun,
     identifierBadges,
     mappingCount,
     matchesQuery,
     matchingCodeCount,
+    nothingMatchesMessage,
+    terminologyRowLink,
     type IdentifierBadge,
 } from '@/lib/terminology'
 
@@ -43,7 +46,16 @@ export function Terminology() {
     const codeSystems = useFhirSearch<CodeSystem>('CodeSystem')
     const valueSets = useFhirSearch<ValueSet>('ValueSet')
     const conceptMaps = useFhirSearch<ConceptMap>('ConceptMap')
-    const [query, setQuery] = useState('')
+    // The search lives in the address bar, the way every detail page keeps its own: a reader who
+    // opened a row and pressed Back gets the search they were reading back, and a listing narrowed
+    // to one vocabulary can be handed to someone as it stands.
+    const [searchParameters, setSearchParameters] = useSearchParams()
+    const query = searchParameters.get(TERMINOLOGY_FILTER_PARAMETER) ?? ''
+    const setQuery = (next: string) => {
+        setSearchParameters(next === '' ? {} : { [TERMINOLOGY_FILTER_PARAMETER]: next }, {
+            replace: true,
+        })
+    }
 
     const codeSystemRows = useMemo(
         () =>
@@ -61,7 +73,9 @@ export function Terminology() {
             valueSets.resources.map((resource) => ({
                 ...listingRow(resource.title, resource.name, resource.id, resource.url),
                 resource,
-                count: enumeratedConceptCount(resource) || composedSystems(resource).length,
+                // The column is headed "Systems", so it states systems: a set that enumerated its
+                // own concepts would otherwise print a concept count under that heading.
+                count: composedSystems(resource).length,
                 identifiers: identifierBadges(resource.identifier),
             })),
         [valueSets.resources],
@@ -109,7 +123,7 @@ export function Terminology() {
             <section className="space-y-8">
                 <TerminologySection
                     title="Code systems"
-                    caption="Concepts, one set per DHIS2 option set plus the data-dictionary systems."
+                    caption="Concepts, one set per DHIS2 vocabulary published here - the option sets, the categories, and the data dictionaries."
                     resourceType="CodeSystem"
                     countLabel="Concepts"
                     loading={codeSystems.loading}
@@ -133,7 +147,7 @@ export function Terminology() {
 
                 <TerminologySection
                     title="Concept maps"
-                    caption="Every concept written back to the DHIS2 option uid and code when captures are sent on."
+                    caption="Every concept written back to the DHIS2 option UID and code when captures are sent on."
                     resourceType="ConceptMap"
                     countLabel="Mappings"
                     loading={conceptMaps.loading}
@@ -228,7 +242,7 @@ function TerminologySection({
                 loading={loading}
                 error={error}
                 empty={matching.length === 0}
-                emptyMessage={filteredAway ? `Nothing here matches "${query}".` : emptyMessage}
+                emptyMessage={filteredAway ? nothingMatchesMessage(query) : emptyMessage}
             >
                 <div className="show-scrollbars overflow-x-auto rounded-lg border">
                     <Table>
@@ -242,42 +256,53 @@ function TerminologySection({
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {matching.map(({ row, codeMatches }) => (
-                                <TableRow
-                                    key={row.key}
-                                    className="interactive"
-                                    tabIndex={0}
-                                    aria-label={`Open ${row.title}`}
-                                    onClick={() => navigate(`/terminology/${resourceType}/${row.identifier}`)}
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter' || event.key === ' ') {
-                                            event.preventDefault()
-                                            navigate(`/terminology/${resourceType}/${row.identifier}`)
-                                        }
-                                    }}
-                                >
-                                    <TableCell>
-                                        <span className="interactive-title">{row.title}</span>
-                                        {codeMatches > 0 && (
-                                            <span className="text-muted-foreground ml-2 text-xs">
-                                                {codeMatches} matching {codeMatches === 1 ? 'code' : 'codes'}
-                                            </span>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-muted-foreground font-mono text-xs">
-                                        {row.identifier}
-                                    </TableCell>
-                                    <TableCell>
-                                        <IdentifierBadges badges={row.identifiers} />
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono text-xs">
-                                        {row.count ?? '-'}
-                                    </TableCell>
-                                    <TableCell className="w-8" aria-hidden>
-                                        <ChevronRight className="interactive-mark size-4" />
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            {matching.map(({ row, codeMatches }) => {
+                                // A search that found codes inside this artifact opens it showing
+                                // them: the reader asked about those codes, and typing the word a
+                                // second time on the page that holds them is the listing dropping
+                                // the question it just answered.
+                                const opens = terminologyRowLink(
+                                    resourceType,
+                                    row.identifier,
+                                    codeMatches > 0 ? query : '',
+                                )
+                                return (
+                                    <TableRow
+                                        key={row.key}
+                                        className="interactive"
+                                        tabIndex={0}
+                                        aria-label={`Open ${row.title}`}
+                                        onClick={() => navigate(opens)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault()
+                                                navigate(opens)
+                                            }
+                                        }}
+                                    >
+                                        <TableCell>
+                                            <span className="interactive-title">{row.title}</span>
+                                            {codeMatches > 0 && (
+                                                <span className="text-muted-foreground ml-2 text-xs">
+                                                    {countedNoun(codeMatches, 'matching code')}
+                                                </span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground font-mono text-xs">
+                                            {row.identifier}
+                                        </TableCell>
+                                        <TableCell>
+                                            <IdentifierBadges badges={row.identifiers} />
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono text-xs">
+                                            {row.count ?? '-'}
+                                        </TableCell>
+                                        <TableCell className="w-8" aria-hidden>
+                                            <ChevronRight className="interactive-mark size-4" />
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            })}
                         </TableBody>
                     </Table>
                 </div>

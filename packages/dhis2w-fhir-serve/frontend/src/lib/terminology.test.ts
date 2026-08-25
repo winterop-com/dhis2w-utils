@@ -10,20 +10,31 @@ import valueSetFixture from '@/lib/__fixtures__/valueset-d2-os-OsSymptom01-vs.js
 import type { CodeSystem, ConceptMap, Parameters, ValueSet } from '@/lib/fhir'
 import {
     CONCEPT_FILTER_PARAMETER,
+    NOTHING_ASKED,
+    TERMINOLOGY_FILTER_PARAMETER,
+    TRANSLATE_QUESTION,
+    askedConcept,
+    codeSystemContentLabel,
     composedSystems,
     conceptPropertyCoding,
     conceptPropertyCodingLink,
     conceptPropertyColumns,
     conceptPropertyValue,
+    countedNoun,
+    declaredColumnLabel,
     enumeratedConceptCount,
     filterConcepts,
     identifierBadges,
     mappingCount,
     mappingRows,
+    mapsFromSystem,
     matchesQuery,
+    nothingMatchesMessage,
     pageOf,
+    statedBooleanLabel,
     systemLabel,
     targetSystems,
+    terminologyRowLink,
     translationResult, matchingCodeCount } from '@/lib/terminology'
 
 /**
@@ -483,5 +494,134 @@ describe('matching codes inside a listed resource', () => {
     it('counts mapping rows on a concept map by source and target spellings', () => {
         expect(matchingCodeCount(conceptMap, 'OpFever0001')).toBeGreaterThan(0)
         expect(matchingCodeCount(conceptMap, 'FEVER')).toBeGreaterThan(0)
+    })
+})
+
+/**
+ * The column header a category vocabulary gets, which its own prose argues against.
+ *
+ * Every category and combo system describes its `dhis2-code` property as "DHIS2 category option
+ * code." - a sentence shaped exactly like a category-axis declaration and naming nothing of the
+ * kind. Reading the prose first heads the DHIS2-code column "option code" on all 25 category
+ * systems and "option combo code" on the combo one, and the deliberate "DHIS2 code" header is
+ * never reached. The property code is what says which kind of column this is.
+ */
+describe('a column headed off a declaration that reads like another one', () => {
+    it('heads the DHIS2-code column by its subject, whatever the category prose says', () => {
+        expect(declaredColumnLabel('dhis2-code', 'DHIS2 category option code.')).toBe('DHIS2 code')
+        expect(declaredColumnLabel('dhis2-code', 'DHIS2 category option combo code.')).toBe('DHIS2 code')
+    })
+
+    it('reads a category name only off a property published as a category axis', () => {
+        expect(declaredColumnLabel('category-fMZEcRHuamy', 'DHIS2 category Sex.')).toBe('Sex')
+        expect(declaredColumnLabel('dhis2-id', 'DHIS2 category option UID.')).toBe('Id')
+    })
+
+    it('heads a real combo vocabulary with both of its columns named', () => {
+        expect(conceptPropertyColumns(attributeCombos).map((column) => column.label)).toEqual([
+            'DHIS2 code',
+            'Project',
+        ])
+    })
+})
+
+/**
+ * Asking twice about the same row, which is a real question and used to be a no-op.
+ *
+ * A row asks by handing the tester a code. Held as a bare string, the second press on one row sets
+ * the state it already holds, React keeps the render, and the tester never re-runs - so a reader
+ * who typed over the box cannot get their row's answer back. The ask carries a number instead.
+ */
+describe('what a concept row asks', () => {
+    it('is a different ask every time, even about the same code', () => {
+        const first = askedConcept(NOTHING_ASKED, 'OpFever0001')
+        const again = askedConcept(first, 'OpFever0001')
+        expect(again.code).toBe('OpFever0001')
+        expect(again.nonce).not.toBe(first.nonce)
+        expect(again).not.toEqual(first)
+    })
+
+    it('carries no target from a code system, and the target of its group from a map', () => {
+        expect(askedConcept(NOTHING_ASKED, 'OpFever0001').targetSystem).toBeNull()
+        expect(
+            askedConcept(NOTHING_ASKED, 'OpFever0001', 'http://dhis2.org/fhir/id/option-code')
+                .targetSystem,
+        ).toBe('http://dhis2.org/fhir/id/option-code')
+    })
+
+    it('starts from nothing asked', () => {
+        expect(NOTHING_ASKED).toEqual({ code: '', targetSystem: null, nonce: 0 })
+    })
+})
+
+describe('which systems have a translation to offer', () => {
+    it('says yes for a system a served map names as a group source', () => {
+        expect(mapsFromSystem([conceptMap], optionSet.url)).toBe(true)
+    })
+
+    it('says no for the data dictionary, which no map translates from', () => {
+        expect(mapsFromSystem([conceptMap], dataElements.url)).toBe(false)
+    })
+
+    it('says no for a system that is only ever a map target, and for no system at all', () => {
+        expect(mapsFromSystem([conceptMap], 'http://dhis2.org/fhir/id/option')).toBe(false)
+        expect(mapsFromSystem([conceptMap], undefined)).toBe(false)
+        expect(mapsFromSystem([], optionSet.url)).toBe(false)
+    })
+})
+
+describe('how a listing row opens', () => {
+    it('carries the search that found codes inside the artifact', () => {
+        expect(terminologyRowLink('CodeSystem', 'd2-de-cs', 'Fever')).toBe(
+            '/terminology/CodeSystem/d2-de-cs?code=Fever',
+        )
+    })
+
+    it('carries nothing when there is nothing to carry', () => {
+        expect(terminologyRowLink('ValueSet', 'd2-os-OsSymptom01-vs', '   ')).toBe(
+            '/terminology/ValueSet/d2-os-OsSymptom01-vs',
+        )
+    })
+
+    it('escapes what it carries, so a query is never a second parameter', () => {
+        expect(terminologyRowLink('CodeSystem', 'd2-de-cs', 'a&b c')).toBe(
+            '/terminology/CodeSystem/d2-de-cs?code=a%26b%20c',
+        )
+    })
+
+    it('keeps the listing filter apart from the concept filter it hands on', () => {
+        expect(TERMINOLOGY_FILTER_PARAMETER).toBe('q')
+        expect(TERMINOLOGY_FILTER_PARAMETER).not.toBe(CONCEPT_FILTER_PARAMETER)
+    })
+})
+
+describe('how a count and a code are said', () => {
+    it('counts one of a thing in the singular', () => {
+        expect(countedNoun(1, 'mapping')).toBe('1 mapping')
+        expect(countedNoun(0, 'mapping')).toBe('0 mappings')
+        expect(countedNoun(980, 'concept')).toBe('980 concepts')
+    })
+
+    it('states the query a filter admitted nothing for', () => {
+        expect(nothingMatchesMessage('zzzz')).toBe('Nothing here matches "zzzz".')
+        expect(nothingMatchesMessage(' Fever ')).toBe('Nothing here matches "Fever".')
+    })
+
+    it('says what a content code means rather than printing the code', () => {
+        expect(codeSystemContentLabel('complete')).toBe('Every concept is here')
+        expect(codeSystemContentLabel('not-present')).toBe('The concepts live elsewhere')
+        expect(codeSystemContentLabel(undefined)).toBe('-')
+        // A code this server has never published is stated as it stands rather than guessed at.
+        expect(codeSystemContentLabel('brand-new')).toBe('brand-new')
+    })
+
+    it('answers a declared boolean, and states the dash where nothing is declared', () => {
+        expect(statedBooleanLabel(true)).toBe('Yes')
+        expect(statedBooleanLabel(false)).toBe('No')
+        expect(statedBooleanLabel(undefined)).toBe('-')
+    })
+
+    it('asks the translation question of an instance, not of the platform', () => {
+        expect(TRANSLATE_QUESTION).toContain('this DHIS2 instance')
     })
 })

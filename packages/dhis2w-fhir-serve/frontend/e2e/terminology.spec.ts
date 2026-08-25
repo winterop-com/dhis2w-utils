@@ -70,7 +70,7 @@ test('a long code system pages rather than rendering thousands of rows', async (
     await expect(page.getByRole('columnheader', { name: 'Code', exact: true })).toHaveCount(1)
 
     await page.getByRole('textbox', { name: 'Filter concepts' }).fill('danger')
-    await expect(page.getByText(/Showing 1 of 1 concepts/)).toBeVisible()
+    await expect(page.getByText(/Showing 1 of 1 concept$/)).toBeVisible()
 })
 
 test('the listing filter reaches into the codes and names the system that holds a match', async ({
@@ -155,7 +155,7 @@ test('a category option combo digs down into the category options it is composed
     await expect(page).toHaveURL(/#\/terminology\/CodeSystem\/d2-cat-yY2bQYqNt0o-cs\?code=i4Nbp8S2G6A$/)
     await expect(page.getByRole('heading', { name: 'Project', level: 2, exact: true })).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'Filter concepts' })).toHaveValue('i4Nbp8S2G6A')
-    await expect(page.getByText(/Showing 1 of 1 concepts/)).toBeVisible()
+    await expect(page.getByText(/Showing 1 of 1 concept$/)).toBeVisible()
     await expect(page.getByRole('row').filter({ hasText: 'i4Nbp8S2G6A' })).toContainText(
         'Improve access to clean water',
     )
@@ -222,7 +222,7 @@ test('opening a concept map shows every mapping, grouped by target system', asyn
     await expect(cough).toContainText('equal')
 })
 
-test('a mapping row asks the server about its own concept', async ({ page }) => {
+test('a mapping row asks the server in the direction of its own group', async ({ page }) => {
     await page.goto('/#/terminology/ConceptMap/d2-os-OsSymptom01-cm')
 
     await page
@@ -231,17 +231,20 @@ test('a mapping row asks the server about its own concept', async ({ page }) => 
         .getByRole('button', { name: 'Details for OpCough0001', exact: true })
         .click()
 
-    // Clicking a row asks the running server, so both mappings come back - the option uid and
-    // the option code - even though the row that was clicked states only one of them.
+    // The row sits in the group that lands on the DHIS2 option code, and that group is the
+    // question the reader is reading - so the running server is asked for that target alone
+    // rather than for every group of every map.
     const answer = page.getByTestId('translate-result')
-    await expect(answer).toContainText('2 mappings')
+    await expect(answer).toContainText('1 mapping')
+    await expect(answer).toContainText('id/option-code')
     await expect(answer).toContainText('COUGH')
+    await expect(page.getByRole('combobox', { name: 'Target system' })).toContainText('id/option-code')
 })
 
 test('a value set expands through the code system it composes', async ({ page }) => {
     await page.goto('/#/terminology/ValueSet/d2-os-OsSymptom01-vs')
 
-    await expect(page.getByRole('heading', { name: 'What it admits' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Concepts', exact: true })).toBeVisible()
     await expect(page.getByRole('row').filter({ hasText: 'OpFever0001' })).toHaveCount(1)
 
     // The composed system links back to its own detail page.
