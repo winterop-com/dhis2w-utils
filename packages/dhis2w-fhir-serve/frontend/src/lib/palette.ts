@@ -59,6 +59,16 @@ export interface PaletteAction {
     /** Extra words the filter matches on and nothing renders. */
     keywords: string[]
     /**
+     * The machine spelling this row is served under, or null for a row that has none.
+     *
+     * A uid is not prose and must never be searched as if it were. Eleven random characters contain
+     * most short letter sequences somewhere inside them, so a row carrying one in its words answers
+     * almost anything typed - which is how sixty-four forms came to sit above "Switch to dark mode"
+     * for the query `dark`. So the id lives here instead, is matched by the start of the string and
+     * by nothing else, and the words are matched as words. `paletteScore` is where the two meet.
+     */
+    identifier: string | null
+    /**
      * True on a row that states what is already in force rather than offering a change.
      *
      * Only the theme rows are ever this. The list offers every theme, the one in force included -
@@ -190,6 +200,7 @@ function pageActions(pages: PalettePage[]): PaletteAction[] {
         hint: page.hint,
         kind: PAGE_KIND,
         keywords: ['go to', 'open', 'page'],
+        identifier: null,
         checked: false,
         effect: { kind: 'navigate', to: page.path === '' ? '/' : `/${page.path}` },
     }))
@@ -213,7 +224,8 @@ function formActions(forms: Questionnaire[]): PaletteAction[] {
             label: formTitle(form),
             hint: identifier,
             kind: FORM_KIND,
-            keywords: ['form', 'questionnaire', 'capture', identifier],
+            keywords: ['form', 'questionnaire', 'capture'],
+            identifier,
             checked: false,
             effect: { kind: 'navigate', to: `/forms/${identifier}` },
         }
@@ -248,6 +260,7 @@ function receiptActions(receipts: SpoolResponseSummary[], query: string): Palett
         hint: receiptHint(receipt),
         kind: RECEIPT_KIND,
         keywords: ['receipt', 'response', 'submission'],
+        identifier: receipt.response_id,
         checked: false,
         effect: { kind: 'navigate', to: `/responses/${receipt.response_id}` },
     }))
@@ -290,6 +303,7 @@ function registerActions(register: string | null, query: string): PaletteAction[
             hint: 'Opens the register with this identifier value searched for',
             kind: SEARCH_KIND,
             keywords: ['search', 'find', 'identifier', 'register'],
+            identifier: null,
             checked: false,
             effect: {
                 kind: 'navigate',
@@ -318,6 +332,7 @@ function appearanceActions(dark: boolean, current: ThemeName): PaletteAction[] {
         hint: theme.hint,
         kind: THEME_KIND,
         keywords: ['theme', 'colour', 'color', 'palette', 'appearance'],
+        identifier: null,
         checked: theme.name === current,
         effect: { kind: 'theme', theme: theme.name },
     }))
@@ -329,6 +344,7 @@ function appearanceActions(dark: boolean, current: ThemeName): PaletteAction[] {
             hint: 'Every theme is designed for both',
             kind: MODE_KIND,
             keywords: ['light', 'dark', 'mode', 'appearance'],
+            identifier: null,
             // Never ticked: it offers the ground that is NOT in force, so a tick on it would say
             // the opposite of what the label says.
             checked: false,
@@ -366,6 +382,7 @@ function viewActions(collapsed: boolean): PaletteAction[] {
             hint: collapsed ? 'Puts the names back beside the icons' : 'Leaves the rail as icons',
             kind: VIEW_KIND,
             keywords: ['sidebar', 'rail', 'collapse', 'expand', 'view'],
+            identifier: null,
             checked: false,
             effect: { kind: 'sidebar' },
         },
@@ -382,6 +399,7 @@ function helpActions(): PaletteAction[] {
             hint: SHORTCUTS_DESCRIPTION,
             kind: HELP_KIND,
             keywords: ['keyboard', 'shortcuts', 'keys', 'chord', 'help'],
+            identifier: null,
             checked: false,
             effect: { kind: 'shortcuts' },
         },
@@ -399,6 +417,7 @@ function sessionActions(signedIn: boolean): PaletteAction[] {
             hint: 'Forgets the credential this browser tab holds',
             kind: SESSION_KIND,
             keywords: ['sign out', 'log out', 'session'],
+            identifier: null,
             checked: false,
             effect: { kind: 'sign-out' },
         },
@@ -440,4 +459,73 @@ export function paletteShelves(actions: PaletteAction[]): PaletteShelf[] {
  */
 export function paletteSearchValue(action: PaletteAction): string {
     return [action.label, action.hint ?? '', action.kind, ...action.keywords].join(' ')
+}
+
+/**
+ * How well one row answers what has been typed, from 1 for the row that is being named to 0 for a
+ * row that is not.
+ *
+ * AN ID IS MATCHED BY ITS START AND WORDS ARE MATCHED AS WORDS. Those are two different questions
+ * wearing one box. Somebody typing `a1b2` has an identifier in front of them and wants the row it
+ * belongs to; somebody typing `dark` has a sentence in mind and wants the row whose name contains
+ * that word. A single subsequence scorer over both answers the first badly and the second
+ * catastrophically - eleven random characters contain most short letter sequences somewhere inside
+ * them, so every uid on the list acts as a wildcard and the row a person meant sinks under sixty
+ * that merely happen to spell it. `receiptActions` has always matched a receipt on the start of its
+ * id for this reason; this is the same rule applied to every row that carries one.
+ *
+ * THE WORDS ARE MATCHED PER TOKEN, so "dark mode" and "mode dark" both reach the same row and
+ * neither needs the words in the order the label happens to put them. A token has to be there in
+ * full: nothing here matches a query by scattering its letters through a sentence, which is what
+ * makes "nothing matches that" a state a reader can actually reach.
+ *
+ * THE ORDER THE NUMBERS ENCODE is how directly a row is being named - its id, then the start of its
+ * name, then a word inside its name, then anywhere in its name, then the line and the words beside
+ * it. cmdk sorts on the number, so this is the whole of what decides which row Return would take.
+ */
+export function paletteScore(action: PaletteAction, query: string): number {
+    const search = query.trim().toLowerCase()
+    if (search === '') return 1
+    const identifier = action.identifier?.toLowerCase() ?? null
+    if (identifier !== null && identifier.startsWith(search)) return 1
+    // The id is read out of the words wherever it appears among them - as a receipt row's own label,
+    // as the line under a form's title - so that a uid is matched by the rule above and by nothing
+    // else. Words that happen to spell part of one are not a match on it.
+    const label = prose(action.label, action.identifier)
+    const tokens = search.split(/\s+/).filter((token) => token !== '')
+    if (label.startsWith(search)) return 0.9
+    if (label !== '' && tokens.every((token) => wordsOf(label).some((word) => word.startsWith(token))))
+        return 0.8
+    if (label !== '' && tokens.every((token) => label.includes(token))) return 0.7
+    const beside = [prose(action.hint ?? '', action.identifier), action.kind, ...action.keywords]
+        .join(' ')
+        .toLowerCase()
+    if (tokens.every((token) => beside.includes(token))) return 0.5
+    return 0
+}
+
+/** One of a row's strings as words, or nothing at all when the string is the row's id. */
+function prose(text: string, identifier: string | null): string {
+    return text === identifier ? '' : text.toLowerCase()
+}
+
+/** One label's words, as a reader would point at them - punctuation is a boundary, not a letter. */
+function wordsOf(text: string): string[] {
+    return text.split(/[^\p{Letter}\p{Number}]+/u).filter((word) => word !== '')
+}
+
+/**
+ * The scorer cmdk filters the list with, bound to the rows this run offers.
+ *
+ * cmdk hands its filter the item's `value` string and nothing else, so the row it is asking about
+ * is looked up by that string and scored as the action it is. Keeping the scoring in this module
+ * rather than in the component is what lets the whole ranking be asserted on with no browser in
+ * scope - which is where the failure this filter exists to prevent was found.
+ */
+export function paletteFilter(actions: PaletteAction[]): (value: string, search: string) => number {
+    const rows = new Map(actions.map((action) => [paletteSearchValue(action).trim(), action]))
+    return (value, search) => {
+        const action = rows.get(value.trim())
+        return action === undefined ? 0 : paletteScore(action, search)
+    }
 }

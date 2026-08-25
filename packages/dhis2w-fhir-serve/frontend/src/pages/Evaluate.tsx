@@ -116,7 +116,18 @@ export function Evaluate() {
 
     const [served, setServed] = useState<ServedResource[]>([])
     const [form, setForm] = useState<EvaluationForm>(() => genericExamples('fhirpath')[0].form)
-    const [chosenExample, setChosenExample] = useState('fhirpath-given-names')
+    // Which example was loaded, and the source it came with.
+    //
+    // THE PICKER READS THE EDITOR RATHER THAN REMEMBERING THE LAST CLICK. An example is what is in
+    // the box, not what was once put there: a reader who loads "The given names on a Patient" and
+    // then writes their own expression is looking at their own work, and a picker still naming the
+    // example says the form is showing something it is not. So the name holds exactly as long as
+    // the source does, and typing over it - or typing it back - answers for itself.
+    const [loaded, setLoaded] = useState(() => {
+        const first = genericExamples('fhirpath')[0]
+        return { id: first.id, source: first.form.source }
+    })
+    const chosenExample = form.source === loaded.source ? loaded.id : ''
     const [outcome, setOutcome] = useState<EvaluationOutcome | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [running, setRunning] = useState(false)
@@ -168,7 +179,7 @@ export function Evaluate() {
     )
 
     const load = useCallback((example: EvaluationExample) => {
-        setChosenExample(example.id)
+        setLoaded({ id: example.id, source: example.form.source })
         setForm(example.form)
         setOutcome(null)
         setRefusal(null)
@@ -351,8 +362,11 @@ export function Evaluate() {
 
                 {referenceShown && (
                     <aside className="min-w-0 lg:sticky lg:top-6">
-                        <Card>
-                            <CardContent className="show-scrollbars max-h-[calc(100vh-8rem)] overflow-y-auto py-6">
+                        {/* The card is what the viewport bounds, and the panel inside it decides
+                            which of its parts scrolls - which is what keeps the language tabs on
+                            screen while the shelves under them move. */}
+                        <Card className="flex max-h-[calc(100vh-8rem)] flex-col">
+                            <CardContent className="flex min-h-0 flex-1 flex-col py-6">
                                 <EvaluateReference
                                     language={form.language}
                                     examplesByLanguage={examplesByLanguage}

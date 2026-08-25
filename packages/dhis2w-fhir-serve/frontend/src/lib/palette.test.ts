@@ -11,6 +11,8 @@ import {
     PAGES_GROUP,
     paletteActions,
     paletteActionVerb,
+    paletteFilter,
+    paletteScore,
     paletteSearchValue,
     paletteShelves,
     RECEIPTS_AT_REST,
@@ -419,5 +421,85 @@ describe('the whole list', () => {
     it('heads every shelf plainly - no "The ...", no verb dressed as a heading', () => {
         const shelves = paletteShelves(paletteActions(input({ register: 'Person', query: 'PT-4471' })))
         for (const shelf of shelves) expect(shelf.group).not.toMatch(/^(The|On the) /)
+    })
+})
+
+/**
+ * What the box does with what is typed into it.
+ *
+ * THE CASE THIS EXISTS FOR is the one that shipped: typing `dark` - a query with exactly one
+ * sensible answer - highlighted a form called "Malaria case diagnosis, treatment and investigation",
+ * because the uid beside that form's title spelled d, a, r, k somewhere along its eleven characters
+ * and the scorer was reading the two as one string. Sixty-four uids on a list act as sixty-four
+ * wildcards, and "nothing matches that" becomes a state nobody can reach.
+ */
+describe('how the palette ranks what is typed', () => {
+    const rows = () =>
+        paletteActions(
+            input({
+                forms: [
+                    form('ZzYYXq4fJie', 'Malaria case diagnosis, treatment and investigation'),
+                    form('BfMAe6Itzgt', 'Child Health'),
+                ],
+                receipts: [receipt('a1b2c3d4e5f6')],
+            }),
+        )
+
+    it('scores a form by the start of its id, and by no other part of it', () => {
+        const malaria = byId(rows(), 'form:ZzYYXq4fJie')
+        expect(paletteScore(malaria, 'ZzYY')).toBe(1)
+        expect(paletteScore(malaria, 'zzyy')).toBe(1)
+        // The middle of a uid names nothing: an id is held in hand and typed from its front.
+        expect(paletteScore(malaria, 'Xq4fJie')).toBe(0)
+    })
+
+    it('puts the row a query names above every row that merely spells it', () => {
+        const actions = rows()
+        const mode = actions.find((action) => action.label === SWITCH_TO_DARK_LABEL)
+        expect(mode).toBeDefined()
+        const malaria = byId(actions, 'form:ZzYYXq4fJie')
+        expect(paletteScore(mode as PaletteAction, 'dark')).toBeGreaterThan(0)
+        expect(paletteScore(malaria, 'dark')).toBe(0)
+    })
+
+    it('leaves nothing standing when nothing is named, so the empty state is reachable', () => {
+        for (const action of rows()) {
+            expect(paletteScore(action, 'zzzzqqq'), action.label).toBe(0)
+            expect(paletteScore(action, 'qqqqqqqqqq'), action.label).toBe(0)
+        }
+    })
+
+    it('reaches a page by the start of its name, above a page that only contains the word', () => {
+        const actions = paletteActions(input({ pages: [OVERVIEW, FORMS] }))
+        const forms = byId(actions, 'page:forms')
+        const overview = byId(actions, 'page:')
+        expect(paletteScore(forms, 'form')).toBeGreaterThan(paletteScore(overview, 'form'))
+    })
+
+    it('matches the words of a name in any order, so "mode dark" reaches the same row', () => {
+        const mode = paletteActions(input()).find((action) => action.label === SWITCH_TO_DARK_LABEL)
+        expect(mode).toBeDefined()
+        expect(paletteScore(mode as PaletteAction, 'mode dark')).toBeGreaterThan(0)
+        expect(paletteScore(mode as PaletteAction, 'switch dark')).toBeGreaterThan(0)
+    })
+
+    it('answers every row while the box is empty, so the list opens whole', () => {
+        for (const action of rows()) expect(paletteScore(action, '   ')).toBe(1)
+    })
+
+    it('scores a receipt by its own id and not by the form beside it', () => {
+        const receiptRow = byId(rows(), 'receipt:a1b2c3d4e5f6')
+        expect(paletteScore(receiptRow, 'a1b2')).toBe(1)
+        expect(paletteScore(receiptRow, 'anc-visit')).toBeGreaterThan(0)
+    })
+
+    it('scores through the value cmdk hands it, which is how the filter reaches a row at all', () => {
+        const actions = rows()
+        const filter = paletteFilter(actions)
+        const malaria = byId(actions, 'form:ZzYYXq4fJie')
+        expect(filter(paletteSearchValue(malaria), 'ZzYY')).toBe(1)
+        expect(filter(paletteSearchValue(malaria), 'dark')).toBe(0)
+        // A row this run does not offer scores nothing rather than being ranked on a guess.
+        expect(filter('a value no action carries', 'dark')).toBe(0)
     })
 })

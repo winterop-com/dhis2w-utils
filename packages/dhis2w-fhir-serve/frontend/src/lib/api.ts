@@ -76,7 +76,12 @@ import {
     type QuestionnaireResponse,
     type RegisterSearchKey,
 } from '@/lib/fhir'
-import { PATIENT_COUNT_PARAMETER, PATIENT_PAGE_PARAMETER, type PatientEnrollments } from '@/lib/patients'
+import {
+    PATIENT_COUNT_PARAMETER,
+    PATIENT_PAGE_PARAMETER,
+    REGISTER_ATTRIBUTE_SEARCH_PARAMETER,
+    type PatientEnrollments,
+} from '@/lib/patients'
 import { reportUnauthenticated, storedAuthorization, type AuthenticatedCaller } from '@/lib/auth'
 import type { SpoolListing } from '@/lib/spool'
 import type { UiConfig } from '@/lib/uiconfig'
@@ -299,9 +304,32 @@ export async function checkReachability(): Promise<'ok' | 'unreachable'> {
     }
 }
 
-/** The served IG's conformance document. */
+/** What a read of `/metadata` says when the body that came back is some other document. */
+export const NOT_A_CAPABILITY_STATEMENT = '/metadata answered with something other than a CapabilityStatement'
+
+/**
+ * The served IG's conformance document.
+ *
+ * THE DOCUMENT IS CHECKED, NOT ASSUMED. `/metadata` is a path a reverse proxy, a captive portal, or
+ * a differently-configured server can all answer 200 to, and a cast turns any of those bodies into
+ * a CapabilityStatement with every field undefined - which the Server page then renders as a card
+ * of dashes and a table with no rows, under a header saying "Connected". A raise here is what puts
+ * that answer in the state the page already has words for: the server answered, but not with this
+ * document.
+ */
 export async function readCapabilityStatement(): Promise<CapabilityStatement> {
-    return readJson<CapabilityStatement>('/metadata')
+    const body = await readJson<unknown>('/metadata')
+    if (!isCapabilityStatement(body)) throw new Error(NOT_A_CAPABILITY_STATEMENT)
+    return body
+}
+
+/** Whether a parsed body is the conformance document, which is what its `resourceType` says. */
+function isCapabilityStatement(body: unknown): body is CapabilityStatement {
+    return (
+        typeof body === 'object' &&
+        body !== null &&
+        (body as { resourceType?: unknown }).resourceType === 'CapabilityStatement'
+    )
 }
 
 /** Search one served resource type, answering with the searchset Bundle verbatim. */
@@ -391,8 +419,25 @@ export async function searchRegister(
     query: string,
     key: RegisterSearchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
     trackedEntityTypeUid: string | null = null,
+    attributeFilter: string | null = null,
 ): Promise<RegisterAnswer> {
-    return readRegisterBundle(resource, { [key]: query, ...typeTag(trackedEntityTypeUid) })
+    return readRegisterBundle(resource, {
+        [key]: query,
+        ...typeTag(trackedEntityTypeUid),
+        ...attributeValueFilter(attributeFilter),
+    })
+}
+
+/**
+ * The `d2-attribute` a request filtered to one attribute value carries, or nothing when it filters none.
+ *
+ * The token is `{trackedEntityAttributeUid}|{value}` and it goes on the wire exactly as the address
+ * carried it - see `lib/patients.registerAttributeToken`, which is where the two halves are joined.
+ * The server matches the value exactly, which is what the control saying so on screen is about.
+ */
+function attributeValueFilter(token: string | null): Record<string, string> {
+    if (token === null || token === '') return {}
+    return { [REGISTER_ATTRIBUTE_SEARCH_PARAMETER]: token }
 }
 
 /**
@@ -467,10 +512,12 @@ export async function listRegister(
     pageToken: string | null,
     count: number,
     trackedEntityTypeUid: string | null = null,
+    attributeFilter: string | null = null,
 ): Promise<RegisterAnswer> {
     const parameters: Record<string, string> = {
         [PATIENT_COUNT_PARAMETER]: String(count),
         ...typeTag(trackedEntityTypeUid),
+        ...attributeValueFilter(attributeFilter),
     }
     if (pageToken !== null) parameters[PATIENT_PAGE_PARAMETER] = pageToken
     return readRegisterBundle(resource, parameters)

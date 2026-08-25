@@ -35,6 +35,7 @@ import {
     PAGE_KIND,
     paletteActions,
     paletteActionVerb,
+    paletteFilter,
     paletteSearchValue,
     paletteShelves,
     RECEIPT_KIND,
@@ -199,6 +200,10 @@ export function CommandPalette({
         [pages, catalogue, query, register, resolvedTheme, theme, sidebarCollapsed, signedIn],
     )
     const shelves = useMemo(() => paletteShelves(actions), [actions])
+    // The ranking is `lib/palette`'s, not cmdk's default: the default scores an item's whole value
+    // as one fuzzy string, which over rows carrying a uid matches almost anything typed. See
+    // `paletteScore`.
+    const filter = useMemo(() => paletteFilter(actions), [actions])
     // Matched case-insensitively because cmdk normalises the value it reports back, and the footer
     // saying nothing at all would be worse than it saying the wrong verb.
     const highlightedAction = useMemo(
@@ -263,7 +268,7 @@ export function CommandPalette({
                 {/* The dialog is the shell; `Command` is the list machinery, and every primitive
                     below reads its state off this element's context. Without it the box and the
                     rows mount with nothing to subscribe to. */}
-                <Command value={highlighted} onValueChange={setHighlighted}>
+                <Command value={highlighted} onValueChange={setHighlighted} filter={filter}>
                     <CommandInput
                         value={query}
                         onValueChange={setQuery}

@@ -1507,12 +1507,20 @@ export function guidePresets(language: EvaluationLanguage, served: ServedResourc
     }))
 }
 
-/** What a guide preset is called: what it asks, and which of this server's own resources it asks it of. */
+/**
+ * What a guide preset is called: what it asks, and which of this server's own resources it asks it of.
+ *
+ * THE RESOURCE TYPE IS PART OF THE NAME IN BOTH LANGUAGES. Two resources of different types can
+ * carry the same title - a CodeSystem and the ValueSet composed from it routinely do - and a CQL
+ * label built from the title alone then names two examples identically, which is one shelf holding
+ * two rows a reader cannot tell apart. The FHIRPath label leads with the element it reads, which
+ * says the type by saying what it asks for; the CQL label retrieves a whole type, so it says it.
+ */
 export function presetLabel(language: EvaluationLanguage, resource: ServedResource): string {
     const named = resource.title ?? resource.resourceId
     return language === 'fhirpath'
         ? `${elementLabel(resource.resourceType)} ${named}`
-        : `${named}, through a CQL retrieve`
+        : `${named} (${resource.resourceType}), through a CQL retrieve`
 }
 
 /** The expression a guide preset loads for one resource type. */
