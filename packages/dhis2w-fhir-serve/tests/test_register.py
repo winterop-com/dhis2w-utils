@@ -218,16 +218,18 @@ async def test_a_system_qualified_identifier_searches_the_attribute_it_names(
     assert request_url.params["ouMode"] == "ACCESSIBLE"
 
 
-async def test_a_bare_identifier_value_tries_the_uid_and_every_search_key(
+async def test_a_bare_identifier_value_tries_the_uid_and_every_search_key_that_could_hold_it(
     live_client: httpx.AsyncClient,
 ) -> None:
     """A token naming no system is a lookup across every key at once, the tracked entity UID included.
 
-    Every key, by default, is every attribute DHIS2 declares unique **or** searchable - so the
-    searchable-but-not-unique date of birth is filtered on beside the unique national identifier and
-    the unique laboratory reference, which is the widening a clinic looking somebody up by a
-    searchable attribute depends on. A generated attribute is a key like any other: DHIS2 mints its
-    value, and the value on somebody's card is exactly the thing a clerk types in here.
+    Every key, by default, is every attribute DHIS2 declares unique **or** searchable, which is the
+    widening a clinic looking somebody up by a searchable attribute depends on. A generated
+    attribute is a key like any other: DHIS2 mints its value, and the value on somebody's card is
+    exactly the thing a clerk types in here.
+
+    The date of birth is searchable and stays out of this fan-out, because `SCEN-A-0001` is not a
+    date and DHIS2 answers a query pairing the two with a 400 rather than an empty page.
     """
     _read_route(None, _NATIONAL_ID)
     search = _search_route(_entity())
@@ -238,12 +240,55 @@ async def test_a_bare_identifier_value_tries_the_uid_and_every_search_key(
     assert response.json()["total"] == 1
     filters = [call.request.url.params["filter"] for call in search.calls]
     assert filters == [
-        f"{REGISTRATION_DATE_ATTRIBUTE}:eq:{_NATIONAL_ID}",
         f"{REGISTRATION_UNIQUE_ATTRIBUTE}:eq:{_NATIONAL_ID}",
         f"{SPECIMEN_UNIQUE_ATTRIBUTE}:eq:{_NATIONAL_ID}",
         f"{REGISTRATION_GENERATED_ATTRIBUTE}:eq:{_NATIONAL_ID}",
     ]
     assert all(call.request.url.params["ouMode"] == "ACCESSIBLE" for call in search.calls)
+
+
+async def test_a_key_whose_value_type_could_hold_the_value_is_asked(live_client: httpx.AsyncClient) -> None:
+    """The screen drops a key for the value typed rather than for good: a date reaches the date of birth."""
+    _read_route(None, "2001-02-03")
+    search = _search_route()
+
+    response = await live_client.get("/Patient?identifier=2001-02-03")
+
+    assert response.status_code == 200
+    filters = [call.request.url.params["filter"] for call in search.calls]
+    assert f"{REGISTRATION_DATE_ATTRIBUTE}:eq:2001-02-03" in filters
+
+
+async def test_a_key_the_instance_refuses_matches_nobody_rather_than_failing_the_search(
+    live_client: httpx.AsyncClient,
+) -> None:
+    """One key's 400 is that key matching nobody: every other key still answers, and the search stands.
+
+    The screen settles the keys whose declared value type says the value cannot be there; this is the
+    net under the rest - an attribute constraint the vocabulary does not publish, a value type the
+    guide never stated. A register whose keys are the instance's own must not be able to put one of
+    them between a person and their own record.
+    """
+    _read_route(None, _NATIONAL_ID)
+    respx.get(
+        f"{_HOST}/api/tracker/trackedEntities",
+        params__contains={"filter": f"{REGISTRATION_UNIQUE_ATTRIBUTE}:eq:{_NATIONAL_ID}"},
+    ).mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "httpStatusCode": 400,
+                "status": "ERROR",
+                "message": f"Filter for attribute {REGISTRATION_UNIQUE_ATTRIBUTE} is invalid.",
+            },
+        )
+    )
+    _search_route(_entity())
+
+    response = await live_client.get(f"/Patient?identifier={_NATIONAL_ID}")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
 
 
 async def test_every_search_runs_through_the_index_whatever_is_behind_it(

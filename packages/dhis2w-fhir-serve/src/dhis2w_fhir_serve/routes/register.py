@@ -943,14 +943,24 @@ async def _entities_for_token(
         return [] if entity is None else [entity]
     if token.system is not None:
         attribute = surface.attribute_for_system(token.system)
-        if attribute is None:
+        if attribute is None or not attribute.can_hold(token.value):
             return []
         return await _search(lookup, resource_type, (attribute.attribute_uid,), token.value)
     entity = await _read(lookup.reader, token.value)
     found = [] if entity is None else [entity]
-    keys = tuple(attribute.attribute_uid for attribute in surface.search_attributes)
-    found.extend(await _search(lookup, resource_type, keys, token.value))
+    found.extend(await _search(lookup, resource_type, _search_keys(surface, token.value), token.value))
     return found
+
+
+def _search_keys(surface: RegisterSurface, value: str) -> tuple[str, ...]:
+    """The search keys one typed value is looked for under: those whose value type could hold it.
+
+    A register's keys are every attribute DHIS2 declares unique or searchable, so a clinic that
+    keeps a zip code searchable puts a NUMBER key in the same fan-out as the names. DHIS2 refuses
+    `filter=<zip>:eq:Sebhat` with a 400 rather than an empty page, so a key that could not hold the
+    value contributes nothing and is left out - the keys that could hold it still answer.
+    """
+    return tuple(attribute.attribute_uid for attribute in surface.search_attributes if attribute.can_hold(value))
 
 
 async def _read(reader: RegisterReader, tracked_entity_uid: str) -> TrackerTrackedEntity | None:

@@ -14,10 +14,14 @@ answered "nobody" instead of refusing would turn a wrong password into a shrug. 
 either 200 naming a caller or the 401 `dhis2w_fhir_serve.auth` refuses everything else with - the
 same OperationOutcome, the same `WWW-Authenticate` challenge, no second vocabulary to read.
 
-IT IS MOUNTED ONLY WHERE A POSTURE IS CONFIGURED. Under `auth = "none"` there is no route here at
-all, and a 404 is the honest answer: a server that checks nobody has nobody to name, and one that
-answered with an anonymous caller would be inventing an identity to report. `serve_routers` is what
-decides that, beside every other mount-time decision.
+IT NAMES A CALLER ONLY WHERE A POSTURE IS CONFIGURED, and under `auth = "none"` it says so in those
+words. A server that checks nobody has nobody to name, and one that answered with an anonymous
+caller would be inventing an identity to report - so the answer is a 404 that states the posture it
+is missing rather than one naming an invented person. It is a route of its own rather than a fall
+through to the read catch-all, because that catch-all would answer that this server does not serve
+the resource type `whoami`, and `whoami` is a fixed path this project documents rather than a
+resource type anybody asked for. `serve_routers` picks which of the two routers is mounted, beside
+every other mount-time decision.
 
 WHAT IT NAMES, PER POSTURE. `dhis2` answers the username the instance gave `GET /api/me`; `jwt`
 answers the claim `[serve.jwt] username_claim` names, which is the same value a receipt is stamped
@@ -35,6 +39,7 @@ from pydantic import BaseModel, ConfigDict
 from starlette.requests import Request
 
 from dhis2w_fhir_serve.auth import RequestIdentity, UnauthenticatedError, challenge_for, request_identity
+from dhis2w_fhir_serve.errors import ServeError
 from dhis2w_fhir_serve.routes.context import serve_context
 
 #: Where the answer is served from. One lowercase segment, so no FHIR resource type can collide.
@@ -44,6 +49,26 @@ WHOAMI_PATH = "/whoami"
 TOKEN_CALLER_NAME = "the bearer of one of this deployment's tokens"
 
 router = APIRouter()
+refusal_router = APIRouter()
+
+
+class NoPostureNamesNobodyError(ServeError):
+    """`/whoami` was asked of a server running `[serve] auth = "none"`, which establishes no caller.
+
+    A 404 with the reason stated, rather than the read catch-all's "does not serve the resource type
+    `whoami`": the address exists in this facade's vocabulary, and what is absent is the posture that
+    would give it something to say.
+    """
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self) -> None:
+        """State what is missing: a posture, not a resource type."""
+        super().__init__(
+            "this server authenticates nobody, so it names nobody: `/whoami` answers a caller only "
+            "where `[serve] auth` states a posture"
+        )
 
 
 class AuthenticatedCaller(BaseModel):
@@ -80,6 +105,12 @@ async def read_authenticated_caller(request: Request) -> AuthenticatedCaller:
             challenge_for(settings.auth, settings.jwt.issuer),
         )
     return authenticated_caller(identity)
+
+
+@refusal_router.get(WHOAMI_PATH)
+async def refuse_to_name_a_caller() -> AuthenticatedCaller:
+    """Refuse the address under `auth = "none"`, naming the posture that is missing rather than a caller."""
+    raise NoPostureNamesNobodyError
 
 
 def authenticated_caller(identity: RequestIdentity) -> AuthenticatedCaller:

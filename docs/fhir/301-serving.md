@@ -1083,7 +1083,10 @@ entity attribute dictionary the capture screens' Terminology page browses.
 
 **Default:** `[]` (empty) - **If you leave it out:** every attribute the
 instance declares unique or searchable is a search key, which is the set DHIS2
-itself already treats as worth looking somebody up by.
+itself already treats as worth looking somebody up by. A key whose value type
+cannot hold what was typed sits out that search - a searchable zip code is a
+NUMBER key, and DHIS2 refuses `filter=<zip>:eq:Sebhat` outright - so keeping a
+typed attribute searchable costs the alphabetic half of the register nothing.
 
 **If you get it wrong:** as with the types above, no check is possible before
 the server connects, so a mistyped id is a key nothing is ever found under. The
