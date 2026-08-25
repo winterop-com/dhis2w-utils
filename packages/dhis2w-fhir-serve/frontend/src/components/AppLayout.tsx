@@ -22,7 +22,6 @@ import { SignInPanel } from '@/components/SignInPanel'
 import { StatusBar } from '@/components/StatusBar'
 import { StatusMenu } from '@/components/StatusMenu'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useAuth } from '@/hooks/use-auth'
@@ -354,7 +353,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                 </TooltipContent>
                             </Tooltip>
 
-                            <Separator orientation="vertical" className="hidden !h-4 md:block" />
 
                             <h1 className="text-sm font-medium">{title}</h1>
 
