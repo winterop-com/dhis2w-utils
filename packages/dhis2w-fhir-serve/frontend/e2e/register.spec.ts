@@ -778,8 +778,11 @@ test.describe('the people this DHIS2 instance holds', () => {
         await expect(listing.getByRole('columnheader', { name: 'Date of birth' })).toBeVisible()
         await expect(first).toContainText('1985-03-12')
         await expect(first).toContainText(PERSON_UID)
+        // Scoped to the page: the summary bar states the same sentence at the foot of the window.
         await expect(
-            page.getByText('Showing 1 of 2 people this DHIS2 instance holds as tracked entities.'),
+            page
+                .getByTestId('page-content')
+                .getByText('Showing 1 of 2 people this DHIS2 instance holds as tracked entities.'),
         ).toBeVisible()
 
         const previous = page.getByRole('button', { name: 'Previous' })
@@ -827,9 +830,7 @@ test.describe('the people this DHIS2 instance holds', () => {
         await serveRegisterSettings(page, { enabled: true, listing: true })
         await serveALiveInstance(page)
 
-        await page.goto('/#/tracked-entities')
-        await page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID }).click()
-        await expect(page).toHaveURL(new RegExp(`#/tracked-entities/Patient/${PERSON_UID}$`))
+        await page.goto(`/#/tracked-entities/Patient/${PERSON_UID}`)
 
         // Headed by the value that names them, because there is no name to head it with.
         await expect(page.getByRole('heading', { name: NATIONAL_ID })).toBeVisible()
@@ -875,6 +876,49 @@ test.describe('the people this DHIS2 instance holds', () => {
         )
         await expect(link).toHaveAttribute('target', '_blank')
         await expect(link).toHaveAttribute('rel', 'noreferrer noopener')
+    })
+
+    test('a row answers over the listing, and Esc gives the listing back', async ({ page }) => {
+        await serveRegisterSettings(page, { enabled: true, listing: true })
+        await serveALiveInstance(page)
+
+        await page.goto('/#/tracked-entities')
+        const row = page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID })
+        await row.click()
+
+        // The listing keeps its address: reading a register is a scanning job, and opening a row
+        // used to cost the page, its filters, and the reader's place in it.
+        await expect(page).toHaveURL(/#\/tracked-entities$/)
+        const sheet = page.getByTestId('tracked-entity-sheet')
+        // Headed by the value that names them, with the instance's own word for what they are.
+        await expect(sheet.getByRole('heading', { name: NATIONAL_ID })).toBeVisible()
+        await expect(sheet).toContainText('Person')
+        // The same record the page shows, read through the same sections.
+        await expect(sheet).toContainText('National identifier')
+        await expect(page.getByTestId('patient-enrollments')).toContainText('Antenatal care')
+        await expect(page.getByTestId('tracked-entity-events')).toContainText('ANC follow-up - ANC visit')
+
+        await page.keyboard.press('Escape')
+        await expect(sheet).toHaveCount(0)
+        await expect(row).toBeFocused()
+    })
+
+    test('a keyboard user opens the same quick view, and it carries the way to the record', async ({
+        page,
+    }) => {
+        await serveRegisterSettings(page, { enabled: true, listing: true })
+        await serveALiveInstance(page)
+
+        await page.goto('/#/tracked-entities')
+        await page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID }).focus()
+        await page.keyboard.press('Enter')
+
+        await expect(page.getByTestId('tracked-entity-sheet')).toBeVisible()
+        // A record is a thing somebody links to, so the sheet carries the way to its own address
+        // rather than replacing it.
+        await page.getByRole('link', { name: 'Open the full page' }).click()
+        await expect(page).toHaveURL(new RegExp(`#/tracked-entities/Patient/${PERSON_UID}$`))
+        await expect(page.getByRole('heading', { name: NATIONAL_ID })).toBeVisible()
     })
 
     test('keeps the search and asks for no listing at all when this run declines one', async ({ page }) => {
@@ -1059,12 +1103,14 @@ test.describe('the people this DHIS2 instance holds', () => {
         await expect(row).toContainText('1985-03-12')
         await expect(row).not.toContainText('and 1 more')
 
-        // The detail keeps showing everything: a table capped at what can be read side by side is
-        // not a claim that the rest is not held.
+        // The record keeps showing everything: a table capped at what can be read side by side is
+        // not a claim that the rest is not held. Scoped to the sheet, because the listing's own
+        // column headers carry these names too - and they are the columns, not the values.
         await row.click()
-        await expect(page.getByRole('heading', { name: 'Attribute values' })).toBeVisible()
-        await expect(page.getByText('Household size')).toBeVisible()
-        await expect(page.getByText('Date of birth')).toBeVisible()
+        const sheet = page.getByTestId('tracked-entity-sheet')
+        await expect(sheet.getByRole('heading', { name: 'Attribute values' })).toBeVisible()
+        await expect(sheet.getByText('Household size')).toBeVisible()
+        await expect(sheet.getByText('Date of birth')).toBeVisible()
     })
 
     test('opens a specimen batch under its own resource, and says nothing about person-hood', async ({

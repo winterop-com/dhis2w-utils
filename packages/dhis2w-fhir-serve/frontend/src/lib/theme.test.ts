@@ -342,6 +342,197 @@ describe('every theme paints every token', () => {
 })
 
 /**
+ * THE NEUTRAL LADDER, COMPUTED RATHER THAN LOOKED AT.
+ *
+ * The complaint this answers is that the surfaces were all one surface: a card barely off the page,
+ * a border nobody could see, and three greys of text per row that nobody could tell apart. Every one
+ * of those is a NUMBER, and every one of them drifts back toward flat the moment somebody nudges a
+ * lightness to make one screen look nicer - which is exactly the change that looks fine in the
+ * screenshot the author takes and is wrong in nine other palettes.
+ *
+ * So the floors are asserted here, in every theme and on both grounds, off the stylesheet itself.
+ * The colours are oklch, which is not a space a ratio can be read out of, so this converts through
+ * oklab to linear sRGB and takes the WCAG relative luminance from there - the same arithmetic a
+ * browser does, written out once.
+ *
+ * WHAT EACH FLOOR IS FOR:
+ *
+ * - Ink on both surfaces at 12:1. Body text on the page and body text on a card. The rule the app
+ *   is actually held to is far above AA, because a form somebody fills in for an hour is not a
+ *   heading somebody glances at.
+ * - The hint on the card at 4.5:1. Muted is dimmer than the ink by design; it is not decoration,
+ *   and a reader has to be able to read it.
+ * - The identifier on the card at 4.5:1 AND visibly cast. `--machine` separates from the hint by
+ *   hue rather than by a third grey, so both halves of that are checked: it reads, and it is not
+ *   simply another grey.
+ * - Border and input against BOTH the card and the page at 1.3:1. A line has two sides and has to
+ *   be seen from both; a border tuned against the card alone disappears wherever a card does not
+ *   sit under it.
+ * - The card off the page at 1.03:1, which is what "the card sits ON something" means numerically.
+ */
+/** A colour as oklab, which is the space these are mixed and converted through. */
+interface Oklab {
+    L: number
+    a: number
+    b: number
+}
+
+/** An `oklch(L C H)` literal as oklab, or nothing when the value is not one. */
+function asOklab(value: string): Oklab | null {
+    const stated = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)/.exec(value)
+    if (stated === null) return null
+    const chroma = Number(stated[2])
+    const radians = (Number(stated[3]) * Math.PI) / 180
+    return { L: Number(stated[1]), a: chroma * Math.cos(radians), b: chroma * Math.sin(radians) }
+}
+
+/** One channel of linear sRGB, held inside the gamut a screen can actually show. */
+function clampChannel(channel: number): number {
+    return Math.min(1, Math.max(0, channel))
+}
+
+/** WCAG relative luminance, via the oklab-to-linear-sRGB matrices. */
+function luminance({ L, a, b }: Oklab): number {
+    const long = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    const medium = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    const short = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+    return (
+        0.2126 * clampChannel(4.0767416621 * long - 3.3077115913 * medium + 0.2309699292 * short) +
+        0.7152 * clampChannel(-1.2684380046 * long + 2.6097574011 * medium - 0.3413193965 * short) +
+        0.0722 * clampChannel(-0.0041960863 * long - 0.7034186147 * medium + 1.707614701 * short)
+    )
+}
+
+/** The contrast between two colours, lighter over darker, so the order they are named in is free. */
+function contrast(one: Oklab, two: Oklab): number {
+    const [lighter, darker] = [luminance(one), luminance(two)].toSorted((first, second) => second - first)
+    return (lighter + 0.05) / (darker + 0.05)
+}
+
+/** How far off grey a colour is - the whole of what "casts" means. */
+function chromaOf({ a, b }: Oklab): number {
+    return Math.sqrt(a * a + b * b)
+}
+
+/**
+ * One token's colour in one palette, following the two indirections index.css uses.
+ *
+ * The derived layer is written as `var(--other)` and as `color-mix(in oklab, var(--a) N%, var(--b))`,
+ * and both have to be walked here or `--machine` and the table grounds could not be checked at all -
+ * they have no literal to read anywhere in the file.
+ */
+function resolveToken(token: string, palette: Map<string, string>): Oklab {
+    const value = palette.get(token)
+    expect(value, `no theme declares ${token}`).toBeDefined()
+    const literal = asOklab(value ?? '')
+    if (literal !== null) return literal
+    const alias = /^var\((--[a-z0-9-]+)\)$/.exec(value ?? '')
+    if (alias !== null) return resolveToken(alias[1], palette)
+    const mixed = /^color-mix\(in oklab,\s*var\((--[a-z0-9-]+)\)\s+([\d.]+)%,\s*var\((--[a-z0-9-]+)\)\)$/.exec(
+        value ?? '',
+    )
+    expect(mixed, `${token} is written as something this test cannot read: ${value ?? ''}`).not.toBeNull()
+    const weight = Number(mixed?.[2] ?? 0) / 100
+    const one = resolveToken(mixed?.[1] ?? '', palette)
+    const two = resolveToken(mixed?.[3] ?? '', palette)
+    return {
+        L: one.L * weight + two.L * (1 - weight),
+        a: one.a * weight + two.a * (1 - weight),
+        b: one.b * weight + two.b * (1 - weight),
+    }
+}
+
+describe('the neutral ladder', () => {
+    const css = indexCss
+
+    /** What one block declares, given the selector that opens it, as token to value. */
+    const declarationsUnder = (selector: string): Map<string, string> => {
+        const opened = css.indexOf(`${selector} {`)
+        expect(opened, `index.css declares no block for ${selector}`).toBeGreaterThan(-1)
+        const closed = css.indexOf('\n}', opened)
+        return new Map(
+            [...css.slice(opened, closed).matchAll(/^\s+(--[a-z0-9-]+):\s*([^;]+);/gm)].map((match) => [
+                match[1],
+                match[2].trim(),
+            ]),
+        )
+    }
+
+    const base = declarationsUnder(':root')
+
+    /** The two selectors a theme is painted under, as the light and dark palettes they resolve to. */
+    const groundsOf = (name: string): { mode: string; palette: Map<string, string> }[] => {
+        const light = name === DEFAULT_THEME_NAME ? ':root' : `html[data-theme='${name}']`
+        const dark = name === DEFAULT_THEME_NAME ? '.dark' : `html.dark[data-theme='${name}']`
+        return [
+            { mode: 'light', palette: new Map([...base, ...declarationsUnder(light)]) },
+            { mode: 'dark', palette: new Map([...base, ...declarationsUnder(dark)]) },
+        ]
+    }
+
+    for (const theme of THEMES) {
+        for (const { mode, palette } of groundsOf(theme.name)) {
+            const at = (token: string): Oklab => resolveToken(token, palette)
+
+            it(`${theme.label} sets its ink far enough off both surfaces on the ${mode} ground`, () => {
+                expect(contrast(at('--foreground'), at('--background'))).toBeGreaterThanOrEqual(12)
+                expect(contrast(at('--foreground'), at('--card'))).toBeGreaterThanOrEqual(12)
+                // The table's header band is a surface text lands on too, and it is the one a theme
+                // could flatten without noticing, because nothing else in the app is painted on it.
+                expect(contrast(at('--foreground'), at('--table-head'))).toBeGreaterThanOrEqual(12)
+            })
+
+            it(`${theme.label} keeps its hint readable on the ${mode} ground`, () => {
+                expect(contrast(at('--muted-foreground'), at('--card'))).toBeGreaterThanOrEqual(4.5)
+                expect(contrast(at('--muted-foreground'), at('--table-head'))).toBeGreaterThanOrEqual(4.5)
+            })
+
+            it(`${theme.label} gives an identifier a cast of its own on the ${mode} ground`, () => {
+                // Readable first - it is text, and the mono face does not excuse it from that.
+                expect(contrast(at('--machine'), at('--card'))).toBeGreaterThanOrEqual(4.5)
+                // Then actually cast. A `--machine` that resolved to a third grey would pass every
+                // ratio above and fail the rule it exists for.
+                expect(chromaOf(at('--machine'))).toBeGreaterThanOrEqual(0.03)
+                expect(chromaOf(at('--machine'))).toBeGreaterThanOrEqual(1.8 * chromaOf(at('--muted-foreground')))
+            })
+
+            it(`${theme.label} draws a border that can be seen from either side on the ${mode} ground`, () => {
+                for (const line of ['--border', '--input']) {
+                    expect(contrast(at(line), at('--card'))).toBeGreaterThanOrEqual(1.3)
+                    expect(contrast(at(line), at('--background'))).toBeGreaterThanOrEqual(1.3)
+                }
+            })
+
+            it(`${theme.label} sits its card on a page rather than in one on the ${mode} ground`, () => {
+                expect(contrast(at('--card'), at('--background'))).toBeGreaterThanOrEqual(1.03)
+                // The two table grounds are fills, not surfaces: off the card, and the zebra quieter
+                // than the header, or the stripe becomes a second header.
+                const head = contrast(at('--table-head'), at('--card'))
+                const zebra = contrast(at('--table-zebra'), at('--card'))
+                expect(head).toBeGreaterThan(1.01)
+                expect(zebra).toBeGreaterThan(1)
+                expect(zebra).toBeLessThan(head)
+            })
+        }
+    }
+
+    it('states the ladder tokens once, so no theme can leave one of them behind', () => {
+        // `--machine` and the two table grounds are derived from tokens every theme already paints,
+        // which is what makes one line correct in ten palettes. A theme restating them as literals
+        // would be ten chances to get one wrong.
+        for (const token of ['--machine', '--table-head', '--table-zebra']) {
+            expect(base.get(token), `:root no longer derives ${token}`).toContain('var(')
+        }
+    })
+
+    it('spends the identifier ink where the rule for it is written', () => {
+        // The token exists for `.machine-identifier` and is worth nothing until that class reads it.
+        const rule = css.slice(css.indexOf('.machine-identifier {'))
+        expect(rule.slice(0, rule.indexOf('}'))).toContain('color: var(--machine)')
+    })
+})
+
+/**
  * The interactive rule, read off the stylesheet and then off everything that draws with it.
  *
  * WHY THIS IS ASSERTED AGAINST SOURCE TEXT. The rule is "a thing that navigates wears the accent,

@@ -231,7 +231,7 @@ function PatientResult({
                 <span className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs">{lead}</span>
                     {patient.identifiers.slice(1).map((identifier) => (
-                        <span key={identifier.attributeUid} className="text-muted-foreground font-mono text-xs">
+                        <span key={identifier.attributeUid} className="machine-identifier text-xs">
                             {identifier.value}
                         </span>
                     ))}
@@ -259,7 +259,7 @@ function PatientFacts({ patient }: { patient: PatientProjection }) {
                     {attribute.value}
                 </span>
             ))}
-            <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
+            <Badge variant="outline" className="machine-identifier text-[10px]">
                 {patient.trackedEntityUid}
             </Badge>
         </span>

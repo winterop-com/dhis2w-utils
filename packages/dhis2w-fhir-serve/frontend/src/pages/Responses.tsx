@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { ChevronRight, FileWarning, RefreshCw } from 'lucide-react'
 
 import { PageHeader, PageState } from '@/components/PageState'
 import { ProseText } from '@/components/ProseText'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
+import { NO_RECEIPT_OPENED, ReceiptSheet } from '@/components/ReceiptSheet'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -18,6 +19,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useSpool } from '@/hooks/use-spool'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import { type Questionnaire } from '@/lib/fhir'
 import { formLabel } from '@/lib/receipt'
 import {
@@ -30,7 +32,7 @@ import {
     type QuarantinedFile,
     type ResponseLifecycle,
 } from '@/lib/spool'
-import { cn } from '@/lib/utils'
+import { cn, countedNoun, formatCount } from '@/lib/utils'
 
 /**
  * What came back: every capture this server stored, and what has become of it.
@@ -65,10 +67,12 @@ import { cn } from '@/lib/utils'
  * separately and joined by id, and a receipt whose form is no longer published
  * shows its canonical instead of pretending to a title.
  *
- * A ROW OPENS AT `/responses/{id}`. This is the index; the receipt in full - its
- * answers joined to the questions that were asked, the DHIS2 context it carries,
- * and the import report behind a rejection - is a route of its own, which is what
- * makes a particular receipt something you can send someone a link to.
+ * A ROW OPENS IN A SHEET OVER THE TABLE. The receipt in full - its answers joined
+ * to the questions that were asked, the DHIS2 context it carries, and the import
+ * report behind a rejection - arrives where the row is, and Esc gives the table
+ * back with its filter and the reader's place in it untouched. `/responses/{id}`
+ * is still a route of its own, which is what makes a particular receipt something
+ * you can send someone a link to, and the sheet carries the way to it.
  *
  * THE LIFECYCLE FILTER LIVES IN THE URL, as `?lifecycle=received` on the hash
  * route. It is the one filter another page links into - the Overview's spool
@@ -81,7 +85,7 @@ import { cn } from '@/lib/utils'
  * back-button entry per click.
  */
 export function Responses() {
-    const navigate = useNavigate()
+    const [opened, setOpened] = useState(NO_RECEIPT_OPENED)
     const { listing, loading, error, refreshing, reload } = useSpool()
     const forms = useFhirSearch<Questionnaire>('Questionnaire')
     const [searchParameters, setSearchParameters] = useSearchParams()
@@ -128,6 +132,14 @@ export function Responses() {
         }
         return [...seen.entries()].toSorted((left, right) => left[1].localeCompare(right[1]))
     }, [listing.responses, formsByCanonical])
+
+    // How much of the spool the table is showing. The state on the right is why the two numbers
+    // differ, said in the same words the filter's own button carries - the form filter is not on it,
+    // because a form's title is as long as DHIS2 made it and would push the count off the bar.
+    useStatusLine(
+        loading ? null : `Showing ${formatCount(rows.length)} of ${countedNoun(listing.total, 'receipt')}`,
+        lifecycleFilter === null ? null : LIFECYCLE_LABELS[lifecycleFilter],
+    )
 
     return (
         <>
@@ -193,7 +205,7 @@ export function Responses() {
                                 {rows.map((summary) => {
                                     const label = formLabel(summary, formsByCanonical.get(summary.questionnaire))
                                     const open = () => {
-                                        navigate(`/responses/${summary.response_id}`)
+                                        setOpened(summary.response_id)
                                     }
                                     return (
                                         <TableRow
@@ -224,7 +236,7 @@ export function Responses() {
                                             <TableCell className="text-right font-mono text-xs">
                                                 {summary.answer_count}
                                             </TableCell>
-                                            <TableCell className="text-muted-foreground font-mono text-xs">
+                                            <TableCell className="machine-identifier text-xs">
                                                 {summary.response_id}
                                             </TableCell>
                                             <TableCell className="w-8" aria-hidden>
@@ -238,6 +250,13 @@ export function Responses() {
                     </div>
                 )}
             </PageState>
+
+            <ReceiptSheet
+                responseId={opened}
+                onOpenChange={(next) => {
+                    if (!next) setOpened(NO_RECEIPT_OPENED)
+                }}
+            />
         </>
     )
 }
@@ -264,7 +283,7 @@ function QuarantinedSection({ count, files }: { count: number; files: Quarantine
             <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <FileWarning className="text-status-rejected size-4" aria-hidden />
                 Quarantined
-                <span className="text-muted-foreground font-mono text-xs">{stated}</span>
+                <span className="machine-identifier text-xs">{stated}</span>
             </h3>
             <p className="text-muted-foreground text-sm">
                 {stated === 1 ? 'One file reached' : `${String(stated)} files reached`} this project's spool

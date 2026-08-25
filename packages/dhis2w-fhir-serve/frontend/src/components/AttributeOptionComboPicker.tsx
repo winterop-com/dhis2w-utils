@@ -83,7 +83,7 @@ export function AttributeOptionComboPicker({
                         {expansion.options.map((option) => (
                             <SelectItem key={option.coding.code ?? option.label} value={option.coding.code ?? ''}>
                                 <span>{option.label}</span>
-                                <span className="text-muted-foreground font-mono text-[10px]">
+                                <span className="machine-identifier text-[10px]">
                                     {option.coding.code}
                                 </span>
                             </SelectItem>

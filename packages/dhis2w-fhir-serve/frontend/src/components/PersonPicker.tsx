@@ -193,7 +193,7 @@ export function ChosenPerson({ person }: { person: PatientProjection }) {
             ))}
             <div className="flex flex-wrap items-baseline gap-x-2">
                 <dt className="text-muted-foreground text-xs">{TRACKED_ENTITY_FACT_LABEL}</dt>
-                <dd className="text-muted-foreground font-mono text-xs">{person.trackedEntityUid}</dd>
+                <dd className="machine-identifier text-xs">{person.trackedEntityUid}</dd>
             </div>
         </dl>
     )

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BookOpen, Loader2, Play } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Loader2, PanelRightClose, PanelRightOpen, Play } from 'lucide-react'
 
 import { CodeBlock, CodeEditor, type EditorLanguage } from '@/components/CodeEditor'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -28,6 +28,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { evaluateExpression, searchResources } from '@/lib/api'
 import {
@@ -52,7 +53,7 @@ import {
     type ServedResource,
 } from '@/lib/evaluate'
 import { trackedEntitySettings } from '@/lib/uiconfig'
-import { cn } from '@/lib/utils'
+import { cn, countedNoun } from '@/lib/utils'
 
 /** The three languages, in the order the picker offers them, each under the name its own community uses. */
 const LANGUAGES: { value: EvaluationLanguage; label: string }[] = [
@@ -92,11 +93,13 @@ export function editorLanguage(language: EvaluationLanguage): EditorLanguage {
  * context is two blanks to fill before anything happens at all. So the first generic example is
  * already loaded when the page arrives, and pressing Evaluate is the first thing a reader can do.
  *
- * WHY THE REFERENCE IS OPEN BESIDE IT. The second thing a reader does is wonder what else they could
- * have written, and the answer to that is a list of what this engine implements rather than a search
- * engine. So the panel opens with the screen, holding the examples on one tab and the language's own
- * vocabulary on the other, and the button in the toolbar folds it away for somebody who already knows.
- * `lib/reference.ts` states why the subset is ours rather than the specification's.
+ * WHY THE EXAMPLES PANEL IS OPEN BESIDE IT. The second thing a reader does is wonder what else they
+ * could have written, and the answer to that is a list of what this engine implements rather than a
+ * search engine. So the panel opens with the screen, holding the runnable examples on one tab and
+ * each language's own vocabulary on the tab named for it, and its own collapse control folds it to a
+ * strip for somebody who already knows - the same affordance the organisation units page's inspector
+ * rail carries, in the same words. `lib/reference.ts` states why the subset is ours rather than the
+ * specification's.
  *
  * TWO KINDS OF EXAMPLE IN ONE MENU. The generic ones carry their own data and run identically
  * against any served guide, including one that publishes nothing. The presets underneath are built
@@ -131,7 +134,12 @@ export function Evaluate() {
     const [outcome, setOutcome] = useState<EvaluationOutcome | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [running, setRunning] = useState(false)
-    const [referenceShown, setReferenceShown] = useState(true)
+    // The panel choice lives for this mount of the page and nowhere else - deliberately plain
+    // state, not storage, on the same argument the organisation units page makes about its
+    // inspector rail: a panel somebody shut to read one long library is not a standing preference
+    // about how this screen opens, and a reader arriving at Evaluate for the first time in a
+    // session is exactly the reader the examples are for.
+    const [examplesShown, setExamplesShown] = useState(true)
 
     // What this guide holds, read once: one resource per type the presets know how to ask about.
     // A type this server does not serve answers a refusal, which is not an error here - it is the
@@ -212,6 +220,20 @@ export function Evaluate() {
             .finally(() => setRunning(false))
     }, [form])
 
+    // What language is loaded, and what the last run answered. Before anything has been run there
+    // is only the language, which is the fact the whole screen is arranged around; a refusal says
+    // so rather than reading as an answer of no values, because those are different outcomes.
+    const languageLabel =
+        LANGUAGES.find((candidate) => candidate.value === form.language)?.label ?? form.language
+    const values = outcome === null ? null : outcome.results.reduce((total, result) => total + result.values.length, 0)
+    useStatusLine(
+        refusal !== null
+            ? `${languageLabel} - the server refused this evaluation`
+            : values === null
+              ? languageLabel
+              : `${languageLabel} - ${countedNoun(values, 'value')}`,
+    )
+
     return (
         <>
             <PageHeader
@@ -222,7 +244,9 @@ export function Evaluate() {
             <div
                 className={cn(
                     'grid items-start gap-6',
-                    referenceShown && 'lg:grid-cols-[minmax(0,1fr)_22rem]',
+                    examplesShown
+                        ? 'lg:grid-cols-[minmax(0,1fr)_22rem]'
+                        : 'lg:grid-cols-[minmax(0,1fr)_auto]',
                 )}
             >
                 <div className="min-w-0 space-y-6">
@@ -304,22 +328,6 @@ export function Evaluate() {
                                     <TooltipContent>Run this and show what the server answers</TooltipContent>
                                 </Tooltip>
 
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            aria-expanded={referenceShown}
-                                            onClick={() => setReferenceShown(!referenceShown)}
-                                        >
-                                            <BookOpen className="size-4" aria-hidden />
-                                            Reference
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        What you can write here, and examples to start from
-                                    </TooltipContent>
-                                </Tooltip>
                             </div>
 
                             <div className="grid gap-1.5">
@@ -350,7 +358,7 @@ export function Evaluate() {
                         <Card>
                             <CardContent className="space-y-1 py-6">
                                 <p className="text-sm font-medium">The server refused this evaluation</p>
-                                <p className="text-muted-foreground font-mono text-xs break-words">{refusal}</p>
+                                <p className="machine-identifier text-xs break-words">{refusal}</p>
                             </CardContent>
                         </Card>
                     )}
@@ -360,25 +368,91 @@ export function Evaluate() {
                     )}
                 </div>
 
-                {referenceShown && (
-                    <aside className="min-w-0 lg:sticky lg:top-6">
-                        {/* The card is what the viewport bounds, and the panel inside it decides
-                            which of its parts scrolls - which is what keeps the language tabs on
-                            screen while the shelves under them move. */}
-                        <Card className="flex max-h-[calc(100vh-8rem)] flex-col">
-                            <CardContent className="flex min-h-0 flex-1 flex-col py-6">
-                                <EvaluateReference
-                                    language={form.language}
-                                    examplesByLanguage={examplesByLanguage}
-                                    chosen={chosenExample}
-                                    onLoad={load}
-                                />
-                            </CardContent>
-                        </Card>
-                    </aside>
-                )}
+                <ExamplesPanel
+                    open={examplesShown}
+                    onToggle={() => setExamplesShown(!examplesShown)}
+                >
+                    <EvaluateReference
+                        language={form.language}
+                        examplesByLanguage={examplesByLanguage}
+                        chosen={chosenExample}
+                        onLoad={load}
+                    />
+                </ExamplesPanel>
             </div>
         </>
+    )
+}
+
+/**
+ * The examples, beside the box - and the way to fold them out of it.
+ *
+ * THE PANEL CARRIES ITS OWN CONTROL, rather than a toolbar button above the editor saying whether
+ * something on the other side of the screen is there. A control belongs to the thing it acts on, and
+ * a reader who wants the width back reaches for the edge of the panel taking it. Collapsed, it is a
+ * strip holding the way back, so the panel never disappears without leaving a door.
+ *
+ * The affordance is the organisation units page's inspector rail, deliberately: two panels on two
+ * screens that fold the same way are one thing a reader learns once.
+ */
+function ExamplesPanel({
+    open,
+    onToggle,
+    children,
+}: {
+    open: boolean
+    onToggle: () => void
+    children: ReactNode
+}) {
+    if (!open) {
+        return (
+            <aside aria-label="Examples" className="flex flex-col items-center lg:sticky lg:top-6">
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={onToggle}
+                            aria-label="Expand the examples panel"
+                            className="text-muted-foreground hover:text-foreground"
+                        >
+                            <PanelRightOpen className="size-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">Expand the examples panel</TooltipContent>
+                </Tooltip>
+            </aside>
+        )
+    }
+    return (
+        <aside aria-label="Examples" className="min-w-0 lg:sticky lg:top-6">
+            {/* The card is what the viewport bounds, and the panel inside it decides which of its
+                parts scrolls - which is what keeps the language tabs on screen while the shelves
+                under them move. */}
+            <Card className="flex max-h-[calc(100vh-8rem)] flex-col">
+                <CardContent className="flex min-h-0 flex-1 flex-col gap-1 py-6">
+                    <div className="-mt-3 -mb-1 flex items-center justify-end">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={onToggle}
+                                    aria-label="Collapse the examples panel"
+                                    className="text-muted-foreground hover:text-foreground"
+                                >
+                                    <PanelRightClose className="size-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">Collapse the examples panel</TooltipContent>
+                        </Tooltip>
+                    </div>
+                    {children}
+                </CardContent>
+            </Card>
+        </aside>
     )
 }
 
@@ -535,7 +609,7 @@ function Diagnostic({ diagnostic, source }: { diagnostic: EvaluationDiagnostic; 
                         {caretUnder(line, diagnostic.column)}
                     </pre>
                 )}
-                <p className="text-muted-foreground font-mono text-xs break-words whitespace-pre-wrap">
+                <p className="machine-identifier text-xs break-words whitespace-pre-wrap">
                     {diagnostic.message}
                 </p>
                 {diagnostic.expression_name !== null && (
@@ -562,7 +636,7 @@ function ResultCard({ result }: { result: EvaluationResultRow }) {
                 </div>
 
                 {result.refusal !== null && (
-                    <p className="text-muted-foreground font-mono text-xs break-words whitespace-pre-wrap">
+                    <p className="machine-identifier text-xs break-words whitespace-pre-wrap">
                         {result.refusal}
                     </p>
                 )}
@@ -585,7 +659,7 @@ function ResultCard({ result }: { result: EvaluationResultRow }) {
                                     <TableBody>
                                         {result.values.map((value, index) => (
                                             <TableRow key={`${result.name}-${String(index)}`}>
-                                                <TableCell className="text-muted-foreground font-mono text-xs">
+                                                <TableCell className="machine-identifier text-xs">
                                                     {index + 1}
                                                 </TableCell>
                                                 <TableCell className="font-mono text-xs">

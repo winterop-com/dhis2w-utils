@@ -5,10 +5,11 @@ import { ChevronRight } from 'lucide-react'
 import { KindBadge } from '@/components/KindBadge'
 import { PageHeader, PageState } from '@/components/PageState'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import { TRACKED_ENTITY_FORM_SHELF, catalogueForms, isEventProgram, type ProgramGroup } from '@/lib/catalogue'
 import { formIdentifier, formTitle, formTypeOf, questionCount, type Questionnaire } from '@/lib/fhir'
 import { repeatsPerEnrollment } from '@/lib/questionnaire'
-import { cn } from '@/lib/utils'
+import { cn, countedNoun } from '@/lib/utils'
 
 /**
  * Every form this server publishes, grouped by the DHIS2 capture model it came from.
@@ -41,6 +42,20 @@ export function Forms() {
     const catalog = useMemo(() => catalogueForms(resources), [resources])
     const eventPrograms = catalog.programs.filter((group) => isEventProgram(group))
     const trackerPrograms = catalog.programs.filter((group) => !isEventProgram(group))
+
+    // The four capture models, counted whether or not this project publishes any of one - a section
+    // is hidden when it is empty, and a reader scanning the bar for "does this guide have tracker
+    // programs" is owed the zero rather than the absence of a phrase.
+    useStatusLine(
+        loading
+            ? null
+            : [
+                  countedNoun(catalog.dataSets.length, 'data set'),
+                  countedNoun(eventPrograms.length, 'event program'),
+                  countedNoun(trackerPrograms.length, 'tracker program'),
+                  countedNoun(catalog.people.length, 'registration form'),
+              ].join(' - '),
+    )
 
     return (
         <>

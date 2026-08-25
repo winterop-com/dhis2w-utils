@@ -1,11 +1,11 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Search } from 'lucide-react'
 
+import { CodeLookupSheet } from '@/components/CodeLookupSheet'
 import { IdentifierBadges } from '@/components/IdentifierBadges'
 import { MaintenanceLink } from '@/components/MaintenanceLink'
 import { PageState } from '@/components/PageState'
-import { TranslateTester } from '@/components/TranslateTester'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -20,14 +20,17 @@ import {
 } from '@/components/ui/table'
 import { useFhirResource } from '@/hooks/use-fhir-resource'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { useValueSetOptions } from '@/hooks/use-valueset-options'
+import { readResource } from '@/lib/api'
 import { holdsDataElementConcepts } from '@/lib/dhis2'
 import {
     canonicalId,
     type CodeSystem,
     type CodeSystemConcept,
     type ConceptMap,
+    type ConceptMapGroup,
     type ValueSet,
 } from '@/lib/fhir'
 import {
@@ -41,7 +44,6 @@ import {
     conceptPropertyCodingLink,
     conceptPropertyColumns,
     conceptPropertyValue,
-    countedNoun,
     filterConcepts,
     identifierBadges,
     mappingCount,
@@ -58,9 +60,31 @@ import {
     type MappingRow,
     type RowPage,
 } from '@/lib/terminology'
+import { countedNoun } from '@/lib/utils'
 
 /** The three terminology types this route opens, which is exactly what the listing links to. */
 const TERMINOLOGY_TYPES = ['CodeSystem', 'ValueSet', 'ConceptMap'] as const
+
+/**
+ * The ladder a long table is read down: a filled header, and every other row tinted.
+ *
+ * A vocabulary is nineteen columns wide on a category option combo and thousands of rows long, and
+ * the eye tracking one row across that width has nothing to hold on to on a flat white table - it
+ * drifts a row, and the value read belongs to somebody else. The tint is the guide rail; the header
+ * is filled so the names of the columns read as the table's own frame rather than as a first row.
+ *
+ * The tokens are the app's (`--table-head`, `--table-zebra` in index.css), so light and dark are one
+ * decision made once. Hover still wins over the tint: pointing at a row must say which row.
+ *
+ * FOLLOW-UP, deliberately not done here: this belongs in `components/ui/table.tsx` so every table in
+ * the app reads the same way. That file is shadcn's, generated rather than authored, and changing it
+ * is a decision about every table at once - so these two constants name the pattern until somebody
+ * makes it.
+ */
+const ROW_LADDER_HEAD = 'bg-table-head'
+
+/** The tint every other row carries. Paired with `ROW_LADDER_HEAD`; see the note there. */
+const ROW_LADDER_ROW = 'even:not-hover:bg-table-zebra'
 
 /**
  * One terminology resource, opened: the actual codes.
@@ -110,7 +134,7 @@ function TerminologyResource({
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">{resourceType}</Badge>
-                    <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
+                    <Badge variant="outline" className="machine-identifier text-[10px]">
                         {resourceId}
                     </Badge>
                 </div>
@@ -153,7 +177,7 @@ function title(resource: CodeSystem | ValueSet | ConceptMap): string | null {
 function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
     const [query, setQuery] = useConceptFilter()
     const [page, setPage] = useState(1)
-    const [asked, setAsked] = useState<AskedConcept>(NOTHING_ASKED)
+    const lookup = useCodeLookup()
     const settings = useUiConfig()
 
     // WHICH SYSTEMS HAVE AN ANSWER TO GIVE. `$translate` reads the served maps, so a system no map
@@ -173,6 +197,8 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
     const concepts = useMemo(() => codeSystem.concept ?? [], [codeSystem])
     const matching = useMemo(() => filterConcepts(concepts, query), [concepts, query])
     const shown = pageOf(matching, page)
+    const content = codeSystemContentLabel(codeSystem.content)
+    useStatusLine(concepts.length === 0 ? null : pagingLine(shown, 'concept'))
 
     return (
         <div className="space-y-6">
@@ -180,9 +206,13 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                 url={codeSystem.url}
                 description={codeSystem.description}
                 identifiers={identifierBadges(codeSystem.identifier)}
+                // HOW MANY CONCEPTS IS NOT A FACT HERE. It is the same number the summary bar states
+                // as "Showing 40 of 980 concepts", and a card stating 980 a few lines above a bar
+                // stating both is one fact in two places for a reader to reconcile. Content says
+                // nothing about the ordinary vocabulary and speaks only for the document that does
+                // not carry its own concepts - see `codeSystemContentLabel`.
                 facts={[
-                    { label: 'Concepts', value: String(codeSystem.count ?? concepts.length) },
-                    { label: 'Content', value: codeSystemContentLabel(codeSystem.content), mono: false },
+                    ...(content === null ? [] : [{ label: 'Content', value: content, mono: false }]),
                     {
                         label: 'Case sensitive',
                         value: statedBooleanLabel(codeSystem.caseSensitive),
@@ -192,7 +222,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
             >
                 {codeSystem.valueSet !== undefined && (
                     <TerminologyLink resourceType="ValueSet" canonical={codeSystem.valueSet}>
-                        Its value set
+                        Value set
                     </TerminologyLink>
                 )}
             </ResourceFacts>
@@ -200,15 +230,18 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
             <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-base font-semibold">Concepts</h3>
-                    <FilterBox
-                        label="Filter concepts"
-                        placeholder="Filter by code, display, or property"
-                        value={query}
-                        onChange={(next) => {
-                            setQuery(next)
-                            setPage(1)
-                        }}
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                        <FilterBox
+                            label="Filter concepts"
+                            placeholder="Filter by code, display, or property"
+                            value={query}
+                            onChange={(next) => {
+                                setQuery(next)
+                                setPage(1)
+                            }}
+                        />
+                        {translatable && <LookUpACodeButton onOpen={lookup.ask} />}
+                    </div>
                 </div>
 
                 {concepts.length === 0 ? (
@@ -227,7 +260,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                     <>
                         <div className="show-scrollbars overflow-x-auto rounded-lg border">
                             <Table>
-                                <TableHeader>
+                                <TableHeader className={ROW_LADDER_HEAD}>
                                     <TableRow>
                                         <TableHead>Code</TableHead>
                                         <TableHead>Display</TableHead>
@@ -241,7 +274,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                 </TableHeader>
                                 <TableBody>
                                     {shown.rows.map((concept) => (
-                                        <TableRow key={concept.code}>
+                                        <TableRow key={concept.code} className={ROW_LADDER_ROW}>
                                             <TableCell className="font-mono text-xs font-medium">
                                                 <span className="inline-flex items-center gap-1.5">
                                                     {concept.code}
@@ -271,11 +304,9 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                                                 variant="outline"
                                                                 size="sm"
                                                                 aria-label={`Details for ${concept.code}`}
-                                                                onClick={() =>
-                                                                    setAsked((previous) =>
-                                                                        askedConcept(previous, concept.code),
-                                                                    )
-                                                                }
+                                                                onClick={() => {
+                                                                    lookup.ask(concept.code)
+                                                                }}
                                                             >
                                                                 Details
                                                                 <ArrowRight aria-hidden />
@@ -290,15 +321,65 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                 </TableBody>
                             </Table>
                         </div>
-                        <Pagination page={shown} onPage={setPage} noun="concept" />
+                        <Pagination page={shown} onPage={setPage} />
                     </>
                 )}
             </div>
 
             {codeSystem.url !== undefined && translatable && (
-                <TranslateTester system={codeSystem.url} asked={asked} targetSystems={[]} />
+                <CodeLookupSheet
+                    open={lookup.open}
+                    onOpenChange={lookup.setOpen}
+                    system={codeSystem.url}
+                    asked={lookup.asked}
+                    targetSystems={[]}
+                />
             )}
         </div>
+    )
+}
+
+/**
+ * The lookup a page opens, and what it was opened about.
+ *
+ * ONE STATE FOR TWO WAYS IN. A concept row asks about the code it names and the sheet arrives with
+ * the answer already on it; the button beside the filter opens the same sheet with an empty box for
+ * a code somebody has in their head rather than on the screen. Both are the same question, so both
+ * go through one ask - and the nonce is what makes the same row asked twice a second question
+ * rather than a value the sheet already held.
+ */
+function useCodeLookup(): {
+    asked: AskedConcept
+    open: boolean
+    setOpen: (open: boolean) => void
+    ask: (code: string, targetSystem?: string | null) => void
+} {
+    const [asked, setAsked] = useState<AskedConcept>(NOTHING_ASKED)
+    const [open, setOpen] = useState(false)
+    const ask = useCallback((code: string, targetSystem: string | null = null) => {
+        setAsked((previous) => askedConcept(previous, code, targetSystem))
+        setOpen(true)
+    }, [])
+    return { asked, open, setOpen, ask }
+}
+
+/** The way in for a code nobody is looking at a row for: the same sheet, opened empty. */
+function LookUpACodeButton({ onOpen }: { onOpen: (code: string) => void }) {
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button
+                    variant="outline"
+                    onClick={() => {
+                        onOpen('')
+                    }}
+                >
+                    <Search className="size-4" aria-hidden />
+                    Look up a code
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent>{TRANSLATE_QUESTION}</TooltipContent>
+        </Tooltip>
     )
 }
 
@@ -355,7 +436,7 @@ function ConceptPropertyCell({ concept, code }: { concept: CodeSystemConcept; co
         )
     }
     return (
-        <TableCell className="text-muted-foreground font-mono text-xs">
+        <TableCell className="machine-identifier text-xs">
             {conceptPropertyValue(concept, code) ?? '-'}
         </TableCell>
     )
@@ -366,6 +447,12 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
     const [query, setQuery] = useConceptFilter()
     const [page, setPage] = useState(1)
     const systems = composedSystems(valueSet)
+    // A set composing one system needs no name on its chip - "Code system" is which relationship the
+    // link is, and the page it opens states which system. Several chips have to be told apart, and
+    // the only thing that tells them apart a reader can read is each system's published title, so
+    // that is read - and only then, because it is a read per system on a page that needs neither.
+    const severalSystems = systems.length > 1
+    const systemTitles = useCodeSystemTitles(severalSystems ? systems : [])
     // The expansion is the same two reads a choice question makes when it renders its options,
     // through the same cache - so opening a value set here warms exactly what a form needs.
     const expansion = useValueSetOptions(valueSet.url ?? null)
@@ -373,6 +460,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
         matchesQuery(query, option.coding.code, option.label),
     )
     const shown = pageOf(matching, page)
+    useStatusLine(expansion.loading ? null : pagingLine(shown, 'concept'))
 
     return (
         <div className="space-y-6">
@@ -380,14 +468,16 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                 url={valueSet.url}
                 description={valueSet.description}
                 identifiers={identifierBadges(valueSet.identifier)}
-                facts={[
-                    { label: 'Systems', value: String(systems.length) },
-                    { label: 'Concepts', value: expansion.loading ? '...' : String(expansion.options.length) },
-                ]}
+                // The concept count is the summary bar's, for the same reason it is on a code
+                // system page: one number, in the one place that also says how much of it is on
+                // screen. What the card can say and the bar cannot is how many systems it composes.
+                facts={[{ label: 'Systems', value: String(systems.length) }]}
             >
                 {systems.map((system) => (
                     <TerminologyLink key={system} resourceType="CodeSystem" canonical={system}>
-                        {systemLabel(system)}
+                        {severalSystems
+                            ? `Code system - ${systemTitles.get(system) ?? canonicalId(system) ?? system}`
+                            : 'Code system'}
                     </TerminologyLink>
                 ))}
             </ResourceFacts>
@@ -424,7 +514,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                 >
                     <div className="show-scrollbars overflow-x-auto rounded-lg border">
                         <Table>
-                            <TableHeader>
+                            <TableHeader className={ROW_LADDER_HEAD}>
                                 <TableRow>
                                     <TableHead>Code</TableHead>
                                     <TableHead>Display</TableHead>
@@ -433,12 +523,15 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                             </TableHeader>
                             <TableBody>
                                 {shown.rows.map((option) => (
-                                    <TableRow key={`${option.coding.system ?? ''}-${option.coding.code ?? ''}`}>
+                                    <TableRow
+                                        key={`${option.coding.system ?? ''}-${option.coding.code ?? ''}`}
+                                        className={ROW_LADDER_ROW}
+                                    >
                                         <TableCell className="font-mono text-xs font-medium">
                                             {option.coding.code}
                                         </TableCell>
                                         <TableCell>{option.label}</TableCell>
-                                        <TableCell className="text-muted-foreground font-mono text-xs">
+                                        <TableCell className="machine-identifier text-xs">
                                             {systemLabel(option.coding.system)}
                                         </TableCell>
                                     </TableRow>
@@ -446,7 +539,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                             </TableBody>
                         </Table>
                     </div>
-                    <Pagination page={shown} onPage={setPage} noun="concept" />
+                    <Pagination page={shown} onPage={setPage} />
                 </PageState>
             </div>
         </div>
@@ -456,9 +549,13 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
 /** A concept map: every mapping it states, grouped the way the map groups them. */
 function ConceptMapDetail({ conceptMap }: { conceptMap: ConceptMap }) {
     const [query, setQuery] = useConceptFilter()
-    const [asked, setAsked] = useState<AskedConcept>(NOTHING_ASKED)
+    const lookup = useCodeLookup()
     const groups = conceptMap.group ?? []
     const sourceSystem = groups.find((group) => group.source !== undefined)?.source
+    // Every group pages on its own, so there is no one page to state - what the bar can say is how
+    // much of the map the filter admitted, over the groups it is spread across.
+    const matching = groups.reduce((total, group) => total + matchingMappings(group, query).length, 0)
+    useStatusLine(`${countedNoun(matching, 'mapping')} in ${countedNoun(groups.length, 'group')}`)
 
     return (
         <div className="space-y-6">
@@ -485,12 +582,15 @@ function ConceptMapDetail({ conceptMap }: { conceptMap: ConceptMap }) {
 
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-base font-semibold">Mappings</h3>
-                <FilterBox
-                    label="Filter mappings"
-                    placeholder="Filter by code or display"
-                    value={query}
-                    onChange={setQuery}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                    <FilterBox
+                        label="Filter mappings"
+                        placeholder="Filter by code or display"
+                        value={query}
+                        onChange={setQuery}
+                    />
+                    {sourceSystem !== undefined && <LookUpACodeButton onOpen={lookup.ask} />}
+                </div>
             </div>
 
             {groups.map((group, index) => (
@@ -499,20 +599,18 @@ function ConceptMapDetail({ conceptMap }: { conceptMap: ConceptMap }) {
                     // position is what tells them apart. Groups are never reordered in place.
                     // oxlint-disable-next-line react/no-array-index-key
                     key={`${group.target ?? ''}-${index}`}
-                    source={group.source}
-                    target={group.target}
-                    rows={mappingRows(group)}
+                    group={group}
                     query={query}
-                    onAsk={(code, targetSystem) => {
-                        setAsked((previous) => askedConcept(previous, code, targetSystem))
-                    }}
+                    onAsk={lookup.ask}
                 />
             ))}
 
             {sourceSystem !== undefined && (
-                <TranslateTester
+                <CodeLookupSheet
+                    open={lookup.open}
+                    onOpenChange={lookup.setOpen}
                     system={sourceSystem}
-                    asked={asked}
+                    asked={lookup.asked}
                     targetSystems={targetSystems(conceptMap)}
                 />
             )}
@@ -520,29 +618,32 @@ function ConceptMapDetail({ conceptMap }: { conceptMap: ConceptMap }) {
     )
 }
 
+/** The rows of one group the filter admits - the one reading the bar and the group itself share. */
+function matchingMappings(group: ConceptMapGroup, query: string): MappingRow[] {
+    return mappingRows(group).filter((row) => matchesQuery(query, row.code, row.display, row.targetCode))
+}
+
 /** One group of a map: what it maps into, and every row it states. */
 function MappingGroup({
-    source,
-    target,
-    rows,
+    group,
     query,
     onAsk,
 }: {
-    source: string | undefined
-    target: string | undefined
-    rows: MappingRow[]
+    group: ConceptMapGroup
     query: string
     /** Asks about one row, in the direction of the group it is in. */
     onAsk: (code: string, targetSystem: string | null) => void
 }) {
     const [page, setPage] = useState(1)
-    const matching = rows.filter((row) => matchesQuery(query, row.code, row.display, row.targetCode))
+    const source = group.source
+    const target = group.target
+    const matching = matchingMappings(group, query)
     const shown = pageOf(matching, page)
 
     return (
         <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-muted-foreground font-mono text-xs">{systemLabel(source)}</span>
+                <span className="machine-identifier text-xs">{systemLabel(source)}</span>
                 <ArrowRight className="text-muted-foreground size-3.5" aria-hidden />
                 <span className="font-mono text-xs font-medium">{systemLabel(target)}</span>
                 <span className="text-muted-foreground text-xs">
@@ -559,7 +660,7 @@ function MappingGroup({
                 <>
                     <div className="show-scrollbars overflow-x-auto rounded-lg border">
                         <Table>
-                            <TableHeader>
+                            <TableHeader className={ROW_LADDER_HEAD}>
                                 <TableRow>
                                     <TableHead>Concept</TableHead>
                                     <TableHead>Display</TableHead>
@@ -570,7 +671,7 @@ function MappingGroup({
                             </TableHeader>
                             <TableBody>
                                 {shown.rows.map((row) => (
-                                    <TableRow key={`${row.code}-${row.targetCode}`}>
+                                    <TableRow key={`${row.code}-${row.targetCode}`} className={ROW_LADDER_ROW}>
                                         <TableCell className="font-mono text-xs font-medium">
                                             {row.code}
                                         </TableCell>
@@ -606,14 +707,22 @@ function MappingGroup({
                             </TableBody>
                         </Table>
                     </div>
-                    <Pagination page={shown} onPage={setPage} noun="mapping" />
+                    <Pagination page={shown} onPage={setPage} />
                 </>
             )}
         </div>
     )
 }
 
-/** The header block every detail shares: canonical, identifiers, counts, and the links out. */
+/**
+ * The header block every detail shares: what this is, what it is called, and the ways out of it.
+ *
+ * THE WAYS OUT SIT BESIDE THE DESCRIPTION rather than under everything. They are navigation - the
+ * value set a code system is published as, the source vocabulary a map translates from - and giving
+ * them a row of their own at the foot of the card made a two-line card three lines tall and read as
+ * a fourth kind of fact about the resource. Top right, beside the prose, is where a reader looks for
+ * a way onward, and the card ends where its facts end.
+ */
 function ResourceFacts({
     url,
     description,
@@ -626,14 +735,22 @@ function ResourceFacts({
     identifiers: IdentifierBadge[]
     /** One stated fact each. `mono` is false where the value is a sentence rather than a machine spelling. */
     facts: { label: string; value: string; mono?: boolean }[]
+    /** The links out, as chips. They ride the card's upper right rather than a row of their own. */
     children?: ReactNode
 }) {
     return (
         <div className="space-y-3 rounded-lg border p-4">
-            {description !== undefined && <p className="text-sm">{description}</p>}
-            {url !== undefined && (
-                <p className="text-muted-foreground font-mono text-xs break-all">{url}</p>
-            )}
+            <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+                <div className="min-w-0 flex-1 space-y-3 md:max-w-3xl">
+                    {description !== undefined && <p className="text-sm">{description}</p>}
+                    {url !== undefined && (
+                        <p className="machine-identifier text-xs break-all">{url}</p>
+                    )}
+                </div>
+                {/* Each chip keeps its own line unbroken - "Source code system" wrapping to two
+                    lines inside a button reads as two chips. The group wraps instead. */}
+                <div className="flex flex-wrap justify-end gap-2 [&_a]:whitespace-nowrap">{children}</div>
+            </div>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                 {facts.map((fact) => (
                     <div key={fact.label} className="text-sm">
@@ -643,13 +760,60 @@ function ResourceFacts({
                 ))}
             </div>
             {identifiers.length > 0 && <IdentifierBadges badges={identifiers} />}
-            <div className="flex flex-wrap gap-2">{children}</div>
         </div>
     )
 }
 
 /**
+ * The published titles of a set of code systems, keyed by canonical.
+ *
+ * ONLY WHERE A PAGE HAS TO TELL SEVERAL APART. This is one read per system, of documents that run to
+ * thousands of concepts, to put a word on a chip - so a caller passes an empty list wherever the
+ * relationship alone names the link, and nothing is read. A system that cannot be read is absent
+ * from the answer rather than failing the page: the chip still links, and the page it opens states
+ * whatever the server said.
+ */
+function useCodeSystemTitles(canonicals: string[]): ReadonlyMap<string, string> {
+    const [titles, setTitles] = useState<ReadonlyMap<string, string>>(new Map())
+    // Serialised into the dependency rather than compared by identity, so a caller can pass the
+    // array it derived on this render without re-reading every system on every render.
+    const wantedKey = canonicals.join('|')
+
+    useEffect(() => {
+        const wanted = wantedKey === '' ? [] : wantedKey.split('|')
+        if (wanted.length === 0) {
+            setTitles(new Map())
+            return
+        }
+        let cancelled = false
+        const reads = wanted.map(async (canonical): Promise<readonly [string, string] | null> => {
+            const id = canonicalId(canonical)
+            if (id === null) return null
+            try {
+                const codeSystem = await readResource<CodeSystem>('CodeSystem', id)
+                return [canonical, codeSystem.title ?? codeSystem.name ?? id] as const
+            } catch {
+                return null
+            }
+        })
+        void Promise.all(reads).then((pairs) => {
+            if (cancelled) return
+            setTitles(new Map(pairs.filter((pair) => pair !== null)))
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [wantedKey])
+
+    return titles
+}
+
+/**
  * A link to another terminology resource by its canonical url.
+ *
+ * THE LABEL IS THE RELATIONSHIP, in plain words: "Value set", "Source code system". A chip set in a
+ * `Type/id` path names the address rather than the thing, and the address is on the page it opens -
+ * where it belongs, and where it is the only place it is worth reading.
  *
  * The id is the canonical's last segment, which is how this server ids everything it publishes -
  * the same rule hooks/use-valueset-options.ts resolves a binding by. A canonical that names a
@@ -687,7 +851,9 @@ function FilterBox({
     onChange: (next: string) => void
 }) {
     return (
-        <div className="relative w-full max-w-xs">
+        // Wide enough for its own placeholder: "Filter by code, display, or property" is what the
+        // box promises it can be asked, and a promise clipped mid-word is worse than none.
+        <div className="relative w-full sm:w-96">
             <Search
                 className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
                 aria-hidden
@@ -704,50 +870,55 @@ function FilterBox({
 }
 
 /**
- * How much of a long list is on screen, and how to see the rest.
+ * How much of a long list is on screen, in one sentence.
+ *
+ * The same words under the table and in the summary bar at the foot of the window, because they are
+ * one fact: a reader who has scrolled past the line under the table still has it, and a reader who
+ * has not must not find the two disagreeing. The page number is dropped when there is one page -
+ * "page 1 of 1" is a control's state, not news.
+ */
+export function pagingLine(page: RowPage<unknown>, noun: string): string {
+    const paged = page.pageCount > 1 ? ` (page ${String(page.page)} of ${String(page.pageCount)})` : ''
+    return `Showing ${String(page.shown)} of ${countedNoun(page.total, noun)}${paged}`
+}
+
+/**
+ * How to see the rest of a long list: the two moves, and nothing else.
  *
  * Client-side, over rows the server already sent: `d2w fhir serve` answers a read with the whole
  * document, so there is nothing to fetch per page. What this solves is rendering - an
  * organisation-unit code system runs to thousands of concepts - and a page count is a cheaper
  * answer to that than a virtualization dependency.
+ *
+ * HOW MUCH IS ON SCREEN IS NOT SAID HERE. It is one fact, and the summary bar at the foot of the
+ * window carries it for the whole page; printing the same sentence again a row above the bar put it
+ * on the screen twice, in two sizes, as though a reader had to reconcile them. Every page that
+ * pages publishes the line through `useStatusLine`, which is where it now lives.
  */
-function Pagination({
-    page,
-    onPage,
-    noun,
-}: {
-    page: RowPage<unknown>
-    onPage: (next: number) => void
-    /** What one row is, in the singular - the line says one of them as "1 concept", not "1 concepts". */
-    noun: string
-}) {
+function Pagination({ page, onPage }: { page: RowPage<unknown>; onPage: (next: number) => void }) {
+    // Drawn wherever there are rows, and disabled where there is nowhere to go: the end of a list
+    // is a place a reader arrives at looking for the way on, and a pair of buttons that cannot be
+    // pressed answers that - where nothing at all leaves them wondering whether the page failed to
+    // draw one. A table with no rows has no list to be at the end of.
     if (page.total === 0) return null
     return (
-        <div className="flex flex-wrap items-center gap-3">
-            <p className="text-muted-foreground text-xs">
-                Showing {page.shown} of {countedNoun(page.total, noun)}
-                {page.pageCount > 1 ? ` (page ${String(page.page)} of ${String(page.pageCount)})` : ''}
-            </p>
-            {page.pageCount > 1 && (
-                <div className="flex gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={page.page <= 1}
-                        onClick={() => onPage(page.page - 1)}
-                    >
-                        Previous
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={page.page >= page.pageCount}
-                        onClick={() => onPage(page.page + 1)}
-                    >
-                        Next
-                    </Button>
-                </div>
-            )}
+        <div className="flex justify-end gap-2">
+            <Button
+                variant="outline"
+                size="sm"
+                disabled={page.page <= 1}
+                onClick={() => onPage(page.page - 1)}
+            >
+                Previous
+            </Button>
+            <Button
+                variant="outline"
+                size="sm"
+                disabled={page.page >= page.pageCount}
+                onClick={() => onPage(page.page + 1)}
+            >
+                Next
+            </Button>
         </div>
     )
 }

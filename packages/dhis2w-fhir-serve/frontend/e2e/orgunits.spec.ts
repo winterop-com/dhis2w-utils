@@ -61,7 +61,8 @@ test('the tree renders the roots and expands on demand', async ({ page }) => {
     // The registry also publishes the profile exemplar, which claims Sierra Leone's uid and hangs
     // off nothing. One unit, one row - not two roots with the same name.
     await expect(page.getByRole('button', { name: 'Sierra Leone', exact: true })).toHaveCount(1)
-    await expect(page.getByText('10 organisation units')).toBeVisible()
+    // Scoped to the page: the summary bar states the same count at the foot of the window.
+    await expect(page.getByTestId('page-content').getByText('10 organisation units')).toBeVisible()
 
     // The page opens on the root selected and EXPANDED - the districts are on screen without a
     // click. Lazy expansion still holds below them: a district's own children stay unrendered.

@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { refreshServerStatus, useServerStatus } from '@/hooks/use-server-status'
 import { useSpool } from '@/hooks/use-spool'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import {
     formIdentifier,
     formSlice,
@@ -31,7 +32,7 @@ import {
     type SpoolCounts,
     type SpoolResponseSummary,
 } from '@/lib/spool'
-import { cn } from '@/lib/utils'
+import { cn, countedNoun } from '@/lib/utils'
 
 /**
  * The root route: the state of capture, right now, in one screen.
@@ -62,6 +63,18 @@ export function Overview() {
     useEffect(() => {
         if (reachability === 'unknown') void refreshServerStatus()
     }, [reachability])
+
+    // The three sections of this page as one line: what arrived, what a capture can be started
+    // from, and how much of a FHIR server is behind both. The types come off the same
+    // CapabilityStatement the identity strip reads, and are said as "served" for the reason stated
+    // there - the Server page counts a different set and names it.
+    const servedTypes = capability?.rest?.[0]?.resource?.length ?? 0
+    useStatusLine(
+        spoolLoading || forms.loading
+            ? null
+            : `${countedNoun(listing.total, 'receipt')} - ${countedNoun(forms.resources.length, 'form')} served`,
+        capability === null ? null : countedNoun(servedTypes, 'resource type'),
+    )
 
     return (
         <>

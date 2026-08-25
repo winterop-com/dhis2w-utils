@@ -206,7 +206,7 @@ export function QuestionnaireItemView({
 /** The DHIS2 uid a question carries, which is the string every other surface names it by. */
 function CodeBadge({ code, className }: { code: string; className?: string }) {
     return (
-        <Badge variant="outline" className={cn('text-muted-foreground font-mono text-[10px]', className)}>
+        <Badge variant="outline" className={cn('machine-identifier text-[10px]', className)}>
             {code}
         </Badge>
     )

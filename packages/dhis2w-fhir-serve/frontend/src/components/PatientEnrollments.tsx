@@ -116,7 +116,7 @@ export function EnrollmentFacts({
             {enrollment.organisation_unit_name !== null && (
                 <span className="text-muted-foreground text-xs">{enrollment.organisation_unit_name}</span>
             )}
-            <span className="text-muted-foreground font-mono text-xs">{enrollment.enrollment_uid}</span>
+            <span className="machine-identifier text-xs">{enrollment.enrollment_uid}</span>
         </span>
     )
 }
