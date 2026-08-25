@@ -74,10 +74,14 @@ export function PersonPicker({
     return (
         <fieldset className="grid gap-2 rounded-lg border p-4">
             <legend className="px-1 text-sm font-medium">Person</legend>
+            {/* The second sentence is about the other option, so it is on screen exactly when that
+                option is - a panel that described finding a person and then said it cannot be done
+                here was promising a capability the next line took back. */}
             <p className="text-muted-foreground text-sm">
                 Who this registration is about. A new person is given the identifiers this server
-                mints; a person this DHIS2 instance already holds keeps the ones it holds them
-                under.
+                mints.
+                {offersInstance &&
+                    ' A person this DHIS2 instance already holds keeps the identifiers the instance has for them.'}
             </p>
 
             <div className="grid gap-2">

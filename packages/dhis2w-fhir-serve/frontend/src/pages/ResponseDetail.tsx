@@ -12,6 +12,7 @@ import {
 
 import { CodeBlock } from '@/components/CodeEditor'
 import { PageState } from '@/components/PageState'
+import { ProseText } from '@/components/ProseText'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -55,6 +56,7 @@ import {
     type ReceiptContextFact,
 } from '@/lib/receipt'
 import {
+    AUTHORED_FACT_LABEL,
     captureContext,
     formatInstant,
     ORGANISATION_UNIT_FACT_LABEL,
@@ -201,9 +203,15 @@ export function ResponseDetail() {
                                     <TriangleAlert className="text-status-refused size-4" aria-hidden />
                                     Warnings recorded on capture
                                 </h3>
+                                {/* The validator quotes link ids and elements with backtick marks,
+                                    and a mark is a change of typeface rather than a character on
+                                    the screen - so every server-authored sentence on this page goes
+                                    through ProseText. */}
                                 <ul className="text-muted-foreground space-y-1 rounded-lg border p-4 text-sm">
                                     {summary.warnings.map((warning) => (
-                                        <li key={warning}>{warning}</li>
+                                        <li key={warning}>
+                                            <ProseText text={warning} />
+                                        </li>
                                     ))}
                                 </ul>
                             </section>
@@ -285,7 +293,10 @@ function CaptureContextSection({ facts }: { facts: ReceiptContextFact[] }) {
  * THE DATES ARE LABELLED BY THE FORM the receipt answered, which is the same source the capture
  * screen labels its controls from. A programme that calls its enrollment date "Date first seen"
  * calls it that in both places; a receipt whose form is no longer served falls back to this
- * project's own words, which is what `dateLabelsOf` answers for a form that is not there.
+ * project's own words, which is what `dateLabelsOf` answers for a form that is not there. The
+ * `authored` instant the spool derives is the same fact under an R4 element name, so it is renamed
+ * for what it is on this receipt's kind and formatted like every other instant on the page - a raw
+ * `2026-07-28T15:00:00Z` three lines under a humanised "Received" was the same clock in two hands.
  */
 function contextFacts(
     summary: SpoolResponseSummary | null,
@@ -299,6 +310,13 @@ function contextFacts(
         summary === null
             ? []
             : captureContext(summary).map((fact) => {
+                  if (fact.label === AUTHORED_FACT_LABEL) {
+                      return {
+                          label: authoredLabel(summary.form_kind, labels),
+                          value: formatInstant(fact.value),
+                          mono: false,
+                      }
+                  }
                   const named = fact.label === ORGANISATION_UNIT_FACT_LABEL ? units.get(fact.value) : undefined
                   if (named === undefined) return { label: fact.label, value: fact.value, mono: true }
                   return { label: fact.label, value: `${named.name} (${fact.value})`, mono: false }
@@ -306,6 +324,19 @@ function contextFacts(
     if (stored === null) return derived
     const combo = attributeOptionComboFact(stored, attributeCodeSystem)
     return mergeContextFacts(derived, trackerContextFacts(stored, labels), combo === null ? [] : [combo])
+}
+
+/**
+ * What the `authored` instant is called on a receipt of one kind.
+ *
+ * R4 puts one element here and DHIS2 makes two facts of it. On an event or a stage submission it is
+ * the date the visit happened - the forwarder reads `TrackerEvent.occurredAt` off it, and the form
+ * that captured it labelled the control with the programme's own word, which is the word this page
+ * uses too. On every other kind nothing about a visit is claimed: it is when the answers were
+ * gathered, which is what R4 says the element is and what a person reads it as.
+ */
+function authoredLabel(formKind: string, labels: DateLabels): string {
+    return formKind === 'event' || formKind === 'tracker-event' ? labels.eventDate : 'Filled in'
 }
 
 /** The header block: when it arrived, what it is, and the handles it is found by again. */

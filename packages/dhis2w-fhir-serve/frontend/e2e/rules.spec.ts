@@ -47,7 +47,7 @@ test('a value above what the form accepts refuses Submit, and says which value t
 
     // The fact and nothing else: what was typed, which end of the range it passed, and the value the
     // form accepts. Nobody is told what to type instead.
-    await expect(page.getByText(`137 is above the highest value this form accepts, ${COVERAGE_MAXIMUM}`)).toBeVisible()
+    await expect(page.getByText(`137 is above ${COVERAGE_MAXIMUM}, the highest value this form accepts`)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Submit' })).toBeDisabled()
     await expect(page.getByText('1 answer is outside what this form accepts')).toBeVisible()
 })
@@ -60,7 +60,7 @@ test('a value back inside the range lets Submit go again', async ({ page }) => {
 
     await page.getByLabel('Coverage').fill('58.3')
 
-    await expect(page.getByText('is above the highest value this form accepts')).toHaveCount(0)
+    await expect(page.getByText('the highest value this form accepts')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Submit' })).toBeEnabled()
 })
 
@@ -73,7 +73,7 @@ test('a calendar day outside the range the form publishes refuses Submit too', a
     await page.locator(`#${VISIT_DATE_QUESTION}`).fill('2027-03-04')
 
     await expect(
-        page.getByText(`2027-03-04 is above the highest value this form accepts, ${OUTBREAK_LAST_DAY}`),
+        page.getByText(`2027-03-04 is above ${OUTBREAK_LAST_DAY}, the highest value this form accepts`),
     ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Submit' })).toBeDisabled()
 })

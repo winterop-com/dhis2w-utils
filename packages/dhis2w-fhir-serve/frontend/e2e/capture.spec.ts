@@ -489,7 +489,7 @@ test.describe('a form asking for an organisation unit as an answer', () => {
 
         const answer = page.getByLabel('Visited unit')
         await expect(answer).toBeVisible()
-        await expect(page.getByText('is not filled in this UI')).toHaveCount(0)
+        await expect(page.getByText('This UI does not fill')).toHaveCount(0)
         await expect(page.getByText('assigned everywhere')).toBeVisible()
 
         // The draw answers the question too, and a refill is what pours those answers into the

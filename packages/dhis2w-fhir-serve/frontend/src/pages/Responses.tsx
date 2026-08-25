@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronRight, RefreshCw } from 'lucide-react'
+import { ChevronRight, FileWarning, RefreshCw } from 'lucide-react'
 
 import { PageHeader, PageState } from '@/components/PageState'
+import { ProseText } from '@/components/ProseText'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -26,6 +27,7 @@ import {
     RESPONSE_LIFECYCLES,
     formatInstant,
     type LifecycleHint,
+    type QuarantinedFile,
     type ResponseLifecycle,
 } from '@/lib/spool'
 import { cn } from '@/lib/utils'
@@ -33,9 +35,14 @@ import { cn } from '@/lib/utils'
 /**
  * What came back: every capture this server stored, and what has become of it.
  *
+ * A FILE THAT IS NOT A RECEIPT IS STATED FIRST. The spool also holds what it could not read, and
+ * `counts.malformed` with the `malformed[]` reasons beside it is the whole of what is known about
+ * those. They are in none of the four states and in none of the table's columns, so they are a
+ * section above it - see `QuarantinedSection`.
+ *
  * WHAT THIS PAGE IS ACTUALLY SHOWING. Not a view of DHIS2. A receipt is the
  * submission as it arrived, and the lifecycle beside it is which of the spool's
- * three directories the file currently sits in - `received` until
+ * four directories the file currently sits in - `received` until
  * `d2w fhir forward` drains it, then `forwarded` or `rejected` depending on what
  * DHIS2 said. That is why the reload button matters: the forwarder is another
  * process moving files under a page that is already open, and the server
@@ -151,6 +158,8 @@ export function Responses() {
                 </Tooltip>
             </div>
 
+            <QuarantinedSection count={listing.counts.malformed} files={listing.malformed} />
+
             <PageState
                 loading={loading}
                 error={error}
@@ -168,7 +177,10 @@ export function Responses() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Received</TableHead>
+                                    {/* "Captured", not "Received": the State column beside it
+                                        already says Received, and when a capture arrived and where
+                                        it sits now are two different facts. */}
+                                    <TableHead>Captured</TableHead>
                                     <TableHead>Form</TableHead>
                                     <TableHead>Kind</TableHead>
                                     <TableHead>State</TableHead>
@@ -227,6 +239,51 @@ export function Responses() {
                 )}
             </PageState>
         </>
+    )
+}
+
+/**
+ * The files that reached the spool and could not be read as receipts.
+ *
+ * NOT A FIFTH STATE, AND ABOVE THE TABLE RATHER THAN IN IT. The four lifecycle states are where a
+ * receipt's file sits; a quarantined file is one the facade could not read as a receipt at all, so
+ * it has no form, no answers, no id to open, and nothing the table's columns could say about it. It
+ * is also the one thing in the spool nobody can act on without being told: a capture that arrived
+ * and could not be read is a capture that is not going to DHIS2 and is not going to appear anywhere
+ * else. So it is stated above the table, with the server's own reason per file.
+ *
+ * THE COUNT AND THE LIST CAN DISAGREE, and the count is the one believed. `/spool` names the files
+ * it moved aside on the page it answers; a listing walked over several pages, or a server that
+ * counted more than it named, leaves a count with nothing under it - which is still worth saying.
+ */
+function QuarantinedSection({ count, files }: { count: number; files: QuarantinedFile[] }) {
+    if (count === 0 && files.length === 0) return null
+    const stated = Math.max(count, files.length)
+    return (
+        <section data-testid="spool-quarantined" className="mb-4 space-y-2 rounded-lg border p-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <FileWarning className="text-status-rejected size-4" aria-hidden />
+                Quarantined
+                <span className="text-muted-foreground font-mono text-xs">{stated}</span>
+            </h3>
+            <p className="text-muted-foreground text-sm">
+                {stated === 1 ? 'One file reached' : `${String(stated)} files reached`} this project's spool
+                and could not be read as a receipt. {stated === 1 ? 'It is' : 'They are'} in no state, and{' '}
+                {stated === 1 ? 'is' : 'are'} not in the table below.
+            </p>
+            {files.length > 0 && (
+                <dl className="grid gap-2 text-sm">
+                    {files.map((file) => (
+                        <div key={file.file_name} className="grid gap-0.5">
+                            <dt className="font-mono text-xs break-all">{file.file_name}</dt>
+                            <dd className="text-muted-foreground text-xs">
+                                <ProseText text={file.reason} />
+                            </dd>
+                        </div>
+                    ))}
+                </dl>
+            )}
+        </section>
     )
 }
 

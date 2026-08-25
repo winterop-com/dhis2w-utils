@@ -339,6 +339,16 @@ export const TRACKED_ENTITY_FACT_LABEL = 'Tracked entity'
 export const TRACKER_ENROLLMENT_FACT_LABEL = 'Enrollment'
 
 /**
+ * What the `authored` instant is labelled here, exported because a page resolves that one further.
+ *
+ * The spool has no form and can only name the element the instant sits on. A page that has read the
+ * form knows what that instant is *about* - an event happened on it, and the programme has its own
+ * word for that date - so it renames the fact and formats the instant, finding it by this label the
+ * same way it finds the organisation unit by that one.
+ */
+export const AUTHORED_FACT_LABEL = 'Authored'
+
+/**
  * The DHIS2 context one receipt carries, as label/value pairs for a detail view.
  *
  * Which facts exist depends on the form kind - an aggregate response reports for
@@ -353,7 +363,7 @@ export function captureContext(summary: SpoolResponseSummary): { label: string; 
         [ORGANISATION_UNIT_FACT_LABEL, summary.organisation_unit],
         [TRACKED_ENTITY_FACT_LABEL, summary.tracked_entity],
         [TRACKER_ENROLLMENT_FACT_LABEL, summary.tracker_enrollment],
-        ['Authored', summary.authored],
+        [AUTHORED_FACT_LABEL, summary.authored],
         ['Response status', summary.status],
     ]
     return pairs.flatMap(([label, value]) => (value ? [{ label, value }] : []))

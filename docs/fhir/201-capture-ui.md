@@ -198,12 +198,15 @@ A value is graded in three places, and the form publishes enough for the first
 two of them to happen before anything leaves the browser.
 
 - **The range a question admits** rides on the standard R4 `minValue` /
-  `maxValue` extensions, and the control wears it: a number field carries the
-  bounds, a date field's calendar greys out the days outside them, and the
-  question's hint states the range in words (*between 0 and 100*, *2026-01-01
-  or later*). Type a value outside it anyway and Submit refuses, naming the
-  fact and nothing else - *137 is above the highest value this form accepts,
-  100*. Nobody is told what to type instead: the form states what it accepts,
+  `maxValue` extensions: a date field's calendar greys out the days outside
+  them, and the question's hint states the range in words (*between 0 and 100*,
+  *2026-01-01 or later*). Type a value outside it and Submit refuses, naming the
+  fact and nothing else - *137 is above 100, the highest value this form
+  accepts*. A numeric question is a plain text box with a numeric keypad rather
+  than an `<input type="number">`, so what was typed is what is held: the
+  browser drops the characters it cannot parse, and Submit states what it
+  cannot carry (*5.5 is not a whole number, which is what this question
+  records*) instead of leaving the answer out of the submission in silence. Nobody is told what to type instead: the form states what it accepts,
   and what to do about that is the reader's call. `$generate` draws inside the
   bounds too, so a drafted answer is never one the form would refuse.
 - **The conditions a question is asked under** ride on R4 `enableWhen`, with
