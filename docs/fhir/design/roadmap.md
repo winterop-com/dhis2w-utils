@@ -1526,6 +1526,17 @@ described, and the git history is where it was built. What is left:
   labels, and the application's own name; the options are written, and the
   picks are the owner's.
 
+- **The terminology listing's weight and depth.** Three connected design
+  decisions from the full review: the listing downloads every concept of every
+  artifact (~10 MB on a national guide) to state per-row matching-code counts;
+  the listing renders six hundred rows unpaged while every detail page pages at
+  two hundred; and a fifteen-thousand-concept system offers seventy-seven pages
+  reachable only by Previous/Next. One answer should cover all three - a
+  summary read plus a lazy deep search, one paging rule, and a page jump. The
+  register's paging token is part of the same question: it lives in component
+  state while `q` and `type` ride the address bar, so a page of the walk is not
+  a link.
+
 - **The record at device frequency - an event-scale projection.** The record read
   is one entity-scoped request with the events nested inside, which is
   person-scale thinking: a person holds dozens of events, a cold-chain fridge
