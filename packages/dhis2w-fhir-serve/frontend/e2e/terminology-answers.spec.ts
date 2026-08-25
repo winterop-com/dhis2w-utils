@@ -25,33 +25,55 @@ test('a code system no served map translates from offers no lookup at all', asyn
     // What is not there is a button promising an answer no map can give: every press would come
     // back "no ConceptMap served here maps ...", which is a refusal dressed as an affordance.
     await expect(page.getByRole('button', { name: /^Details for/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Look up a code' })).toHaveCount(0)
     await expect(
         page.getByRole('heading', { name: 'What a code maps to in this DHIS2 instance' }),
     ).toHaveCount(0)
 })
 
-test('a code system a map translates from offers it on every row', async ({ page }) => {
+test('a code system a map translates from offers it on every row, and beside the filter', async ({
+    page,
+}) => {
     await page.goto(MAPPED_SYSTEM)
 
     await expect(
         page.getByRole('button', { name: 'Details for OpFever0001', exact: true }),
     ).toBeVisible()
-    // The panel names the instance the maps answer with, not the platform at large.
+    // The second way in, for a code somebody has in their head rather than on the screen.
+    await expect(page.getByRole('button', { name: 'Look up a code' })).toBeVisible()
+
+    // The question is not on the page until it is asked: the sheet holds it, and the vocabulary
+    // under it is the page.
+    await expect(
+        page.getByRole('heading', { name: 'What a code maps to in this DHIS2 instance' }),
+    ).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Look up a code' }).click()
+    // The sheet names the instance the maps answer with, not the platform at large - and it opens
+    // empty, because nothing was asked about.
     await expect(
         page.getByRole('heading', { name: 'What a code maps to in this DHIS2 instance' }),
     ).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Concept code' })).toHaveValue('')
+    await expect(page.getByTestId('translate-result')).toHaveCount(0)
 })
 
 test('the answer arrives where the reader is, not eleven screens below', async ({ page }) => {
-    // A window short enough that the panel starts below the fold, which is the ordinary state of
-    // a vocabulary page: the concepts come first and there can be thousands of them.
-    await page.setViewportSize({ width: 1280, height: 400 })
+    // A window short enough that a row well down the vocabulary is what the reader is looking at,
+    // which is the ordinary state of a vocabulary page: the concepts come first and there can be
+    // thousands of them. The height is the page's 400 plus the 46 the summary bar takes out of the
+    // window, which is shell rather than page.
+    await page.setViewportSize({ width: 1280, height: 446 })
     await page.goto(MAPPED_SYSTEM)
 
-    const panel = page.getByRole('heading', { name: 'What a code maps to in this DHIS2 instance' })
-    await page.getByRole('button', { name: 'Details for OpFever0001', exact: true }).click()
+    const row = page.getByRole('button', { name: 'Details for OpFever0001', exact: true })
+    await row.scrollIntoViewIfNeeded()
+    await row.click()
 
-    await expect(panel).toBeInViewport()
+    // The sheet arrives over the table, at the top of the window, wherever the reader had scrolled
+    // to - which is the whole reason it is a sheet rather than a panel eleven screens down.
+    const heading = page.getByRole('heading', { name: 'What a code maps to in this DHIS2 instance' })
+    await expect(heading).toBeInViewport()
     await expect(page.getByTestId('translate-result')).toContainText('2 mappings')
 })
 
@@ -62,10 +84,13 @@ test('asking about the same row twice answers twice', async ({ page }) => {
     await page.getByRole('button', { name: 'Details for OpFever0001', exact: true }).click()
     await expect(answer).toContainText('2 mappings')
 
-    // The box is typed over and asked about directly, which is what the panel is for.
+    // The box is typed over and asked about directly, which is what the sheet is for.
     await page.getByRole('textbox', { name: 'Concept code' }).fill('NoSuchCode')
     await page.getByRole('button', { name: 'Look up', exact: true }).click()
     await expect(answer).toContainText('No mapping')
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('code-lookup-sheet')).toHaveCount(0)
 
     // Pressing the same row again is a real question - the box no longer holds that code - and it
     // is answered, rather than settling on a value the page already held.
@@ -77,6 +102,7 @@ test('asking about the same row twice answers twice', async ({ page }) => {
 test('the refusal sets the identifiers it quotes in the mono face', async ({ page }) => {
     await page.goto(MAPPED_SYSTEM)
 
+    await page.getByRole('button', { name: 'Look up a code' }).click()
     await page.getByRole('textbox', { name: 'Concept code' }).fill('NoSuchCode')
     await page.getByRole('button', { name: 'Look up', exact: true }).click()
 
@@ -100,15 +126,19 @@ test('a filter that admits nothing says which word emptied the table', async ({ 
     await page.goto('/#/terminology/ConceptMap/d2-os-OsSymptom01-cm?code=zzzz')
     // One statement per group, over the two groups the map states.
     await expect(page.getByText('Nothing here matches "zzzz".')).toHaveCount(2)
-    // And the group heading counts what it is showing, not what it would show unfiltered.
-    await expect(page.getByText('0 mappings')).toHaveCount(2)
+    // And the group heading counts what it is showing, not what it would show unfiltered. Scoped
+    // to the page: the summary bar counts the same mappings over the map as a whole.
+    await expect(page.getByTestId('page-content').getByText('0 mappings')).toHaveCount(2)
 })
 
 test('a filtered group counts its own rows, in the singular when there is one', async ({ page }) => {
     await page.goto('/#/terminology/ConceptMap/d2-os-OsSymptom01-cm?code=Fever')
 
+    // Each group heads itself with what the filter admitted; how much of the map that is over all
+    // its groups is the summary bar's line, said once.
     await expect(page.getByText('1 mapping', { exact: true })).toHaveCount(2)
-    await expect(page.getByText('Showing 1 of 1 mapping')).toHaveCount(2)
+    await expect(page.getByTestId('status-bar-summary')).toContainText('2 mappings in 2 groups')
+    await expect(page.getByTestId('page-content').getByText(/^Showing /)).toHaveCount(0)
 })
 
 test('a category vocabulary heads its DHIS2 code column by its subject', async ({ page }) => {
@@ -121,13 +151,19 @@ test('a category vocabulary heads its DHIS2 code column by its subject', async (
     await expect(page.getByRole('columnheader', { name: 'option code', exact: true })).toHaveCount(0)
 })
 
-test('a code system states its content and case sensitivity as facts', async ({ page }) => {
+test('a code system states case sensitivity, and says nothing about holding its own concepts', async ({
+    page,
+}) => {
     await page.goto(MAPPED_SYSTEM)
 
-    // `complete` and `true` are R4 spellings; what a reader wants is whether the concepts are all
-    // here and whether case counts.
-    await expect(page.getByText('Every concept is here')).toBeVisible()
+    // `true` is an R4 spelling; what a reader wants is whether case counts.
     await expect(page.getByText('Case sensitive Yes')).toBeVisible()
+    // Every vocabulary this project generates holds its concepts, and a fact printed on every page
+    // to say the page holds what it obviously holds is a fact nobody reads. The count goes with it:
+    // the summary bar states how many there are and how many are on screen, in one line.
+    await expect(page.getByText('Every concept is here')).toHaveCount(0)
+    await expect(page.getByTestId('page-content').getByText(/^Concepts \d+$/)).toHaveCount(0)
+    await expect(page.getByTestId('status-bar-summary')).toContainText(/of \d+ concepts?$/)
 })
 
 test('the listing hands its search to the page it opens, and Back gets the search back', async ({
@@ -144,7 +180,7 @@ test('the listing hands its search to the page it opens, and Back gets the searc
     // reader type the word a second time.
     await expect(page).toHaveURL(/#\/terminology\/CodeSystem\/d2-de-cs\?code=DeAncDanger$/)
     await expect(page.getByRole('textbox', { name: 'Filter concepts' })).toHaveValue('DeAncDanger')
-    await expect(page.getByText(/Showing 1 of 1 concept$/)).toBeVisible()
+    await expect(page.getByTestId('status-bar-summary')).toContainText(/Showing 1 of 1 concept$/)
 
     await page.goBack()
 

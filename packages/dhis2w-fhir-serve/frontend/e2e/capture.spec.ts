@@ -143,20 +143,21 @@ test('the reload button re-reads the spool', async ({ page, request }) => {
     await expect(page.getByRole('row').filter({ hasText: receiptId })).toHaveCount(1)
 })
 
-test('a row opens the receipt at its own route, with the answers on it', async ({ page, request }) => {
+test('a row opens the receipt over the table, with the answers on it', async ({ page, request }) => {
     const receiptId = await generateAndPost(request, AGGREGATE_FORM, 42)
 
     await page.goto('/#/responses')
     await page.getByRole('row').filter({ hasText: receiptId }).click()
 
-    // The route is the receipt id, which is what makes one receipt a link somebody can be sent.
-    await expect(page).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
-    await expect(page.getByText(receiptId).first()).toBeVisible()
-    await expect(page.getByText('Received', { exact: true }).first()).toBeVisible()
+    // The receipt answers where the row is: the table keeps its address, and its filter.
+    await expect(page).toHaveURL(/#\/responses$/)
+    const sheet = page.getByTestId('receipt-sheet')
+    await expect(sheet.getByText(receiptId).first()).toBeVisible()
+    await expect(sheet.getByText('Received', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Capture context' })).toBeVisible()
-    await expect(page.getByText('Period', { exact: true })).toBeVisible()
-    await expect(page.getByText('Organisation unit', { exact: true })).toBeVisible()
-    await expect(page.getByText('GET /QuestionnaireResponse/')).toBeVisible()
+    await expect(sheet.getByText('Period', { exact: true })).toBeVisible()
+    await expect(sheet.getByText('Organisation unit', { exact: true })).toBeVisible()
+    await expect(sheet.getByText('GET /QuestionnaireResponse/')).toBeVisible()
 
     // The headline: the answers joined to the questions the form asks. `Fixed, <1y` is the text
     // of a category option combo cell, and the group above it is what makes it mean something.
@@ -165,6 +166,10 @@ test('a row opens the receipt at its own route, with the answers on it', async (
     await expect(answers).toContainText('BCG doses given')
     await expect(answers).toContainText('Fixed, <1y')
 
+    // The route is still the receipt id, which is what makes one receipt a link somebody can be
+    // sent - and the sheet carries the way to it rather than replacing it.
+    await page.getByRole('link', { name: 'Open the full page' }).click()
+    await expect(page).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
     await page.getByRole('link', { name: 'All responses' }).click()
     await expect(page).toHaveURL(/#\/responses$/)
 })
@@ -189,14 +194,24 @@ test('the receipt route is deep-linkable and shows the raw resource on demand', 
     )
 })
 
-test('a keyboard user opens a receipt the same way', async ({ page, request }) => {
+test('a keyboard user opens a receipt the same way, and Esc gives the table back', async ({
+    page,
+    request,
+}) => {
     const receiptId = await generateAndPost(request, AGGREGATE_FORM, 44)
 
     await page.goto('/#/responses')
     await page.getByRole('row').filter({ hasText: receiptId }).focus()
     await page.keyboard.press('Enter')
 
-    await expect(page).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
+    const sheet = page.getByTestId('receipt-sheet')
+    await expect(sheet.getByText(receiptId).first()).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(sheet).toHaveCount(0)
+    // The focus goes back to the row that was opened, so the next press of Enter is the same act
+    // rather than a hunt for where the keyboard went.
+    await expect(page.getByRole('row').filter({ hasText: receiptId })).toBeFocused()
 })
 
 test('the lifecycle filter narrows the table', async ({ page, request }) => {

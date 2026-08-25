@@ -16,6 +16,7 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { refreshServerStatus, useServerStatus } from '@/hooks/use-server-status'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import {
     declaredOperations,
@@ -23,7 +24,7 @@ import {
     type CapabilityStatementSearchParam,
 } from '@/lib/fhir'
 import { authSettings } from '@/lib/uiconfig'
-import { cn } from '@/lib/utils'
+import { cn, countedNoun } from '@/lib/utils'
 
 /** What each posture is called on this page. Name the fact, not the config value. */
 const AUTHENTICATION_LABELS: Record<string, string> = {
@@ -73,6 +74,15 @@ export function Server() {
     // The posture comes off `/uiconfig` rather than off the document above, because the scope is a
     // fact `/metadata` states only in prose - see `lib/uiconfig`.
     const authentication = authSettings(useUiConfig().config)
+
+    // The two tables under the identity card, counted. "Served" and "declared" are the words the
+    // document itself uses, and the types counted here are the ones the REST block answers for -
+    // the set the page's own heading distinguishes from the set the description counts.
+    useStatusLine(
+        capability === null
+            ? null
+            : `${countedNoun(rest?.resource?.length ?? 0, 'resource type')} served - ${countedNoun(operations.length, 'operation')} declared`,
+    )
 
     return (
         <>

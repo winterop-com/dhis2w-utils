@@ -84,6 +84,12 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    /* A table's own two grounds. A header row is a filled band rather than a
+       bold line of text on the card, and the body alternates so a wide row can
+       be read across without a finger on the screen. Both are derived at the
+       foot of `:root` from the surfaces a theme already paints. */
+    --color-table-head: var(--table-head);
+    --color-table-zebra: var(--table-zebra);
     /* One --radius, and every step derived from it, so the whole surface
        rescales from a single number instead of drifting per component. */
     --radius-sm: calc(var(--radius) * 0.6);
@@ -97,16 +103,24 @@
 
 :root {
     /* Clinical-neutral palette. Surfaces are near-achromatic with a faint teal
-       cast (hue 195, chroma <= 0.008) so a long form reads as paper rather than
+       cast (hue 195, chroma <= 0.012) so a long form reads as paper rather than
        as a coloured panel. The identity hue is a single clinical blue (hue 240),
        reserved for primary actions, the active nav rail, and focus rings -
-       nothing decorative may spend it, or it stops meaning "act here". */
-    --background: oklch(0.965 0.004 195);
-    --foreground: oklch(0.22 0.008 195);
+       nothing decorative may spend it, or it stops meaning "act here".
+
+       THE NEUTRAL LADDER, WHICH IS THE PART EVERY THEME COPIES THE SHAPE OF.
+       Four rungs and each one has to be seen: the page ground sits clearly
+       under the card, the card keeps the lightest surface in the theme, the
+       border is a line rather than a hint, and the ink reaches for the end of
+       its range. `lib/theme.test.ts` computes the ratios off this file, in
+       every theme and both grounds, so a rung that drifts back toward its
+       neighbour fails a test rather than merely looking flat. */
+    --background: oklch(0.945 0.005 195);
+    --foreground: oklch(0.15 0.012 195);
     --card: oklch(1 0 0);
-    --card-foreground: oklch(0.22 0.008 195);
+    --card-foreground: oklch(0.15 0.012 195);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.22 0.008 195);
+    --popover-foreground: oklch(0.15 0.012 195);
     --primary: oklch(0.52 0.12 240);
     --primary-foreground: oklch(1 0 0);
     /* The org-unit map's selection mark: an amber pair, deliberately a second
@@ -117,14 +131,14 @@
     --map-selection: oklch(0.67 0.18 58); /* #d97706 */
     --map-selection-edge: oklch(0.55 0.16 50); /* #b45309 */
     --secondary: oklch(0.985 0.003 195);
-    --secondary-foreground: oklch(0.24 0.008 195);
-    --muted: oklch(0.965 0.003 195);
-    --muted-foreground: oklch(0.5 0.008 195);
+    --secondary-foreground: oklch(0.17 0.012 195);
+    --muted: oklch(0.965 0.004 195);
+    --muted-foreground: oklch(0.42 0.012 195);
     --accent: oklch(0.94 0.02 240);
     --accent-foreground: oklch(0.34 0.1 240);
     --destructive: oklch(0.52 0.17 25);
-    --border: oklch(0.91 0.005 195);
-    --input: oklch(0.9 0.005 195);
+    --border: oklch(0.8 0.008 195);
+    --input: oklch(0.79 0.008 195);
     --ring: oklch(0.52 0.12 240);
     --chart-1: oklch(0.87 0.005 195);
     --chart-2: oklch(0.556 0.008 195);
@@ -134,12 +148,12 @@
     /* 0.65rem puts rounded-xl at ~15px (cards) and rounded-md at ~8px (chips). */
     --radius: 0.65rem;
     --sidebar: oklch(1 0 0);
-    --sidebar-foreground: oklch(0.22 0.008 195);
+    --sidebar-foreground: oklch(0.15 0.012 195);
     --sidebar-primary: oklch(0.52 0.12 240);
     --sidebar-primary-foreground: oklch(1 0 0);
     --sidebar-accent: oklch(0.94 0.02 240);
     --sidebar-accent-foreground: oklch(0.34 0.1 240);
-    --sidebar-border: oklch(0.91 0.005 195);
+    --sidebar-border: oklch(0.8 0.008 195);
     --sidebar-ring: oklch(0.52 0.12 240);
     /* The semantic set. `good` is the success green, `critical` the hue of a
        refusal the data has to answer for, `warning` the amber of one the guide
@@ -193,6 +207,33 @@
     --status-in-progress: var(--warning);
     --status-completed: var(--good);
 
+    /* MACHINE TEXT SEPARATES BY HUE, NOT BY A THIRD GREY. A row that carried a
+       title, a hint and a uid in three greys asked the reader to tell 0.42 from
+       0.50 to know which was which - a distinction nobody makes at a glance and
+       nobody makes at all on a bad screen. So an identifier takes a colour of
+       its own instead: the theme's own information hue pulled most of the way
+       to the theme's ink, which lands a step DARKER than the hint on a light
+       ground and a step lighter on a dark one, with a visible cast either way.
+       Clinical resolves it near oklch(0.34 0.057 235) - blue enough to read as
+       a different kind of string, quiet enough to stay under the title.
+
+       Derived rather than stated per theme, so Terminal's uids come out with a
+       phosphor cast and Paper's with an ink one, off the `--info` each of them
+       already paints. Spent by `.machine-identifier` at the foot of this file. */
+    --machine: color-mix(in oklab, var(--info) 48%, var(--foreground));
+
+    /* THE TWO TABLE GROUNDS. A header row is a filled band, not a bold line of
+       text floating on the card, and the body alternates underneath it so a
+       wide row can be tracked across without a finger on the screen. Both are
+       written off `--muted`, which is the one fill every theme already paints a
+       step off its card - darker than the card on a light ground, lighter than
+       it on a dark one - so a single derivation points the right way in ten
+       palettes rather than ten literals pointing the right way by hand. The
+       zebra is that same fill at seven tenths, because a stripe a reader
+       NOTICES is a stripe that has become a second header. */
+    --table-head: var(--muted);
+    --table-zebra: color-mix(in oklab, var(--muted) 70%, var(--card));
+
     /* THE CAPTURE MODEL, AS FIVE HUES. A data set, an event program, a tracker
        registration, one of that program's stages, and a person-only
        registration are five different things to fill in, and a listing that
@@ -233,39 +274,45 @@
 .dark {
     /* Not an inversion: the same geometry with a palette chosen for a dark
        ground. Primary lightens so it still reads as the one actionable hue
-       against a near-black surface, and takes dark text on it. */
-    --background: oklch(0.16 0.006 195);
-    --foreground: oklch(0.95 0.004 195);
-    --card: oklch(0.2 0.006 195);
-    --card-foreground: oklch(0.95 0.004 195);
-    --popover: oklch(0.2 0.006 195);
-    --popover-foreground: oklch(0.95 0.004 195);
+       against a near-black surface, and takes dark text on it.
+
+       THE LADDER IS MIRRORED, NOT COPIED. The light ground drops away from the
+       card; here the card RISES away from the ground, and the border rises
+       further than either. The intent is the one thing carried across - four
+       rungs, each visibly off the last - and every number is chosen for a dark
+       surface rather than reflected off a light one. */
+    --background: oklch(0.14 0.008 195);
+    --foreground: oklch(0.97 0.006 195);
+    --card: oklch(0.215 0.009 195);
+    --card-foreground: oklch(0.97 0.006 195);
+    --popover: oklch(0.215 0.009 195);
+    --popover-foreground: oklch(0.97 0.006 195);
     --primary: oklch(0.72 0.14 240);
     --primary-foreground: oklch(0.16 0.006 195);
     --map-selection: oklch(0.77 0.19 70); /* #f59e0b */
     --map-selection-edge: oklch(0.85 0.17 85); /* #fbbf24 */
-    --secondary: oklch(0.24 0.006 195);
-    --secondary-foreground: oklch(0.95 0.004 195);
-    --muted: oklch(0.24 0.006 195);
-    --muted-foreground: oklch(0.66 0.008 195);
+    --secondary: oklch(0.26 0.009 195);
+    --secondary-foreground: oklch(0.97 0.006 195);
+    --muted: oklch(0.26 0.009 195);
+    --muted-foreground: oklch(0.74 0.01 195);
     --accent: oklch(0.27 0.04 240);
     --accent-foreground: oklch(0.88 0.09 240);
     --destructive: oklch(0.7 0.16 25);
-    --border: oklch(0.3 0.006 195);
-    --input: oklch(0.34 0.006 195);
+    --border: oklch(0.4 0.01 195);
+    --input: oklch(0.45 0.01 195);
     --ring: oklch(0.72 0.14 240);
     --chart-1: oklch(0.87 0.005 195);
     --chart-2: oklch(0.66 0.008 195);
     --chart-3: oklch(0.5 0.008 195);
     --chart-4: oklch(0.37 0.006 195);
     --chart-5: oklch(0.27 0.006 195);
-    --sidebar: oklch(0.18 0.006 195);
-    --sidebar-foreground: oklch(0.95 0.004 195);
+    --sidebar: oklch(0.175 0.008 195);
+    --sidebar-foreground: oklch(0.97 0.006 195);
     --sidebar-primary: oklch(0.72 0.14 240);
     --sidebar-primary-foreground: oklch(0.16 0.006 195);
     --sidebar-accent: oklch(0.27 0.04 240);
     --sidebar-accent-foreground: oklch(0.88 0.09 240);
-    --sidebar-border: oklch(0.3 0.006 195);
+    --sidebar-border: oklch(0.4 0.01 195);
     --sidebar-ring: oklch(0.72 0.14 240);
     --good: oklch(0.72 0.16 155);
     --critical: oklch(0.7 0.16 25);
@@ -344,25 +391,25 @@
    `withdrawn` moves off violet for the same reason, into a rose that no other
    status is near. */
 html[data-theme='indigo'] {
-    --background: oklch(0.955 0.014 265);
-    --foreground: oklch(0.21 0.035 275);
+    --background: oklch(0.935 0.018 265);
+    --foreground: oklch(0.15 0.04 275);
     --card: oklch(0.99 0.006 265);
-    --card-foreground: oklch(0.21 0.035 275);
+    --card-foreground: oklch(0.15 0.04 275);
     --popover: oklch(0.99 0.006 265);
-    --popover-foreground: oklch(0.21 0.035 275);
+    --popover-foreground: oklch(0.15 0.04 275);
     --primary: oklch(0.48 0.19 285);
     --primary-foreground: oklch(0.99 0.006 285);
     --map-selection: oklch(0.68 0.18 58);
     --map-selection-edge: oklch(0.55 0.16 50);
     --secondary: oklch(0.975 0.01 265);
-    --secondary-foreground: oklch(0.24 0.035 275);
+    --secondary-foreground: oklch(0.17 0.04 275);
     --muted: oklch(0.955 0.012 265);
-    --muted-foreground: oklch(0.48 0.03 272);
+    --muted-foreground: oklch(0.41 0.035 272);
     --accent: oklch(0.93 0.04 285);
     --accent-foreground: oklch(0.33 0.15 285);
     --destructive: oklch(0.52 0.19 25);
-    --border: oklch(0.9 0.018 268);
-    --input: oklch(0.88 0.02 268);
+    --border: oklch(0.79 0.026 268);
+    --input: oklch(0.77 0.028 268);
     --ring: oklch(0.48 0.19 285);
     --chart-1: oklch(0.87 0.012 265);
     --chart-2: oklch(0.556 0.02 268);
@@ -370,12 +417,12 @@ html[data-theme='indigo'] {
     --chart-4: oklch(0.371 0.02 270);
     --chart-5: oklch(0.269 0.02 272);
     --sidebar: oklch(0.99 0.006 265);
-    --sidebar-foreground: oklch(0.21 0.035 275);
+    --sidebar-foreground: oklch(0.15 0.04 275);
     --sidebar-primary: oklch(0.48 0.19 285);
     --sidebar-primary-foreground: oklch(0.99 0.006 285);
     --sidebar-accent: oklch(0.93 0.04 285);
     --sidebar-accent-foreground: oklch(0.33 0.15 285);
-    --sidebar-border: oklch(0.9 0.018 268);
+    --sidebar-border: oklch(0.79 0.026 268);
     --sidebar-ring: oklch(0.48 0.19 285);
     --good: oklch(0.6 0.14 155);
     --critical: oklch(0.55 0.17 25);
@@ -395,38 +442,38 @@ html[data-theme='indigo'] {
 }
 
 html.dark[data-theme='indigo'] {
-    --background: oklch(0.155 0.024 268);
-    --foreground: oklch(0.94 0.014 265);
-    --card: oklch(0.195 0.028 268);
-    --card-foreground: oklch(0.94 0.014 265);
-    --popover: oklch(0.195 0.028 268);
-    --popover-foreground: oklch(0.94 0.014 265);
+    --background: oklch(0.135 0.028 268);
+    --foreground: oklch(0.96 0.016 265);
+    --card: oklch(0.21 0.032 268);
+    --card-foreground: oklch(0.96 0.016 265);
+    --popover: oklch(0.21 0.032 268);
+    --popover-foreground: oklch(0.96 0.016 265);
     --primary: oklch(0.74 0.16 285);
     --primary-foreground: oklch(0.155 0.024 268);
     --map-selection: oklch(0.77 0.19 70);
     --map-selection-edge: oklch(0.85 0.17 85);
-    --secondary: oklch(0.24 0.03 268);
-    --secondary-foreground: oklch(0.94 0.014 265);
-    --muted: oklch(0.24 0.03 268);
-    --muted-foreground: oklch(0.68 0.025 268);
+    --secondary: oklch(0.26 0.032 268);
+    --secondary-foreground: oklch(0.96 0.016 265);
+    --muted: oklch(0.26 0.032 268);
+    --muted-foreground: oklch(0.75 0.03 268);
     --accent: oklch(0.29 0.07 285);
     --accent-foreground: oklch(0.88 0.11 285);
     --destructive: oklch(0.7 0.17 25);
-    --border: oklch(0.3 0.03 268);
-    --input: oklch(0.34 0.03 268);
+    --border: oklch(0.4 0.038 268);
+    --input: oklch(0.45 0.038 268);
     --ring: oklch(0.74 0.16 285);
     --chart-1: oklch(0.87 0.012 265);
     --chart-2: oklch(0.66 0.025 268);
     --chart-3: oklch(0.5 0.025 268);
     --chart-4: oklch(0.37 0.028 268);
     --chart-5: oklch(0.27 0.028 268);
-    --sidebar: oklch(0.175 0.026 268);
-    --sidebar-foreground: oklch(0.94 0.014 265);
+    --sidebar: oklch(0.17 0.03 268);
+    --sidebar-foreground: oklch(0.96 0.016 265);
     --sidebar-primary: oklch(0.74 0.16 285);
     --sidebar-primary-foreground: oklch(0.155 0.024 268);
     --sidebar-accent: oklch(0.29 0.07 285);
     --sidebar-accent-foreground: oklch(0.88 0.11 285);
-    --sidebar-border: oklch(0.3 0.03 268);
+    --sidebar-border: oklch(0.4 0.038 268);
     --sidebar-ring: oklch(0.74 0.16 285);
     --good: oklch(0.72 0.16 155);
     --critical: oklch(0.7 0.16 25);
@@ -453,25 +500,25 @@ html.dark[data-theme='indigo'] {
    a quiet ink blue is what a form is filled in with anyway. The statuses sit a
    step darker than Clinical's: a cream ground washes out a light chip. */
 html[data-theme='paper'] {
-    --background: oklch(0.955 0.022 85);
-    --foreground: oklch(0.24 0.02 65);
+    --background: oklch(0.935 0.026 85);
+    --foreground: oklch(0.17 0.024 65);
     --card: oklch(0.985 0.014 85);
-    --card-foreground: oklch(0.24 0.02 65);
+    --card-foreground: oklch(0.17 0.024 65);
     --popover: oklch(0.985 0.014 85);
-    --popover-foreground: oklch(0.24 0.02 65);
+    --popover-foreground: oklch(0.17 0.024 65);
     --primary: oklch(0.45 0.12 250);
     --primary-foreground: oklch(0.985 0.014 85);
     --map-selection: oklch(0.63 0.19 45);
     --map-selection-edge: oklch(0.5 0.17 40);
     --secondary: oklch(0.97 0.018 85);
-    --secondary-foreground: oklch(0.26 0.02 65);
-    --muted: oklch(0.945 0.02 85);
-    --muted-foreground: oklch(0.48 0.02 70);
+    --secondary-foreground: oklch(0.19 0.024 65);
+    --muted: oklch(0.955 0.02 85);
+    --muted-foreground: oklch(0.41 0.024 70);
     --accent: oklch(0.92 0.035 250);
     --accent-foreground: oklch(0.32 0.11 250);
     --destructive: oklch(0.5 0.18 28);
-    --border: oklch(0.885 0.024 82);
-    --input: oklch(0.865 0.026 82);
+    --border: oklch(0.78 0.032 82);
+    --input: oklch(0.76 0.034 82);
     --ring: oklch(0.45 0.12 250);
     --chart-1: oklch(0.86 0.02 85);
     --chart-2: oklch(0.556 0.022 78);
@@ -479,12 +526,12 @@ html[data-theme='paper'] {
     --chart-4: oklch(0.371 0.022 68);
     --chart-5: oklch(0.269 0.02 65);
     --sidebar: oklch(0.985 0.014 85);
-    --sidebar-foreground: oklch(0.24 0.02 65);
+    --sidebar-foreground: oklch(0.17 0.024 65);
     --sidebar-primary: oklch(0.45 0.12 250);
     --sidebar-primary-foreground: oklch(0.985 0.014 85);
     --sidebar-accent: oklch(0.92 0.035 250);
     --sidebar-accent-foreground: oklch(0.32 0.11 250);
-    --sidebar-border: oklch(0.885 0.024 82);
+    --sidebar-border: oklch(0.78 0.032 82);
     --sidebar-ring: oklch(0.45 0.12 250);
     --good: oklch(0.52 0.12 150);
     --critical: oklch(0.5 0.18 28);
@@ -504,38 +551,38 @@ html[data-theme='paper'] {
 }
 
 html.dark[data-theme='paper'] {
-    --background: oklch(0.17 0.014 70);
-    --foreground: oklch(0.93 0.016 82);
-    --card: oklch(0.21 0.016 70);
-    --card-foreground: oklch(0.93 0.016 82);
-    --popover: oklch(0.21 0.016 70);
-    --popover-foreground: oklch(0.93 0.016 82);
+    --background: oklch(0.15 0.018 70);
+    --foreground: oklch(0.955 0.018 82);
+    --card: oklch(0.225 0.02 70);
+    --card-foreground: oklch(0.955 0.018 82);
+    --popover: oklch(0.225 0.02 70);
+    --popover-foreground: oklch(0.955 0.018 82);
     --primary: oklch(0.74 0.12 250);
     --primary-foreground: oklch(0.17 0.014 70);
     --map-selection: oklch(0.75 0.19 62);
     --map-selection-edge: oklch(0.84 0.16 80);
-    --secondary: oklch(0.25 0.016 70);
-    --secondary-foreground: oklch(0.93 0.016 82);
-    --muted: oklch(0.25 0.016 70);
-    --muted-foreground: oklch(0.68 0.018 78);
+    --secondary: oklch(0.27 0.02 70);
+    --secondary-foreground: oklch(0.955 0.018 82);
+    --muted: oklch(0.27 0.02 70);
+    --muted-foreground: oklch(0.75 0.022 78);
     --accent: oklch(0.28 0.045 250);
     --accent-foreground: oklch(0.88 0.09 250);
     --destructive: oklch(0.7 0.16 28);
-    --border: oklch(0.31 0.016 70);
-    --input: oklch(0.35 0.016 70);
+    --border: oklch(0.41 0.024 70);
+    --input: oklch(0.46 0.024 70);
     --ring: oklch(0.74 0.12 250);
     --chart-1: oklch(0.87 0.014 82);
     --chart-2: oklch(0.66 0.018 78);
     --chart-3: oklch(0.5 0.018 74);
     --chart-4: oklch(0.37 0.016 70);
     --chart-5: oklch(0.27 0.014 68);
-    --sidebar: oklch(0.19 0.015 70);
-    --sidebar-foreground: oklch(0.93 0.016 82);
+    --sidebar: oklch(0.185 0.019 70);
+    --sidebar-foreground: oklch(0.955 0.018 82);
     --sidebar-primary: oklch(0.74 0.12 250);
     --sidebar-primary-foreground: oklch(0.17 0.014 70);
     --sidebar-accent: oklch(0.28 0.045 250);
     --sidebar-accent-foreground: oklch(0.88 0.09 250);
-    --sidebar-border: oklch(0.31 0.016 70);
+    --sidebar-border: oklch(0.41 0.024 70);
     --sidebar-ring: oklch(0.74 0.12 250);
     --good: oklch(0.72 0.15 150);
     --critical: oklch(0.7 0.16 28);
@@ -556,32 +603,38 @@ html.dark[data-theme='paper'] {
 
 /* CONTRAST - the widest separation this app has between text and the surface
    under it. Not a colour scheme so much as a legibility setting: the surfaces
-   go achromatic and reach both ends (pure white, near-black), the muted text
-   climbs most of the way back to the foreground, and the borders stop being a
-   hint and become a line. The chroma that is left is spent where colour carries
-   a fact - the identity, the statuses, the source colours - and every one of
-   those is pushed to the far side of its lightness so it still reads as itself
-   against a ground this extreme. */
+   go achromatic and the card reaches the end of its range (pure white,
+   near-black), the muted text climbs most of the way back to the foreground,
+   and the borders stop being a hint and become a rule. The chroma that is left
+   is spent where colour carries a fact - the identity, the statuses, the source
+   colours - and every one of those is pushed to the far side of its lightness
+   so it still reads as itself against a ground this extreme.
+
+   THE PAGE GROUND STOPS SHORT OF THE CARD'S END ON PURPOSE. A white card on a
+   white page is one surface with a line drawn on it, and this is the theme that
+   can least afford a reader to have to find the line to know where the card
+   is. So the ground steps back and the card keeps the extreme, which is the
+   same ladder the other four have - taken further, like everything here. */
 html[data-theme='contrast'] {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.14 0 0);
+    --background: oklch(0.955 0 0);
+    --foreground: oklch(0.11 0 0);
     --card: oklch(1 0 0);
-    --card-foreground: oklch(0.14 0 0);
+    --card-foreground: oklch(0.11 0 0);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.14 0 0);
+    --popover-foreground: oklch(0.11 0 0);
     --primary: oklch(0.4 0.19 255);
     --primary-foreground: oklch(1 0 0);
     --map-selection: oklch(0.62 0.2 50);
     --map-selection-edge: oklch(0.45 0.17 42);
-    --secondary: oklch(0.96 0 0);
-    --secondary-foreground: oklch(0.14 0 0);
-    --muted: oklch(0.95 0 0);
-    --muted-foreground: oklch(0.33 0 0);
+    --secondary: oklch(0.975 0 0);
+    --secondary-foreground: oklch(0.11 0 0);
+    --muted: oklch(0.965 0 0);
+    --muted-foreground: oklch(0.29 0 0);
     --accent: oklch(0.9 0.06 255);
     --accent-foreground: oklch(0.24 0.16 255);
     --destructive: oklch(0.45 0.21 27);
-    --border: oklch(0.5 0 0);
-    --input: oklch(0.4 0 0);
+    --border: oklch(0.42 0 0);
+    --input: oklch(0.34 0 0);
     --ring: oklch(0.4 0.19 255);
     --chart-1: oklch(0.8 0 0);
     --chart-2: oklch(0.62 0 0);
@@ -589,12 +642,12 @@ html[data-theme='contrast'] {
     --chart-4: oklch(0.32 0 0);
     --chart-5: oklch(0.18 0 0);
     --sidebar: oklch(1 0 0);
-    --sidebar-foreground: oklch(0.14 0 0);
+    --sidebar-foreground: oklch(0.11 0 0);
     --sidebar-primary: oklch(0.4 0.19 255);
     --sidebar-primary-foreground: oklch(1 0 0);
     --sidebar-accent: oklch(0.9 0.06 255);
     --sidebar-accent-foreground: oklch(0.24 0.16 255);
-    --sidebar-border: oklch(0.5 0 0);
+    --sidebar-border: oklch(0.42 0 0);
     --sidebar-ring: oklch(0.4 0.19 255);
     --good: oklch(0.45 0.15 152);
     --critical: oklch(0.45 0.21 27);
@@ -614,38 +667,38 @@ html[data-theme='contrast'] {
 }
 
 html.dark[data-theme='contrast'] {
-    --background: oklch(0.09 0 0);
-    --foreground: oklch(0.99 0 0);
-    --card: oklch(0.14 0 0);
-    --card-foreground: oklch(0.99 0 0);
-    --popover: oklch(0.14 0 0);
-    --popover-foreground: oklch(0.99 0 0);
+    --background: oklch(0.07 0 0);
+    --foreground: oklch(1 0 0);
+    --card: oklch(0.16 0 0);
+    --card-foreground: oklch(1 0 0);
+    --popover: oklch(0.16 0 0);
+    --popover-foreground: oklch(1 0 0);
     --primary: oklch(0.8 0.16 255);
     --primary-foreground: oklch(0.09 0 0);
     --map-selection: oklch(0.8 0.19 72);
     --map-selection-edge: oklch(0.9 0.16 90);
-    --secondary: oklch(0.2 0 0);
-    --secondary-foreground: oklch(0.99 0 0);
-    --muted: oklch(0.2 0 0);
-    --muted-foreground: oklch(0.79 0 0);
+    --secondary: oklch(0.24 0 0);
+    --secondary-foreground: oklch(1 0 0);
+    --muted: oklch(0.22 0 0);
+    --muted-foreground: oklch(0.84 0 0);
     --accent: oklch(0.27 0.09 255);
     --accent-foreground: oklch(0.93 0.11 255);
     --destructive: oklch(0.75 0.19 27);
-    --border: oklch(0.55 0 0);
-    --input: oklch(0.62 0 0);
+    --border: oklch(0.62 0 0);
+    --input: oklch(0.68 0 0);
     --ring: oklch(0.8 0.16 255);
     --chart-1: oklch(0.95 0 0);
     --chart-2: oklch(0.78 0 0);
     --chart-3: oklch(0.6 0 0);
     --chart-4: oklch(0.42 0 0);
     --chart-5: oklch(0.26 0 0);
-    --sidebar: oklch(0.12 0 0);
-    --sidebar-foreground: oklch(0.99 0 0);
+    --sidebar: oklch(0.11 0 0);
+    --sidebar-foreground: oklch(1 0 0);
     --sidebar-primary: oklch(0.8 0.16 255);
     --sidebar-primary-foreground: oklch(0.09 0 0);
     --sidebar-accent: oklch(0.27 0.09 255);
     --sidebar-accent-foreground: oklch(0.93 0.11 255);
-    --sidebar-border: oklch(0.55 0 0);
+    --sidebar-border: oklch(0.62 0 0);
     --sidebar-ring: oklch(0.8 0.16 255);
     --good: oklch(0.83 0.19 150);
     --critical: oklch(0.75 0.19 27);
@@ -673,25 +726,25 @@ html.dark[data-theme='contrast'] {
    reason. The dark ground is the theme's home; the light one is the same
    palette over a pale green wash, for a screen in daylight. */
 html[data-theme='terminal'] {
-    --background: oklch(0.955 0.028 145);
-    --foreground: oklch(0.22 0.05 150);
+    --background: oklch(0.935 0.034 145);
+    --foreground: oklch(0.15 0.055 150);
     --card: oklch(0.985 0.018 145);
-    --card-foreground: oklch(0.22 0.05 150);
+    --card-foreground: oklch(0.15 0.055 150);
     --popover: oklch(0.985 0.018 145);
-    --popover-foreground: oklch(0.22 0.05 150);
+    --popover-foreground: oklch(0.15 0.055 150);
     --primary: oklch(0.45 0.15 148);
     --primary-foreground: oklch(0.985 0.018 145);
     --map-selection: oklch(0.66 0.19 52);
     --map-selection-edge: oklch(0.52 0.17 45);
     --secondary: oklch(0.97 0.022 145);
-    --secondary-foreground: oklch(0.24 0.05 150);
-    --muted: oklch(0.945 0.026 145);
-    --muted-foreground: oklch(0.47 0.04 150);
+    --secondary-foreground: oklch(0.17 0.055 150);
+    --muted: oklch(0.955 0.026 145);
+    --muted-foreground: oklch(0.4 0.045 150);
     --accent: oklch(0.92 0.06 148);
     --accent-foreground: oklch(0.3 0.12 148);
     --destructive: oklch(0.5 0.19 27);
-    --border: oklch(0.885 0.035 147);
-    --input: oklch(0.86 0.04 147);
+    --border: oklch(0.775 0.045 147);
+    --input: oklch(0.755 0.05 147);
     --ring: oklch(0.45 0.15 148);
     --chart-1: oklch(0.86 0.03 145);
     --chart-2: oklch(0.556 0.04 147);
@@ -699,12 +752,12 @@ html[data-theme='terminal'] {
     --chart-4: oklch(0.371 0.04 150);
     --chart-5: oklch(0.269 0.035 152);
     --sidebar: oklch(0.985 0.018 145);
-    --sidebar-foreground: oklch(0.22 0.05 150);
+    --sidebar-foreground: oklch(0.15 0.055 150);
     --sidebar-primary: oklch(0.45 0.15 148);
     --sidebar-primary-foreground: oklch(0.985 0.018 145);
     --sidebar-accent: oklch(0.92 0.06 148);
     --sidebar-accent-foreground: oklch(0.3 0.12 148);
-    --sidebar-border: oklch(0.885 0.035 147);
+    --sidebar-border: oklch(0.775 0.045 147);
     --sidebar-ring: oklch(0.45 0.15 148);
     --good: oklch(0.5 0.12 210);
     --critical: oklch(0.5 0.19 27);
@@ -724,38 +777,38 @@ html[data-theme='terminal'] {
 }
 
 html.dark[data-theme='terminal'] {
-    --background: oklch(0.145 0.026 150);
-    --foreground: oklch(0.93 0.05 148);
-    --card: oklch(0.19 0.03 150);
-    --card-foreground: oklch(0.93 0.05 148);
-    --popover: oklch(0.19 0.03 150);
-    --popover-foreground: oklch(0.93 0.05 148);
+    --background: oklch(0.125 0.03 150);
+    --foreground: oklch(0.955 0.055 148);
+    --card: oklch(0.205 0.034 150);
+    --card-foreground: oklch(0.955 0.055 148);
+    --popover: oklch(0.205 0.034 150);
+    --popover-foreground: oklch(0.955 0.055 148);
     --primary: oklch(0.8 0.2 148);
     --primary-foreground: oklch(0.145 0.026 150);
     --map-selection: oklch(0.78 0.19 62);
     --map-selection-edge: oklch(0.87 0.17 82);
-    --secondary: oklch(0.235 0.035 150);
-    --secondary-foreground: oklch(0.93 0.05 148);
-    --muted: oklch(0.235 0.035 150);
-    --muted-foreground: oklch(0.7 0.055 148);
+    --secondary: oklch(0.255 0.038 150);
+    --secondary-foreground: oklch(0.955 0.055 148);
+    --muted: oklch(0.255 0.038 150);
+    --muted-foreground: oklch(0.77 0.06 148);
     --accent: oklch(0.28 0.07 148);
     --accent-foreground: oklch(0.87 0.15 148);
     --destructive: oklch(0.7 0.17 27);
-    --border: oklch(0.32 0.05 150);
-    --input: oklch(0.37 0.055 150);
+    --border: oklch(0.41 0.06 150);
+    --input: oklch(0.46 0.065 150);
     --ring: oklch(0.8 0.2 148);
     --chart-1: oklch(0.88 0.05 148);
     --chart-2: oklch(0.68 0.07 148);
     --chart-3: oklch(0.52 0.07 150);
     --chart-4: oklch(0.38 0.06 150);
     --chart-5: oklch(0.27 0.05 152);
-    --sidebar: oklch(0.165 0.028 150);
-    --sidebar-foreground: oklch(0.93 0.05 148);
+    --sidebar: oklch(0.16 0.032 150);
+    --sidebar-foreground: oklch(0.955 0.055 148);
     --sidebar-primary: oklch(0.8 0.2 148);
     --sidebar-primary-foreground: oklch(0.145 0.026 150);
     --sidebar-accent: oklch(0.28 0.07 148);
     --sidebar-accent-foreground: oklch(0.87 0.15 148);
-    --sidebar-border: oklch(0.32 0.05 150);
+    --sidebar-border: oklch(0.41 0.06 150);
     --sidebar-ring: oklch(0.8 0.2 148);
     --good: oklch(0.75 0.13 210);
     --critical: oklch(0.7 0.17 27);
@@ -825,7 +878,7 @@ html.dark[data-theme='terminal'] {
     transition-timing-function: ease-out;
 }
 .interactive:hover {
-    background-color: color-mix(in oklab, var(--accent) 40%, transparent);
+    background-color: color-mix(in oklab, var(--accent) 65%, transparent);
 }
 /* The ring is drawn INSIDE the element rather than around it. A row inside a
    card sits under `overflow: hidden` - the clip that keeps a hover fill from
@@ -882,15 +935,22 @@ html.dark[data-theme='terminal'] {
 }
 
 /* ---------------------------------------------------------------------------
-   RULE 2: TWO GREYS, AND THEY MEAN DIFFERENT THINGS
+   RULE 2: A HINT AND AN IDENTIFIER ARE NOT THE SAME TEXT
 
    Muted text is doing one of two jobs in this app and the two must not look
    alike. A hint is prose - a sentence written for a person, set in the sans
    face and dimmed because it is context rather than content. An identifier is
    a machine's string - a DHIS2 uid, a canonical, an error code - which is read
    character by character rather than skimmed, and is set in the mono face for
-   exactly that reason. Both are `--muted-foreground`; the face is what says
-   which of the two a reader is looking at.
+   exactly that reason.
+
+   THEY SEPARATE BY FACE AND BY HUE, AND NEITHER ALONE WOULD DO IT. The face is
+   the honest signal, but a row of small text at a glance is a row of shapes,
+   and two greys a tenth apart are one grey to anybody not looking for the
+   difference. So the identifier takes `--machine` - the theme's information hue
+   pulled to its ink, argued for where it is derived - and the hint keeps the
+   plain muted grey. A title in full ink, a hint in grey, a uid with a cast:
+   three kinds of string a reader can tell apart before reading any of them.
 
    Anything that is neither - a value, a title, a count that answers a question
    - is `--foreground` and needs no class. That is the third of the rule and it
@@ -913,7 +973,7 @@ html.dark[data-theme='terminal'] {
 }
 .machine-identifier {
     font-family: var(--font-mono);
-    color: var(--muted-foreground);
+    color: var(--machine);
 }
 
 /* ---------------------------------------------------------------------------

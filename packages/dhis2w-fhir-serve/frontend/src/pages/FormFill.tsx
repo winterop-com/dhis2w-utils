@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useEnrollmentOptions } from '@/hooks/use-enrollment-options'
 import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
 import { useRegisterSearchSupport } from '@/hooks/use-register-search-support'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { CAPTURE_OFF_NOTICE, capturesSubmissions, PEOPLE_RESOURCE_TYPE } from '@/lib/uiconfig'
 import { FhirRequestError, generateResponse, postQuestionnaireResponse, readResource } from '@/lib/api'
@@ -62,6 +63,7 @@ import {
     flattenQuestionnaire,
     implicitlySubmits,
     initialAnswers,
+    isAnswered,
     isWellShapedPeriod,
     normaliseDateTime,
     NO_DICTIONARY,
@@ -82,7 +84,7 @@ import {
     type ProgramRule,
     type QuestionDictionary,
 } from '@/lib/questionnaire'
-import { cn } from '@/lib/utils'
+import { cn, countedNoun, formatCount } from '@/lib/utils'
 
 /**
  * One form, filled in and posted back.
@@ -392,6 +394,22 @@ export function FormFill() {
             .finally(() => setFilling(false))
     }, [filling, questionnaire, questionnaireId, seed, clearStatedDates])
 
+    // How far through the form this is, published before the read has landed so the hook order does
+    // not depend on whether the server holds the form. `unansweredRequiredLinkIds` is asked again
+    // below for the Submit button's own note; both readings are of the same three arguments, so the
+    // bar and the note can never disagree about what is still waiting.
+    const stillWaiting = unansweredRequiredLinkIds(spec, answers, lockedQuestions.linkIds).length
+    const answered = spec.questionLinkIds.filter((linkId) => {
+        const node = spec.byLinkId.get(linkId)
+        return node !== undefined && isAnswered(node, answers)
+    }).length
+    useStatusLine(
+        questionnaire === null
+            ? null
+            : `${formatCount(answered)} of ${countedNoun(spec.questionLinkIds.length, 'question')} answered`,
+        stillWaiting === 0 ? null : `${countedNoun(stillWaiting, 'required question')} unanswered`,
+    )
+
     if (questionnaire === null) {
         return (
             <>
@@ -627,7 +645,7 @@ export function FormFill() {
                         <Alert key={`${breach.linkId}-${String(breach.index)}`} variant="destructive">
                             <AlertTitle className="flex flex-wrap items-center gap-2">
                                 <span>{breach.text}</span>
-                                <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
+                                <Badge variant="outline" className="machine-identifier text-[10px]">
                                     {breach.linkId}
                                 </Badge>
                             </AlertTitle>
@@ -1027,7 +1045,7 @@ function CaptureIssueAlert({ issue }: { issue: OperationOutcomeIssue }) {
                 <Badge variant={fatal ? 'outline' : 'secondary'}>{issue.severity}</Badge>
                 <span className="font-mono text-xs">{issue.code}</span>
                 {issue.expression?.[0] !== undefined && (
-                    <span className="text-muted-foreground font-mono text-xs">{issue.expression[0]}</span>
+                    <span className="machine-identifier text-xs">{issue.expression[0]}</span>
                 )}
             </AlertTitle>
             <AlertDescription>{issue.diagnostics ?? issue.details?.text ?? ''}</AlertDescription>
@@ -1074,7 +1092,7 @@ function FormFillHeader({
                         no form type
                     </Badge>
                 )}
-                <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
+                <Badge variant="outline" className="machine-identifier text-[10px]">
                     {questionnaire?.id ?? questionnaireId}
                 </Badge>
                 {questionnaire !== null && (
@@ -1127,7 +1145,7 @@ function ProgramRules({ rules }: { rules: ProgramRule[] }) {
                         {rule.description !== null && (
                             <dd className="text-muted-foreground text-sm">{rule.description}</dd>
                         )}
-                        <dd className="text-muted-foreground font-mono text-xs break-words">
+                        <dd className="machine-identifier text-xs break-words">
                             {rule.ruleUid} {rule.condition}
                         </dd>
                     </div>

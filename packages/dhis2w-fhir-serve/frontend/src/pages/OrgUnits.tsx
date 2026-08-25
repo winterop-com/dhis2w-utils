@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useSpool, type SpoolState } from '@/hooks/use-spool'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import {
     catalogueForms,
@@ -51,7 +52,7 @@ import {
 } from '@/lib/spool'
 import { identifierBadges } from '@/lib/terminology'
 import type { BasemapLayer } from '@/lib/uiconfig'
-import { cn } from '@/lib/utils'
+import { cn, countedNoun, formatCount } from '@/lib/utils'
 
 /**
  * MapLibre, and everything that draws with it, fetched only when this page opens.
@@ -197,6 +198,14 @@ export function OrgUnits() {
         [selected, assignmentIndex, formsById],
     )
 
+    // How big the registry is, and - while the box has something in it - how much of it the filter
+    // admits. The tree's own count says the same thing above the rows; down here it survives the
+    // hierarchy being scrolled and the rail being dragged over it.
+    useStatusLine(
+        registry.loading || registry.error !== null ? null : countedNoun(tree.total, 'organisation unit'),
+        matchCount === null ? null : `${formatCount(matchCount)} matching`,
+    )
+
     const select = useCallback(
         (unitId: string) => {
             const next = new URLSearchParams(parameters)
@@ -237,8 +246,8 @@ export function OrgUnits() {
                     // total over a tree showing a dozen rows is a number about something else.
                     <span className="text-muted-foreground text-xs">
                         {matchCount === null
-                            ? `${tree.total.toLocaleString('en')} organisation unit${tree.total === 1 ? '' : 's'}`
-                            : `${matchCount.toLocaleString('en')} of ${tree.total.toLocaleString('en')} organisation units match`}
+                            ? countedNoun(tree.total, 'organisation unit')
+                            : `${formatCount(matchCount)} of ${formatCount(tree.total)} organisation units match`}
                     </span>
                 )}
             </div>
@@ -881,9 +890,9 @@ function UnitChildren({ node, onSelect }: { node: OrgUnitNode; onSelect: (unitId
                 Children{' '}
                 {direct > 0 && (
                     <span className="text-muted-foreground ml-2 text-xs font-normal">
-                        {direct.toLocaleString('en')} direct
+                        {formatCount(direct)} direct
                         {node.descendantCount > direct
-                            ? `, ${node.descendantCount.toLocaleString('en')} below`
+                            ? `, ${formatCount(node.descendantCount)} below`
                             : ''}
                     </span>
                 )}

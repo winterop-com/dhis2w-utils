@@ -1,9 +1,14 @@
 import { useCallback, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { ChevronRight, Loader2 } from 'lucide-react'
 
 import { PageHeader, PageState } from '@/components/PageState'
 import { PatientSearchControl } from '@/components/PatientSearch'
+import {
+    NO_TRACKED_ENTITY_OPENED,
+    TrackedEntitySheet,
+    type OpenedTrackedEntity,
+} from '@/components/TrackedEntitySheet'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -28,6 +33,7 @@ import { useRegisterListing } from '@/hooks/use-register-listing'
 import { usePatientSearch } from '@/hooks/use-patient-search'
 import { useRegisterRefusal } from '@/hooks/use-register-refusal'
 import { useRegisterSearchKey } from '@/hooks/use-register-search-support'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import { useTrackedEntityNaming, type TrackedEntityNaming } from '@/hooks/use-tracked-entity-naming'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import {
@@ -63,7 +69,7 @@ import {
     type RegisterWords,
     type TrackedEntitiesSettings,
 } from '@/lib/uiconfig'
-import { cn } from '@/lib/utils'
+import { cn, formatCount } from '@/lib/utils'
 
 /** What this page says it holds when every tracked entity type it serves is published as a person. */
 export const PEOPLE_PAGE_DESCRIPTION =
@@ -147,7 +153,7 @@ export function TrackedEntities() {
     if (!settings.enabled) {
         return <RegisterNotServed resource={settings.registers[0]?.resource ?? PEOPLE_RESOURCE_TYPE} />
     }
-    return <RegisterBrowser settings={settings} />
+    return <RegisterBrowser settings={settings} dhis2BaseUrl={config.dhis2_base_url} />
 }
 
 /** What this page is for, on a run that does not serve it - which is a fact about the page, not this run. */
@@ -212,7 +218,14 @@ export function RegisterNotServed({ resource }: { resource: string }) {
  * one per character - Back goes to the page before this one, not to the search half-typed. The
  * narrowing writes the same way, so paging through types stacks no history either.
  */
-function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
+function RegisterBrowser({
+    settings,
+    dhis2BaseUrl,
+}: {
+    settings: TrackedEntitiesSettings
+    /** The DHIS2 instance's address, which a quick view's enrollment rows link into Capture with. */
+    dhis2BaseUrl: string | null
+}) {
     const naming = useTrackedEntityNaming()
     const [parameters, setParameters] = useSearchParams()
     const setParameter = useCallback(
@@ -286,10 +299,11 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
             </div>
 
             <div className="space-y-10">
-                {settings.registers.map((register) => (
+                {settings.registers.map((register, index) => (
                     <RegisterSection
                         key={register.resource}
                         register={register}
+                        leads={index === 0}
                         listing={settings.listing}
                         typed={typed}
                         askedType={askedType}
@@ -298,6 +312,7 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
                         onAttribute={setAskedAttribute}
                         naming={naming}
                         headed={settings.registers.length > 1}
+                        dhis2BaseUrl={dhis2BaseUrl}
                     />
                 ))}
             </div>
@@ -322,6 +337,12 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
  * `d2-attribute={uid}|{value}` is which of these hold a given value, where the box above is who is
  * named by one. `/uiconfig` states the attributes it answers over, and both controls ride the
  * address so a narrowed register is a link that can be sent.
+ *
+ * A ROW OPENS IN A SHEET OVER THIS SECTION rather than at another address. Reading a register is a
+ * scanning job - a clerk works down the rows looking for the one that matches the card in their hand
+ * - and opening one used to cost the page, its filters, and the reader's place in it. The quick view
+ * answers the row where the row is, and Esc gives the listing back untouched. The record's own route
+ * is still what a link points at, and the sheet carries the way to it - see `TrackedEntitySheet`.
  */
 function RegisterSection({
     register,
@@ -333,6 +354,8 @@ function RegisterSection({
     onAttribute,
     naming,
     headed,
+    leads,
+    dhis2BaseUrl,
 }: {
     register: Register
     listing: boolean
@@ -346,8 +369,18 @@ function RegisterSection({
     naming: TrackedEntityNaming
     /** True when this page shows more than one resource, so a section needs to say which it is. */
     headed: boolean
+    /**
+     * True for the section the summary bar speaks for, which is the first one on the page.
+     *
+     * There is one bar and a run can serve several registers, so one of them has to be the one it
+     * states - and the first is the one a reader is looking at when the page opens. The sections
+     * each keep their own paging line, which is where the others are counted.
+     */
+    leads: boolean
+    /** The DHIS2 instance's address, which a quick view's enrollment rows link into Capture with. */
+    dhis2BaseUrl: string | null
 }) {
-    const navigate = useNavigate()
+    const [opened, setOpened] = useState<OpenedTrackedEntity>(NO_TRACKED_ENTITY_OPENED)
     const searchKey = useRegisterSearchKey(register.resource)
     const selectedType = narrowedRegisterType(register, askedType)
     const selectedFilter = narrowedRegisterAttribute(register, askedAttribute)
@@ -371,8 +404,31 @@ function RegisterSection({
     const typeColumn = choices.length > 1 && selectedType === null
 
     const open = (trackedEntityUid: string) => {
-        navigate(`/tracked-entities/${register.resource}/${trackedEntityUid}`)
+        setOpened({ resourceType: register.resource, trackedEntityUid })
     }
+
+    // The listing's own paging sentence, in the subject's own words - so a register of specimen
+    // batches is not counted in people. A search is counted rather than paged, because a search
+    // answers about whoever was named and the instance states no total for it. The attribute filter
+    // is on the right, because it is why the count is smaller than the register.
+    const filterAttribute =
+        selectedFilter === null
+            ? null
+            : (registerFilterAttributes(register).find(
+                  (attribute) => attribute.uid === selectedFilter.attributeUid,
+              ) ?? null)
+    useStatusLine(
+        !leads || loading
+            ? null
+            : searching
+              ? `Showing ${formatCount(search.results.length)} matching what was typed`
+              : listing
+                ? words.paging(page.people.length, page.total)
+                : null,
+        selectedFilter === null
+            ? null
+            : `${filterAttribute?.name ?? selectedFilter.attributeUid} is ${selectedFilter.value}`,
+    )
 
     const everything = listing ? (
         <PageState loading={loading} error={error} empty={page.people.length === 0} emptyMessage={words.empty}>
@@ -436,6 +492,13 @@ function RegisterSection({
                     {stated}
                 </p>
             )}
+            <TrackedEntitySheet
+                opened={opened}
+                onOpenChange={(next) => {
+                    if (!next) setOpened(NO_TRACKED_ENTITY_OPENED)
+                }}
+                dhis2BaseUrl={dhis2BaseUrl}
+            />
         </section>
     )
 }

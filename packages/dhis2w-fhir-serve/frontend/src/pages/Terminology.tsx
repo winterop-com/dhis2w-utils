@@ -15,11 +15,11 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
+import { useStatusLine } from '@/hooks/use-status-bar'
 import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet } from '@/lib/fhir'
 import {
     TERMINOLOGY_FILTER_PARAMETER,
     composedSystems,
-    countedNoun,
     identifierBadges,
     mappingCount,
     matchesQuery,
@@ -28,6 +28,7 @@ import {
     terminologyRowLink,
     type IdentifierBadge,
 } from '@/lib/terminology'
+import { countedNoun, formatCount } from '@/lib/utils'
 
 /**
  * The vocabulary behind the forms: what a coded answer is allowed to be, and what it means to DHIS2.
@@ -92,6 +93,26 @@ export function Terminology() {
         [conceptMaps.resources],
     )
 
+    // The filter is asked once per section rather than once per section per render: the bar states
+    // how many rows the whole page admitted, and a bar counting one thing while the sections count
+    // another is two answers to one question. So the matching is done here and handed down.
+    const matchingCodeSystems = useMemo(() => matchingRows(codeSystemRows, query), [codeSystemRows, query])
+    const matchingValueSets = useMemo(() => matchingRows(valueSetRows, query), [valueSetRows, query])
+    const matchingConceptMaps = useMemo(() => matchingRows(conceptMapRows, query), [conceptMapRows, query])
+    const matched = matchingCodeSystems.length + matchingValueSets.length + matchingConceptMaps.length
+    const reading = codeSystems.loading || valueSets.loading || conceptMaps.loading
+
+    useStatusLine(
+        reading
+            ? null
+            : [
+                  countedNoun(codeSystemRows.length, 'code system'),
+                  countedNoun(valueSetRows.length, 'value set'),
+                  countedNoun(conceptMapRows.length, 'concept map'),
+              ].join(' - '),
+        query.trim() === '' ? null : matched === 1 ? '1 row matches' : `${formatCount(matched)} rows match`,
+    )
+
     return (
         <>
             <PageHeader
@@ -129,6 +150,7 @@ export function Terminology() {
                     loading={codeSystems.loading}
                     error={codeSystems.error}
                     rows={codeSystemRows}
+                    matching={matchingCodeSystems}
                     query={query}
                     emptyMessage="This project published no CodeSystems."
                 />
@@ -141,6 +163,7 @@ export function Terminology() {
                     loading={valueSets.loading}
                     error={valueSets.error}
                     rows={valueSetRows}
+                    matching={matchingValueSets}
                     query={query}
                     emptyMessage="This project published no ValueSets."
                 />
@@ -153,6 +176,7 @@ export function Terminology() {
                     loading={conceptMaps.loading}
                     error={conceptMaps.error}
                     rows={conceptMapRows}
+                    matching={matchingConceptMaps}
                     query={query}
                     emptyMessage={
                         <>
@@ -189,6 +213,31 @@ function listingRow(
     return { key: url ?? identifier, title: title ?? name ?? identifier, identifier }
 }
 
+/**
+ * One row the filter admitted, and why it was admitted.
+ *
+ * `codeMatches` is what a filter found INSIDE the artifact rather than on its face, which is what
+ * makes a search for a code find the system holding it. It rides back out of here because the row
+ * says how many, and because the link it opens carries the query on to the page that holds them.
+ */
+interface MatchingRow {
+    row: TerminologyRow
+    codeMatches: number
+}
+
+/** The rows one filter admits, in title order - the one reading of the box the whole page shares. */
+function matchingRows(rows: TerminologyRow[], query: string): MatchingRow[] {
+    return rows
+        .map((row) => ({
+            row,
+            codeMatches: matchingCodeCount(row.resource, query),
+            shallow: matchesQuery(query, row.title, row.identifier, ...row.identifiers.map((badge) => badge.value)),
+        }))
+        .filter((entry) => entry.shallow || entry.codeMatches > 0)
+        .toSorted((left, right) => left.row.title.localeCompare(right.row.title))
+        .map((entry) => ({ row: entry.row, codeMatches: entry.codeMatches }))
+}
+
 /** One titled table of terminology resources, in whichever of the three states it is in. */
 function TerminologySection({
     title,
@@ -198,6 +247,7 @@ function TerminologySection({
     loading,
     error,
     rows,
+    matching,
     query,
     emptyMessage,
 }: {
@@ -208,19 +258,13 @@ function TerminologySection({
     loading: boolean
     error: string | null
     rows: TerminologyRow[]
+    /** The rows the filter admitted, read once for the whole page - see `matchingRows`. */
+    matching: MatchingRow[]
     query: string
     /** What this section states when it holds nothing - a node, because it names commands. */
     emptyMessage: ReactNode
 }) {
     const navigate = useNavigate()
-    const matching = rows
-        .map((row) => ({
-            row,
-            codeMatches: matchingCodeCount(row.resource, query),
-            shallow: matchesQuery(query, row.title, row.identifier, ...row.identifiers.map((badge) => badge.value)),
-        }))
-        .filter((entry) => entry.shallow || entry.codeMatches > 0)
-        .toSorted((left, right) => left.row.title.localeCompare(right.row.title))
     const filteredAway = query.trim() !== '' && rows.length > 0 && matching.length === 0
 
     return (
@@ -288,7 +332,7 @@ function TerminologySection({
                                                 </span>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-muted-foreground font-mono text-xs">
+                                        <TableCell className="machine-identifier text-xs">
                                             {row.identifier}
                                         </TableCell>
                                         <TableCell>

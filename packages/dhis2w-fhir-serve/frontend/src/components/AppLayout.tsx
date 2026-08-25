@@ -19,6 +19,7 @@ import { KeyboardShortcuts } from '@/components/KeyboardShortcuts'
 import { PageState } from '@/components/PageState'
 import { SettingsMenu } from '@/components/SettingsMenu'
 import { SignInPanel } from '@/components/SignInPanel'
+import { StatusBar } from '@/components/StatusBar'
 import { StatusMenu } from '@/components/StatusMenu'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -27,6 +28,7 @@ import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useAuth } from '@/hooks/use-auth'
 import { useServerStatus } from '@/hooks/use-server-status'
 import { useSidebar } from '@/hooks/use-sidebar'
+import { StatusBarProvider } from '@/hooks/use-status-bar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { signInIsRequired, signOut, SIGN_OUT_LABEL } from '@/lib/auth'
 import { type PalettePage } from '@/lib/palette'
@@ -200,275 +202,289 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }, [])
 
     return (
-        // `h-svh`, not `min-h-svh`: the shell claims the viewport and `main` is the one thing that
-        // scrolls. A shell that grew with its content could never tell a page how much room was
-        // left, which is what the org-unit map needs in order to take it - and it is also why there
-        // is exactly one scrollbar on every page here rather than a document one plus a panel one.
-        <div className="flex h-svh overflow-hidden">
-            <aside
-                className={cn(
-                    'bg-sidebar hidden shrink-0 flex-col overflow-y-auto border-r transition-[width] duration-200 md:flex',
-                    collapsed ? 'w-16' : 'w-60',
-                )}
-            >
-                {/* The wordmark is the way home, which is the convention every
-                    other app in a browser has already taught. */}
-                <NavLink
-                    to="/"
-                    end
-                    aria-label="Capture overview"
+        // `h-svh`, not `min-h-svh`: the shell claims the viewport and the content column is the one
+        // thing that scrolls. A shell that grew with its content could never tell a page how much
+        // room was left, which is what the org-unit map needs in order to take it - and it is also
+        // why there is exactly one scrollbar on every page here rather than a document one plus a
+        // panel one.
+        //
+        // The provider is the shell's rather than a page's, because the bar it feeds is the shell's:
+        // one line lives here, whichever page happens to be publishing it.
+        <StatusBarProvider>
+            <div className="flex h-svh overflow-hidden">
+                <aside
                     className={cn(
-                        'focus-visible:ring-ring/50 flex items-center gap-2 rounded-lg px-3 py-4 focus-visible:ring-[3px] focus-visible:outline-none',
-                        collapsed && 'justify-center px-0',
+                        'bg-sidebar hidden shrink-0 flex-col overflow-y-auto border-r transition-[width] duration-200 md:flex',
+                        collapsed ? 'w-16' : 'w-60',
                     )}
                 >
-                    <div className="bg-foreground text-background dark:bg-primary dark:text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                        <Stethoscope className="size-4" aria-hidden />
-                    </div>
-                    {!collapsed && <span className="text-lg font-bold tracking-tight">Capture</span>}
-                </NavLink>
+                    {/* The wordmark is the way home, which is the convention every
+                        other app in a browser has already taught. */}
+                    <NavLink
+                        to="/"
+                        end
+                        aria-label="Capture overview"
+                        className={cn(
+                            'focus-visible:ring-ring/50 flex items-center gap-2 rounded-lg px-3 py-4 focus-visible:ring-[3px] focus-visible:outline-none',
+                            collapsed && 'justify-center px-0',
+                        )}
+                    >
+                        <div className="bg-foreground text-background dark:bg-primary dark:text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+                            <Stethoscope className="size-4" aria-hidden />
+                        </div>
+                        {!collapsed && <span className="text-lg font-bold tracking-tight">Capture</span>}
+                    </NavLink>
 
-                <nav className="flex flex-col gap-1 px-2 py-2">
-                    {items.map((item) => {
-                        const Icon = item.icon
-                        // Computed here rather than via NavLink's className
-                        // function: the collapsed mode wraps the link in
-                        // TooltipTrigger asChild, and Radix's Slot coerces a
-                        // function className to its source-code string, which
-                        // the browser then applies word by word as classes.
-                        // Routes are flat, so an exact match is enough.
-                        const isActive = current === item.path
+                    <nav className="flex flex-col gap-1 px-2 py-2">
+                        {items.map((item) => {
+                            const Icon = item.icon
+                            // Computed here rather than via NavLink's className
+                            // function: the collapsed mode wraps the link in
+                            // TooltipTrigger asChild, and Radix's Slot coerces a
+                            // function className to its source-code string, which
+                            // the browser then applies word by word as classes.
+                            // Routes are flat, so an exact match is enough.
+                            const isActive = current === item.path
 
-                        const link = (
-                            <NavLink
-                                to={item.path === '' ? '/' : `/${item.path}`}
-                                end={item.path === ''}
-                                aria-label={item.label}
-                                className={cn(
-                                    // The active rail is a left border rather
-                                    // than an overlay - it survives collapsed
-                                    // mode and gives asymmetric rounding free.
-                                    'flex items-start gap-3 rounded-r-lg rounded-l-[4px] border-l-[3px] px-3 py-2 text-left text-sm transition-colors',
-                                    collapsed &&
-                                        'mx-auto flex size-10 items-center justify-center rounded-lg border-l-0 p-0',
-                                    isActive
-                                        ? 'border-sidebar-primary bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                                        : 'text-muted-foreground hover:bg-sidebar-accent/40 hover:text-foreground border-transparent',
-                                )}
-                            >
-                                <Icon
+                            const link = (
+                                <NavLink
+                                    to={item.path === '' ? '/' : `/${item.path}`}
+                                    end={item.path === ''}
+                                    aria-label={item.label}
                                     className={cn(
-                                        'size-4 shrink-0',
-                                        !collapsed && 'mt-0.5',
-                                        isActive && 'text-sidebar-accent-foreground',
+                                        // The active rail is a left border rather
+                                        // than an overlay - it survives collapsed
+                                        // mode and gives asymmetric rounding free.
+                                        'flex items-start gap-3 rounded-r-lg rounded-l-[4px] border-l-[3px] px-3 py-2 text-left text-sm transition-colors',
+                                        collapsed &&
+                                            'mx-auto flex size-10 items-center justify-center rounded-lg border-l-0 p-0',
+                                        isActive
+                                            ? 'border-sidebar-primary bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                                            : 'text-muted-foreground hover:bg-sidebar-accent/40 hover:text-foreground border-transparent',
                                     )}
-                                    aria-hidden
-                                />
-                                {!collapsed && (
-                                    <span className="grid">
-                                        <span>{item.label}</span>
-                                        <span
-                                            className={cn(
-                                                'text-xs',
-                                                isActive
-                                                    ? 'text-sidebar-accent-foreground/75'
-                                                    : 'text-muted-foreground',
-                                            )}
-                                        >
-                                            {item.hint}
+                                >
+                                    <Icon
+                                        className={cn(
+                                            'size-4 shrink-0',
+                                            !collapsed && 'mt-0.5',
+                                            isActive && 'text-sidebar-accent-foreground',
+                                        )}
+                                        aria-hidden
+                                    />
+                                    {!collapsed && (
+                                        <span className="grid">
+                                            <span>{item.label}</span>
+                                            <span
+                                                className={cn(
+                                                    'text-xs',
+                                                    isActive
+                                                        ? 'text-sidebar-accent-foreground/75'
+                                                        : 'text-muted-foreground',
+                                                )}
+                                            >
+                                                {item.hint}
+                                            </span>
                                         </span>
-                                    </span>
-                                )}
-                            </NavLink>
-                        )
+                                    )}
+                                </NavLink>
+                            )
 
-                        // Collapsed to icons, the label has to come back somehow.
-                        return collapsed ? (
-                            <Tooltip key={item.path}>
-                                <TooltipTrigger asChild>{link}</TooltipTrigger>
+                            // Collapsed to icons, the label has to come back somehow.
+                            return collapsed ? (
+                                <Tooltip key={item.path}>
+                                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                                    <TooltipContent side="right">
+                                        <span className="font-medium">{item.label}</span>
+                                        <span className="opacity-70"> - {item.hint}</span>
+                                    </TooltipContent>
+                                </Tooltip>
+                            ) : (
+                                <div key={item.path}>{link}</div>
+                            )
+                        })}
+                    </nav>
+
+                    <div className="flex-1" />
+
+                    {/* The gear sits at the foot of the rail rather than in the header: the header
+                        names the page, and how the app looks is not the page. Collapsed, it is an icon
+                        with a tooltip, exactly as every entry above it is. */}
+                    <div className="border-t p-2">
+                        <SettingsMenu
+                            collapsed={collapsed}
+                            onShowShortcuts={() => {
+                                setShortcutsOpen(true)
+                            }}
+                        />
+                    </div>
+                </aside>
+
+                {/* `min-h-0` on the column and on `main`: without it a flex item's automatic minimum
+                    is its content, and a page that wants to fill the viewport - the org-unit browser,
+                    whose map takes the leftover height - could never be told how much leftover there
+                    is. Pages that size to their content are unaffected, because a flex item still
+                    floors at its content size unless it opts out with `min-h-0` of its own. */}
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                    {/* Solid surface, no backdrop blur: blur is expensive to
+                        composite on the field hardware this is meant to run on, and
+                        an opaque header costs nothing. */}
+                    <header className="bg-sidebar sticky top-0 z-10 border-b">
+                        <div className="flex items-center gap-2 px-4 py-2.5 md:px-6">
+                            {/* In the page header rather than the sidebar, so it
+                                keeps a fixed screen position instead of moving when
+                                clicked. This is the shadcn/ui convention. */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={toggle}
+                                        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                                        className="text-muted-foreground hover:text-foreground hidden md:inline-flex"
+                                    >
+                                        {collapsed ? (
+                                            <PanelLeftOpen className="size-4" />
+                                        ) : (
+                                            <PanelLeftClose className="size-4" />
+                                        )}
+                                    </Button>
+                                </TooltipTrigger>
                                 <TooltipContent side="right">
-                                    <span className="font-medium">{item.label}</span>
-                                    <span className="opacity-70"> - {item.hint}</span>
+                                    {collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                                 </TooltipContent>
                             </Tooltip>
-                        ) : (
-                            <div key={item.path}>{link}</div>
-                        )
-                    })}
-                </nav>
 
-                <div className="flex-1" />
+                            <Separator orientation="vertical" className="hidden !h-4 md:block" />
 
-                {/* The gear sits at the foot of the rail rather than in the header: the header
-                    names the page, and how the app looks is not the page. Collapsed, it is an icon
-                    with a tooltip, exactly as every entry above it is. */}
-                <div className="border-t p-2">
-                    <SettingsMenu
-                        collapsed={collapsed}
+                            <h1 className="text-sm font-medium">{title}</h1>
+
+                            <div className="flex-1" />
+
+                            {auth.identity !== null && (
+                                <span className="text-muted-foreground hidden text-xs sm:inline">
+                                    {auth.identity}
+                                </span>
+                            )}
+                            {auth.authorization !== null && (
+                                <Button variant="ghost" size="sm" onClick={signOut}>
+                                    {SIGN_OUT_LABEL}
+                                </Button>
+                            )}
+                            {paletteOffered && (
+                                <PaletteButton
+                                    onOpen={() => {
+                                        setPaletteOpen(true)
+                                    }}
+                                />
+                            )}
+                            <StatusMenu />
+
+                            {/* Below md there is no rail at all, so the gear the rail carries has to be
+                                here instead - the one place it is in the header, and only there. */}
+                            <div className="md:hidden">
+                                <SettingsMenu
+                                    collapsed
+                                    onShowShortcuts={() => {
+                                        setShortcutsOpen(true)
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* The sidebar is hidden below md, so navigation moves
+                            inline. The border lives on the wrapper because the fade
+                            mask on the nav itself would eat the border's right end. */}
+                        <div className="border-t md:hidden">
+                            <nav
+                                ref={mobileNavRef}
+                                className={cn(
+                                    // Scrollbar hidden on purpose: the fade is the
+                                    // scroll affordance, and a bar under a strip
+                                    // this small reads as clutter.
+                                    'flex gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                                    navOverflows &&
+                                        '[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]',
+                                )}
+                            >
+                                {items.map((item) => (
+                                    <Button
+                                        key={item.path}
+                                        asChild
+                                        variant={item.path === current ? 'secondary' : 'ghost'}
+                                        size="sm"
+                                        className={cn(item.path === current && 'border-border font-semibold')}
+                                    >
+                                        <NavLink to={item.path === '' ? '/' : `/${item.path}`}>
+                                            {item.label}
+                                        </NavLink>
+                                    </Button>
+                                ))}
+                            </nav>
+                        </div>
+                    </header>
+
+                    {/* Two rows: the page, and the line about the page. `main` itself scrolls nothing
+                        now - the div inside it is the scroll container every page has always had, with
+                        the same padding - so the bar stays put at the foot of the content column while
+                        the page moves behind it. */}
+                    <main className="flex w-full min-h-0 flex-1 flex-col overflow-hidden">
+                        <div
+                        data-testid="page-content"
+                        className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-4 py-6 md:px-8"
+                    >
+                            {/* No page is drawn until the posture is known, for the reason above: a page
+                                that rendered first would fire its reads first. When the read that settles
+                                the posture cannot reach the server, this says so in the place the page
+                                would have been - a word in the corner is not an answer to a screen that
+                                never fills. */}
+                            {asking && auth.posture !== null && auth.posture !== 'none' ? (
+                                <SignInPanel posture={auth.posture} issuer={auth.issuer} refused={auth.refused} />
+                            ) : auth.posture !== null ? (
+                                children
+                            ) : (
+                                <PageState
+                                    loading={reachability !== 'unreachable'}
+                                    status={reachability === 'unreachable' ? 'unreachable' : null}
+                                    error={
+                                        reachability === 'unreachable' ? (
+                                            <>
+                                                This server did not answer{' '}
+                                                <code className="font-mono">/metadata</code>, which is the
+                                                read every page starts from. Is{' '}
+                                                <code className="font-mono">d2w fhir serve --ui</code> still
+                                                running? Check this server again from the status menu in the
+                                                header.
+                                            </>
+                                        ) : null
+                                    }
+                                    empty={false}
+                                >
+                                    {null}
+                                </PageState>
+                            )}
+                        </div>
+
+                        <StatusBar />
+                    </main>
+                </div>
+
+                {paletteOffered && (
+                    <CommandPalette
+                        open={paletteOpen}
+                        onOpenChange={setPaletteOpen}
+                        pages={paletteReachablePages}
+                        register={registered.enabled ? registerTitle(registered) : null}
+                        signedIn={auth.authorization !== null}
+                        sidebarCollapsed={collapsed}
+                        onToggleSidebar={toggle}
                         onShowShortcuts={() => {
                             setShortcutsOpen(true)
                         }}
                     />
-                </div>
-            </aside>
+                )}
 
-            {/* `min-h-0` on the column and on `main`: without it a flex item's automatic minimum
-                is its content, and a page that wants to fill the viewport - the org-unit browser,
-                whose map takes the leftover height - could never be told how much leftover there
-                is. Pages that size to their content are unaffected, because a flex item still
-                floors at its content size unless it opts out with `min-h-0` of its own. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                {/* Solid surface, no backdrop blur: blur is expensive to
-                    composite on the field hardware this is meant to run on, and
-                    an opaque header costs nothing. */}
-                <header className="bg-sidebar sticky top-0 z-10 border-b">
-                    <div className="flex items-center gap-2 px-4 py-2.5 md:px-6">
-                        {/* In the page header rather than the sidebar, so it
-                            keeps a fixed screen position instead of moving when
-                            clicked. This is the shadcn/ui convention. */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={toggle}
-                                    aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                                    className="text-muted-foreground hover:text-foreground hidden md:inline-flex"
-                                >
-                                    {collapsed ? (
-                                        <PanelLeftOpen className="size-4" />
-                                    ) : (
-                                        <PanelLeftClose className="size-4" />
-                                    )}
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right">
-                                {collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                            </TooltipContent>
-                        </Tooltip>
-
-                        <Separator orientation="vertical" className="hidden !h-4 md:block" />
-
-                        <h1 className="text-sm font-medium">{title}</h1>
-
-                        <div className="flex-1" />
-
-                        {auth.identity !== null && (
-                            <span className="text-muted-foreground hidden text-xs sm:inline">
-                                {auth.identity}
-                            </span>
-                        )}
-                        {auth.authorization !== null && (
-                            <Button variant="ghost" size="sm" onClick={signOut}>
-                                {SIGN_OUT_LABEL}
-                            </Button>
-                        )}
-                        {paletteOffered && (
-                            <PaletteButton
-                                onOpen={() => {
-                                    setPaletteOpen(true)
-                                }}
-                            />
-                        )}
-                        <StatusMenu />
-
-                        {/* Below md there is no rail at all, so the gear the rail carries has to be
-                            here instead - the one place it is in the header, and only there. */}
-                        <div className="md:hidden">
-                            <SettingsMenu
-                                collapsed
-                                onShowShortcuts={() => {
-                                    setShortcutsOpen(true)
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* The sidebar is hidden below md, so navigation moves
-                        inline. The border lives on the wrapper because the fade
-                        mask on the nav itself would eat the border's right end. */}
-                    <div className="border-t md:hidden">
-                        <nav
-                            ref={mobileNavRef}
-                            className={cn(
-                                // Scrollbar hidden on purpose: the fade is the
-                                // scroll affordance, and a bar under a strip
-                                // this small reads as clutter.
-                                'flex gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-                                navOverflows &&
-                                    '[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]',
-                            )}
-                        >
-                            {items.map((item) => (
-                                <Button
-                                    key={item.path}
-                                    asChild
-                                    variant={item.path === current ? 'secondary' : 'ghost'}
-                                    size="sm"
-                                    className={cn(item.path === current && 'border-border font-semibold')}
-                                >
-                                    <NavLink to={item.path === '' ? '/' : `/${item.path}`}>
-                                        {item.label}
-                                    </NavLink>
-                                </Button>
-                            ))}
-                        </nav>
-                    </div>
-                </header>
-
-                {/* The scroll container for every page. Pages that size to their content scroll
-                    here exactly as they did when the document scrolled; pages that claim the
-                    height (the organisation-units browser) fit inside it and scroll nothing. */}
-                <main className="flex w-full min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 md:px-8">
-                    {/* No page is drawn until the posture is known, for the reason above: a page
-                        that rendered first would fire its reads first. When the read that settles
-                        the posture cannot reach the server, this says so in the place the page
-                        would have been - a word in the corner is not an answer to a screen that
-                        never fills. */}
-                    {asking && auth.posture !== null && auth.posture !== 'none' ? (
-                        <SignInPanel posture={auth.posture} issuer={auth.issuer} refused={auth.refused} />
-                    ) : auth.posture !== null ? (
-                        children
-                    ) : (
-                        <PageState
-                            loading={reachability !== 'unreachable'}
-                            status={reachability === 'unreachable' ? 'unreachable' : null}
-                            error={
-                                reachability === 'unreachable' ? (
-                                    <>
-                                        This server did not answer{' '}
-                                        <code className="font-mono">/metadata</code>, which is the
-                                        read every page starts from. Is{' '}
-                                        <code className="font-mono">d2w fhir serve --ui</code> still
-                                        running? Check this server again from the status menu in the
-                                        header.
-                                    </>
-                                ) : null
-                            }
-                            empty={false}
-                        >
-                            {null}
-                        </PageState>
-                    )}
-                </main>
+                <KeyboardShortcuts open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             </div>
-
-            {paletteOffered && (
-                <CommandPalette
-                    open={paletteOpen}
-                    onOpenChange={setPaletteOpen}
-                    pages={paletteReachablePages}
-                    register={registered.enabled ? registerTitle(registered) : null}
-                    signedIn={auth.authorization !== null}
-                    sidebarCollapsed={collapsed}
-                    onToggleSidebar={toggle}
-                    onShowShortcuts={() => {
-                        setShortcutsOpen(true)
-                    }}
-                />
-            )}
-
-            <KeyboardShortcuts open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-        </div>
+        </StatusBarProvider>
     )
 }

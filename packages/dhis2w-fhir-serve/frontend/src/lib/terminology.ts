@@ -284,32 +284,36 @@ export function conceptPropertyCodingLink(coding: Coding): ConceptPropertyCoding
     }
 }
 
-/** A count and the thing counted, singular when there is one of it: "1 mapping", "4 mappings". */
-export function countedNoun(count: number, singular: string): string {
-    return `${String(count)} ${count === 1 ? singular : `${singular}s`}`
-}
-
 /** What a table states when a filter admitted none of its rows, in the query's own words. */
 export function nothingMatchesMessage(query: string): string {
     return `Nothing here matches "${query.trim()}".`
 }
 
 /**
- * What a CodeSystem's `content` code means, said as the fact rather than as the code.
+ * What a CodeSystem's `content` code means, said as the fact rather than as the code - or nothing.
  *
  * `complete` and `not-present` are R4 spellings, and a reader looking at a vocabulary wants to know
- * whether the concepts are all here - not which token the specification uses for it. A code this
- * server has never published is stated verbatim rather than translated into a guess.
+ * whether the concepts are all here - not which token the specification uses for it.
+ *
+ * SILENT ON THE ORDINARY CASE. Every vocabulary this project generates is complete, and a fact
+ * printed on every page to say that the page holds what it obviously holds is a fact nobody reads.
+ * What is worth a sentence is the page that does NOT hold its concepts, which is the one a reader
+ * would otherwise take for an empty vocabulary. A system declaring nothing at all is silent for the
+ * same reason: there is no fact to state. A code this server has never published is stated verbatim
+ * rather than translated into a guess.
  */
-export function codeSystemContentLabel(content: string | undefined): string {
-    if (content === undefined || content === '') return '-'
-    if (content === 'complete') return 'Every concept is here'
-    if (content === 'not-present') return 'The concepts live elsewhere'
-    if (content === 'fragment') return 'Some of the concepts'
+export function codeSystemContentLabel(content: string | undefined): string | null {
+    if (content === undefined || content === '') return null
+    if (content === 'complete') return null
+    if (content === 'not-present' || content === 'fragment') return CONCEPTS_ELSEWHERE
     if (content === 'example') return 'A sample of the concepts'
     if (content === 'supplement') return 'Properties added to another system'
     return content
 }
+
+/** What a document that does not carry its own concepts says about where they are. */
+export const CONCEPTS_ELSEWHERE =
+    'The concepts live elsewhere - this document only names the system.'
 
 /** A declared boolean as an answer rather than as a literal, and a dash when the resource states none. */
 export function statedBooleanLabel(value: boolean | undefined): string {

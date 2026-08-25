@@ -10,6 +10,7 @@ import valueSetFixture from '@/lib/__fixtures__/valueset-d2-os-OsSymptom01-vs.js
 import type { CodeSystem, ConceptMap, Parameters, ValueSet } from '@/lib/fhir'
 import {
     CONCEPT_FILTER_PARAMETER,
+    CONCEPTS_ELSEWHERE,
     NOTHING_ASKED,
     TERMINOLOGY_FILTER_PARAMETER,
     TRANSLATE_QUESTION,
@@ -20,7 +21,6 @@ import {
     conceptPropertyCodingLink,
     conceptPropertyColumns,
     conceptPropertyValue,
-    countedNoun,
     declaredColumnLabel,
     enumeratedConceptCount,
     filterConcepts,
@@ -596,21 +596,20 @@ describe('how a listing row opens', () => {
 })
 
 describe('how a count and a code are said', () => {
-    it('counts one of a thing in the singular', () => {
-        expect(countedNoun(1, 'mapping')).toBe('1 mapping')
-        expect(countedNoun(0, 'mapping')).toBe('0 mappings')
-        expect(countedNoun(980, 'concept')).toBe('980 concepts')
-    })
-
     it('states the query a filter admitted nothing for', () => {
         expect(nothingMatchesMessage('zzzz')).toBe('Nothing here matches "zzzz".')
         expect(nothingMatchesMessage(' Fever ')).toBe('Nothing here matches "Fever".')
     })
 
     it('says what a content code means rather than printing the code', () => {
-        expect(codeSystemContentLabel('complete')).toBe('Every concept is here')
-        expect(codeSystemContentLabel('not-present')).toBe('The concepts live elsewhere')
-        expect(codeSystemContentLabel(undefined)).toBe('-')
+        // The ordinary vocabulary holds its concepts, and a fact saying so on every page is one
+        // nobody reads - so the complete case, and a system declaring nothing, both say nothing.
+        expect(codeSystemContentLabel('complete')).toBeNull()
+        expect(codeSystemContentLabel(undefined)).toBeNull()
+        // The page that does not carry its concepts is the one worth a sentence, and both codes
+        // that mean it get the same one.
+        expect(codeSystemContentLabel('not-present')).toBe(CONCEPTS_ELSEWHERE)
+        expect(codeSystemContentLabel('fragment')).toBe(CONCEPTS_ELSEWHERE)
         // A code this server has never published is stated as it stands rather than guessed at.
         expect(codeSystemContentLabel('brand-new')).toBe('brand-new')
     })

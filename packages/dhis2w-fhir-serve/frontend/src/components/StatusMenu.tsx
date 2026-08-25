@@ -110,7 +110,7 @@ export function StatusMenu() {
                         </p>
                     )}
                     {software && (
-                        <p className="text-muted-foreground font-mono text-xs">
+                        <p className="machine-identifier text-xs">
                             {software.name} {software.version ?? ''}
                         </p>
                     )}

@@ -59,7 +59,11 @@ test('a long code system pages rather than rendering thousands of rows', async (
     // The data-dictionary system is the biggest one the fixture publishes.
     await page.goto('/#/terminology/CodeSystem/d2-de-cs')
 
-    await expect(page.getByText(/Showing \d+ of 70 concepts/)).toBeVisible()
+    // How much is on screen is one fact, and the summary bar is where it is said. The page carries
+    // the two moves and nothing else - printing the sentence again a row above the bar put it on
+    // the screen twice, in two sizes.
+    await expect(page.getByTestId('status-bar-summary')).toContainText(/Showing \d+ of 70 concepts/)
+    await expect(page.getByTestId('page-content').getByText(/Showing \d+ of 70 concepts/)).toHaveCount(0)
     // Headed by the property code said as words: the page already names the system, so repeating
     // "DHIS2 data element" in every column says nothing.
     await expect(page.getByRole('columnheader', { name: 'Domain', exact: true })).toBeVisible()
@@ -70,7 +74,11 @@ test('a long code system pages rather than rendering thousands of rows', async (
     await expect(page.getByRole('columnheader', { name: 'Code', exact: true })).toHaveCount(1)
 
     await page.getByRole('textbox', { name: 'Filter concepts' }).fill('danger')
-    await expect(page.getByText(/Showing 1 of 1 concept$/)).toBeVisible()
+    await expect(page.getByTestId('status-bar-summary')).toContainText(/Showing 1 of 1 concept$/)
+    // The end of a list is where a reader looks for the way on, so the two moves are drawn and
+    // disabled rather than absent - nothing there reads as a page that failed to render one.
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Previous', exact: true })).toBeDisabled()
 })
 
 test('the listing filter reaches into the codes and names the system that holds a match', async ({
@@ -155,7 +163,7 @@ test('a category option combo digs down into the category options it is composed
     await expect(page).toHaveURL(/#\/terminology\/CodeSystem\/d2-cat-yY2bQYqNt0o-cs\?code=i4Nbp8S2G6A$/)
     await expect(page.getByRole('heading', { name: 'Project', level: 2, exact: true })).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'Filter concepts' })).toHaveValue('i4Nbp8S2G6A')
-    await expect(page.getByText(/Showing 1 of 1 concept$/)).toBeVisible()
+    await expect(page.getByTestId('status-bar-summary')).toContainText(/Showing 1 of 1 concept$/)
     await expect(page.getByRole('row').filter({ hasText: 'i4Nbp8S2G6A' })).toContainText(
         'Improve access to clean water',
     )
@@ -178,9 +186,10 @@ test('a disaggregation cell states both of the categories it is met from', async
     await expect(discarded.getByRole('cell', { name: '-', exact: true })).toHaveCount(2)
 })
 
-test('the $translate tester answers with the DHIS2 identifiers a concept maps onto', async ({ page }) => {
+test('the $translate lookup answers with the DHIS2 identifiers a concept maps onto', async ({ page }) => {
     await page.goto('/#/terminology/CodeSystem/d2-os-OsSymptom01-cs')
 
+    await page.getByRole('button', { name: 'Look up a code' }).click()
     await page.getByRole('textbox', { name: 'Concept code' }).fill('OpFever0001')
     // Exact, because every concept row carries a "Details" button of its own.
     await page.getByRole('button', { name: 'Look up', exact: true }).click()
@@ -195,6 +204,7 @@ test('the $translate tester answers with the DHIS2 identifiers a concept maps on
 test('a code the maps say nothing about is an answer, not an error', async ({ page }) => {
     await page.goto('/#/terminology/CodeSystem/d2-os-OsSymptom01-cs')
 
+    await page.getByRole('button', { name: 'Look up a code' }).click()
     await page.getByRole('textbox', { name: 'Concept code' }).fill('NoSuchCode')
     await page.getByRole('button', { name: 'Look up', exact: true }).click()
 
@@ -247,8 +257,10 @@ test('a value set expands through the code system it composes', async ({ page })
     await expect(page.getByRole('heading', { name: 'Concepts', exact: true })).toBeVisible()
     await expect(page.getByRole('row').filter({ hasText: 'OpFever0001' })).toHaveCount(1)
 
-    // The composed system links back to its own detail page.
-    await page.getByRole('link', { name: 'CodeSystem/d2-os-OsSymptom01-cs' }).click()
+    // The composed system links back to its own detail page. The chip is named for the
+    // relationship, not for the address - one system composed, so it needs no more than that.
+    await expect(page.getByRole('link', { name: /^CodeSystem\// })).toHaveCount(0)
+    await page.getByRole('link', { name: 'Code system', exact: true }).click()
     await expect(page).toHaveURL(/#\/terminology\/CodeSystem\/d2-os-OsSymptom01-cs$/)
 })
 

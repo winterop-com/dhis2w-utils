@@ -210,14 +210,17 @@ test.describe('the evaluate screen', () => {
         await expect(reference).toContainText('value set')
     })
 
-    test('folds the reference away for somebody who already knows it', async ({ page }) => {
+    test('folds the examples away for somebody who already knows them', async ({ page }) => {
         await page.goto('/#/evaluate')
 
         await expect(page.getByTestId('evaluate-examples')).toBeVisible()
-        await page.getByRole('button', { name: 'Reference', exact: true }).click()
+        // The control belongs to the panel it acts on, not to the toolbar above the editor.
+        await page.getByRole('button', { name: 'Collapse the examples panel' }).click()
         await expect(page.getByTestId('evaluate-examples')).toHaveCount(0)
-        await page.getByRole('button', { name: 'Reference', exact: true }).click()
+        // Collapsed is a strip holding the way back, not an absence.
+        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
         await expect(page.getByTestId('evaluate-examples')).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Reference', exact: true })).toHaveCount(0)
     })
 
     test('runs a refusal example and shows the whole of what the engine said', async ({ page }) => {
