@@ -311,10 +311,11 @@ class TestDataSourceIntegration:
             evaluator.evaluate_definition("Diabetic Conditions")
 
         assert self.DIABETES_VALUE_SET_URL in str(refusal.value)
-        assert "add_valueset" in str(refusal.value)
+        assert "holds no expansion for" in str(refusal.value)
+        assert "add_valueset" not in str(refusal.value)
 
     def test_the_same_retrieve_narrows_once_the_valueset_is_expanded(self) -> None:
-        """The refusal names the call that fixes it, and making that call answers the question."""
+        """Expanding the valueset the refusal named answers the question the retrieve asked."""
         data_source = self._conditions_data_source()
         data_source.add_valueset(
             self.DIABETES_VALUE_SET_URL,
@@ -397,6 +398,22 @@ class TestDataSourceIntegration:
         assert isinstance(observations, list)
         assert len(observations) == 1
         assert observations[0]["id"] == "o1"
+
+    def test_a_retrieve_under_a_non_patient_context_answers_the_context_resource(self) -> None:
+        """A Questionnaire context names no patient, so `[Questionnaire]` finds the one it is."""
+        questionnaire = {"resourceType": "Questionnaire", "id": "d2-pr-anc-visit-q", "status": "active"}
+        bundle = {"resourceType": "Bundle", "type": "collection", "entry": [{"resource": questionnaire}]}
+        evaluator = CQLEvaluator(data_source=BundleDataSource(bundle))
+        evaluator.compile("""
+            library QuestionnaireContext version '1.0'
+            using FHIR version '4.0.1'
+
+            define Questionnaires: [Questionnaire]
+        """)
+
+        found = evaluator.evaluate_definition("Questionnaires", resource=questionnaire)
+
+        assert [q["id"] for q in found] == ["d2-pr-anc-visit-q"]
 
 
 class TestNestedValueAccess:

@@ -31,6 +31,11 @@ COLUMNS ARE COUNTED FROM ONE. ANTLR reports the column of a syntax error countin
 is right for a parser and wrong for a person counting characters along a line. `EvaluationDiagnostic`
 states the line as ANTLR gives it and the column one higher, so "line 2, column 14" names the
 fourteenth character.
+
+A PARSE MESSAGE NAMES WHAT WENT WRONG, NOT EVERY TOKEN THAT WOULD HAVE BEEN RIGHT. ANTLR ends a
+mismatched-input message with the whole set it expected instead - dozens of quoted operators and
+lexer rule names in capitals. A positioned diagnostic already points at the character, so that tail
+is dropped and the naming half is kept.
 """
 
 from __future__ import annotations
@@ -56,6 +61,9 @@ ELM_ERRORS_KEY = "_errors"
 
 #: How the engine's ANTLR listeners spell a syntax error, in both grammars: `line {line}:{column}`.
 _SYNTAX_ERROR_PATTERN = re.compile(r"Syntax error at line (\d+):(\d+):\s*(.*)", re.DOTALL)
+
+#: ANTLR's every-token-that-would-have-parsed tail: ` expecting {'+', '-', IDENTIFIER, ...}`.
+_EXPECTED_TOKEN_SET_PATTERN = re.compile(r"\s*expecting\s*\{.*\}\s*$", re.DOTALL)
 
 #: An empty collection Bundle, which is what a CQL retrieve reads when the caller supplied no data.
 _EMPTY_BUNDLE: dict[str, Any] = {"resourceType": "Bundle", "type": "collection", "entry": []}
@@ -209,12 +217,24 @@ def syntax_diagnostic(error: BaseException) -> EvaluationDiagnostic:
         if found is not None:
             return EvaluationDiagnostic(
                 kind=DiagnosticKind.PARSE,
-                message=found.group(3).strip(),
+                message=_without_expected_token_set(found.group(3)),
                 line=int(found.group(1)),
                 column=int(found.group(2)) + 1,
             )
         walked = walked.__cause__
     return EvaluationDiagnostic(kind=DiagnosticKind.EVALUATION, message=str(error))
+
+
+def _without_expected_token_set(message: str) -> str:
+    """One parse message without ANTLR's list of every token that would have parsed there.
+
+    A positioned diagnostic already points at the character that went wrong, and the reader is
+    looking at their own source beside it. The token set adds nothing they can act on and a lot they
+    have to read past: three wrapped lines of quoted operators and lexer rule names in capitals,
+    which is the parser generator's vocabulary rather than the language's. What stays is the half
+    that names the problem - "mismatched input '<EOF>'", "no viable alternative at input '[Patient'".
+    """
+    return _EXPECTED_TOKEN_SET_PATTERN.sub("", message.strip()).strip()
 
 
 def _run_fhirpath(source: str, subject: dict[str, Any] | None) -> EvaluationOutcome:

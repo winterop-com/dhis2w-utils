@@ -34,6 +34,14 @@ BUNDLE: dict[str, Any] = {
     ],
 }
 
+#: A resource that is not a Patient and carries an id, which is what a stored context always is.
+OBSERVATION: dict[str, Any] = {
+    "resourceType": "Observation",
+    "id": "obs-1",
+    "status": "final",
+    "code": {"coding": [{"system": "http://loinc.org", "code": "8867-4"}]},
+}
+
 LIBRARY = """
 library Example version '1.0'
 using FHIR version '4.0.1'
@@ -42,6 +50,11 @@ define People: [Patient]
 define HasCondition: exists [Condition]
 define Greeting: 'hello'
 """
+
+
+def one_define(source: str, name: str) -> str:
+    """A one-define CQL library, so a retrieve can be asserted without a fixture library around it."""
+    return f"library Probe version '1.0'\nusing FHIR version '4.0.1'\ndefine {name}: {source}"
 
 
 async def test_a_fhirpath_expression_answers_the_collection_it_matched(client: httpx.AsyncClient) -> None:
@@ -93,6 +106,27 @@ async def test_an_expression_that_will_not_parse_answers_where_it_stopped(client
     # ANTLR counts the offending character from zero; a person counting along the line does not.
     assert diagnostic["column"] == 14
     assert answered.json()["results"] == []
+
+
+async def test_a_parse_message_names_the_problem_without_listing_every_legal_token(
+    client: httpx.AsyncClient,
+) -> None:
+    """An unclosed call is "mismatched input '<EOF>'" and nothing else - not ANTLR's whole token set."""
+    answered = await client.post(
+        "/evaluate",
+        json={
+            "language": "fhirpath",
+            "source": "Patient.name.given(",
+            "context": {"kind": "inline", "resource": PATIENT},
+        },
+    )
+
+    diagnostic = answered.json()["diagnostics"][0]
+    assert diagnostic["kind"] == "parse"
+    assert diagnostic["line"] == 1
+    assert diagnostic["message"] == "mismatched input '<EOF>'"
+    assert "expecting" not in diagnostic["message"]
+    assert "IDENTIFIER" not in diagnostic["message"]
 
 
 async def test_a_cql_library_answers_one_row_per_define(client: httpx.AsyncClient) -> None:
@@ -155,6 +189,71 @@ async def test_a_single_resource_context_is_still_retrievable(client: httpx.Asyn
     )
 
     assert answered.json()["results"] == [{"name": "Found", "values": [True], "refusal": None}]
+
+
+async def test_a_bundle_is_data_rather_than_a_context_so_a_retrieve_reads_it_whole(
+    client: httpx.AsyncClient,
+) -> None:
+    """A Bundle names no context resource, so `[Condition]` answers every Condition it carries."""
+    other = {"resourceType": "Condition", "id": "c2", "subject": {"reference": "Patient/someone-else"}}
+    answered = await client.post(
+        "/evaluate",
+        json={
+            "language": "cql",
+            "source": one_define("[Condition]", "Conditions"),
+            "context": {
+                "kind": "inline",
+                "resource": {**BUNDLE, "entry": [*BUNDLE["entry"], {"resource": other}]},
+            },
+        },
+    )
+
+    assert [row["id"] for row in answered.json()["results"][0]["values"]] == ["c1", "c2"]
+
+
+async def test_a_non_patient_context_with_an_id_answers_the_context_resource(client: httpx.AsyncClient) -> None:
+    """The three-call proof, second call: an Observation carrying an id is retrievable under itself."""
+    answered = await client.post(
+        "/evaluate",
+        json={
+            "language": "cql",
+            "source": one_define("[Observation]", "Observations"),
+            "context": {"kind": "inline", "resource": OBSERVATION},
+        },
+    )
+
+    assert [row["id"] for row in answered.json()["results"][0]["values"]] == ["obs-1"]
+
+
+async def test_the_same_context_resource_answers_the_same_with_its_id_taken_off(
+    client: httpx.AsyncClient,
+) -> None:
+    """The three-call proof, third call: an id on the context resource changes no answer."""
+    without_id = {key: value for key, value in OBSERVATION.items() if key != "id"}
+    answered = await client.post(
+        "/evaluate",
+        json={
+            "language": "cql",
+            "source": one_define("exists [Observation]", "Any"),
+            "context": {"kind": "inline", "resource": without_id},
+        },
+    )
+
+    assert answered.json()["results"] == [{"name": "Any", "values": [True], "refusal": None}]
+
+
+async def test_a_stored_questionnaire_is_retrievable_under_its_own_context(client: httpx.AsyncClient) -> None:
+    """What the guide's own CQL examples ask: a retrieve for the stored resource the context names."""
+    answered = await client.post(
+        "/evaluate",
+        json={
+            "language": "cql",
+            "source": one_define("[Questionnaire]", "Questionnaires"),
+            "context": {"kind": "stored", "resource_type": "Questionnaire", "resource_id": "d2-pr-anc-visit-q"},
+        },
+    )
+
+    assert [row["id"] for row in answered.json()["results"][0]["values"]] == ["d2-pr-anc-visit-q"]
 
 
 async def test_an_elm_library_runs_from_the_json_it_arrived_as(client: httpx.AsyncClient) -> None:

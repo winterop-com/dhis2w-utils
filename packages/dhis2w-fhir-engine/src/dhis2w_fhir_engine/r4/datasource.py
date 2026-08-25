@@ -244,6 +244,39 @@ class FHIRDataSource:
         # Check if date is in range
         return date_value in date_range
 
+    def _patient_scoped(
+        self,
+        resources: list[dict[str, Any]],
+        resource_type: str,
+        context: "CQLContext | None",
+    ) -> list[dict[str, Any]]:
+        """Narrow a retrieve to the context patient's own resources, which only a Patient context does.
+
+        A Patient context names a person, so `[Observation]` under it means that person's
+        observations and everything referencing someone else drops out. Every other context resource
+        - a Questionnaire, an Observation, a Composition - names no person: it is the resource the
+        defines evaluate over, and a retrieve under it reads the data source whole. Reading an id off
+        any context resource and matching it as `Patient/<id>` would answer nothing at all for those,
+        because no resource in the store references a Questionnaire as its patient.
+
+        Args:
+            resources: The resources of the retrieved type, before the patient scope
+            resource_type: The FHIR resource type being retrieved
+            context: CQL evaluation context, whose resource decides whether a scope applies
+
+        Returns:
+            The resources the context leaves in scope
+        """
+        if context is None or not context.resource:
+            return resources
+        if context.resource.get("resourceType") != "Patient" or resource_type == "Patient":
+            return resources
+        patient_id = context.resource.get("id")
+        if not patient_id:
+            return resources
+        patient_reference = f"Patient/{patient_id}"
+        return [r for r in resources if self._get_patient_reference(r) == patient_reference]
+
     def _get_patient_reference(self, resource: dict[str, Any]) -> str | None:
         """Get the patient reference from a resource.
 
@@ -333,6 +366,11 @@ class InMemoryDataSource(FHIRDataSource):
         A URL with no expansion behind it cannot narrow anything, and letting the retrieve run
         unnarrowed turns a question about one set of codes into a question about every resource of
         that type - the same silent widening the engine refuses when a name resolves to nothing.
+
+        The refusal states the fact and stops there, because it is read wherever an expression is
+        run - a browser, a CLI, a report - and most of those readers hold no data source to call.
+        A caller that does holds the remedy: `add_valueset(url, codes)` puts an expansion behind the
+        URL, and every retrieve scoped to it narrows from then on.
         """
         if valueset is None:
             return None
@@ -340,8 +378,7 @@ class InMemoryDataSource(FHIRDataSource):
         if codes is None:
             raise CQLError(
                 f"the retrieve [{resource_type}] is scoped to the valueset '{valueset}', which this data "
-                f"source holds no expansion for - call add_valueset('{valueset}', [...]) with the codes "
-                "the valueset contains before evaluating"
+                "source holds no expansion for"
             )
         return codes
 
@@ -399,12 +436,7 @@ class InMemoryDataSource(FHIRDataSource):
         # Get all resources of the type
         resources = self._resources.get(resource_type, [])
 
-        # Apply context filtering (patient scope)
-        if context and context.resource:
-            patient_id = context.resource.get("id")
-            if patient_id and resource_type != "Patient":
-                patient_ref = f"Patient/{patient_id}"
-                resources = [r for r in resources if self._get_patient_reference(r) == patient_ref]
+        resources = self._patient_scoped(resources, resource_type, context)
 
         valueset_codes = self._required_valueset_codes(valueset, resource_type)
 
