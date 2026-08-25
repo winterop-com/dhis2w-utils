@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from dhis2w_fhir_engine.binding import FhirVersionBinding
-from dhis2w_fhir_engine.engine.cql import CQLCode, PatientContext
+from dhis2w_fhir_engine.engine.cql import CQLCode, CQLContext, PatientContext
 from dhis2w_fhir_engine.engine.cql.types import CQLConcept, CQLInterval
 from dhis2w_fhir_engine.engine.exceptions import CQLError
 from dhis2w_fhir_engine.engine.types import FHIRDate, FHIRDateTime
@@ -293,8 +293,18 @@ class TestInMemoryRetrieve:
             data_source.retrieve("Observation", code_path="code", valueset="http://example.org/vs/vitals")
 
         assert "http://example.org/vs/vitals" in str(refusal.value)
-        assert "add_valueset" in str(refusal.value)
+        assert "holds no expansion for" in str(refusal.value)
         assert "Observation" in str(refusal.value)
+
+    def test_the_refusal_states_the_fact_without_naming_a_python_call(self) -> None:
+        data_source = InMemoryDataSource()
+        data_source.add_resource(observation("o1", "1234-5"))
+
+        with pytest.raises(CQLError) as refusal:
+            data_source.retrieve("Observation", code_path="code", valueset="http://example.org/vs/vitals")
+
+        assert "add_valueset" not in str(refusal.value)
+        assert "(" not in str(refusal.value)
 
     def test_a_valueset_nothing_expanded_is_refused_even_without_a_code_path(self) -> None:
         data_source = InMemoryDataSource()
@@ -371,6 +381,36 @@ class TestInMemoryRetrieve:
         context = PatientContext(resource={"resourceType": "Patient", "id": "p1"})
 
         assert data_source.retrieve("Observation", context=context) == []
+
+    def test_a_non_patient_context_carrying_an_id_scopes_nothing(self) -> None:
+        data_source = InMemoryDataSource()
+        data_source.add_resources([observation("o1", "1234-5"), observation("o2", "9999-9")])
+        context = CQLContext(resource={"resourceType": "Questionnaire", "id": "A03MvHHogjR"})
+
+        assert [r["id"] for r in data_source.retrieve("Observation", context=context)] == ["o1", "o2"]
+
+    def test_a_non_patient_context_answers_the_context_resource_itself(self) -> None:
+        data_source = InMemoryDataSource()
+        questionnaire = {"resourceType": "Questionnaire", "id": "A03MvHHogjR", "status": "active"}
+        data_source.add_resource(questionnaire)
+        context = CQLContext(resource=questionnaire)
+
+        assert [r["id"] for r in data_source.retrieve("Questionnaire", context=context)] == ["A03MvHHogjR"]
+
+    def test_an_observation_context_carrying_an_id_still_answers_observations(self) -> None:
+        data_source = InMemoryDataSource()
+        subject = observation("o1", "1234-5")
+        data_source.add_resource(subject)
+        context = CQLContext(resource=subject)
+
+        assert [r["id"] for r in data_source.retrieve("Observation", context=context)] == ["o1"]
+
+    def test_a_patient_context_with_no_id_scopes_nothing(self) -> None:
+        data_source = InMemoryDataSource()
+        data_source.add_resources([observation("o1", "1234-5", subject="Patient/p1"), observation("o2", "9999-9")])
+        context = PatientContext(resource={"resourceType": "Patient"})
+
+        assert [r["id"] for r in data_source.retrieve("Observation", context=context)] == ["o1", "o2"]
 
     def test_resolve_reference_reads_the_identifier_index(self) -> None:
         data_source = InMemoryDataSource()
