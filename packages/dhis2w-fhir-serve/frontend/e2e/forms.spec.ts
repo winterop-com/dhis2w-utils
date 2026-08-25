@@ -21,7 +21,7 @@ test('the four capture models are sections, each saying what it is', async ({ pa
     await expect(page.getByRole('heading', { name: 'Data sets' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Event programs' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Tracker programs' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'People' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Tracked entity registration' })).toBeVisible()
 
     // The explainers state the model's nature, which the per-card badge cannot: what the badge
     // says is which of the five kinds this one form is.

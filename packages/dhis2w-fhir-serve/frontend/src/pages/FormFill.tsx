@@ -181,6 +181,7 @@ export function FormFill() {
     const [questionnaire, setQuestionnaire] = useState<Questionnaire | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [errorStatus, setErrorStatus] = useState<number | null>(null)
     const [envelope, setEnvelope] = useState<QuestionnaireResponse | null>(null)
     const [answers, dispatch] = useReducer(answersReducer, {} as AnswerState)
     const [issues, setIssues] = useState<OperationOutcomeIssue[]>([])
@@ -299,6 +300,7 @@ export function FormFill() {
         let cancelled = false
         setLoading(true)
         setError(null)
+        setErrorStatus(null)
         setQuestionnaire(null)
         setEnvelope(null)
         setIssues([])
@@ -331,6 +333,9 @@ export function FormFill() {
                 setLoading(false)
                 setError((current) =>
                     current ?? (failure instanceof Error ? failure.message : String(failure)),
+                )
+                setErrorStatus((current) =>
+                    current ?? (failure instanceof FhirRequestError ? failure.status : null),
                 )
             })
         return () => {
@@ -394,6 +399,7 @@ export function FormFill() {
                 <PageState
                     loading={loading}
                     error={error}
+                    status={errorStatus}
                     empty={!loading && error === null}
                     emptyMessage="This server holds no form under that id. It may have been published under a different one - the form list names every id it serves."
                 >

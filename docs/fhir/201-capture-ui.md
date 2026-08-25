@@ -105,10 +105,10 @@ The root route answers one question: what is the state of capture right now.
 
 ![The Overview: the spool pulse, the quick-entry cards, and the server strip](../img/fhir/capture-ui-overview.png)
 
-**The spool pulse** is four counts off `GET /spool` - `Received`,
-`Forwarded`, `Rejected`, `Withdrawn` - with `Received` set large because it is
-the only one of the four that is a task: it is the queue
-[`d2w fhir forward`](201-forward.md) drains. Each count is a link into the
+**Receipts** is the spool's counts off `GET /spool` - `Received`,
+`Forwarded`, `Rejected`, `Withdrawn`, and, when the spool holds files it could
+not read, `Quarantined` - with `Received` set large because it is the one that
+is a task: it is the queue [`d2w fhir forward`](201-forward.md) drains. Each count is a link into the
 Responses table already narrowed to that state
 (`#/responses?lifecycle=received` is a link you can send someone), and the
 rejected count names the DHIS2 error code most of its receipts share -
@@ -121,7 +121,7 @@ carrying forty rows of the same broken rule is still one stuck submission.
 server** closes the page with one strip: the guide being served and its
 version, the store mode, how many resource types it answers for, and the
 operations it declares as `$translate` / `$generate` badges. A project with
-nothing captured yet gets an invitation to open a form rather than three
+nothing captured yet gets an invitation to open a form rather than a row of
 zeroes, and each section fails on its own - a spool that stops answering
 does not blank the forms beside it.
 

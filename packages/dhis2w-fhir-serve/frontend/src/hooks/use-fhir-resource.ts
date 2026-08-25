@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { readResource } from '@/lib/api'
+import { FhirRequestError, readResource } from '@/lib/api'
 
 /** One read in its three honest states, so a detail page never has to guess which it is in. */
 export interface FhirResourceState<T> {
@@ -8,6 +8,8 @@ export interface FhirResourceState<T> {
     loading: boolean
     /** The refusal the server stated, already reduced to its OperationOutcome diagnostics. */
     error: string | null
+    /** The HTTP status behind the error, so a page can head a 404 as the absence it is. */
+    status: number | null
 }
 
 /**
@@ -29,17 +31,20 @@ export function useFhirResource<T>(resourceType: string, resourceId: string): Fh
     const [resource, setResource] = useState<T | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [status, setStatus] = useState<number | null>(null)
 
     useEffect(() => {
         if (resourceId === '') {
             setResource(null)
             setError(null)
+            setStatus(null)
             setLoading(false)
             return () => undefined
         }
         let cancelled = false
         setLoading(true)
         setError(null)
+        setStatus(null)
         setResource(null)
         readResource<T>(resourceType, resourceId)
             .then((read) => {
@@ -50,6 +55,7 @@ export function useFhirResource<T>(resourceType: string, resourceId: string): Fh
             .catch((failure: unknown) => {
                 if (cancelled) return
                 setError(failure instanceof Error ? failure.message : String(failure))
+                setStatus(failure instanceof FhirRequestError ? failure.status : null)
                 setLoading(false)
             })
         return () => {
@@ -57,5 +63,5 @@ export function useFhirResource<T>(resourceType: string, resourceId: string): Fh
         }
     }, [resourceType, resourceId])
 
-    return { resource, loading, error }
+    return { resource, loading, error, status }
 }

@@ -281,6 +281,7 @@ function RegisterBrowser({ settings }: { settings: TrackedEntitiesSettings }) {
                     onTyped={setTyped}
                     state={search}
                     searchKey={searchKey}
+                    peopleOnly={people}
                 />
             </div>
 
