@@ -716,8 +716,8 @@ export function clearedHiddenAnswers(spec: QuestionnaireSpec, answers: AnswerSta
     return next
 }
 
-/** One answered question whose value falls outside the range its own form publishes. */
-export interface BoundBreach {
+/** One filled-in question whose value the submission could not carry as the form asks for it. */
+export interface AnswerBreach {
     linkId: string
     /**
      * Which answer of a repeating question this is, counting from zero.
@@ -738,7 +738,7 @@ export interface BoundBreach {
 }
 
 /**
- * Every enabled question answered outside the range its `minValue` / `maxValue` extensions publish.
+ * Every enabled question filled in with something this submission cannot carry.
  *
  * WHY THE BROWSER CHECKS AT ALL. The server checks too, and DHIS2 checks after that - but a value
  * the form itself says it does not accept is a mistake the person who typed it can fix under the
@@ -746,28 +746,34 @@ export interface BoundBreach {
  * three places to learn it. What comes back is the fact rather than an instruction: a reader is told
  * what they typed and what the form accepts, and decides for themselves what to do about it.
  *
+ * TWO KINDS OF BREACH, AND THE SECOND IS THE ONE THAT USED TO VANISH. A value outside the range the
+ * form's `minValue` / `maxValue` extensions publish is one. The other is a box holding text that is
+ * not a value of the kind the question records at all - `5.5` in a whole-number question, `1.2.` in
+ * a decimal one: `slotAnswer` converts those to null, null means unanswered everywhere below here,
+ * and a submission would leave the answer behind without a word. So a slot holding text that
+ * converts to nothing is stated here, which is the one place a person can still act on it.
+ *
  * A DISABLED QUESTION IS NOT CHECKED, because it carries no answer once `clearedHiddenAnswers` has
- * run and would not be submitted if it did. Numbers are graded against the numeric bounds and
- * calendar days against the dated ones; a question carrying neither, and a half-typed literal that is
- * not yet a value, are both passed over - the value is graded once it is one.
+ * run and would not be submitted if it did. An empty box is not checked either: that is an
+ * unanswered question, which the required-question count is what says something about.
  */
-export function boundBreaches(spec: QuestionnaireSpec, answers: AnswerState): BoundBreach[] {
+export function answerBreaches(spec: QuestionnaireSpec, answers: AnswerState): AnswerBreach[] {
     const enabled = enabledLinkIds(spec, answers)
-    const breaches: BoundBreach[] = []
+    const breaches: AnswerBreach[] = []
     for (const node of spec.nodes) {
         if (!enabled.has(node.linkId)) continue
         ;(answers[node.linkId] ?? []).forEach((slot, index) => {
-            const fact = slotBoundFact(node, slot)
+            const fact = slotBreachFact(node, slot)
             if (fact !== null) breaches.push({ linkId: node.linkId, index, text: node.text ?? node.linkId, fact })
         })
     }
     return breaches
 }
 
-/** The sentence one answer's breach reads as, or null when it is inside the range or outside none. */
-function slotBoundFact(node: QuestionnaireNode, slot: AnswerSlot): string | null {
+/** The sentence one answer's breach reads as, or null when the slot carries a value the form takes. */
+function slotBreachFact(node: QuestionnaireNode, slot: AnswerSlot): string | null {
     const answer = slotAnswer(node, slot)
-    if (answer === null) return null
+    if (answer === null) return slot.text.trim() === '' ? null : unconvertibleFact(node, slot.text)
     const number = answer.valueInteger ?? answer.valueDecimal
     if (number !== undefined) {
         if (node.minimum !== null && number < node.minimum) return belowFact(number, node.minimum)
@@ -783,12 +789,40 @@ function slotBoundFact(node: QuestionnaireNode, slot: AnswerSlot): string | null
 
 /** What a value under the range says about itself. */
 function belowFact(value: number | string, bound: number | string): string {
-    return `${value} is below the lowest value this form accepts, ${bound}`
+    return `${value} is below ${bound}, the lowest value this form accepts`
 }
 
 /** What a value over the range says about itself. */
 function aboveFact(value: number | string, bound: number | string): string {
-    return `${value} is above the highest value this form accepts, ${bound}`
+    return `${value} is above ${bound}, the highest value this form accepts`
+}
+
+/**
+ * What a box holding text that is not a value of this question's kind says about itself.
+ *
+ * The wording names the kind rather than the R4 element, because the kind is what the person at the
+ * keyboard can act on: a whole number, a number, a date and time, a time of day. A boolean and a
+ * reference are absent from the list and answer null - neither control can hold a literal anybody
+ * typed, so text in one of those slots came off a draft rather than off a keystroke, and a sentence
+ * telling somebody to fix what they cannot see would be worse than saying nothing.
+ */
+function unconvertibleFact(node: QuestionnaireNode, text: string): string | null {
+    switch (node.answerElement) {
+        case 'valueInteger':
+            return `${text} is not a whole number, which is what this question records`
+        case 'valueDecimal':
+            return `${text} is not a number, which is what this question records`
+        case 'valueDate':
+        case 'valueDateTime':
+            return `${text} is not a date this question can record`
+        case 'valueTime':
+            return `${text} is not a time of day this question can record`
+        case 'valueBoolean':
+        case 'valueReference':
+            return null
+        default:
+            return `${text} is not a value this question can record`
+    }
 }
 
 /**
@@ -806,8 +840,10 @@ function aboveFact(value: number | string, bound: number | string): string {
  * envelope, and replaces its answers with the user's. The user edits the answers; the server
  * owns the context.
  *
- * The seed identifier is deliberately *not* carried over: it says which draw produced these
- * answers, and once a person has edited them it would be a false claim about the submission.
+ * THE SEED IDENTIFIER RIDES WITH THE REST OF THE ENVELOPE, because it says which draw this
+ * submission started from and that is a fact about the submission whatever was typed over it
+ * afterwards. It is what makes a captured receipt reproducible - the same form and the same seed
+ * draw the same bytes - so the receipt states the seed, and a reported bug can be re-drawn from it.
  * With no envelope at all the response is still assembled, and the server's refusal naming the
  * missing context is a better error than a button that refuses to submit.
  *
@@ -895,6 +931,7 @@ export function buildQuestionnaireResponse(
     return {
         resourceType: 'QuestionnaireResponse',
         ...(envelope?.meta ? { meta: envelope.meta } : {}),
+        ...(envelope?.identifier ? { identifier: envelope.identifier } : {}),
         ...(questionnaireUrl ? { questionnaire: questionnaireUrl } : {}),
         status: 'completed',
         ...(extension.length > 0 ? { extension } : {}),
@@ -1571,6 +1608,64 @@ export function normaliseTime(text: string): string | null {
 /** What `<input type="datetime-local">` will accept back from a stored R4 dateTime. */
 export function dateTimeInputValue(text: string): string {
     return text.replace(/(Z|[+-]\d{2}:\d{2})$/, '')
+}
+
+/** One key press, in the four facts the implicit-submission rule below reads off it. */
+export interface FormKeyPress {
+    /** The key, as `KeyboardEvent.key` spells it. */
+    key: string
+    /** The tag name of the element the key was pressed in, as `Element.tagName` spells it - upper case. */
+    tagName: string
+    /** An input's `type`, lower case. Anything that is not an input states the empty string. */
+    inputType: string
+    /** True when Alt, Control, Meta or Shift was held, which is a different key press. */
+    withModifier: boolean
+}
+
+/** The input types that are a button wearing an input's tag, and press rather than post. */
+const BUTTON_INPUT_TYPES: ReadonlySet<string> = new Set(['button', 'submit', 'reset', 'image'])
+
+/**
+ * Whether this key press is the browser about to post the whole capture by itself.
+ *
+ * HTML's implicit submission: Enter in a text box of a form that has a submit button submits the
+ * form, wherever in it the box sits. On a capture screen that means a person pressing Enter in a
+ * search box, or after typing a period, files the submission they were still filling in - and the
+ * receipt is permanent. So the form swallows exactly those presses, and nothing but the Submit
+ * button submits a capture.
+ *
+ * WHAT IS LEFT ALONE, AND WHY EACH. A textarea takes Enter as a newline and never submits. A button
+ * takes it as a press, which is how the keyboard reaches Submit. A select takes it as a choice. A
+ * modifier held is a different key press altogether, and none of the combinations submits. And an
+ * element that is none of these - the tree rows of the organisation-unit picker, a popover's own
+ * list - handles its own keys and is not a form control the browser would post from.
+ */
+export function implicitlySubmits(press: FormKeyPress): boolean {
+    if (press.key !== 'Enter' || press.withModifier) return false
+    if (press.tagName !== 'INPUT') return false
+    return !BUTTON_INPUT_TYPES.has(press.inputType)
+}
+
+/** The box a numeric question is filled in through, as the attributes that decide what it keeps. */
+export interface NumericInputShape {
+    /** The input's `type`. */
+    type: 'text'
+    /** Which keypad a touch device offers for it. */
+    inputMode: 'numeric' | 'decimal'
+}
+
+/**
+ * What kind of box an `integer` or a `decimal` question gets.
+ *
+ * A TEXT BOX FOR BOTH, WHICH IS THE WHOLE POINT. `<input type="number">` lets the browser decide
+ * what a numeric literal is: it drops the character it cannot parse, so `1.2.3` becomes `1.23` under
+ * the cursor and `abc` becomes nothing at all, with no signal either way. This app converts once, at
+ * submit, and states what it could not carry (`answerBreaches`) - which only works if the box hands
+ * over what was typed. So the type is text and the keypad is stated separately, which is what
+ * `inputMode` is for.
+ */
+export function numericInputShape(itemType: QuestionnaireItemType): NumericInputShape {
+    return { type: 'text', inputMode: itemType === 'integer' ? 'numeric' : 'decimal' }
 }
 
 /** Read one Questionnaire item and its subtree, returning the link ids of the items read at this level. */

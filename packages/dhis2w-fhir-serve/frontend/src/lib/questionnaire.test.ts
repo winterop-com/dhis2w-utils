@@ -29,7 +29,7 @@ import {
 import {
     answersFromResponse,
     answersReducer,
-    boundBreaches,
+    answerBreaches,
     buildQuestionnaireResponse,
     clearedEntityLevelAnswers,
     clearedHiddenAnswers,
@@ -61,11 +61,14 @@ import {
     DEFAULT_DATE_LABELS,
     dictionaryOfCodeSystems,
     groupCategoryAxes,
+    implicitlySubmits,
+    numericInputShape,
     isWellShapedPeriod,
     periodShape,
     repeatsPerEnrollment,
     reportingPeriodTypeOf,
     type AnswerState,
+    type FormKeyPress,
 } from '@/lib/questionnaire'
 import { carriesUnitOnExtension, reportingUnitOf, type OrgUnitChoice } from '@/lib/orgunits'
 import { marksAnExistingSubject } from '@/lib/patients'
@@ -522,32 +525,98 @@ describe('an answer outside what the form accepts', () => {
     const temporalSpec = flattenQuestionnaire(temporalQuestionnaire)
 
     it('states the fact for a number over the maximum', () => {
-        const breaches = boundBreaches(temporalSpec, answersOf({ DeCoverage01: '137' }))
+        const breaches = answerBreaches(temporalSpec, answersOf({ DeCoverage01: '137' }))
 
         expect(breaches).toHaveLength(1)
         expect(breaches[0].linkId).toBe('DeCoverage01')
         expect(breaches[0].text).toBe('Coverage')
-        expect(breaches[0].fact).toBe('137 is above the highest value this form accepts, 100')
+        expect(breaches[0].fact).toBe('137 is above 100, the highest value this form accepts')
     })
 
     it('states the fact for a number under the minimum', () => {
-        const breaches = boundBreaches(temporalSpec, answersOf({ DeCoverage01: '-4' }))
+        const breaches = answerBreaches(temporalSpec, answersOf({ DeCoverage01: '-4' }))
 
-        expect(breaches[0].fact).toBe('-4 is below the lowest value this form accepts, 0')
+        expect(breaches[0].fact).toBe('-4 is below 0, the lowest value this form accepts')
     })
 
     it('states the fact for a calendar day outside the range', () => {
-        const breaches = boundBreaches(temporalSpec, answersOf({ DeVisitDate1: '2027-03-04' }))
+        const breaches = answerBreaches(temporalSpec, answersOf({ DeVisitDate1: '2027-03-04' }))
 
         expect(breaches[0].linkId).toBe('DeVisitDate1')
-        expect(breaches[0].fact).toBe('2027-03-04 is above the highest value this form accepts, 2026-12-31')
+        expect(breaches[0].fact).toBe('2027-03-04 is above 2026-12-31, the highest value this form accepts')
     })
 
-    it('says nothing about a value inside the range, or about a half-typed one', () => {
-        expect(boundBreaches(temporalSpec, answersOf({ DeCoverage01: '58.3' }))).toEqual([])
-        expect(boundBreaches(temporalSpec, answersOf({ DeVisitDate1: '2026-07-23' }))).toEqual([])
-        expect(boundBreaches(temporalSpec, answersOf({ DeCoverage01: '-' }))).toEqual([])
-        expect(boundBreaches(temporalSpec, answersOf({ DeCoverage01: '' }))).toEqual([])
+    it('says nothing about a value inside the range, or about an empty box', () => {
+        expect(answerBreaches(temporalSpec, answersOf({ DeCoverage01: '58.3' }))).toEqual([])
+        expect(answerBreaches(temporalSpec, answersOf({ DeVisitDate1: '2026-07-23' }))).toEqual([])
+        expect(answerBreaches(temporalSpec, answersOf({ DeCoverage01: '' }))).toEqual([])
+        expect(answerBreaches(temporalSpec, answersOf({ DeCoverage01: '   ' }))).toEqual([])
+    })
+
+    it('states the fact for a box holding text this question cannot record', () => {
+        const wholeNumbers = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [{ linkId: 'qrur9Dvnyt5', type: 'integer', text: 'Age (years)' }],
+        })
+
+        const breaches = answerBreaches(wholeNumbers, answersOf({ qrur9Dvnyt5: '5.5' }))
+
+        // The case a submission used to drop in silence: `slotAnswer` converts `5.5` to null, null
+        // is what an unanswered question looks like, and the receipt came back with no answer at
+        // all while the toast said the server had accepted it.
+        expect(breaches).toHaveLength(1)
+        expect(breaches[0].linkId).toBe('qrur9Dvnyt5')
+        expect(breaches[0].text).toBe('Age (years)')
+        expect(breaches[0].fact).toBe('5.5 is not a whole number, which is what this question records')
+    })
+
+    it('states the fact for a decimal box holding what no number reads as', () => {
+        const breaches = answerBreaches(temporalSpec, answersOf({ DeCoverage01: '1.2.3' }))
+
+        expect(breaches[0].fact).toBe('1.2.3 is not a number, which is what this question records')
+    })
+
+    it('says nothing about a slot no keystroke could have filled', () => {
+        const dictionary = dictionaryOfCodeSystems([
+            {
+                resourceType: 'CodeSystem',
+                status: 'active',
+                url: 'http://localhost:8080/fhir/CodeSystem/d2-de-cs',
+                concept: [
+                    {
+                        code: 'DeConfirmed',
+                        display: 'Confirmed',
+                        property: [{ code: 'value-type', valueCode: TRUE_ONLY_VALUE_TYPE }],
+                    },
+                ],
+            },
+        ])
+        const ticks = flattenQuestionnaire(
+            {
+                resourceType: 'Questionnaire',
+                status: 'active',
+                item: [
+                    {
+                        linkId: 'DeConfirmed',
+                        type: 'boolean',
+                        text: 'Confirmed',
+                        code: [
+                            {
+                                system: 'http://localhost:8080/fhir/CodeSystem/d2-de-cs',
+                                code: 'DeConfirmed',
+                            },
+                        ],
+                    },
+                ],
+            },
+            dictionary,
+        )
+
+        // A TRUE_ONLY question stores `true` or nothing, so a `false` poured in by a refill converts
+        // to null - and no control on the page can hold one. A sentence about a value nobody can
+        // see, and nobody typed, would be worse than silence.
+        expect(answerBreaches(ticks, answersOf({ DeConfirmed: 'false' }))).toEqual([])
     })
 
     it('counts a repeating question once per answer that is outside', () => {
@@ -572,12 +641,12 @@ describe('an answer outside what the form accepts', () => {
             ],
         }
 
-        const breaches = boundBreaches(repeating, answers)
+        const breaches = answerBreaches(repeating, answers)
 
         // Two rows holding the same value are two answers, and the position is all that tells them
         // apart - which is what the row key on the page is built from.
         expect(breaches.map((breach) => breach.index)).toEqual([0, 2])
-        expect(breaches[0].fact).toBe('137 is above the highest value this form accepts, 99')
+        expect(breaches[0].fact).toBe('137 is above 99, the highest value this form accepts')
     })
 
     it('says nothing about a question the form is not asking', () => {
@@ -596,7 +665,7 @@ describe('an answer outside what the form accepts', () => {
         })
         const answers = { ...answersOf({ asked: 'false' }), ...answersOf({ bounded: '99' }) }
 
-        expect(boundBreaches(gated, answers)).toEqual([])
+        expect(answerBreaches(gated, answers)).toEqual([])
     })
 })
 
@@ -840,7 +909,7 @@ describe('rebuilding a QuestionnaireResponse', () => {
             expect(rebuilt.item).toEqual(generated.item)
         })
 
-        it(`keeps the ${id} envelope the server built, and drops the seed identifier`, () => {
+        it(`keeps the ${id} envelope the server built, the seed identifier included`, () => {
             const spec = flattenQuestionnaire(questionnaire)
 
             const rebuilt = buildQuestionnaireResponse(spec, {}, questionnaire, generated, NO_CAPTURE_CONTEXT)
@@ -852,7 +921,9 @@ describe('rebuilding a QuestionnaireResponse', () => {
             expect(rebuilt.subject).toEqual(generated.subject)
             expect(rebuilt.authored).toBe(generated.authored)
             expect(rebuilt.questionnaire).toBe(questionnaire.url)
-            expect(rebuilt.identifier).toBeUndefined()
+            // The seed rides with the rest of the envelope: it says which draw the submission
+            // started from, which is what makes a receipt somebody reports reproducible.
+            expect(rebuilt.identifier).toEqual(generated.identifier)
             expect(rebuilt.item).toBeUndefined()
         })
     }
@@ -2148,5 +2219,63 @@ describe('a reporting period', () => {
         expect(isWellShapedPeriod('2026April', 'FinancialApril')).toBe(true)
         expect(isWellShapedPeriod('2026WedW30', 'WeeklyWednesday')).toBe(true)
         expect(isWellShapedPeriod('202607', null)).toBe(true)
+    })
+})
+
+/** One Enter in a text box, with whatever the case at hand changes about it. */
+const press = (over: Partial<FormKeyPress>): FormKeyPress => ({
+    key: 'Enter',
+    tagName: 'INPUT',
+    inputType: 'text',
+    withModifier: false,
+    ...over,
+})
+
+describe('pressing Enter on a capture form', () => {
+    it('is the browser about to post the capture, in every kind of text box', () => {
+        // What a person actually did: typed a period, or an identifier value in the person search,
+        // and pressed Enter. Both filed an empty submission, and a receipt is permanent.
+        expect(implicitlySubmits(press({}))).toBe(true)
+        expect(implicitlySubmits(press({ inputType: 'search' }))).toBe(true)
+        expect(implicitlySubmits(press({ inputType: 'number' }))).toBe(true)
+        expect(implicitlySubmits(press({ inputType: 'date' }))).toBe(true)
+        expect(implicitlySubmits(press({ inputType: 'datetime-local' }))).toBe(true)
+        expect(implicitlySubmits(press({ inputType: 'checkbox' }))).toBe(true)
+    })
+
+    it('is not what a textarea, a button, or a select does with Enter', () => {
+        // A newline, a press - which is how the keyboard reaches Submit - and a choice.
+        expect(implicitlySubmits(press({ tagName: 'TEXTAREA', inputType: '' }))).toBe(false)
+        expect(implicitlySubmits(press({ tagName: 'BUTTON', inputType: '' }))).toBe(false)
+        expect(implicitlySubmits(press({ tagName: 'SELECT', inputType: '' }))).toBe(false)
+        expect(implicitlySubmits(press({ inputType: 'submit' }))).toBe(false)
+        expect(implicitlySubmits(press({ inputType: 'button' }))).toBe(false)
+    })
+
+    it('is not any other key, and not Enter with a modifier held', () => {
+        expect(implicitlySubmits(press({ key: 'a' }))).toBe(false)
+        expect(implicitlySubmits(press({ key: 'Tab' }))).toBe(false)
+        expect(implicitlySubmits(press({ withModifier: true }))).toBe(false)
+    })
+
+    it('is not what a popover row or a tree does with Enter', () => {
+        // The organisation-unit picker's tree rows and cmdk's own list handle Enter themselves,
+        // and neither is a control the browser would post a form from.
+        expect(implicitlySubmits(press({ tagName: 'DIV', inputType: '' }))).toBe(false)
+    })
+})
+
+describe('the box a numeric question is filled in through', () => {
+    it('is a text box for both kinds, so what was typed is what is held', () => {
+        // `type="number"` lets the browser decide what a numeric literal is: `1.2.3` becomes `1.23`
+        // under the cursor and `abc` becomes nothing, neither of them said out loud. The literal is
+        // kept here and graded once, at submit, by `answerBreaches`.
+        expect(numericInputShape('integer').type).toBe('text')
+        expect(numericInputShape('decimal').type).toBe('text')
+    })
+
+    it('states which keypad a touch device offers, since the type no longer says', () => {
+        expect(numericInputShape('integer').inputMode).toBe('numeric')
+        expect(numericInputShape('decimal').inputMode).toBe('decimal')
     })
 })

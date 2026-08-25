@@ -46,7 +46,7 @@ export function Forms() {
         <>
             <PageHeader
                 title="Forms"
-                description="Questionnaires this server publishes, grouped by the DHIS2 capture model each came from: data sets, event programs, and tracker programs."
+                description="Questionnaires this server publishes, grouped by the DHIS2 capture model each came from: data sets, event programs, tracker programs, and people."
             />
             <PageState
                 loading={loading}
@@ -235,12 +235,15 @@ function TrackerProgramCard({ group }: { group: ProgramGroup }) {
                 )}
             </div>
             <div className="divide-y">
-                {group.event !== null && <FormRow questionnaire={group.event} />}
-                {group.registration !== null && <FormRow questionnaire={group.registration} />}
+                {group.event !== null && <FormRow questionnaire={group.event} programTitle={group.title} />}
+                {group.registration !== null && (
+                    <FormRow questionnaire={group.registration} programTitle={group.title} />
+                )}
                 {group.stages.map((stage) => (
                     <FormRow
                         key={formIdentifier(stage)}
                         questionnaire={stage}
+                        programTitle={group.title}
                         note={repeatNote(stage)}
                         indented
                     />
@@ -257,13 +260,23 @@ function TrackerProgramCard({ group }: { group: ProgramGroup }) {
  * program the interesting comparison is between the rows, and a row keeps the titles in one
  * column. The stage rows are indented under the registration that mints their enrollments, and
  * every one of them ends in a chevron: on a list, the mark is what says these open.
+ *
+ * THE ROW SHOWS WHAT THE CARD HAS NOT ALREADY SAID. DHIS2 titles a stage "<program> - <stage>", and
+ * inside a card headed by the program that spends the whole width of the column on the word above
+ * it: five rows reading "WHO RMNCH Tracker - Car...", "- Firs...", "- Pos..." tell a reader nothing
+ * that distinguishes one from the next. So the program's own name comes off the front of the row's
+ * title, and the full title stays on the link's accessible name and its `title` - the row is
+ * shortened, never the fact.
  */
 function FormRow({
     questionnaire,
+    programTitle,
     note,
     indented,
 }: {
     questionnaire: Questionnaire
+    /** The name of the card this row sits in, which its title need not repeat. */
+    programTitle: string
     /** What the badge does not say - for a stage, how often it is answered. */
     note?: string | null
     /** True for a stage row, which sits nested under its program's registration. */
@@ -271,18 +284,20 @@ function FormRow({
 }) {
     const identifier = formIdentifier(questionnaire)
     const title = formTitle(questionnaire)
+    const shown = withoutProgramPrefix(title, programTitle)
 
     return (
         <Link
             to={`/forms/${identifier}`}
             aria-label={`Open ${title}`}
+            title={title}
             className={cn(
                 'interactive flex items-center gap-3 px-4 py-2.5',
                 indented === true && 'pl-9',
             )}
         >
             <span className="min-w-0 flex-1">
-                <span className="interactive-title block truncate text-sm">{title}</span>
+                <span className="interactive-title block truncate text-sm">{shown}</span>
                 {note !== undefined && note !== null && (
                     <span className="prose-hint block text-xs">{note}</span>
                 )}
@@ -293,6 +308,20 @@ function FormRow({
             <ChevronRight className="interactive-mark size-4" aria-hidden />
         </Link>
     )
+}
+
+/**
+ * A form's title with the program's name taken off the front of it, when that is what it opens with.
+ *
+ * DHIS2 spells a stage title "<program> - <stage>" and the card above the row already states the
+ * program. A title that does not open with it, or that is nothing else - a registration form named
+ * exactly for its program - is left whole, because the alternative is a row with no title at all.
+ */
+function withoutProgramPrefix(title: string, programTitle: string): string {
+    const prefix = `${programTitle} - `
+    if (!title.startsWith(prefix)) return title
+    const rest = title.slice(prefix.length).trim()
+    return rest === '' ? title : rest
 }
 
 /** How much of a form there is - the one number that says whether it is a minute or an afternoon. */

@@ -2309,9 +2309,12 @@ control per R4 item type.
   own program rules exist to prevent, and forwarded it becomes a real data
   value.
 - **Bounds are honoured client-side** on both the numeric and the `valueDate`
-  spellings of `minValue` / `maxValue`: the control wears the range, the hint
-  states it, and Submit refuses an answer outside it with the fact and nothing
-  else (*137 is above the highest value this form accepts, 100*).
+  spellings of `minValue` / `maxValue`: the hint states the range, and Submit
+  refuses an answer outside it with the fact and nothing else (*137 is above
+  100, the highest value this form accepts*). A box holding text the question
+  cannot record at all is refused the same way (*5.5 is not a whole number,
+  which is what this question records*), so an answer that would convert to
+  nothing is stated rather than dropped from the submission.
 - **A repeating `D2ProgramRule` declaration** is read off the form and stated
   where the form describes itself - *This DHIS2 instance enforces N more rules
   when the submission is imported* - each rule's name and DHIS2 description
@@ -2320,8 +2323,19 @@ control per R4 item type.
   can name but never evaluate.
 - **Every question is labelled with the DHIS2 uid it is known by**, and a
   **Fill with test data** button reads `$generate` and pours its answers into
-  the form to be edited rather than posting them blind; the drawn seed is
-  shown, so the same answers can be asked for again.
+  the form to be edited rather than posting them blind. The seed rides beside
+  the button as a box: a fill writes the drawn seed into it, the next fill asks
+  for whatever it holds, and the seed rides the submission - so the receipt
+  states which draw it came from and a reported bug can be drawn again.
+- **Only the Submit button submits a capture.** Enter in a text box - the
+  reporting period, a question, the person search - is swallowed, because HTML's
+  implicit submission would post a form somebody was still filling in and a
+  receipt is permanent.
+- **A coded question offering more than fifty options is searched, not
+  scrolled**: the same popover, cap, and *N more match - narrow the search to
+  reach them* footer the organisation-unit picker uses, matching a concept's
+  display and its code alike. A real terminology binding runs to five figures,
+  and a select over one mounts every row before it opens.
 - **A submission keeps the `$generate` skeleton's envelope** - the `D2Period`,
   the tracked entity and enrollment - rather than deriving DHIS2 period
   arithmetic client-side, so what the page posts carries capture-valid context
@@ -2435,6 +2449,11 @@ control per R4 item type.
   is in (received, forwarded, rejected), tinted by shared theme tokens,
   filterable by state or form, the state chips carrying the counts so the queue
   depth is on screen.
+- **A Quarantined section above the table** states what `/spool` counted as
+  `malformed` and names each file with the reason the facade could not read it
+  as a receipt. It is not a fifth state and has no row in the table - a
+  quarantined file has no form, no answers, and no id to open - so it is said
+  where a reader meets it rather than left to the API.
 - **`/responses/{id}`** is a deep-linkable receipt page opened by clicking a
   row: the answers joined to the questions the served Questionnaire asks, in
   that form's order, each with its enclosing groups (what turns a disaggregated
@@ -2468,7 +2487,10 @@ control per R4 item type.
 
 - **A listing per type** over all three terminology types, carrying each
   artifact's id, the DHIS2 identifiers it was generated from, and its concept
-  or mapping count, with one filter narrowing all three at once.
+  or mapping count, with one filter narrowing all three at once. The filter
+  lives in the address bar, so a narrowed listing is an address and the browser's
+  Back button brings the search back; a row whose own codes matched opens the
+  artifact already showing them.
 - **`/terminology/{resourceType}/{id}`** shows, for a CodeSystem, every concept
   with one column per declared property, headed by the property code as words
   with the declared description as the header's tooltip - the DHIS2 option code
@@ -2484,9 +2506,15 @@ control per R4 item type.
 - **A ValueSet expands through the CodeSystems it composes**, because the
   facade publishes no `$expand`; a ConceptMap shows every mapping one table per
   group with its target code and equivalence.
-- **Both detail pages carry a `$translate` tester** that asks the running
-  server about a typed or clicked concept code, optionally against one target
-  system, and renders the `Parameters` as match rows or the not-found message.
+- **A `$translate` tester on the pages that have an answer to give** - a
+  CodeSystem some served ConceptMap names as a group source, and every
+  ConceptMap - asking the running server about a typed or clicked concept code
+  and rendering the `Parameters` as match rows or the not-found message. A
+  system no map translates from carries neither the tester nor the per-row
+  button, because every press would be a refusal. A row of a map's group asks in
+  that group's direction; a concept row asks every map. The button is pinned to
+  the right edge of the table's own scroll box, and an ask brings the panel to
+  the reader.
 
 #### Organisation units
 

@@ -22,8 +22,6 @@ interface SearchWords {
     label: string
     /** What the box searches, said in full - the one sentence this control exists to keep honest. */
     hint: string
-    /** What the box says before anything has been typed. */
-    prompt: string
     /** What it says when the server answered and held nobody. */
     empty: string
 }
@@ -41,7 +39,6 @@ const IDENTIFIER_WORDS: SearchWords = {
         'Searches the identifier values this DHIS2 instance holds - the tracked entity uid, and the ' +
         'values of the attributes DHIS2 declares unique. Not names: DHIS2 states no attribute that ' +
         'means one, so this server serves none.',
-    prompt: 'Type an identifier value to search.',
     empty: 'This DHIS2 instance holds nobody under that identifier value.',
 }
 
@@ -61,7 +58,6 @@ const CONTENT_WORDS: SearchWords = {
         'other tracked entity attribute values alike - matching any part of one, upper and lower case ' +
         'alike. Which of those values is a name is not something DHIS2 states, so this server does not ' +
         'single one out.',
-    prompt: 'Type any part of a value to search.',
     empty: 'This DHIS2 instance holds nobody under that value.',
 }
 
@@ -71,19 +67,24 @@ export function searchWords(key: RegisterSearchKey): SearchWords {
 }
 
 /**
- * The box a person is looked up in, and the four things it can say about what it found.
+ * The box a person is looked up in, and the things it can say about what it found.
  *
  * WHAT IT SEARCHES, AND WHY IT SAYS SO. Two searches, and the words follow whichever one this server
  * declared - `searchWords` above holds both, with the argument for each. The rule they share is the
  * one this whole register is built on: nothing here calls anything a name, because DHIS2 states no
  * attribute that means one.
  *
+ * ONE LABEL, ONE SENTENCE, AND NOTHING BEFORE ANYTHING IS TYPED. The label names the box, the line
+ * under it says what a search actually reaches, and that is the whole of the chrome: a placeholder
+ * repeating the label and a prompt restating it as an instruction were the same three words three
+ * lines running, above a table nobody had got to yet.
+ *
  * THE CONTROL IS SEPARATE FROM WHAT IS DONE WITH A MATCH, because the same search sits on two
  * surfaces that answer different questions with it: a capture form chooses the person a submission
  * is about, and the browse page opens their record. Those want the same box, the same words, and
- * the same four states - "nothing typed yet", "asking", "nobody holds that", "the instance refused"
- * - and different results underneath. So the box is this component and the results are its
- * children, which is what keeps one sentence about what is searched rather than two paraphrases.
+ * the same states - "asking", "nobody holds that", "the instance refused" - and different results
+ * underneath. So the box is this component and the results are its children, which is what keeps
+ * one sentence about what is searched rather than two paraphrases.
  */
 export function PatientSearchControl({
     controlId,
@@ -115,13 +116,20 @@ export function PatientSearchControl({
                         className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
                         aria-hidden
                     />
+                    {/* No placeholder: the label above the box already says what goes in it, and a
+                        placeholder repeating it was the same three words three lines running.
+                        Enter is swallowed because this box sits inside the capture form, where the
+                        browser's implicit submission would post the submission being filled in -
+                        the search runs from what is typed, as soon as the typing pauses. */}
                     <Input
                         id={controlId}
                         type="search"
                         className="pl-8"
-                        placeholder={words.label}
                         value={typed}
                         onChange={(event) => onTyped(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') event.preventDefault()
+                        }}
                     />
                 </div>
                 {state.searching && (
@@ -133,9 +141,6 @@ export function PatientSearchControl({
                 <p className="text-destructive text-xs">
                     This DHIS2 instance could not be searched: {state.error}
                 </p>
-            )}
-            {state.error === null && state.query === null && (
-                <p className="text-muted-foreground text-xs">{words.prompt}</p>
             )}
             {state.error === null && state.query !== null && !state.searching && state.results.length === 0 && (
                 <p className="text-muted-foreground text-xs">{words.empty}</p>

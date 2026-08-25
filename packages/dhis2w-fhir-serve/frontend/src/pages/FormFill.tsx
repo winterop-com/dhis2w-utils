@@ -48,9 +48,9 @@ import {
 import { orgUnitReference, referencedUnitId } from '@/lib/orgunits'
 import type { PatientProjection } from '@/lib/patients'
 import {
+    answerBreaches,
     answersFromResponse,
     answersReducer,
-    boundBreaches,
     buildQuestionnaireResponse,
     clearedEntityLevelAnswers,
     clearedHiddenAnswers,
@@ -60,6 +60,7 @@ import {
     dictionaryOfCodeSystems,
     entityLevelLinkIds,
     flattenQuestionnaire,
+    implicitlySubmits,
     initialAnswers,
     isWellShapedPeriod,
     normaliseDateTime,
@@ -81,7 +82,6 @@ import {
     type ProgramRule,
     type QuestionDictionary,
 } from '@/lib/questionnaire'
-import { TRACKER_ENROLLMENT_FACT_LABEL } from '@/lib/spool'
 import { cn } from '@/lib/utils'
 
 /**
@@ -200,6 +200,9 @@ export function FormFill() {
     const [incidentDate, setIncidentDate] = useState<string | null>(null)
     const [reportingPeriodIso, setReportingPeriodIso] = useState<string | null>(null)
     const [dictionary, setDictionary] = useState<QuestionDictionary>(NO_DICTIONARY)
+    // The seed a fill draws from, and the seed the last fill drew - one box, because they are one
+    // fact: what is in it is what the next fill asks for, and a fill writes what it got back into it.
+    const [seed, setSeed] = useState('')
     // Whether this server takes what is filled in here. A form on a server that receives nothing is
     // still worth opening and reading, so the page is the page it always was and only the Submit goes.
     const receivesSubmissions = capturesSubmissions(useUiConfig().config)
@@ -352,7 +355,7 @@ export function FormFill() {
         // would be a routing bug rather than a state a person can reach.
         if (filling || questionnaire === null) return
         setFilling(true)
-        generateResponse(questionnaireId)
+        generateResponse(questionnaireId, statedSeed(seed))
             .then((generated) => {
                 setEnvelope(generated)
                 setAttributeOptionCombo((current) => refilledAttributeOptionCombo(current, generated))
@@ -368,11 +371,13 @@ export function FormFill() {
                     answers: answersFromResponse(flattenQuestionnaire(questionnaire), generated),
                 })
                 setIssues([])
-                const seed = generateSeedOf(generated)
-                toast.success(
-                    seed === null ? 'Filled with test data' : `Filled with test data, seed ${seed}`,
-                    { description: 'Change anything you like before submitting.' },
-                )
+                // The draw states which seed produced it, and the box holds that seed from here on:
+                // the same seed fills this form with the same answers, and it rides the submission,
+                // so a receipt somebody reports can be drawn again from what the box says.
+                setSeed(generateSeedOf(generated) ?? '')
+                toast.success('Filled with test data', {
+                    description: 'Change anything you like before submitting.',
+                })
             })
             .catch((failure: unknown) => {
                 toast.error('The server could not fill this form with test data', {
@@ -380,7 +385,7 @@ export function FormFill() {
                 })
             })
             .finally(() => setFilling(false))
-    }, [filling, questionnaire, questionnaireId, clearStatedDates])
+    }, [filling, questionnaire, questionnaireId, seed, clearStatedDates])
 
     if (questionnaire === null) {
         return (
@@ -443,7 +448,7 @@ export function FormFill() {
     // form itself publishes as outside what it accepts is a mistake the person who typed it can fix
     // under the cursor, and a round trip spent being told what the form already says is a round trip
     // wasted. The fact is stated per question; nothing here instructs anyone what to type instead.
-    const breaches = boundBreaches(spec, answers)
+    const breaches = answerBreaches(spec, answers)
 
     const submit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
@@ -490,7 +495,7 @@ export function FormFill() {
     }
 
     return (
-        <form onSubmit={submit}>
+        <form onSubmit={submit} onKeyDown={swallowImplicitSubmission}>
             <FormFillHeader
                 questionnaire={questionnaire}
                 questionnaireId={questionnaireId}
@@ -659,6 +664,7 @@ export function FormFill() {
                     <Sparkles className="size-4" />
                     {filling ? 'Filling' : 'Fill with test data'}
                 </Button>
+                <SeedField seed={seed} onChange={setSeed} />
                 {/* The one control here whose reach is not obvious from its name: it empties what
                     was filled in and deliberately leaves two pieces of context standing, so the
                     tooltip states both halves rather than letting a person discover the second. */}
@@ -690,38 +696,102 @@ export function FormFill() {
                     </TooltipContent>
                 </Tooltip>
                 <div className="flex-1" />
-                {/* The reason a disabled button always states, because a control that refuses
-                    without saying why is worse than one that posts and is refused. This one is
-                    about the server rather than about the form, so it stands ahead of the rest. */}
-                {!receivesSubmissions && <p className="text-muted-foreground text-xs">{CAPTURE_OFF_NOTICE}</p>}
-                {missingAttributeOptionCombo && (
-                    <p className="text-muted-foreground text-xs">
-                        Choose what this submission reports for before submitting
-                    </p>
-                )}
-                {unfitReportingPeriod && (
-                    <p className="text-muted-foreground text-xs">
-                        {reportingPeriod.trim() === ''
-                            ? 'This submission reports for a period, and none is stated'
-                            : `${reportingPeriod} is not a ${periodType ?? 'DHIS2'} period`}
-                    </p>
-                )}
-                {breaches.length > 0 && (
-                    <p className="text-muted-foreground text-xs">
-                        {breaches.length === 1
-                            ? '1 answer is outside what this form accepts'
-                            : `${String(breaches.length)} answers are outside what this form accepts`}
-                    </p>
-                )}
-                {missingRequired.length > 0 && (
-                    <p className="text-muted-foreground text-xs">
-                        {missingRequired.length} required{' '}
-                        {missingRequired.length === 1 ? 'question is' : 'questions are'} unanswered
-                    </p>
-                )}
+                {/* The reasons a disabled button always states, because a control that refuses
+                    without saying why is worse than one that posts and is refused. Stacked, one to a
+                    line: three of these can be live at once, and side by side in a flex row they
+                    ran into each other as one sentence - "outside what this form accepts 4 required
+                    questions are unanswered". The server's reason stands first, because it is about
+                    the server rather than about anything on the form. */}
+                <div className="text-muted-foreground grid gap-0.5 text-right text-xs">
+                    {!receivesSubmissions && <p>{CAPTURE_OFF_NOTICE}</p>}
+                    {missingAttributeOptionCombo && (
+                        <p>Choose what this submission reports for before submitting</p>
+                    )}
+                    {unfitReportingPeriod && (
+                        <p>
+                            {reportingPeriod.trim() === ''
+                                ? 'This submission reports for a period, and none is stated'
+                                : `${reportingPeriod} is not a ${periodType ?? 'DHIS2'} period`}
+                        </p>
+                    )}
+                    {breaches.length > 0 && (
+                        <p>
+                            {breaches.length === 1
+                                ? '1 answer is outside what this form accepts'
+                                : `${String(breaches.length)} answers are outside what this form accepts`}
+                        </p>
+                    )}
+                    {missingRequired.length > 0 && (
+                        <p>
+                            {missingRequired.length} required{' '}
+                            {missingRequired.length === 1 ? 'question is' : 'questions are'} unanswered
+                        </p>
+                    )}
+                </div>
             </div>
         </form>
     )
+}
+
+/**
+ * The seed a fill draws from, as a box beside the button that fills.
+ *
+ * A SEED IS ONLY WORTH SHOWING IF IT CAN BE SPENT AGAIN. `$generate` states which seed drew a
+ * response, the same seed draws the same answers, and that is what makes a reported bug something
+ * another person can put on their own screen. So the seed is a control rather than a line: a fill
+ * writes the drawn seed into it, and the next fill asks for whatever it holds. Empty is the ordinary
+ * case - the server draws a fresh one and says which.
+ */
+function SeedField({ seed, onChange }: { seed: string; onChange: (seed: string) => void }) {
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Input
+                    aria-label="Seed"
+                    inputMode="numeric"
+                    placeholder="Seed"
+                    className="h-9 w-28 font-mono"
+                    value={seed}
+                    onChange={(event) => onChange(event.target.value)}
+                />
+            </TooltipTrigger>
+            <TooltipContent side="top">
+                The same seed fills this form with the same answers, and rides the submission, so a
+                receipt says which draw it came from. Empty draws a fresh one.
+            </TooltipContent>
+        </Tooltip>
+    )
+}
+
+/**
+ * The seed to ask a draw for, or nothing for a fresh one.
+ *
+ * A whole number or the server picks: the operation takes an integer seed, and anything else in the
+ * box is a person part-way through typing one rather than a request.
+ */
+function statedSeed(seed: string): number | undefined {
+    const trimmed = seed.trim()
+    return /^\d+$/.test(trimmed) ? Number(trimmed) : undefined
+}
+
+/**
+ * Keep Enter in a text box from posting the capture.
+ *
+ * The browser's implicit submission fires from every text input inside a form with a submit button,
+ * so Enter after typing a period - or in the person-search box, where it is the obvious thing to
+ * press - filed a submission somebody was still filling in, and a receipt is permanent. The rule for
+ * which presses are that is `implicitlySubmits` in lib/questionnaire.ts; this hands it the press.
+ * Submit is a button and is reached by pressing it, which is the one way a capture leaves this page.
+ */
+function swallowImplicitSubmission(event: React.KeyboardEvent<HTMLFormElement>): void {
+    const target = event.target as HTMLElement
+    const press = {
+        key: event.key,
+        tagName: target.tagName,
+        inputType: target instanceof HTMLInputElement ? target.type.toLowerCase() : '',
+        withModifier: event.altKey || event.ctrlKey || event.metaKey || event.shiftKey,
+    }
+    if (implicitlySubmits(press)) event.preventDefault()
 }
 
 /** The capture-context controls with a fixed id, so each label and its input find each other. */
@@ -877,9 +947,9 @@ function ReportingPeriodControl({
  * declares on `D2CollectsIncidentDate`: a program that collects none generates responses that carry
  * none, and a control over an absent fact would have no slot to write into.
  *
- * THE ENROLLMENT UID IS THE ONE FACT HERE THAT IS STILL ONLY SHOWN. `$generate` mints it, DHIS2
- * creates the enrollment under it, and nothing about it is a choice - so it is stated in the words
- * the receipt uses, and reads identically before and after the capture.
+ * THE ENROLLMENT UID IS THE ONE FACT HERE THAT IS ONLY SHOWN. `$generate` mints it, DHIS2 creates
+ * the enrollment under it, and nothing about it is a choice - so it is labelled for what it is and
+ * says where it came from, rather than repeating the word this block is headed with over a bare uid.
  */
 function EnrollmentContext({
     labels,
@@ -921,8 +991,14 @@ function EnrollmentContext({
             )}
             {enrollment !== null && (
                 <dl className="text-sm">
-                    <dt className="text-muted-foreground text-xs">{TRACKER_ENROLLMENT_FACT_LABEL}</dt>
+                    {/* Not "Enrollment": the block around it is already headed that, and the fact
+                        under it is one particular enrollment that does not exist yet. */}
+                    <dt className="text-muted-foreground text-xs">Enrollment this registration mints</dt>
                     <dd className="font-mono text-xs break-words">{enrollment}</dd>
+                    <dd className="text-muted-foreground text-xs">
+                        The server drew this uid, and DHIS2 files the enrollment under it when the
+                        submission arrives.
+                    </dd>
                 </dl>
             )}
         </div>

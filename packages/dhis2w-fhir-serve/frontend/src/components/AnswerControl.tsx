@@ -11,6 +11,7 @@ import { orgUnitReference, referencedUnitId } from '@/lib/orgunits'
 import {
     dateTimeInputValue,
     EMPTY_SLOT,
+    numericInputShape,
     TRUE_ONLY_VALUE_TYPE,
     type AnswerAction,
     type AnswerSlot,
@@ -23,7 +24,9 @@ import {
  * WHY THE CONTROL HOLDS A LITERAL. Every scalar control here is a plain controlled input over
  * `slot.text` - the string the browser gave, kept verbatim. Nothing parses on keystroke, which
  * is what lets a decimal field pass through "-", "1." and "" without the value being rewritten
- * under the cursor. `lib/questionnaire.ts` converts to `value[x]` once, at submit.
+ * under the cursor. `lib/questionnaire.ts` converts to `value[x]` once, at submit - and states
+ * what it could not convert, which is why a numeric question is a text box: `type="number"` drops
+ * the characters it cannot parse, so "1.2.3" would become "1.23" with nothing said about it.
  *
  * WHY NO DATE PICKER. `date`, `dateTime` and `time` use the browser's own controls. A picker
  * component would be the first thing in this app that owns a calendar, and native inputs
@@ -68,7 +71,9 @@ export function AnswerControl({
     if (!node.fillable) {
         return (
             <p className="text-muted-foreground border-border rounded-lg border border-dashed px-2.5 py-2 text-xs">
-                A <code className="font-mono">{node.type}</code> question is not filled in this UI. Post it with a
+                {/* Plural, so one sentence serves both types that reach here: an `attachment`
+                    question and a `quantity` one take different articles and the same statement. */}
+                This UI does not fill <code className="font-mono">{node.type}</code> questions. Post one with a
                 client that can carry one.
             </p>
         )
@@ -201,15 +206,17 @@ function SlotControl({
                 </div>
             )
         case 'integer':
-        case 'decimal':
+        case 'decimal': {
+            // A text box with a numeric keypad, never `type="number"`: see `numericInputShape`. The
+            // bounds are not on the element either - the browser only enforces them on a number
+            // box, and grading them here would be a second opinion beside `answerBreaches`, which
+            // states the fact for every value this form does not accept.
+            const shape = numericInputShape(node.type)
             return (
                 <Input
                     id={controlId}
-                    type="number"
-                    inputMode={node.type === 'integer' ? 'numeric' : 'decimal'}
-                    step={node.type === 'integer' ? 1 : 'any'}
-                    min={node.minimum ?? undefined}
-                    max={node.maximum ?? undefined}
+                    type={shape.type}
+                    inputMode={shape.inputMode}
                     className="max-w-xs"
                     value={slot.text}
                     disabled={disabled}
@@ -217,6 +224,7 @@ function SlotControl({
                     onChange={(event) => write(event.target.value)}
                 />
             )
+        }
         case 'text':
             return (
                 <Textarea
