@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ArrowRight, Loader2 } from 'lucide-react'
 
 import { ProseText } from '@/components/ProseText'
@@ -41,9 +41,8 @@ const ANY_TARGET = 'any'
  *
  * THE ASK IS A PROP rather than local state, so a concept row can load the tester with the code it
  * names, and the call is made straight away when it does - a two-step "fill, then press" would
- * make the row button do half a thing. The panel is the last thing on a page whose table runs to
- * thousands of rows, so an ask also brings the panel to the reader: an answer rendered eleven
- * screens below the button that asked for it is an answer nobody was told about.
+ * make the row button do half a thing. The panel sits beside the table it answers, always in
+ * view, so an ask fills it in place and nothing on the page moves.
  */
 export function TranslateTester({
     system,
@@ -62,7 +61,6 @@ export function TranslateTester({
     const [result, setResult] = useState<TranslationResult | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [running, setRunning] = useState(false)
-    const panel = useRef<HTMLDivElement>(null)
 
     const run = useCallback(
         (code: string, targetSystem: string) => {
@@ -91,11 +89,10 @@ export function TranslateTester({
         setEntered(asked.code)
         setTarget(wanted)
         run(asked.code, wanted)
-        panel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     }, [asked, run])
 
     return (
-        <Card ref={panel}>
+        <Card>
             <CardContent className="space-y-4 py-6">
                 <div className="space-y-1">
                     <h3 className="text-base font-semibold">{TRANSLATE_QUESTION}</h3>
