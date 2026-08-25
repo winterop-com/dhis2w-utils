@@ -315,8 +315,10 @@ authentication check in **every** scope - `write` guards one route and `all` gua
 without doing anything with it. Wrong credentials get the same 401, the same OperationOutcome, and
 the same `WWW-Authenticate` challenge every other refusal on this facade gets.
 
-It is mounted only where `[serve] auth` names a posture. Under `auth = "none"` the path is absent
-and answers 404: a server that checks nobody has nobody to name.
+It names a caller only where `[serve] auth` names a posture. Under `auth = "none"` the address
+answers its own 404 - "this server authenticates nobody, so it names nobody: `/whoami` answers a
+caller only where `[serve] auth` states a posture" - rather than falling through to the read
+catch-all, which would call `whoami` a resource type nobody asked for.
 
 ```console
 $ curl -su clerk:the-right-password http://127.0.0.1:8095/whoami

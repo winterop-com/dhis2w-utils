@@ -174,17 +174,22 @@ _TRACKER_STAGE_UID = "A03MvHHogjR"
 _TRACKER_PROGRAM_UID = "IpHINAT79UW"
 
 
-def _mock_instance() -> respx.Route:
+def _mock_instance(data_sets: dict[str, Any] | None = None, option_sets: dict[str, Any] | None = None) -> respx.Route:
     """Mock every endpoint the live fetch reads (respx-active), returning the system-info route.
 
     The system-info route is what a test counts to see how many times a client was opened: the
-    version probe runs once per connect and never again.
+    version probe runs once per connect and never again. `data_sets` and `option_sets` stand in for
+    those two payloads where a test needs the instance to hold different ones.
     """
     system_info = respx.get(f"{_HOST}/api/system/info").mock(return_value=httpx.Response(200, json=_SYSTEM_INFO))
     respx.get(f"{_HOST}/api/attributes").mock(return_value=httpx.Response(200, json={"attributes": []}))
-    respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/optionSets").mock(
+        return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD if option_sets is None else option_sets)
+    )
     respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
-    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/dataSets").mock(
+        return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD if data_sets is None else data_sets)
+    )
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_PROGRAMS_PAYLOAD))
     respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORGANISATION_UNITS_PAYLOAD))
@@ -503,3 +508,109 @@ async def test_live_facade_answers_reads_and_searches_over_the_built_store(
     # registration form that enrols a person, and every stage form the enrollment is captured on.
     assert bundle["total"] == 2
     assert sorted(entry["resource"]["id"] for entry in bundle["entry"]) == [_TRACKER_STAGE_UID, _TRACKER_PROGRAM_UID]
+
+
+# ---------------------------------------------------------------------------------------------
+# `[generate] hostile_names` in the live path: one project means one set of names.
+# ---------------------------------------------------------------------------------------------
+
+
+#: The DHIS2 name the IG publisher's own build cannot survive, beside the wording `substitute`
+#: publishes in its place - and one DHIS2 code carrying a space, which is what the code half of the
+#: screening is about.
+_HOSTILE_NAME = "Mortality < 5 years"
+_SUBSTITUTED_NAME = "Mortality under 5 years"
+_HOSTILE_CODE = "Natural Birth"
+
+#: The aggregate payload with one hostile name on the data set.
+_HOSTILE_DATA_SETS_PAYLOAD: dict[str, Any] = {
+    "dataSets": [
+        {
+            "id": "BfMAe6Itzgt",
+            "name": _HOSTILE_NAME,
+            "code": "DS_359711",
+            "organisationUnits": [{"id": "ImspTQPwCqd"}, {"id": "O6uvpzGd5pu"}],
+            "dataSetElements": [
+                {
+                    "dataElement": {
+                        "id": "De1aaaaaaaa",
+                        "name": "BCG doses given",
+                        "valueType": "INTEGER_ZERO_OR_POSITIVE",
+                        "domainType": "AGGREGATE",
+                        "categoryCombo": {"id": "bjDvmb4bfuf", "name": "default", "isDefault": True},
+                    }
+                }
+            ],
+        }
+    ]
+}
+
+#: The option-set payload with one option whose DHIS2 code carries a space.
+_HOSTILE_OPTION_SETS_PAYLOAD: dict[str, Any] = {
+    "optionSets": [
+        {
+            "id": "Xa1b2c3d4e5",
+            "name": "Birth type",
+            "options": [
+                {"id": "kRRUtYaGett", "code": _HOSTILE_CODE, "name": "Natural Birth", "sortOrder": 1},
+                {"id": "EBE0c8sZazS", "code": "CS", "name": "Scheduled Cesarean", "sortOrder": 2},
+            ],
+        }
+    ]
+}
+
+
+def _project_with(tmp_path: Path, hostile_names: str | None) -> FhirProject:
+    """A live project whose `[generate]` states one hostile-names posture, or none at all."""
+    stated = "" if hostile_names is None else f'\n[generate]\nhostile_names = "{hostile_names}"\n'
+    config_path = tmp_path / "fhir.toml"
+    config_path.write_text(f"{_LIVE_FHIR_TOML}{stated}", encoding="utf-8")
+    return FhirProject(config=load_fhir_config(config_path), config_path=config_path.resolve())
+
+
+def _option_concepts(store: ResourceStore) -> list[dict[str, Any]]:
+    """The concepts of the served option-set CodeSystem, in the order the guide publishes them."""
+    concepts: list[dict[str, Any]] = _bodies(store, "CodeSystem")["d2-os-Xa1b2c3d4e5-cs"]["concept"]
+    return concepts
+
+
+@respx.mock
+async def test_substitute_serves_live_the_names_generate_would_publish(
+    live_profile: None,  # noqa: ARG001
+    tmp_path: Path,
+) -> None:
+    """A project stating `substitute` serves one UID under one name, live or compiled.
+
+    The screening runs at the same choke point a generate run screens at - the four projections, once,
+    before an identity or a stem is planned off any of them - so the questionnaire title, the concept
+    displays, and the codes are one set of strings for the project rather than one per posture. The
+    `dhis2-code` property still states what the instance holds, which is the path a captured answer is
+    lowered back onto DHIS2 through.
+    """
+    _mock_instance(_HOSTILE_DATA_SETS_PAYLOAD, _HOSTILE_OPTION_SETS_PAYLOAD)
+
+    store = await _built_store(_project_with(tmp_path, "substitute"))
+
+    assert _bodies(store, "Questionnaire")["BfMAe6Itzgt"]["title"] == _SUBSTITUTED_NAME
+    assert {"code": "dhis2-code", "valueString": _HOSTILE_CODE} in _option_concepts(store)[0]["property"]
+
+
+@respx.mock
+@pytest.mark.parametrize("hostile_names", ["refuse", None])
+async def test_every_other_posture_serves_live_what_the_instance_holds_and_refuses_nothing(
+    live_profile: None,  # noqa: ARG001
+    tmp_path: Path,
+    hostile_names: str | None,
+) -> None:
+    """Serving is not generating: `refuse` and an unset posture serve byte-true and abort over no name.
+
+    `refuse` is an answer about what a build may publish - there is no page to strict-parse here and
+    no build hour to lose - and an unset posture asks nobody, because a server has no one at a
+    terminal to ask.
+    """
+    _mock_instance(_HOSTILE_DATA_SETS_PAYLOAD, _HOSTILE_OPTION_SETS_PAYLOAD)
+
+    store = await _built_store(_project_with(tmp_path, hostile_names))
+
+    assert _bodies(store, "Questionnaire")["BfMAe6Itzgt"]["title"] == _HOSTILE_NAME
+    assert {"code": "dhis2-code", "valueString": _HOSTILE_CODE} in _option_concepts(store)[0]["property"]

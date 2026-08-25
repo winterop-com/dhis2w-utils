@@ -737,18 +737,26 @@ async def test_the_token_posture_names_a_bearer_rather_than_a_person(
     assert refused.status_code == 401
 
 
-async def test_the_none_posture_serves_no_such_address(serving_project: FhirProject) -> None:
-    """A server that checks nobody has nobody to name, and 404 is the honest answer to the question."""
+async def test_the_none_posture_names_the_missing_posture_rather_than_a_caller(serving_project: FhirProject) -> None:
+    """A server that checks nobody has nobody to name, and says which line would give it somebody.
+
+    The refusal is the address's own rather than the read catch-all's, which would have called
+    `whoami` a resource type nobody asked for - it is a fixed path this project documents.
+    """
     app = create_app(_settings(serving_project, ServeAuth.NONE, ServeAuthScope.ALL))
 
     async with _client(app) as http:
         asked = await http.get(WHOAMI_PATH)
 
     assert asked.status_code == 404
+    diagnostics = asked.json()["issue"][0]["diagnostics"]
+    assert "authenticates nobody" in diagnostics
+    assert "[serve] auth" in diagnostics
+    assert "resource type" not in diagnostics
 
 
-def test_the_address_is_mounted_by_a_posture_rather_than_by_a_scope() -> None:
-    """The one path a posture adds: absent under `none`, present and guarded under both scopes."""
+def test_the_answer_is_settled_by_a_posture_rather_than_by_a_scope() -> None:
+    """The one path a posture decides the answer of: a refusal under `none`, guarded under both scopes."""
 
     def _paths(routers: tuple[APIRouter, ...]) -> set[str]:
         return {route.path for router in routers for route in router.routes if isinstance(route, APIRoute)}
@@ -757,7 +765,8 @@ def test_the_address_is_mounted_by_a_posture_rather_than_by_a_scope() -> None:
     write = serve_routers(auth=ServeAuth.DHIS2, auth_scope=ServeAuthScope.WRITE)
     everything = serve_routers(auth=ServeAuth.DHIS2, auth_scope=ServeAuthScope.ALL)
 
-    assert WHOAMI_PATH not in _paths(open_to_everyone.facade)
+    assert WHOAMI_PATH in _paths(open_to_everyone.facade)
+    assert WHOAMI_PATH not in _paths(open_to_everyone.guarded)
     assert WHOAMI_PATH in _paths(write.facade) and WHOAMI_PATH in _paths(write.guarded)
     assert WHOAMI_PATH in _paths(everything.facade) and WHOAMI_PATH in _paths(everything.guarded)
 

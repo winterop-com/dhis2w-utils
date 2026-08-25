@@ -147,6 +147,13 @@ that would land on one published code - `Pre eclampsia` beside a literal
 capture path reads the `dhis2-code` property, so a QuestionnaireResponse
 answering with a published code still writes the DHIS2 code to DHIS2.
 
+**What a live serve does with it.** `d2w fhir serve --live` reads this key too,
+so one project means one set of names whichever way it is served: under
+`"substitute"` a form is served under the name the compiled guide publishes it
+under, rewritten codes included. Under `"refuse"` and unset a live serve is
+byte-true and aborts over no name - `"refuse"` is an answer about what a build
+may publish, and serving is not building.
+
 **When you would set it.** Set `"substitute"` for a project whose instance names
 age bands the way most instances do, so nobody has to answer the same question on
 every run. Set `"refuse"` for a guide whose published names and codes must repeat

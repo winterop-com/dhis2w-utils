@@ -299,6 +299,11 @@ $ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001' | jq .total
 1
 ```
 
+A key whose DHIS2 value type cannot hold what was typed is left out of that
+fan-out - a NUMBER key never sees a name - and a key the instance refuses anyway
+is that key matching nobody. Either way the keys that could hold the value still
+answer, and the search stands.
+
 **Several identifier tokens are alternatives, not conditions.** This is the one
 place the facade's search semantics differ from the definitional types above:
 there, two parameters narrow each other; here, every token and every

@@ -51,6 +51,7 @@ summary carries and nothing about the register.
 from __future__ import annotations
 
 import logging
+from math import isfinite
 from typing import TYPE_CHECKING, Any
 
 from dhis2w_fhir.foundation.tracked_entity_attribute_values import (
@@ -69,6 +70,8 @@ from dhis2w_fhir_serve.log import LOGGER_NAME
 from dhis2w_fhir_serve.store import ResourceStore, StoreEntry
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from dhis2w_fhir.config import FhirProject
 
 #: The resource types the index reads, each for one join it publishes.
@@ -136,6 +139,95 @@ class PublishedAttribute(BaseModel):
     def is_search_key(self) -> bool:
         """Whether a bare identifier value is looked for under this attribute by default."""
         return self.unique or self.searchable
+
+    def can_hold(self, value: str) -> bool:
+        """Whether the instance could hold one typed value under this attribute's declared value type.
+
+        A search fans one `filter=<uid>:eq:<value>` out per key, and DHIS2 answers a 400 naming the
+        value type for a key that could not hold the value at all - "the attribute value type is
+        NUMBER but the value `mgc694579` is not". A key answering False here is left out of the
+        fan-out, so a person's name is looked for under the keys that carry names rather than under
+        the zip code as well.
+
+        False is a certainty and never a guess. An attribute the guide publishes no value type for
+        holds anything, as does every value type `_VALUE_SCREENS` does not screen, so the screen
+        never drops a key DHIS2 would have answered.
+        """
+        screen = _VALUE_SCREENS.get(self.value_type or "")
+        return True if screen is None else screen(value)
+
+
+def _holds_decimal(value: str) -> bool:
+    """Whether one typed value is the finite decimal number DHIS2's decimal value types hold."""
+    try:
+        return isfinite(float(value))
+    except ValueError:
+        return False
+
+
+def _holds_integer(value: str) -> bool:
+    """Whether one typed value is a whole number."""
+    try:
+        int(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _holds_positive_integer(value: str) -> bool:
+    """Whether one typed value is a whole number above zero."""
+    return _holds_integer(value) and int(value) > 0
+
+
+def _holds_negative_integer(value: str) -> bool:
+    """Whether one typed value is a whole number below zero."""
+    return _holds_integer(value) and int(value) < 0
+
+
+def _holds_zero_or_positive_integer(value: str) -> bool:
+    """Whether one typed value is a whole number at or above zero."""
+    return _holds_integer(value) and int(value) >= 0
+
+
+def _holds_boolean(value: str) -> bool:
+    """Whether one typed value is a truth value DHIS2 reads as one."""
+    return value.strip().lower() in _BOOLEAN_VALUES
+
+
+def _holds_temporal(value: str) -> bool:
+    """Whether one typed value is shaped like a date, a time, or a moment - digits and separators only.
+
+    A shape test rather than a parse, because DHIS2 accepts several spellings of each temporal type
+    and this screen exists to drop the certainly-impossible: a name carries letters, and no date
+    does.
+    """
+    return bool(value) and any(character.isdigit() for character in value) and set(value) <= _TEMPORAL_CHARACTERS
+
+
+#: What `_holds_boolean` reads as a truth value, DHIS2's own two spellings and the digits beside them.
+_BOOLEAN_VALUES = frozenset({"true", "false", "1", "0"})
+
+#: The characters a date, a time, or a moment is spelled with - every offset and fraction included.
+_TEMPORAL_CHARACTERS = frozenset("0123456789-:+.TZtz ")
+
+#: The DHIS2 value types whose declared shape settles whether one typed value could be held at all.
+#: Every other type - text, letter, phone number, email, URL, coordinate, reference - holds whatever
+#: the instance was given, so a search key of that type is asked rather than screened.
+_VALUE_SCREENS: dict[str, Callable[[str], bool]] = {
+    "NUMBER": _holds_decimal,
+    "PERCENTAGE": _holds_decimal,
+    "UNIT_INTERVAL": _holds_decimal,
+    "INTEGER": _holds_integer,
+    "INTEGER_POSITIVE": _holds_positive_integer,
+    "INTEGER_NEGATIVE": _holds_negative_integer,
+    "INTEGER_ZERO_OR_POSITIVE": _holds_zero_or_positive_integer,
+    "BOOLEAN": _holds_boolean,
+    "TRUE_ONLY": _holds_boolean,
+    "DATE": _holds_temporal,
+    "DATETIME": _holds_temporal,
+    "AGE": _holds_temporal,
+    "TIME": _holds_temporal,
+}
 
 
 class PublishedTrackedEntityType(BaseModel):

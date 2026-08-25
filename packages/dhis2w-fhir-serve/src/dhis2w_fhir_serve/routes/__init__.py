@@ -28,10 +28,10 @@ publishes, so a client that takes no JSON is refused before it runs, while the l
 facade's own typed JSON. `dhis2w_fhir_serve.routes.history` and `dhis2w_fhir_serve.routes.enrollments`
 each argue their own shape.
 
-`/whoami` is the one path a posture adds rather than a scope guards. Every other route is mounted by
-every run and the posture only decides which of them carry the check; that one answers who the
-caller is, so under `auth = "none"` there is nobody to answer about and the route is absent.
-`dhis2w_fhir_serve.routes.whoami` argues it.
+`/whoami` is the one path whose ANSWER a posture decides rather than a scope guarding it. Every
+other route is mounted by every run and the posture only decides which of them carry the check; that
+one answers who the caller is, so under `auth = "none"` there is nobody to answer about and the
+address is mounted as the refusal that says so. `dhis2w_fhir_serve.routes.whoami` argues it.
 
 The register's resource types are the exception that needs no mount of its own. They are FHIR
 resource types answered from the DHIS2 instance rather than from the store, but which types they are
@@ -150,7 +150,9 @@ def serve_routers(
     the path in order to refuse it would take it away from the mount. Neither is a request-time
     question, which is why both are settled here.
 
-    `auth` and `auth_scope` fill `guarded`. `none` guards nothing. `write` guards the create route
+    `auth` also picks which `/whoami` is mounted - the one that names the caller a check established,
+    or the one that refuses under `none` because no check ran. `auth` and `auth_scope` fill
+    `guarded`. `none` guards nothing. `write` guards the create route
     and only the create route, and guards nothing at all on a server that receives nothing - putting
     a 405 behind a credential would answer "who are you" where the honest answer is "this server
     takes no submissions". `all` guards every router but `/metadata`.
@@ -175,6 +177,7 @@ def serve_routers(
     from dhis2w_fhir_serve.routes.terminology import router as terminology_router
     from dhis2w_fhir_serve.routes.translate import router as translate_router
     from dhis2w_fhir_serve.routes.uiconfig import router as ui_config_router
+    from dhis2w_fhir_serve.routes.whoami import refusal_router as whoami_refusal_router
     from dhis2w_fhir_serve.routes.whoami import router as whoami_router
 
     submissions = capture_router if capture else capture_refusal_router
@@ -188,10 +191,12 @@ def serve_routers(
         history_router,
         summary_router,
     )
-    # `/whoami` exists only where a posture does: a server that checks nobody has nobody to name, and
-    # it leads the group because it is the one router that answers about the caller rather than about
-    # what is served. See `dhis2w_fhir_serve.routes.whoami`.
-    naming = (whoami_router,) if auth is not ServeAuth.NONE else ()
+    # `/whoami` names a caller only where a posture does: a server that checks nobody has nobody to
+    # name, and under `none` the address is mounted as the refusal that says so - left unmounted it
+    # would fall through to the read catch-all, which would call `whoami` a resource type nobody
+    # asked for. It leads the group because it is the one router that answers about the caller rather
+    # than about what is served. See `dhis2w_fhir_serve.routes.whoami`.
+    naming = (whoami_router,) if auth is not ServeAuth.NONE else (whoami_refusal_router,)
     facade = (
         *naming,
         spool_router,

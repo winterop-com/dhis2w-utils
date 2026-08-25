@@ -24,16 +24,23 @@ moot, and it is not what proves the seam.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
+from dhis2w_client.errors import Dhis2ApiError
 from pydantic import BaseModel, ConfigDict
 
+from dhis2w_fhir_serve.log import LOGGER_NAME
 from dhis2w_fhir_serve.passthrough import RegisterReader
 from dhis2w_fhir_serve.projection.base import IndexedName, NameMatch, NameMatches, NameQuery
 from dhis2w_fhir_serve.register.wire import search_tracked_entities
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from dhis2w_client.generated.v42.oas import TrackerTrackedEntity
+
+logger = logging.getLogger(LOGGER_NAME)
 
 
 class Dhis2NameSearchIndex(BaseModel):
@@ -55,20 +62,46 @@ class Dhis2NameSearchIndex(BaseModel):
         set in, and the order a client sees the entries in. A tracked entity matched under two keys
         is one candidate, because a person holding the same value twice is one person. No cursor is
         stated, because a live answer is as of the moment the instance answered it.
+
+        A KEY DHIS2 REFUSES MATCHED NOBODY. The fan-out is one query per key, and the keys are what
+        DHIS2 declares unique or searchable rather than a set this facade chose - so a value the
+        instance will not compare against one of them (a name put to a NUMBER key, a value outside
+        an attribute's own constraint) draws a 400 on that query alone. That is one key answering
+        nothing, and the other keys still answer: a search is not a transaction, and refusing the
+        whole lookup would put the instance's own key set between a person and their own record.
+        `dhis2w_fhir_serve.register.index.PublishedAttribute.can_hold` screens the keys whose
+        declared value type settles it before a request is spent; this is what catches the rest.
         """
         found: dict[str, NameMatch] = {}
         for attribute_uid in query.attribute_uids:
             for tracked_entity_type_uid in query.tracked_entity_type_uids:
-                for entity in await search_tracked_entities(
-                    self.reader,
-                    tracked_entity_type_uid=tracked_entity_type_uid,
-                    attribute_uid=attribute_uid,
-                    value=query.value,
-                ):
+                for entity in await self._matches_under_key(query, attribute_uid, tracked_entity_type_uid):
                     if entity.trackedEntity is not None:
                         found.setdefault(entity.trackedEntity, NameMatch(tracked_entity_uid=entity.trackedEntity))
         matches = tuple(found.values())
         return NameMatches(matches=matches if query.limit is None else matches[: query.limit])
+
+    async def _matches_under_key(
+        self, query: NameQuery, attribute_uid: str, tracked_entity_type_uid: str
+    ) -> list[TrackerTrackedEntity]:
+        """The entities of one type holding the value under one key, empty where DHIS2 refuses the key."""
+        try:
+            return await search_tracked_entities(
+                self.reader,
+                tracked_entity_type_uid=tracked_entity_type_uid,
+                attribute_uid=attribute_uid,
+                value=query.value,
+            )
+        except Dhis2ApiError as error:
+            if error.status_code != 400:
+                raise
+            logger.info(
+                "register search: DHIS2 refused the key %s for the value %r, which matches nobody under it: %s",
+                attribute_uid,
+                query.value,
+                error,
+            )
+            return []
 
     async def forget(self, tracked_entity_uids: Sequence[str]) -> None:
         """Drop nothing: an entity DHIS2 no longer holds is one this backend stops finding by itself."""

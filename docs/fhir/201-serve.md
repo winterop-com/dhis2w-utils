@@ -279,9 +279,10 @@ credentials answer 401 with the same OperationOutcome every other refusal on thi
 facade carries. `username` is the DHIS2 username under `dhis2`, the claim
 `[serve.jwt] username_claim` names under `jwt` - the same value a receipt is
 stamped with - and null under `token`, which names a deployment rather than a
-person. Under `auth = "none"` the path is absent and answers 404: a server that
-checks nobody has nobody to name. It is what the capture UI's sign-in panel asks
-before it holds on to anything.
+person. Under `auth = "none"` the address answers 404 saying this server
+authenticates nobody, so it names nobody, and that `/whoami` answers a caller only
+where `[serve] auth` states a posture. It is what the capture UI's sign-in panel
+asks before it holds on to anything.
 
 ### The DHIS2 posture's 401 names `xBasic`
 

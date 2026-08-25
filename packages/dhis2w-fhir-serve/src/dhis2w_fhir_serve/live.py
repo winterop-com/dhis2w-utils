@@ -49,6 +49,8 @@ from dhis2w_fhir import (
     build_organisation_unit_terminology_documents,
     build_questionnaire_documents,
 )
+from dhis2w_fhir.config import HostileNamePosture
+from dhis2w_fhir.hostile_names import HostileNameGate
 from dhis2w_fhir.resources.attribute_combos import (
     build_attribute_combo_artifacts,
     build_attribute_combo_concept_map_artifacts,
@@ -107,11 +109,16 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
     serialised JSON artifacts the generate targets write to disk, so their documents are read
     back out of that exact text - what the facade serves live is then byte-identical to what the
     project would have committed, with no second serialisation path to drift from it.
+
+    The names and codes go through the same screening a generate run of this project would put them
+    through, for the same reason the serialisation does: one project means one set of names, and a
+    UID a compiled guide publishes as "Mortality under 5 years" is not one a live facade may serve
+    as something else. `_serving_gate` is which screening that is.
     """
     config = project.config.generate
     canonical = project.config.ig.canonical
     ig_status = project.config.ig.status
-    inputs = await fetch_live_ig_inputs(client, config)
+    inputs = await fetch_live_ig_inputs(client, config, gate=_serving_gate(config))
     assignments = build_assignment_artifacts(
         inputs.sources,
         inputs.assignments,
@@ -181,6 +188,26 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
     for note in [*inputs.notes, *questionnaires.notes, *(note for build in json_builds for note in build.notes)]:
         logger.info("live store: %s", note.message)
     return ResourceStore(entries=tuple(entries))
+
+
+def _serving_gate(config: GenerateConfig) -> HostileNameGate | None:
+    """The screening a live serve reads DHIS2's names and codes through, from `[generate] hostile_names`.
+
+    SUBSTITUTE IS THE ONE POSTURE THAT CHANGES A SERVED DOCUMENT, and it changes it into exactly what
+    a generate run of this project would have published: the rewritten name on the resource title,
+    the concept display and the question label, the rewritten code on every published concept with
+    the DHIS2 code beside it as a `dhis2-code` property. A person who learned a form's name from the
+    guide finds that form on the live facade under the name they learned.
+
+    UNDER EVERY OTHER POSTURE A LIVE SERVE IS BYTE-TRUE AND REFUSES NOTHING. `refuse` is an answer
+    about what a build may publish - write nothing, and change the name in DHIS2 before an hour of
+    build time is spent on it - and serving is not building: there is no page to strict-parse and no
+    hour to lose, so a name carrying `<` is served exactly as the instance holds it. An unset posture
+    is byte-true for the same reason, and asks nobody: a server has no one at a terminal to ask.
+    """
+    if config.hostile_names is not HostileNamePosture.SUBSTITUTE:
+        return None
+    return HostileNameGate(posture=HostileNamePosture.SUBSTITUTE)
 
 
 def _organisation_unit_terminology(

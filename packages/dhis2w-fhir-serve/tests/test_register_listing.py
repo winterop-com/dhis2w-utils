@@ -447,13 +447,14 @@ async def test_an_explicit_type_list_scopes_the_identifier_search_too(listing_cl
 
     await listing_client.get("/Patient?identifier=NOBODY00001")
 
-    # Four search keys by default - the unique national identifier, laboratory reference and generated
-    # programme identifier, plus the searchable date of birth - each asked of each type in scope, since
-    # DHIS2 takes one type per query.
+    # Three of the four default search keys are asked here - the unique national identifier, the
+    # laboratory reference and the generated programme identifier - each of each type in scope, since
+    # DHIS2 takes one type per query. The fourth key is the searchable date of birth, and
+    # `NOBODY00001` is not a date, so it is left out rather than drawing a 400 from the instance.
     assert [call.request.url.params["trackedEntityType"] for call in search.calls] == [
         REGISTRATION_TRACKED_ENTITY_TYPE_UID,
         _HOUSEHOLD_TYPE_UID,
-    ] * 4
+    ] * 3
 
 
 @pytest.mark.parametrize("tracked_entities", [TrackedEntitiesConfig(search_attributes=[REGISTRATION_DATE_ATTRIBUTE])])
