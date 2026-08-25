@@ -166,7 +166,7 @@ test.describe('the register filtered by an attribute value', () => {
             (request) =>
                 new URL(request.url()).searchParams.get('d2-attribute') === `TeaSex00001|${FEMALE_VALUE}`,
         )
-        await page.getByRole('combobox', { name: 'Value' }).click()
+        await page.getByRole('combobox', { name: 'Value', exact: true }).click()
         // The option reads as the vocabulary names it and writes the code DHIS2 stores - the
         // concept code beside it is an option UID, which no attribute value ever equals.
         await page.getByRole('option', { name: FEMALE_LABEL }).click()
@@ -188,7 +188,7 @@ test.describe('the register filtered by an attribute value', () => {
         await page.getByRole('option', { name: 'Household size' }).click()
         // A NUMBER attribute is typed into a number field: the two value types a browser can help
         // with are the two it is given.
-        const value = page.getByLabel('Value')
+        const value = page.getByLabel('Value', { exact: true })
         await expect(value).toHaveAttribute('type', 'number')
 
         const filtered = page.waitForRequest(
