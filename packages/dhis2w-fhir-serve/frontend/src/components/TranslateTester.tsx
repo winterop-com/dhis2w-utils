@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight, Loader2 } from 'lucide-react'
 
+import { ProseText } from '@/components/ProseText'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -14,7 +15,13 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { translateCode } from '@/lib/api'
-import { systemLabel, translationResult, type TranslationResult } from '@/lib/terminology'
+import {
+    TRANSLATE_QUESTION,
+    systemLabel,
+    translationResult,
+    type AskedConcept,
+    type TranslationResult,
+} from '@/lib/terminology'
 
 /** The select value standing for "every group of every map", since Radix has no empty-string item. */
 const ANY_TARGET = 'any'
@@ -32,34 +39,37 @@ const ANY_TARGET = 'any'
  * is not a failure of the call and is not rendered as one; only a refused request (a missing
  * parameter, an unreachable server) lands in the error line.
  *
- * `code` is a prop rather than local state so a concept row can load the tester with the code it
+ * THE ASK IS A PROP rather than local state, so a concept row can load the tester with the code it
  * names, and the call is made straight away when it does - a two-step "fill, then press" would
- * make the row button do half a thing.
+ * make the row button do half a thing. The panel is the last thing on a page whose table runs to
+ * thousands of rows, so an ask also brings the panel to the reader: an answer rendered eleven
+ * screens below the button that asked for it is an answer nobody was told about.
  */
 export function TranslateTester({
     system,
-    code,
+    asked,
     targetSystems,
 }: {
     /** The code system a concept is translated *from*, which is fixed by the page showing this. */
     system: string
-    /** The code to start with - empty on arrival, or the one a concept row asked about. */
-    code: string
+    /** What a concept row asked about, or `NOTHING_ASKED` while the reader has pressed nothing. */
+    asked: AskedConcept
     /** The target systems the maps land on, offered as a filter. Empty means offer no choice. */
     targetSystems: string[]
 }) {
-    const [entered, setEntered] = useState(code)
+    const [entered, setEntered] = useState(asked.code)
     const [target, setTarget] = useState(ANY_TARGET)
     const [result, setResult] = useState<TranslationResult | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [running, setRunning] = useState(false)
+    const panel = useRef<HTMLDivElement>(null)
 
     const run = useCallback(
-        (asked: string, targetSystem: string) => {
-            if (asked.trim() === '') return
+        (code: string, targetSystem: string) => {
+            if (code.trim() === '') return
             setRunning(true)
             setError(null)
-            translateCode(system, asked.trim(), targetSystem === ANY_TARGET ? undefined : targetSystem)
+            translateCode(system, code.trim(), targetSystem === ANY_TARGET ? undefined : targetSystem)
                 .then((parameters) => setResult(translationResult(parameters)))
                 .catch((failure: unknown) => {
                     setResult(null)
@@ -71,23 +81,27 @@ export function TranslateTester({
     )
 
     useEffect(() => {
-        // A concept row asking about a code means "what does this map to", so the target filter
-        // goes back to any: a row click that answered nothing because a leftover target system
-        // was still selected would look like a code with no mapping.
-        if (code === '') return
-        setEntered(code)
-        setTarget(ANY_TARGET)
-        run(code, ANY_TARGET)
-    }, [code, run])
+        // THE ASK CARRIES ITS OWN DIRECTION. A row of a map's group is a question about that
+        // group - "what does this concept become over here" - and the ask names the group's
+        // target system, so the answer is the one the row is part of. A concept row of a code
+        // system names no target and asks every map: a row click that answered nothing because a
+        // leftover target system was still selected would look like a code with no mapping.
+        if (asked.code === '') return
+        const wanted = asked.targetSystem ?? ANY_TARGET
+        setEntered(asked.code)
+        setTarget(wanted)
+        run(asked.code, wanted)
+        panel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }, [asked, run])
 
     return (
-        <Card>
+        <Card ref={panel}>
             <CardContent className="space-y-4 py-6">
                 <div className="space-y-1">
-                    <h3 className="text-base font-semibold">What a code maps to in DHIS2</h3>
+                    <h3 className="text-base font-semibold">{TRANSLATE_QUESTION}</h3>
                     <p className="text-muted-foreground text-sm">
                         Type a concept code - or press Details on any row above - and the
-                        published maps answer with the DHIS2 option uid and code it stands for.
+                        published maps answer with the DHIS2 option UID and code it stands for.
                         On the wire this is the{' '}
                         <code className="font-mono">$translate</code> operation - the same one{' '}
                         <code className="font-mono">d2w fhir forward</code> resolves a coded answer
@@ -107,7 +121,7 @@ export function TranslateTester({
                         <Input
                             id="translate-code"
                             className="w-56 font-mono"
-                            placeholder="a code of this system"
+                            placeholder="A code of this system"
                             value={entered}
                             onChange={(event) => setEntered(event.target.value)}
                         />
@@ -160,7 +174,13 @@ function TranslationAnswer({ result }: { result: TranslationResult }) {
             <div className="space-y-1" data-testid="translate-result">
                 <p className="text-sm font-medium">No mapping</p>
                 <p className="text-muted-foreground text-sm">
-                    {result.message ?? 'The maps served here state nothing for that code.'}
+                    {result.message === null ? (
+                        'The maps served here state nothing for that code.'
+                    ) : (
+                        // The server marks the identifiers it quotes; a mark is a change of
+                        // typeface, never a backtick sitting in the middle of a sentence.
+                        <ProseText text={result.message} />
+                    )}
                 </p>
             </div>
         )

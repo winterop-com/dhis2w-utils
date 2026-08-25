@@ -29,6 +29,15 @@ import type {
 /** How many concepts one page of a code-system detail shows. */
 export const CONCEPT_PAGE_SIZE = 200
 
+/**
+ * The one sentence this UI states the `$translate` question in.
+ *
+ * Every surface offering the operation - the panel's own heading, the tooltip on a concept row's
+ * button - says it in these words. "DHIS2" alone names the platform; the maps answer with the
+ * identifiers of the instance this guide was generated from, so the sentence says which one.
+ */
+export const TRANSLATE_QUESTION = 'What a code maps to in this DHIS2 instance'
+
 /** One property column a concept table shows: the concept property code, and how it is headed. */
 export interface ConceptPropertyColumn {
     code: string
@@ -81,6 +90,34 @@ export interface TranslationResult {
 }
 
 /**
+ * One press of a concept row's button: which code was asked about, in which direction, and when.
+ *
+ * The `nonce` is the whole point. A row asks by handing the tester a code, and asking about the
+ * same row twice in a row is a real question - the box may have been typed over in between - so
+ * the ask carries a number that always changes. State holding the bare code would settle on the
+ * same value the second time, React would keep the render, and the second press would answer
+ * nothing.
+ */
+export interface AskedConcept {
+    code: string
+    /** The group's target system on a map page, where the group is the reader's question; null asks every map. */
+    targetSystem: string | null
+    nonce: number
+}
+
+/** Nothing asked yet, which is how a detail page arrives. */
+export const NOTHING_ASKED: AskedConcept = { code: '', targetSystem: null, nonce: 0 }
+
+/** The next ask after this one, distinct from it even when it names the same code and target. */
+export function askedConcept(
+    previous: AskedConcept,
+    code: string,
+    targetSystem: string | null = null,
+): AskedConcept {
+    return { code, targetSystem, nonce: previous.nonce + 1 }
+}
+
+/**
  * The property columns a concept table shows, declarations first.
  *
  * A CodeSystem's `property` is the authority on order; the column is HEADED by the property
@@ -96,6 +133,8 @@ export interface TranslationResult {
 const DECLARED_CATEGORY = /^DHIS2 category (.+)\.$/
 /** A searchability-context declaration names its context: "... searchable in <kind> <name> (<uid>)." */
 const DECLARED_SEARCH_CONTEXT = /searchable in (?:tracker program|tracked entity type) (.+) \([A-Za-z][A-Za-z0-9]{10}\)\.$/
+/** The code every category-axis property is published under: `category-<slug>`. */
+const CATEGORY_PROPERTY_PREFIX = 'category-'
 
 /**
  * A declared column's header: the named subject where the declaration states one, else the code as words.
@@ -104,9 +143,15 @@ const DECLARED_SEARCH_CONTEXT = /searchable in (?:tracker program|tracked entity
  * and a header wearing a uid tells a reader nothing - the declaration's own description already
  * names the object, so the header says the name; the tooltip keeps the full sentence, and the
  * machine spelling stays where machine spellings belong.
+ *
+ * THE SUBJECT IS THE PROPERTY CODE, NOT THE PROSE. A category vocabulary describes its
+ * `dhis2-code` property as "DHIS2 category option code." and a combo vocabulary as "DHIS2 category
+ * option combo code." - sentences that read as a category-axis declaration and are nothing of the
+ * kind. Only a property published under the category prefix is one, so the prose is read for the
+ * name after the code has said what kind of column this is.
  */
 export function declaredColumnLabel(code: string, description: string | undefined): string {
-    const category = declaredCategoryName(description)
+    const category = code.startsWith(CATEGORY_PROPERTY_PREFIX) ? declaredCategoryName(description) : null
     if (category !== null) return category
     const context = description?.match(DECLARED_SEARCH_CONTEXT)
     if (context !== null && context !== undefined) return `Searchable in ${context[1]}`
@@ -179,6 +224,30 @@ export function conceptPropertyValue(concept: CodeSystemConcept, code: string): 
  */
 export const CONCEPT_FILTER_PARAMETER = 'code'
 
+/**
+ * The listing's own filter parameter, which is what makes a searched listing an address.
+ *
+ * The listing keeps its query where the detail pages keep theirs - in the address bar - so a
+ * reader who opened a row and pressed Back gets the search they were reading back, and a listing
+ * narrowed to something worth showing someone can be handed on as it stands.
+ */
+export const TERMINOLOGY_FILTER_PARAMETER = 'q'
+
+/**
+ * Where a listing row opens, carrying the search that found it.
+ *
+ * A query that matched codes inside the artifact - "Fever" finding seventeen concepts of the data
+ * dictionary - is a question about those codes, so the detail page arrives already showing them
+ * rather than making the reader type the word a second time. A query that only matched the title
+ * carries nothing: filtering a vocabulary by its own name would empty the table.
+ */
+export function terminologyRowLink(resourceType: string, identifier: string, query: string): string {
+    const path = `/terminology/${resourceType}/${encodeURIComponent(identifier)}`
+    const filter = query.trim()
+    if (filter === '') return path
+    return `${path}?${CONCEPT_FILTER_PARAMETER}=${encodeURIComponent(filter)}`
+}
+
 /** One property value that codes into another CodeSystem: where that system is read, and what to call it. */
 export interface ConceptPropertyCodingLink {
     label: string
@@ -213,6 +282,39 @@ export function conceptPropertyCodingLink(coding: Coding): ConceptPropertyCoding
         isCode: coding.display === undefined,
         to: `/terminology/CodeSystem/${encodeURIComponent(id)}?${filter}`,
     }
+}
+
+/** A count and the thing counted, singular when there is one of it: "1 mapping", "4 mappings". */
+export function countedNoun(count: number, singular: string): string {
+    return `${String(count)} ${count === 1 ? singular : `${singular}s`}`
+}
+
+/** What a table states when a filter admitted none of its rows, in the query's own words. */
+export function nothingMatchesMessage(query: string): string {
+    return `Nothing here matches "${query.trim()}".`
+}
+
+/**
+ * What a CodeSystem's `content` code means, said as the fact rather than as the code.
+ *
+ * `complete` and `not-present` are R4 spellings, and a reader looking at a vocabulary wants to know
+ * whether the concepts are all here - not which token the specification uses for it. A code this
+ * server has never published is stated verbatim rather than translated into a guess.
+ */
+export function codeSystemContentLabel(content: string | undefined): string {
+    if (content === undefined || content === '') return '-'
+    if (content === 'complete') return 'Every concept is here'
+    if (content === 'not-present') return 'The concepts live elsewhere'
+    if (content === 'fragment') return 'Some of the concepts'
+    if (content === 'example') return 'A sample of the concepts'
+    if (content === 'supplement') return 'Properties added to another system'
+    return content
+}
+
+/** A declared boolean as an answer rather than as a literal, and a dash when the resource states none. */
+export function statedBooleanLabel(value: boolean | undefined): string {
+    if (value === undefined) return '-'
+    return value ? 'Yes' : 'No'
 }
 
 /** Whether any of the given texts contains the query, case-insensitively; an empty query matches all. */
@@ -280,6 +382,22 @@ export function mappingCount(conceptMap: ConceptMap): number {
         (total, group) =>
             total + (group.element ?? []).reduce((rows, element) => rows + (element.target ?? []).length, 0),
         0,
+    )
+}
+
+/**
+ * Whether any served map translates codes of this system - which is what makes the question askable.
+ *
+ * `$translate` answers from the maps and nothing else, so a system no map names as a group source
+ * has no answer to give: every ask would come back refused. The systems in that position are real
+ * ones - the data dictionary, the tracked-entity attributes, the identifier enumerations whose
+ * canonical is a map *target* - and a button offering an answer they cannot have is a promise the
+ * page cannot keep.
+ */
+export function mapsFromSystem(conceptMaps: ConceptMap[], system: string | undefined): boolean {
+    if (system === undefined || system === '') return false
+    return conceptMaps.some((conceptMap) =>
+        (conceptMap.group ?? []).some((group) => group.source === system),
     )
 }
 

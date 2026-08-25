@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Search } from 'lucide-react'
 
@@ -19,6 +19,7 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { useFhirResource } from '@/hooks/use-fhir-resource'
+import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { useValueSetOptions } from '@/hooks/use-valueset-options'
 import { holdsDataElementConcepts } from '@/lib/dhis2'
@@ -31,19 +32,28 @@ import {
 } from '@/lib/fhir'
 import {
     CONCEPT_FILTER_PARAMETER,
+    NOTHING_ASKED,
+    TRANSLATE_QUESTION,
+    askedConcept,
+    codeSystemContentLabel,
     composedSystems,
     conceptPropertyCoding,
     conceptPropertyCodingLink,
     conceptPropertyColumns,
     conceptPropertyValue,
+    countedNoun,
     filterConcepts,
     identifierBadges,
     mappingCount,
     mappingRows,
+    mapsFromSystem,
     matchesQuery,
+    nothingMatchesMessage,
     pageOf,
+    statedBooleanLabel,
     systemLabel,
     targetSystems,
+    type AskedConcept,
     type IdentifierBadge,
     type MappingRow,
     type RowPage,
@@ -140,11 +150,17 @@ function title(resource: CodeSystem | ValueSet | ConceptMap): string | null {
  * naming the coded concept, and can hand the address on unchanged.
  */
 function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
-    const [searchParameters, setSearchParameters] = useSearchParams()
-    const query = searchParameters.get(CONCEPT_FILTER_PARAMETER) ?? ''
+    const [query, setQuery] = useConceptFilter()
     const [page, setPage] = useState(1)
-    const [asked, setAsked] = useState('')
+    const [asked, setAsked] = useState<AskedConcept>(NOTHING_ASKED)
     const settings = useUiConfig()
+
+    // WHICH SYSTEMS HAVE AN ANSWER TO GIVE. `$translate` reads the served maps, so a system no map
+    // names as a group source refuses every ask - and the identifier enumerations are worse than
+    // that, since their canonical is a map *target* and can never be a source. Reading the maps is
+    // the only way to know: the CodeSystem document says nothing about who translates it.
+    const conceptMaps = useFhirSearch<ConceptMap>('ConceptMap')
+    const translatable = mapsFromSystem(conceptMaps.resources, codeSystem.url)
 
     // THE ONE VOCABULARY WHOSE CODES ARE DHIS2 OBJECTS THIS UI HOLDS A ROUTE TO. A data dictionary's
     // concept codes are data element uids, so each row can open the data element itself; the option
@@ -165,10 +181,11 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                 identifiers={identifierBadges(codeSystem.identifier)}
                 facts={[
                     { label: 'Concepts', value: String(codeSystem.count ?? concepts.length) },
-                    { label: 'Content', value: codeSystem.content ?? '-' },
+                    { label: 'Content', value: codeSystemContentLabel(codeSystem.content), mono: false },
                     {
                         label: 'Case sensitive',
-                        value: codeSystem.caseSensitive === undefined ? '-' : String(codeSystem.caseSensitive),
+                        value: statedBooleanLabel(codeSystem.caseSensitive),
+                        mono: false,
                     },
                 ]}
             >
@@ -187,10 +204,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                         placeholder="Filter by code, display, or property"
                         value={query}
                         onChange={(next) => {
-                            setSearchParameters(
-                                next === '' ? {} : { [CONCEPT_FILTER_PARAMETER]: next },
-                                { replace: true },
-                            )
+                            setQuery(next)
                             setPage(1)
                         }}
                     />
@@ -203,6 +217,10 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                         <code className="font-mono">not-present</code> means the concepts live
                         somewhere else; <code className="font-mono">complete</code> with none is an
                         empty system.
+                    </p>
+                ) : matching.length === 0 ? (
+                    <p className="text-muted-foreground rounded-lg border px-4 py-8 text-sm">
+                        {nothingMatchesMessage(query)}
                     </p>
                 ) : (
                     <>
@@ -217,7 +235,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                                 {column.label}
                                             </TableHead>
                                         ))}
-                                        <TableHead className="w-0" />
+                                        {translatable && <TableHead className={PINNED_ACTION_CELL} />}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -244,39 +262,76 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                                     code={column.code}
                                                 />
                                             ))}
-                                            <TableCell>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            aria-label={`Details for ${concept.code}`}
-                                                            onClick={() => setAsked(concept.code)}
-                                                        >
-                                                            Details
-                                                            <ArrowRight aria-hidden />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        What this code maps to in DHIS2
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TableCell>
+                                            {translatable && (
+                                                <TableCell className={PINNED_ACTION_CELL}>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                aria-label={`Details for ${concept.code}`}
+                                                                onClick={() =>
+                                                                    setAsked((previous) =>
+                                                                        askedConcept(previous, concept.code),
+                                                                    )
+                                                                }
+                                                            >
+                                                                Details
+                                                                <ArrowRight aria-hidden />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>{TRANSLATE_QUESTION}</TooltipContent>
+                                                    </Tooltip>
+                                                </TableCell>
+                                            )}
                                         </TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
                         </div>
-                        <Pagination page={shown} onPage={setPage} noun="concepts" />
+                        <Pagination page={shown} onPage={setPage} noun="concept" />
                     </>
                 )}
             </div>
 
-            {codeSystem.url !== undefined && (
-                <TranslateTester system={codeSystem.url} code={asked} targetSystems={[]} />
+            {codeSystem.url !== undefined && translatable && (
+                <TranslateTester system={codeSystem.url} asked={asked} targetSystems={[]} />
             )}
         </div>
     )
+}
+
+/**
+ * The action column, pinned to the right edge of the table's own scroll box.
+ *
+ * A category option combo vocabulary is nineteen property columns wide and thousands of rows long,
+ * so an action column sitting at the end of the row is off the screen at every ordinary window
+ * width - and the horizontal scrollbar that would reach it is at the bottom of a page-tall element.
+ * Pinned, it is where the reader is, whatever the table is doing sideways. It stays its own column
+ * rather than moving in beside the concept code, because the code cell already carries the way out
+ * to the DHIS2 instance and two marks with different destinations in one cell name neither.
+ */
+const PINNED_ACTION_CELL = 'bg-background sticky right-0 w-0 border-l'
+
+/**
+ * The concept filter, kept in the address bar rather than in local state.
+ *
+ * That is what a coding-valued property links to, what the listing hands on when a search matched
+ * codes inside an artifact, and what the browser's Back button restores. One rule for all three
+ * detail types: a filtered table is an address, and an address can be handed to someone.
+ */
+function useConceptFilter(): [string, (next: string) => void] {
+    const [searchParameters, setSearchParameters] = useSearchParams()
+    const query = searchParameters.get(CONCEPT_FILTER_PARAMETER) ?? ''
+    const setQuery = useCallback(
+        (next: string) => {
+            setSearchParameters(next === '' ? {} : { [CONCEPT_FILTER_PARAMETER]: next }, {
+                replace: true,
+            })
+        },
+        [setSearchParameters],
+    )
+    return [query, setQuery]
 }
 
 /**
@@ -307,7 +362,7 @@ function ConceptPropertyCell({ concept, code }: { concept: CodeSystemConcept; co
 
 /** A value set: the systems it composes, and the concepts those systems turn out to hold. */
 function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
-    const [query, setQuery] = useState('')
+    const [query, setQuery] = useConceptFilter()
     const [page, setPage] = useState(1)
     const systems = composedSystems(valueSet)
     // The expansion is the same two reads a choice question makes when it renders its options,
@@ -325,7 +380,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                 description={valueSet.description}
                 identifiers={identifierBadges(valueSet.identifier)}
                 facts={[
-                    { label: 'Systems included', value: String(systems.length) },
+                    { label: 'Systems', value: String(systems.length) },
                     { label: 'Concepts', value: expansion.loading ? '...' : String(expansion.options.length) },
                 ]}
             >
@@ -339,7 +394,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
             <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="space-y-0.5">
-                        <h3 className="text-base font-semibold">What it admits</h3>
+                        <h3 className="text-base font-semibold">Concepts</h3>
                         <p className="text-muted-foreground text-sm">
                             Expanded by reading the code systems it composes - this server publishes no
                             $expand, so the concepts come from the same reads a form makes.
@@ -359,8 +414,12 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                 <PageState
                     loading={expansion.loading}
                     error={expansion.error}
-                    empty={expansion.options.length === 0}
-                    emptyMessage="Nothing expanded. The systems this set composes are not published here, or hold no concepts."
+                    empty={matching.length === 0}
+                    emptyMessage={
+                        expansion.options.length === 0
+                            ? 'Nothing expanded. The systems this set composes are not published here, or hold no concepts.'
+                            : nothingMatchesMessage(query)
+                    }
                 >
                     <div className="show-scrollbars overflow-x-auto rounded-lg border">
                         <Table>
@@ -386,7 +445,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                             </TableBody>
                         </Table>
                     </div>
-                    <Pagination page={shown} onPage={setPage} noun="concepts" />
+                    <Pagination page={shown} onPage={setPage} noun="concept" />
                 </PageState>
             </div>
         </div>
@@ -395,8 +454,8 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
 
 /** A concept map: every mapping it states, grouped the way the map groups them. */
 function ConceptMapDetail({ conceptMap }: { conceptMap: ConceptMap }) {
-    const [query, setQuery] = useState('')
-    const [asked, setAsked] = useState('')
+    const [query, setQuery] = useConceptFilter()
+    const [asked, setAsked] = useState<AskedConcept>(NOTHING_ASKED)
     const groups = conceptMap.group ?? []
     const sourceSystem = groups.find((group) => group.source !== undefined)?.source
 
@@ -443,14 +502,16 @@ function ConceptMapDetail({ conceptMap }: { conceptMap: ConceptMap }) {
                     target={group.target}
                     rows={mappingRows(group)}
                     query={query}
-                    onAsk={setAsked}
+                    onAsk={(code, targetSystem) => {
+                        setAsked((previous) => askedConcept(previous, code, targetSystem))
+                    }}
                 />
             ))}
 
             {sourceSystem !== undefined && (
                 <TranslateTester
                     system={sourceSystem}
-                    code={asked}
+                    asked={asked}
                     targetSystems={targetSystems(conceptMap)}
                 />
             )}
@@ -470,7 +531,8 @@ function MappingGroup({
     target: string | undefined
     rows: MappingRow[]
     query: string
-    onAsk: (code: string) => void
+    /** Asks about one row, in the direction of the group it is in. */
+    onAsk: (code: string, targetSystem: string | null) => void
 }) {
     const [page, setPage] = useState(1)
     const matching = rows.filter((row) => matchesQuery(query, row.code, row.display, row.targetCode))
@@ -482,58 +544,70 @@ function MappingGroup({
                 <span className="text-muted-foreground font-mono text-xs">{systemLabel(source)}</span>
                 <ArrowRight className="text-muted-foreground size-3.5" aria-hidden />
                 <span className="font-mono text-xs font-medium">{systemLabel(target)}</span>
-                <span className="text-muted-foreground text-xs">{rows.length} mappings</span>
+                <span className="text-muted-foreground text-xs">
+                    {countedNoun(matching.length, 'mapping')}
+                </span>
             </div>
-            <div className="show-scrollbars overflow-x-auto rounded-lg border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Concept</TableHead>
-                            <TableHead>Display</TableHead>
-                            <TableHead>Maps to</TableHead>
-                            <TableHead>Equivalence</TableHead>
-                            <TableHead className="w-0" />
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {shown.rows.map((row) => (
-                            <TableRow key={`${row.code}-${row.targetCode}`}>
-                                <TableCell className="font-mono text-xs font-medium">{row.code}</TableCell>
-                                <TableCell>{row.display ?? '-'}</TableCell>
-                                <TableCell className="font-mono text-xs">{row.targetCode}</TableCell>
-                                <TableCell>
-                                    {row.equivalence === null ? (
-                                        <span className="text-muted-foreground text-xs">-</span>
-                                    ) : (
-                                        <Badge variant="secondary" className="text-[10px]">
-                                            {row.equivalence}
-                                        </Badge>
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                aria-label={`Details for ${row.code}`}
-                                                onClick={() => onAsk(row.code)}
-                                            >
-                                                Details
-                                                <ArrowRight aria-hidden />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            What this code maps to in DHIS2
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
-            <Pagination page={shown} onPage={setPage} noun="mappings" />
+            {matching.length === 0 ? (
+                <p className="text-muted-foreground rounded-lg border px-4 py-8 text-sm">
+                    {query.trim() === ''
+                        ? 'This group states no mappings.'
+                        : nothingMatchesMessage(query)}
+                </p>
+            ) : (
+                <>
+                    <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Concept</TableHead>
+                                    <TableHead>Display</TableHead>
+                                    <TableHead>Maps to</TableHead>
+                                    <TableHead>Equivalence</TableHead>
+                                    <TableHead className={PINNED_ACTION_CELL} />
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {shown.rows.map((row) => (
+                                    <TableRow key={`${row.code}-${row.targetCode}`}>
+                                        <TableCell className="font-mono text-xs font-medium">
+                                            {row.code}
+                                        </TableCell>
+                                        <TableCell>{row.display ?? '-'}</TableCell>
+                                        <TableCell className="font-mono text-xs">{row.targetCode}</TableCell>
+                                        <TableCell>
+                                            {row.equivalence === null ? (
+                                                <span className="text-muted-foreground text-xs">-</span>
+                                            ) : (
+                                                <Badge variant="secondary" className="text-[10px]">
+                                                    {row.equivalence}
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className={PINNED_ACTION_CELL}>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        aria-label={`Details for ${row.code}`}
+                                                        onClick={() => onAsk(row.code, target ?? null)}
+                                                    >
+                                                        Details
+                                                        <ArrowRight aria-hidden />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>{TRANSLATE_QUESTION}</TooltipContent>
+                                            </Tooltip>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    <Pagination page={shown} onPage={setPage} noun="mapping" />
+                </>
+            )}
         </div>
     )
 }
@@ -549,7 +623,8 @@ function ResourceFacts({
     url: string | undefined
     description: string | undefined
     identifiers: IdentifierBadge[]
-    facts: { label: string; value: string }[]
+    /** One stated fact each. `mono` is false where the value is a sentence rather than a machine spelling. */
+    facts: { label: string; value: string; mono?: boolean }[]
     children?: ReactNode
 }) {
     return (
@@ -562,7 +637,7 @@ function ResourceFacts({
                 {facts.map((fact) => (
                     <div key={fact.label} className="text-sm">
                         <span className="text-muted-foreground">{fact.label} </span>
-                        <span className="font-mono">{fact.value}</span>
+                        <span className={fact.mono === false ? undefined : 'font-mono'}>{fact.value}</span>
                     </div>
                 ))}
             </div>
@@ -642,13 +717,14 @@ function Pagination({
 }: {
     page: RowPage<unknown>
     onPage: (next: number) => void
+    /** What one row is, in the singular - the line says one of them as "1 concept", not "1 concepts". */
     noun: string
 }) {
     if (page.total === 0) return null
     return (
         <div className="flex flex-wrap items-center gap-3">
             <p className="text-muted-foreground text-xs">
-                Showing {page.shown} of {page.total} {noun}
+                Showing {page.shown} of {countedNoun(page.total, noun)}
                 {page.pageCount > 1 ? ` (page ${String(page.page)} of ${String(page.pageCount)})` : ''}
             </p>
             {page.pageCount > 1 && (
