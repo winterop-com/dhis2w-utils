@@ -48,11 +48,11 @@ import { cn } from '@/lib/utils'
  * form is still the useful thing to do; a project that publishes no Questionnaires must not hide
  * the receipts it already holds. So no section is allowed to gate another's render.
  *
- * WHY THE PULSE IS TILES AND NOT A CHART. Three counts of one quantity, with no time axis behind
- * them - the spool stores no history, only where each file is now. A bar chart of three bars would
- * be three numbers drawn as rectangles, and a trend line would be inventing data the server does
- * not keep. So the numbers are the form, `received` is emphasised as the one that is actionable,
- * and no tile carries a delta.
+ * WHY THE COUNTS ARE TILES AND NOT A CHART. A handful of counts of one quantity, with no time axis
+ * behind them - the spool stores no history, only where each file is now. A bar chart of five bars
+ * would be five numbers drawn as rectangles, and a trend line would be inventing data the server
+ * does not keep. So the numbers are the form, `received` is emphasised as the one that is
+ * actionable, and no tile carries a delta.
  */
 export function Overview() {
     const { listing, loading: spoolLoading, error: spoolError } = useSpool()
@@ -97,12 +97,18 @@ export function Overview() {
 const QUICK_ENTRY_FORMS = 8
 
 /**
- * The spool pulse: three counts, one of which is a task.
+ * Every receipt this server holds, and where each one is now.
  *
  * Each tile opens the Responses listing already filtered to its state, which is what makes a
  * count a starting point rather than a fact to go and re-find. The rejected tile also names the
  * error code most of its receipts share, because "Rejected 12" and "Rejected 12, mostly E1029"
  * lead to different afternoons.
+ *
+ * THE QUARANTINED FILES GET A TILE OF THEIR OWN. A submission that reached the spool and could not
+ * be read is the one a person most needs to see, and it is in none of the four states because it
+ * never became a receipt. It is drawn last and it is drawn even when the four are empty: a spool
+ * holding nothing but files nobody can read is not an empty spool, and saying "no responses
+ * captured yet" over one is the failure this section exists to report.
  */
 function SpoolPulse({
     counts,
@@ -122,16 +128,16 @@ function SpoolPulse({
     return (
         <section className="space-y-3">
             <SectionHeading
-                title="Spool"
-                description="Every receipt this server stored, by which of the spool's four directories its file is in."
+                title="Receipts"
+                description="Every receipt this server stored, and where each one is now."
             />
             <PageState
                 loading={loading}
                 error={error}
-                empty={total === 0}
+                empty={total === 0 && counts.malformed === 0}
                 emptyRender={<NothingCaptured />}
             >
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     {RESPONSE_LIFECYCLES.map((lifecycle) => (
                         <StatTile
                             key={lifecycle}
@@ -140,6 +146,7 @@ function SpoolPulse({
                             subtitle={subtitleFor(lifecycle, counts, cause)}
                         />
                     ))}
+                    <QuarantinedTile count={counts.malformed} />
                 </div>
             </PageState>
         </section>
@@ -196,6 +203,40 @@ function StatTile({
     )
 }
 
+/** What the fifth tile is called, and the line under its count. */
+const QUARANTINED_LABEL = 'Could not be read'
+const QUARANTINED_SUBTITLE = 'set aside without becoming a receipt'
+
+/**
+ * The files the facade moved aside, as the fifth tile.
+ *
+ * NOT A LIFECYCLE, AND GIVEN A TILE ANYWAY. A quarantined file is in none of the four states
+ * because it never parsed - but a reader scanning this section is asking "what has arrived here",
+ * and a file that arrived and could not be read is part of that answer. Its own tint would claim it
+ * is a fifth state of a receipt; the muted dot says it is a count of something else.
+ */
+function QuarantinedTile({ count }: { count: number }) {
+    return (
+        <Link
+            to="/responses?lifecycle=malformed"
+            aria-label={`${QUARANTINED_LABEL} ${String(count)} - ${QUARANTINED_SUBTITLE}. Open the files this server set aside.`}
+            className="bg-card hover:bg-accent/40 focus-visible:ring-ring/50 block rounded-lg border p-4 transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
+        >
+            <span className="flex items-center gap-2">
+                <span className="bg-muted-foreground size-2 shrink-0 rounded-full" aria-hidden />
+                <span className="text-sm font-medium">{QUARANTINED_LABEL}</span>
+            </span>
+            <span
+                data-testid="spool-malformed-count"
+                className="mt-2 block text-3xl font-semibold tracking-tight"
+            >
+                {count}
+            </span>
+            <span className="text-muted-foreground mt-1 block text-sm">{QUARANTINED_SUBTITLE}</span>
+        </Link>
+    )
+}
+
 /** The line under each count - what the state means, and for a rejection what it was mostly about. */
 function subtitleFor(
     lifecycle: ResponseLifecycle,
@@ -229,11 +270,12 @@ function generalisedCauseMessage(message: string): string {
 }
 
 /**
- * Zero receipts, as an invitation rather than three zeroes.
+ * Zero receipts, as an invitation rather than a row of zeroes.
  *
- * Three tiles reading 0 would state the same thing three times and imply the interesting part is
+ * Five tiles reading 0 would state the same thing five times and imply the interesting part is
  * the split between them. On an empty project the only useful next move is to open a form, so
- * that is what the section says.
+ * that is what the section says. It is reached only when the quarantine is empty too - a file
+ * nobody could read is something having arrived, whatever the four counts say.
  */
 function NothingCaptured() {
     return (
@@ -361,6 +403,7 @@ function ServerIdentity({
             />
             <PageState
                 loading={checking && capability === null}
+                status={reachability === 'unreachable' ? 'unreachable' : null}
                 error={
                     reachability === 'unreachable' ? (
                         <>
@@ -393,7 +436,10 @@ function ServerIdentity({
                         </span>
 
                         <span className="text-muted-foreground text-sm">
-                            {resourceTypes} resource types
+                            {/* Served rather than stored: the Server page states both counts and
+                                says why they differ, and an unqualified count here would be the
+                                one that reads as contradicting it. */}
+                            {resourceTypes} resource types served
                         </span>
 
                         {operations.length > 0 && (

@@ -16,6 +16,7 @@ import {
 
 import { CommandPalette, PaletteButton } from '@/components/CommandPalette'
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts'
+import { PageState } from '@/components/PageState'
 import { SettingsMenu } from '@/components/SettingsMenu'
 import { SignInPanel } from '@/components/SignInPanel'
 import { StatusMenu } from '@/components/StatusMenu'
@@ -24,6 +25,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useAuth } from '@/hooks/use-auth'
+import { useServerStatus } from '@/hooks/use-server-status'
 import { useSidebar } from '@/hooks/use-sidebar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { signInIsRequired, signOut, SIGN_OUT_LABEL } from '@/lib/auth'
@@ -127,6 +129,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
     const { collapsed, toggle } = useSidebar()
     const { pathname } = useLocation()
     const auth = useAuth()
+    // The shell asks the same question the status light does: the posture is read off `/metadata`,
+    // so a server that is not answering leaves the posture unresolved for as long as the tab is
+    // open - and something has to say so where the page would have been.
+    const { reachability } = useServerStatus()
     // The sign-in panel takes the place of the page, and the page's own reads never run: a request
     // this server would answer 401 to is one a browser may put its own credential dialog over, so
     // the app asks first and reaches nothing until it has an answer. See `lib/auth`.
@@ -163,7 +169,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
     // three ways in, because a shortcut nobody has been told about is a shortcut nobody has.
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     const registered = trackedEntitySettings(config)
-    const paletteOffered = !asking && auth.posture !== null
+    // The pages this app can go to are pages whether or not the server is answering, so the palette
+    // stays mounted while the posture is unresolved: the rows that read from the server come back
+    // empty and state nothing, which is what `usePaletteCatalogue` is written to do. A chord that
+    // silently did nothing would be worse than a palette holding only its page rows - and the
+    // shortcuts overlay advertises the chord on every page, this one included.
+    const paletteOffered = !asking
     // Rebuilt only when the settings that name the pages change, so the palette's own memo over this
     // list is not defeated by a fresh array on every keystroke into its box.
     const paletteReachablePages = useMemo(() => palettePages(config), [config])
@@ -409,13 +420,35 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     here exactly as they did when the document scrolled; pages that claim the
                     height (the organisation-units browser) fit inside it and scroll nothing. */}
                 <main className="flex w-full min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 md:px-8">
-                    {/* Nothing is drawn until the posture is known, for the reason above: a page
-                        that rendered first would fire its reads first. An unreachable server leaves
-                        this empty and the status menu is what says so. */}
+                    {/* No page is drawn until the posture is known, for the reason above: a page
+                        that rendered first would fire its reads first. When the read that settles
+                        the posture cannot reach the server, this says so in the place the page
+                        would have been - a word in the corner is not an answer to a screen that
+                        never fills. */}
                     {asking && auth.posture !== null && auth.posture !== 'none' ? (
                         <SignInPanel posture={auth.posture} issuer={auth.issuer} refused={auth.refused} />
+                    ) : auth.posture !== null ? (
+                        children
                     ) : (
-                        auth.posture !== null && children
+                        <PageState
+                            loading={reachability !== 'unreachable'}
+                            status={reachability === 'unreachable' ? 'unreachable' : null}
+                            error={
+                                reachability === 'unreachable' ? (
+                                    <>
+                                        This server did not answer{' '}
+                                        <code className="font-mono">/metadata</code>, which is the
+                                        read every page starts from. Is{' '}
+                                        <code className="font-mono">d2w fhir serve --ui</code> still
+                                        running? Check this server again from the status menu in the
+                                        header.
+                                    </>
+                                ) : null
+                            }
+                            empty={false}
+                        >
+                            {null}
+                        </PageState>
                     )}
                 </main>
             </div>

@@ -299,9 +299,32 @@ export async function checkReachability(): Promise<'ok' | 'unreachable'> {
     }
 }
 
-/** The served IG's conformance document. */
+/** What a read of `/metadata` says when the body that came back is some other document. */
+export const NOT_A_CAPABILITY_STATEMENT = '/metadata answered with something other than a CapabilityStatement'
+
+/**
+ * The served IG's conformance document.
+ *
+ * THE DOCUMENT IS CHECKED, NOT ASSUMED. `/metadata` is a path a reverse proxy, a captive portal, or
+ * a differently-configured server can all answer 200 to, and a cast turns any of those bodies into
+ * a CapabilityStatement with every field undefined - which the Server page then renders as a card
+ * of dashes and a table with no rows, under a header saying "Connected". A raise here is what puts
+ * that answer in the state the page already has words for: the server answered, but not with this
+ * document.
+ */
 export async function readCapabilityStatement(): Promise<CapabilityStatement> {
-    return readJson<CapabilityStatement>('/metadata')
+    const body = await readJson<unknown>('/metadata')
+    if (!isCapabilityStatement(body)) throw new Error(NOT_A_CAPABILITY_STATEMENT)
+    return body
+}
+
+/** Whether a parsed body is the conformance document, which is what its `resourceType` says. */
+function isCapabilityStatement(body: unknown): body is CapabilityStatement {
+    return (
+        typeof body === 'object' &&
+        body !== null &&
+        (body as { resourceType?: unknown }).resourceType === 'CapabilityStatement'
+    )
 }
 
 /** Search one served resource type, answering with the searchset Bundle verbatim. */

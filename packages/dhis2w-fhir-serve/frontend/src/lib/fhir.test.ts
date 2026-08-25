@@ -198,12 +198,14 @@ describe('a real /metadata document', () => {
         ])
     })
 
-    it('sees a rest-level operation as declared on the server', () => {
+    it('sees a rest-level operation as declared on no resource type at all', () => {
+        // Null and not the wire's own `server`: what answers it is the service base, which is not a
+        // resource type - and the Server page names it in words rather than badging it as one.
         const operations = declaredOperations({
             ...metadata,
             rest: [{ mode: 'server', operation: [{ name: 'translate' }], resource: [] }],
         })
-        expect(operations).toEqual([{ name: 'translate', on: 'server', documentation: undefined }])
+        expect(operations).toEqual([{ name: 'translate', on: null, documentation: undefined }])
     })
 
     it('answers an empty list when there is no statement at all', () => {

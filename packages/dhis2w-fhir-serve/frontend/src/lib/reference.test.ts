@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { EvaluationLanguage } from '@/lib/evaluate'
-import { languageReference, proseRuns, referenceEntryCount } from '@/lib/reference'
+import { DOCUMENTATION_SITE, languageReference, proseRuns, referenceEntryCount } from '@/lib/reference'
 
 /**
  * The reference panel's content, checked for the two ways a reference goes wrong.
@@ -35,10 +35,22 @@ describe('the language reference', () => {
         }
     })
 
-    it('names the page the long form lives on', () => {
+    it('links the long form to a page a browser can open, or says nothing', () => {
+        // A repository path is unreachable from the panel it is printed in. Every reading that is
+        // stated is a published page; ELM states none, because no published page is about ELM.
         for (const language of LANGUAGES) {
-            expect(languageReference(language).reading).toMatch(/^docs\/fhir\/5\d\d-/)
+            const reading = languageReference(language).reading
+            if (reading === null) continue
+            expect(reading.title.trim()).not.toBe('')
+            expect(reading.url.startsWith(DOCUMENTATION_SITE)).toBe(true)
+            expect(reading.url).not.toMatch(/\.md$/)
         }
+    })
+
+    it('states no long form for ELM, rather than a page about something else', () => {
+        expect(languageReference('elm').reading).toBeNull()
+        expect(languageReference('fhirpath').reading).not.toBeNull()
+        expect(languageReference('cql').reading).not.toBeNull()
     })
 
     it('puts something under every heading', () => {

@@ -9,7 +9,9 @@ import {
     checkReachability,
     configureApi,
     listRegister,
+    NOT_A_CAPABILITY_STATEMENT,
     outcomeMessage,
+    readCapabilityStatement,
     searchRegister,
     translateCode,
 } from '@/lib/api'
@@ -304,6 +306,41 @@ describe('checkReachability', () => {
     it('reports unreachable when something answers that is not the facade', async () => {
         stubFetch(new Response('<!doctype html>', { status: 502 }))
         await expect(checkReachability()).resolves.toBe('unreachable')
+    })
+})
+
+describe('readCapabilityStatement', () => {
+    it('answers the document when /metadata serves one', async () => {
+        stubFetch(fhirResponse({ resourceType: 'CapabilityStatement', status: 'active', kind: 'instance' }))
+        await expect(readCapabilityStatement()).resolves.toMatchObject({
+            resourceType: 'CapabilityStatement',
+        })
+    })
+
+    it('refuses a 200 that is some other resource, rather than casting it into one', async () => {
+        // A cast here rendered the Server page as a card of dashes and an empty table, under a
+        // header saying "Connected" - a hollow page explaining itself with a cause that cannot be
+        // true. A raise puts it in the state the page already has words for.
+        stubFetch(fhirResponse({ resourceType: 'Basic' }))
+        await expect(readCapabilityStatement()).rejects.toThrow(NOT_A_CAPABILITY_STATEMENT)
+    })
+
+    it('refuses a body that is not a resource at all', async () => {
+        stubFetch(fhirResponse(['not', 'a', 'document']))
+        await expect(readCapabilityStatement()).rejects.toThrow(NOT_A_CAPABILITY_STATEMENT)
+    })
+
+    it('raises what the server said when /metadata is turned down', async () => {
+        stubFetch(
+            fhirResponse(
+                {
+                    resourceType: 'OperationOutcome',
+                    issue: [{ severity: 'error', code: 'security', diagnostics: 'this read needs a token' }],
+                },
+                401,
+            ),
+        )
+        await expect(readCapabilityStatement()).rejects.toThrow('this read needs a token')
     })
 })
 

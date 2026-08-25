@@ -1074,15 +1074,29 @@ export function formSlice(questionnaires: Questionnaire[], limit: number): FormS
     return { shown, total: ordered.length, hidden: ordered.length - shown.length }
 }
 
+/** One operation a CapabilityStatement declares, and the address that answers it. */
+export interface DeclaredOperation {
+    /** The operation's name, without the `$`. */
+    name: string
+    /**
+     * The resource type whose URL answers it, or null when the service base does.
+     *
+     * Null rather than the wire's own `server`, because a reader meets this beside `Questionnaire`
+     * and `ConceptMap` - and a lowercase word in a column of resource types reads as a resource
+     * type nobody has heard of. What answers `$evaluate` is the service base itself, which is a
+     * different kind of thing and is named as one where it is drawn.
+     */
+    on: string | null
+    documentation?: string
+}
+
 /** Every operation a CapabilityStatement declares, rest-level and resource-level alike. */
-export function declaredOperations(
-    capability: CapabilityStatement | null,
-): { name: string; on: string; documentation?: string }[] {
+export function declaredOperations(capability: CapabilityStatement | null): DeclaredOperation[] {
     const rest = capability?.rest?.[0]
     if (!rest) return []
     const restLevel = (rest.operation ?? []).map((operation) => ({
         name: operation.name,
-        on: 'server',
+        on: null,
         documentation: operation.documentation,
     }))
     const resourceLevel = (rest.resource ?? []).flatMap((resource) =>

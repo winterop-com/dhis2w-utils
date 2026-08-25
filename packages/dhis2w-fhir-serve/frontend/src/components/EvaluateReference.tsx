@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 
+import { ProseText } from '@/components/ProseText'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { exampleGroups, type EvaluationExample, type EvaluationLanguage } from '@/lib/evaluate'
-import { languageReference, proseRuns, type LanguageReference } from '@/lib/reference'
+import { languageReference, type LanguageReference } from '@/lib/reference'
 import { cn } from '@/lib/utils'
 
 /**
@@ -15,7 +16,7 @@ import { cn } from '@/lib/utils'
  * of the things this engine implements. A link sends them to another tab to read prose; a panel puts
  * the vocabulary a metre from the cursor, so a half-remembered function name is a glance rather than
  * a context switch. The prose is still where the argument lives - each language's reference names its
- * own page under docs/fhir/ - and this is the part of it that belongs beside the keyboard.
+ * own published page - and this is the part of it that belongs beside the keyboard.
  *
  * WHY THE EXAMPLES ARE IN THE SAME PANEL. A vocabulary list teaches names and nothing else. What
  * turns a name into something a person can use is one worked expression they can run without typing
@@ -48,8 +49,13 @@ export function EvaluateReference({
         setTab((current) => (current === 'examples' ? current : language))
     }, [language])
     return (
-        <Tabs value={tab} onValueChange={setTab} className="gap-3">
-            <TabsList>
+        // THE TAB BAR IS OUTSIDE THE SCROLLER, and the shelves under it are what scrolls. The panel
+        // is eighty rows tall on a real project, so a bar that scrolled with its content was off
+        // screen for the whole of the reading a reader does - nine hundred pixels back up to reach
+        // the language whose vocabulary they wanted. The column claims the height the page gives it
+        // and hands the leftover to the one element that has more than fits.
+        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-3">
+            <TabsList className="shrink-0">
                 <TabsTrigger value="examples">Examples</TabsTrigger>
                 {REFERENCE_LANGUAGES.map((candidate) => (
                     <TabsTrigger key={candidate} value={candidate}>
@@ -57,19 +63,21 @@ export function EvaluateReference({
                     </TabsTrigger>
                 ))}
             </TabsList>
-            <TabsContent value="examples">
-                <ExampleBrowser
-                    language={language}
-                    examplesByLanguage={examplesByLanguage}
-                    chosen={chosen}
-                    onLoad={onLoad}
-                />
-            </TabsContent>
-            {REFERENCE_LANGUAGES.map((candidate) => (
-                <TabsContent key={candidate} value={candidate}>
-                    <ReferenceBody reference={languageReference(candidate)} />
+            <div className="show-scrollbars min-h-0 flex-1 overflow-y-auto">
+                <TabsContent value="examples">
+                    <ExampleBrowser
+                        language={language}
+                        examplesByLanguage={examplesByLanguage}
+                        chosen={chosen}
+                        onLoad={onLoad}
+                    />
                 </TabsContent>
-            ))}
+                {REFERENCE_LANGUAGES.map((candidate) => (
+                    <TabsContent key={candidate} value={candidate}>
+                        <ReferenceBody reference={languageReference(candidate)} />
+                    </TabsContent>
+                ))}
+            </div>
         </Tabs>
     )
 }
@@ -171,12 +179,23 @@ function ReferenceBody({ reference }: { reference: LanguageReference }) {
             <div className="space-y-2">
                 {reference.summary.map((paragraph) => (
                     <p key={paragraph} className="text-muted-foreground text-xs leading-relaxed">
-                        <ReferenceProse text={paragraph} />
+                        <ProseText text={paragraph} />
                     </p>
                 ))}
-                <p className="text-muted-foreground text-xs">
-                    The long form is <span className="font-mono">{reference.reading}</span>.
-                </p>
+                {reference.reading !== null && (
+                    <p className="text-muted-foreground text-xs">
+                        The long form is{' '}
+                        <a
+                            href={reference.reading.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:text-foreground underline underline-offset-2"
+                        >
+                            {reference.reading.title}
+                        </a>{' '}
+                        in the published documentation.
+                    </p>
+                )}
             </div>
 
             {reference.sections.map((section) => (
@@ -189,7 +208,7 @@ function ReferenceBody({ reference }: { reference: LanguageReference }) {
                     </div>
                     {section.note !== undefined && (
                         <p className="text-muted-foreground text-xs leading-relaxed">
-                            <ReferenceProse text={section.note} />
+                            <ProseText text={section.note} />
                         </p>
                     )}
                     <dl className="grid gap-1.5">
@@ -197,7 +216,7 @@ function ReferenceBody({ reference }: { reference: LanguageReference }) {
                             <div key={entry.name} className="grid gap-0.5">
                                 <dt className="font-mono text-xs break-words">{entry.name}</dt>
                                 <dd className="text-muted-foreground text-xs leading-relaxed">
-                                    <ReferenceProse text={entry.meaning} />
+                                    <ProseText text={entry.meaning} />
                                 </dd>
                             </div>
                         ))}
@@ -205,28 +224,5 @@ function ReferenceBody({ reference }: { reference: LanguageReference }) {
                 </section>
             ))}
         </div>
-    )
-}
-
-/**
- * One line of reference prose, with the spellings it marks as a machine's set in the mono face.
- *
- * The entries are data and stay data, so a function name inside a sentence arrives marked rather
- * than as an element - see `lib/reference.ts`. This is where the mark becomes a face: without it,
- * every backtick in the panel would be a character on the screen instead of a change of type.
- */
-function ReferenceProse({ text }: { text: string }) {
-    return (
-        <>
-            {proseRuns(text).map((run, position) =>
-                run.code ? (
-                    <code key={`${String(position)}:${run.text}`} className="font-mono">
-                        {run.text}
-                    </code>
-                ) : (
-                    <span key={`${String(position)}:${run.text}`}>{run.text}</span>
-                ),
-            )}
-        </>
     )
 }

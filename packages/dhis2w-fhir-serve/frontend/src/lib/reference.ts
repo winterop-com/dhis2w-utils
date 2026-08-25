@@ -42,6 +42,24 @@ export interface ReferenceSection {
     entries: ReferenceEntry[]
 }
 
+/**
+ * Where the long form of one language lives, for a reader who wants the whole argument.
+ *
+ * A PUBLISHED PAGE AND NOT A FILE PATH. This panel is read in a browser, by somebody who may never
+ * have seen this repository - `docs/fhir/501-fhirpath.md` set in mono is a string such a reader
+ * cannot open, cannot search for, and has no reason to recognise. The documentation site is where
+ * that page actually is, so the panel names the page and links to it.
+ */
+export interface ReferenceReading {
+    /** The page's own title, as the documentation's own navigation names it. */
+    title: string
+    /** The published page, which is an address a browser can follow. */
+    url: string
+}
+
+/** Where this project's documentation is published, which is the site every reading below is on. */
+export const DOCUMENTATION_SITE = 'https://winterop-com.github.io/dhis2w-utils/'
+
 /** One language's reference: what it is, how it answers, and the shelves. */
 export interface LanguageReference {
     /** The language's own name, as its community writes it. */
@@ -49,8 +67,15 @@ export interface LanguageReference {
     /** What the language is, in the two or three sentences a reader needs before the first example. */
     summary: string[]
     sections: ReferenceSection[]
-    /** Where the long form lives, for a reader who wants the whole argument. */
-    reading: string
+    /**
+     * The published page that is the long form, or null when no page is about this language.
+     *
+     * ELM is the null one, and stating nothing is the honest answer for it: the documentation has a
+     * FHIRPath page and a CQL page, and the third page a reader might be sent to is about the FHIR
+     * version binding rather than about ELM. A link whose page turns out to be about something else
+     * costs a reader more than an absent sentence does.
+     */
+    reading: ReferenceReading | null
 }
 
 /**
@@ -213,7 +238,7 @@ const FHIRPATH_REFERENCE: LanguageReference = {
             ],
         },
     ],
-    reading: 'docs/fhir/501-fhirpath.md',
+    reading: { title: 'FHIRPath', url: `${DOCUMENTATION_SITE}fhir/501-fhirpath/` },
 }
 
 /**
@@ -372,7 +397,7 @@ const CQL_REFERENCE: LanguageReference = {
             ],
         },
     ],
-    reading: 'docs/fhir/501-cql.md',
+    reading: { title: 'CQL', url: `${DOCUMENTATION_SITE}fhir/501-cql/` },
 }
 
 /**
@@ -456,7 +481,7 @@ const ELM_REFERENCE: LanguageReference = {
             ],
         },
     ],
-    reading: 'docs/fhir/501-version-binding.md',
+    reading: null,
 }
 
 /** The reference for one language. */
