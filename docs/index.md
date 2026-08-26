@@ -38,7 +38,7 @@ Plus `infra/`, a docker-compose stack for running a local DHIS2 instance with pr
 
 ## Capability matrix
 
-The generated [MCP reference](mcp-reference.md) currently reports around 304 tools across 13 plugin groups (the auto-regenerated count is the source of truth; the per-group numbers below age with each release). 18 top-level CLI domains. Every MCP tool accepts an optional `profile: str | None` kwarg so an agent can target any configured profile per call. Most operational read/write commands ship as both a CLI command and a matching MCP tool sharing one typed service call. A few surfaces are intentionally CLI-only — they involve local-machine state, interactive prompts, or out-of-process subprocesses that don't fit the MCP stdio model:
+The generated [MCP reference](mcp-reference.md) currently reports around 318 tools across 16 plugin groups (the auto-regenerated count is the source of truth; the per-group numbers below age with each release). 20 top-level CLI domains. Every MCP tool accepts an optional `profile: str | None` kwarg so an agent can target any configured profile per call. Most operational read/write commands ship as both a CLI command and a matching MCP tool sharing one typed service call. A few surfaces are intentionally CLI-only — they involve local-machine state, interactive prompts, or out-of-process subprocesses that don't fit the MCP stdio model:
 
 - **`d2w dev`** — codegen, sample-fixture generation, ad-hoc UID minting. Local developer workflow; not exposed via MCP.
 - **`d2w browser`** — Playwright-driven PAT mint, OIDC login, dashboard / viz / map screenshots. Runs Chromium out-of-process; not exposed via MCP.
@@ -56,7 +56,7 @@ The generated [MCP reference](mcp-reference.md) currently reports around 304 too
 | Maintenance (tasks, cache, cleanup, data integrity, validation, predictors) | `d2w maintenance` | 15 | [Maintenance plugin](architecture/maintenance-plugin.md) |
 | Files (documents + file resources) | `d2w files` | 5 | [Files plugin](architecture/files-plugin.md) |
 | Messaging (`/api/messageConversations` + ticket-workflow fields) | `d2w messaging` | 11 | [Messaging plugin](architecture/messaging-plugin.md) |
-| User admin (users, user-groups, user-roles, sharing) | `d2w user` + `d2w user-group` + `d2w user-role` | 16 | [User plugin](architecture/user-plugin.md) / [User groups + roles](architecture/user-groups-and-roles.md) |
+| User admin (users, groups, roles, sharing) | `d2w user` + `d2w user group` + `d2w user role` | 16 | [User plugin](architecture/user-plugin.md) / [User groups + roles](architecture/user-groups-and-roles.md) |
 | Customize (login page / logos / CSS / system settings) | `d2w customize` | 7 | [Customize plugin](architecture/customize-plugin.md) |
 | Apps (`/api/apps` + `/api/appHub` + snapshot/restore) | `d2w apps` | 13 | [Apps API](api/apps.md) |
 | Doctor (BUGS tripwires + integrity checks + metadata health) | `d2w doctor` | 4 | [Doctor plugin](architecture/doctor-plugin.md) |
