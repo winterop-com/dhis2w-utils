@@ -1591,6 +1591,43 @@ export function formBlocks(
     return blocks
 }
 
+/** One first-dimension value's slice of a two-dimensional cut: its heading and its columns. */
+export interface DisaggregationFacet {
+    heading: string
+    indices: number[]
+    labels: string[]
+}
+
+/**
+ * The columns of a two-dimensional cut, sliced by their first dimension - or null when they are not one.
+ *
+ * The split holds only when every label carries the same comma-spelled shape and every first-dimension
+ * value repeats the same ordered suffixes, because a slice that dropped or reordered a column would be
+ * a different form wearing the same heading. Fewer than eight columns stay one table: the split earns
+ * its extra headings only where a single table would side-scroll.
+ */
+export function splitByFirstDimension(columns: DisaggregationColumn[]): DisaggregationFacet[] | null {
+    if (columns.length < 8) return null
+    const facets: DisaggregationFacet[] = []
+    for (const [index, column] of columns.entries()) {
+        const split = column.label.indexOf(', ')
+        if (split === -1) return null
+        const head = column.label.slice(0, split)
+        const tail = column.label.slice(split + 2)
+        const facet = facets.find((candidate) => candidate.heading === head)
+        if (facet === undefined) {
+            facets.push({ heading: head, indices: [index], labels: [tail] })
+        } else {
+            facet.indices.push(index)
+            facet.labels.push(tail)
+        }
+    }
+    if (facets.length < 2) return null
+    const shape = facets[0].labels.join('')
+    if (facets.some((facet) => facet.labels.join('') !== shape)) return null
+    return facets
+}
+
 /** The enabled cells of one group, in document order - the answers one table row holds. */
 export function disaggregationCells(
     spec: QuestionnaireSpec,

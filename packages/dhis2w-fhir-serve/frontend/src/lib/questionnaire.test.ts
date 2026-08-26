@@ -69,6 +69,7 @@ import {
     repeatsPerEnrollment,
     reportingPeriodTypeOf,
     formBlocks,
+    splitByFirstDimension,
     type AnswerState,
     type FormBlock,
     type FormKeyPress,
@@ -2459,5 +2460,36 @@ describe('the box a numeric question is filled in through', () => {
     it('states which keypad a touch device offers, since the type no longer says', () => {
         expect(numericInputShape('integer').inputMode).toBe('numeric')
         expect(numericInputShape('decimal').inputMode).toBe('decimal')
+    })
+})
+
+describe('a two-dimensional cut split by its first dimension', () => {
+    const column = (label: string) => ({ label, code: null })
+
+    it('slices eight comma-labelled combos into one facet per first value', () => {
+        const facets = splitByFirstDimension(
+            ['Female, under 15y', 'Female, 15-24y', 'Female, 25-49y', 'Female, over 49y',
+             'Male, under 15y', 'Male, 15-24y', 'Male, 25-49y', 'Male, over 49y'].map(column),
+        )
+        expect(facets?.map((facet) => facet.heading)).toEqual(['Female', 'Male'])
+        expect(facets?.[0].labels).toEqual(['under 15y', '15-24y', '25-49y', 'over 49y'])
+        expect(facets?.[1].indices).toEqual([4, 5, 6, 7])
+    })
+
+    it('keeps a narrow cut as one table', () => {
+        expect(splitByFirstDimension(['0-11m', '12-59m', '5-14y', '15y+'].map(column))).toBeNull()
+    })
+
+    it('refuses a cut whose facets do not repeat the same suffixes', () => {
+        const facets = splitByFirstDimension(
+            ['Female, under 15y', 'Female, 15-24y', 'Female, 25-49y', 'Female, over 49y',
+             'Male, under 15y', 'Male, 15-24y', 'Male, 25-49y', 'Male, 50y+'].map(column),
+        )
+        expect(facets).toBeNull()
+    })
+
+    it('refuses labels that carry no second dimension', () => {
+        const labels = Array.from({ length: 8 }, (_, index) => `Band ${String(index)}`)
+        expect(splitByFirstDimension(labels.map(column))).toBeNull()
     })
 })
