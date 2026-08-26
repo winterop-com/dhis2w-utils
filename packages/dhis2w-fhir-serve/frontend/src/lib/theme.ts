@@ -31,7 +31,7 @@
  */
 
 /** The name one theme is stored and written under: its `data-theme` value and its localStorage value. */
-export type ThemeName = 'clinical' | 'indigo' | 'paper' | 'contrast' | 'terminal'
+export type ThemeName = 'clinical'
 
 /** One theme: what it is called on screen, and what it looks like. */
 export interface Theme {
@@ -45,39 +45,16 @@ export interface Theme {
 /**
  * Every theme, in the order a picker offers them.
  *
- * Clinical first because it is what an app that has never been told anything is painted in. The
- * three after it are quiet - they change the ground and the identity hue and nothing about how much
- * colour the surface spends - and the two at the end are the ones with an argument: Contrast pushes
- * text and surface as far apart as the tokens go, and Terminal is a deliberate piece of character.
- *
- * THE ORDER IS NOT A RANKING. It is quiet-to-loud, so somebody scanning the list meets the ones that
- * look like the app they already have before the ones that do not.
+ * One today: Clinical, the palette the app is painted in when it has been told nothing. The list
+ * stays a list because designed themes are planned - a new one is a row here, a block pair in
+ * index.css, and a name in index.html's pre-paint script, with nothing else learning of it. The
+ * pickers hide themselves while there is nothing to pick between.
  */
 export const THEMES: Theme[] = [
     {
         name: 'clinical',
         label: 'Clinical',
         hint: 'Near-achromatic surfaces and one clinical blue. The default.',
-    },
-    {
-        name: 'indigo',
-        label: 'Indigo',
-        hint: 'Deep blue surfaces under a violet identity.',
-    },
-    {
-        name: 'paper',
-        label: 'Paper',
-        hint: 'Warm surfaces and an ink blue, the way a printed form reads.',
-    },
-    {
-        name: 'contrast',
-        label: 'Contrast',
-        hint: 'The widest separation this app has between text and the surface under it.',
-    },
-    {
-        name: 'terminal',
-        label: 'Terminal',
-        hint: 'Phosphor green, and a ground to match.',
     },
 ]
 

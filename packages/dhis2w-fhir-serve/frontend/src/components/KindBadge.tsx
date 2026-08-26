@@ -38,7 +38,7 @@ export const NO_FORM_KIND_LABEL = 'No form kind'
  * be standing on.
  *
  * The palette is `--kind-*` in index.css, derived once from the semantic layer rather than declared
- * per theme, so the five tints follow whichever of the five themes is painted and stay legible on
+ * per theme, so the five tints follow whichever theme is painted and stay legible on
  * both grounds. `data-form-kind` carries the `FormType` code verbatim, which is what lets
  * lib/theme.test.ts check that every kind this app has is a kind the stylesheet paints.
  */

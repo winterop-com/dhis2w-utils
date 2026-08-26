@@ -1522,6 +1522,13 @@ described, and the git history is where it was built. What is left:
   attributes, value types, and option-set canonicals). Both are designed;
   each is its own slice.
 
+- **Designed themes for the capture UI.** The app ships one palette in light
+  and dark; the theme machinery - one CSS block pair, one list row, one
+  pre-paint name - waits for themes designed as themes rather than grown as
+  variants. Candidates already argued: the warm paper surface, the amber
+  selection thread, and the ultra-clean high-contrast look. Design them on the
+  canvas, judge them against real pages, and land each as one block pair.
+
 - **The capture UI's parked vocabulary.** Settle the nav labels, the lifecycle
   labels, and the application's own name; the options are written, and the
   picks are the owner's.
