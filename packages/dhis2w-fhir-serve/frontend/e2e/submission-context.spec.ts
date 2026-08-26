@@ -102,6 +102,12 @@ async function storedResponse(request: APIRequestContext, receiptId: string): Pr
 test('an edited visit date is the date the stored event carries', async ({ page, request }) => {
     await openForm(page, EVENT_FORM)
 
+    // Answered first, because a response carrying no answer records nothing and Submit refuses
+    // one. The context these specs are about is edited after the draw, which is the order a person
+    // works in anyway.
+    await page.getByRole('button', { name: 'Fill with test data' }).click()
+    await expect(page.getByText('Filled with test data')).toBeVisible()
+
     // The draft dates the submission, so the control arrives answered - editing it is a correction
     // rather than an entry, which is what makes a capture of last Tuesday's visit possible at all.
     const visitDate = page.getByLabel('Visit date')
@@ -122,6 +128,12 @@ test('an edited reporting period is captured as the identifier, with no range cl
     request,
 }) => {
     await openForm(page, AGGREGATE_FORM)
+
+    // Answered first, because a response carrying no answer records nothing and Submit refuses
+    // one. The context these specs are about is edited after the draw, which is the order a person
+    // works in anyway.
+    await page.getByRole('button', { name: 'Fill with test data' }).click()
+    await expect(page.getByText('Filled with test data')).toBeVisible()
 
     const period = page.getByLabel('Reporting period')
     await expect(period).toBeVisible()
@@ -182,6 +194,12 @@ test('an edited reporting period is captured as the identifier, with no range cl
 test('a period chosen from the recent months is the identifier the receipt carries', async ({ page, request }) => {
     await openForm(page, AGGREGATE_FORM)
 
+    // Answered first, because a response carrying no answer records nothing and Submit refuses
+    // one. The context these specs are about is edited after the draw, which is the order a person
+    // works in anyway.
+    await page.getByRole('button', { name: 'Fill with test data' }).click()
+    await expect(page.getByText('Filled with test data')).toBeVisible()
+
     const period = page.getByLabel('Reporting period')
     await period.click()
     // Thirteen months, and the way to type any other period.
@@ -214,6 +232,12 @@ test('an edited enrollment date is the date the stored enrollment begins', async
     if (formId === null) return
 
     await openForm(page, formId)
+
+    // Answered first, because a response carrying no answer records nothing and Submit refuses
+    // one. The context these specs are about is edited after the draw, which is the order a person
+    // works in anyway.
+    await page.getByRole('button', { name: 'Fill with test data' }).click()
+    await expect(page.getByText('Filled with test data')).toBeVisible()
 
     // The programme's own word for the date, off `d2-date-labels` - this fixture's instance calls
     // it "Date first seen", and a control headed anything else would be this screen's word for a
@@ -257,11 +281,20 @@ test.describe('the organisation unit a browser tab keeps', () => {
         await openForm(page, UNSCOPED_FORM)
 
         const unrestricted = page.getByLabel('Reporting from')
-        await expect(page.getByText('The chosen organisation unit is kept for this browser tab')).toBeVisible()
+        // Nothing has been chosen in this tab yet, so the control says what it is holding: the
+        // server's draw, not a kept choice.
+        await expect(page.getByText('Nothing has been chosen here yet')).toBeVisible()
+        await expect(
+            page.getByText('The chosen organisation unit is kept for this browser tab'),
+        ).toHaveCount(0)
         await unrestricted.click()
         await page.getByPlaceholder('Search by name, UID, or code').fill('bombali')
         await page.getByRole('option', { name: new RegExp(`^${OUTSIDE_UNIT}\\b`) }).click()
         await expect(unrestricted).toContainText(OUTSIDE_UNIT)
+        // And once it is a choice, it says it is kept.
+        await expect(
+            page.getByText('The chosen organisation unit is kept for this browser tab'),
+        ).toBeVisible()
 
         // The scoped form is assigned to two units, and Bombali is neither.
         await openForm(page, SCOPED_FORM)

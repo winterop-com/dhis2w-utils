@@ -19,6 +19,7 @@ import type { QuestionnaireResponse } from '@/lib/fhir'
 import type { OrgUnitChoice } from '@/lib/orgunits'
 import type { ProgramRule } from '@/lib/questionnaire'
 import {
+    namedCaptureWarning,
     rejectionRuleName,
     type ReceiptAnswerRow,
     type ReceiptAnswerValue,
@@ -34,6 +35,7 @@ import {
     type SpoolResponseSummary,
     type SpoolWithdrawal,
 } from '@/lib/spool'
+import { formatCount } from '@/lib/utils'
 
 /**
  * One receipt in full: what it answered, the DHIS2 context it carries, and what became of it.
@@ -89,16 +91,18 @@ export function ReceiptSections({ record }: { record: ReceiptRecordState }) {
                         <section className="space-y-2">
                             <h3 className="flex items-center gap-2 text-base font-semibold">
                                 <TriangleAlert className="text-status-refused size-4" aria-hidden />
-                                Warnings recorded on capture
+                                Warnings
+                                <span className="text-muted-foreground font-normal tabular-nums">
+                                    {formatCount(summary.warnings.length)}
+                                </span>
                             </h3>
-                            {/* The validator quotes link ids and elements with backtick marks, and a
-                                mark is a change of typeface rather than a character on the screen -
-                                so every server-authored sentence here goes through ProseText. */}
                             <ul className="text-muted-foreground space-y-1 bg-card rounded-lg border p-4 text-sm">
                                 {summary.warnings.map((warning) => (
-                                    <li key={warning}>
-                                        <ProseText text={warning} />
-                                    </li>
+                                    <CaptureWarning
+                                        key={warning}
+                                        warning={warning}
+                                        questions={record.questions}
+                                    />
                                 ))}
                             </ul>
                         </section>
@@ -136,6 +140,38 @@ export function ReceiptSections({ record }: { record: ReceiptRecordState }) {
                 </div>
             )}
         </PageState>
+    )
+}
+
+/**
+ * One capture warning, in the form's own words, with the link ids it quoted beside it.
+ *
+ * The validator speaks in link ids because a link id is the only handle it has; a person reading a
+ * receipt knows the question. So the sentence is rendered with each link id the served form knows
+ * replaced by the question's own text, and the uid follows as a chip - it is the string to search
+ * DHIS2 or a log line with, and it is no longer standing in for a question. `namedCaptureWarning`
+ * makes that substitution; everything the validator marked as a machine spelling and this UI could
+ * not name stays in the mono face `ProseText` gives it.
+ */
+function CaptureWarning({
+    warning,
+    questions,
+}: {
+    warning: string
+    questions: ReadonlyMap<string, string>
+}) {
+    const named = namedCaptureWarning(warning, questions)
+    return (
+        <li className="flex flex-wrap items-baseline gap-x-2">
+            <span>
+                <ProseText text={named.text} />
+            </span>
+            {named.linkIds.map((linkId) => (
+                <span key={linkId} className="machine-identifier shrink-0 text-[10px]">
+                    {linkId}
+                </span>
+            ))}
+        </li>
     )
 }
 
@@ -212,7 +248,7 @@ function ReceiptFacts({
                 <Fact label="Receipt ID" value={stored.id ?? '-'} mono />
                 <Fact
                     label="Answers"
-                    value={summary === null ? '-' : String(summary.answer_count)}
+                    value={summary === null ? '-' : formatCount(summary.answer_count)}
                     mono
                 />
                 {seed !== null && (
@@ -271,7 +307,7 @@ function AnswersSection({
                         here.
                     </p>
                 </div>
-                <p className="text-muted-foreground text-xs">{rows.length} answered</p>
+                <p className="text-muted-foreground text-xs">{formatCount(rows.length)} answered</p>
             </div>
 
             {formMissing && (
@@ -418,9 +454,9 @@ function RejectionSection({ rejection, rules }: { rejection: SpoolRejection; rul
             <p className="text-muted-foreground text-sm">{rejectionSummary(rejection)}</p>
             <dl className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 bg-card rounded-lg border p-4 text-xs sm:grid-cols-4">
                 <Fact label="Status" value={rejection.status ?? 'not stated'} />
-                <Fact label="Created" value={String(rejection.created)} />
-                <Fact label="Updated" value={String(rejection.updated)} />
-                <Fact label="Ignored" value={String(rejection.ignored)} />
+                <Fact label="Created" value={formatCount(rejection.created)} />
+                <Fact label="Updated" value={formatCount(rejection.updated)} />
+                <Fact label="Ignored" value={formatCount(rejection.ignored)} />
             </dl>
             {rejection.issues.length > 0 && (
                 <div className="show-scrollbars bg-card overflow-x-auto rounded-lg border">
@@ -483,7 +519,7 @@ function RefusalSection({ refusal }: { refusal: SpoolRefusal }) {
                 Still queued for DHIS2.{' '}
                 {refusal.attempt_count === 1
                     ? 'One forward run has'
-                    : `${String(refusal.attempt_count)} forward runs have`}{' '}
+                    : `${formatCount(refusal.attempt_count)} forward runs have`}{' '}
                 refused to send it, most recently at {formatInstant(refusal.refused_at)}. The next
                 forward run tries again.
             </p>
@@ -543,7 +579,7 @@ function WithdrawalSection({ withdrawal }: { withdrawal: SpoolWithdrawal }) {
             <dl className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 bg-card rounded-lg border p-4 text-xs sm:grid-cols-3">
                 <Fact label="Event" value={withdrawal.event_uid} mono />
                 <Fact label="Status" value={withdrawal.status ?? 'not stated'} />
-                <Fact label="Deleted" value={String(withdrawal.deleted)} />
+                <Fact label="Deleted" value={formatCount(withdrawal.deleted)} />
             </dl>
         </section>
     )

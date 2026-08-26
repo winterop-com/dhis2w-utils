@@ -7,8 +7,9 @@ import { usePatientEnrollments } from '@/hooks/use-patient-enrollments'
 import type { RegisterSearchSupport } from '@/hooks/use-register-search-support'
 import { useTrackedEntityNaming } from '@/hooks/use-tracked-entity-naming'
 import { personCardValues } from '@/lib/enrollments'
-import type { PatientProjection } from '@/lib/patients'
+import { trackedEntityTypeLabel, type PatientProjection } from '@/lib/patients'
 import { TRACKED_ENTITY_FACT_LABEL } from '@/lib/spool'
+import { registerWords, subjectOfTypeName } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
 /** The two things a registration submission can be about, as the control names them. */
@@ -19,16 +20,22 @@ const NEW_PERSON_ID = 'person-source-new'
 const INSTANCE_PERSON_ID = 'person-source-instance'
 
 /**
- * The reason every entity-level question is unanswerable once a person is chosen.
+ * The reason every entity-level question is unanswerable once a subject is chosen.
  *
- * Exported so the form states it once here and marks each locked question with the short form,
- * rather than two components paraphrasing the same rule at each other.
+ * Stated once here and marked on each locked question in the short form, rather than two components
+ * paraphrasing the same rule at each other. The type's own word rides it, because a register of
+ * focus areas is a register of focus areas on this line as much as on the legend above it.
  */
-export const EXISTING_PERSON_LOCK_REASON =
-    "This DHIS2 instance already holds this person's record, so the questions that would change it are read-only and cleared. An answer to one of them is refused on import - change it on the person's record in the instance, or register a new person instead."
+export function existingSubjectLockReason(one: string): string {
+    return (
+        `This DHIS2 instance already holds this record, so the questions that would change it are ` +
+        `read-only and cleared. An answer to one of them is refused on import - change it on the ` +
+        `record in the instance, or register a new ${one} instead.`
+    )
+}
 
 /** What each locked question says on its own, since the whole reason is stated once above. */
-export const EXISTING_PERSON_QUESTION_NOTE = 'Not asked for a person this DHIS2 instance already holds'
+export const EXISTING_PERSON_QUESTION_NOTE = 'Not asked for a record this DHIS2 instance already holds'
 
 /**
  * Who a registration is about: a new person, or one this DHIS2 instance already holds.
@@ -56,6 +63,7 @@ export function PersonPicker({
     support,
     source,
     resource,
+    trackedEntityTypeUid,
     chosen,
     onChange,
 }: {
@@ -63,25 +71,40 @@ export function PersonPicker({
     source: PersonSource
     /** The register resource type this form registers into - its `subjectType`. */
     resource: string
-    /** The person chosen out of the instance, or null when the source is a new person. */
+    /** The DHIS2 tracked entity type this form registers, which is what every word here follows. */
+    trackedEntityTypeUid: string | null
+    /** The subject chosen out of the instance, or null when the source is a new one. */
     chosen: PatientProjection | null
     onChange: (source: PersonSource, patient: PatientProjection | null) => void
 }) {
     const [searching, setSearching] = useState(false)
     const enrollments = usePatientEnrollments(chosen?.trackedEntityUid ?? null)
     const offersInstance = support === 'supported'
+    // THE TYPE DECIDES THE WORDS, exactly as it does on the register's own screens. A project that
+    // registers focus areas gets a panel about focus areas; the resource this form registers into is
+    // the FHIR projection of the type and says nothing about what the subject is - `Patient` is what
+    // a village is served as when R4 has no resource for one. `registerWords` is the same rule the
+    // listing, the row, and the quick view each read.
+    const naming = useTrackedEntityNaming()
+    const type = trackedEntityTypeLabel(naming.types, trackedEntityTypeUid)
+    const words = registerWords(
+        subjectOfTypeName(type !== null && !type.isMachineSpelling ? type.text : null),
+    )
+    // Sentence-initial, and the name is DHIS2's own string - so only the first letter is touched,
+    // and a name the instance already spells "Focus area" is left exactly as it spells it.
+    const subject = words.one.charAt(0).toUpperCase() + words.one.slice(1)
 
     return (
         <fieldset className="bg-card text-card-foreground grid gap-2 rounded-lg border p-4">
-            <legend className="px-1 text-sm font-medium">Person</legend>
+            <legend className="px-1 text-sm font-medium">{subject}</legend>
             {/* The second sentence is about the other option, so it is on screen exactly when that
-                option is - a panel that described finding a person and then said it cannot be done
+                option is - a panel that described finding a subject and then said it cannot be done
                 here was promising a capability the next line took back. */}
             <p className="text-muted-foreground text-sm">
-                Who this registration is about. A new person is given the identifiers this server
-                mints.
+                Who this registration is about. A new {words.one} is given the identifiers this
+                server mints.
                 {offersInstance &&
-                    ' A person this DHIS2 instance already holds keeps the identifiers the instance has for them.'}
+                    ` A ${words.one} this DHIS2 instance already holds keeps the identifiers the instance already has.`}
             </p>
 
             <div className="grid gap-2">
@@ -98,7 +121,7 @@ export function PersonPicker({
                         }}
                     />
                     <label htmlFor={NEW_PERSON_ID} className="text-sm">
-                        New person
+                        New {words.one}
                     </label>
                 </div>
                 {offersInstance && (
@@ -123,7 +146,7 @@ export function PersonPicker({
 
             {support === 'absent' && (
                 <p className="text-muted-foreground text-xs">
-                    This server publishes no search over this form's register, so a person the
+                    This server publishes no search over this form's register, so a {words.one} the
                     DHIS2 instance already holds cannot be found from here.
                 </p>
             )}
@@ -145,10 +168,12 @@ export function PersonPicker({
                     <ChosenPerson person={chosen} />
                     <div>
                         <Button type="button" variant="outline" size="sm" onClick={() => setSearching(true)}>
-                            Choose a different person
+                            Choose a different {words.one}
                         </Button>
                     </div>
-                    <p className="text-muted-foreground text-xs">{EXISTING_PERSON_LOCK_REASON}</p>
+                    <p className="text-muted-foreground text-xs">
+                        {existingSubjectLockReason(words.one)}
+                    </p>
                     <PatientEnrollmentList state={enrollments} />
                 </div>
             )}

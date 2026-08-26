@@ -30,7 +30,7 @@ import {
     type OrgUnitBrowseNode,
     type OrgUnitChoice,
 } from '@/lib/orgunits'
-import { cn } from '@/lib/utils'
+import { cn, formatCount } from '@/lib/utils'
 
 /**
  * How many rows the list draws before it asks for a narrower search.
@@ -569,7 +569,7 @@ function NothingOffered({ scope }: { scope: OrgUnitScope }) {
     return (
         <p className="text-muted-foreground border-border rounded-lg border border-dashed px-2.5 py-2 text-xs">
             {scope.restricted && scope.registryTotal > 0 ? (
-                `This form's organisation-unit assignment names no organisation unit this project publishes, so there is nothing to report from - the registry holds ${String(scope.registryTotal)}. A capture outside the form's assigned organisation units is refused when it reaches this DHIS2 instance.`
+                `This form's organisation-unit assignment names no organisation unit this project publishes, so there is nothing to report from - the registry holds ${formatCount(scope.registryTotal)}. A capture outside the form's assigned organisation units is refused when it reaches this DHIS2 instance.`
             ) : (
                 <>
                     This project publishes no organisation units, so there is nothing to report

@@ -89,11 +89,11 @@ import { cn, formatCount } from '@/lib/utils'
 
 /** What this page says it holds when every tracked entity type it serves is published as a person. */
 export const PEOPLE_PAGE_DESCRIPTION =
-    'The people this DHIS2 instance holds, read when this page opens - one person is one DHIS2 tracked entity.'
+    'The people this DHIS2 instance holds. One row is one DHIS2 tracked entity.'
 
 /** What it says when the instance tracks something this project does not publish as a person. */
 export const REGISTER_PAGE_DESCRIPTION =
-    'What this DHIS2 instance tracks, read when this page opens - one row is one DHIS2 tracked entity.'
+    'What this DHIS2 instance tracks. One row is one DHIS2 tracked entity.'
 
 /**
  * What this page is.
@@ -204,7 +204,7 @@ export function TrackedEntities() {
 
 /** What this page is for, on a run that does not serve it - which is a fact about the page, not this run. */
 export const REGISTER_NOT_SERVED_DESCRIPTION =
-    'What a DHIS2 instance tracks is read here, on a run that reaches one.'
+    'What a DHIS2 instance tracks. This server reaches none, so there is nothing here to search.'
 
 /** What a screen says while it is still asking this server why it does not serve the register. */
 export const REGISTER_REFUSAL_PENDING = 'Asking this server why it does not answer for the register'
@@ -538,7 +538,7 @@ function RegisterSection({
                     onOpen={open}
                 />
                 <Paging
-                    line={words.paging(page.people.length, page.total)}
+                    line={leads ? null : words.paging(page.people.length, page.total)}
                     hasPrevious={page.previous !== null}
                     hasNext={page.next !== null}
                     onPrevious={showPrevious}
@@ -970,8 +970,9 @@ function RegisterTable({
             </div>
             {columns.hidden > 0 && (
                 <p className="text-muted-foreground text-xs">
-                    This table shows {shown} of the {shown + columns.hidden} attributes these records
-                    hold. Open a row for all of them.
+                    This table shows {formatCount(shown)} of the{' '}
+                    {formatCount(shown + columns.hidden)} attributes these records hold. Open a row
+                    for all of them.
                 </p>
             )}
         </div>
@@ -1105,16 +1106,28 @@ function Paging({
     onPrevious,
     onNext,
 }: {
-    /** What this page holds out of what the instance stated, already worded for what the section is. */
-    line: string
+    /**
+     * What this page holds out of what the instance stated, or null where the bar already says it.
+     *
+     * The summary bar speaks for the first section on the page, in these same words - and a section
+     * that repeated them three lines above the bar was one sentence stacked on itself. The other
+     * sections are counted here, because the bar has room for one of them.
+     */
+    line: string | null
     hasPrevious: boolean
     hasNext: boolean
     onPrevious: () => void
     onNext: () => void
 }) {
+    // NOTHING WHERE THERE IS NOWHERE TO GO. A pair of dead buttons under a table that holds
+    // everything the instance has says there are more pages and then refuses to open one. Where the
+    // section also has no line of its own to state, the row goes entirely.
+    if (!hasPrevious && !hasNext) {
+        return line === null ? null : <p className="text-muted-foreground text-xs">{line}</p>
+    }
     return (
         <div className="flex flex-wrap items-center gap-3">
-            <p className="text-muted-foreground text-xs">{line}</p>
+            {line !== null && <p className="text-muted-foreground text-xs">{line}</p>}
             <div className="flex gap-2">
                 <Button variant="outline" size="sm" disabled={!hasPrevious} onClick={onPrevious}>
                     Previous

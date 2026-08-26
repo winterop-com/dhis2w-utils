@@ -22,6 +22,7 @@ import {
     formLabel,
     joinAnswersToQuestions,
     mergeContextFacts,
+    namedCaptureWarning,
     programRuleUidOf,
     rejectionRuleName,
     trackerContextFacts,
@@ -577,3 +578,50 @@ describe('merging the sources of capture context', () => {
         expect(mergeContextFacts()).toEqual([])
     })
 })
+
+/**
+ * A capture warning read in the form's words rather than in the validator's.
+ *
+ * The validator quotes link ids because a link id is the only handle it has. The person reading the
+ * receipt knows the question, so the served form is asked what each quoted id is called - and the
+ * uid comes back out as a chip rather than being dropped, because it is the string to search DHIS2
+ * with.
+ */
+describe('a capture warning', () => {
+    const questions = new Map([
+        ['eMyVanycQSC', 'Date of birth'],
+        ['GQY2lXrypjO', 'MCH Weight (g)'],
+    ])
+
+    it('says the question where the served form knows the link id, and keeps the uid beside it', () => {
+        const named = namedCaptureWarning(
+            '`eMyVanycQSC` is required by the form and was not answered',
+            questions,
+        )
+        expect(named.text).toBe('Date of birth is required by the form and was not answered')
+        expect(named.linkIds).toEqual(['eMyVanycQSC'])
+    })
+
+    it('names every link id one sentence quotes, in the order it quoted them', () => {
+        const named = namedCaptureWarning('`GQY2lXrypjO` and `eMyVanycQSC` disagree', questions)
+        expect(named.text).toBe('MCH Weight (g) and Date of birth disagree')
+        expect(named.linkIds).toEqual(['GQY2lXrypjO', 'eMyVanycQSC'])
+    })
+
+    it('leaves a link id the form no longer states exactly as the validator wrote it', () => {
+        // A guide recompiled since the capture is ordinary, and a name this UI cannot vouch for
+        // would be worse than the uid the validator quoted.
+        const named = namedCaptureWarning('`NoSuchLink` is required by the form', questions)
+        expect(named.text).toBe('`NoSuchLink` is required by the form')
+        expect(named.linkIds).toEqual([])
+    })
+
+    it('leaves every other marked spelling marked, so paths and elements keep the mono face', () => {
+        const named = namedCaptureWarning(
+            'The element `QuestionnaireResponse.item` states nothing',
+            questions,
+        )
+        expect(named.text).toBe('The element `QuestionnaireResponse.item` states nothing')
+    })
+})
+

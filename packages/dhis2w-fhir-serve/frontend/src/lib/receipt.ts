@@ -93,6 +93,43 @@ export function rejectionRuleName(issue: SpoolRejectionIssue, rules: ProgramRule
 /** How DHIS2 spells the rule inside an `E1300` message - a backquoted uid after `ProgramRule`. */
 const PROGRAM_RULE_MESSAGE_PATTERN = /ProgramRule\s*\(\s*`?([A-Za-z][A-Za-z0-9]{10})`?\s*\)/
 
+/** One capture warning, with the questions it named read back as the form asks them. */
+export interface NamedCaptureWarning {
+    /** The validator's own sentence, with each recognised link id replaced by its question text. */
+    text: string
+    /** The link ids the sentence named, in the order it named them - kept beside it as chips. */
+    linkIds: string[]
+}
+
+/**
+ * One capture warning with its link ids named.
+ *
+ * THE UID IS NOT THE QUESTION. The capture validator quotes the link id it is speaking about -
+ * "`eMyVanycQSC` is required by the form and was not answered" - because a link id is the only
+ * handle it has: it validates a document against a profile and never reads the form. The person
+ * opening the receipt did read the form, and what they need is "Date of birth". So the served
+ * Questionnaire is asked what each quoted link id is called, and the sentence is rendered in the
+ * form's own words.
+ *
+ * THE UID STAYS. It is the string to search a receipt, a log line, or DHIS2 itself for, and it
+ * moves out of the sentence into a chip of its own rather than being dropped. A link id the served
+ * form knows nothing about - a form recompiled since the capture - is left in the sentence exactly
+ * as the validator wrote it, because a name this UI cannot vouch for is worse than the uid.
+ */
+export function namedCaptureWarning(
+    warning: string,
+    questions: ReadonlyMap<string, string>,
+): NamedCaptureWarning {
+    const linkIds: string[] = []
+    const text = warning.replace(/`([^`]+)`/g, (quoted, inner: string) => {
+        const named = questions.get(inner)
+        if (named === undefined || named.trim() === '') return quoted
+        if (!linkIds.includes(inner)) linkIds.push(inner)
+        return named
+    })
+    return { text, linkIds }
+}
+
 /** One answered question of a receipt, joined to the question the form asks. */
 export interface ReceiptAnswerRow {
     linkId: string

@@ -156,11 +156,11 @@ export function OrgUnits() {
     const [query, setQuery] = useState('')
     const threePane = useThreePane()
     // The rail choice lives for this mount of the page and nowhere else - deliberately plain
-    // state, not storage: an inspector someone shut is not a standing preference the way the
-    // app sidebar's width is. It starts open only when the mount already has a selection - a
-    // `?unit=` deep link arrives selected and deserves the open rail; a plain visit starts with
-    // the tree and the map, and the rail opens when something is picked.
-    const [railOpen, setRailOpen] = useState(() => (parameters.get(UNIT_PARAM) ?? '') !== '')
+    // state, not storage: an inspector someone shut is not a standing preference the way the app
+    // sidebar's width is. It starts OPEN. The identifiers, the data sets, and the captures are what
+    // this page is for, and a wide viewport has the room for them - starting them folded behind an
+    // icon in a 2.5rem gutter made the page's own content something a reader had to go and find.
+    const [railOpen, setRailOpen] = useState(true)
     // The rail pane's collapse is owned by the panel so that the chevron and dragging the handle
     // shut agree; `railOpen` mirrors it (via onResize below) and survives breakpoint crossings.
     const railPanel = usePanelRef()
@@ -711,6 +711,17 @@ function InspectorRail({
         return (
             <aside aria-label="Organisation unit details" className="relative h-full">
                 <RailToggle open={false} railName="the organisation unit details" onToggle={onToggle} />
+                {/* THE FOLDED COLUMN SAYS WHAT IT HOLDS. A lone icon in an empty 2.5rem gutter is a
+                    control whose only label is a tooltip nobody hovers, and what it opens is most of
+                    what this page has to say about the selected organisation unit. Turned on its
+                    side because that is the only direction the column has room in; the button above
+                    it carries the same words as its accessible name, so this is for the eye. */}
+                <p
+                    aria-hidden
+                    className="text-muted-foreground absolute top-10 left-1/2 -translate-x-1/2 text-xs whitespace-nowrap [writing-mode:vertical-rl]"
+                >
+                    Organisation unit details
+                </p>
             </aside>
         )
     }
@@ -1062,7 +1073,7 @@ function FormCatalogSections({
                 // published assignment happens to leave out. Only the first may say "no forms".
                 emptyMessage={
                     published > 0
-                        ? `None of the ${String(published)} published ${published === 1 ? 'form' : 'forms'} is assigned to this organisation unit.`
+                        ? `None of the ${countedNoun(published, 'form')} published is assigned to this organisation unit.`
                         : 'Nothing is assigned here, and nothing is assigned everywhere either - which means this project publishes no forms at all.'
                 }
             >
@@ -1078,7 +1089,7 @@ function FormCatalogSections({
                             >
                                 Data sets
                                 <span className="text-muted-foreground ml-2 font-mono text-xs">
-                                    {catalog.dataSets.length}
+                                    {formatCount(catalog.dataSets.length)}
                                 </span>
                             </h4>
                             <ul className="space-y-1">
@@ -1102,7 +1113,7 @@ function FormCatalogSections({
                             >
                                 Programs
                                 <span className="text-muted-foreground ml-2 font-mono text-xs">
-                                    {catalog.programs.length}
+                                    {formatCount(catalog.programs.length)}
                                 </span>
                             </h4>
                             <ul className="space-y-2">
@@ -1125,7 +1136,7 @@ function FormCatalogSections({
                             >
                                 {TRACKED_ENTITY_FORM_SHELF}
                                 <span className="text-muted-foreground ml-2 font-mono text-xs">
-                                    {catalog.people.length}
+                                    {formatCount(catalog.people.length)}
                                 </span>
                             </h4>
                             <p className="text-muted-foreground text-xs">{TRACKED_ENTITY_FORM_SHELF_NOTE}</p>
@@ -1150,7 +1161,7 @@ function FormCatalogSections({
                             >
                                 Other forms
                                 <span className="text-muted-foreground ml-2 font-mono text-xs">
-                                    {catalog.other.length}
+                                    {formatCount(catalog.other.length)}
                                 </span>
                             </h4>
                             <ul className="space-y-1">
@@ -1168,7 +1179,7 @@ function FormCatalogSections({
 
                     {unresolvedAssignmentFormIds.length > 0 && (
                         <p className="text-muted-foreground text-xs">
-                            {unresolvedAssignmentFormIds.length} form
+                            {formatCount(unresolvedAssignmentFormIds.length)} form
                             {unresolvedAssignmentFormIds.length === 1 ? '' : 's'} name an assignment
                             List this server does not publish, and are read as assigned everywhere -
                             which is how the facade grades them too.
@@ -1354,7 +1365,7 @@ function CapturedHere({
             >
                 Captured here
                 {here.length > 0 && (
-                    <span className="text-muted-foreground ml-2 font-mono text-xs">{here.length}</span>
+                    <span className="text-muted-foreground ml-2 font-mono text-xs">{formatCount(here.length)}</span>
                 )}
             </h4>
             <PageState
@@ -1565,8 +1576,8 @@ function MapPanel({
  * DHIS2 keeps polygons and pins in one field.
  */
 function shapeCount(geometry: ReturnType<typeof readGeometry>): string {
-    const boundaries = `${String(geometry.boundaries.length)} ${geometry.boundaries.length === 1 ? 'boundary' : 'boundaries'}`
-    const points = `${String(geometry.points.length)} ${geometry.points.length === 1 ? 'point' : 'points'}`
+    const boundaries = `${formatCount(geometry.boundaries.length)} ${geometry.boundaries.length === 1 ? 'boundary' : 'boundaries'}`
+    const points = `${countedNoun(geometry.points.length, 'point')}`
     return `${boundaries}, ${points}`
 }
 

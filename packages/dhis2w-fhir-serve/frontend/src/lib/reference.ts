@@ -513,6 +513,24 @@ export function proseRuns(text: string): ProseRun[] {
         .filter((run) => run.text !== '')
 }
 
+/** How a fhir.toml setting is spelled where prose names one: a table in brackets, then its key. */
+const CONFIGURATION_KEY_PATTERN = /\[[a-z][a-z0-9_.]*\]\s+[a-z][a-z0-9_]*/g
+
+/**
+ * Server prose with the fhir.toml settings it names marked as the machine spellings they are.
+ *
+ * `[serve] auth` is a key somebody types into a file, and a sentence that sets it in the same face
+ * as the words around it asks the reader to notice a bracket. Most of the server's prose already
+ * marks its settings; this catches the ones written bare, and it never touches a run that is
+ * already marked - the mark is what decides the face, so marking a marked spelling would close its
+ * run early and set the rest of the sentence in mono.
+ */
+export function markConfigurationKeys(text: string): string {
+    return proseRuns(text)
+        .map((run) => (run.code ? `\`${run.text}\`` : run.text.replace(CONFIGURATION_KEY_PATTERN, '`$&`')))
+        .join('')
+}
+
 /** How many things a reference states, which is what a panel's own heading counts. */
 export function referenceEntryCount(reference: LanguageReference): number {
     return reference.sections.reduce((total, section) => total + section.entries.length, 0)

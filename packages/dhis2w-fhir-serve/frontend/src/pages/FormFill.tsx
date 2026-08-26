@@ -46,6 +46,7 @@ import {
     programOf,
     questionCount,
     registersAPerson,
+    trackedEntityTypeOf,
     trackerEnrollmentOf,
     type CodeSystem,
     type Coding,
@@ -96,6 +97,20 @@ import {
 import { cn, countedNoun, formatCount } from '@/lib/utils'
 
 /**
+ * Why Submit refuses a form nobody has answered.
+ *
+ * A QuestionnaireResponse carrying no answer is a valid document: the envelope names a real
+ * organisation unit, a real period, a real form, and the capture validator has nothing to object
+ * to. So it is stored, forwarded, and filed - and what it files is nothing at all, under a receipt
+ * that reads exactly like a capture somebody made. The empty submission is the one mistake this
+ * screen can see coming and the server cannot.
+ */
+export const NOTHING_ANSWERED_NOTICE = 'Answer at least one question before submitting'
+
+/** And why it refuses a form with nothing to answer, which is a fact about the form rather than a task. */
+export const FORM_ASKS_NOTHING_NOTICE = 'This form asks no questions, so there is nothing to submit'
+
+/**
  * One form, filled in and posted back.
  *
  * THE ENVELOPE IS THE SERVER'S, THE ANSWERS ARE THE USER'S. A capture-valid
@@ -118,7 +133,9 @@ import { cn, countedNoun, formatCount } from '@/lib/utils'
  * OperationOutcome is shown issue by issue above the action bar rather than flattened into a
  * toast that loses everything after the first line.
  *
- * TWO PIECES OF CONTEXT ARE THE USER'S, AND THEY ARE WHY SUBMIT IS EVER DISABLED. A data set on a
+ * TWO PIECES OF CONTEXT ARE THE USER'S, AND THEY ARE MOST OF WHY SUBMIT IS EVER DISABLED - the rest
+ * is an answer the form itself refuses and a form nobody has answered at all
+ * (`NOTHING_ANSWERED_NOTICE`). A data set on a
  * non-default category combo declares its attribute option combos as a vocabulary, and a response to
  * it has to name one - it is the third key of every value it carries, beside the organisation unit
  * and the period. Nothing derives it, not even the server, so it is picked above the form, the
@@ -201,6 +218,9 @@ export function FormFill() {
     const [attributeOptionCombo, setAttributeOptionCombo] = useState<Coding | null>(null)
     const [reportingUnit, setReportingUnit] = useState<Reference | null>(null)
     const [keptUnitNotAdmitted, setKeptUnitNotAdmitted] = useState(false)
+    // Whether the unit in the picker is somebody's choice or the server's draw. The two look
+    // identical in the control and mean different things under it - see `ReportingUnitPicker`.
+    const [reportingUnitChosen, setReportingUnitChosen] = useState(false)
     const [enrollment, setEnrollment] = useState<EnrollmentOption | null>(null)
     const [enrollmentSource, setEnrollmentSource] = useState<EnrollmentSource>('spool')
     const [personSource, setPersonSource] = useState<PersonSource>('new')
@@ -231,6 +251,9 @@ export function FormFill() {
         trackedEntitySettings(uiConfig),
     )
     const registerSearchSupport = useRegisterSearchSupport(registerResource)
+    // The DHIS2 tracked entity type this form registers, which is what the subject panel is worded
+    // from: the register resource is the FHIR projection and says nothing about what the subject is.
+    const registeredTypeUid = questionnaire === null ? null : trackedEntityTypeOf(questionnaire)
 
     // Applied whenever the offer lands or reloads: a person's choice is re-read so its lifecycle
     // badge catches up with a forwarder run, and before anyone chose, the default rule picks the
@@ -367,9 +390,13 @@ export function FormFill() {
     useEffect(() => {
         if (reportingUnit !== null || envelope === null || questionnaire === null) return
         if (orgUnitScope.loading || orgUnitScope.byId.size === 0) return
-        const opened = openedReportingUnit(null, envelope, questionnaire, keptReportingUnitId(), orgUnitScope.byId)
+        const kept = keptReportingUnitId()
+        const opened = openedReportingUnit(null, envelope, questionnaire, kept, orgUnitScope.byId)
         setReportingUnit(opened.unit)
         setKeptUnitNotAdmitted(opened.keptUnitNotAdmitted)
+        // A unit this tab kept and this form admits is the last choice somebody made, arriving
+        // again; anything else in the control is the draft's own draw.
+        setReportingUnitChosen(kept !== null && !opened.keptUnitNotAdmitted)
     }, [reportingUnit, envelope, questionnaire, orgUnitScope])
 
     const fillWithTestData = useCallback(() => {
@@ -488,11 +515,18 @@ export function FormFill() {
     // under the cursor, and a round trip spent being told what the form already says is a round trip
     // wasted. The fact is stated per question; nothing here instructs anyone what to type instead.
     const breaches = answerBreaches(spec, answers)
+    // The fourth, and the one that is about the submission being a submission at all. A response
+    // carrying no answer records nothing: DHIS2 takes it, files an empty payload under a real
+    // organisation unit and period, and the receipt reads as a capture that happened. A form that
+    // asks nothing cannot be answered at all, which is a different fact and is stated as itself.
+    const asksNothing = spec.questionLinkIds.length === 0
+    const nothingAnswered = !asksNothing && answered === 0
 
     const submit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         if (!receivesSubmissions) return
         if (busy || missingAttributeOptionCombo || unfitReportingPeriod || breaches.length > 0) return
+        if (asksNothing || nothingAnswered) return
         setBusy(true)
         setIssues([])
         try {
@@ -596,8 +630,10 @@ export function FormFill() {
                         declaresAttributeOptionCombo={attributeOptionCombos !== null}
                         selectedUnitId={referencedUnitId(reportingUnit)}
                         keptUnitNotAdmitted={keptUnitNotAdmitted}
+                        chosen={reportingUnitChosen}
                         onChange={(choice) => {
                             setReportingUnit(orgUnitReference(choice))
+                            setReportingUnitChosen(true)
                             // Kept from here on, so the next form this tab opens reports from it -
                             // and the mismatch this form may have stated is answered by the choice.
                             keepReportingUnitId(choice.id)
@@ -635,6 +671,7 @@ export function FormFill() {
                             support={registerSearchSupport}
                             source={personSource}
                             resource={registerResource}
+                            trackedEntityTypeUid={registeredTypeUid}
                             chosen={existingPerson}
                             onChange={(source, patient) => {
                                 setPersonSource(source)
@@ -719,6 +756,8 @@ export function FormFill() {
                     disabled={
                         !receivesSubmissions ||
                         busy ||
+                        asksNothing ||
+                        nothingAnswered ||
                         missingAttributeOptionCombo ||
                         unfitReportingPeriod ||
                         breaches.length > 0
@@ -777,6 +816,8 @@ export function FormFill() {
                     the server rather than about anything on the form. */}
                 <div className="text-muted-foreground grid gap-0.5 text-right text-xs">
                     {!receivesSubmissions && <p>{CAPTURE_OFF_NOTICE}</p>}
+                    {asksNothing && <p>{FORM_ASKS_NOTHING_NOTICE}</p>}
+                    {nothingAnswered && <p>{NOTHING_ANSWERED_NOTICE}</p>}
                     {missingAttributeOptionCombo && (
                         <p>Choose an attribute option combination before submitting</p>
                     )}
@@ -793,12 +834,12 @@ export function FormFill() {
                         <p>
                             {breaches.length === 1
                                 ? '1 answer is outside what this form accepts'
-                                : `${String(breaches.length)} answers are outside what this form accepts`}
+                                : `${formatCount(breaches.length)} answers are outside what this form accepts`}
                         </p>
                     )}
                     {missingRequired.length > 0 && (
                         <p>
-                            {missingRequired.length} required{' '}
+                            {formatCount(missingRequired.length)} required{' '}
                             {missingRequired.length === 1 ? 'question is' : 'questions are'} unanswered
                         </p>
                     )}
@@ -1138,7 +1179,7 @@ function EnrollmentContext({
                 <InstantField
                     controlId={INCIDENT_DATE_CONTROL_ID}
                     label={labels.incidentDate}
-                    hint="The date of the incident this enrollment follows, as this program collects one."
+                    hint="When the thing this enrollment is about happened - the DHIS2 incident date. This program collects one."
                     value={incidentDate}
                     onChange={onIncidentDateChange}
                     precision="date"

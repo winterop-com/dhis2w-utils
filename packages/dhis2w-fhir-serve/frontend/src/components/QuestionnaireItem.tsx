@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { cn, formatCount } from '@/lib/utils'
 import {
     comboFilterPlaceholder,
     comboRows,
@@ -491,7 +491,13 @@ function RunBody({
     }
     return (
         <div className="grid gap-2">
-            {facet !== null && <p className="text-sm font-medium">{facet.heading}</p>}
+            {/* The same band the grid draws its facet in. A facet is what the box under it holds
+                whichever shape the run is in, and a quiet paragraph over a stack of banded elements
+                read as a caption rather than as the heading of everything below it - which is the
+                one thing a reader has to know before they read a single number. */}
+            {facet !== null && (
+                <BandHeading className="rounded-lg border">{facet.heading}</BandHeading>
+            )}
             {block.groupLinkIds.map((groupLinkId) => (
                 <ElementRows
                     key={groupLinkId}
@@ -522,9 +528,14 @@ function RunBody({
  * table and *BCG doses given* over a list of lines are the same kind of heading. They are: each names
  * what the box under it holds.
  */
-function BandHeading({ children }: { children: ReactNode }) {
+function BandHeading({ children, className }: { children: ReactNode; className?: string }) {
     return (
-        <div className="bg-accent text-accent-foreground flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5 text-sm font-semibold">
+        <div
+            className={cn(
+                'bg-accent text-accent-foreground flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5 text-sm font-semibold',
+                className,
+            )}
+        >
             {children}
         </div>
     )
@@ -643,7 +654,7 @@ function DisaggregationTable({
                                 })}
                                 {totalled && (
                                     <TableCell className="text-muted-foreground px-3 py-1 text-right align-middle tabular-nums">
-                                        {total === null ? '' : String(total)}
+                                        {total === null ? '' : formatCount(total)}
                                     </TableCell>
                                 )}
                             </TableRow>
@@ -728,7 +739,7 @@ function ElementRows({
                     />
                 )}
                 {total !== null && (
-                    <span className="ml-auto font-normal tabular-nums">Total {String(total)}</span>
+                    <span className="ml-auto font-normal tabular-nums">Total {formatCount(total)}</span>
                 )}
             </BandHeading>
             {group?.description !== null && group?.description !== undefined && (

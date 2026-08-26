@@ -63,7 +63,7 @@ import {
     type MappingRow,
     type RowPage,
 } from '@/lib/terminology'
-import { countedNoun } from '@/lib/utils'
+import { countedNoun, formatCount } from '@/lib/utils'
 
 /** The three terminology types this route opens, which is exactly what the listing links to. */
 const TERMINOLOGY_TYPES = ['CodeSystem', 'ValueSet', 'ConceptMap'] as const
@@ -519,7 +519,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                 // The concept count is the summary bar's, for the same reason it is on a code
                 // system page: one number, in the one place that also says how much of it is on
                 // screen. What the card can say and the bar cannot is how many systems it composes.
-                facts={[{ label: 'Systems', value: String(systems.length) }]}
+                facts={[{ label: 'Systems', value: formatCount(systems.length) }]}
             >
                 {systems.map((system) => (
                     <TerminologyLink key={system} resourceType="CodeSystem" canonical={system}>
@@ -612,8 +612,8 @@ function ConceptMapDetail({ conceptMap }: { conceptMap: ConceptMap }) {
                 description={conceptMap.description}
                 identifiers={identifierBadges(conceptMap.identifier)}
                 facts={[
-                    { label: 'Mappings', value: String(mappingCount(conceptMap)) },
-                    { label: 'Groups', value: String(groups.length) },
+                    { label: 'Mappings', value: formatCount(mappingCount(conceptMap)) },
+                    { label: 'Groups', value: formatCount(groups.length) },
                 ]}
             >
                 {conceptMap.sourceCanonical !== undefined && (
@@ -942,7 +942,7 @@ function FilterBox({
  */
 export function pagingLine(page: RowPage<unknown>, noun: string): string {
     const paged = page.pageCount > 1 ? ` (page ${String(page.page)} of ${String(page.pageCount)})` : ''
-    return `Showing ${String(page.shown)} of ${countedNoun(page.total, noun)}${paged}`
+    return `Showing ${formatCount(page.shown)} of ${countedNoun(page.total, noun)}${paged}`
 }
 
 /**
@@ -959,11 +959,11 @@ export function pagingLine(page: RowPage<unknown>, noun: string): string {
  * pages publishes the line through `useStatusLine`, which is where it now lives.
  */
 function Pagination({ page, onPage }: { page: RowPage<unknown>; onPage: (next: number) => void }) {
-    // Drawn wherever there are rows, and disabled where there is nowhere to go: the end of a list
-    // is a place a reader arrives at looking for the way on, and a pair of buttons that cannot be
-    // pressed answers that - where nothing at all leaves them wondering whether the page failed to
-    // draw one. A table with no rows has no list to be at the end of.
-    if (page.total === 0) return null
+    // NOTHING WHERE THERE IS NOWHERE TO GO. Two dead buttons under a table holding every row there
+    // is say the list continues and then refuse to continue it; at the end of a list that really
+    // does have pages they say which direction is exhausted, which is worth the pair. So the
+    // control is drawn from the second page onwards and never over a list that fits on one.
+    if (page.pageCount <= 1) return null
     return (
         <div className="flex justify-end gap-2">
             <Button

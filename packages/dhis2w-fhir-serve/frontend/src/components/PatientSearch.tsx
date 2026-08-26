@@ -8,7 +8,12 @@ import { Label } from '@/components/ui/label'
 import { usePatientSearch, type PatientSearchState } from '@/hooks/use-patient-search'
 import { useRegisterSearchKey } from '@/hooks/use-register-search-support'
 import { REGISTER_CONTENT_SEARCH_PARAMETER, REGISTER_IDENTIFIER_SEARCH_PARAMETER, type RegisterSearchKey } from '@/lib/fhir'
-import { patientLeadValue, type PatientProjection } from '@/lib/patients'
+import {
+    patientLeadValue,
+    patientSearchQuery,
+    MINIMUM_PATIENT_SEARCH_LENGTH,
+    type PatientProjection,
+} from '@/lib/patients'
 
 /**
  * What the box is called and what it says about itself, per the search this server answers.
@@ -59,6 +64,11 @@ const CONTENT_WORDS: SearchWords = {
         'alike. Which of those values is a name is not something DHIS2 states, so this server does not ' +
         'single one out.',
     empty: 'This DHIS2 instance holds nobody under that value.',
+}
+
+/** What the box says while what is typed is still too short to be worth a request. */
+export function tooShortToSearch(): string {
+    return `Type at least ${String(MINIMUM_PATIENT_SEARCH_LENGTH)} characters to search.`
 }
 
 /** What the box says, for the search this server declared. */
@@ -141,6 +151,13 @@ export function PatientSearchControl({
                     <Loader2 className="text-muted-foreground size-4 shrink-0 animate-spin" aria-hidden />
                 )}
             </div>
+
+            {/* WHY NOTHING IS HAPPENING, WHERE NOTHING IS HAPPENING. Below the threshold no request
+                is sent, and a box that answers a typed character with silence reads as a box that
+                is not wired up - the one state this control had no words for. */}
+            {typed.trim() !== '' && patientSearchQuery(typed) === null && (
+                <p className="text-muted-foreground text-xs">{tooShortToSearch()}</p>
+            )}
 
             {state.error !== null && (
                 <p className="text-destructive text-xs">

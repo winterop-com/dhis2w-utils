@@ -452,6 +452,23 @@ export function paletteShelves(actions: PaletteAction[]): PaletteShelf[] {
 }
 
 /**
+ * Whether a shelf's heading already says what kind of thing sits under it.
+ *
+ * A "Pages" heading over rows each ending in "Page" is one fact wearing two costumes, and the row's
+ * far edge is the copy of it that says nothing - the heading is right there, three pixels up. So the
+ * kind is drawn only where the heading does not already carry it: the Appearance shelf holds themes
+ * beside the ground switch, and a register's shelf is headed by the register's own name.
+ *
+ * Matched on the heading being the kind or its plural, which is the whole of the overlap - "Receipt"
+ * under "Responses" is a second word for the same row and it earns its place.
+ */
+export function shelfNamesItsKind(group: string, kind: string): boolean {
+    const heading = group.trim().toLowerCase()
+    const noun = kind.trim().toLowerCase()
+    return heading === noun || heading === `${noun}s`
+}
+
+/**
  * What cmdk filters one row against: everything a person might type to reach it.
  *
  * The label, the hint, the kind, and the keywords in one string. cmdk matches on an item's `value`

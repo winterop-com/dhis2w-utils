@@ -22,6 +22,7 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet'
 import { translateCode } from '@/lib/api'
+import { countedNoun } from '@/lib/utils'
 import {
     TRANSLATE_QUESTION,
     systemLabel,
@@ -74,15 +75,20 @@ export function CodeLookupSheet({
 }) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent data-testid="code-lookup-sheet" className="max-w-xl">
+            {/* SIZED TO THE FORM IT HOLDS, and not to the width a reader last dragged a panel to.
+                Every other side panel in this app carries a record whose width is a reading choice,
+                so they share one dragged width; this one holds a box, a select, and a handful of
+                answer rows, and inheriting a width dragged on a tracked entity's record covered the
+                vocabulary it was opened from. `resizable={false}` is what keeps it its own size. */}
+            <SheetContent data-testid="code-lookup-sheet" className="max-w-xl" resizable={false}>
                 <SheetHeader>
                     <SheetTitle>{TRANSLATE_QUESTION}</SheetTitle>
                     <SheetDescription>
-                        Type a concept code - or press Details on any row - and the published maps
-                        answer with the DHIS2 option UID and code it stands for. On the wire this is
-                        the <code className="font-mono">$translate</code> operation - the same one{' '}
-                        <code className="font-mono">d2w fhir forward</code> resolves a coded answer
-                        with.
+                        Type a concept code - or open a row in the table behind this panel - and the
+                        published maps answer with the DHIS2 option UID and code it stands for. On
+                        the wire this is the <code className="font-mono">$translate</code> operation
+                        - the same one <code className="font-mono">d2w fhir forward</code> resolves a
+                        coded answer with.
                     </SheetDescription>
                 </SheetHeader>
                 <SheetBody>
@@ -220,7 +226,7 @@ function TranslationAnswer({ result }: { result: TranslationResult }) {
     return (
         <div className="space-y-2" data-testid="translate-result">
             <p className="text-sm font-medium">
-                {result.matches.length} {result.matches.length === 1 ? 'mapping' : 'mappings'}
+                {countedNoun(result.matches.length, 'mapping')}
             </p>
             <div className="grid gap-2">
                 {result.matches.map((match) => (

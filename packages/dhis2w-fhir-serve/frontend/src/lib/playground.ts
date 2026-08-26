@@ -262,8 +262,15 @@ export interface PlaygroundPreset {
     group: string
     /** The method and path, in the machine spelling - this is a list of addresses, so it reads as one. */
     label: string
-    /** What the request answers, in one line. */
-    hint: string
+    /**
+     * What the request answers, in one line, or null when the shelf's own note already said it.
+     *
+     * A run serving thirteen searchable types earns thirteen `GET /Type` rows, and a line under each
+     * of them saying that a search answers a searchset Bundle of that type is one sentence copied
+     * thirteen times with a word changed. The shelf states the pattern once and those rows carry
+     * nothing; a row whose answer is not the pattern says so for itself.
+     */
+    hint: string | null
     request: PlaygroundRequest
     /**
      * True when the request answers as it stands, false when a placeholder has to be filled in first.
@@ -279,6 +286,11 @@ export interface PlaygroundPreset {
 /** The two shelves the presets sit on: what this server can be read, and what it declares. */
 export const READS_GROUP = 'Reads'
 export const OPERATIONS_GROUP = 'Declared operations'
+
+/** What a shelf says once, over rows that would otherwise each repeat it. */
+export const SHELF_NOTES: Record<string, string> = {
+    [READS_GROUP]: 'A search on a resource type answers a searchset Bundle of that type, five to a page.',
+}
 
 /**
  * What stands where a value has to be filled in before the request answers.
@@ -371,7 +383,9 @@ export function playgroundPresets(
             id: `search:${resource.type}`,
             group: READS_GROUP,
             label: `GET /${resource.type}`,
-            hint: `A searchset Bundle of the ${resource.type} resources this server answers for.`,
+            // Nothing per row: the shelf's note states what a search answers, and the type is in
+            // the address the row is labelled with.
+            hint: null,
             request: {
                 method: 'GET' as const,
                 path: `/${resource.type}`,
@@ -467,13 +481,24 @@ function operationPreset(
     }
 }
 
+/** One shelf of presets: its heading, the line it states once for its rows, and the rows. */
+export interface PresetShelf {
+    group: string
+    /** What every row under it has in common, or null when the rows each speak for themselves. */
+    note: string | null
+    presets: PlaygroundPreset[]
+}
+
 /** The presets shelved, keeping the order they were built in. */
-export function presetShelves(presets: PlaygroundPreset[]): { group: string; presets: PlaygroundPreset[] }[] {
-    const shelves: { group: string; presets: PlaygroundPreset[] }[] = []
+export function presetShelves(presets: PlaygroundPreset[]): PresetShelf[] {
+    const shelves: PresetShelf[] = []
     for (const preset of presets) {
         const shelf = shelves.find((candidate) => candidate.group === preset.group)
-        if (shelf === undefined) shelves.push({ group: preset.group, presets: [preset] })
-        else shelf.presets.push(preset)
+        if (shelf === undefined) {
+            shelves.push({ group: preset.group, note: SHELF_NOTES[preset.group] ?? null, presets: [preset] })
+        } else {
+            shelf.presets.push(preset)
+        }
     }
     return shelves
 }

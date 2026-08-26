@@ -28,6 +28,20 @@ test('the bundle loads with no console errors and no failed requests', async ({ 
     expect(failedRequests, failedRequests.join('\n')).toEqual([])
 })
 
+test('an address this app does not answer says so, at the address it was opened', async ({ page }) => {
+    await page.goto('/#/nope')
+
+    // Answered where it was opened. Exchanging an unknown hash for the overview rewrites the
+    // address bar and leaves a reader on a page they did not ask for, with nothing anywhere saying
+    // that a link was wrong.
+    await expect(page).toHaveURL(/#\/nope$/)
+    await expect(page.getByRole('heading', { name: 'Nothing at this address', level: 2 })).toBeVisible()
+    await expect(page.getByTestId('route-not-found')).toBeVisible()
+
+    await page.getByRole('link', { name: 'Open the overview' }).click()
+    await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible()
+})
+
 test('the rail navigates all six pages', async ({ page }) => {
     await page.goto('/')
 

@@ -95,18 +95,24 @@ test('the filter opens the ancestors of what it matches', async ({ page }) => {
     await expect(page.getByText('No organisation unit matches that filter.')).toBeVisible()
 })
 
-test('the rail starts closed on a plain visit, and a selection opens it', async ({ page }) => {
+test('the rail starts open, folds away on the toggle, and names itself while folded', async ({
+    page,
+}) => {
     await page.goto('/#/organisation-units')
 
-    // Nothing is selected, so there is nothing for the rail to answer - it starts as the strip.
-    await expect(page.getByRole('button', { name: 'Expand the organisation unit details' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Collapse the organisation unit details' })).toHaveCount(0)
-
-    // Picking in the tree is a question about that organisation unit; the rail opens to answer.
-    await page.getByRole('button', { name: 'Adonkia CHP', exact: true }).click()
-
-    await expect(page.getByRole('heading', { name: 'Adonkia CHP', level: 3 })).toBeVisible()
+    // Open on arrival: the identifiers and the data sets are what this page is for, and folding
+    // them behind an icon made the page's own content something a reader had to go and find.
     await expect(page.getByRole('button', { name: 'Collapse the organisation unit details' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Collapse the organisation unit details' }).click()
+    await expect(page.getByRole('button', { name: 'Expand the organisation unit details' })).toBeVisible()
+    // The folded strip says what it holds, so the lone icon is not the only label it has.
+    await expect(page.getByText('Organisation unit details')).toBeVisible()
+
+    // Picking in the tree still fills it, whichever state the rail was left in.
+    await page.getByRole('button', { name: 'Expand the organisation unit details' }).click()
+    await page.getByRole('button', { name: 'Adonkia CHP', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Adonkia CHP', level: 3 })).toBeVisible()
 })
 
 test('selecting a unit fills the inspector, and puts the unit in the address', async ({ page }) => {
