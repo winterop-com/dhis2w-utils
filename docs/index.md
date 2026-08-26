@@ -9,7 +9,7 @@ Everything here talks to DHIS2. Pick the surface you want to talk to it *through
 - **[Python client](client/index.md)** — async library for ETL scripts, embedded DHIS2 calls inside another service, and tests that need typed access. Pairs with the [Python library tutorial](client/tutorial.md).
 - **[`d2w` CLI](cli/index.md)** — terminal use, shell pipelines, CI / cron jobs, day-to-day admin. Pairs with the [CLI tutorial](cli/tutorial.md).
 - **[`dhis2w-mcp` MCP server](mcp/index.md)** — LLM-driven workflows (Claude Desktop, Claude Code, Cursor, Continue, Cline). Pairs with the [MCP tutorial](mcp/tutorial.md).
-- **[`d2w fhir`](fhir/index.md)** — publish an instance's metadata as a FHIR Implementation Guide, serve it as a capture endpoint, and forward what it captures back into DHIS2. Graded 101/201/301/401/501; start at the [Introduction](fhir/100-introduction.md).
+- **[`d2w fhir`](fhir/index.md)** — publish an instance's metadata as a FHIR Implementation Guide, serve it as a capture endpoint, and forward what it captures back into DHIS2. Graded 100-501, opening at the introduction; start at the [Introduction](fhir/100-introduction.md).
 - **[d2ql query language](query/index.md)** — a pipeline query and transform language over DHIS2 data, with no DHIS2 runtime dependency of its own.
 
 Whichever you pick:
@@ -33,6 +33,9 @@ Whichever you pick:
 | `dhis2w-codegen` | Version-aware client generator | _workspace-only_ |
 | `dhis2w-bench` | Model benchmarking harness | _workspace-only_ |
 | `dhis2w-mcp-router` | Search + dispatch over upstream MCP servers | [`dhis2w-mcp-router`](https://pypi.org/project/dhis2w-mcp-router/) |
+| `dhis2w-fhir` | `d2w fhir`: generate an Implementation Guide from an instance, convert captures, drain the spool | [`dhis2w-fhir`](https://pypi.org/project/dhis2w-fhir/) |
+| `dhis2w-fhir-serve` | The FHIR capture facade `d2w fhir serve` runs on, capture UI included | [`dhis2w-fhir-serve`](https://pypi.org/project/dhis2w-fhir-serve/) |
+| `dhis2w-fhir-engine` | FHIRPath, CQL, and quality-measure evaluation over FHIR data, no DHIS2 dependency | [`dhis2w-fhir-engine`](https://pypi.org/project/dhis2w-fhir-engine/) |
 
 Plus `infra/`, a docker-compose stack for running a local DHIS2 instance with pre-seeded PATs and an OAuth2 client.
 
@@ -43,6 +46,7 @@ The generated [MCP reference](mcp-reference.md) currently reports around 318 too
 - **`d2w dev`** — codegen, sample-fixture generation, ad-hoc UID minting. Local developer workflow; not exposed via MCP.
 - **`d2w browser`** — Playwright-driven PAT mint, OIDC login, dashboard / viz / map screenshots. Runs Chromium out-of-process; not exposed via MCP.
 - **`d2w profile add / remove / rename / login / logout / bootstrap`** — profile mutations touch local TOML + the OAuth2 token store and gate on interactive prompts. Profile **reads** (`list`, `verify`, `show`) are exposed as MCP tools; the four MCP profile tools cover those read paths.
+- **`d2w fhir`** — scaffolds project trees, shells out to a dockerized IG publisher, and runs its own HTTP facade. The plugin registers no MCP tool at all; the served facade is the network surface an agent talks to instead.
 
 | Domain | CLI | MCP tools | Docs |
 | --- | --- | ---: | --- |
@@ -62,5 +66,7 @@ The generated [MCP reference](mcp-reference.md) currently reports around 318 too
 | Doctor (BUGS tripwires + integrity checks + metadata health) | `d2w doctor` | 4 | [Doctor plugin](architecture/doctor-plugin.md) |
 | Dev (codegen, uid, pat, oauth2 client, sample fixtures) | `d2w dev` | — (dev-only) | [Codegen](codegen.md) |
 | Browser automation (Playwright-driven PAT mint, screenshots, OIDC login) | `d2w browser` | — (runs out-of-process) | [Browser automation](architecture/browser.md) |
+| FHIR (init / validate / generate / serve / forward / withdraw / doctor) | `d2w fhir` | — (CLI and its own HTTP facade) | [`d2w fhir`](fhir/index.md) |
+| d2ql (run a query, explain one, evaluate a d2path expression) | `d2w query` | 3 | [Query language](query/index.md) |
 
 Day-to-day workflows (`make install`, `make lint`, `make test`, `make docs-serve`) are documented in the repo root `README.md`.

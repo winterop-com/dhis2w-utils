@@ -103,7 +103,7 @@ none. Build it with `make build-frontend` (an installed wheel ships it already).
 
 The root route answers one question: what is the state of capture right now.
 
-![The Overview: the spool pulse, the quick-entry cards, and the server strip](../img/fhir/capture-ui-overview.png)
+![The Overview: the receipt counts one per lifecycle state, the served forms as cards that open them, and the strip naming the guide this server serves](../img/fhir/capture-ui-overview.png)
 
 **Receipts** is the spool's counts off `GET /spool` - `Received`,
 `Forwarded`, `Rejected`, `Withdrawn`, and, when the spool holds files it could
@@ -135,22 +135,23 @@ organisation unit, with no person involved; **Event programs** record single
 events without registering anyone; **Tracker programs** get one card
 per program - its registration form first, its stages nested beneath -
 because stages record visits for a person the registration enrols; and
-**People** is the person-only kind, which registers a person in this DHIS2
-instance without enrolling them in a program. Every form is a card carrying
+**Tracked entity registration** registers a tracked entity in this DHIS2
+instance without enrolling it in a program. Every form is a card carrying
 its kind as a tinted badge, its question count and its id, and the whole card
 opens the form.
 
-A person-only form is generated from a DHIS2 tracked entity type rather than
-from a data set or a program, so it belongs to neither of the other shelves:
-it names no program to group under and no period to report for. It is the
-same registration surface with the enrollment taken out - a subject, an
+A registration-only form is generated from a DHIS2 tracked entity type rather
+than from a data set or a program, so it belongs to neither of the other
+shelves: it names no program to group under and no period to report for. It is
+the same registration surface with the enrollment taken out - a subject, an
 organisation unit, and the attributes the type itself collects - and its
 receipt files no enrollment at all. DHIS2 hangs an organisation-unit
 assignment on a data set and on a program and never on a type, so a
-person-only form is reportable at every published organisation unit and gets
-a **People** shelf of its own in the organisation-units rail too.
+registration-only form is reportable at every published organisation unit and
+gets a **Tracked entity registration** shelf of its own in the
+organisation-units rail too.
 
-![The forms list: data sets, event programs, and tracker programs as sections of cards, each card carrying its kind as a tinted badge with the question count and id beside it](../img/fhir/capture-ui-forms.png)
+![The forms list: the four shelves - data sets, event programs, tracker programs, and tracked entity registration - as sections of cards, each card carrying its kind as a tinted badge with the question count and id beside it](../img/fhir/capture-ui-forms.png)
 
 Open one and you get the form itself - every question as the control its R4
 item type asks for: a switch for a yes/no, a bounded number field for a
@@ -352,14 +353,14 @@ two of them to happen before anything leaves the browser.
   it is the exact statement of what the rule does and not the first thing
   anyone reading the form needs.
 
-![An aggregate form filled with test data, with the reporting-unit picker and the attribute option combo picker above the questions](../img/fhir/capture-ui-form-fill.png)
+![An aggregate form filled with test data, with the Reporting from picker and the attribute option combo picker above the questions](../img/fhir/capture-ui-form-fill.png)
 
 **Fill with test data** answers the whole form from `$generate` and puts the
 answers *into the form* rather than posting them - so you can change one
-field and submit that. The seed it drew is in the toast; the same seed
-reproduces the same answers, so a form that misbehaved can be asked for
-again. **Clear** empties it. **Submit** posts a `QuestionnaireResponse` and
-takes you to Responses.
+field and submit that. The seed it drew lands in the **Seed** box beside the
+button; the same seed reproduces the same answers, so a form that misbehaved
+can be asked for again by typing that number back in. **Clear** empties it.
+**Submit** posts a `QuestionnaireResponse` and takes you to Responses.
 
 The context that submission carries - the reporting period, the tracked
 entity and enrollment on a tracker form - comes from `$generate` too: the
@@ -574,11 +575,15 @@ checked against the bytes.
 
 **A withdrawn receipt says what the instance keeps.** DHIS2 soft-deletes, so
 the row stays there carrying its value and is gone from every ordinary read -
-and the page states that rather than the word "deleted": *Withdrawn. This
-DHIS2 instance keeps a hidden copy of the event; it no longer appears in
-reports.* Beside it sit the instant the withdrawal was posted and the DHIS2
-event it named. The answers stay on the page, because retracting data from an
-instance does not unsay the submission that was made.
+and the page states that rather than the word "deleted", with the instant the
+withdrawal was posted inside the sentence: *Withdrawn from DHIS2 at &lt;instant&gt;.
+This DHIS2 instance keeps a hidden copy of the event; it no longer appears in
+reports. The UID is burned, so this receipt can never be forwarded again.*
+The note is written once, in the package that posts the delete, and
+the page drops only its opening "Withdrawn." because the line has already said
+it. The DHIS2 event it named sits beside it. The answers stay on the page,
+because retracting data from an instance does not unsay the submission that
+was made.
 
 **A rejection about a program rule reads as the rule's own name.** DHIS2
 refuses a tracker import that breaks one with `E1300`, and it names the rule by
@@ -755,12 +760,12 @@ began, and the organisation unit it sits at.
   with the same sections behind tabs). The rail opens with the selected
   unit's identity - name, level, identifiers, the clickable parent chain -
   and stacks its sections under it: **Data sets**, **Programs**, and
-  **People** are the forms reportable at that unit, shelved by their DHIS2
-  kind with a tracker program's registration and stages grouped together and
-  the forms an assignment names badged `assigned to this organisation unit` -
+  **Tracked entity registration** are the forms reportable at that unit,
+  shelved by their DHIS2 kind with a tracker program's registration and
+  stages grouped together. What the shelves list is what an assignment names -
   the join that says which submissions this unit can make without DHIS2
-  refusing them with `E1029`; a person-only form appears at every unit,
-  because DHIS2 hangs no assignment on a tracked entity type;
+  refusing them with `E1029` - and a registration-only form appears at every
+  unit, because DHIS2 hangs no assignment on a tracked entity type;
   **Captured here** is the receipts this server holds
   for captures at that unit, linked into Responses; **Children** is the
   subtree as a mini tree, and selecting a row re-roots the rail. The map
@@ -774,7 +779,7 @@ began, and the organisation unit it sits at.
   selection rides the URL (`#/organisation-units?unit=<uid>`), so an
   organisation unit is a link you can send. Clicking is two gestures: a
   left-click on a shape opens a popup naming the unit - its level, its
-  parent, what sits below - with **Open** selecting it, and while the map
+  parent, what sits below - with **Select** selecting it, and while the map
   is still too far out for a click to have meant one shape it eases a step
   in toward the pointer instead; a right-click drills straight to the
   selection at any zoom. The corner controls are fullscreen, a globe toggle
@@ -782,7 +787,7 @@ began, and the organisation unit it sits at.
   starfield, the layers control, and a recenter button back to whatever the
   map is framing - the selection's extent, or the whole registry.
 
-    ![Organisation units in three panes: the hierarchy tree, the map with the selected unit lit against the units below it, and the rail naming that unit and the forms reportable at it](../img/fhir/capture-ui-organisation-units.png)
+    ![Organisation units in three panes: the hierarchy tree, the map with the selected organisation unit lit against the organisation units below it, and the rail naming that organisation unit and the forms reportable at it](../img/fhir/capture-ui-organisation-units.png)
 
 - **Terminology** is a browser over the code systems, value sets, and
   concept maps the project publishes - concept tables with the DHIS2
@@ -1050,7 +1055,7 @@ flashes one theme under another.
 
 | Theme | What it looks like |
 | --- | --- |
-| **Clinical** | Near-achromatic surfaces and one clinical blue. The default - the app as it has always looked. |
+| **Clinical** | Near-achromatic surfaces and one clinical blue. The default, and what a project that chooses nothing is painted in. |
 | **Indigo** | Deep blue surfaces under a violet identity. |
 | **Paper** | Warm surfaces and an ink blue, the way a printed form reads. |
 | **Contrast** | The widest separation this app has between text and the surface under it: achromatic surfaces reaching both ends, muted text most of the way back to the foreground, and borders that are lines rather than hints. |
