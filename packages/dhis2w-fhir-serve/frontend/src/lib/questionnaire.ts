@@ -1492,6 +1492,170 @@ export function unansweredRequiredLinkIds(
         .map((node) => node.linkId)
 }
 
+/** One column of a disaggregation table: the category option combo every row is answered under. */
+export interface DisaggregationColumn {
+    /** The combo as the cell's own item text names it - `0-11m`, `Fixed, <1y`. */
+    label: string
+    /** The combo uid, or null on a cell the form codes with nothing. */
+    code: string | null
+}
+
+/**
+ * One run of sibling items, as the shape it is drawn in.
+ *
+ * A form is read as a sequence of these rather than item by item, because two of the three shapes
+ * are facts about a *run* of items and not about any one of them: a table exists because several
+ * data elements are cut the same way, and a column flow exists because several scalar questions can
+ * share a line. `item` is the third and the fallback - one item, drawn on its own, the way every
+ * item was drawn before the other two existed.
+ */
+export type FormBlock =
+    | { kind: 'item'; key: string; linkId: string }
+    /** Consecutive scalar questions that flow into columns on a wide screen. */
+    | { kind: 'scalars'; key: string; linkIds: string[] }
+    /** Consecutive data element groups cut by one set of combos: one table, one row each. */
+    | { kind: 'disaggregation'; key: string; groupLinkIds: string[]; columns: DisaggregationColumn[] }
+
+/**
+ * A run of sibling items, partitioned into the shapes they are drawn in.
+ *
+ * A DISAGGREGATED SECTION IS A GRID AND DHIS2 DRAWS IT AS ONE. An aggregate data set nests a
+ * question per category option combo under a group per data element, so fourteen elements cut by
+ * four age bands is fifty-six questions - and stacked, each with its own label, its own uid, and its
+ * own full row, it is a screen nobody can read across. The elements share one ordered set of combos,
+ * which is exactly what a table's header row states once: the elements are the rows, the combos are
+ * the columns, and the answer is the cell where they meet. That is the shape a DHIS2 data clerk
+ * already knows, because it is the shape DHIS2's own data entry uses.
+ *
+ * WHAT MAKES A RUN A TABLE. Consecutive groups whose enabled children are numeric questions -
+ * childless, single-answer, and carrying no help text of their own - with the same combo labels in
+ * the same order, cut by identical uids. Anything else falls out: a group cut differently opens its
+ * own table, and a group holding coded, dated or narrative cells stays stacked, because a table cell
+ * is a box a number fits in and those answers need the room a stacked control has. A run of one
+ * group is still a table - one row is the honest drawing of one element cut four ways.
+ *
+ * WHY THE PARTITION AND NOT THE DRAWING DECIDES. The link ids in each block stay in document order,
+ * so the keyboard walks the form the way the form is written whichever shape it is drawn in, and
+ * every question keeps its own linkId identity - the submission a table produces is the submission
+ * the stack produced.
+ */
+export function formBlocks(
+    spec: QuestionnaireSpec,
+    linkIds: readonly string[],
+    enabled: ReadonlySet<string>,
+): FormBlock[] {
+    const blocks: FormBlock[] = []
+    let scalars: string[] = []
+    let table: { groupLinkIds: string[]; columns: DisaggregationColumn[]; signature: string } | null = null
+    const flushScalars = () => {
+        if (scalars.length === 0) return
+        blocks.push({ kind: 'scalars', key: `scalars-${scalars[0]}`, linkIds: scalars })
+        scalars = []
+    }
+    const flushTable = () => {
+        if (table === null) return
+        blocks.push({
+            kind: 'disaggregation',
+            key: `disaggregation-${table.groupLinkIds[0]}`,
+            groupLinkIds: table.groupLinkIds,
+            columns: table.columns,
+        })
+        table = null
+    }
+    for (const linkId of linkIds) {
+        if (!enabled.has(linkId)) continue
+        const node = spec.byLinkId.get(linkId)
+        if (node === undefined) continue
+        const columns = disaggregationColumns(spec, node, enabled)
+        if (columns !== null) {
+            const signature = columnSignature(columns)
+            if (table !== null && table.signature === signature) {
+                table.groupLinkIds.push(linkId)
+                continue
+            }
+            flushScalars()
+            flushTable()
+            table = { groupLinkIds: [linkId], columns, signature }
+            continue
+        }
+        flushTable()
+        if (flowsIntoColumns(node)) {
+            scalars.push(linkId)
+            continue
+        }
+        flushScalars()
+        blocks.push({ kind: 'item', key: linkId, linkId })
+    }
+    flushScalars()
+    flushTable()
+    return blocks
+}
+
+/** The enabled cells of one group, in document order - the answers one table row holds. */
+export function disaggregationCells(
+    spec: QuestionnaireSpec,
+    groupLinkId: string,
+    enabled: ReadonlySet<string>,
+): string[] {
+    return (spec.byLinkId.get(groupLinkId)?.childLinkIds ?? []).filter((linkId) => enabled.has(linkId))
+}
+
+/** Whether this question's answer is a number, whichever DHIS2 value type the form emitted it from. */
+export function isNumericQuestion(node: QuestionnaireNode): boolean {
+    return node.type === 'integer' || node.type === 'decimal'
+}
+
+/**
+ * The columns one group would be a table row of, or null when the group is not one.
+ *
+ * The whole test of "this is a disaggregated data element" lives here, so the rule is stated once
+ * and read the same way by the partition and by any caller checking a single group.
+ */
+function disaggregationColumns(
+    spec: QuestionnaireSpec,
+    node: QuestionnaireNode,
+    enabled: ReadonlySet<string>,
+): DisaggregationColumn[] | null {
+    if (node.type !== 'group') return null
+    const cells = disaggregationCells(spec, node.linkId, enabled)
+    if (cells.length < 2) return null
+    const columns: DisaggregationColumn[] = []
+    for (const cellLinkId of cells) {
+        const cell = spec.byLinkId.get(cellLinkId)
+        if (cell === undefined) return null
+        if (!isNumericQuestion(cell) || !cell.fillable) return null
+        if (cell.repeats || cell.childLinkIds.length > 0 || cell.description !== null) return null
+        columns.push({ label: cell.text ?? cell.linkId, code: cell.code?.code ?? null })
+    }
+    return columns
+}
+
+/**
+ * What makes two groups the same cut: the same combos, spelled the same, in the same order.
+ *
+ * Joined on control characters rather than on punctuation, because a category option combo is named
+ * by whoever configured the DHIS2 instance - `Fixed, <1y` carries a comma of its own - and a
+ * separator a label can contain is a separator that reads two different cuts as one.
+ */
+function columnSignature(columns: readonly DisaggregationColumn[]): string {
+    return columns.map((column) => `${column.code ?? ''}\u0000${column.label}`).join('\u001f')
+}
+
+/**
+ * Whether this question shares a line with its neighbours on a wide screen.
+ *
+ * WIDTH IS A STATEMENT ABOUT THE ANSWER. A count, a day, and a picked concept are all answers a
+ * measured control holds, so a column of them beside empty space says the space is unusable when it
+ * is only unused. A narrative is the other case and keeps the full width on purpose: `text` is what
+ * DHIS2's `LONG_TEXT` emits, the answer is paragraphs, and a paragraph box narrowed to a third of
+ * the screen is a worse box. A group, a display, and a question that takes more than one answer or
+ * carries questions under it all grow downwards, so each keeps a line of its own.
+ */
+function flowsIntoColumns(node: QuestionnaireNode): boolean {
+    if (node.type === 'group' || node.type === 'display' || node.type === 'text') return false
+    return !node.repeats && node.childLinkIds.length === 0
+}
+
 /**
  * The DHIS2 categories a group's disaggregated cells are cut by, named, in first-seen order.
  *

@@ -72,7 +72,7 @@ export function PersonPicker({
     const offersInstance = support === 'supported'
 
     return (
-        <fieldset className="grid gap-2 rounded-lg border p-4">
+        <fieldset className="bg-card text-card-foreground grid gap-2 rounded-lg border p-4">
             <legend className="px-1 text-sm font-medium">Person</legend>
             {/* The second sentence is about the other option, so it is on screen exactly when that
                 option is - a panel that described finding a person and then said it cannot be done

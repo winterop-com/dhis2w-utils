@@ -560,7 +560,14 @@ export function FormFill() {
             <OrgUnitScopeProvider scope={orgUnitScope}>
                 {/* Side by side on a wide screen, because they are two facts about one submission
                     and reading them together is how a person checks they are filing the right
-                    thing. Stacked below that, in the order DHIS2 keys a value by. */}
+                    thing. Stacked below that, in the order DHIS2 keys a value by.
+
+                    EVERY ONE OF THEM IS A RAISED PANEL, WHICH MEANS THE CARD SURFACE. A theme is
+                    free to ground its pages in grey, and a panel drawn as a border on the page's
+                    own ground disappears into one - the border alone carries the separation, and a
+                    grey rectangle on grey is not a panel. The card surface is what every other
+                    raised thing in this app is painted with, and the context-versus-answer
+                    distinction is carried by the heading and the split, not by a duller colour. */}
                 <div
                     className={cn(
                         'mb-4 grid gap-4',
@@ -595,7 +602,7 @@ export function FormFill() {
                         />
                     )}
                     {draftedVisitDate !== null && (
-                        <div className="grid gap-2 rounded-lg border p-4">
+                        <div className="bg-card text-card-foreground grid gap-2 rounded-lg border p-4">
                             <InstantField
                                 controlId={VISIT_DATE_CONTROL_ID}
                                 label={dateLabels.eventDate}
@@ -974,7 +981,7 @@ function ReportingPeriodControl({
 }) {
     const shape = periodShape(periodType)
     return (
-        <div className="grid gap-2 rounded-lg border p-4">
+        <div className="bg-card text-card-foreground grid gap-2 rounded-lg border p-4">
             <Label htmlFor={REPORTING_PERIOD_CONTROL_ID}>
                 Reporting period
                 <span className="text-destructive" aria-hidden>
@@ -1038,7 +1045,7 @@ function EnrollmentContext({
     onIncidentDateChange: (value: string) => void
 }) {
     return (
-        <div className="grid gap-4 rounded-lg border p-4">
+        <div className="bg-card text-card-foreground grid gap-4 rounded-lg border p-4">
             <h3 className="text-sm font-medium">Enrollment</h3>
             <InstantField
                 controlId={ENROLLMENT_DATE_CONTROL_ID}

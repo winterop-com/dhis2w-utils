@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { orgUnitReference, referencedUnitId } from '@/lib/orgunits'
+import { cn } from '@/lib/utils'
 import {
     dateTimeInputValue,
     EMPTY_SLOT,
@@ -54,6 +55,7 @@ export function AnswerControl({
     node,
     slots,
     locked = false,
+    controlClassName,
     dispatch,
 }: {
     node: QuestionnaireNode
@@ -66,6 +68,14 @@ export function AnswerControl({
      * reason: a control that accepts input nothing will send is a control that lies.
      */
     locked?: boolean
+    /**
+     * What the caller has to say about how wide this control is, over what its type asks for.
+     *
+     * The only caller with anything to say is the disaggregation table, whose cells are tighter
+     * than a control standing on its own: a count read in a grid is read against the counts above
+     * and below it. Everywhere else the answer's own shape decides, which is the default.
+     */
+    controlClassName?: string
     dispatch: Dispatch<AnswerAction>
 }) {
     if (!node.fillable) {
@@ -86,6 +96,7 @@ export function AnswerControl({
                 slot={slots[0] ?? EMPTY_SLOT}
                 controlId={node.linkId}
                 disabled={node.readOnly || locked}
+                className={controlClassName}
                 onChange={(slot) => dispatch({ kind: 'set', linkId: node.linkId, index: 0, slot })}
             />
         )
@@ -109,6 +120,7 @@ export function AnswerControl({
                             slot={slot}
                             controlId={index === 0 ? node.linkId : `${node.linkId}-${index}`}
                             disabled={node.readOnly || locked}
+                            className={controlClassName}
                             onChange={(next) =>
                                 dispatch({ kind: 'set', linkId: node.linkId, index, slot: next })
                             }
@@ -142,12 +154,23 @@ export function AnswerControl({
     )
 }
 
-/** One row of one question: the control its item type asks for. */
+/**
+ * One row of one question: the control its item type asks for, at the width that answer takes.
+ *
+ * A CONTROL IS AS WIDE AS WHAT GOES IN IT. A weekly case count is three digits and a box three
+ * hundred pixels wide says a sentence would be welcome; a date is ten characters however wide the
+ * screen is; a line of free text is read in one glance up to about sixty characters and no further.
+ * So each control states its own width and the form's columns flow around them, rather than every
+ * answer being poured into one column the width of the page. The narrative box is the deliberate
+ * exception and keeps the full width: `text` is what DHIS2's `LONG_TEXT` emits, the answer is
+ * paragraphs, and a paragraph is the one answer a wide box helps.
+ */
 function SlotControl({
     node,
     slot,
     controlId,
     disabled,
+    className,
     onChange,
 }: {
     node: QuestionnaireNode
@@ -155,6 +178,8 @@ function SlotControl({
     controlId: string
     /** Whether this row accepts input at all - the form's own `readOnly`, or the page's lock. */
     disabled: boolean
+    /** The caller's width, where a caller has one - a table cell's. Null everywhere else. */
+    className?: string
     onChange: (slot: AnswerSlot) => void
 }) {
     const write = (text: string) => onChange({ ...EMPTY_SLOT, text })
@@ -211,13 +236,17 @@ function SlotControl({
             // bounds are not on the element either - the browser only enforces them on a number
             // box, and grading them here would be a second opinion beside `answerBreaches`, which
             // states the fact for every value this form does not accept.
+            //
+            // AND AS WIDE AS A COUNT. A number is a handful of characters, so the box is a handful
+            // of characters wide - which is what makes a page of counts read as counts rather than
+            // as a column of empty sentences.
             const shape = numericInputShape(node.type)
             return (
                 <Input
                     id={controlId}
                     type={shape.type}
                     inputMode={shape.inputMode}
-                    className="max-w-xs"
+                    className={cn('w-28 max-w-full text-right tabular-nums', className)}
                     value={slot.text}
                     disabled={disabled}
                     aria-required={node.required}
@@ -231,6 +260,7 @@ function SlotControl({
                     id={controlId}
                     rows={3}
                     maxLength={node.maxLength ?? undefined}
+                    className={className}
                     value={slot.text}
                     disabled={disabled}
                     aria-required={node.required}
@@ -244,6 +274,7 @@ function SlotControl({
                     type="url"
                     inputMode="url"
                     placeholder="https://"
+                    className={cn('max-w-[60ch]', className)}
                     value={slot.text}
                     disabled={disabled}
                     aria-required={node.required}
@@ -259,7 +290,7 @@ function SlotControl({
                     // the earliest a bounded day can be caught. Submit refuses one typed in anyway.
                     min={node.minimumDate ?? undefined}
                     max={node.maximumDate ?? undefined}
-                    className="max-w-xs"
+                    className={cn('w-44 max-w-full', className)}
                     value={slot.text}
                     disabled={disabled}
                     aria-required={node.required}
@@ -272,7 +303,7 @@ function SlotControl({
                     id={controlId}
                     type="datetime-local"
                     step={1}
-                    className="max-w-xs"
+                    className={cn('w-60 max-w-full', className)}
                     value={dateTimeInputValue(slot.text)}
                     disabled={disabled}
                     aria-required={node.required}
@@ -285,7 +316,7 @@ function SlotControl({
                     id={controlId}
                     type="time"
                     step={1}
-                    className="max-w-xs"
+                    className={cn('w-36 max-w-full', className)}
                     value={slot.text}
                     disabled={disabled}
                     aria-required={node.required}
@@ -312,7 +343,7 @@ function SlotControl({
                     disabled={disabled}
                     required={node.required}
                     clearable={!node.repeats}
-                    className="max-w-md"
+                    className={cn('max-w-md', className)}
                     placeholder="No organisation unit chosen"
                     onChange={(choice) =>
                         onChange({
@@ -328,6 +359,9 @@ function SlotControl({
                     id={controlId}
                     type="text"
                     maxLength={node.maxLength ?? undefined}
+                    // Sixty characters is the line a reader takes in at a glance, which is as much
+                    // of a name, a code or an address as a box needs to show at once.
+                    className={cn('max-w-[60ch]', className)}
                     value={slot.text}
                     disabled={disabled}
                     aria-required={node.required}

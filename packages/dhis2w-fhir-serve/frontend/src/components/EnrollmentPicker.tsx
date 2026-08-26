@@ -87,7 +87,7 @@ export function EnrollmentPicker({
     const offersInstance = support === 'supported'
 
     return (
-        <div className="grid gap-2 rounded-lg border p-4">
+        <div className="bg-card text-card-foreground grid gap-2 rounded-lg border p-4">
             {/* The label names the control the spool source renders; the instance source has a
                 search box and a list of choices rather than one select, so there is nothing for a
                 `for` to point at and a dangling one would name an element that is not there. */}
