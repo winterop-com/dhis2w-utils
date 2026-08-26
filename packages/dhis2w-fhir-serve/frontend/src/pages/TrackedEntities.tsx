@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ChevronRight, Loader2 } from 'lucide-react'
+import { ChevronRight, ChevronsUpDown, Loader2 } from 'lucide-react'
 
+import { TrackedEntityTypeBadge } from '@/components/KindBadge'
 import { PageHeader, PageState } from '@/components/PageState'
 import { PatientSearchControl } from '@/components/PatientSearch'
 import {
@@ -11,8 +12,16 @@ import {
 } from '@/components/TrackedEntitySheet'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+    Command,
+    CommandEmpty,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
     Select,
     SelectContent,
@@ -45,6 +54,7 @@ import {
     registerTableColumns,
     registerTypeChoices,
     REGISTER_ATTRIBUTE_PARAMETER,
+    REGISTER_OPEN_PARAMETER,
     REGISTER_QUERY_PARAMETER,
     REGISTER_TYPE_PARAMETER,
     trackedEntityAttributeLabel,
@@ -58,6 +68,7 @@ import {
     PEOPLE_RESOURCE_TYPE,
     REGISTER_TITLE,
     registerFilterAttributes,
+    registerFilterAttributesForType,
     registerSectionTitle,
     registerSubject,
     registerTitle,
@@ -380,7 +391,30 @@ function RegisterSection({
     /** The DHIS2 instance's address, which a quick view's enrollment rows link into Capture with. */
     dhis2BaseUrl: string | null
 }) {
-    const [opened, setOpened] = useState<OpenedTrackedEntity>(NO_TRACKED_ENTITY_OPENED)
+    // The opened quick view lives in the URL as `?open=<uid>`, like the type and attribute
+    // narrowings: what is on screen is what the address says, so a reload or a sent link opens on
+    // the same record. Written with `replace` so opening and shutting does not stack history.
+    // `open={resource}:{uid}` rather than the uid alone, because a run serving several registers
+    // draws one section per resource and each reads the same address - the resource half says whose
+    // quick view is open.
+    const [openParameters, setOpenParameters] = useSearchParams()
+    const openedValue = openParameters.get(REGISTER_OPEN_PARAMETER)
+    const openedPrefix = `${register.resource}:`
+    const opened: OpenedTrackedEntity =
+        openedValue !== null && openedValue.startsWith(openedPrefix)
+            ? { resourceType: register.resource, trackedEntityUid: openedValue.slice(openedPrefix.length) }
+            : NO_TRACKED_ENTITY_OPENED
+    const writeOpened = (trackedEntityUid: string | null) => {
+        setOpenParameters(
+            (current) => {
+                const written = new URLSearchParams(current)
+                if (trackedEntityUid === null) written.delete(REGISTER_OPEN_PARAMETER)
+                else written.set(REGISTER_OPEN_PARAMETER, `${openedPrefix}${trackedEntityUid}`)
+                return written
+            },
+            { replace: true },
+        )
+    }
     const searchKey = useRegisterSearchKey(register.resource)
     const selectedType = narrowedRegisterType(register, askedType)
     const selectedFilter = narrowedRegisterAttribute(register, askedAttribute)
@@ -404,7 +438,7 @@ function RegisterSection({
     const typeColumn = choices.length > 1 && selectedType === null
 
     const open = (trackedEntityUid: string) => {
-        setOpened({ resourceType: register.resource, trackedEntityUid })
+        writeOpened(trackedEntityUid)
     }
 
     // The listing's own paging sentence, in the subject's own words - so a register of specimen
@@ -465,9 +499,9 @@ function RegisterSection({
             {choices.length > 1 && (
                 <TrackedEntityTypeFilter choices={choices} selected={selectedType} onSelect={onType} />
             )}
-            {registerFilterAttributes(register).length > 0 && (
+            {registerFilterAttributesForType(register, selectedType).length > 0 && (
                 <AttributeValueFilter
-                    attributes={registerFilterAttributes(register)}
+                    attributes={registerFilterAttributesForType(register, selectedType)}
                     selected={selectedFilter}
                     onSelect={onAttribute}
                 />
@@ -495,7 +529,7 @@ function RegisterSection({
             <TrackedEntitySheet
                 opened={opened}
                 onOpenChange={(next) => {
-                    if (!next) setOpened(NO_TRACKED_ENTITY_OPENED)
+                    if (!next) writeOpened(null)
                 }}
                 dhis2BaseUrl={dhis2BaseUrl}
             />
@@ -609,6 +643,7 @@ function AttributeValueFilter({
     const asked = selected === null ? null : registerAttributeToken(selected)
     const [attributeUid, setAttributeUid] = useState(selected?.attributeUid ?? '')
     const [value, setValue] = useState(selected?.value ?? '')
+    const [attributePickerOpen, setAttributePickerOpen] = useState(false)
     // THE ADDRESS WINS WHEN IT CHANGES. A link somebody was sent, and Back, both change what is
     // being filtered for without anything having been typed here, so the controls adopt it. What
     // they do NOT adopt is the address going empty - clearing a value keeps the attribute chosen,
@@ -621,6 +656,18 @@ function AttributeValueFilter({
     }
     const chosen = attributes.find((attribute) => attribute.uid === attributeUid) ?? null
     const vocabulary = useAttributeFilterOptions(chosen?.value_set ?? null)
+
+    // A DHIS2 instance can hold two attributes wearing one name - the play demo declares "First
+    // name" more than once - and a picker offering one name twice reads as broken. Where names
+    // collide (compared caselessly, so "Last name" and "Last Name" count as one name), each entry
+    // carries its uid beside the name: the name says what it means, the uid says which one.
+    const nameTally = new Map<string, number>()
+    for (const attribute of attributes) {
+        const spelled = attribute.name?.toLowerCase() ?? ''
+        if (spelled !== '') nameTally.set(spelled, (nameTally.get(spelled) ?? 0) + 1)
+    }
+    const nameCollides = (attribute: (typeof attributes)[number]): boolean =>
+        attribute.name !== null && (nameTally.get(attribute.name.toLowerCase()) ?? 0) > 1
 
     const apply = (next: string): void => {
         setValue(next)
@@ -641,30 +688,68 @@ function AttributeValueFilter({
                     <Label htmlFor={ATTRIBUTE_FILTER_CONTROL_ID} className="text-muted-foreground text-sm">
                         Tracked entity attribute
                     </Label>
-                    <Select
-                        value={attributeUid}
-                        onValueChange={(next) => {
-                            // A different attribute is a different question, so the value goes with
-                            // it rather than being carried over to be matched against another
-                            // attribute's values.
-                            setAttributeUid(next)
-                            setValue('')
-                            if (selected !== null) onSelect(null)
-                        }}
-                    >
-                        <SelectTrigger id={ATTRIBUTE_FILTER_CONTROL_ID} className="w-64">
-                            <SelectValue placeholder="Not chosen" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {attributes.map((attribute) => (
-                                <SelectItem key={attribute.uid} value={attribute.uid}>
-                                    <span className={cn(attribute.name === null && 'font-mono text-xs')}>
-                                        {attribute.name ?? attribute.uid}
-                                    </span>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    {/* A searchable list in a bounded popover rather than a select: a DHIS2
+                        instance can declare forty filterable attributes, and a select that long
+                        opens the height of the screen and scrolls by nudge buttons. */}
+                    <Popover open={attributePickerOpen} onOpenChange={setAttributePickerOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                id={ATTRIBUTE_FILTER_CONTROL_ID}
+                                type="button"
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={attributePickerOpen}
+                                className="w-64 justify-between font-normal"
+                            >
+                                <span className={cn('truncate', chosen === null && 'text-muted-foreground')}>
+                                    {chosen === null ? 'Not chosen' : (chosen.name ?? chosen.uid)}
+                                </span>
+                                {chosen !== null && nameCollides(chosen) && (
+                                    <span className="machine-identifier shrink-0 text-[10px]">{chosen.uid}</span>
+                                )}
+                                <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" aria-hidden />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-(--radix-popover-trigger-width) min-w-64 p-0" align="start">
+                            <Command>
+                                <CommandInput placeholder="Search by name or uid" />
+                                <CommandList>
+                                    <CommandEmpty>No attribute matches that search.</CommandEmpty>
+                                    {attributes.map((attribute) => (
+                                        <CommandItem
+                                            key={attribute.uid}
+                                            value={`${attribute.name ?? ''} ${attribute.uid}`}
+                                            data-checked={attribute.uid === attributeUid ? 'true' : 'false'}
+                                            onSelect={() => {
+                                                // A different attribute is a different question, so
+                                                // the value goes with it rather than being carried
+                                                // over to be matched against another attribute's
+                                                // values.
+                                                setAttributeUid(attribute.uid)
+                                                setValue('')
+                                                if (selected !== null) onSelect(null)
+                                                setAttributePickerOpen(false)
+                                            }}
+                                        >
+                                            <span
+                                                className={cn(
+                                                    'truncate',
+                                                    attribute.name === null && 'font-mono text-xs',
+                                                )}
+                                            >
+                                                {attribute.name ?? attribute.uid}
+                                            </span>
+                                            {nameCollides(attribute) && (
+                                                <span className="machine-identifier shrink-0 text-[10px]">
+                                                    {attribute.uid}
+                                                </span>
+                                            )}
+                                        </CommandItem>
+                                    ))}
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
                 </div>
                 <div className="grid gap-1">
                     <Label htmlFor={ATTRIBUTE_FILTER_VALUE_ID} className="text-muted-foreground text-sm">
@@ -694,7 +779,10 @@ function AttributeValueFilter({
                         </Select>
                     )}
                 </div>
-                <Button type="submit" variant="outline" size="sm" disabled={chosen === null || value === ''}>
+                {/* The task this control exists for, so it wears the primary colour - the same rule
+                    the Evaluate screen's run button follows. Clearing is the way back out and stays
+                    quiet: a screen with two filled buttons names neither as the thing to press. */}
+                <Button type="submit" size="sm" disabled={chosen === null || value === ''}>
                     Filter
                 </Button>
                 {selected !== null && (
@@ -912,10 +1000,15 @@ function RegisterRow({
                 </span>
             </TableCell>
             {typeColumn && (
-                <TableCell
-                    className={cn('align-top text-sm', type?.isMachineSpelling === true && 'font-mono text-xs')}
-                >
-                    {type === null ? <span className="text-muted-foreground text-xs">-</span> : type.text}
+                // The same pill this record wears at the head of its own page and of its quick view.
+                // A column of bare text beside two screens of chips would spell one fact two ways
+                // across the journey a reader makes most often here - row, quick view, full page.
+                <TableCell className="align-top">
+                    {type === null ? (
+                        <span className="text-muted-foreground text-xs">-</span>
+                    ) : (
+                        <TrackedEntityTypeBadge name={type} />
+                    )}
                 </TableCell>
             )}
             {columns.attributes.map((column) => {

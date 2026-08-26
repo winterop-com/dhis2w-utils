@@ -24,7 +24,7 @@ test('a code system no served map translates from offers no lookup at all', asyn
     await expect(page.getByRole('row').filter({ hasText: 'DeAncDanger' })).toHaveCount(1)
     // What is not there is a button promising an answer no map can give: every press would come
     // back "no ConceptMap served here maps ...", which is a refusal dressed as an affordance.
-    await expect(page.getByRole('button', { name: /^Details for/ })).toHaveCount(0)
+    await expect(page.getByRole('row', { name: /^What a code maps to in this DHIS2 instance:/ })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Look up a code' })).toHaveCount(0)
     await expect(
         page.getByRole('heading', { name: 'What a code maps to in this DHIS2 instance' }),
@@ -37,7 +37,7 @@ test('a code system a map translates from offers it on every row, and beside the
     await page.goto(MAPPED_SYSTEM)
 
     await expect(
-        page.getByRole('button', { name: 'Details for OpFever0001', exact: true }),
+        page.getByRole('row', { name: 'What a code maps to in this DHIS2 instance: OpFever0001', exact: true }),
     ).toBeVisible()
     // The second way in, for a code somebody has in their head rather than on the screen.
     await expect(page.getByRole('button', { name: 'Look up a code' })).toBeVisible()
@@ -66,7 +66,7 @@ test('the answer arrives where the reader is, not eleven screens below', async (
     await page.setViewportSize({ width: 1280, height: 446 })
     await page.goto(MAPPED_SYSTEM)
 
-    const row = page.getByRole('button', { name: 'Details for OpFever0001', exact: true })
+    const row = page.getByRole('row', { name: 'What a code maps to in this DHIS2 instance: OpFever0001', exact: true })
     await row.scrollIntoViewIfNeeded()
     await row.click()
 
@@ -81,7 +81,7 @@ test('asking about the same row twice answers twice', async ({ page }) => {
     await page.goto(MAPPED_SYSTEM)
 
     const answer = page.getByTestId('translate-result')
-    await page.getByRole('button', { name: 'Details for OpFever0001', exact: true }).click()
+    await page.getByRole('row', { name: 'What a code maps to in this DHIS2 instance: OpFever0001', exact: true }).click()
     await expect(answer).toContainText('2 mappings')
 
     // The box is typed over and asked about directly, which is what the sheet is for.
@@ -94,7 +94,7 @@ test('asking about the same row twice answers twice', async ({ page }) => {
 
     // Pressing the same row again is a real question - the box no longer holds that code - and it
     // is answered, rather than settling on a value the page already held.
-    await page.getByRole('button', { name: 'Details for OpFever0001', exact: true }).click()
+    await page.getByRole('row', { name: 'What a code maps to in this DHIS2 instance: OpFever0001', exact: true }).click()
     await expect(page.getByRole('textbox', { name: 'Concept code' })).toHaveValue('OpFever0001')
     await expect(answer).toContainText('2 mappings')
 })

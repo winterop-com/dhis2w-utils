@@ -178,16 +178,16 @@ test('the rail shelves the forms by kind, beside a map that never leaves', async
     // Data sets and programs are different capture surfaces, so they are different shelves.
     await expect(shelves.getByRole('heading', { name: 'Data sets' })).toBeVisible()
     // `exact` throughout: beside each row's own link sits the link out to the same object in this
-    // DHIS2 instance's Maintenance app, whose accessible name states the form's title too.
+    // DHIS2 instance's Metadata Management app, whose accessible name states the form's title too.
     await expect(shelves.getByRole('link', { name: 'Child Health', exact: true })).toBeVisible()
     await expect(shelves.getByRole('heading', { name: 'Programs' })).toBeVisible()
     await expect(shelves.getByRole('link', { name: 'Supervision visit', exact: true })).toBeVisible()
 
-    // The two forms whose assignment Lists name Bo carry the badge; everything else is assigned
-    // everywhere and appears plainly rather than behind a collapse.
+    // The two forms whose assignment Lists name Bo are listed beside the ones assigned everywhere,
+    // as plain rows: being on this shelf already says the form reports here, so no row repeats it.
     await expect(shelves.getByRole('link', { name: 'Outbreak response', exact: true })).toBeVisible()
     await expect(shelves.getByRole('link', { name: 'Antenatal care', exact: true })).toBeVisible()
-    await expect(shelves.getByText('assigned to this organisation unit')).toHaveCount(2)
+    await expect(shelves.getByText('assigned to this organisation unit')).toHaveCount(0)
 
     // A tracker program is one thing: its stage is grouped under its registration, with the role
     // note saying which row is which.
@@ -200,11 +200,9 @@ test('a unit outside the assignments is offered only the forms assigned everywhe
 
     const shelves = page.getByTestId('org-unit-forms')
     await expect(shelves.getByRole('heading', { name: 'Data sets' })).toBeVisible()
-    // The two scoped forms are not reportable here, so they are not listed at all - and with no
-    // named assignment reaching this unit, nothing carries the badge.
+    // The two scoped forms are not reportable here, so they are not listed at all.
     await expect(shelves.getByRole('link', { name: 'Outbreak response', exact: true })).toHaveCount(0)
     await expect(shelves.getByRole('link', { name: 'Antenatal care', exact: true })).toHaveCount(0)
-    await expect(shelves.getByText('assigned to this organisation unit')).toHaveCount(0)
 })
 
 test('a form assigned to one unit opens from that unit', async ({ page }) => {

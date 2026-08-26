@@ -1134,7 +1134,10 @@ eleven-character DHIS2 id that nobody guesses:
 - `/uiconfig` carries the same set as values rather than prose, under
   `tracked_entities.registers[].filter_attributes[]`, which is what lets a screen
   draw a select over a coded attribute's published values and a text box over
-  everything else.
+  everything else. Each entry also names, under `types[]`, the tracked entity
+  types whose registration forms declare it - so a screen narrowed to one type of
+  a register offers that type's own attributes and not the whole union's. An entry
+  stating no type is offered under every type of its register.
 
 **Which attributes those are is the guide's answer, and there is no dial.** They
 are the attributes the published registration forms ask of the tracked entity

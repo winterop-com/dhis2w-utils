@@ -200,6 +200,41 @@ export function conceptPropertyColumns(codeSystem: CodeSystem): ConceptPropertyC
     return columns
 }
 
+/**
+ * How one property column's values are drawn: as a hued chip, as a quiet machine chip, or plainly.
+ *
+ * `plain` is the default and covers the great majority - a DHIS2 code, a reserved-value pattern, a
+ * boolean, a coding that digs down into another vocabulary. Those are free text as far as this table
+ * is concerned, and a chip around free text is a border with nothing to say.
+ */
+export type ConceptPropertyTreatment = 'domain' | 'value-type' | 'plain'
+
+/**
+ * The property a DHIS2 data element states its domain type on, as `d2-de-cs` declares it.
+ *
+ * Keyed on the property code rather than on how a value happens to be spelled: the CodeSystem
+ * declares `domain` with a `uri` of `http://dhis2.org/fhir/property/domain` and a type of `code`,
+ * which is a contract, where "the value looks like the word aggregate" is a coincidence waiting to
+ * collide with a category option somebody named Aggregate.
+ */
+const DOMAIN_PROPERTY = 'domain'
+
+/** The property a data element or a tracked entity attribute states its DHIS2 value type on. */
+const VALUE_TYPE_PROPERTY = 'value-type'
+
+/**
+ * Which treatment a property column's values wear, decided from the property code alone.
+ *
+ * The decision belongs to the column rather than to the cell, because a column reads as a column
+ * only when every row in it looks the same - a chip on the rows whose value this app recognises and
+ * bare text on the rest would turn one column into two.
+ */
+export function conceptPropertyTreatment(code: string): ConceptPropertyTreatment {
+    if (code === DOMAIN_PROPERTY) return 'domain'
+    if (code === VALUE_TYPE_PROPERTY) return 'value-type'
+    return 'plain'
+}
+
 /** One concept's value for one property column, as text, or null when it carries none. */
 export function conceptPropertyValue(concept: CodeSystemConcept, code: string): string | null {
     const property = concept.property?.find((candidate) => candidate.code === code)
@@ -514,4 +549,62 @@ export function matchingCodeCount(
                 matchesQuery(query, element.code, element.display) ||
                 (element.target ?? []).some((target) => matchesQuery(query, target.code, target.display)),
         ).length
+}
+
+/**
+ * Where a terminology artifact came from in DHIS2, read off the id this guide minted it under.
+ *
+ * The listing shelves by this rather than showing one flat list of two hundred rows: an option set,
+ * a category, a registry of the instance's own metadata, and a vocabulary DHIS2 hardcodes in the
+ * platform are different kinds of thing, and the id prefix conventions the generator writes are
+ * where that difference is stated. An id outside every convention lands in `other` rather than
+ * being guessed at.
+ */
+export type TerminologyOrigin = 'option-set' | 'category' | 'dictionary' | 'built-in' | 'other'
+
+/** The shelves in the order the listing lays them out, each with the sentence that heads it. */
+export const TERMINOLOGY_ORIGINS: { origin: TerminologyOrigin; title: string; caption: string }[] = [
+    {
+        origin: 'option-set',
+        title: 'Option sets',
+        caption: 'The DHIS2 option sets - what a coded question is answered from.',
+    },
+    {
+        origin: 'category',
+        title: 'Categories',
+        caption: 'DHIS2 categories and attribute option combinations - how aggregate values are disaggregated.',
+    },
+    {
+        origin: 'dictionary',
+        title: 'Data dictionary',
+        caption:
+            'One registry each for what this DHIS2 instance declares: data elements, tracked entity attributes and types, category option combos, organisation unit levels.',
+    },
+    {
+        origin: 'built-in',
+        title: 'Built-in',
+        caption: 'Vocabularies DHIS2 hardcodes in the platform - fixed in code, the same on every instance.',
+    },
+    {
+        origin: 'other',
+        title: 'Other vocabularies',
+        caption: 'Published outside the id conventions the shelves above are read from.',
+    },
+]
+
+/** Which shelf one artifact id belongs on. */
+export function terminologyOrigin(identifier: string): TerminologyOrigin {
+    if (identifier.startsWith('d2-os-')) return 'option-set'
+    if (identifier.startsWith('d2-cat-') || identifier.startsWith('d2-aoc-')) return 'category'
+    if (identifier.startsWith('d2-period-type') || identifier.startsWith('d2-form-type')) return 'built-in'
+    if (
+        identifier.startsWith('d2-de-') ||
+        identifier.startsWith('d2-tea-') ||
+        identifier.startsWith('d2-tet-') ||
+        identifier.startsWith('d2-coc-') ||
+        identifier.startsWith('d2-ou-')
+    ) {
+        return 'dictionary'
+    }
+    return 'other'
 }

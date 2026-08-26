@@ -19,8 +19,12 @@ Five claims carry the file, and they are the five a filter has to hold to before
 - **An attribute this register does not filter on is refused, by name.** Empty would read as "nobody
   holds that", which is a different and false statement.
 - **The filterable set is declared ahead of the request**, at `/metadata` in prose and at `/uiconfig`
-  as values, per register, carrying the attribute's name, its DHIS2 value type, and the ValueSet a
-  coded one is drawn from.
+  as values, per register, carrying the attribute's name, its DHIS2 value type, the ValueSet a coded
+  one is drawn from, and the tracked entity types that declare it. That last is what a screen
+  narrowed to one type of a register reads: the register filters on the union of its types, and a
+  type must not be offered an attribute its own forms never ask. Each attribute is declared once,
+  keyed by UID, however many forms ask it - two attributes sharing a display name are two filters,
+  and the types they are declared by are what tell them apart.
 """
 
 from __future__ import annotations
@@ -54,7 +58,7 @@ from dhis2w_fhir_serve.projection.base import (
     ProjectionEndpoint,
 )
 from dhis2w_fhir_serve.projection.sqlite_store import SqliteProjectionStore
-from dhis2w_fhir_serve.register.index import TrackedEntityIndex
+from dhis2w_fhir_serve.register.index import PublishedTrackedEntityType, TrackedEntityIndex
 from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.routes.uiconfig import tracked_entities_config
 from dhis2w_fhir_serve.settings import ServeSettings
@@ -68,6 +72,7 @@ from fixture_project import (
     REGISTRATION_UNIQUE_ATTRIBUTE,
     SEX_VALUE_SET,
     SPECIMEN_RESOURCE_TYPE,
+    SPECIMEN_TRACKED_ENTITY_TYPE_UID,
     SPECIMEN_UNIQUE_ATTRIBUTE,
 )
 
@@ -79,6 +84,16 @@ _TRACKER_URL = f"{_HOST}/api/tracker/trackedEntities"
 _TRACKED_ENTITY_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/tracked-entity"
 _NATIONAL_ID_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/tracked-entity-attribute/{REGISTRATION_UNIQUE_ATTRIBUTE}"
 _TYPE_SYSTEM = f"{CAPTURE_IDENTIFIER_BASE}/id/tracked-entity-type"
+
+#: A register of two types, written by hand rather than compiled: the arrangement a live instance
+#: has where the fixture guide does not. Both types are published as `Patient`, one attribute is
+#: collected by both of them, and each type collects one the other never asks - which is the shape
+#: a per-type filter list has to be read off.
+_PERSON_TYPE_UID = "TetPerson01"
+_FOCUS_AREA_TYPE_UID = "TetFocusA01"
+_FIRST_NAME_ATTRIBUTE = "TeaFirstNm1"
+_VILLAGE_ATTRIBUTE = "TeaVillage1"
+_AREA_CODE_ATTRIBUTE = "TeaAreaCod1"
 
 #: Two people the fixture's instance holds: one woman born in 1990, one man born on the same day.
 _WOMAN_UID = "PerAaa00001"
@@ -438,11 +453,85 @@ def test_the_uiconfig_declares_what_each_register_filters_on(capture_project: Fh
         attribute for attribute in people["filter_attributes"] if attribute["uid"] == REGISTRATION_CODED_ATTRIBUTE
     )
 
-    assert sex == {"uid": REGISTRATION_CODED_ATTRIBUTE, "name": "Sex", "value_type": "TEXT", "value_set": SEX_VALUE_SET}
+    assert sex == {
+        "uid": REGISTRATION_CODED_ATTRIBUTE,
+        "name": "Sex",
+        "value_type": "TEXT",
+        "value_set": SEX_VALUE_SET,
+        "types": [REGISTRATION_TRACKED_ENTITY_TYPE_UID],
+    }
     assert [attribute["uid"] for attribute in samples["filter_attributes"]] == [SPECIMEN_UNIQUE_ATTRIBUTE]
+    assert [attribute["types"] for attribute in samples["filter_attributes"]] == [[SPECIMEN_TRACKED_ENTITY_TYPE_UID]], (
+        "an attribute one type declares names that type and no other"
+    )
     assert REGISTRATION_CODED_ATTRIBUTE not in [attribute["uid"] for attribute in samples["filter_attributes"]], (
         "a register of samples declares no filter over a person's attributes"
     )
+
+
+def test_the_uiconfig_states_which_types_declare_each_filterable_attribute() -> None:
+    """A register over two types names, per attribute, the types whose forms ask it - and no others.
+
+    The arrangement is the ordinary one a live instance has and the compiled fixture does not: two
+    tracked entity types published as one resource, each collecting attributes the other does not. A
+    reader narrowed to the focus area must be offered the focus area's own attributes, so an
+    attribute one type declares names that type alone and a shared one names both, in the order the
+    types ride the register.
+    """
+    index = TrackedEntityIndex(
+        tracked_entity_system=_TRACKED_ENTITY_SYSTEM,
+        tracked_entity_type_system=_TYPE_SYSTEM,
+        attribute_value_extension_url=f"{CAPTURE_IDENTIFIER_BASE}/StructureDefinition/d2-tea-value",
+        identifier_system_base=CAPTURE_IDENTIFIER_BASE,
+        tracked_entity_types=(
+            PublishedTrackedEntityType(uid=_PERSON_TYPE_UID, name="Person"),
+            PublishedTrackedEntityType(uid=_FOCUS_AREA_TYPE_UID, name="Focus area"),
+        ),
+        tracked_entity_type_attribute_uids={
+            _PERSON_TYPE_UID: (_FIRST_NAME_ATTRIBUTE, _VILLAGE_ATTRIBUTE),
+            _FOCUS_AREA_TYPE_UID: (_VILLAGE_ATTRIBUTE, _AREA_CODE_ATTRIBUTE),
+        },
+    )
+
+    served = tracked_entities_config(live=True, surface=RegisterSurface.resolve(index, TrackedEntitiesConfig()))
+    register = next(entry for entry in served.registers if entry.resource == "Patient")
+
+    assert {attribute.uid: attribute.types for attribute in register.filter_attributes} == {
+        _FIRST_NAME_ATTRIBUTE: [_PERSON_TYPE_UID],
+        _VILLAGE_ATTRIBUTE: [_PERSON_TYPE_UID, _FOCUS_AREA_TYPE_UID],
+        _AREA_CODE_ATTRIBUTE: [_FOCUS_AREA_TYPE_UID],
+    }
+    assert [attribute.uid for attribute in register.filter_attributes] == [
+        _FIRST_NAME_ATTRIBUTE,
+        _VILLAGE_ATTRIBUTE,
+        _AREA_CODE_ATTRIBUTE,
+    ], "the attribute both types collect is one filter, in the place the first type asked it"
+
+
+def test_an_attribute_two_registration_forms_ask_is_declared_once(capture_project: FhirProject) -> None:
+    """A type registered by a program's form and by its own is one register: each attribute is one filter.
+
+    The fixture's person type is registered twice - the antenatal programme's registration form and
+    the type's own - and three attributes are asked by both. A register concatenating the two
+    declarations would offer a reader `National identifier` twice, so the assembly keys the union by
+    the DHIS2 attribute UID and keeps the place the first declaration put it.
+
+    A name is not a key here: two distinct attributes may be published under one display, and
+    collapsing them would drop a filter the instance genuinely holds. UID is what is deduplicated,
+    and the types each attribute is declared by are what tell the look-alikes apart.
+    """
+    index = TrackedEntityIndex.from_store(capture_project, load_compiled_store(capture_project))
+    surface = RegisterSurface.resolve(index, TrackedEntitiesConfig())
+
+    served = tracked_entities_config(live=True, surface=surface)
+    register = next(entry for entry in served.registers if entry.resource == "Patient")
+    declared = [attribute.uid for attribute in register.filter_attributes]
+
+    assert declared == list(dict.fromkeys(declared)), "an attribute two forms ask is declared once"
+    assert declared.count(REGISTRATION_UNIQUE_ATTRIBUTE) == 1
+    assert [attribute.types for attribute in register.filter_attributes] == [
+        [REGISTRATION_TRACKED_ENTITY_TYPE_UID] for _ in declared
+    ], "one type registers this resource, so every attribute of it names that type once"
 
 
 def _capability(project: FhirProject) -> Any:

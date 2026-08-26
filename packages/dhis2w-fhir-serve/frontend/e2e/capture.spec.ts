@@ -149,8 +149,9 @@ test('a row opens the receipt over the table, with the answers on it', async ({ 
     await page.goto('/#/responses')
     await page.getByRole('row').filter({ hasText: receiptId }).click()
 
-    // The receipt answers where the row is: the table keeps its address, and its filter.
-    await expect(page).toHaveURL(/#\/responses$/)
+    // The receipt answers where the row is, and the address says which quick view is open - so a
+    // reload or a sent link opens on the same receipt.
+    await expect(page).toHaveURL(new RegExp(`#/responses\\?open=${receiptId}$`))
     const sheet = page.getByTestId('receipt-sheet')
     await expect(sheet.getByText(receiptId).first()).toBeVisible()
     await expect(sheet.getByText('Received', { exact: true }).first()).toBeVisible()
@@ -167,11 +168,13 @@ test('a row opens the receipt over the table, with the answers on it', async ({ 
     await expect(answers).toContainText('Fixed, <1y')
 
     // The route is still the receipt id, which is what makes one receipt a link somebody can be
-    // sent - and the sheet carries the way to it rather than replacing it.
+    // sent - and the sheet opens it in its own tab, keeping the listing and the reader's place.
+    const fullPageOpened = page.context().waitForEvent('page')
     await page.getByRole('link', { name: 'Open the full page' }).click()
-    await expect(page).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
-    await page.getByRole('link', { name: 'All responses' }).click()
-    await expect(page).toHaveURL(/#\/responses$/)
+    const fullPage = await fullPageOpened
+    await expect(fullPage).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
+    await fullPage.close()
+    await expect(page).toHaveURL(new RegExp(`#/responses\\?open=${receiptId}$`))
 })
 
 test('the receipt route is deep-linkable and shows the raw resource on demand', async ({

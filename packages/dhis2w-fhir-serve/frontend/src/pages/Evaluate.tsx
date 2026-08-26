@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Loader2, PanelRightClose, PanelRightOpen, Play } from 'lucide-react'
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useState,
+    type CSSProperties,
+    type PointerEvent as ReactPointerEvent,
+    type ReactNode,
+} from 'react'
+import { Loader2, Play } from 'lucide-react'
 
 import { CodeBlock, CodeEditor, type EditorLanguage } from '@/components/CodeEditor'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -7,6 +15,7 @@ import { EvaluateReference } from '@/components/EvaluateReference'
 import { PageHeader } from '@/components/PageState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { RailToggle } from '@/components/RailToggle'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -53,7 +62,7 @@ import {
     type ServedResource,
 } from '@/lib/evaluate'
 import { trackedEntitySettings } from '@/lib/uiconfig'
-import { cn, countedNoun } from '@/lib/utils'
+import { cn, countedNoun, RESIZE_HANDLE_TINT } from '@/lib/utils'
 
 /** The three languages, in the order the picker offers them, each under the name its own community uses. */
 const LANGUAGES: { value: EvaluationLanguage; label: string }[] = [
@@ -72,6 +81,35 @@ const PRESET_RESOURCE_TYPES = ['Questionnaire', 'CodeSystem', 'ValueSet', 'Conce
 
 /** How many of this server's own resources the presets are built from - one per type, at most. */
 const PRESET_LIMIT = 1
+
+// How narrow and how wide the examples rail drags, and where the chosen width is remembered.
+const EXAMPLES_RAIL_DEFAULT_WIDTH = 352
+const EXAMPLES_RAIL_MINIMUM_WIDTH = 280
+const EXAMPLES_RAIL_MAXIMUM_WIDTH = 640
+const EXAMPLES_RAIL_WIDTH_STORAGE_KEY = 'evaluate-rail-width'
+
+/** The width the reader last dragged the examples rail to, else its default (or storage is blocked). */
+function storedExamplesRailWidth(): number {
+    try {
+        const kept = Number(window.localStorage.getItem(EXAMPLES_RAIL_WIDTH_STORAGE_KEY))
+        return Number.isFinite(kept) &&
+            kept >= EXAMPLES_RAIL_MINIMUM_WIDTH &&
+            kept <= EXAMPLES_RAIL_MAXIMUM_WIDTH
+            ? kept
+            : EXAMPLES_RAIL_DEFAULT_WIDTH
+    } catch {
+        return EXAMPLES_RAIL_DEFAULT_WIDTH
+    }
+}
+
+/** Remember a dragged rail width, silently letting go when storage is blocked. */
+function keepExamplesRailWidth(width: number): void {
+    try {
+        window.localStorage.setItem(EXAMPLES_RAIL_WIDTH_STORAGE_KEY, String(Math.round(width)))
+    } catch {
+        // A private window forgets; the rail still resizes for this tab.
+    }
+}
 
 /**
  * How each source language is coloured.
@@ -93,12 +131,13 @@ export function editorLanguage(language: EvaluationLanguage): EditorLanguage {
  * context is two blanks to fill before anything happens at all. So the first generic example is
  * already loaded when the page arrives, and pressing Evaluate is the first thing a reader can do.
  *
- * WHY THE EXAMPLES PANEL IS OPEN BESIDE IT. The second thing a reader does is wonder what else they
- * could have written, and the answer to that is a list of what this engine implements rather than a
- * search engine. So the panel opens with the screen, holding the runnable examples on one tab and
- * each language's own vocabulary on the tab named for it, and its own collapse control folds it to a
- * strip for somebody who already knows - the same affordance the organisation units page's inspector
- * rail carries, in the same words. `lib/reference.ts` states why the subset is ours rather than the
+ * THE EXAMPLES PANEL WAITS IN THE CORNER. The second thing a reader does is wonder what else they
+ * could have written, and the answer is a list of what this engine implements rather than a search
+ * engine: the rail expands from its corner control holding the runnable examples on one tab and
+ * each language's own vocabulary on the tab named for it - the same affordance the organisation
+ * units page's inspector rail carries, in the same words. It starts folded because the editor
+ * already holds a runnable example, so the panel is the second question's answer, not the first
+ * screen's furniture. `lib/reference.ts` states why the subset is ours rather than the
  * specification's.
  *
  * TWO KINDS OF EXAMPLE IN ONE MENU. The generic ones carry their own data and run identically
@@ -136,10 +175,11 @@ export function Evaluate() {
     const [running, setRunning] = useState(false)
     // The panel choice lives for this mount of the page and nowhere else - deliberately plain
     // state, not storage, on the same argument the organisation units page makes about its
-    // inspector rail: a panel somebody shut to read one long library is not a standing preference
-    // about how this screen opens, and a reader arriving at Evaluate for the first time in a
-    // session is exactly the reader the examples are for.
-    const [examplesShown, setExamplesShown] = useState(true)
+    // inspector rail. It opens shut: the editor arrives loaded with a runnable example already,
+    // so the screen's first job needs no panel, and the corner control is where the list waits.
+    const [examplesShown, setExamplesShown] = useState(false)
+    // The rail's dragged width - a standing preference, unlike the open/shut choice above.
+    const [examplesWidth, setExamplesWidth] = useState<number>(() => storedExamplesRailWidth())
 
     // What this guide holds, read once: one resource per type the presets know how to ask about.
     // A type this server does not serve answers a refusal, which is not an error here - it is the
@@ -245,9 +285,10 @@ export function Evaluate() {
                 className={cn(
                     'grid items-start gap-6',
                     examplesShown
-                        ? 'lg:grid-cols-[minmax(0,1fr)_22rem]'
+                        ? 'lg:grid-cols-[minmax(0,1fr)_var(--examples-rail-width)]'
                         : 'lg:grid-cols-[minmax(0,1fr)_auto]',
                 )}
+                style={{ '--examples-rail-width': `${String(examplesWidth)}px` } as CSSProperties}
             >
                 <div className="min-w-0 space-y-6">
                     <Card>
@@ -371,6 +412,7 @@ export function Evaluate() {
                 <ExamplesPanel
                     open={examplesShown}
                     onToggle={() => setExamplesShown(!examplesShown)}
+                    onResize={setExamplesWidth}
                 >
                     <EvaluateReference
                         language={form.language}
@@ -398,60 +440,64 @@ export function Evaluate() {
 function ExamplesPanel({
     open,
     onToggle,
+    onResize,
     children,
 }: {
     open: boolean
     onToggle: () => void
+    /** Take a dragged width, in CSS px - the page owns the column the width belongs to. */
+    onResize: (width: number) => void
     children: ReactNode
 }) {
-    if (!open) {
-        return (
-            <aside aria-label="Examples" className="flex flex-col items-center lg:sticky lg:top-6">
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={onToggle}
-                            aria-label="Expand the examples panel"
-                            className="text-muted-foreground hover:text-foreground"
-                        >
-                            <PanelRightOpen className="size-4" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">Expand the examples panel</TooltipContent>
-                </Tooltip>
-            </aside>
-        )
+    const beginResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        const rail = event.currentTarget.parentElement
+        if (rail === null) return
+        const startX = event.clientX
+        const startWidth = rail.getBoundingClientRect().width
+        let latest = startWidth
+        const follow = (move: PointerEvent) => {
+            latest = Math.min(
+                Math.max(startWidth + (startX - move.clientX), EXAMPLES_RAIL_MINIMUM_WIDTH),
+                EXAMPLES_RAIL_MAXIMUM_WIDTH,
+            )
+            onResize(latest)
+        }
+        const release = () => {
+            document.removeEventListener('pointermove', follow)
+            document.removeEventListener('pointerup', release)
+            keepExamplesRailWidth(latest)
+        }
+        document.addEventListener('pointermove', follow)
+        document.addEventListener('pointerup', release)
     }
+    // The shared RailToggle holds the corner; the sized placeholder is what keeps the collapsed
+    // column as wide as the button, and the card's top stays level with the editor card's.
     return (
-        <aside aria-label="Examples" className="min-w-0 lg:sticky lg:top-6">
-            {/* The card is what the viewport bounds, and the panel inside it decides which of its
-                parts scrolls - which is what keeps the language tabs on screen while the shelves
-                under them move. */}
-            <Card className="flex max-h-[calc(100vh-8rem)] flex-col">
-                <CardContent className="flex min-h-0 flex-1 flex-col gap-1 py-6">
-                    <div className="-mt-3 -mb-1 flex items-center justify-end">
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={onToggle}
-                                    aria-label="Collapse the examples panel"
-                                    className="text-muted-foreground hover:text-foreground"
-                                >
-                                    <PanelRightClose className="size-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="left">Collapse the examples panel</TooltipContent>
-                        </Tooltip>
-                    </div>
-                    {children}
-                </CardContent>
-            </Card>
+        <aside aria-label="Examples" className="relative min-w-0 lg:sticky lg:top-6">
+            <RailToggle open={open} railName="the examples panel" onToggle={onToggle} />
+            {open && (
+                <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize the examples panel"
+                    onPointerDown={beginResize}
+                    className={cn(
+                        'absolute inset-y-0 -left-3 z-10 hidden w-1.5 cursor-col-resize touch-none rounded-full lg:block',
+                        RESIZE_HANDLE_TINT,
+                    )}
+                />
+            )}
+            {open ? (
+                /* The card is what the viewport bounds, and the panel inside it decides which of
+                   its parts scrolls - which is what keeps the language tabs on screen while the
+                   shelves under them move. */
+                <Card className="flex max-h-[calc(100vh-8rem)] flex-col">
+                    <CardContent className="flex min-h-0 flex-1 flex-col gap-1 py-6">{children}</CardContent>
+                </Card>
+            ) : (
+                <div aria-hidden className="size-12" />
+            )}
         </aside>
     )
 }

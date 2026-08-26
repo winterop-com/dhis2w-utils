@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ChevronDown, ChevronRight, MapPin, PanelRightClose, PanelRightOpen, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, MapPin, Search } from 'lucide-react'
 import { usePanelRef } from 'react-resizable-panels'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
@@ -8,12 +8,11 @@ import { MaintenanceLink } from '@/components/MaintenanceLink'
 import { PageHeader, PageState } from '@/components/PageState'
 import { LifecycleBadge } from '@/components/ReceiptBadges'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { RailToggle } from '@/components/RailToggle'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useSpool, type SpoolState } from '@/hooks/use-spool'
 import { useStatusLine } from '@/hooks/use-status-bar'
@@ -52,7 +51,7 @@ import {
 } from '@/lib/spool'
 import { identifierBadges } from '@/lib/terminology'
 import type { BasemapLayer } from '@/lib/uiconfig'
-import { cn, countedNoun, formatCount } from '@/lib/utils'
+import { cn, countedNoun, formatCount, RESIZE_HANDLE_TINT } from '@/lib/utils'
 
 /**
  * MapLibre, and everything that draws with it, fetched only when this page opens.
@@ -89,8 +88,7 @@ const THREE_PANE_QUERY = '(min-width: 1100px)'
  * dragging, or keyboard focus paints it. The `w-1.5` strip is also the pointer target - wide
  * enough to hit, narrow enough that the panes still sit close.
  */
-const PANE_HANDLE =
-    'mx-1 w-1.5 rounded-full bg-transparent transition-colors hover:bg-border active:bg-border focus-visible:bg-border'
+const PANE_HANDLE = `mx-1 w-1.5 rounded-full bg-transparent transition-colors ${RESIZE_HANDLE_TINT}`
 
 /** The width the inspector rail keeps when collapsed: room for the expand control, nothing else. */
 const RAIL_COLLAPSED_SIZE = '2.5rem'
@@ -642,45 +640,17 @@ function InspectorRail({
 }) {
     if (!open) {
         return (
-            <aside aria-label="Organisation unit details" className="flex h-full flex-col items-center">
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={onToggle}
-                            aria-label="Expand the details panel"
-                            className="text-muted-foreground hover:text-foreground"
-                        >
-                            <PanelRightOpen className="size-4" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">Expand the details panel</TooltipContent>
-                </Tooltip>
+            <aside aria-label="Organisation unit details" className="relative h-full">
+                <RailToggle open={false} railName="the details panel" onToggle={onToggle} />
             </aside>
         )
     }
 
     return (
-        <aside aria-label="Organisation unit details" className="flex h-full min-h-0 flex-col gap-1">
-            <div className="-mb-1 flex items-center justify-end">
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={onToggle}
-                            aria-label="Collapse the details panel"
-                            className="text-muted-foreground hover:text-foreground"
-                        >
-                            <PanelRightClose className="size-4" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">Collapse the details panel</TooltipContent>
-                </Tooltip>
-            </div>
+        <aside aria-label="Organisation unit details" className="relative flex h-full min-h-0 flex-col">
+            <RailToggle open railName="the details panel" onToggle={onToggle} />
             {/* The rail scrolls on its own; the map beside it never does. */}
-            <div className="show-scrollbars min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">{children}</div>
+            <div className="show-scrollbars min-h-0 flex-1 space-y-4 overflow-y-auto pt-10 pr-1">{children}</div>
         </aside>
     )
 }
@@ -938,7 +908,6 @@ interface UnitFormCatalog {
     /** Reportable forms declaring no kind, or ids the store no longer serves - listed, not hidden. */
     other: { formId: string; questionnaire: Questionnaire | null }[]
     /** The form ids an assignment List names this unit on; every other entry is assigned everywhere. */
-    assignedHere: Set<string>
 }
 
 /**
@@ -971,13 +940,8 @@ function catalogueUnitForms(reportable: ReportableForms, formsById: Map<string, 
         programs: catalog.programs,
         people: catalog.people,
         other: other.toSorted((left, right) => left.formId.localeCompare(right.formId)),
-        assignedHere: new Set(reportable.restrictedFormIds),
     }
 }
-
-/** What a row without an assignment badge means, which is a fact about most of the rows on screen. */
-const ASSIGNED_EVERYWHERE_NOTE =
-    'A form with no assignment badge is assigned everywhere, so it reports at every organisation unit.'
 
 /**
  * The reportable forms as rail sections: Data sets, Programs, tracked entity registration, and the rest.
@@ -1045,7 +1009,6 @@ function FormCatalogSections({
                                         key={formIdentifier(questionnaire)}
                                         formId={formIdentifier(questionnaire)}
                                         questionnaire={questionnaire}
-                                        assignedHere={catalog.assignedHere.has(formIdentifier(questionnaire))}
                                         dhis2BaseUrl={dhis2BaseUrl}
                                     />
                                 ))}
@@ -1069,7 +1032,6 @@ function FormCatalogSections({
                                     <ProgramRows
                                         key={group.key}
                                         group={group}
-                                        assignedHere={catalog.assignedHere}
                                         dhis2BaseUrl={dhis2BaseUrl}
                                     />
                                 ))}
@@ -1095,7 +1057,6 @@ function FormCatalogSections({
                                         key={formIdentifier(questionnaire)}
                                         formId={formIdentifier(questionnaire)}
                                         questionnaire={questionnaire}
-                                        assignedHere={catalog.assignedHere.has(formIdentifier(questionnaire))}
                                         dhis2BaseUrl={dhis2BaseUrl}
                                     />
                                 ))}
@@ -1120,18 +1081,12 @@ function FormCatalogSections({
                                         key={entry.formId}
                                         formId={entry.formId}
                                         questionnaire={entry.questionnaire}
-                                        assignedHere={catalog.assignedHere.has(entry.formId)}
                                         dhis2BaseUrl={dhis2BaseUrl}
                                     />
                                 ))}
                             </ul>
                         </section>
                     )}
-
-                    {/* What the absence of a badge means, said once under the shelves rather than
-                        as a badge on every row it is true of - which is most of them, and would
-                        drown the one or two forms whose assignment really names this unit. */}
-                    <p className="text-muted-foreground text-xs">{ASSIGNED_EVERYWHERE_NOTE}</p>
 
                     {unresolvedAssignmentFormIds.length > 0 && (
                         <p className="text-muted-foreground text-xs">
@@ -1150,11 +1105,9 @@ function FormCatalogSections({
 /** One program's rows: an event program is its one form; a tracker program groups its stages. */
 function ProgramRows({
     group,
-    assignedHere,
     dhis2BaseUrl,
 }: {
     group: ProgramGroup
-    assignedHere: Set<string>
     dhis2BaseUrl: string | null
 }) {
     if (isEventProgram(group) && group.event !== null) {
@@ -1164,7 +1117,6 @@ function ProgramRows({
                 formId={formId}
                 questionnaire={group.event}
                 note="event"
-                assignedHere={assignedHere.has(formId)}
                 dhis2BaseUrl={dhis2BaseUrl}
             />
         )
@@ -1178,7 +1130,6 @@ function ProgramRows({
                         formId={formIdentifier(group.event)}
                         questionnaire={group.event}
                         note="event"
-                        assignedHere={assignedHere.has(formIdentifier(group.event))}
                         dhis2BaseUrl={dhis2BaseUrl}
                     />
                 )}
@@ -1187,7 +1138,6 @@ function ProgramRows({
                         formId={formIdentifier(group.registration)}
                         questionnaire={group.registration}
                         note="registration"
-                        assignedHere={assignedHere.has(formIdentifier(group.registration))}
                         dhis2BaseUrl={dhis2BaseUrl}
                     />
                 ) : (
@@ -1201,8 +1151,8 @@ function ProgramRows({
                             key={formIdentifier(stage)}
                             formId={formIdentifier(stage)}
                             questionnaire={stage}
+                            shownTitle={stageTitle(stage, group.title)}
                             note="stage"
-                            assignedHere={assignedHere.has(formIdentifier(stage))}
                             dhis2BaseUrl={dhis2BaseUrl}
                         />
                     ))}
@@ -1212,19 +1162,32 @@ function ProgramRows({
     )
 }
 
-/** One form as a rail row: its title linked to the form, and how its assignment reaches this unit. */
+/**
+ * A stage's own name, with the program's stripped off the front.
+ *
+ * DHIS2 titles a stage form "{program} - {stage}", and the rail already says the program on the
+ * row the stages hang under - so the repeated half is noise three lines wide. A stage whose title
+ * does not carry the prefix keeps its title whole.
+ */
+function stageTitle(stage: Questionnaire, programTitle: string): string {
+    const title = formTitle(stage)
+    const prefix = `${programTitle} - `
+    return title.startsWith(prefix) && title.length > prefix.length ? title.slice(prefix.length) : title
+}
+
+/** One form as a rail row: its title linked to the form. Every row here reports at this unit. */
 function FormRow({
     formId,
     questionnaire,
-    assignedHere,
+    shownTitle,
     note,
     dhis2BaseUrl,
 }: {
     formId: string
     /** Null when the assignment names a form the store no longer serves - linked by bare id. */
     questionnaire: Questionnaire | null
-    /** True when an assignment List names this unit; everything else is assigned everywhere. */
-    assignedHere: boolean
+    /** What the row reads as when the full title repeats its shelf - a stage under its program. */
+    shownTitle?: string
     /** A muted role note beside the title - 'registration', 'stage', 'event'. */
     note?: string
     dhis2BaseUrl: string | null
@@ -1243,7 +1206,7 @@ function FormRow({
                 the far edge of the rail, where it read as belonging to the badges above it. */}
             <span className="flex min-w-[8ch] flex-1 flex-wrap items-baseline gap-x-2 break-words">
                 <Link to={`/forms/${formId}`} className="interactive-link break-words">
-                    {questionnaire === null ? formId : formTitle(questionnaire)}
+                    {shownTitle ?? (questionnaire === null ? formId : formTitle(questionnaire))}
                 </Link>
                 {target !== null && (
                     <MaintenanceLink
@@ -1259,11 +1222,6 @@ function FormRow({
                 note are two facts, and adjacent elements with nothing between them are read as one
                 word - "Child Programmeregistration". */}
             {note !== undefined && <span className="text-muted-foreground shrink-0 text-xs">{` ${note}`}</span>}
-            {assignedHere && (
-                <Badge variant="outline" className="text-muted-foreground shrink-0 text-[10px]">
-                    assigned to this organisation unit
-                </Badge>
-            )}
         </li>
     )
 }

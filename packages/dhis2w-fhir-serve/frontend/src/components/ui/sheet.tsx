@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Dialog as SheetPrimitive } from "radix-ui"
 
-import { cn } from "@/lib/utils"
+import { cn, RESIZE_HANDLE_TINT } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
@@ -45,6 +45,29 @@ function SheetOverlay({
   )
 }
 
+// How narrow and how wide a dragged panel may go, and where its chosen width is remembered.
+const SHEET_MINIMUM_WIDTH = 384
+const SHEET_WIDTH_STORAGE_KEY = "sheet-width"
+
+/** The width a reader last dragged a panel to, or null when they never have (or storage is blocked). */
+function storedSheetWidth(): number | null {
+  try {
+    const kept = Number(window.localStorage.getItem(SHEET_WIDTH_STORAGE_KEY))
+    return Number.isFinite(kept) && kept >= SHEET_MINIMUM_WIDTH ? kept : null
+  } catch {
+    return null
+  }
+}
+
+/** Remember a dragged width, silently letting go when storage is blocked. */
+function keepSheetWidth(width: number): void {
+  try {
+    window.localStorage.setItem(SHEET_WIDTH_STORAGE_KEY, String(Math.round(width)))
+  } catch {
+    // A private window forgets; the panel still resizes for this open.
+  }
+}
+
 function SheetContent({
   className,
   children,
@@ -57,6 +80,31 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  // A side panel is readable at different widths for different content, so its left edge drags.
+  // The chosen width is one fact shared by every panel - a reader sizes "the panel", not each
+  // screen's - and it is clamped live so a window resize cannot strand it off screen.
+  const [draggedWidth, setDraggedWidth] = React.useState<number | null>(() => storedSheetWidth())
+  const contentRef = React.useRef<HTMLDivElement | null>(null)
+  const beginResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = contentRef.current?.getBoundingClientRect().width ?? SHEET_MINIMUM_WIDTH
+    let latest = startWidth
+    const follow = (move: PointerEvent) => {
+      latest = Math.min(
+        Math.max(startWidth + (startX - move.clientX), SHEET_MINIMUM_WIDTH),
+        window.innerWidth * 0.95,
+      )
+      setDraggedWidth(latest)
+    }
+    const release = () => {
+      document.removeEventListener("pointermove", follow)
+      document.removeEventListener("pointerup", release)
+      keepSheetWidth(latest)
+    }
+    document.addEventListener("pointermove", follow)
+    document.addEventListener("pointerup", release)
+  }
   // WHY THIS RESTORES FOCUS ITSELF. A modal Radix content hands focus back to its `SheetTrigger`,
   // and a sheet opened from a table row has none - the row is a row, and the open state is the
   // page's. So the element that was focused when the sheet arrived is remembered and focused again
@@ -68,6 +116,12 @@ function SheetContent({
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"
+        ref={contentRef}
+        style={
+          side === "right" && draggedWidth !== null
+            ? { width: draggedWidth, maxWidth: "95vw" }
+            : undefined
+        }
         onOpenAutoFocus={(event) => {
           opener.current = document.activeElement as HTMLElement | null
           onOpenAutoFocus?.(event)
@@ -94,6 +148,15 @@ function SheetContent({
         )}
         {...props}
       >
+        {side === "right" && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize the panel"
+            onPointerDown={beginResize}
+            className={cn("absolute inset-y-0 left-0 z-10 w-1.5 cursor-col-resize touch-none", RESIZE_HANDLE_TINT)}
+          />
+        )}
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close data-slot="sheet-close" asChild>

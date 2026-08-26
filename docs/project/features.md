@@ -1776,7 +1776,11 @@ reads that table.
   documentation - each with its name, its DHIS2 value type, and the canonical of
   the published ValueSet where DHIS2 binds an option set - and `/uiconfig` carries
   the same set as values under `tracked_entities.registers[].filter_attributes[]`,
-  so a screen draws a select over a coded attribute and a box over the rest. The
+  so a screen draws a select over a coded attribute and a box over the rest. Each
+  entry names the tracked entity types that declare it under `types[]`, so a screen
+  narrowed to one type of a register offers that type's own attributes rather than
+  the union's - a register carrying a person and a focus area does not offer a
+  focus area's reader a filter on first name. The
   set is what the published registration forms ask of that register's own tracked
   entity types, so a register of specimens filters on a sample's attributes and
   never on a person's; there is no config dial narrowing it, because it filters on
@@ -2745,10 +2749,12 @@ an identifier search and a paged listing on one page, with a detail route at
   external-link mark beside the selected organisation unit's name, on every
   data set / program / program-stage row of the rail's form shelves, and on
   every concept row of the data-element dictionary. Each opens that object's
-  own page in the instance's Maintenance app
-  (`{base}/dhis-web-maintenance/index.html#/edit/{section}/{type}/{uid}`,
-  verified against a running 2.43.1), with `rel="noreferrer noopener"` and an
-  accessible name stating which object and where it goes.
+  own page in the instance's Metadata Management app
+  (`{base}/dhis-web-metadata-management/index.html#/{collection}/{uid}`, where
+  the collection is the plural of the object's type - `dataElements`,
+  `dataSets`, `programs`, `programStages`, `organisationUnits` - each driven
+  against a running 2.43.2), with `rel="noreferrer noopener"` and an accessible
+  name stating which object and where it goes.
 - **The address is the base url of the profile the serve run resolved**, served
   on `/uiconfig` with any userinfo stripped - so a run that resolved no profile
   carries no links at all, rather than a link that goes nowhere.

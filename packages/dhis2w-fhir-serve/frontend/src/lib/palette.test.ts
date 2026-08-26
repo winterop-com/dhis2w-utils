@@ -250,6 +250,20 @@ describe('looking one entity up in the register', () => {
         const lookup = byId(paletteActions(input({ register: 'Person', query: 'a&b=c' })), 'register:lookup')
         expect(lookup.effect).toEqual({ kind: 'navigate', to: '/tracked-entities?q=a%26b%3Dc' })
     })
+
+    it('ranks under every real command match, because its label quotes the query back', () => {
+        // Typing "theme" makes the lookup row read `Look up "theme" in Person` - a label match
+        // that says nothing. The theme rows are what was asked for; the escape hatch trails them.
+        const actions = paletteActions(input({ register: 'Person', query: 'theme' }))
+        const lookup = byId(actions, 'register:lookup')
+        const theme = byId(actions, `theme:${THEMES[0].name}`)
+        expect(paletteScore(lookup, 'theme')).toBeLessThan(paletteScore(theme, 'theme'))
+    })
+
+    it('is lifted by its own vocabulary, still under a label match', () => {
+        const lookup = byId(paletteActions(input({ register: 'Person', query: 'search' })), 'register:lookup')
+        expect(paletteScore(lookup, 'search')).toBe(0.5)
+    })
 })
 
 describe('how the app looks', () => {
@@ -410,11 +424,13 @@ describe('the whole list', () => {
             PAGES_GROUP,
             FORMS_GROUP,
             RESPONSES_GROUP,
-            'Person',
             APPEARANCE_GROUP,
             VIEW_GROUP,
             HELP_GROUP,
             SESSION_GROUP,
+            // Last, deliberately: the register lookup is the escape hatch, and a fallback that
+            // opened the list would bury what was actually asked for.
+            'Person',
         ])
     })
 

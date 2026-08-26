@@ -13,23 +13,29 @@ import { expect, test } from '@playwright/test'
  * the running server, over the same store the forwarder reads, and shows the answer.
  */
 
-test('lists all three terminology types with their counts', async ({ page }) => {
+test('lists the three terminology types as tabs, shelved by origin', async ({ page }) => {
     await page.goto('/#/terminology')
 
     await expect(page.getByRole('heading', { name: 'Terminology', level: 2 })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Code systems' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Value sets' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Concept maps' })).toBeVisible()
+    // One tab per resource type, code systems on screen first.
+    await expect(page.getByRole('tab', { name: /Code systems/ })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /Value sets/ })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /Concept maps/ })).toBeVisible()
+    // Shelved by what the artifact came from in DHIS2.
+    await expect(page.getByRole('heading', { name: 'Option sets' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Data dictionary' })).toBeVisible()
 
     // The map carries the DHIS2 option set it was generated from as its identifier, which is
-    // what the identifiers column is for.
+    // what the identifiers column is for - on the concept maps tab, and in the address.
+    await page.getByRole('tab', { name: /Concept maps/ }).click()
+    await expect(page).toHaveURL(/type=ConceptMap/)
     const map = page.getByRole('row').filter({ hasText: 'd2-os-OsSymptom01-cm' })
     await expect(map).toHaveCount(1)
     await expect(map).toContainText('id/option-set')
     await expect(map).toContainText('OsSymptom01')
 })
 
-test('the filter narrows every section at once', async ({ page }) => {
+test('the filter narrows every shelf of the open tab at once', async ({ page }) => {
     await page.goto('/#/terminology')
 
     await page.getByRole('textbox', { name: 'Filter terminology' }).fill('OsSymptom01')
@@ -93,10 +99,10 @@ test('the listing filter reaches into the codes and names the system that holds 
     const owner = page.getByRole('row').filter({ hasText: 'd2-de-cs' })
     await expect(owner).toHaveCount(1)
     await expect(owner).toContainText('1 matching code')
-    // The section counter says how much of the section survived the filter.
+    // The shelf counter says how much of the shelf survived the filter, and shelves the filter
+    // emptied step aside rather than each stating an absence.
     await expect(page.getByText(/^1 of \d+$/)).toBeVisible()
-    // The other two sections hold nothing with that code, and say so rather than going blank.
-    await expect(page.getByText('Nothing here matches "DeAncDanger".')).toHaveCount(2)
+    await expect(page.getByRole('heading', { name: 'Option sets' })).toHaveCount(0)
 })
 
 test('the tracked-entity dictionary states its codes, uniqueness, and the honest dash', async ({
@@ -214,7 +220,7 @@ test('a code the maps say nothing about is an answer, not an error', async ({ pa
 })
 
 test('opening a concept map shows every mapping, grouped by target system', async ({ page }) => {
-    await page.goto('/#/terminology')
+    await page.goto('/#/terminology?type=ConceptMap')
 
     await page
         .getByRole('row')
@@ -235,10 +241,11 @@ test('opening a concept map shows every mapping, grouped by target system', asyn
 test('a mapping row asks the server in the direction of its own group', async ({ page }) => {
     await page.goto('/#/terminology/ConceptMap/d2-os-OsSymptom01-cm')
 
+    // The mapping row is the interactive element itself: matched on the target cell so the
+    // option-code group's row is the one clicked, not the option-uid group's OpCough0001 row.
     await page
-        .getByRole('row')
+        .getByRole('row', { name: 'What a code maps to in this DHIS2 instance: OpCough0001' })
         .filter({ has: page.getByRole('cell', { name: 'COUGH', exact: true }) })
-        .getByRole('button', { name: 'Details for OpCough0001', exact: true })
         .click()
 
     // The row sits in the group that lands on the DHIS2 option code, and that group is the

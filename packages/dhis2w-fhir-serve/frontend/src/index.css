@@ -146,7 +146,7 @@
     --chart-4: oklch(0.371 0.008 195);
     --chart-5: oklch(0.269 0.006 195);
     /* 0.65rem puts rounded-xl at ~15px (cards) and rounded-md at ~8px (chips). */
-    --radius: 0.65rem;
+    --radius: 0.375rem;
     --sidebar: oklch(1 0 0);
     --sidebar-foreground: oklch(0.15 0.012 195);
     --sidebar-primary: oklch(0.52 0.12 240);
@@ -232,7 +232,7 @@
        zebra is that same fill at seven tenths, because a stripe a reader
        NOTICES is a stripe that has become a second header. */
     --table-head: var(--muted);
-    --table-zebra: color-mix(in oklab, var(--muted) 70%, var(--card));
+    --table-zebra: color-mix(in oklab, var(--muted) 92%, var(--card));
 
     /* THE CAPTURE MODEL, AS FIVE HUES. A data set, an event program, a tracker
        registration, one of that program's stages, and a person-only

@@ -116,16 +116,24 @@ class RegisteredTypeUiConfig(BaseModel):
 class FilterableAttributeUiConfig(BaseModel):
     """One tracked entity attribute a register is filtered by, and what a screen needs to offer it.
 
-    Four facts, and each of them is one a control cannot be drawn without. `uid` is what
+    Five facts, and each of them is one a control cannot be drawn without. `uid` is what
     `d2-attribute={uid}|{value}` names, `name` is what a label reads, `value_type` is what DHIS2 says
-    the values are, and `value_set` is the vocabulary a coded attribute's values come from - so an
+    the values are, `value_set` is the vocabulary a coded attribute's values come from - so an
     attribute bound to a DHIS2 option set is drawn as a choice over the published ValueSet's concepts,
-    and one bound to nothing is drawn as a box the person types into.
+    and one bound to nothing is drawn as a box the person types into - and `types` is which of the
+    register's tracked entity types collect the attribute at all.
 
-    IT IS HERE AS WELL AS IN `/metadata` FOR THE REASON `types` IS. The CapabilityStatement's
-    `d2-attribute` entry names the same attributes in its documentation, because that is where a FHIR
-    client reads what a search parameter means - but it names them in prose, and a screen drawing a
-    select over a vocabulary needs the canonical as a value rather than as a sentence.
+    WHY `types` IS ONE OF THEM. A register is the union of its types, so its filter list is the union
+    of what their forms ask - and a screen narrowed to one of those types must not offer the others'
+    attributes. A register of people carrying a person type and a focus-area type would otherwise
+    offer a focus area's reader a filter on first name, which the focus area's own form never asks
+    and which matches nobody.
+
+    IT IS HERE AS WELL AS IN `/metadata` FOR THE REASON THE REGISTER'S TYPE LIST IS. The
+    CapabilityStatement's `d2-attribute` entry names the same attributes in its documentation, because
+    that is where a FHIR client reads what a search parameter means - but it names them in prose, and
+    a screen drawing a select over a vocabulary needs the canonical as a value rather than as a
+    sentence.
 
     WHAT IT DOES NOT CARRY IS THE VALUES. A coded attribute's concepts are published as a CodeSystem
     and a ValueSet this server already serves, so the canonical is the whole of what crosses; copying
@@ -145,6 +153,14 @@ class FilterableAttributeUiConfig(BaseModel):
 
     value_set: str | None = None
     """The canonical of the ValueSet a coded attribute's values come from, or None where nothing binds it."""
+
+    types: list[str] = Field(default_factory=list)
+    """The tracked entity type UIDs whose registration forms declare this attribute, in the order they ride.
+
+    Empty states nothing rather than nothing declares it, and a screen reads it as the attribute being
+    offered under every type of the register: an emptiness that hid the filter would turn a guide
+    saying less into a control a reader cannot reach.
+    """
 
 
 class RegisterUiConfig(BaseModel):
@@ -167,6 +183,9 @@ class RegisterUiConfig(BaseModel):
 
     Empty when this run serves no register, and empty for a register whose types the guide publishes
     no form for: a filter over attributes nobody declared would be a control with nothing behind it.
+
+    The list is the union over the register's types, and each entry names the types that declare it,
+    so a screen narrowed to one type offers that type's own attributes and no others'.
     """
 
 
@@ -306,6 +325,7 @@ def tracked_entities_config(*, live: bool, surface: RegisterSurface) -> TrackedE
                         name=attribute.display,
                         value_type=attribute.value_type,
                         value_set=attribute.value_set,
+                        types=list(register.filter_attribute_type_uids.get(attribute.attribute_uid, ())),
                     )
                     for attribute in register.filter_attributes
                 ],

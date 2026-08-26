@@ -56,6 +56,8 @@ export interface FilterAttribute {
     value_type: string | null
     /** The canonical of the ValueSet a coded attribute's values come from, or null when none binds it. */
     value_set: string | null
+    /** The tracked entity type uids whose registration forms declare the attribute; empty is unstated. */
+    types?: string[]
 }
 
 /**
@@ -77,6 +79,22 @@ export interface Register {
 /** The attributes one register is filtered by, with silence read as none. */
 export function registerFilterAttributes(register: Register): FilterAttribute[] {
     return register.filter_attributes ?? []
+}
+
+/**
+ * The attributes offered while the register is narrowed to one tracked entity type.
+ *
+ * A register can carry several types and each declares its own attributes - a focus area holds no
+ * first name - so a type narrowing narrows the filter's vocabulary with it. An attribute stating no
+ * owning types is offered under every type, and no narrowing offers everything.
+ */
+export function registerFilterAttributesForType(register: Register, typeUid: string | null): FilterAttribute[] {
+    const declared = registerFilterAttributes(register)
+    if (typeUid === null) return declared
+    return declared.filter((attribute) => {
+        const owners = attribute.types ?? []
+        return owners.length === 0 || owners.includes(typeUid)
+    })
 }
 
 /**

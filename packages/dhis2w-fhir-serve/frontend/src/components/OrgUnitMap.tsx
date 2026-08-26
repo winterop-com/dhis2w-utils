@@ -36,7 +36,8 @@ import {
     type UnitPopupContent,
 } from '@/lib/basemap'
 import type { OrgUnitBoundary, OrgUnitPoint, OrgUnitTree } from '@/lib/orgunits'
-import { boundsOf } from '@/lib/orgunits'
+import { ancestorsOf, boundsOf } from '@/lib/orgunits'
+import { identifierBadges } from '@/lib/terminology'
 import type { BasemapLayer } from '@/lib/uiconfig'
 import { cn } from '@/lib/utils'
 
@@ -254,6 +255,8 @@ export function OrgUnitMap({
     registry.current = tree
     // The one popup this map shows at a time, owned here so a new click replaces the old card.
     const popup = useRef<Popup | null>(null)
+    // The unit lit under that popup, so closing or replacing the card puts it out.
+    const highlighted = useRef<string | null>(null)
 
     const [engineFailure, setEngineFailure] = useState<string | null>(null)
     const [ready, setReady] = useState(false)
@@ -398,7 +401,7 @@ export function OrgUnitMap({
         // because a layer switch rebuilds the shape layers and re-registering with them would
         // stack a second handler on every gesture. MapLibre resolves a layer-scoped listener when
         // the event fires, so a layer added later is covered by a listener registered now.
-        registerInteractions(instance, { select, registry, popup })
+        registerInteractions(instance, { select, registry, popup, highlighted })
         instance.on('load', () => setReady(true))
         instance.on('moveend', () => setZoom(instance.getZoom()))
 
@@ -692,8 +695,10 @@ function applyLayers(
             if (instance.getLayer(layer) !== undefined) instance.removeLayer(layer)
         }
     } else {
-        instance.addSource('org-unit-boundaries', { type: 'geojson', data: shapes })
-        instance.addSource('org-unit-points', { type: 'geojson', data: markers })
+        // `promoteId` is what lets feature-state address a shape by its DHIS2 uid: GeoJSON
+        // feature-state only resolves numeric ids, and a uid is a string.
+        instance.addSource('org-unit-boundaries', { type: 'geojson', data: shapes, promoteId: 'unitId' })
+        instance.addSource('org-unit-points', { type: 'geojson', data: markers, promoteId: 'unitId' })
     }
 
     instance.addLayer({
@@ -715,9 +720,16 @@ function applyLayers(
             // fill is in its own hue and heavy enough to separate from the subtree wash by fill
             // alone, so the tier ranking holds even where two boundaries share an edge and the
             // strokes merge.
-            'fill-opacity': overTiles
-                ? ['match', ['get', 'tier'], 'selected', 0.35, 'within', 0.08, 0.01]
-                : ['match', ['get', 'tier'], 'selected', 0.36, 'within', 0.1, 0.06],
+            // The highlight case answers the open popup: the asked-about shape fills like a
+            // selection while its card is up, whatever tier it holds.
+            'fill-opacity': [
+                'case',
+                ['boolean', ['feature-state', 'highlight'], false],
+                overTiles ? 0.3 : 0.3,
+                overTiles
+                    ? ['match', ['get', 'tier'], 'selected', 0.35, 'within', 0.08, 0.01]
+                    : ['match', ['get', 'tier'], 'selected', 0.36, 'within', 0.1, 0.06],
+            ],
         },
     })
     if (overTiles) {
@@ -861,6 +873,8 @@ interface InteractionHandles {
     select: { current: (unitId: string) => void }
     registry: { current: OrgUnitTree }
     popup: { current: Popup | null }
+    /** The unit lit under the open popup, so the next popup can put it out. */
+    highlighted: { current: string | null }
 }
 
 /** What a cursor position landed on: which unit, and whether by its pin or by its boundary. */
@@ -903,6 +917,17 @@ function easeToExtent(instance: MapLibreMap, extent: [number, number, number, nu
     instance.fitBounds(bounds, { padding: FIT_PADDING, duration: 400, maxZoom: 12 })
 }
 
+/** Light one unit's shapes while its popup is up, and put out whatever was lit before. */
+function highlightUnit(instance: MapLibreMap, handles: InteractionHandles, unitId: string | null): void {
+    const previous = handles.highlighted.current
+    for (const source of ['org-unit-boundaries', 'org-unit-points']) {
+        if (instance.getSource(source) === undefined) continue
+        if (previous !== null) instance.removeFeatureState({ source, id: previous }, 'highlight')
+        if (unitId !== null) instance.setFeatureState({ source, id: unitId }, { highlight: true })
+    }
+    handles.highlighted.current = unitId
+}
+
 /** Open the info popup for one unit, replacing whichever popup is already up. */
 function openUnitPopup(
     instance: MapLibreMap,
@@ -911,26 +936,27 @@ function openUnitPopup(
     handles: InteractionHandles,
 ): void {
     const node = handles.registry.current.byId.get(unitId)
-    const parentName =
-        node === undefined || node.parentId === null
-            ? null
-            : (handles.registry.current.byId.get(node.parentId)?.name ?? null)
     const content = unitPopupContent({
         name: node?.name ?? unitId,
         level: node?.level ?? null,
-        parentName,
+        ancestorNames: ancestorsOf(handles.registry.current, unitId).map((ancestor) => ancestor.name),
         descendantCount: node?.descendantCount ?? 0,
+        identifiers: node === undefined ? [] : identifierBadges(node.location.identifier),
     })
     handles.popup.current?.remove()
-    const card = new Popup({ closeOnClick: true, maxWidth: '18rem', offset: 12 })
+    const card = new Popup({ closeOnClick: true, maxWidth: '20rem', offset: 12 })
     card.setDOMContent(
         popupElement(content, () => {
             handles.select.current(unitId)
             card.remove()
         }),
     )
+    // The asked-about unit lights up under its own popup - which is the answer to "which shape is
+    // this card about" on a map where districts share every edge - and dims again when it shuts.
+    card.on('close', () => highlightUnit(instance, handles, null))
     card.setLngLat(at).addTo(instance)
     handles.popup.current = card
+    highlightUnit(instance, handles, unitId)
 }
 
 /**
@@ -947,7 +973,7 @@ function popupElement(content: UnitPopupContent, onOpen: () => void): HTMLElemen
     root.append(name)
     const lines: [string | null, boolean][] = [
         [content.levelLabel, false],
-        [content.parentName, true],
+        [content.placeLine, true],
         [content.belowLine, true],
     ]
     for (const [line, muted] of lines) {
@@ -956,6 +982,12 @@ function popupElement(content: UnitPopupContent, onOpen: () => void): HTMLElemen
         paragraph.className = muted ? 'text-muted-foreground text-xs' : 'text-xs'
         paragraph.textContent = line
         root.append(paragraph)
+    }
+    for (const identifier of content.identifiers) {
+        const line = document.createElement('p')
+        line.className = 'machine-identifier text-[10px]'
+        line.textContent = `${identifier.label} ${identifier.value}`
+        root.append(line)
     }
     const open = document.createElement('button')
     open.type = 'button'

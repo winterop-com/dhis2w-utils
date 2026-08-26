@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Search } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronRight, Search } from 'lucide-react'
 
 import { CodeLookupSheet } from '@/components/CodeLookupSheet'
 import { IdentifierBadges } from '@/components/IdentifierBadges'
+import { DomainBadge, MachineBadge } from '@/components/KindBadge'
 import { MaintenanceLink } from '@/components/MaintenanceLink'
 import { PageState } from '@/components/PageState'
 import { Badge } from '@/components/ui/badge'
@@ -43,6 +44,7 @@ import {
     conceptPropertyCoding,
     conceptPropertyCodingLink,
     conceptPropertyColumns,
+    conceptPropertyTreatment,
     conceptPropertyValue,
     filterConcepts,
     identifierBadges,
@@ -64,27 +66,6 @@ import { countedNoun } from '@/lib/utils'
 
 /** The three terminology types this route opens, which is exactly what the listing links to. */
 const TERMINOLOGY_TYPES = ['CodeSystem', 'ValueSet', 'ConceptMap'] as const
-
-/**
- * The ladder a long table is read down: a filled header, and every other row tinted.
- *
- * A vocabulary is nineteen columns wide on a category option combo and thousands of rows long, and
- * the eye tracking one row across that width has nothing to hold on to on a flat white table - it
- * drifts a row, and the value read belongs to somebody else. The tint is the guide rail; the header
- * is filled so the names of the columns read as the table's own frame rather than as a first row.
- *
- * The tokens are the app's (`--table-head`, `--table-zebra` in index.css), so light and dark are one
- * decision made once. Hover still wins over the tint: pointing at a row must say which row.
- *
- * FOLLOW-UP, deliberately not done here: this belongs in `components/ui/table.tsx` so every table in
- * the app reads the same way. That file is shadcn's, generated rather than authored, and changing it
- * is a decision about every table at once - so these two constants name the pattern until somebody
- * makes it.
- */
-const ROW_LADDER_HEAD = 'bg-table-head'
-
-/** The tint every other row carries. Paired with `ROW_LADDER_HEAD`; see the note there. */
-const ROW_LADDER_ROW = 'even:not-hover:bg-table-zebra'
 
 /**
  * One terminology resource, opened: the actual codes.
@@ -260,7 +241,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                     <>
                         <div className="show-scrollbars overflow-x-auto rounded-lg border">
                             <Table>
-                                <TableHeader className={ROW_LADDER_HEAD}>
+                                <TableHeader>
                                     <TableRow>
                                         <TableHead>Code</TableHead>
                                         <TableHead>Display</TableHead>
@@ -269,12 +250,32 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                                 {column.label}
                                             </TableHead>
                                         ))}
-                                        {translatable && <TableHead className={PINNED_ACTION_CELL} />}
+                                        {translatable && <TableHead className={PINNED_ACTION_CELL} aria-hidden />}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {shown.rows.map((concept) => (
-                                        <TableRow key={concept.code} className={ROW_LADDER_ROW}>
+                                        <TableRow
+                                            key={concept.code}
+                                            className={translatable ? 'interactive' : undefined}
+                                            tabIndex={translatable ? 0 : undefined}
+                                            aria-label={
+                                                translatable ? `${TRANSLATE_QUESTION}: ${concept.code}` : undefined
+                                            }
+                                            onClick={
+                                                translatable ? () => { lookup.ask(concept.code) } : undefined
+                                            }
+                                            onKeyDown={
+                                                translatable
+                                                    ? (event) => {
+                                                          if (event.key === 'Enter' || event.key === ' ') {
+                                                              event.preventDefault()
+                                                              lookup.ask(concept.code)
+                                                          }
+                                                      }
+                                                    : undefined
+                                            }
+                                        >
                                             <TableCell className="font-mono text-xs font-medium">
                                                 <span className="inline-flex items-center gap-1.5">
                                                     {concept.code}
@@ -297,23 +298,8 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                                 />
                                             ))}
                                             {translatable && (
-                                                <TableCell className={PINNED_ACTION_CELL}>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                aria-label={`Details for ${concept.code}`}
-                                                                onClick={() => {
-                                                                    lookup.ask(concept.code)
-                                                                }}
-                                                            >
-                                                                Details
-                                                                <ArrowRight aria-hidden />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>{TRANSLATE_QUESTION}</TooltipContent>
-                                                    </Tooltip>
+                                                <TableCell className={PINNED_ACTION_CELL} aria-hidden>
+                                                    <ChevronRight className="interactive-mark size-4" />
                                                 </TableCell>
                                             )}
                                         </TableRow>
@@ -422,8 +408,29 @@ function useConceptFilter(): [string, (next: string) => void] {
  * The link carries the coded concept as the target page's filter, so following a category axis off
  * a category option combo lands on that category's own vocabulary showing the one option. A coding
  * naming a display keeps that display in prose; everything else is machine spelling and stays mono.
+ *
+ * TWO COLUMNS HOLD A VALUE OUT OF A SMALL FIXED SET, AND THOSE GET A CHIP. A domain is one of two
+ * words and a value type is one of a dozen tokens, which is exactly the shape the Overview's badges
+ * are for - a reader scanning nine hundred data elements for the tracker ones is matching a shape,
+ * not reading a word. Every other property is free text and stays as it was: a chip around a
+ * reserved-value pattern would be a border drawn round a sentence.
  */
 function ConceptPropertyCell({ concept, code }: { concept: CodeSystemConcept; code: string }) {
+    const treatment = conceptPropertyTreatment(code)
+    if (treatment !== 'plain') {
+        const value = conceptPropertyValue(concept, code)
+        return (
+            <TableCell className="align-top">
+                {value === null ? (
+                    <span className="text-muted-foreground text-xs">-</span>
+                ) : treatment === 'domain' ? (
+                    <DomainBadge domain={value} />
+                ) : (
+                    <MachineBadge>{value}</MachineBadge>
+                )}
+            </TableCell>
+        )
+    }
     const coding = conceptPropertyCoding(concept, code)
     const link = coding === null ? null : conceptPropertyCodingLink(coding)
     if (link !== null) {
@@ -514,7 +521,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                 >
                     <div className="show-scrollbars overflow-x-auto rounded-lg border">
                         <Table>
-                            <TableHeader className={ROW_LADDER_HEAD}>
+                            <TableHeader>
                                 <TableRow>
                                     <TableHead>Code</TableHead>
                                     <TableHead>Display</TableHead>
@@ -525,7 +532,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                                 {shown.rows.map((option) => (
                                     <TableRow
                                         key={`${option.coding.system ?? ''}-${option.coding.code ?? ''}`}
-                                        className={ROW_LADDER_ROW}
+                                       
                                     >
                                         <TableCell className="font-mono text-xs font-medium">
                                             {option.coding.code}
@@ -660,18 +667,30 @@ function MappingGroup({
                 <>
                     <div className="show-scrollbars overflow-x-auto rounded-lg border">
                         <Table>
-                            <TableHeader className={ROW_LADDER_HEAD}>
+                            <TableHeader>
                                 <TableRow>
                                     <TableHead>Concept</TableHead>
                                     <TableHead>Display</TableHead>
                                     <TableHead>Maps to</TableHead>
                                     <TableHead>Equivalence</TableHead>
-                                    <TableHead className={PINNED_ACTION_CELL} />
+                                    <TableHead className={PINNED_ACTION_CELL} aria-hidden />
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {shown.rows.map((row) => (
-                                    <TableRow key={`${row.code}-${row.targetCode}`} className={ROW_LADDER_ROW}>
+                                    <TableRow
+                                        key={`${row.code}-${row.targetCode}`}
+                                        className="interactive"
+                                        tabIndex={0}
+                                        aria-label={`${TRANSLATE_QUESTION}: ${row.code}`}
+                                        onClick={() => onAsk(row.code, target ?? null)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault()
+                                                onAsk(row.code, target ?? null)
+                                            }
+                                        }}
+                                    >
                                         <TableCell className="font-mono text-xs font-medium">
                                             {row.code}
                                         </TableCell>
@@ -686,21 +705,8 @@ function MappingGroup({
                                                 </Badge>
                                             )}
                                         </TableCell>
-                                        <TableCell className={PINNED_ACTION_CELL}>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        aria-label={`Details for ${row.code}`}
-                                                        onClick={() => onAsk(row.code, target ?? null)}
-                                                    >
-                                                        Details
-                                                        <ArrowRight aria-hidden />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>{TRANSLATE_QUESTION}</TooltipContent>
-                                            </Tooltip>
+                                        <TableCell className={PINNED_ACTION_CELL} aria-hidden>
+                                            <ChevronRight className="interactive-mark size-4" />
                                         </TableCell>
                                     </TableRow>
                                 ))}

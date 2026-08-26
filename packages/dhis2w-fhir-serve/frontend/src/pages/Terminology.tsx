@@ -17,17 +17,27 @@ import {
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useStatusLine } from '@/hooks/use-status-bar'
 import { canonicalId, type CodeSystem, type ConceptMap, type ValueSet } from '@/lib/fhir'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
     TERMINOLOGY_FILTER_PARAMETER,
+    TERMINOLOGY_ORIGINS,
     composedSystems,
     identifierBadges,
     mappingCount,
     matchesQuery,
     matchingCodeCount,
     nothingMatchesMessage,
+    terminologyOrigin,
     terminologyRowLink,
     type IdentifierBadge,
 } from '@/lib/terminology'
+
+/** Where the listing carries which resource type is on screen, so a narrowed listing is a link. */
+const TERMINOLOGY_TYPE_PARAMETER = 'type'
+
+/** The three tabs, each carrying the words its tables are headed by. */
+const TERMINOLOGY_TYPES = ['CodeSystem', 'ValueSet', 'ConceptMap'] as const
+type TerminologyType = (typeof TERMINOLOGY_TYPES)[number]
 import { countedNoun, formatCount } from '@/lib/utils'
 
 /**
@@ -52,10 +62,26 @@ export function Terminology() {
     // to one vocabulary can be handed to someone as it stands.
     const [searchParameters, setSearchParameters] = useSearchParams()
     const query = searchParameters.get(TERMINOLOGY_FILTER_PARAMETER) ?? ''
+    const writeParameter = (name: string, next: string | null) => {
+        setSearchParameters(
+            (current) => {
+                const written = new URLSearchParams(current)
+                if (next === null || next === '') written.delete(name)
+                else written.set(name, next)
+                return written
+            },
+            { replace: true },
+        )
+    }
     const setQuery = (next: string) => {
-        setSearchParameters(next === '' ? {} : { [TERMINOLOGY_FILTER_PARAMETER]: next }, {
-            replace: true,
-        })
+        writeParameter(TERMINOLOGY_FILTER_PARAMETER, next)
+    }
+    // Which resource type is on screen. Validated against the vocabulary rather than trusted, and
+    // the default is spelled by absence so the plain address stays the plain listing.
+    const askedType = searchParameters.get(TERMINOLOGY_TYPE_PARAMETER)
+    const activeType: TerminologyType = TERMINOLOGY_TYPES.find((candidate) => candidate === askedType) ?? 'CodeSystem'
+    const setActiveType = (next: TerminologyType) => {
+        writeParameter(TERMINOLOGY_TYPE_PARAMETER, next === 'CodeSystem' ? null : next)
     }
 
     const codeSystemRows = useMemo(
@@ -99,8 +125,70 @@ export function Terminology() {
     const matchingCodeSystems = useMemo(() => matchingRows(codeSystemRows, query), [codeSystemRows, query])
     const matchingValueSets = useMemo(() => matchingRows(valueSetRows, query), [valueSetRows, query])
     const matchingConceptMaps = useMemo(() => matchingRows(conceptMapRows, query), [conceptMapRows, query])
-    const matched = matchingCodeSystems.length + matchingValueSets.length + matchingConceptMaps.length
     const reading = codeSystems.loading || valueSets.loading || conceptMaps.loading
+
+    // What each tab is made of, in one place: the tab bar reads the counts, the active tab reads
+    // the rest, and the two cannot disagree because they read the same record.
+    const tabs: Record<
+        TerminologyType,
+        {
+            label: string
+            countLabel: string
+            loading: boolean
+            error: string | null
+            rows: TerminologyRow[]
+            matching: MatchingRow[]
+            emptyMessage: ReactNode
+        }
+    > = {
+        CodeSystem: {
+            label: 'Code systems',
+            countLabel: 'Concepts',
+            loading: codeSystems.loading,
+            error: codeSystems.error,
+            rows: codeSystemRows,
+            matching: matchingCodeSystems,
+            emptyMessage: 'This project published no CodeSystems.',
+        },
+        ValueSet: {
+            label: 'Value sets',
+            countLabel: 'Systems',
+            loading: valueSets.loading,
+            error: valueSets.error,
+            rows: valueSetRows,
+            matching: matchingValueSets,
+            emptyMessage: 'This project published no ValueSets.',
+        },
+        ConceptMap: {
+            label: 'Concept maps',
+            countLabel: 'Mappings',
+            loading: conceptMaps.loading,
+            error: conceptMaps.error,
+            rows: conceptMapRows,
+            matching: matchingConceptMaps,
+            emptyMessage: (
+                <>
+                    This project published no ConceptMaps. Run{' '}
+                    <code className="font-mono">d2w fhir generate</code>, then{' '}
+                    <code className="font-mono">make sushi</code> to compile the option sets and
+                    categories the forms bind, then restart the server.
+                </>
+            ),
+        },
+    }
+    const active = tabs[activeType]
+    const matched = active.matching.length
+
+    // The active tab shelved by origin - an option set, a category, a registry of the instance's
+    // own metadata, and a hardcoded platform vocabulary are different kinds of thing, and two
+    // hundred rows in one flat list is what this page used to be.
+    const shelves = TERMINOLOGY_ORIGINS.map((shelf) => ({
+        ...shelf,
+        rows: active.rows.filter((row) => terminologyOrigin(row.identifier) === shelf.origin),
+        matching: active.matching.filter((entry) => terminologyOrigin(entry.row.identifier) === shelf.origin),
+        // A shelf the filter emptied steps aside rather than each saying "nothing matches" in turn;
+        // when every shelf is empty the single-section branch below states it once.
+    })).filter((shelf) => shelf.rows.length > 0 && (query.trim() === '' || shelf.matching.length > 0))
 
     useStatusLine(
         reading
@@ -141,52 +229,56 @@ export function Terminology() {
                 )}
             </div>
 
+            <Tabs
+                value={activeType}
+                onValueChange={(next) => {
+                    setActiveType(next as TerminologyType)
+                }}
+                className="mb-6"
+            >
+                <TabsList>
+                    {TERMINOLOGY_TYPES.map((type) => (
+                        <TabsTrigger key={type} value={type}>
+                            {tabs[type].label}
+                            <span className="text-muted-foreground ml-1.5 font-mono text-xs">
+                                {formatCount(tabs[type].rows.length)}
+                            </span>
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+            </Tabs>
+
             <section className="space-y-8">
-                <TerminologySection
-                    title="Code systems"
-                    caption="Concepts, one set per DHIS2 vocabulary published here - the option sets, the categories, and the data dictionaries."
-                    resourceType="CodeSystem"
-                    countLabel="Concepts"
-                    loading={codeSystems.loading}
-                    error={codeSystems.error}
-                    rows={codeSystemRows}
-                    matching={matchingCodeSystems}
-                    query={query}
-                    emptyMessage="This project published no CodeSystems."
-                />
-
-                <TerminologySection
-                    title="Value sets"
-                    caption="What a coded question may be answered from."
-                    resourceType="ValueSet"
-                    countLabel="Systems"
-                    loading={valueSets.loading}
-                    error={valueSets.error}
-                    rows={valueSetRows}
-                    matching={matchingValueSets}
-                    query={query}
-                    emptyMessage="This project published no ValueSets."
-                />
-
-                <TerminologySection
-                    title="Concept maps"
-                    caption="Every concept written back to the DHIS2 option UID and code when captures are sent on."
-                    resourceType="ConceptMap"
-                    countLabel="Mappings"
-                    loading={conceptMaps.loading}
-                    error={conceptMaps.error}
-                    rows={conceptMapRows}
-                    matching={matchingConceptMaps}
-                    query={query}
-                    emptyMessage={
-                        <>
-                            This project published no ConceptMaps. Run{' '}
-                            <code className="font-mono">d2w fhir generate</code>, then{' '}
-                            <code className="font-mono">make sushi</code> to compile the option sets
-                            and categories the forms bind, then restart the server.
-                        </>
-                    }
-                />
+                {shelves.length === 0 ? (
+                    <TerminologySection
+                        title={active.label}
+                        caption=""
+                        resourceType={activeType}
+                        countLabel={active.countLabel}
+                        loading={active.loading}
+                        error={active.error}
+                        rows={active.rows}
+                        matching={active.matching}
+                        query={query}
+                        emptyMessage={active.emptyMessage}
+                    />
+                ) : (
+                    shelves.map((shelf) => (
+                        <TerminologySection
+                            key={shelf.origin}
+                            title={shelf.title}
+                            caption={shelf.caption}
+                            resourceType={activeType}
+                            countLabel={active.countLabel}
+                            loading={active.loading}
+                            error={active.error}
+                            rows={shelf.rows}
+                            matching={shelf.matching}
+                            query={query}
+                            emptyMessage={active.emptyMessage}
+                        />
+                    ))
+                )}
             </section>
         </>
     )

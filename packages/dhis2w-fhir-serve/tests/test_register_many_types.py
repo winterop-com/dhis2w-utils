@@ -40,10 +40,12 @@ from dhis2w_fhir_serve.capability import build_server_capability
 from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 from dhis2w_fhir_serve.register.projection import registered_entity_for
 from dhis2w_fhir_serve.register.surface import RegisterSurface
+from dhis2w_fhir_serve.routes.uiconfig import tracked_entities_config
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.store import load_compiled_store
 from fastapi import FastAPI
 from fixture_many_types import (
+    ASSET_TAG_ATTRIBUTE,
     ASSET_TAG_IDENTIFIER_SYSTEM,
     FRIDGE_TYPE,
     HERD_TYPE,
@@ -178,6 +180,23 @@ def test_the_map_becomes_one_register_per_resource_over_the_union_of_its_types(
         VEHICLE_TYPE.name,
     ]
     assert [published.uid for published in registers["Patient"].tracked_entity_types] == [PERSON_TYPE.uid]
+
+
+def test_a_shared_registers_filter_names_the_types_that_declare_each_attribute(
+    many_types_surface: RegisterSurface,
+) -> None:
+    """`GET /Device` filters on the union, and each attribute states which of its types collect it.
+
+    Both types of the shared resource collect the asset tag, so it is one filter naming both - in the
+    order the types ride the register. A screen offering the filter under one type reads this rather
+    than the register's whole list, which is what keeps a type from being offered an attribute its
+    own form never asks.
+    """
+    served = tracked_entities_config(live=True, surface=many_types_surface)
+    device = next(register for register in served.registers if register.resource == "Device")
+
+    assert [attribute.uid for attribute in device.filter_attributes] == [ASSET_TAG_ATTRIBUTE]
+    assert [attribute.types for attribute in device.filter_attributes] == [[FRIDGE_TYPE.uid, VEHICLE_TYPE.uid]]
 
 
 def test_every_published_type_reaches_the_register_and_none_shadows_another(

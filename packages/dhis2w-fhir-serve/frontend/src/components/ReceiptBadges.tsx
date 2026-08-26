@@ -1,8 +1,9 @@
 import { TriangleAlert } from 'lucide-react'
 
+import { KindBadge } from '@/components/KindBadge'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { FORM_TYPE_LABELS } from '@/lib/fhir'
+import { FORM_TYPE_LABELS, type FormType } from '@/lib/fhir'
 import { LIFECYCLE_LABELS, LIFECYCLE_TINTS, type SpoolResponseSummary } from '@/lib/spool'
 
 /**
@@ -57,5 +58,7 @@ export function FormKindBadge({ kind }: { kind: string }) {
             </Badge>
         )
     }
-    return <Badge variant="secondary">{known}</Badge>
+    // The same tinted pill the Overview's form cards wear, so a receipt's kind is one
+    // spelling and one hue wherever it appears.
+    return <KindBadge kind={kind as FormType} />
 }

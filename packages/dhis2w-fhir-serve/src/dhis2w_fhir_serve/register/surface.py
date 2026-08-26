@@ -39,7 +39,7 @@ from __future__ import annotations
 from dhis2w_fhir.config import TrackedEntitiesConfig
 from dhis2w_fhir.foundation.tracked_entity_attribute_values import tracked_entity_attribute_identifier_system
 from dhis2w_fhir.r4.schemas import DEFAULT_SUBJECT_RESOURCE_TYPE
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir_serve.register.index import PublishedAttribute, PublishedTrackedEntityType, TrackedEntityIndex
 
@@ -59,6 +59,16 @@ class ServedRegister(BaseModel):
     types published as one resource are one register, and an attribute both of them collect is one
     filter. It is read off the guide and narrowed by nothing - `register.filtering` argues why there
     is no config dial here where `search_attributes` has one.
+    """
+
+    filter_attribute_type_uids: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+    """Which of this register's tracked entity types declare each filter attribute, keyed by attribute UID.
+
+    The union above says what the register filters on; this says whose. A register of people carrying
+    two types - a person and a focus area - filters on what either of them collects, and a screen
+    narrowed to the focus area must offer the focus area's own attributes rather than a person's
+    first name. The values are type UIDs in the order the types ride the register, and every
+    attribute in `filter_attributes` has an entry: the union is built from these very declarations.
     """
 
 
@@ -110,6 +120,7 @@ class RegisterSurface(BaseModel):
                 resource_type=resource_type,
                 tracked_entity_types=tuple(types),
                 filter_attributes=self._filter_attributes(types),
+                filter_attribute_type_uids=self._filter_attribute_type_uids(types),
             )
             for resource_type, types in grouped.items()
         )
@@ -150,6 +161,21 @@ class RegisterSurface(BaseModel):
             for attribute in self.index.attributes_asked_of(served.uid):
                 found.setdefault(attribute.attribute_uid, attribute)
         return tuple(found.values())
+
+    def _filter_attribute_type_uids(self, types: list[PublishedTrackedEntityType]) -> dict[str, tuple[str, ...]]:
+        """Which of one resource's types declare each attribute it filters on, in the order they ride it.
+
+        The same walk `_filter_attributes` takes, keeping the type rather than dropping it: a type
+        whose form asks an attribute is a type that attribute may be offered under, and one whose
+        form does not is not.
+        """
+        declared: dict[str, list[str]] = {}
+        for served in types:
+            for attribute in self.index.attributes_asked_of(served.uid):
+                declaring = declared.setdefault(attribute.attribute_uid, [])
+                if served.uid not in declaring:
+                    declaring.append(served.uid)
+        return {attribute_uid: tuple(declaring) for attribute_uid, declaring in declared.items()}
 
 
 def _types_named(

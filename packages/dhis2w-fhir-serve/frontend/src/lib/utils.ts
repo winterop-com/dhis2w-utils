@@ -27,3 +27,13 @@ export function formatCount(value: number): string {
 export function countedNoun(count: number, singular: string): string {
     return `${formatCount(count)} ${count === 1 ? singular : `${singular}s`}`
 }
+
+/**
+ * How every resize handle answers the pointer, spelled once.
+ *
+ * A drag edge that lights up in scrollbar gray reads as a second scrollbar beside the real one -
+ * the org-units tree taught that. The primary tint says "control", and saying it here keeps the
+ * pane divider, the navigation rail's edge, and the side panel's edge from drifting apart.
+ */
+export const RESIZE_HANDLE_TINT =
+    'hover:bg-[color-mix(in_oklab,var(--primary)_35%,transparent)] active:bg-[color-mix(in_oklab,var(--primary)_55%,transparent)] focus-visible:bg-[color-mix(in_oklab,var(--primary)_35%,transparent)]'

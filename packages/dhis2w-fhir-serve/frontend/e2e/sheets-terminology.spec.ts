@@ -22,7 +22,7 @@ const MAPPED_SYSTEM = '/#/terminology/CodeSystem/d2-os-OsSymptom01-cs'
 test('opens from a row, closes on Escape, and gives the focus back to that row', async ({ page }) => {
     await page.goto(MAPPED_SYSTEM)
 
-    const details = page.getByRole('button', { name: 'Details for OpFever0001', exact: true })
+    const details = page.getByRole('row', { name: 'What a code maps to in this DHIS2 instance: OpFever0001', exact: true })
     await details.click()
 
     const sheet = page.getByTestId('code-lookup-sheet')
@@ -54,7 +54,7 @@ test('leaves the page underneath exactly as it was found', async ({ page }) => {
     await page.getByRole('textbox', { name: 'Filter concepts' }).fill('Fever')
     await expect(page).toHaveURL(/\?code=Fever$/)
 
-    await page.getByRole('button', { name: 'Details for OpFever0001', exact: true }).click()
+    await page.getByRole('row', { name: 'What a code maps to in this DHIS2 instance: OpFever0001', exact: true }).click()
     await expect(page.getByTestId('translate-result')).toContainText('2 mappings')
     // The lookup is not a navigation: the address it was opened from is the address it is still at.
     await expect(page).toHaveURL(/\?code=Fever$/)

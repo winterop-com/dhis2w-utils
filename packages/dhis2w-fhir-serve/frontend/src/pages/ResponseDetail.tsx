@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react'
 
 import { ReceiptSections } from '@/components/ReceiptSections'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
+import { RawResourceSheet } from '@/components/ReceiptSections'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useReceiptRecord } from '@/hooks/use-receipt-record'
@@ -60,6 +61,8 @@ export function ResponseDetail() {
                     <Badge variant="outline" className="machine-identifier text-[10px]">
                         {responseId}
                     </Badge>
+                    <div className="flex-1" />
+                    {record.stored.resource !== null && <RawResourceSheet resource={record.stored.resource} />}
                 </div>
             </div>
 

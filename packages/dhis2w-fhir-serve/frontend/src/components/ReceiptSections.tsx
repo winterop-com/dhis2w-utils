@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import { AlertTriangle, ChevronDown, ChevronRight, Inbox, TriangleAlert, Undo2 } from 'lucide-react'
+import { AlertTriangle, Inbox, TriangleAlert, Undo2 } from 'lucide-react'
 
 import { CodeBlock } from '@/components/CodeEditor'
 import { PageState } from '@/components/PageState'
 import { ProseText } from '@/components/ProseText'
-import { Badge } from '@/components/ui/badge'
+import { MachineBadge } from '@/components/KindBadge'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     Table,
@@ -90,7 +91,7 @@ export function ReceiptSections({ record }: { record: ReceiptRecordState }) {
                             {/* The validator quotes link ids and elements with backtick marks, and a
                                 mark is a change of typeface rather than a character on the screen -
                                 so every server-authored sentence here goes through ProseText. */}
-                            <ul className="text-muted-foreground space-y-1 rounded-lg border p-4 text-sm">
+                            <ul className="text-muted-foreground space-y-1 bg-card rounded-lg border p-4 text-sm">
                                 {summary.warnings.map((warning) => (
                                     <li key={warning}>
                                         <ProseText text={warning} />
@@ -111,8 +112,6 @@ export function ReceiptSections({ record }: { record: ReceiptRecordState }) {
                     {summary !== null && summary.withdrawal ? (
                         <WithdrawalSection withdrawal={summary.withdrawal} />
                     ) : null}
-
-                    <RawResource resource={stored.resource} />
 
                     <p className="text-muted-foreground flex items-start gap-2 text-xs">
                         <Inbox className="mt-0.5 size-3.5 shrink-0" aria-hidden />
@@ -144,7 +143,7 @@ function CaptureContextSection({ facts }: { facts: ReceiptContextFact[] }) {
                     looked up in DHIS2.
                 </p>
             </div>
-            <dl className="grid gap-x-6 gap-y-3 rounded-lg border p-4 text-sm sm:grid-cols-3">
+            <dl className="grid gap-x-6 gap-y-3 bg-card rounded-lg border p-4 text-sm sm:grid-cols-3">
                 {facts.map((fact) => (
                     <Fact key={fact.label} label={fact.label} value={fact.value} mono={fact.mono} />
                 ))}
@@ -168,7 +167,7 @@ function ReceiptFacts({
     spoolError: string | null
 }) {
     return (
-        <div className="space-y-3 rounded-lg border p-4">
+        <div className="space-y-3 bg-card rounded-lg border p-4">
             <p className="text-sm">
                 {summary === null
                     ? 'The submission as it arrived, not a view of what DHIS2 now holds.'
@@ -239,7 +238,7 @@ function AnswersSection({
             </div>
 
             {formMissing && (
-                <p className="text-muted-foreground rounded-lg border px-4 py-3 text-sm">
+                <p className="text-muted-foreground bg-card rounded-lg border px-4 py-3 text-sm">
                     This server no longer serves the form this receipt answers, so there are no
                     question texts to show - an implementation guide recompiled since the capture
                     does this. The link ids and the values are the receipt's own, and they are
@@ -248,13 +247,13 @@ function AnswersSection({
             )}
 
             {rows.length === 0 ? (
-                <p className="text-muted-foreground rounded-lg border px-4 py-8 text-sm">
+                <p className="text-muted-foreground bg-card rounded-lg border px-4 py-8 text-sm">
                     {formLoading
                         ? 'Reading the form this receipt answers.'
                         : 'This receipt carries no answers at all - an empty submission the validator accepted for its context alone.'}
                 </p>
             ) : (
-                <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                <div className="show-scrollbars bg-card overflow-x-auto rounded-lg border">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -331,9 +330,7 @@ function AnswerValue({
                     {named ?? value.reference}
                 </span>
                 {named !== null && value.unitId !== null && (
-                    <Badge variant="outline" className="machine-identifier text-[10px]">
-                        {value.unitId}
-                    </Badge>
+                    <MachineBadge className="text-[10px]">{value.unitId}</MachineBadge>
                 )}
             </span>
         )
@@ -342,9 +339,7 @@ function AnswerValue({
         <span className="flex flex-wrap items-center gap-2">
             <span className="text-sm">{value.display}</span>
             {value.code !== null && (
-                <Badge variant="outline" className="machine-identifier text-[10px]">
-                    {value.code}
-                </Badge>
+                <MachineBadge className="text-[10px]">{value.code}</MachineBadge>
             )}
         </span>
     )
@@ -372,14 +367,14 @@ function RejectionSection({ rejection, rules }: { rejection: SpoolRejection; rul
                 DHIS2 refused this import
             </h3>
             <p className="text-muted-foreground text-sm">{rejectionSummary(rejection)}</p>
-            <dl className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border p-4 text-xs sm:grid-cols-4">
+            <dl className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 bg-card rounded-lg border p-4 text-xs sm:grid-cols-4">
                 <Fact label="Status" value={rejection.status ?? 'not stated'} />
                 <Fact label="Created" value={String(rejection.created)} />
                 <Fact label="Updated" value={String(rejection.updated)} />
                 <Fact label="Ignored" value={String(rejection.ignored)} />
             </dl>
             {rejection.issues.length > 0 && (
-                <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                <div className="show-scrollbars bg-card overflow-x-auto rounded-lg border">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -444,7 +439,7 @@ function RefusalSection({ refusal }: { refusal: SpoolRefusal }) {
                 forward run tries again.
             </p>
             {refusal.reasons.length > 0 && (
-                <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                <div className="show-scrollbars bg-card overflow-x-auto rounded-lg border">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -496,7 +491,7 @@ function WithdrawalSection({ withdrawal }: { withdrawal: SpoolWithdrawal }) {
             <p className="text-muted-foreground text-sm">{withdrawalSummary(withdrawal)}</p>
             {/* The instant is not in this grid: the line above it already states when the withdrawal
                 happened, and a fact stated in prose and repeated in a cell is one fact twice. */}
-            <dl className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border p-4 text-xs sm:grid-cols-3">
+            <dl className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 bg-card rounded-lg border p-4 text-xs sm:grid-cols-3">
                 <Fact label="Event" value={withdrawal.event_uid} mono />
                 <Fact label="Status" value={withdrawal.status ?? 'not stated'} />
                 <Fact label="Deleted" value={String(withdrawal.deleted)} />
@@ -506,34 +501,42 @@ function WithdrawalSection({ withdrawal }: { withdrawal: SpoolWithdrawal }) {
 }
 
 /**
- * The stored resource itself, behind a toggle.
+ * The stored resource itself, behind a button that opens it over the panel.
  *
  * The escape hatch that makes the rest honest: everything above is a reading of this document, and
- * a reading can be wrong in a way that is invisible until the bytes are on screen.
+ * a reading can be wrong in a way that is invisible until the bytes are on screen. It stays behind
+ * a button because the document is long and the panel is a summary - the full page carries the
+ * same control top right, the quick view at its foot.
  */
-function RawResource({ resource }: { resource: QuestionnaireResponse }) {
+export function RawResourceSheet({ resource }: { resource: QuestionnaireResponse }) {
     const [shown, setShown] = useState(false)
     return (
-        <section className="space-y-2">
+        <>
             {/* The label names the document, because that is what opens; the tooltip says what the
                 document is, for a reader who has never met the word. */}
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Button variant="outline" size="sm" aria-expanded={shown} onClick={() => setShown(!shown)}>
-                        {shown ? <ChevronDown className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
+                    <Button variant="outline" size="sm" onClick={() => setShown(true)}>
                         Raw QuestionnaireResponse
                     </Button>
                 </TooltipTrigger>
                 <TooltipContent>The receipt exactly as this server stored it</TooltipContent>
             </Tooltip>
-            {shown && (
-                <CodeBlock
-                    value={JSON.stringify(resource, null, 2)}
-                    testId="raw-questionnaire-response"
-                    maxHeight="24rem"
-                />
-            )}
-        </section>
+            <Sheet open={shown} onOpenChange={setShown}>
+                <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+                    <SheetHeader>
+                        <SheetTitle>Raw QuestionnaireResponse</SheetTitle>
+                        <SheetDescription>The receipt exactly as this server stored it.</SheetDescription>
+                    </SheetHeader>
+                    <div className="px-4 pb-6">
+                        <CodeBlock
+                            value={JSON.stringify(resource, null, 2)}
+                            testId="raw-questionnaire-response"
+                        />
+                    </div>
+                </SheetContent>
+            </Sheet>
+        </>
     )
 }
 

@@ -34,6 +34,12 @@ import {
 } from '@/lib/spool'
 import { cn, countedNoun, formatCount } from '@/lib/utils'
 
+/** The query parameter naming the lifecycle the listing is narrowed to. */
+const LIFECYCLE_QUERY_PARAMETER = 'lifecycle'
+
+/** The query parameter naming the receipt whose quick view is open over the listing. */
+const OPENED_QUERY_PARAMETER = 'open'
+
 /**
  * What came back: every capture this server stored, and what has become of it.
  *
@@ -85,11 +91,27 @@ import { cn, countedNoun, formatCount } from '@/lib/utils'
  * back-button entry per click.
  */
 export function Responses() {
-    const [opened, setOpened] = useState(NO_RECEIPT_OPENED)
     const { listing, loading, error, refreshing, reload } = useSpool()
     const forms = useFhirSearch<Questionnaire>('Questionnaire')
     const [searchParameters, setSearchParameters] = useSearchParams()
     const [formFilter, setFormFilter] = useState<string | null>(null)
+
+    // The opened receipt lives in the URL as `?open={id}`, beside the lifecycle filter: the quick
+    // view a reader has open is part of where they are, so a reload lands on the same receipt and
+    // the address bar always says what is on screen. Written with `replace`, like the filter, so
+    // opening and shutting does not stack a back-button entry per row.
+    const opened = searchParameters.get(OPENED_QUERY_PARAMETER) ?? NO_RECEIPT_OPENED
+    const openReceipt = (responseId: string) => {
+        setSearchParameters(
+            (current) => {
+                const written = new URLSearchParams(current)
+                if (responseId === NO_RECEIPT_OPENED) written.delete(OPENED_QUERY_PARAMETER)
+                else written.set(OPENED_QUERY_PARAMETER, responseId)
+                return written
+            },
+            { replace: true },
+        )
+    }
 
     // One read per arrival, and no more: the key changes on every navigation to this route, and the
     // one the page mounted on is the read already in flight - reloading for it would ask the same
@@ -102,12 +124,20 @@ export function Responses() {
         reload()
     }, [arrival, reload])
 
-    const asked = searchParameters.get('lifecycle')
+    const asked = searchParameters.get(LIFECYCLE_QUERY_PARAMETER)
     // Validated against the vocabulary rather than trusted: `?lifecycle=nonsense` filters
     // everything out silently, which reads as "this project has no receipts".
     const lifecycleFilter = RESPONSE_LIFECYCLES.find((candidate) => candidate === asked) ?? null
     const setLifecycleFilter = (next: ResponseLifecycle | null) => {
-        setSearchParameters(next === null ? {} : { lifecycle: next }, { replace: true })
+        setSearchParameters(
+            (current) => {
+                const written = new URLSearchParams(current)
+                if (next === null) written.delete(LIFECYCLE_QUERY_PARAMETER)
+                else written.set(LIFECYCLE_QUERY_PARAMETER, next)
+                return written
+            },
+            { replace: true },
+        )
     }
 
     const formsByCanonical = useMemo(() => {
@@ -205,7 +235,7 @@ export function Responses() {
                                 {rows.map((summary) => {
                                     const label = formLabel(summary, formsByCanonical.get(summary.questionnaire))
                                     const open = () => {
-                                        setOpened(summary.response_id)
+                                        openReceipt(summary.response_id)
                                     }
                                     return (
                                         <TableRow
@@ -254,7 +284,7 @@ export function Responses() {
             <ReceiptSheet
                 responseId={opened}
                 onOpenChange={(next) => {
-                    if (!next) setOpened(NO_RECEIPT_OPENED)
+                    if (!next) openReceipt(NO_RECEIPT_OPENED)
                 }}
             />
         </>

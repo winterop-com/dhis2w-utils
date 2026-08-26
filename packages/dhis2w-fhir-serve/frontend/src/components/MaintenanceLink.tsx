@@ -8,9 +8,9 @@ import { cn } from '@/lib/utils'
  * The way out of this guide and into the instance it was generated from.
  *
  * A small external-link mark beside an identity - an organisation unit's name, a form's title, a
- * data element's row - opening that object's own page in the DHIS2 instance's Maintenance app. It
- * renders nothing at all when the server named no instance, which is the ordinary state of a
- * compiled guide served on a machine that resolved no profile: no address, no link, and no
+ * data element's row - opening that object's own page in the DHIS2 instance's Metadata Management
+ * app. It renders nothing at all when the server named no instance, which is the ordinary state of
+ * a compiled guide served on a machine that resolved no profile: no address, no link, and no
  * affordance suggesting there is one.
  *
  * THE ACCESSIBLE NAME SAYS WHERE IT GOES, in full and in words - which object, of which kind, and
@@ -39,7 +39,10 @@ export function MaintenanceLink({
 }) {
     const href = maintenanceUrl(baseUrl, object, uid)
     if (href === null) return null
-    const label = `Open the ${MAINTENANCE_OBJECT_LABELS[object]} ${subject} in this DHIS2 instance's Maintenance app`
+    // THE APP IS NAMED BECAUSE THE LINK OPENS IT. Every kind this component takes has a by-uid edit
+    // route in Metadata Management, so there is one app to name and no kind left behind on the
+    // retired Maintenance screens - see `METADATA_MANAGEMENT_COLLECTIONS` for what was checked.
+    const label = `Open the ${MAINTENANCE_OBJECT_LABELS[object]} ${subject} in this DHIS2 instance's Metadata Management app`
 
     return (
         <Tooltip>

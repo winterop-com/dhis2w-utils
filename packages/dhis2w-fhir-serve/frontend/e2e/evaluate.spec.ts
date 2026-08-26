@@ -141,6 +141,7 @@ test.describe('the evaluate screen', () => {
 
     test('holds a reference beside the editor, every language on its own tab', async ({ page }) => {
         await page.goto('/#/evaluate')
+        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
 
         // Open with the screen, because the second thing a reader wonders is what else they could
         // have written, and the answer to that is a list rather than a search engine.
@@ -165,6 +166,7 @@ test.describe('the evaluate screen', () => {
 
     test('loads an example from the panel straight into the editor, and runs it', async ({ page }) => {
         await page.goto('/#/evaluate')
+        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
 
         await page
             .getByTestId('evaluate-examples')
@@ -179,6 +181,7 @@ test.describe('the evaluate screen', () => {
 
     test('asks the household Bundle a question a single record could not answer', async ({ page }) => {
         await page.goto('/#/evaluate')
+        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
 
         await page
             .getByTestId('evaluate-examples')
@@ -198,6 +201,7 @@ test.describe('the evaluate screen', () => {
 
     test('states the CQL reference this engine answers, refusals included', async ({ page }) => {
         await page.goto('/#/evaluate')
+        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()
@@ -210,21 +214,22 @@ test.describe('the evaluate screen', () => {
         await expect(reference).toContainText('value set')
     })
 
-    test('folds the examples away for somebody who already knows them', async ({ page }) => {
+    test('starts folded, and the corner control is the way in and out', async ({ page }) => {
         await page.goto('/#/evaluate')
 
+        // The editor already holds a runnable example, so the panel waits in its corner.
+        await expect(page.getByTestId('evaluate-examples')).toHaveCount(0)
+        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
         await expect(page.getByTestId('evaluate-examples')).toBeVisible()
         // The control belongs to the panel it acts on, not to the toolbar above the editor.
         await page.getByRole('button', { name: 'Collapse the examples panel' }).click()
         await expect(page.getByTestId('evaluate-examples')).toHaveCount(0)
-        // Collapsed is a strip holding the way back, not an absence.
-        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
-        await expect(page.getByTestId('evaluate-examples')).toBeVisible()
         await expect(page.getByRole('button', { name: 'Reference', exact: true })).toHaveCount(0)
     })
 
     test('runs a refusal example and shows the whole of what the engine said', async ({ page }) => {
         await page.goto('/#/evaluate')
+        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()
