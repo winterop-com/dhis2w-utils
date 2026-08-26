@@ -313,3 +313,13 @@ test('Back walks back through the tabs, and not through what was typed in the fi
     await expect(page).toHaveURL(/q=Symptom/)
     expect(await page.evaluate(() => history.length)).toBe(entries)
 })
+
+test('the query it names is the tab being read, not the page', async ({ page }) => {
+    // Three tabs are three searches, and a link naming only the first would send a reader who
+    // switched tabs to the answer they are not looking at.
+    await page.goto('/#/terminology')
+    await expect(page.getByTestId('api-link')).toHaveAttribute('href', '/CodeSystem?_format=json')
+
+    await page.getByRole('tab', { name: /Concept maps/ }).click()
+    await expect(page.getByTestId('api-link')).toHaveAttribute('href', '/ConceptMap?_format=json')
+})

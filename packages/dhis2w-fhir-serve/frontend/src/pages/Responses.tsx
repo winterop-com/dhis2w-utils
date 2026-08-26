@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { ChevronRight, FileWarning, RefreshCw } from 'lucide-react'
 
+import { ApiLink } from '@/components/ApiLink'
 import { PageHeader, PageState } from '@/components/PageState'
 import { ProseText } from '@/components/ProseText'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
@@ -185,6 +186,7 @@ export function Responses() {
             <PageHeader
                 title="Responses"
                 description="Every capture this server stored as a receipt, and where each receipt is now."
+                aside={<ApiLink path="/QuestionnaireResponse" />}
             />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">

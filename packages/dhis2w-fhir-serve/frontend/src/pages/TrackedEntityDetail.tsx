@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 
+import { ApiLink } from '@/components/ApiLink'
 import { PageState } from '@/components/PageState'
 import { TrackedEntitySections } from '@/components/TrackedEntitySections'
 import { Badge } from '@/components/ui/badge'
@@ -103,6 +104,7 @@ function TrackedEntityRecord({
                             {trackedEntityUid}
                         </Badge>
                     )}
+                    <ApiLink path={`/${resourceType}/${trackedEntityUid}`} />
                 </div>
             </div>
 

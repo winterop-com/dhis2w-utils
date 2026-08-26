@@ -70,6 +70,7 @@ from dhis2w_fhir_serve.register.projection import PERSON_RESOURCE_TYPES, registe
 from dhis2w_fhir_serve.register.wire import upstream_refusal_text
 from dhis2w_fhir_serve.routes.capture import capture_state
 from dhis2w_fhir_serve.routes.context import serve_context
+from dhis2w_fhir_serve.routes.negotiation import FORMAT_PARAMETER
 from dhis2w_fhir_serve.routes.read import alternatives, identifier_token
 from dhis2w_fhir_serve.routes.register import (
     RegisterLookup,
@@ -165,9 +166,12 @@ def _require_answerable_parameters(request: Request, resource_type: str) -> None
     The operation takes one input and answers one document, so a `_count` or a `_tag` would be a
     narrowing this server cannot perform - and a request answered as though it had been applied
     would hand back a summary of somebody the caller did not ask about.
+
+    `_format` is passed over: it names the format the document comes back in, which the negotiation
+    settled before this ran, and it asks the operation for nothing.
     """
     for name in request.query_params:
-        if name != IDENTIFIER_PARAMETER:
+        if name not in (IDENTIFIER_PARAMETER, FORMAT_PARAMETER):
             raise UnsupportedSearchParameterError(resource_type, name, (IDENTIFIER_PARAMETER,))
 
 

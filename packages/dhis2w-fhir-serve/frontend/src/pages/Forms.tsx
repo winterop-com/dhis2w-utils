@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 
 import { KindBadge } from '@/components/KindBadge'
+import { ApiLink } from '@/components/ApiLink'
 import { PageHeader, PageState } from '@/components/PageState'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useStatusLine } from '@/hooks/use-status-bar'
@@ -68,6 +69,7 @@ export function Forms() {
             <PageHeader
                 title="Forms"
                 description="Questionnaires this server publishes, grouped by the DHIS2 capture model each came from: data sets, event programs, tracker programs, and tracked entity registration."
+                aside={<ApiLink path="/Questionnaire" />}
             />
             <PageState
                 loading={loading}

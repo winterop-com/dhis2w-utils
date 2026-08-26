@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 
+import { ApiLink } from '@/components/ApiLink'
 import { RawResourceSheet } from '@/components/RawResourceSheet'
 import { ReceiptSections } from '@/components/ReceiptSections'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
@@ -88,6 +89,9 @@ function ReceiptQuickView({ responseId }: { responseId: string }) {
                             <ArrowUpRight className="size-4" aria-hidden />
                         </Link>
                     </Button>
+                    {/* Beside it rather than instead of it: the full page is this receipt read, and
+                        the chip is the resource that reading was made from. */}
+                    <ApiLink path={`/QuestionnaireResponse/${responseId}`} />
                 </div>
             </SheetHeader>
             <SheetBody>

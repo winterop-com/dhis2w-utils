@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ChevronRight, ChevronsUpDown, Loader2 } from 'lucide-react'
 
+import { ApiLink } from '@/components/ApiLink'
 import { TrackedEntityTypeBadge } from '@/components/KindBadge'
 import { PageHeader, PageState } from '@/components/PageState'
 import { PatientSearchControl } from '@/components/PatientSearch'
@@ -37,6 +38,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
+import { registerListingPath, registerSearchPath } from '@/lib/api'
+import { type RegisterSearchKey } from '@/lib/fhir'
 import { useAttributeFilterOptions } from '@/hooks/use-attribute-filter-options'
 import { useRegisterListing } from '@/hooks/use-register-listing'
 import { usePatientSearch } from '@/hooks/use-patient-search'
@@ -49,6 +52,7 @@ import {
     narrowedRegisterAttribute,
     narrowedRegisterType,
     patientLeadValue,
+    patientSearchQuery,
     registerAttributeToken,
     registerAttributeValue,
     registerTableColumns,
@@ -57,6 +61,7 @@ import {
     REGISTER_OPEN_PARAMETER,
     REGISTER_QUERY_PARAMETER,
     REGISTER_TYPE_PARAMETER,
+    PATIENT_PAGE_SIZE,
     trackedEntityAttributeLabel,
     trackedEntityTypeLabel,
     type PatientProjection,
@@ -101,13 +106,43 @@ export const REGISTER_PAGE_DESCRIPTION =
  * people. That is a fact about the resources served rather than about their names, so it is decided
  * separately and both a Person register and a Patients-only one get the sentence about people.
  */
-function RegisterHeader({ title, people }: { title: string; people: boolean }) {
+function RegisterHeader({
+    title,
+    people,
+    query = null,
+}: {
+    title: string
+    people: boolean
+    /** The register query the page is showing the answer to, or null before there is one to show. */
+    query?: string | null
+}) {
     return (
         <PageHeader
             title={title}
             description={people ? PEOPLE_PAGE_DESCRIPTION : REGISTER_PAGE_DESCRIPTION}
+            aside={query === null ? undefined : <ApiLink path={query} />}
         />
     )
+}
+
+/**
+ * The register route the browser is reading right now: the search when one is running, else the listing.
+ *
+ * `patientSearchQuery` is what decides between them, and it is the same call the search hook makes -
+ * so a typed value too short to send narrows the link by nothing, exactly as it narrows the tables by
+ * nothing. Both paths are built by `lib/api`'s own builders, which is what keeps the link honest.
+ */
+function registerQueryPath(
+    resource: string,
+    typed: string,
+    key: RegisterSearchKey,
+    trackedEntityTypeUid: string | null,
+    attributeFilter: string | null,
+): string {
+    const query = patientSearchQuery(typed)
+    return query === null
+        ? registerListingPath(resource, null, PATIENT_PAGE_SIZE, trackedEntityTypeUid, attributeFilter)
+        : registerSearchPath(resource, query, key, trackedEntityTypeUid, attributeFilter)
 }
 
 /**
@@ -300,10 +335,26 @@ function RegisterBrowser({
         leadFilter === null ? null : registerAttributeToken(leadFilter),
     )
     const people = servesPeopleOnly(settings)
+    // THE LINK MIRRORS THE LIVE STATE, WHICH IS THE WHOLE POINT OF IT HERE. Every other screen shows
+    // a fixed query; this one narrows by what was typed, by the type chosen, and by the attribute
+    // filter, and a link naming the bare route would teach the reader a query that answers something
+    // else. Below the search threshold the page is showing a page of the listing, so that is what the
+    // link opens. It follows the first register, which is the one the box's own state reports on -
+    // the sections below each run this query against their own resource.
+    const liveQuery =
+        leadResource === ''
+            ? null
+            : registerQueryPath(
+                  leadResource,
+                  typed,
+                  searchKey,
+                  leadRegister === null ? null : narrowedRegisterType(leadRegister, askedType),
+                  leadFilter === null ? null : registerAttributeToken(leadFilter),
+              )
 
     return (
         <>
-            <RegisterHeader title={registerTitle(settings)} people={people} />
+            <RegisterHeader title={registerTitle(settings)} people={people} query={liveQuery} />
 
             <div className="mb-8 max-w-2xl">
                 <PatientSearchControl

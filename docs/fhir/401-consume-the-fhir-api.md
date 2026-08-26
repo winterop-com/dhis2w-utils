@@ -84,6 +84,35 @@ that named formats and named no JSON among them meets the 406. The two non-FHIR
 endpoints below, `/spool` and `/uiconfig`, negotiate nothing: they answer plain
 `application/json` about this facade rather than resources out of it.
 
+**`_format` overrides the header, which is what makes a FHIR query a link.**
+R4 defines the parameter for the client that cannot set an `Accept` - the one
+following a URL somebody pasted - and this server reads it as the override it
+is. `_format=json`, `_format=application/json`, and
+`_format=application/fhir+json`, in any casing, make JSON acceptable whatever
+the header said:
+
+```console
+$ curl -s -o /dev/null -w '%{http_code}\n' -H 'Accept: text/html' localhost:8389/metadata
+406
+$ curl -s -o /dev/null -w '%{http_code}\n' -H 'Accept: text/html' 'localhost:8389/metadata?_format=json'
+200
+```
+
+A `_format` naming anything else is refused even where the header would have
+admitted JSON: the client stated the format it wants, and this server has only
+the one.
+
+```console
+$ curl -s -H 'Accept: application/json' 'localhost:8389/metadata?_format=xml'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`_format=xml` names a format this server does not serve, and this server answers `application/fhir+json` only; ask for `_format=json`, for `_format=application/json`, or for `_format=application/fhir+json`"}]}
+```
+
+An absent `_format` leaves the header to decide alone, and the parameter never
+narrows a search: it names the format an answer arrives in, so a route that
+screens its search parameters passes over it rather than filtering on it. Every
+screen of the capture UI links its own query this way - see
+[Capture in the browser](201-capture-ui.md#the-query-behind-every-screen).
+
 **`POST /` is where FHIR posts a batch or a transaction, and this server runs
 neither.** It says so, rather than answering the 404 an unrouted path would
 give - the address was right and the interaction was not:

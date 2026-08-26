@@ -125,12 +125,29 @@ export function PageState({
     return <>{children}</>
 }
 
-/** A page's heading and one line saying what the page is for. */
-export function PageHeader({ title, description }: { title: string; description: string }) {
+/**
+ * A page's heading, one line saying what the page is for, and whatever the page states beside it.
+ *
+ * `aside` is a slot rather than a position: it sits opposite the title on the same baseline, which
+ * is where a page's metadata about itself belongs - near the name of the thing, out of the reading
+ * line. It stays outside the `h2` deliberately, so the heading's accessible name is the title alone.
+ */
+export function PageHeader({
+    title,
+    description,
+    aside,
+}: {
+    title: string
+    description: string
+    aside?: ReactNode
+}) {
     return (
-        <div className="mb-6 space-y-1">
-            <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-            <p className="text-muted-foreground text-sm">{description}</p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="space-y-1">
+                <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+                <p className="text-muted-foreground text-sm">{description}</p>
+            </div>
+            {aside !== undefined && <div className="flex shrink-0 items-center gap-2 pt-1">{aside}</div>}
         </div>
     )
 }

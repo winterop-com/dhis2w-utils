@@ -5,6 +5,7 @@ import { useDefaultLayout, usePanelRef } from 'react-resizable-panels'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
 import { MaintenanceLink } from '@/components/MaintenanceLink'
+import { ApiLink } from '@/components/ApiLink'
 import { PageHeader, PageState } from '@/components/PageState'
 import { LifecycleBadge } from '@/components/ReceiptBadges'
 import { Badge } from '@/components/ui/badge'
@@ -351,6 +352,9 @@ export function OrgUnits() {
             <PageHeader
                 title="Organisation units"
                 description="The organisation units this implementation guide publishes, in the hierarchy this DHIS2 instance holds them in - where a capture may report from, and which forms it may use."
+                // The selected unit, or the whole registry when the page is framing it as a whole -
+                // which is what the map is showing in each of the two cases.
+                aside={<ApiLink path={selected === null ? '/Location' : `/Location/${selected.id}`} />}
             />
 
             {threePane ? (

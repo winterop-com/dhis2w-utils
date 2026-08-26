@@ -125,3 +125,10 @@ test('a card opens the form view on click, a stage row included', async ({ page 
     await page.getByRole('link').filter({ hasText: 'ANC follow-up - ANC visit' }).first().click()
     await expect(page).toHaveURL(/#\/forms\/PsAncVisit1$/)
 })
+
+test('names the search behind the listing', async ({ page }) => {
+    // The grouping above is this app's fold over one flat searchset, and this is the searchset.
+    await page.goto('/#/forms')
+
+    await expect(page.getByTestId('api-link')).toHaveAttribute('href', '/Questionnaire?_format=json')
+})

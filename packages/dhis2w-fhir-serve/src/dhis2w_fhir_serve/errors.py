@@ -414,6 +414,26 @@ class NotAcceptableError(ServeError):
         self.accept = accept
 
 
+class UnsupportedFormatError(ServeError):
+    """The request's `_format` names a format this server does not answer in.
+
+    `_format` overrides `Accept`, so a value this server cannot serve is refused even where the
+    header would have admitted JSON: the client stated the format it wants the answer in, and
+    handing it JSON instead would answer a question it did not ask.
+    """
+
+    status_code = 406
+    issue_code = "not-supported"
+
+    def __init__(self, stated_format: str) -> None:
+        super().__init__(
+            f"`_format={stated_format}` names a format this server does not serve, and this server answers "
+            f"`{FHIR_JSON_MEDIA_TYPE}` only; ask for `_format=json`, for `_format=application/json`, or for "
+            "`_format=application/fhir+json`"
+        )
+        self.stated_format = stated_format
+
+
 class UnsupportedMediaTypeError(ServeError):
     """The request body is declared in a media type this server does not read."""
 

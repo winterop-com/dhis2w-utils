@@ -446,11 +446,49 @@ export async function searchRegister(
     trackedEntityTypeUid: string | null = null,
     attributeFilter: string | null = null,
 ): Promise<RegisterAnswer> {
-    return readRegisterBundle(resource, {
+    return readRegisterBundle(resource, registerSearchParameters(key, query, trackedEntityTypeUid, attributeFilter))
+}
+
+/** Everything one register search puts on the wire, assembled once for the request and the link alike. */
+function registerSearchParameters(
+    key: RegisterSearchKey,
+    query: string,
+    trackedEntityTypeUid: string | null,
+    attributeFilter: string | null,
+): Record<string, string> {
+    return {
         [key]: query,
         ...typeTag(trackedEntityTypeUid),
         ...attributeValueFilter(attributeFilter),
-    })
+    }
+}
+
+/**
+ * The path one register search reads, without reading it - what the browser would fetch, as a string.
+ *
+ * It exists so a screen can show the query it is showing the answer to. The parameters come from the
+ * same builder the request uses, so the two cannot drift: a filter the search sends and the link
+ * omits would be a link that answers a different question than the page.
+ */
+export function registerSearchPath(
+    resource: string,
+    query: string,
+    key: RegisterSearchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
+    trackedEntityTypeUid: string | null = null,
+    attributeFilter: string | null = null,
+): string {
+    return registerPath(resource, registerSearchParameters(key, query, trackedEntityTypeUid, attributeFilter))
+}
+
+/** The path one page of a register listing reads, without reading it - the link beside the table. */
+export function registerListingPath(
+    resource: string,
+    pageToken: string | null,
+    count: number,
+    trackedEntityTypeUid: string | null = null,
+    attributeFilter: string | null = null,
+): string {
+    return registerPath(resource, registerListingParameters(pageToken, count, trackedEntityTypeUid, attributeFilter))
 }
 
 /**
@@ -501,13 +539,18 @@ export interface RegisterAnswer {
     projectionAsOf: string | null
 }
 
+/** One register route with its query on it, which is the string the request and the link both name. */
+function registerPath(resource: string, parameters: Record<string, string>): string {
+    const query = new URLSearchParams(parameters).toString()
+    return `/${resource}${query ? `?${query}` : ''}`
+}
+
 /** One register read, with the projection's own statement of when it was last filled. */
 async function readRegisterBundle(
     resource: string,
     parameters: Record<string, string>,
 ): Promise<RegisterAnswer> {
-    const query = new URLSearchParams(parameters).toString()
-    const path = `/${resource}${query ? `?${query}` : ''}`
+    const path = registerPath(resource, parameters)
     const response = await apiFetch(path, { cache: 'no-store' })
     const body: unknown = await response.json().catch(() => null)
     if (!response.ok) throw new FhirRequestError(response.status, body as OperationOutcome | null, path)
@@ -539,13 +582,26 @@ export async function listRegister(
     trackedEntityTypeUid: string | null = null,
     attributeFilter: string | null = null,
 ): Promise<RegisterAnswer> {
+    return readRegisterBundle(
+        resource,
+        registerListingParameters(pageToken, count, trackedEntityTypeUid, attributeFilter),
+    )
+}
+
+/** Everything one page of a register listing puts on the wire, for the request and the link alike. */
+function registerListingParameters(
+    pageToken: string | null,
+    count: number,
+    trackedEntityTypeUid: string | null,
+    attributeFilter: string | null,
+): Record<string, string> {
     const parameters: Record<string, string> = {
         [PATIENT_COUNT_PARAMETER]: String(count),
         ...typeTag(trackedEntityTypeUid),
         ...attributeValueFilter(attributeFilter),
     }
     if (pageToken !== null) parameters[PATIENT_PAGE_PARAMETER] = pageToken
-    return readRegisterBundle(resource, parameters)
+    return parameters
 }
 
 /** One tracked entity the DHIS2 instance holds, under the FHIR resource its type is registered as. */
