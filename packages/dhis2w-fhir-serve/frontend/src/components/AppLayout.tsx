@@ -298,18 +298,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     style={!collapsed && railWidth !== null ? { width: railWidth } : undefined}
                 >
                     {/* THE LOGO OWNS THE CORNER, THE TOGGLE RIDES THE RAIL'S EDGE.
-                        The top-left corner is where every app puts its identity, so the wordmark
-                        sits there in both states, and the control that folds the rail sits on the
-                        edge it folds - `ml-auto` against the rail's right edge expanded, centred
-                        under the logo in the 64px collapsed rail. */}
+                        Expanded, the wordmark sits in the top-left corner where every app puts
+                        its identity, and the control that folds the rail sits on the edge it
+                        folds, `ml-auto` against the rail's right edge. Collapsed, the rail is a
+                        strip of icons and the toggle is the top one, alone - keeping the logo
+                        and stacking the toggle under it would shove every nav icon down and
+                        back on each fold. The logo returns with the width. */}
                     <div
                         className={cn(
                             'flex items-center gap-2 px-4 py-4',
-                            collapsed && 'flex-col gap-3 px-0',
+                            collapsed && 'justify-center px-0',
                         )}
                     >
                         {/* The wordmark is the way home, which is the convention every
                             other app in a browser has already taught. */}
+                        {!collapsed && (
                         <NavLink
                             to="/"
                             end
@@ -325,6 +328,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                 </span>
                             )}
                         </NavLink>
+                        )}
 
                         <Tooltip>
                             <TooltipTrigger asChild>
