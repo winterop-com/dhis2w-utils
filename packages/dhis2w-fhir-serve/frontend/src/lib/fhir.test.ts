@@ -264,17 +264,32 @@ describe('whether a register search is published', () => {
         expect(declaresRegisterSearch(metadata, 'Patient')).toBe(false)
     })
 
-    it('is published when the statement declares the register with a search on identifier', () => {
-        expect(declaresRegisterSearch(withRegisters(liveRegister('Patient')), 'Patient')).toBe(true)
-    })
+    /**
+     * The served sets a deployment can have, each asked about every register type in play.
+     *
+     * Parametrised over the served set rather than written one case per resource type, because the
+     * question is the same question three times and the answer that matters is the one nobody thinks
+     * to check: `Patient` is a resource type like any other here, so a run serving `Specimen` alone
+     * answers false for it exactly as a run serving `Patient` alone answers false for `Specimen`.
+     */
+    const REGISTER_TYPES = ['Patient', 'Specimen', 'Device']
 
-    it('is published per register, so a Specimen-only deployment answers about Specimen', () => {
-        const statement = withRegisters(liveRegister('Specimen'))
-        expect(declaresRegisterSearch(statement, 'Specimen')).toBe(true)
-        expect(declaresRegisterSearch(statement, 'Patient')).toBe(false)
+    it.each([
+        { deployment: 'people alone', served: ['Patient'] },
+        { deployment: 'samples alone', served: ['Specimen'] },
+        { deployment: 'cold-chain equipment alone', served: ['Device'] },
+        { deployment: 'people and samples together', served: ['Patient', 'Specimen'] },
+        { deployment: 'all three registers', served: REGISTER_TYPES },
+    ])('is published for exactly the registers a run serving $deployment declares', ({ served }) => {
+        const statement = withRegisters(...served.map(liveRegister))
+        for (const type of REGISTER_TYPES) {
+            expect(declaresRegisterSearch(statement, type)).toBe(served.includes(type))
+        }
     })
 
     it('answers each register of a multi-register deployment on its own entry', () => {
+        // The two halves are per entry, not per statement: a run can serve one register searchably
+        // beside one it only resolves by uid, and the gate has to tell them apart.
         const statement = withRegisters(liveRegister('Patient'), {
             type: 'Device',
             interaction: [{ code: 'read' }],

@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
     capturesSubmissions,
     DEFAULT_UI_CONFIG,
+    NO_REGISTER_OFFERED,
+    PEOPLE_RESOURCE_TYPE,
     REGISTER_TITLE,
+    registerResourceForSubjectType,
     registerSectionTitle,
     registerSubject,
     registerTitle,
@@ -11,6 +14,7 @@ import {
     servesPeopleOnly,
     subjectOfTypeName,
     trackedEntitySettings,
+    type TrackedEntitiesSettings,
     type UiConfig,
 } from '@/lib/uiconfig'
 
@@ -268,5 +272,42 @@ describe('whether this server takes what a form was filled in with', () => {
         // the one thing these screens exist to do - over a fact this app does not have.
         expect(capturesSubmissions(DEFAULT_UI_CONFIG)).toBe(true)
         expect(capturesSubmissions({ basemaps: [], dhis2_base_url: null })).toBe(true)
+    })
+})
+
+/**
+ * Which register a form's subject lives in, when the form itself does not say.
+ *
+ * WHY THIS IS WORTH A TEST OF ITS OWN. The answer is what the search gate asks the conformance
+ * document about, and a wrong answer is invisible on a deployment that serves people: `Patient`
+ * happens to be right there. It is wrong everywhere else, and the failure it produces is a search
+ * control that never appears on a run that would have answered a search perfectly well.
+ */
+/** The served set of a run, in the shape `/uiconfig` states it. */
+const serving = (...resources: string[]): TrackedEntitiesSettings => ({
+    enabled: resources.length > 0,
+    listing: true,
+    registers: resources.map((resource) => ({ resource, types: [] })),
+})
+
+describe('the register a form registers into', () => {
+    it('is what the form names, whatever the run happens to serve', () => {
+        expect(registerResourceForSubjectType('Specimen', serving('Patient'))).toBe('Specimen')
+        expect(registerResourceForSubjectType('Patient', serving('Specimen', 'Device'))).toBe('Patient')
+    })
+
+    it('is the one register a run serves, for a form naming no subject', () => {
+        expect(registerResourceForSubjectType(undefined, serving('Specimen'))).toBe('Specimen')
+        expect(registerResourceForSubjectType(undefined, serving('Device'))).toBe('Device')
+    })
+
+    it('is the unnamed-type default where a run serves several, since no first one is a better guess', () => {
+        expect(registerResourceForSubjectType(undefined, serving('Specimen', 'Device'))).toBe(
+            PEOPLE_RESOURCE_TYPE,
+        )
+    })
+
+    it('is the unnamed-type default where a run serves no register at all', () => {
+        expect(registerResourceForSubjectType(undefined, NO_REGISTER_OFFERED)).toBe(PEOPLE_RESOURCE_TYPE)
     })
 })

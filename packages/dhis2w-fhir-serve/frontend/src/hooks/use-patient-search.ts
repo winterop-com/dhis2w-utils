@@ -15,7 +15,6 @@ import {
     PATIENT_SEARCH_DEBOUNCE_MS,
     type PatientProjection,
 } from '@/lib/patients'
-import { PEOPLE_RESOURCE_TYPE } from '@/lib/uiconfig'
 
 /** What a patient search is currently answering, in the states a result list has to tell apart. */
 export interface PatientSearchState {
@@ -42,6 +41,12 @@ const NOTHING_ASKED: PatientSearchState = {
 
 /**
  * Search the DHIS2 instance for what somebody typed, once the typing stops.
+ *
+ * WHICH REGISTER IS SEARCHED IS THE CALLER'S TO NAME. `resource` has no default, because there is no
+ * resource type this hook could pick that is right for every deployment: a run whose registrations
+ * land in `Specimen` has no `Patient` register to search, and a hook quietly searching one would send
+ * a request the server declares nothing about. A capture form names its own `subjectType` and the
+ * browse page names the register whose section it is drawing.
  *
  * WHAT THE TYPED VALUE IS SEARCHED AGAINST IS THE SERVER'S TO DECIDE. `key` is the search parameter
  * `/metadata` declared for this register - `identifier` on a facade that asks DHIS2 directly, and
@@ -77,7 +82,7 @@ const NOTHING_ASKED: PatientSearchState = {
 export function usePatientSearch(
     typed: string,
     enabled: boolean,
-    resource: string = PEOPLE_RESOURCE_TYPE,
+    resource: string,
     key: RegisterSearchKey = REGISTER_IDENTIFIER_SEARCH_PARAMETER,
     trackedEntityTypeUid: string | null = null,
     attributeFilter: string | null = null,

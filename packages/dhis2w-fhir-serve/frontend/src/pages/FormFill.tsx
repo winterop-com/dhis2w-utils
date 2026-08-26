@@ -28,7 +28,12 @@ import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
 import { useRegisterSearchSupport } from '@/hooks/use-register-search-support'
 import { useStatusLine } from '@/hooks/use-status-bar'
 import { useUiConfig } from '@/hooks/use-ui-config'
-import { CAPTURE_OFF_NOTICE, capturesSubmissions, PEOPLE_RESOURCE_TYPE } from '@/lib/uiconfig'
+import {
+    CAPTURE_OFF_NOTICE,
+    capturesSubmissions,
+    registerResourceForSubjectType,
+    trackedEntitySettings,
+} from '@/lib/uiconfig'
 import { FhirRequestError, generateResponse, postQuestionnaireResponse, readResource } from '@/lib/api'
 import { reloadedEnrollment, type EnrollmentOption } from '@/lib/enrollments'
 import {
@@ -214,13 +219,17 @@ export function FormFill() {
     const [seedStated, setSeedStated] = useState(false)
     // Whether this server takes what is filled in here. A form on a server that receives nothing is
     // still worth opening and reading, so the page is the page it always was and only the Submit goes.
-    const receivesSubmissions = capturesSubmissions(useUiConfig().config)
+    const uiConfig = useUiConfig().config
+    const receivesSubmissions = capturesSubmissions(uiConfig)
     const orgUnitScope = useFormOrgUnitScope(questionnaire)
     const enrollmentOffer = useEnrollmentOptions(questionnaire)
-    // The register this form's subject lives in - the form's own subjectType, with the guide's
-    // unnamed-type default. The search gate and the search itself both read it, so a deployment
-    // whose registrations land in Specimen or Device asks about that register rather than Patient.
-    const registerResource = questionnaire?.subjectType?.[0] ?? PEOPLE_RESOURCE_TYPE
+    // The register this form's subject lives in - the form's own subjectType, falling back to the
+    // registers this run states it serves. The search gate and the search itself both read it, so a
+    // deployment whose registrations land in Specimen or Device asks about that register.
+    const registerResource = registerResourceForSubjectType(
+        questionnaire?.subjectType?.[0],
+        trackedEntitySettings(uiConfig),
+    )
     const registerSearchSupport = useRegisterSearchSupport(registerResource)
 
     // Applied whenever the offer lands or reloads: a person's choice is re-read so its lifecycle
