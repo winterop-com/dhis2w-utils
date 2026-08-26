@@ -292,6 +292,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     ref={railRef}
                     className={cn(
                         'bg-sidebar relative hidden shrink-0 flex-col overflow-y-auto border-r md:flex',
+                        '[--background:var(--sidebar)] [--foreground:var(--sidebar-foreground)] [--muted:var(--sidebar-wash)] [--muted-foreground:var(--sidebar-muted-foreground)] [--accent:var(--sidebar-accent)] [--accent-foreground:var(--sidebar-accent-foreground)]',
                         railResizing ? 'transition-none' : 'transition-[width] duration-200',
                         collapsed ? 'w-16' : 'w-60',
                     )}
@@ -338,7 +339,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                     onClick={toggle}
                                     aria-label={collapsed ? EXPAND_NAVIGATION_LABEL : COLLAPSE_NAVIGATION_LABEL}
                                     className={cn(
-                                        'text-muted-foreground hover:text-foreground shrink-0',
+                                        'text-sidebar-muted-foreground hover:text-sidebar-foreground shrink-0',
                                         !collapsed && 'ml-auto',
                                     )}
                                 >
@@ -380,7 +381,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                             'mx-auto flex size-10 items-center justify-center rounded-lg border-l-0 p-0',
                                         isActive
                                             ? 'border-sidebar-primary bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                                            : 'text-muted-foreground hover:bg-sidebar-accent/40 hover:text-foreground border-transparent',
+                                            : 'text-sidebar-muted-foreground hover:bg-sidebar-accent/40 hover:text-sidebar-foreground border-transparent',
                                     )}
                                 >
                                     <Icon
@@ -399,7 +400,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                                     'text-xs',
                                                     isActive
                                                         ? 'text-sidebar-accent-foreground/75'
-                                                        : 'text-muted-foreground',
+                                                        : 'text-sidebar-muted-foreground',
                                                 )}
                                             >
                                                 {item.hint}
@@ -462,7 +463,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     {/* Solid surface, no backdrop blur: blur is expensive to
                         composite on the field hardware this is meant to run on, and
                         an opaque header costs nothing. */}
-                    <header className="bg-sidebar sticky top-0 z-10 border-b">
+                    {/* The rail and this header are sidebar surfaces, and a theme may paint them a
+                        different world from the page - DHIS2's steel chrome over a light gray page.
+                        Remapping the page's ink variables at the surface re-inks every control inside
+                        (the palette button, the status menu, the gear) without any of them learning
+                        where they are; on a theme whose chrome matches its card, nothing changes. */}
+                    <header className="bg-header text-header-foreground sticky top-0 z-10 border-b [--background:var(--header)] [--foreground:var(--header-foreground)] [--muted:var(--header-accent)] [--muted-foreground:var(--header-muted-foreground)] [--secondary:var(--header-accent)] [--secondary-foreground:var(--header-foreground)] [--accent:var(--header-accent)] [--accent-foreground:var(--header-foreground)]">
                         <div className="flex items-center gap-2 px-4 py-2.5 md:px-6">
                             <h1 className="text-sm font-medium">{title}</h1>
 
@@ -536,10 +542,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
                         the same padding - so the bar stays put at the foot of the content column while
                         the page moves behind it. */}
                     <main className="flex w-full min-h-0 flex-1 flex-col overflow-hidden">
+                        {/* The vertical padding lives on the inner wrapper, not on this scroller:
+                            a sticky table header pins at `top: 0` of this scrollport, and padding
+                            up here would open a band above the pinned header that passing rows
+                            show through. */}
                         <div
                         data-testid="page-content"
-                        className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-4 py-6 md:px-8"
+                        className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-4 md:px-8"
                     >
+                        <div className="flex min-h-0 w-full flex-1 flex-col py-6">
                             {/* No page is drawn until the posture is known, for the reason above: a page
                                 that rendered first would fire its reads first. When the read that settles
                                 the posture cannot reach the server, this says so in the place the page
@@ -570,6 +581,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                     {null}
                                 </PageState>
                             )}
+                        </div>
                         </div>
 
                         <StatusBar />

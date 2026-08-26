@@ -86,10 +86,10 @@ afterEach(() => {
 })
 
 describe('the themes this app has', () => {
-    it('offers five, each with a name, a label, and a line about what it looks like', () => {
-        expect(THEMES).toHaveLength(5)
+    it('offers seven, each with a name, a label, and a line about what it looks like', () => {
+        expect(THEMES).toHaveLength(7)
         for (const theme of THEMES) {
-            expect(theme.name).toMatch(/^[a-z]+$/)
+            expect(theme.name).toMatch(/^[a-z0-9]+$/)
             expect(theme.label.length).toBeGreaterThan(0)
             expect(theme.hint.length).toBeGreaterThan(0)
         }
@@ -197,7 +197,7 @@ describe('the pre-paint script in index.html', () => {
         const html = indexHtml
         const declared = /var known = \[([^\]]+)\]/.exec(html)
         expect(declared, 'index.html no longer declares a `known` theme list').not.toBeNull()
-        const names = [...(declared?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map((match) => match[1])
+        const names = [...(declared?.[1] ?? '').matchAll(/'([a-z0-9]+)'/g)].map((match) => match[1])
         expect(names).toEqual(THEME_NAMES)
     })
 

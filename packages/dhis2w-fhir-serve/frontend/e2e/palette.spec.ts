@@ -24,7 +24,7 @@ import { E2E_BASE_URL } from '../playwright.config.ts'
  */
 
 /** Which themes exist, in the order the picker offers them. Mirrors `THEMES` in lib/theme.ts. */
-const THEME_NAMES = ['clinical', 'indigo', 'paper', 'contrast', 'terminal'] as const
+const THEME_NAMES = ['clinical', 'indigo', 'paper', 'contrast', 'terminal', 'dhis2', 'fhir'] as const
 
 /**
  * The contrast one pair has to reach, by what the pair is for.
