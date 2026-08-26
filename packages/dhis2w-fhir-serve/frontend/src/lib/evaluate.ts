@@ -1483,7 +1483,7 @@ export function exampleGroups(examples: readonly EvaluationExample[]): { group: 
 }
 
 /** What the picker calls the shelf built from resources this particular server was found to hold. */
-export const GUIDE_PRESET_GROUP = 'This guide’s own resources'
+export const GUIDE_PRESET_GROUP = "This guide's own resources"
 
 /**
  * The examples built from what this particular server holds, one per resource it was found to have.

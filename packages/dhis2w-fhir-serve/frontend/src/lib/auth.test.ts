@@ -253,7 +253,7 @@ describe('what the prompt says', () => {
     })
 
     it('names DHIS2 as the thing that refused a username and password, since it is', () => {
-        expect(SIGN_IN_REFUSALS.dhis2).toBe('DHIS2 did not accept this username and password.')
+        expect(SIGN_IN_REFUSALS.dhis2).toBe('This DHIS2 instance did not accept this username and password.')
     })
 
     it('names this server as the thing that refused a token, since it is', () => {

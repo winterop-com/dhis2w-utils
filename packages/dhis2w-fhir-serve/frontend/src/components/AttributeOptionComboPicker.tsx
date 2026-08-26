@@ -63,9 +63,9 @@ export function AttributeOptionComboPicker({
                 </span>
             </Label>
             <p className="text-muted-foreground text-sm">
-                This data set is reported per attribute option combo, so every value below is filed
-                under the one chosen here. It is context, not an answer - DHIS2 keys the whole
-                submission by it, beside the period and the organisation unit.
+                This data set is reported per attribute option combination, so every value below is
+                filed under the one chosen here. It is context, not an answer - this DHIS2 instance
+                keys the whole submission by it, beside the period and the organisation unit.
             </p>
             <div className="flex items-center gap-2">
                 <Select
@@ -97,15 +97,16 @@ export function AttributeOptionComboPicker({
 
             {expansion.error !== null && (
                 <p className="text-destructive text-xs">
-                    The attribute option combos this form reports for could not be read:{' '}
+                    The attribute option combinations this form reports for could not be read:{' '}
                     {expansion.error}
                 </p>
             )}
             {expansion.error === null && !expansion.loading && expansion.options.length === 0 && (
                 <p className="text-muted-foreground text-xs">
-                    This form names a vocabulary of attribute option combos this server does not
-                    publish, so there is nothing to choose from. A submission without one is what
-                    DHIS2 refuses with <code className="font-mono">E8023</code>.
+                    This form names a vocabulary of attribute option combinations this server does
+                    not publish, so there is nothing to choose from. A submission that names none is
+                    refused on import by this DHIS2 instance.{' '}
+                    <code className="font-mono">E8023</code>
                 </p>
             )}
         </div>
@@ -114,6 +115,6 @@ export function AttributeOptionComboPicker({
 
 /** What the trigger says while there is nothing to pick from yet. */
 function placeholder(loading: boolean, optionCount: number): string {
-    if (loading) return 'Reading the attribute option combos this form reports for'
-    return optionCount === 0 ? 'No attribute option combos published' : 'Not chosen'
+    if (loading) return 'Reading the attribute option combinations this form reports for'
+    return optionCount === 0 ? 'No attribute option combinations published' : 'Not chosen'
 }

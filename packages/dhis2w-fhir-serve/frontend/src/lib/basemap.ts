@@ -29,6 +29,7 @@ import type { RasterSourceSpecification, SkySpecification, StyleSpecification } 
 
 import type { OrgUnitLevel } from '@/lib/orgunits'
 import type { BasemapLayer } from '@/lib/uiconfig'
+import { countedNoun } from '@/lib/utils'
 
 /** The id the raster tiles are drawn under, so a theme change can re-mute them in place. */
 export const BASEMAP_LAYER_ID = 'basemap'
@@ -333,7 +334,7 @@ export function unitPopupContent(facts: UnitPopupFacts): UnitPopupContent {
         belowLine:
             facts.descendantCount === 0
                 ? null
-                : `${String(facts.descendantCount)} organisation ${facts.descendantCount === 1 ? 'unit' : 'units'} below`,
+                : `${countedNoun(facts.descendantCount, 'organisation unit')} ${facts.descendantCount === 1 ? 'sits' : 'sit'} below this one`,
         identifiers: facts.identifiers,
     }
 }

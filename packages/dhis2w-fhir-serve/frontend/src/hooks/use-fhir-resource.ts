@@ -12,6 +12,16 @@ export interface FhirResourceState<T> {
     status: number | null
 }
 
+/** What one read answered, stamped with the type and id it was made for. */
+interface KeyedRead<T> extends FhirResourceState<T> {
+    key: string
+}
+
+/** The type and id as one value, which is what decides whether a held answer is still this read's. */
+function readKey(resourceType: string, resourceId: string): string {
+    return `${resourceType}/${resourceId}`
+}
+
 /**
  * Read one resource by type and id.
  *
@@ -26,42 +36,56 @@ export interface FhirResourceState<T> {
  * An empty id reads nothing. That is the state a page is in while the id is still being derived
  * from another read - the receipt page learns which form to read from the receipt - and asking
  * for `/{type}/` would be a request whose answer is known to be useless.
+ *
+ * AN ANSWER BELONGS TO THE ARGUMENTS IT WAS READ FOR. A detail route that changes id keeps the same
+ * component mounted, so the render after the change happens before the effect that starts the new
+ * read - and state alone would hand that render the previous document, under the new address. That
+ * one render is long enough for a child to publish something about it: the terminology page's
+ * status line stamped "Showing 11 of 11 concepts" with the id of a resource this server holds
+ * nothing under, and the line then stood because nothing published over it. So the held answer
+ * carries the key it was read for, and an answer whose key is not the current one is reported as
+ * the read it actually is - in flight, with nothing to show.
  */
 export function useFhirResource<T>(resourceType: string, resourceId: string): FhirResourceState<T> {
-    const [resource, setResource] = useState<T | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    const [status, setStatus] = useState<number | null>(null)
+    const key = readKey(resourceType, resourceId)
+    const [read, setRead] = useState<KeyedRead<T>>({
+        key,
+        resource: null,
+        loading: resourceId !== '',
+        error: null,
+        status: null,
+    })
 
     useEffect(() => {
+        const wanted = readKey(resourceType, resourceId)
         if (resourceId === '') {
-            setResource(null)
-            setError(null)
-            setStatus(null)
-            setLoading(false)
+            setRead({ key: wanted, resource: null, loading: false, error: null, status: null })
             return () => undefined
         }
         let cancelled = false
-        setLoading(true)
-        setError(null)
-        setStatus(null)
-        setResource(null)
+        setRead({ key: wanted, resource: null, loading: true, error: null, status: null })
         readResource<T>(resourceType, resourceId)
-            .then((read) => {
+            .then((answer) => {
                 if (cancelled) return
-                setResource(read)
-                setLoading(false)
+                setRead({ key: wanted, resource: answer, loading: false, error: null, status: null })
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
-                setError(failure instanceof Error ? failure.message : String(failure))
-                setStatus(failure instanceof FhirRequestError ? failure.status : null)
-                setLoading(false)
+                setRead({
+                    key: wanted,
+                    resource: null,
+                    loading: false,
+                    error: failure instanceof Error ? failure.message : String(failure),
+                    status: failure instanceof FhirRequestError ? failure.status : null,
+                })
             })
         return () => {
             cancelled = true
         }
     }, [resourceType, resourceId])
 
-    return { resource, loading, error, status }
+    if (read.key !== key) {
+        return { resource: null, loading: resourceId !== '', error: null, status: null }
+    }
+    return { resource: read.resource, loading: read.loading, error: read.error, status: read.status }
 }

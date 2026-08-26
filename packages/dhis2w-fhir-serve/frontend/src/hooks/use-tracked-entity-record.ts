@@ -16,6 +16,8 @@ import { registerWords, subjectOfTypeName, type RegisterWords } from '@/lib/uico
 export interface TrackedEntityRecordState {
     /** The served projection, or null while the read is in flight and after one that failed. */
     person: PatientProjection | null
+    /** The served document itself, kept so a reader can check the projection against what arrived. */
+    resource: Patient | null
     loading: boolean
     error: string | null
     /** The HTTP status the read answered with, so a 404 reads as "not held" rather than as a fault. */
@@ -68,6 +70,7 @@ export function useTrackedEntityRecord(
     )
     return {
         person,
+        resource,
         loading,
         error,
         status,

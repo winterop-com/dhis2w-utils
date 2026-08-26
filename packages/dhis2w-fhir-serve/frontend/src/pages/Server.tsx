@@ -179,13 +179,15 @@ export function Server() {
                                                     ${operation.name}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {/* A resource type wears the badge every other
-                                                        table gives one; the service base is not a
-                                                        resource type and is said in words. */}
+                                                    {/* EVERY ROW IN THIS COLUMN IS A CHIP. The column
+                                                        answers one question - where is this operation
+                                                        declared - and a column that answered it in a
+                                                        pill on one row and in loose words on the next
+                                                        read as two columns sharing a heading. The
+                                                        outline says the service base is not a resource
+                                                        type without leaving the shape. */}
                                                     {operation.on === null ? (
-                                                        <span className="text-muted-foreground text-sm">
-                                                            {SERVICE_BASE_LABEL}
-                                                        </span>
+                                                        <Badge variant="outline">{SERVICE_BASE_LABEL}</Badge>
                                                     ) : (
                                                         <Badge variant="secondary">{operation.on}</Badge>
                                                     )}

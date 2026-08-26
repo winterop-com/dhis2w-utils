@@ -90,35 +90,19 @@ import accepts - DHIS2 runs them on demand, not on import.
 places where the guide carries one side of a concept and quietly loses the other. They
 are the most important findings on this page, because a half-carry reads as complete.
 
-1. **A form does not declare its own period type.** `D2Period` carries the period on the
-   response, and `D2PeriodType_CS` publishes the whole vocabulary, but nothing on the
-   `Questionnaire` says which period type *this* form expects. `d2w fhir serve` works
-   around it by reading the period type off one of the form's generated example
-   responses (`resolve_period_type`,
-   `packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/synthesize.py:699`). A third party
-   reading the published guide has only the intro page's prose. The attribute option
-   combo got exactly the carrier this needs - `D2AttributeOptionCombos` on the
-   `Questionnaire` - and the period type did not.
-2. **The attribute option combo rides the aggregate leg only.** `Program.categoryCombo`
+1. **The attribute option combo rides the aggregate leg only.** `Program.categoryCombo`
    is never read (`_PROGRAM_FIELDS`,
    `packages/dhis2w-fhir/src/dhis2w_fhir/service.py:246`), so an event or tracker
    program riding a non-default attribute combo forwards its events with DHIS2's default
    combo and misattributes them silently. The whole machinery - the extension pair, the
    CodeSystem pair, the ConceptMap, the resolution tiers in the forwarder - already
    exists and is bound to `QuestionnaireResponse` profiles the event kinds do not slice.
-3. **An organisation unit's opening date is read and then discarded.**
+2. **An organisation unit's opening date is read and then discarded.**
    `_ORGANISATION_UNIT_FIELDS` asks for `openingDate` and `closedDate`; the projection
    keeps only `closed: bool`, computed as "has `closedDate` passed"
    (`_is_closed`, `service.py:3510`). `Organization.active` and `Location.status` carry
    the boolean. The dates themselves - the only way to ask which facilities existed in a
    past reporting period - do not survive.
-4. **A generated tracked entity attribute is published as a question.** The projection
-   reads `unique` but not `generated`
-   (`_PROGRAM_ATTRIBUTE_FIELDS`, `service.py:233`), so the registration form for
-   `Child Programme` (`IpHINAT79UW`) asks a capture client to supply
-   `Unique ID` (`lZGmxYbs97q`), which the instance declares
-   `generated: true, pattern: "RANDOM(#######)"` and mints itself.
-
 **One case where the guide silently substitutes a different artifact.** A data set with
 `formType: CUSTOM` is rendered in DHIS2 by hand-written HTML keyed on data element
 operands. The guide reads neither `formType` nor `dataEntryForm` and publishes a
@@ -186,7 +170,7 @@ not publish.
 | --- | --- | --- | --- | --- |
 | The reported period | Which stretch of time a response reports for | `CARRIED` | `D2Period` on the response: `iso` (string 1..1), `type` (code 1..1, required-bound to `D2PeriodType_VS`), `period` (Period 0..1) | capture, forward |
 | Period types | The 21 named calendars DHIS2 reports on, financial years included | `CARRIED` | `D2PeriodType_CS` / `_VS`, with the ISO format and span of each documented on the generated Periods page | capture, forward |
-| **A form's own period type** | Which of those 21 calendars *this* data set reports on | `WORTH CARRYING` | A `D2PeriodType` extension (code 1..1, required-bound to `D2PeriodType_VS`) on `Questionnaire`, mirroring `D2AttributeOptionCombos` exactly | capture, forward, serve |
+| A form's own period type | Which of those 21 calendars *this* data set reports on | `CARRIED` | The `d2-period-type` extension (code 1..1, required-bound to `D2PeriodType_VS`) on every aggregate `Questionnaire`; `d2w fhir serve` reads it for `$generate` and capture grading | capture, forward, serve |
 | `dataInputPeriods` | Per-period open and close windows, overriding the general calendar | `WORTH CARRYING` | Rows on the data-entry-window extension below, one `Period` per entry | capture |
 | Relative periods | `LAST_12_MONTHS`, `THIS_FINANCIAL_YEAR`, and 42 more | `DELIBERATELY NOT` | An analytics query vocabulary. A captured response always names one absolute ISO period; a relative period is a question, not a fact | - |
 
@@ -454,23 +438,11 @@ it on its next step), or **someday** (a real consumer, no date).
 
 ### 4.1 Rank 1 - a consumer exists today
 
-1. **A form declares its own period type.** `D2PeriodType` extension (code 1..1,
-   required-bound to `D2PeriodType_VS`) on `Questionnaire`. *Consumer:* `d2w fhir serve`
-   today infers it from an example response; with the extension it reads a declaration.
-   Any third-party client has nothing else to read.
-2. **Greyed fields stop being published as questions.** Add `greyedFields` to the section
-   projection, omit the matching child `item`, raise a generate note. *Consumer:*
-   `$generate` stops minting uncapturable cells and `d2w fhir forward` stops posting
-   them.
-3. **A generated tracked entity attribute is marked read-only.** `generated` and
-   `pattern` properties on `D2TEA_CS`, `item.readOnly = true` on the question.
-   *Consumer:* the registration capture path, which today asks a client for a value DHIS2
-   mints.
-4. **Program rules reach the guide in three tiers.** Numeric bounds to `minValue` /
+1. **Program rules reach the guide in three tiers.** Numeric bounds to `minValue` /
    `maxValue`, single-variable hides to `enableWhen`, everything else to a non-normative
    `D2ProgramRule` listing. *Consumer:* `d2w fhir forward`, which can spool responses the
    tracker import refuses with `E1300`.
-5. **The attribute option combo reaches the event and tracker legs.** Read
+2. **The attribute option combo reaches the event and tracker legs.** Read
    `Program.categoryCombo`, emit the `AOC` pair, put `D2AttributeOptionCombos` on the
    event and tracker forms, slice `D2AttributeOptionCombo` into the two event response
    profiles. *Consumer:* `d2w fhir forward`, which today misattributes events of a

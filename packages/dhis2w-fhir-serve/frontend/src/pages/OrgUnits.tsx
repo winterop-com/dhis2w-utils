@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight, MapPin, Search } from 'lucide-react'
-import { usePanelRef } from 'react-resizable-panels'
+import { useDefaultLayout, usePanelRef } from 'react-resizable-panels'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
 import { MaintenanceLink } from '@/components/MaintenanceLink'
@@ -25,7 +25,14 @@ import {
     type ProgramGroup,
 } from '@/lib/catalogue'
 import { maintenanceTargetOf } from '@/lib/dhis2'
-import { formIdentifier, formTitle, type Location, type Questionnaire, type ResourceList } from '@/lib/fhir'
+import {
+    formIdentifier,
+    formTitle,
+    FORM_TYPE_LABELS,
+    type Location,
+    type Questionnaire,
+    type ResourceList,
+} from '@/lib/fhir'
 import {
     ancestorsOf,
     buildFormAssignments,
@@ -93,6 +100,17 @@ const PANE_HANDLE = `mx-1 w-1.5 rounded-full bg-transparent transition-colors ${
 /** The width the inspector rail keeps when collapsed: room for the expand control, nothing else. */
 const RAIL_COLLAPSED_SIZE = '2.5rem'
 
+/**
+ * Where the three panes' widths are remembered, and which panes they are.
+ *
+ * A width dragged on this page is the same kind of choice as the navigation rail's width and the
+ * quick-view panel's: it is how somebody wants to read, and re-dragging it on every visit is the
+ * failure. Only a real drag is saved (`onlySaveAfterUserInteractions`), so the rail collapsing
+ * itself on a narrow viewport never writes a layout nobody chose.
+ */
+const PANES_LAYOUT_ID = 'organisation-unit-panes'
+const PANE_IDS = ['hierarchy', 'map', 'rail']
+
 /** Whether the viewport is wide enough for the three-pane layout, tracked live. */
 function useThreePane(): boolean {
     const [wide, setWide] = useState(() => window.matchMedia(THREE_PANE_QUERY).matches)
@@ -145,6 +163,11 @@ export function OrgUnits() {
     // The rail pane's collapse is owned by the panel so that the chevron and dragging the handle
     // shut agree; `railOpen` mirrors it (via onResize below) and survives breakpoint crossings.
     const railPanel = usePanelRef()
+    const panes = useDefaultLayout({
+        id: PANES_LAYOUT_ID,
+        panelIds: PANE_IDS,
+        onlySaveAfterUserInteractions: true,
+    })
 
     // The panel mounts expanded (its defaultSize) and is collapsed before first paint when the
     // mirror says closed - which is also what re-collapses it when the viewport crosses back over
@@ -208,9 +231,12 @@ export function OrgUnits() {
         (unitId: string) => {
             const next = new URLSearchParams(parameters)
             next.set(UNIT_PARAM, unitId)
-            // Replace rather than push: clicking through a tree is browsing one page, and a back
-            // button that walks every unit visited is a worse answer than one that leaves.
-            setParameters(next, { replace: true })
+            // Picking the unit already picked is not going anywhere; it only opens the rail, which
+            // is what the two lines below do either way.
+            // Push rather than replace: picking a unit is a discrete choice, and the whole screen -
+            // the rail, the map's framing, the shelves - is derived from it, so Back is the way back
+            // to the unit that was open before. A tree click is not typing; it is going somewhere.
+            if (parameters.get(UNIT_PARAM) !== unitId) setParameters(next)
             // A selection is a question about an organisation unit, so the inspector opens to
             // answer it even when it was collapsed - collapsing is a view choice, not a standing
             // instruction. The state covers the narrow layout; the panel call covers the pane.
@@ -257,7 +283,7 @@ export function OrgUnits() {
                 <Input
                     className="pl-9"
                     aria-label="Filter organisation units"
-                    placeholder="Filter by name, uid, or code"
+                    placeholder="Filter by name, UID, or code"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                 />
@@ -302,16 +328,19 @@ export function OrgUnits() {
         <div className="flex min-h-0 flex-1 flex-col">
             <PageHeader
                 title="Organisation units"
-                description="The organisation units this implementation guide publishes, as the hierarchy the DHIS2 instance holds them in - what a capture may report for, and which forms it may report there."
+                description="The organisation units this implementation guide publishes, in the hierarchy this DHIS2 instance holds them in - where a capture may report from, and which forms it may use."
             />
 
             {threePane ? (
-                // Three resizable panes. The sizes are per-mount state, same posture as the rail
-                // choice - deliberately not persisted: a width dragged for one reading session is
-                // not a standing preference. The `min-h` floor is what keeps a short viewport
-                // scrolling `main` instead of crushing the panes - a panel group clips its
-                // content, so without the floor nothing would ever overflow.
-                <ResizablePanelGroup className="min-h-[30rem] flex-1">
+                // Three resizable panes, their widths kept the way every other drag edge in this
+                // app keeps its width - see `PANES_LAYOUT_ID`. The `min-h` floor is what keeps a
+                // short viewport scrolling `main` instead of crushing the panes - a panel group
+                // clips its content, so without the floor nothing would ever overflow.
+                <ResizablePanelGroup
+                    className="min-h-[30rem] flex-1"
+                    defaultLayout={panes.defaultLayout}
+                    onLayoutChanged={panes.onLayoutChanged}
+                >
                     <ResizablePanel
                         id="hierarchy"
                         defaultSize="22%"
@@ -321,7 +350,7 @@ export function OrgUnits() {
                     >
                         {hierarchyPane}
                     </ResizablePanel>
-                    <ResizableHandle className={PANE_HANDLE} />
+                    <ResizableHandle aria-label="Resize the hierarchy" className={PANE_HANDLE} />
                     {/* The centre canvas. At this width the map is never behind anything:
                         collapsing the rail hands it the rail's width too. */}
                     <ResizablePanel id="map" minSize="30%" className="flex min-h-0 min-w-0 flex-col">
@@ -337,7 +366,10 @@ export function OrgUnits() {
                             />
                         </section>
                     </ResizablePanel>
-                    <ResizableHandle className={PANE_HANDLE} />
+                    <ResizableHandle
+                        aria-label="Resize the organisation unit details"
+                        className={PANE_HANDLE}
+                    />
                     {/* `collapsible` is what makes the chevron and dragging the handle shut agree:
                         both land the pane on RAIL_COLLAPSED_SIZE, and onResize keeps the mirror
                         state true to whichever control moved it. */}
@@ -357,7 +389,7 @@ export function OrgUnits() {
                     >
                         <InspectorRail open={railOpen} onToggle={toggleRail}>
                             {selected === null || catalog === null ? (
-                                <NothingSelected total={tree.total} loading={registry.loading} />
+                                <NothingSelected total={tree.total} loading={registry.loading} requested={requested} />
                             ) : (
                                 <>
                                     <UnitHeader
@@ -391,7 +423,7 @@ export function OrgUnits() {
                     <section className="flex min-w-0 flex-col gap-6">
                         {selected === null || catalog === null ? (
                             <>
-                                <NothingSelected total={tree.total} loading={registry.loading} />
+                                <NothingSelected total={tree.total} loading={registry.loading} requested={requested} />
                                 <MapPanel
                                     tree={tree}
                                     geometry={geometry}
@@ -641,16 +673,25 @@ function InspectorRail({
     if (!open) {
         return (
             <aside aria-label="Organisation unit details" className="relative h-full">
-                <RailToggle open={false} railName="the details panel" onToggle={onToggle} />
+                <RailToggle open={false} railName="the organisation unit details" onToggle={onToggle} />
             </aside>
         )
     }
 
     return (
         <aside aria-label="Organisation unit details" className="relative flex h-full min-h-0 flex-col">
-            <RailToggle open railName="the details panel" onToggle={onToggle} />
-            {/* The rail scrolls on its own; the map beside it never does. */}
-            <div className="show-scrollbars min-h-0 flex-1 space-y-4 overflow-y-auto pt-10 pr-1">{children}</div>
+            <RailToggle open railName="the organisation unit details" onToggle={onToggle} />
+            {/* The rail scrolls on its own; the map beside it never does - and this is the one
+                column on the page with no box round it, so its foot has to say for itself that it
+                is a scroller. The two panels beside it end in a border with their content inset
+                from it; here the fade is that inset, and `pb-2` is what keeps the last line from
+                starting inside it. Without the pair, the rail simply cut a line in half two pixels
+                under where the tree and the map ended, which reads as damage rather than as depth.
+                A scrollbar cannot do this job: every browser on macOS draws an overlay bar, which
+                is nothing at all until something moves - see `show-scrollbars` in index.css. */}
+            <div className="show-scrollbars scroll-fade-bottom min-h-0 flex-1 space-y-4 overflow-y-auto pt-10 pr-1 pb-2">
+                {children}
+            </div>
         </aside>
     )
 }
@@ -1116,7 +1157,7 @@ function ProgramRows({
             <FormRow
                 formId={formId}
                 questionnaire={group.event}
-                note="event"
+                note={FORM_TYPE_LABELS.event}
                 dhis2BaseUrl={dhis2BaseUrl}
             />
         )
@@ -1129,7 +1170,7 @@ function ProgramRows({
                     <FormRow
                         formId={formIdentifier(group.event)}
                         questionnaire={group.event}
-                        note="event"
+                        note={FORM_TYPE_LABELS.event}
                         dhis2BaseUrl={dhis2BaseUrl}
                     />
                 )}
@@ -1137,7 +1178,7 @@ function ProgramRows({
                     <FormRow
                         formId={formIdentifier(group.registration)}
                         questionnaire={group.registration}
-                        note="registration"
+                        note={FORM_TYPE_LABELS.tracker}
                         dhis2BaseUrl={dhis2BaseUrl}
                     />
                 ) : (
@@ -1152,7 +1193,7 @@ function ProgramRows({
                             formId={formIdentifier(stage)}
                             questionnaire={stage}
                             shownTitle={stageTitle(stage, group.title)}
-                            note="stage"
+                            note={FORM_TYPE_LABELS['tracker-event']}
                             dhis2BaseUrl={dhis2BaseUrl}
                         />
                     ))}
@@ -1188,7 +1229,7 @@ function FormRow({
     questionnaire: Questionnaire | null
     /** What the row reads as when the full title repeats its shelf - a stage under its program. */
     shownTitle?: string
-    /** A muted role note beside the title - 'registration', 'stage', 'event'. */
+    /** A muted role note beside the title - the form's kind, spelled as every other screen spells it. */
     note?: string
     dhis2BaseUrl: string | null
 }) {
@@ -1283,7 +1324,7 @@ function CapturedHere({
                 loading={spool.loading}
                 error={spool.error}
                 empty={here.length === 0}
-                emptyMessage="No received capture names this organisation unit."
+                emptyMessage="No capture this server holds names this organisation unit."
             >
                 <div className="space-y-2">
                     <div className="flex flex-wrap gap-1.5">
@@ -1293,7 +1334,7 @@ function CapturedHere({
                                 variant="outline"
                                 className={LIFECYCLE_TINTS[entry.lifecycle].badge}
                             >
-                                {entry.count} {LIFECYCLE_LABELS[entry.lifecycle].toLowerCase()}
+                                {entry.count} {LIFECYCLE_LABELS[entry.lifecycle]}
                             </Badge>
                         ))}
                     </div>
@@ -1327,7 +1368,7 @@ function CapturedHere({
                 <p className="text-muted-foreground text-xs">{belowLine(here.length, belowCount)}</p>
             )}
             <p className="text-muted-foreground text-xs">
-                Captures this server received. What the DHIS2 instance holds at this organisation
+                Captures this server received. What this DHIS2 instance holds at this organisation
                 unit is not read here.
             </p>
         </section>
@@ -1337,15 +1378,15 @@ function CapturedHere({
 /**
  * What the receipts under this organisation unit are, said as what they are rather than as "more".
  *
- * "1 more below" over a section stating that nothing names this unit is one more than nothing, which
- * is a sentence about a list that is not there. So the count above decides which sentence this is:
- * with receipts here these are further ones, and with none here they are simply what is below.
+ * "1 further capture" over a section stating that nothing names this unit is one more than nothing,
+ * which is a sentence about a list that is not there. So the count above decides which sentence this
+ * is: with receipts here these are further ones, and with none here they are simply what is below.
  */
 function belowLine(hereCount: number, belowCount: number): string {
-    const captures = `capture${belowCount === 1 ? '' : 's'}`
+    const names = belowCount === 1 ? 'names' : 'name'
     return hereCount === 0
-        ? `${String(belowCount)} ${captures} below this organisation unit.`
-        : `${String(belowCount)} more below this organisation unit.`
+        ? `${countedNoun(belowCount, 'capture')} ${names} an organisation unit below this one.`
+        : `${countedNoun(belowCount, 'further capture')} ${names} an organisation unit below this one.`
 }
 
 /** The form a receipt answered, named by its served title while the store still serves it. */
@@ -1492,9 +1533,40 @@ function shapeCount(geometry: ReturnType<typeof readGeometry>): string {
     return `${boundaries}, ${points}`
 }
 
-/** What the inspector says before a unit is picked. */
-function NothingSelected({ total, loading }: { total: number; loading: boolean }) {
+/**
+ * What the inspector says before a unit is picked - or when the address names one nothing answers.
+ *
+ * AN ADDRESS THAT NAMES NOTHING IS NOT AN EMPTY PAGE. `?unit=` carrying a uid this guide publishes
+ * no unit for is a sent link that has gone stale, or a uid typed from somewhere else, and the
+ * invitation to pick something says nothing about either - a reader would take it for a page that
+ * had simply not loaded their unit yet. So the parameter stands, and the rail states what was asked
+ * for and that this guide holds nothing under it.
+ */
+function NothingSelected({
+    total,
+    loading,
+    requested,
+}: {
+    total: number
+    loading: boolean
+    /** The uid the address named, or the empty string when it named none. */
+    requested: string
+}) {
     if (loading || total === 0) return null
+    if (requested !== '') {
+        return (
+            <Card>
+                <CardContent className="text-muted-foreground flex items-start gap-3 py-6 text-sm">
+                    <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
+                    <span>
+                        This implementation guide publishes no organisation unit under{' '}
+                        <span className="machine-identifier break-all">{requested}</span>. Pick one
+                        in the tree, or click a shape on the map.
+                    </span>
+                </CardContent>
+            </Card>
+        )
+    }
     return (
         <Card>
             <CardContent className="text-muted-foreground flex items-center gap-3 py-6 text-sm">

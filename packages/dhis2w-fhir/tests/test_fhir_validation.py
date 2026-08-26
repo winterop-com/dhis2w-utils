@@ -746,20 +746,28 @@ def test_under_refuse_and_unset_the_same_name_stays_an_error(config: GenerateCon
     assert "change the name in DHIS2" in finding.message
 
 
-def test_a_survivable_character_stays_a_warning_under_substitute() -> None:
-    """The rewrite touches '<' and nothing else, so a '>' name malforms its pages under either posture."""
+def test_the_other_comparison_is_downgraded_under_substitute_too() -> None:
+    """The rewrite treats '>' as it treats '<', so a '>' name publishes as words and its page is well-formed."""
     finding = _graded(_SUBSTITUTE_CONFIG, "Mortality > 5 years")
+    assert finding.severity == "info"
+    assert "published as 'Mortality over 5 years'" in finding.message
+    assert "render malformed" not in finding.message
+
+
+def test_a_survivable_character_stays_a_warning_under_substitute() -> None:
+    """Nothing stands in a bare '&''s place, so it malforms its pages under either posture."""
+    finding = _graded(_SUBSTITUTE_CONFIG, "R&D bednets")
     assert finding.severity == "warning"
     assert "render malformed" in finding.message
     assert "rewritten for publication" not in finding.message
 
 
 def test_a_name_carrying_both_keeps_the_grade_the_rewrite_cannot_remove() -> None:
-    """With the '<' rewritten away a '>' is still in the published name, so the page is still malformed."""
+    """With both comparisons rewritten away the '&' is still in the published name, so the page is still malformed."""
     finding = _graded(_SUBSTITUTE_CONFIG, "Age < 5 & > 1")
     assert finding.severity == "warning"
-    assert "published as 'Age under 5 & > 1'" in finding.message
-    assert "the published name still contains '>'" in finding.message
+    assert "published as 'Age under 5 & over 1'" in finding.message
+    assert "the published name still contains '&'" in finding.message
 
 
 def test_under_substitute_an_option_name_is_downgraded_by_the_deep_pass_too() -> None:

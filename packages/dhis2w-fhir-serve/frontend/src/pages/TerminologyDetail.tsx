@@ -38,6 +38,7 @@ import {
     CONCEPT_FILTER_PARAMETER,
     NOTHING_ASKED,
     TRANSLATE_QUESTION,
+    translateRowLabel,
     askedConcept,
     codeSystemContentLabel,
     composedSystems,
@@ -54,7 +55,6 @@ import {
     matchesQuery,
     nothingMatchesMessage,
     pageOf,
-    statedBooleanLabel,
     systemLabel,
     targetSystems,
     type AskedConcept,
@@ -126,7 +126,7 @@ function TerminologyResource({
                 error={error}
                 status={status}
                 empty={resource === null && error === null && !loading}
-                emptyMessage={`This server holds no ${resourceType} under that id.`}
+                emptyMessage={`This server holds no ${resourceType} under that ID.`}
             >
                 {resource !== null && resource.resourceType === 'CodeSystem' && (
                     <CodeSystemDetail codeSystem={resource} />
@@ -192,14 +192,11 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                 // stating both is one fact in two places for a reader to reconcile. Content says
                 // nothing about the ordinary vocabulary and speaks only for the document that does
                 // not carry its own concepts - see `codeSystemContentLabel`.
-                facts={[
-                    ...(content === null ? [] : [{ label: 'Content', value: content, mono: false }]),
-                    {
-                        label: 'Case sensitive',
-                        value: statedBooleanLabel(codeSystem.caseSensitive),
-                        mono: false,
-                    },
-                ]}
+                facts={content === null ? [] : [{ label: 'Content', value: content, mono: false }]}
+                // Said once, as the fact rather than as a field with a Yes in it - and only where it
+                // is true: "Case sensitive No" is a row a reader has to translate back into prose
+                // before it says anything.
+                notes={codeSystem.caseSensitive === true ? ['Codes are case sensitive'] : []}
             >
                 {codeSystem.valueSet !== undefined && (
                     <TerminologyLink resourceType="ValueSet" canonical={codeSystem.valueSet}>
@@ -260,7 +257,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                                             className={translatable ? 'interactive' : undefined}
                                             tabIndex={translatable ? 0 : undefined}
                                             aria-label={
-                                                translatable ? `${TRANSLATE_QUESTION}: ${concept.code}` : undefined
+                                                translatable ? translateRowLabel(concept.code) : undefined
                                             }
                                             onClick={
                                                 translatable ? () => { lookup.ask(concept.code) } : undefined
@@ -333,6 +330,13 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
  * a code somebody has in their head rather than on the screen. Both are the same question, so both
  * go through one ask - and the nonce is what makes the same row asked twice a second question
  * rather than a value the sheet already held.
+ *
+ * WHICH CODE IS BEING LOOKED UP RIDES THE ADDRESS (`?lookup=OpFever0001`), on the same argument as
+ * every other quick view here: what is open over the page is part of where the reader is, so it
+ * reloads onto the same answer and can be handed to somebody. Opening pushes, so Back shuts the
+ * sheet; shutting it by Escape or the close control writes the parameter away in place, so
+ * open-and-shut leaves no entry behind. The parameter is present-and-empty for the sheet opened
+ * with nothing in its box, which is a state of this screen as much as any code is.
  */
 function useCodeLookup(): {
     asked: AskedConcept
@@ -340,13 +344,44 @@ function useCodeLookup(): {
     setOpen: (open: boolean) => void
     ask: (code: string, targetSystem?: string | null) => void
 } {
+    const [parameters, setParameters] = useSearchParams()
+    // The target system and the nonce stay local: a group's own column asks about one map's target,
+    // which is a refinement inside the sheet rather than an address somebody sends, and the nonce is
+    // this session's count of asks rather than a fact about the code.
     const [asked, setAsked] = useState<AskedConcept>(NOTHING_ASKED)
-    const [open, setOpen] = useState(false)
-    const ask = useCallback((code: string, targetSystem: string | null = null) => {
-        setAsked((previous) => askedConcept(previous, code, targetSystem))
-        setOpen(true)
-    }, [])
-    return { asked, open, setOpen, ask }
+    const ask = useCallback(
+        (code: string, targetSystem: string | null = null) => {
+            setAsked((previous) => askedConcept(previous, code, targetSystem))
+            setParameters((current) => {
+                const written = new URLSearchParams(current)
+                written.set(LOOKUP_PARAMETER, code)
+                return written
+            })
+        },
+        [setParameters],
+    )
+    const setOpen = useCallback(
+        (open: boolean) => {
+            if (open) return
+            setParameters(
+                (current) => {
+                    const written = new URLSearchParams(current)
+                    written.delete(LOOKUP_PARAMETER)
+                    return written
+                },
+                { replace: true },
+            )
+        },
+        [setParameters],
+    )
+    // The code comes off the address, so a reload - or a link somebody was sent - opens the sheet
+    // already asking about it, with the nonce this session started on.
+    return {
+        asked: { ...asked, code: parameters.get(LOOKUP_PARAMETER) ?? NOTHING_ASKED.code },
+        open: parameters.has(LOOKUP_PARAMETER),
+        setOpen,
+        ask,
+    }
 }
 
 /** The way in for a code nobody is looking at a row for: the same sheet, opened empty. */
@@ -380,6 +415,9 @@ function LookUpACodeButton({ onOpen }: { onOpen: (code: string) => void }) {
  * to the DHIS2 instance and two marks with different destinations in one cell name neither.
  */
 const PINNED_ACTION_CELL = 'bg-background sticky right-0 w-0 border-l'
+
+/** The query parameter the open code lookup rides on, so a reload lands on the same answer. */
+const LOOKUP_PARAMETER = 'lookup'
 
 /**
  * The concept filter, kept in the address bar rather than in local state.
@@ -682,7 +720,7 @@ function MappingGroup({
                                         key={`${row.code}-${row.targetCode}`}
                                         className="interactive"
                                         tabIndex={0}
-                                        aria-label={`${TRANSLATE_QUESTION}: ${row.code}`}
+                                        aria-label={translateRowLabel(row.code)}
                                         onClick={() => onAsk(row.code, target ?? null)}
                                         onKeyDown={(event) => {
                                             if (event.key === 'Enter' || event.key === ' ') {
@@ -729,11 +767,15 @@ function MappingGroup({
  * a fourth kind of fact about the resource. Top right, beside the prose, is where a reader looks for
  * a way onward, and the card ends where its facts end.
  */
+/** The stable empty note list, so a card stating none does not re-render on a fresh array. */
+const NO_NOTES: string[] = []
+
 function ResourceFacts({
     url,
     description,
     identifiers,
     facts,
+    notes = NO_NOTES,
     children,
 }: {
     url: string | undefined
@@ -741,6 +783,8 @@ function ResourceFacts({
     identifiers: IdentifierBadge[]
     /** One stated fact each. `mono` is false where the value is a sentence rather than a machine spelling. */
     facts: { label: string; value: string; mono?: boolean }[]
+    /** Facts that read as sentences rather than as a labelled value, stated beside the labelled ones. */
+    notes?: string[]
     /** The links out, as chips. They ride the card's upper right rather than a row of their own. */
     children?: ReactNode
 }) {
@@ -763,6 +807,11 @@ function ResourceFacts({
                         <span className="text-muted-foreground">{fact.label} </span>
                         <span className={fact.mono === false ? undefined : 'font-mono'}>{fact.value}</span>
                     </div>
+                ))}
+                {notes.map((note) => (
+                    <p key={note} className="text-muted-foreground text-sm">
+                        {note}
+                    </p>
                 ))}
             </div>
             {identifiers.length > 0 && <IdentifierBadges badges={identifiers} />}

@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 
-import { RawResourceSheet, ReceiptSections } from '@/components/ReceiptSections'
+import { RawResourceSheet } from '@/components/RawResourceSheet'
+import { ReceiptSections } from '@/components/ReceiptSections'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -92,7 +93,11 @@ function ReceiptQuickView({ responseId }: { responseId: string }) {
                     above, behind a button because it is long and the panel is a summary. */}
                 {record.stored.resource !== null && (
                     <div className="mt-6">
-                        <RawResourceSheet resource={record.stored.resource} />
+                        <RawResourceSheet
+                            resource={record.stored.resource}
+                            resourceType="QuestionnaireResponse"
+                            description="The receipt exactly as this server stored it."
+                        />
                     </div>
                 )}
             </SheetBody>

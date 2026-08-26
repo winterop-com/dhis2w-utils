@@ -99,14 +99,14 @@ test('the rail starts closed on a plain visit, and a selection opens it', async 
     await page.goto('/#/organisation-units')
 
     // Nothing is selected, so there is nothing for the rail to answer - it starts as the strip.
-    await expect(page.getByRole('button', { name: 'Expand the details panel' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Collapse the details panel' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Expand the organisation unit details' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Collapse the organisation unit details' })).toHaveCount(0)
 
     // Picking in the tree is a question about that organisation unit; the rail opens to answer.
     await page.getByRole('button', { name: 'Adonkia CHP', exact: true }).click()
 
     await expect(page.getByRole('heading', { name: 'Adonkia CHP', level: 3 })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Collapse the details panel' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Collapse the organisation unit details' })).toBeVisible()
 })
 
 test('selecting a unit fills the inspector, and puts the unit in the address', async ({ page }) => {
@@ -154,7 +154,7 @@ test('a unit is a link that opens with its hierarchy already expanded', async ({
     await expect(page.getByTestId('org-unit-level')).toContainText('Level 4')
 
     // A deep link arrives selected, so it deserves - and gets - the open rail.
-    await expect(page.getByRole('button', { name: 'Collapse the details panel' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Collapse the organisation unit details' })).toBeVisible()
 
     // The parent chain is clickable, and clicking it moves the selection.
     const chain = page.getByRole('navigation', { name: 'Parent organisation units' })
@@ -191,7 +191,7 @@ test('the rail shelves the forms by kind, beside a map that never leaves', async
 
     // A tracker program is one thing: its stage is grouped under its registration, with the role
     // note saying which row is which.
-    await expect(shelves.getByText('registration', { exact: true })).toBeVisible()
+    await expect(shelves.getByText('Tracker registration', { exact: true })).toBeVisible()
     await expect(shelves.getByRole('link', { name: 'ANC follow-up - ANC visit', exact: true })).toBeVisible()
 })
 
@@ -233,7 +233,7 @@ test('the captured-here section joins the spool to the unit the capture named', 
     const captured = page.getByTestId('org-unit-captured')
     await expect(captured.getByRole('heading', { name: 'Captured here' })).toBeVisible()
     // The lifecycle chips count what the spool holds at this unit - at least the one just posted.
-    await expect(captured.getByText(/\d+ received/)).toBeVisible()
+    await expect(captured.getByText(/\d+ Received/)).toBeVisible()
     // The recent list names the form and links to the receipt.
     await expect(captured.getByRole('link', { name: /Child Health/ }).first()).toBeVisible()
     await expect(captured.getByRole('link', { name: 'All responses' })).toBeVisible()
@@ -301,7 +301,7 @@ test('a unit with no captures says so instead of showing a zero', async ({ page,
     await page.goto(`/#/organisation-units?unit=${bare ?? ''}`)
 
     const captured = page.getByTestId('org-unit-captured')
-    await expect(captured.getByText('No received capture names this organisation unit.')).toBeVisible()
+    await expect(captured.getByText('No capture this server holds names this organisation unit.')).toBeVisible()
     await expect(captured.getByText('Captures this server received')).toBeVisible()
 })
 
@@ -312,7 +312,7 @@ test('the rail collapses to a strip, and a selection reopens it', async ({ page 
     await expect(map).toHaveAttribute('data-map-ready', 'true', { timeout: 15_000 })
     const withRail = (await map.boundingBox())?.width ?? 0
 
-    await page.getByRole('button', { name: 'Collapse the details panel' }).click()
+    await page.getByRole('button', { name: 'Collapse the organisation unit details' }).click()
 
     // Collapsed, the rail's content is gone and the canvas takes the width it held.
     await expect(page.getByRole('heading', { name: 'Bo', level: 3 })).toHaveCount(0)
@@ -618,4 +618,35 @@ test('the rail reaches the page and the page is not the entry bundle', async ({ 
     })
     // The map engine is its own chunk, fetched on arrival here and not with the shell.
     expect(chunks.length).toBeGreaterThan(beforeOpening)
+})
+
+test('an address naming a unit this guide publishes nothing for says so, keeping the address', async ({
+    page,
+}) => {
+    await page.goto('/#/organisation-units?unit=NoSuchUnit1')
+
+    // The parameter stands, because it is what was asked for - and the rail answers the question
+    // rather than showing the invitation a reader who picked nothing would get.
+    await expect(page).toHaveURL(/\?unit=NoSuchUnit1$/)
+    await expect(
+        page.getByText('This implementation guide publishes no organisation unit under'),
+    ).toBeVisible()
+    await expect(page.getByText('NoSuchUnit1', { exact: true })).toBeVisible()
+})
+
+test('Back walks back through the units that were picked', async ({ page }) => {
+    await page.goto('/#/organisation-units?unit=DiszpKrYNg8')
+    await expect(page.getByRole('heading', { name: 'Ngelehun CHC', level: 3 })).toBeVisible()
+
+    await page
+        .getByRole('navigation', { name: 'Parent organisation units' })
+        .getByRole('button', { name: 'Badjia' })
+        .click()
+    await expect(page).toHaveURL(/\?unit=YuQRtpLP10I$/)
+
+    // Picking a unit is going somewhere - the rail, the map's framing and the shelves all follow
+    // from it - so Back is the way back to the one before.
+    await page.goBack()
+    await expect(page).toHaveURL(/\?unit=DiszpKrYNg8$/)
+    await expect(page.getByRole('heading', { name: 'Ngelehun CHC', level: 3 })).toBeVisible()
 })

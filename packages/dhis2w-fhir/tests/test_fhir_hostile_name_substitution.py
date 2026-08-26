@@ -22,6 +22,7 @@ import respx
 from dhis2w_core.profile import resolve_profile
 from dhis2w_fhir import HostileNamePosture, InitOptions, OptionIn, OptionSetIn, load_project, service
 from dhis2w_fhir.hostile_names import HostileNameGate, HostileRewrite
+from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.notes import GenerateNoteCategory
 from dhis2w_fhir.validation import build_aborting_name
 from dhis2w_fhir.validation.artifacts import check_publishable_artifacts
@@ -30,6 +31,9 @@ from dhis2w_fhir.validation.substitution import substitute_build_aborting_text
 _HOST = "https://dhis2.example"
 
 #: Names shaped like the ones a national instance really carries, each rewritten the same way twice.
+#: The entity spellings are the DHIS2 play instance's own: a name typed into a rich-text field is
+#: stored as `&lt;`/`&gt;`, and a run that rewrote only the character would publish those to a reader
+#: as an entity reference.
 _REWRITES: list[tuple[str, str]] = [
     ("5 to < 15 years, Female", "5 to under 15 years, Female"),
     ("Male, <15y", "Male, under 15y"),
@@ -37,6 +41,12 @@ _REWRITES: list[tuple[str, str]] = [
     ("ENTO - IRS < 6 Months", "ENTO - IRS under 6 Months"),
     ("Mortality < 5 years by gender", "Mortality under 5 years by gender"),
     ("Age <= 5", "Age at most 5"),
+    ("Mortality &lt; 5 years", "Mortality under 5 years"),
+    ("Fixed, &lt;1y", "Fixed, under 1y"),
+    ("&lt;1km", "under 1km"),
+    ("&gt;5km", "over 5km"),
+    ("Mortality > 5 years", "Mortality over 5 years"),
+    ("Age &gt;= 5", "Age at least 5"),
 ]
 
 
@@ -67,10 +77,95 @@ def test_a_rewritten_name_always_passes_the_build_gate(name: str) -> None:
     assert build_aborting_name(substitute_build_aborting_text(name)) is False
 
 
-def test_a_name_the_build_survives_is_returned_byte_true() -> None:
-    """Only a name the publisher aborts on is touched - everything else is published as DHIS2 states it."""
-    for name in ("Mortality > 5 years", "R&D bednets", "Child Health, Female"):
+def test_a_name_carrying_no_comparison_is_returned_byte_true() -> None:
+    """Only a comparison is rewritten - everything else is published exactly as DHIS2 states it."""
+    for name in ("R&D bednets", "Child Health, Female", "Bo District", "Fixed 1y"):
         assert substitute_build_aborting_text(name) == name
+
+
+@pytest.mark.parametrize(
+    ("less", "greater"),
+    [("<1km", ">5km"), ("&lt;1km", "&gt;5km"), ("Age <= 5", "Age >= 5"), ("Age &lt;= 5", "Age &gt;= 5")],
+)
+def test_the_two_comparisons_are_rewritten_symmetrically(less: str, greater: str) -> None:
+    """A registry reading "under 1km" beside "&gt;5km" states one fact in two vocabularies, one of them markup."""
+    rewritten_less = substitute_build_aborting_text(less)
+    rewritten_greater = substitute_build_aborting_text(greater)
+
+    assert rewritten_less != less
+    assert rewritten_greater != greater
+    assert "<" not in rewritten_greater
+    assert ">" not in rewritten_greater
+    assert "&lt;" not in rewritten_less
+    assert "&gt;" not in rewritten_greater
+
+
+def test_a_name_translation_is_rewritten_with_the_name_it_translates() -> None:
+    """A resource whose `title` and whose `_title` disagreed would state two names for one object."""
+    gate = HostileNameGate(HostileNamePosture.SUBSTITUTE)
+    option_set = OptionSetIn(
+        uid="Os1aaaaaaaa",
+        name="Mortality &lt; 5 years",
+        translations=[
+            TranslationIn(locale="en_GB", property="NAME", value="Mortality &lt; 5 years"),
+            TranslationIn(locale="fr", property="DESCRIPTION", value="Mortalité &lt; 5 ans"),
+        ],
+        options=[
+            OptionIn(
+                uid="Op1aaaaaaaa",
+                name="&gt;5km",
+                translations=[TranslationIn(locale="fr", property="NAME", value="&gt;5km")],
+            )
+        ],
+    )
+
+    screened = gate.screen([option_set], [])
+
+    assert screened[0].name == "Mortality under 5 years"
+    assert screened[0].translations[0].value == "Mortality under 5 years"
+    assert screened[0].options[0].name == "over 5km"
+    assert screened[0].options[0].translations[0].value == "over 5km"
+
+
+def test_a_description_translation_is_left_as_dhis2_states_it() -> None:
+    """A DESCRIPTION lands on a `description` element rather than on a name, so nothing rewrites it."""
+    gate = HostileNameGate(HostileNamePosture.SUBSTITUTE)
+    option_set = OptionSetIn(
+        uid="Os1aaaaaaaa",
+        name="Mortality < 5 years",
+        translations=[TranslationIn(locale="fr", property="DESCRIPTION", value="Mortalité < 5 ans")],
+    )
+
+    screened = gate.screen([option_set], [])
+
+    assert screened[0].translations[0].value == "Mortalité < 5 ans"
+
+
+def test_a_rewritten_name_keeps_the_dhis2_spelling_recoverable() -> None:
+    """The translation no longer carries the instance's spelling, so `original_name` does."""
+    gate = HostileNameGate(HostileNamePosture.SUBSTITUTE)
+    option_set = OptionSetIn(
+        uid="Os1aaaaaaaa",
+        name="Mortality &lt; 5 years",
+        translations=[TranslationIn(locale="en_GB", property="NAME", value="Mortality &lt; 5 years")],
+        options=[OptionIn(uid="Op1aaaaaaaa", name="&gt;5km")],
+    )
+
+    screened = gate.screen([option_set], [])
+
+    assert screened[0].original_name == "Mortality &lt; 5 years"
+    assert screened[0].dhis2_name == "Mortality &lt; 5 years"
+    assert screened[0].options[0].original_name == "&gt;5km"
+
+
+def test_a_name_published_byte_true_states_no_original() -> None:
+    """Nothing was rewritten, so there is nothing to recover and no property claiming otherwise."""
+    screened = HostileNameGate(HostileNamePosture.SUBSTITUTE).screen(
+        [OptionSetIn(uid="Os1aaaaaaaa", name="Child Health")], []
+    )
+
+    assert screened[0].original_name is None
+    assert screened[0].dhis2_name is None
 
 
 def test_a_code_the_guide_carries_cleanly_is_published_byte_true() -> None:
@@ -645,8 +740,46 @@ def _spaced_code_instance() -> dict[str, list[dict[str, Any]]]:
     }
 
 
-async def _generate_spaced_codes(tmp_path: Path, *, code_source: str, gate: HostileNameGate) -> Path:
-    """Generate the option-set family off the spaced-code instance and answer with the resources directory."""
+def _whitespace_code_instance() -> dict[str, list[dict[str, Any]]]:
+    """An instance whose option codes carry the whitespace a real registry types into them.
+
+    A doubled space and a trailing space are both what the play 2.43 instance really holds -
+    "SS-Suspicious  malignancy", "QA Offic2er " - and neither is a valid R4 `code`. The option-set
+    code beside them is the one whose spelling an identifier has to substitute.
+    """
+    return {
+        "dataSets": [],
+        "programs": [],
+        "trackedEntityTypes": [],
+        "optionSets": [
+            {
+                "id": "OsWsp000001",
+                "name": "Distance (in km)",
+                "code": "Distance (in km)",
+                "options": [
+                    {
+                        "id": "OpWsp000001",
+                        "name": "Suspicious malignancy",
+                        "code": "SS-Suspicious  malignancy",
+                        "sortOrder": 1,
+                    },
+                    {"id": "OpWsp000002", "name": "Quality officer", "code": "QA Offic2er ", "sortOrder": 2},
+                ],
+            }
+        ],
+        "categories": [],
+        "organisationUnits": [
+            {"id": "OuWsp000001", "name": "Sierra Leone", "code": "SL", "level": 1, "path": "/OuWsp000001"}
+        ],
+        "programRules": [],
+        "attributes": [],
+    }
+
+
+async def _generate_option_sets(
+    tmp_path: Path, instance: dict[str, list[dict[str, Any]]], *, code_source: str, gate: HostileNameGate
+) -> Path:
+    """Generate the option-set family off one instance and answer with the resources directory."""
     await _scaffold_project(tmp_path)
     config_path = tmp_path / "fhir.toml"
     config_path.write_text(
@@ -655,10 +788,15 @@ async def _generate_spaced_codes(tmp_path: Path, *, code_source: str, gate: Host
         ),
         encoding="utf-8",
     )
-    _mock_instance(_spaced_code_instance())
+    _mock_instance(instance)
     project = load_project(tmp_path)
     await service.generate_option_sets(resolve_profile("probe"), project, gate=gate)
     return project.resources_directory
+
+
+async def _generate_spaced_codes(tmp_path: Path, *, code_source: str, gate: HostileNameGate) -> Path:
+    """Generate the option-set family off the spaced-code instance and answer with the resources directory."""
+    return await _generate_option_sets(tmp_path, _spaced_code_instance(), code_source=code_source, gate=gate)
 
 
 def _read(directory: Path, name: str) -> dict[str, Any]:
@@ -776,3 +914,119 @@ async def test_the_refuse_posture_publishes_the_space_carrying_code_byte_true(
 
     assert set(concepts) == {"Pre eclampsia", "Pre-eclampsia", "Preeclampsia"}
     assert _property_value(concepts["Pre eclampsia"], "dhis2-code") is None
+
+
+def _extension_value(document: dict[str, Any], url: str) -> str | None:
+    """The `valueString` one resource carries under a named extension URL, or None when it carries none."""
+    for entry in document.get("extension", []):
+        if entry.get("url") == url:
+            return cast("str | None", entry.get("valueString"))
+    return None
+
+
+@respx.mock
+async def test_a_whitespace_carrying_code_reaches_the_dhis2_code_property_verbatim(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`dhis2-code` is a property value, not an identifier - a doubled or trailing space is legal in it.
+
+    The UID never stands in for a code the instance really holds: a reader searching DHIS2 for
+    "SS-Suspicious  malignancy" needs that string, spaces and all, not the UID of the option that
+    carries it.
+    """
+    mock_system_info("v42")
+    directory = await _generate_option_sets(
+        tmp_path, _whitespace_code_instance(), code_source="id", gate=_substituting_gate()
+    )
+
+    concepts = _concepts_by_code(_read(directory, "CodeSystem-d2-os-OsWsp000001-cs.json"))
+
+    assert _property_value(concepts["OpWsp000001"], "dhis2-code") == "SS-Suspicious  malignancy"
+    assert _property_value(concepts["OpWsp000002"], "dhis2-code") == "QA Offic2er "
+
+
+@respx.mock
+async def test_the_option_code_target_keeps_the_substituted_spelling_beside_the_verbatim_property(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The documented pair: the property carries the instance's spelling, the map target the published one."""
+    mock_system_info("v42")
+    directory = await _generate_option_sets(
+        tmp_path, _whitespace_code_instance(), code_source="id", gate=_substituting_gate()
+    )
+
+    concepts = _concepts_by_code(_read(directory, "CodeSystem-d2-os-OsWsp000001-cs.json"))
+    groups = _read(directory, "ConceptMap-d2-os-OsWsp000001-cm.json")["group"]
+    by_target = {group["target"]: group for group in groups}
+    code_rows = {
+        row["code"]: row["target"][0]["code"] for row in by_target["http://dhis2.org/fhir/id/option-code"]["element"]
+    }
+
+    assert code_rows["OpWsp000001"] == "SS-Suspicious--malignancy"
+    assert code_rows["OpWsp000002"] == "QA-Offic2er-"
+    assert _property_value(concepts["OpWsp000001"], "dhis2-code") == "SS-Suspicious  malignancy"
+
+
+@respx.mock
+async def test_an_option_with_no_dhis2_code_still_states_its_uid(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The UID stands in only where DHIS2 holds no code at all - a fact about the object, not its spelling."""
+    mock_system_info("v42")
+    instance = _whitespace_code_instance()
+    instance["optionSets"][0]["options"][0].pop("code")
+    directory = await _generate_option_sets(tmp_path, instance, code_source="id", gate=_substituting_gate())
+
+    concepts = _concepts_by_code(_read(directory, "CodeSystem-d2-os-OsWsp000001-cs.json"))
+
+    assert _property_value(concepts["OpWsp000001"], "dhis2-code") == "OpWsp000001"
+
+
+@respx.mock
+async def test_the_option_set_code_identifier_states_the_dhis2_spelling_as_an_extension(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The `option-set-code` identifier is substituted so the guide can resolve it; the original rides beside it."""
+    mock_system_info("v42")
+    directory = await _generate_option_sets(
+        tmp_path, _whitespace_code_instance(), code_source="id", gate=_substituting_gate()
+    )
+
+    code_system = _read(directory, "CodeSystem-d2-os-OsWsp000001-cs.json")
+    value_set = _read(directory, "ValueSet-d2-os-OsWsp000001-vs.json")
+    identifiers = {entry["system"]: entry["value"] for entry in code_system["identifier"]}
+
+    assert identifiers["http://dhis2.org/fhir/id/option-set-code"] == "Distance-(in-km)"
+    assert _extension_value(code_system, "http://dhis2.org/fhir/property/dhis2-code") == "Distance (in km)"
+    assert _extension_value(value_set, "http://dhis2.org/fhir/property/dhis2-code") == "Distance (in km)"
+
+
+@respx.mock
+async def test_a_rewritten_display_states_the_dhis2_name_as_a_concept_property(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The twin of `dhis2-code`: what the concept displays is the rewrite, what DHIS2 holds is one property away."""
+    mock_system_info("v42")
+    instance = _whitespace_code_instance()
+    instance["optionSets"][0]["name"] = "Distance &lt; 1km"
+    instance["optionSets"][0]["options"][0]["name"] = "&gt;5km"
+    directory = await _generate_option_sets(tmp_path, instance, code_source="id", gate=_substituting_gate())
+
+    code_system = _read(directory, "CodeSystem-d2-os-OsWsp000001-cs.json")
+    concepts = _concepts_by_code(code_system)
+
+    assert code_system["title"] == "Distance under 1km"
+    assert _extension_value(code_system, "http://dhis2.org/fhir/property/dhis2-name") == "Distance &lt; 1km"
+    assert concepts["OpWsp000001"]["display"] == "over 5km"
+    assert _property_value(concepts["OpWsp000001"], "dhis2-name") == "&gt;5km"
+    assert {entry["code"] for entry in code_system["property"]} == {"dhis2-code", "dhis2-name"}

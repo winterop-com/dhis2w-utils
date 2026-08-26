@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { EMPTY_ORG_UNIT_SCOPE, type OrgUnitScope } from '@/hooks/use-org-unit-scope'
 import {
     expandedForSelection,
+    levelLabel,
     matchesUnit,
     visibleBrowseRows,
     type OrgUnitBrowseNode,
@@ -177,9 +178,12 @@ export function OrgUnitPicker({
                             <span className={cn('truncate', selected === null && 'text-muted-foreground')}>
                                 {selected === null ? triggerPlaceholder(scope, placeholder) : selected.name}
                             </span>
-                            {selected?.level !== null && selected !== null && (
-                                <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
-                                    {selected.level?.code}
+                            {/* The level is spelled the way every other rendering of it spells it:
+                                `levelLabel` is where that rule lives, and the machine casing
+                                (`level-4`) stays where codes go. */}
+                            {selected !== null && selected.level !== null && (
+                                <span className="text-muted-foreground shrink-0 text-[10px]">
+                                    {levelLabel(selected.level)}
                                 </span>
                             )}
                         </span>
@@ -196,7 +200,7 @@ export function OrgUnitPicker({
                     <Command shouldFilter={false}>
                         <CommandInput
                             ref={searchRef}
-                            placeholder="Search by name, uid, or code"
+                            placeholder="Search by name, UID, or code"
                             value={query}
                             onValueChange={setQuery}
                             onKeyDown={(event) => {
@@ -238,8 +242,8 @@ export function OrgUnitPicker({
                                     >
                                         <span className="truncate">{choice.name}</span>
                                         {choice.level !== null && (
-                                            <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
-                                                {choice.level.code}
+                                            <span className="text-muted-foreground shrink-0 text-[10px]">
+                                                {levelLabel(choice.level)}
                                             </span>
                                         )}
                                         {choice.parentName !== null && (
@@ -518,8 +522,8 @@ function OrgUnitBrowser({
                         )}
                         <span className="truncate">{node.name}</span>
                         {node.level !== null && (
-                            <span className="text-muted-foreground shrink-0 font-mono text-[10px]" aria-hidden>
-                                {node.level.code}
+                            <span className="text-muted-foreground shrink-0 text-[10px]" aria-hidden>
+                                {levelLabel(node.level)}
                             </span>
                         )}
                         {isSelected && <Check className="ml-auto size-4 shrink-0" aria-hidden />}
@@ -565,7 +569,7 @@ function NothingOffered({ scope }: { scope: OrgUnitScope }) {
     return (
         <p className="text-muted-foreground border-border rounded-lg border border-dashed px-2.5 py-2 text-xs">
             {scope.restricted && scope.registryTotal > 0 ? (
-                `This form's organisation-unit assignment names no organisation unit this project publishes, so there is nothing to report from - the registry holds ${String(scope.registryTotal)}. A capture outside the form's assigned organisation units is refused when it reaches DHIS2.`
+                `This form's organisation-unit assignment names no organisation unit this project publishes, so there is nothing to report from - the registry holds ${String(scope.registryTotal)}. A capture outside the form's assigned organisation units is refused when it reaches this DHIS2 instance.`
             ) : (
                 <>
                     This project publishes no organisation units, so there is nothing to report

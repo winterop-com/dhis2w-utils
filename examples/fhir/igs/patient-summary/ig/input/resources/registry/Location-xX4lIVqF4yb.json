@@ -17,7 +17,7 @@
     }
   ],
   "name": "Senekedugu MCHP",
-  "description": "DHIS2 organisation unit Senekedugu MCHP (xX4lIVqF4yb), level 4 - physical location.",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
   "status": "active",
   "position": {
     "longitude": -11.5543,

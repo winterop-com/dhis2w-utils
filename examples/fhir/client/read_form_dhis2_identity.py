@@ -16,7 +16,7 @@ Two places carry that identity, and they answer different questions.
 
 * `Questionnaire.item.code` says which DHIS2 object each *question* is. It is a `Coding`, and its
   `system` is the published data dictionary the concept lives in: one CodeSystem for data
-  elements, one for tracked entity attributes, one for category option combos. The `code` is the
+  elements, one for tracked entity attributes, one for category option combinations. The `code` is the
   DHIS2 UID and the `display` is the instance's name for it - so the code resolves and the display
   is only for showing a person.
 

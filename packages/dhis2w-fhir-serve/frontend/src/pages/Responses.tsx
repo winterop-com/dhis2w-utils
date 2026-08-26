@@ -87,8 +87,8 @@ const OPENED_QUERY_PARAMETER = 'open'
  * the smallest mechanism that does that: no shared store, no navigation state to
  * lose on a reload, and "responses that DHIS2 refused" becomes a link somebody
  * can be sent. The form filter stays local, because nothing links into it.
- * Selecting writes with `replace`, so paging through states does not stack a
- * back-button entry per click.
+ * Selecting a state pushes, because it is a discrete choice a reader made and
+ * Back is the way out of it.
  */
 export function Responses() {
     const { listing, loading, error, refreshing, reload } = useSpool()
@@ -98,18 +98,27 @@ export function Responses() {
 
     // The opened receipt lives in the URL as `?open={id}`, beside the lifecycle filter: the quick
     // view a reader has open is part of where they are, so a reload lands on the same receipt and
-    // the address bar always says what is on screen. Written with `replace`, like the filter, so
-    // opening and shutting does not stack a back-button entry per row.
+    // the address bar always says what is on screen.
+    //
+    // OPENING PUSHES, SHUTTING REPLACES. Opening a receipt is a place a reader went, so Back is
+    // what shuts it - and because the whole state is in the address, shutting it that way restores
+    // the filter and the search underneath for free. Shutting it by Escape or the close control
+    // writes the parameter away in place instead, so the two ways out do not leave a history entry
+    // per open-and-shut.
     const opened = searchParameters.get(OPENED_QUERY_PARAMETER) ?? NO_RECEIPT_OPENED
     const openReceipt = (responseId: string) => {
+        const shutting = responseId === NO_RECEIPT_OPENED
+        // A repeat is not a navigation: re-opening the receipt already open would stack an entry
+        // Back has to step over before it shuts anything.
+        if ((searchParameters.get(OPENED_QUERY_PARAMETER) ?? NO_RECEIPT_OPENED) === responseId) return
         setSearchParameters(
             (current) => {
                 const written = new URLSearchParams(current)
-                if (responseId === NO_RECEIPT_OPENED) written.delete(OPENED_QUERY_PARAMETER)
+                if (shutting) written.delete(OPENED_QUERY_PARAMETER)
                 else written.set(OPENED_QUERY_PARAMETER, responseId)
                 return written
             },
-            { replace: true },
+            { replace: shutting },
         )
     }
 
@@ -128,16 +137,16 @@ export function Responses() {
     // Validated against the vocabulary rather than trusted: `?lifecycle=nonsense` filters
     // everything out silently, which reads as "this project has no receipts".
     const lifecycleFilter = RESPONSE_LIFECYCLES.find((candidate) => candidate === asked) ?? null
+    // A chip is a discrete choice, so it pushes: Back walks off the filter and onto the listing
+    // the reader was looking at before they narrowed it.
     const setLifecycleFilter = (next: ResponseLifecycle | null) => {
-        setSearchParameters(
-            (current) => {
-                const written = new URLSearchParams(current)
-                if (next === null) written.delete(LIFECYCLE_QUERY_PARAMETER)
-                else written.set(LIFECYCLE_QUERY_PARAMETER, next)
-                return written
-            },
-            { replace: true },
-        )
+        if ((searchParameters.get(LIFECYCLE_QUERY_PARAMETER) ?? '') === (next ?? '')) return
+        setSearchParameters((current) => {
+            const written = new URLSearchParams(current)
+            if (next === null) written.delete(LIFECYCLE_QUERY_PARAMETER)
+            else written.set(LIFECYCLE_QUERY_PARAMETER, next)
+            return written
+        })
     }
 
     const formsByCanonical = useMemo(() => {

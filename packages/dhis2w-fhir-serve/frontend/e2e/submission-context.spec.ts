@@ -181,12 +181,15 @@ test('an edited enrollment date is the date the stored enrollment begins', async
     // there is no second control - a date DHIS2 never asked for is not one this form offers.
     await expect(page.getByLabel('Incident date')).toHaveCount(0)
 
-    await enrollmentDate.fill('2026-07-02T09:15')
+    // A date, not an instant: an enrollment begins on a day, so the control asks for one and the
+    // stored dateTime is that day - a date-only R4 dateTime, which is what the profile admits.
+    await expect(enrollmentDate).toHaveAttribute('type', 'date')
+    await enrollmentDate.fill('2026-07-02')
     const receiptId = await submitCapture(page)
 
     const stored = await storedResponse(request, receiptId)
     const enrolledAt = stored.extension?.find((extension) => extension.url.endsWith('/d2-enrolled-at'))
-    expect(enrolledAt?.valueDateTime).toBe('2026-07-02T09:15:00Z')
+    expect(enrolledAt?.valueDateTime).toBe('2026-07-02')
 })
 
 /**
@@ -212,7 +215,7 @@ test.describe('the organisation unit a browser tab keeps', () => {
         const unrestricted = page.getByLabel('Reporting from')
         await expect(page.getByText('The chosen organisation unit is kept for this browser tab')).toBeVisible()
         await unrestricted.click()
-        await page.getByPlaceholder('Search by name, uid, or code').fill('bombali')
+        await page.getByPlaceholder('Search by name, UID, or code').fill('bombali')
         await page.getByRole('option', { name: new RegExp(`^${OUTSIDE_UNIT}\\b`) }).click()
         await expect(unrestricted).toContainText(OUTSIDE_UNIT)
 
@@ -227,7 +230,7 @@ test.describe('the organisation unit a browser tab keeps', () => {
 
         // Choosing answers the mismatch, and keeps a unit the next form can adopt.
         await scoped.click()
-        await page.getByPlaceholder('Search by name, uid, or code').fill('OU_BO')
+        await page.getByPlaceholder('Search by name, UID, or code').fill('OU_BO')
         await page.getByRole('option', { name: new RegExp(`^${SHARED_UNIT}\\b`) }).click()
         await expect(scoped).toContainText(SHARED_UNIT)
         await expect(

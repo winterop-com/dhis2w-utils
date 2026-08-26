@@ -67,19 +67,39 @@ def test_capability_reports_the_store_and_points_at_the_spool_for_the_queue(comp
     capability = _capability(compiled_project, FULL_SUMMARY)
 
     assert capability.description is not None
-    assert "24 resources across 7 types" in capability.description
+    assert "24 resources in the store" in capability.description
     assert "`GET /spool` states how many responses are stored" in capability.description
     assert "stored responses at startup" not in capability.description
 
 
-def test_capability_names_the_store_mode(compiled_project: FhirProject) -> None:
+def test_the_stated_type_count_is_the_one_the_statement_itself_declares(compiled_project: FhirProject) -> None:
+    """The summary sentence counts the entries below it, never the store's own types.
+
+    The store holds seven types and this statement declares six of them - a StructureDefinition and
+    an ImplementationGuide are published artifacts nobody reads through this facade - so counting the
+    store would put a number in the prose that the table of entries beside it contradicts.
+    """
+    capability = _capability(compiled_project, FULL_SUMMARY)
+    declared = capability.rest[0].resource or [] if capability.rest else []
+
+    assert capability.description is not None
+    assert f"served under the {len(declared)} resource types this statement declares" in capability.description
+    assert "6 resource types" in capability.description
+
+
+def test_each_store_mode_says_what_this_installation_is(compiled_project: FhirProject) -> None:
+    """A live process stands in front of an instance and a compiled one in front of a build."""
     compiled = _capability(compiled_project, FULL_SUMMARY)
     live = _capability(compiled_project, FULL_SUMMARY, live=True)
 
     assert compiled.implementation is not None
     assert live.implementation is not None
-    assert "(compiled store)" in (compiled.implementation.description or "")
-    assert "(live store)" in (live.implementation.description or "")
+    assert (compiled.implementation.description or "").startswith(
+        "A FHIR capture facade over a compiled implementation guide."
+    )
+    assert (live.implementation.description or "").startswith("A FHIR capture facade over a live DHIS2 instance.")
+    assert "receipts of submissions as they arrived" in (compiled.implementation.description or "")
+    assert "receipts of submissions as they arrived" in (live.implementation.description or "")
 
 
 def test_capability_lists_the_read_types_in_the_captured_order(compiled_project: FhirProject) -> None:
@@ -187,17 +207,18 @@ def test_capability_round_trips_through_the_r4_model(compiled_project: FhirProje
     assert "experimental" not in body
 
 
-def test_the_security_element_is_declared_in_every_posture_including_the_one_that_authenticates_nobody(
+def test_the_security_element_is_declared_in_every_posture_including_the_one_that_checks_no_credential(
     compiled_project: FhirProject,
 ) -> None:
-    """An absent element would leave "authenticates nobody" and "did not say" indistinguishable."""
+    """An absent element would leave "checks no credential" and "did not say" indistinguishable."""
     statement = _capability(compiled_project, FULL_SUMMARY)
     security = statement.rest[0].security if statement.rest else None
 
     assert security is not None
     assert security.cors is False
     assert security.service is None
-    assert "authenticates nobody" in (security.description or "")
+    assert (security.description or "").startswith("This server checks no credential.")
+    assert "listens on the loopback interface only" in (security.description or "")
 
 
 def test_the_token_posture_names_the_scheme_and_the_variable_but_never_a_token(

@@ -316,7 +316,7 @@ export interface RegisterWords {
 const PEOPLE_WORDS: RegisterWords = {
     one: 'person',
     empty: 'This DHIS2 instance holds nobody.',
-    missing: 'This DHIS2 instance holds nobody under that tracked entity uid.',
+    missing: 'This DHIS2 instance holds nobody under that tracked entity UID.',
     declined:
         'This server answers a search for one person and does not list everyone this DHIS2 instance holds.',
     paging: (shown, total) =>
@@ -328,7 +328,7 @@ const PEOPLE_WORDS: RegisterWords = {
 const TRACKED_ENTITY_WORDS: RegisterWords = {
     one: 'tracked entity',
     empty: 'This DHIS2 instance holds none of these.',
-    missing: 'This DHIS2 instance holds nothing under that tracked entity uid.',
+    missing: 'This DHIS2 instance holds nothing under that tracked entity UID.',
     declined:
         'This server answers a search for one tracked entity and does not list every one this DHIS2 instance holds.',
     paging: (shown, total) =>
@@ -342,7 +342,7 @@ function typeWords(name: string): RegisterWords {
     return {
         one: name,
         empty: `This DHIS2 instance holds no ${name}.`,
-        missing: `This DHIS2 instance holds no ${name} under that tracked entity uid.`,
+        missing: `This DHIS2 instance holds no ${name} under that tracked entity UID.`,
         declined: `This server answers a search for one ${name} and does not list every ${name} this DHIS2 instance holds.`,
         paging: (shown, total) =>
             total === null

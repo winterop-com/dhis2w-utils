@@ -63,8 +63,8 @@ test('the layer control offers every configured layer and None, and opens on the
     // The first configured layer is the ground, because the order is the deployment's preference.
     await expect(map).toHaveAttribute('data-map-basemap', 'Streets')
 
-    await page.getByRole('button', { name: 'Choose the basemap' }).click()
-    const menu = page.getByRole('menu', { name: 'Choose the basemap' })
+    await page.getByRole('button', { name: 'Choose the background map' }).click()
+    const menu = page.getByRole('menu', { name: 'Choose the background map' })
     await expect(menu.getByRole('menuitemradio')).toHaveText(['Streets', 'Aerial', 'None'])
     await expect(menu.getByRole('menuitemradio', { name: 'Streets' })).toHaveAttribute('aria-checked', 'true')
 })
@@ -85,7 +85,7 @@ test('switching the layer swaps the raster source, and None draws no tiles at al
     await expect(map).toHaveAttribute('data-map-ready', 'true', { timeout: MAP_READY_TIMEOUT })
     await expect.poll(() => tileHosts.includes('streets.test'), { timeout: MAP_READY_TIMEOUT }).toBe(true)
 
-    await page.getByRole('button', { name: 'Choose the basemap' }).click()
+    await page.getByRole('button', { name: 'Choose the background map' }).click()
     await page.getByRole('menuitemradio', { name: 'Aerial' }).click()
 
     // The source really was swapped: the second host is asked for tiles, off the same camera.
@@ -95,7 +95,7 @@ test('switching the layer swaps the raster source, and None draws no tiles at al
     await expect(map).toHaveAttribute('data-map-ready', 'true')
 
     const asked = tileHosts.length
-    await page.getByRole('button', { name: 'Choose the basemap' }).click()
+    await page.getByRole('button', { name: 'Choose the background map' }).click()
     await page.getByRole('menuitemradio', { name: 'None' }).click()
 
     await expect(map).toHaveAttribute('data-map-basemap', 'None')

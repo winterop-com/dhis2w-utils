@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 export const READ_REFUSED_HEADING = 'The server refused this read'
 
 /** What it is headed when the read reached the server and there was nothing under the id. */
-export const NOTHING_UNDER_THAT_ID_HEADING = 'This server has nothing under that id'
+export const NOTHING_UNDER_THAT_ID_HEADING = 'This server has nothing under that ID'
 
 /** What it is headed when nothing answered the request at all. */
 export const NOT_ANSWERING_HEADING = 'This server is not answering'

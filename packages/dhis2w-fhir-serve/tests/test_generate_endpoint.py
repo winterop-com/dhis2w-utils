@@ -14,6 +14,7 @@ event has to name a tracked entity and an enrollment that exist. Both are what t
 
 from __future__ import annotations
 
+import datetime
 import random
 from collections.abc import Callable
 from pathlib import Path
@@ -38,6 +39,7 @@ from fixture_project import (
     REGISTRATION_QUESTIONNAIRE_BODY,
     REGISTRATION_UNIQUE_ATTRIBUTE,
     SCOPED_ASSIGNMENT_UNITS,
+    golden,
 )
 
 #: The canonical the dhis2w-fhir goldens were compiled under, as `capture_project` serves them.
@@ -90,6 +92,25 @@ def _collecting_registration_body() -> dict[str, Any]:
     }
 
 
+#: A second aggregate form over the golden data set's own questions, differing only in the period
+#: type it declares - which is the one fact a generated reporting period is decided from.
+_PERIOD_TYPE_ID = "BfMAe6Itzg2"
+PERIOD_TYPE_EXTENSION = f"{CANONICAL}/StructureDefinition/d2-period-type"
+
+
+def _period_type_registration_body(period_type: str | None) -> dict[str, Any]:
+    """The fixture aggregate form declaring one period type, or declaring none at all."""
+    body = golden(f"Questionnaire-{AGGREGATE_ID}.json")
+    kept = [extension for extension in body["extension"] if extension["url"] != PERIOD_TYPE_EXTENSION]
+    declared = [] if period_type is None else [{"url": PERIOD_TYPE_EXTENSION, "valueCode": period_type}]
+    return {
+        **body,
+        "id": _PERIOD_TYPE_ID,
+        "url": f"{CANONICAL}/Questionnaire/{_PERIOD_TYPE_ID}",
+        "extension": [*kept, *declared],
+    }
+
+
 #: The stage form of the registration form's own program - the pair a registration mints is what a
 #: response to this form is captured against.
 STAGE_ID = "PsAncVisit1"
@@ -97,6 +118,10 @@ STAGE_QUESTIONNAIRE = f"{CANONICAL}/Questionnaire/{STAGE_ID}"
 
 #: How many places a DHIS2 UID carries, which is all a generated tracker identifier claims to be.
 UID_LENGTH = 11
+
+#: How many days back a generated instant may sit - the window the synthesizer draws one from when
+#: no reporting period bounds it, which ordering the instants must not move any of them out of.
+EVENT_WINDOW_DAYS = 30
 
 #: The units the registration form's published assignment admits, spelled as capture references.
 ASSIGNED_UNIT_REFERENCES = {f"Location/{uid}" for uid in SCOPED_ASSIGNMENT_UNITS}
@@ -237,56 +262,73 @@ async def test_a_drawn_seed_is_stated_too_and_reproduces_the_response(capture_cl
     assert replayed.content == drawn.content
 
 
-async def test_an_aggregate_response_carries_the_period_its_examples_declare(
-    capture_client: httpx.AsyncClient,
-) -> None:
-    """The compiled store holds no example for these goldens, so the documented default is what is used."""
-    generated = await _generate(capture_client, AGGREGATE_ID, seed=3)
-
-    period = _extensions(generated.json(), PERIOD_URL)[0]
-    declared = {nested["url"]: nested for nested in period["extension"]}
-
-    assert declared["type"]["valueCode"] == DEFAULT_PERIOD_TYPE
-    assert parse_period(declared["iso"]["valueString"]).period_type == DEFAULT_PERIOD_TYPE
-
-
-async def test_an_aggregate_response_follows_the_period_type_a_served_example_declares(
+@pytest.mark.parametrize("period_type", ["Weekly", "Quarterly", "Yearly"])
+async def test_an_aggregate_response_reports_for_the_period_type_its_form_declares(
     capture_project: FhirProject,
     write_resource: Callable[[Path, dict[str, Any]], None],
+    period_type: str,
 ) -> None:
-    """A compiled IG ships its example instances, and their D2Period is where the data set's type is read."""
+    """The data set's type rides the published form, so a weekly data set generates a weekly period.
+
+    One rule and one place to read it: every served Questionnaire carries `D2PeriodType`, compiled
+    or live, so a form for a weekly data set never generates a month DHIS2 has no data values for.
+    """
     write_resource(
-        capture_project.ig_directory / "fsh-generated" / "resources" / "QuestionnaireResponse-weekly.json",
-        {
-            "resourceType": "QuestionnaireResponse",
-            "id": "BfMAe6Itzgt-example-9",
-            "questionnaire": AGGREGATE_QUESTIONNAIRE,
-            "status": "completed",
-            "extension": [
-                {
-                    "url": PERIOD_URL,
-                    "extension": [
-                        {"url": "iso", "valueString": "2026W02"},
-                        {"url": "type", "valueCode": "Weekly"},
-                    ],
-                }
-            ],
-        },
+        capture_project.ig_directory / "fsh-generated" / "resources" / f"Questionnaire-{_PERIOD_TYPE_ID}.json",
+        _period_type_registration_body(period_type),
     )
     app = create_app(ServeSettings(project_dir=capture_project.project_root))
 
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://serve.test") as client:
-            generated = await _generate(client, AGGREGATE_ID, seed=3)
+            generated = await _generate(client, _PERIOD_TYPE_ID, seed=3)
+            posted = await _post_back(client, generated)
+
+    period = _extensions(generated.json(), PERIOD_URL)[0]
+    declared = {nested["url"]: nested for nested in period["extension"]}
+    reported = parse_period(declared["iso"]["valueString"])
+
+    assert declared["type"]["valueCode"] == period_type
+    assert reported.period_type == period_type
+    assert reported.end_date < datetime.date.today(), "the newest *completed* period, so it is already reportable"
+    assert posted.status_code == 201
+
+
+async def test_an_aggregate_form_declaring_no_period_type_reports_monthly(
+    capture_project: FhirProject,
+    write_resource: Callable[[Path, dict[str, Any]], None],
+) -> None:
+    """A form stating nothing falls back to the documented default rather than refusing to generate."""
+    write_resource(
+        capture_project.ig_directory / "fsh-generated" / "resources" / f"Questionnaire-{_PERIOD_TYPE_ID}.json",
+        _period_type_registration_body(None),
+    )
+    app = create_app(ServeSettings(project_dir=capture_project.project_root))
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://serve.test") as client:
+            generated = await _generate(client, _PERIOD_TYPE_ID, seed=3)
             posted = await _post_back(client, generated)
 
     period = _extensions(generated.json(), PERIOD_URL)[0]
     declared = {nested["url"]: nested for nested in period["extension"]}
 
-    assert declared["type"]["valueCode"] == "Weekly"
-    assert parse_period(declared["iso"]["valueString"]).period_type == "Weekly"
+    assert declared["type"]["valueCode"] == DEFAULT_PERIOD_TYPE
+    assert parse_period(declared["iso"]["valueString"]).period_type == DEFAULT_PERIOD_TYPE
     assert posted.status_code == 201
+
+
+async def test_the_golden_aggregate_form_reports_the_type_it_publishes(capture_client: httpx.AsyncClient) -> None:
+    """The goldens declare `Monthly`, and the response reports the newest completed month of it."""
+    generated = await _generate(capture_client, AGGREGATE_ID, seed=3)
+
+    period = _extensions(generated.json(), PERIOD_URL)[0]
+    declared = {nested["url"]: nested for nested in period["extension"]}
+
+    assert declared["type"]["valueCode"] == "Monthly"
+    assert parse_period(declared["iso"]["valueString"]).period_type == "Monthly"
 
 
 async def test_an_aggregate_response_reports_for_a_served_location(capture_client: httpx.AsyncClient) -> None:
@@ -402,6 +444,67 @@ async def test_a_registration_response_dates_the_incident_a_form_declares_its_pr
     assert len(incident_at) == 1
     assert incident_at[0]["valueDateTime"].endswith("Z")
     assert posted.status_code == 201
+
+
+@pytest.mark.parametrize("seed", list(VARIANCE_SEEDS))
+async def test_a_registration_dates_the_incident_before_the_enrolment_and_both_before_the_authoring(
+    capture_project: FhirProject,
+    write_resource: Callable[[Path, dict[str, Any]], None],
+    seed: int,
+) -> None:
+    """The three instants are one order, whatever the seed: incident, then enrolment, then authoring.
+
+    Drawn independently they landed in any order at all, which put a date of birth after the
+    enrollment it opened in about half the seeds. Every seed is checked rather than one, because the
+    ordering is what a seed used to be able to break.
+    """
+    write_resource(
+        capture_project.ig_directory / "fsh-generated" / "resources" / f"Questionnaire-{_COLLECTING_ID}.json",
+        _collecting_registration_body(),
+    )
+    app = create_app(ServeSettings(project_dir=capture_project.project_root))
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://serve.test") as client:
+            generated = await _generate(client, _COLLECTING_ID, seed=seed)
+            posted = await _post_back(client, generated)
+
+    response = generated.json()
+    incident_at = _extensions(response, INCIDENT_AT_URL)[0]["valueDateTime"]
+    enrolled_at = _extensions(response, ENROLLED_AT_URL)[0]["valueDateTime"]
+
+    assert incident_at <= enrolled_at <= response["authored"]
+    assert posted.status_code == 201
+
+
+async def test_the_ordered_dates_stay_inside_the_window_and_reproduce_from_the_seed(
+    capture_project: FhirProject,
+    write_resource: Callable[[Path, dict[str, Any]], None],
+) -> None:
+    """Ordering is a sort of the drawn values, so nothing leaves the window and the seed still decides."""
+    write_resource(
+        capture_project.ig_directory / "fsh-generated" / "resources" / f"Questionnaire-{_COLLECTING_ID}.json",
+        _collecting_registration_body(),
+    )
+    app = create_app(ServeSettings(project_dir=capture_project.project_root))
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://serve.test") as client:
+            generated = await _generate(client, _COLLECTING_ID, seed=5)
+            replayed = await _generate(client, _COLLECTING_ID, seed=5)
+
+    response = generated.json()
+    dated = [
+        _extensions(response, INCIDENT_AT_URL)[0]["valueDateTime"],
+        _extensions(response, ENROLLED_AT_URL)[0]["valueDateTime"],
+        response["authored"],
+    ]
+    earliest = (datetime.date.today() - datetime.timedelta(days=EVENT_WINDOW_DAYS)).isoformat()
+
+    assert replayed.content == generated.content
+    assert all(earliest <= instant[:10] <= datetime.date.today().isoformat() for instant in dated)
 
 
 async def test_a_registration_response_names_the_unit_that_owns_the_enrollment(

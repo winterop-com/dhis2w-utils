@@ -302,10 +302,10 @@ RESOURCE_MAP_EQUIVALENCE: Literal["equal"] = "equal"
 
 #: The support pair over every category option combo the generated questionnaires disaggregate by.
 CATEGORY_OPTION_COMBO_TERMINOLOGY = SupportTerminologyProfile(
-    title="DHIS2 category option combos",
+    title="DHIS2 category option combinations",
     description=(
-        "DHIS2 category option combos the generated questionnaires disaggregate by. "
-        "Concept codes are DHIS2 category option combo UIDs."
+        "DHIS2 category option combinations the generated questionnaires disaggregate by. "
+        "Concept codes are DHIS2 category option combination UIDs."
     ),
     code_property_description="DHIS2 category option combo code.",
 )

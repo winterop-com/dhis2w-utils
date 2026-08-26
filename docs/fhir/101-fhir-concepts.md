@@ -488,7 +488,7 @@ it on. Paths use the ids from a real run; `<uid>` is the DHIS2 UID.
 | Option set | A `CodeSystem` defining its options, plus a `ValueSet` selecting them | `GET /CodeSystem/d2-os-<uid>-cs`, and the guide's Terminology page |
 | Option | A `concept` inside that CodeSystem - never an artifact of its own | Inside its option set's CodeSystem |
 | Category, with its category options | The same `CodeSystem` + `ValueSet` pair | `GET /CodeSystem/d2-cat-<uid>-cs` |
-| Attribute category combo | A `CodeSystem` + `ValueSet` + `ConceptMap` over its attribute option combos | `GET /CodeSystem/d2-aoc-<uid>-cs` |
+| Attribute category combo | A `CodeSystem` + `ValueSet` + `ConceptMap` over its attribute option combinations | `GET /CodeSystem/d2-aoc-<uid>-cs` |
 | Data element a form asks for | A concept in `D2DE_CS` | `GET /CodeSystem/d2-de-cs` |
 | Tracked entity attribute a form asks for | A concept in `D2TEA_CS` | `GET /CodeSystem/d2-tea-cs` |
 | Category option combo | A concept in `D2COC_CS` | `GET /CodeSystem/d2-coc-cs` |

@@ -1030,7 +1030,7 @@ def build_location(unit: OrgUnitFixture) -> dict[str, Any]:
     body: dict[str, Any] = {
         "resourceType": "Location",
         "id": unit.uid,
-        "description": f"DHIS2 organisation unit {unit.name} ({unit.uid}), level {unit.level} - physical location.",
+        "description": "A physical location this DHIS2 instance holds as an organisation unit.",
         "identifier": [
             {"system": ORG_UNIT_IDENTIFIER_SYSTEM, "value": unit.uid},
             {"system": ORG_UNIT_CODE_IDENTIFIER_SYSTEM, "value": unit.code},

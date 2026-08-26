@@ -99,8 +99,8 @@ class NotServedFromCompiledIgError(ServeError):
 
     def __init__(self, resource_type: str) -> None:
         super().__init__(
-            f"`{resource_type}` is answered from the DHIS2 instance this facade runs against, and this "
-            "process serves a compiled implementation guide; start it with `--live` to search the register."
+            f"{resource_type} is answered from the DHIS2 instance this facade runs against, and this "
+            "process serves a compiled implementation guide; start it with --live to search the register."
         )
         self.resource_type = resource_type
 

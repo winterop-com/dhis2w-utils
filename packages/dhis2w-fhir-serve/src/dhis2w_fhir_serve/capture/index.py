@@ -23,6 +23,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
+from dhis2w_fhir.period import PERIOD_TYPE_NAMES
 from dhis2w_fhir.r4 import (
     DEFAULT_SUBJECT_RESOURCE_TYPE,
     CodeSystem,
@@ -302,6 +303,16 @@ class CaptureIndex(BaseModel):
     the contract makes of a response carrying no `D2IncidentAt`: complete, the extension being 0..1.
     """
 
+    period_type: str | None = None
+    """The DHIS2 period type an aggregate form's data set reports on, or None on a form declaring none.
+
+    The form's own `D2PeriodType` declaration, which every served form carries: the FSH template and
+    the JSON builder both write it, so a compiled store and a `--live` one state the same type and
+    `$generate` reports for the same period in either mode. None means the form declares nothing,
+    which is what a non-aggregate form declares and what an aggregate form whose data set states no
+    period type declares.
+    """
+
     program_rules: tuple[CaptureProgramRule, ...] = ()
     """The DHIS2 program rules the form declares, in the order it lists them - none on a form that lists none."""
 
@@ -380,6 +391,7 @@ def build_capture_index(
         program_uid=_program_uid(questionnaire, naming),
         subject_type=_subject_type(questionnaire),
         collects_incident_date=_collects_incident_date(questionnaire, naming),
+        period_type=_period_type(questionnaire, naming),
         program_rules=_program_rules(questionnaire, naming),
         questions=questions,
         group_link_ids=frozenset(group_link_ids),
@@ -570,6 +582,19 @@ def _collects_incident_date(questionnaire: Questionnaire, naming: CaptureNaming)
         if extension.url == naming.collects_incident_date_url and extension.valueBoolean is not None:
             return extension.valueBoolean
     return False
+
+
+def _period_type(questionnaire: Questionnaire, naming: CaptureNaming) -> str | None:
+    """The DHIS2 period type the form declares its data set reports on, or None where it declares none.
+
+    A period type this project's own vocabulary does not name is read as no declaration: the form
+    would be stating a type no DHIS2 period can be spelled in, and a generated response reporting
+    for it names a period the instance refuses.
+    """
+    for extension in questionnaire.extension or []:
+        if extension.url == naming.period_type_url and extension.valueCode in PERIOD_TYPE_NAMES:
+            return extension.valueCode
+    return None
 
 
 def _assignment(questionnaire: Questionnaire, naming: CaptureNaming, store: ResourceStore) -> CaptureAssignment | None:

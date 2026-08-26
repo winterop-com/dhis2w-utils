@@ -244,7 +244,7 @@ test('a mapping row asks the server in the direction of its own group', async ({
     // The mapping row is the interactive element itself: matched on the target cell so the
     // option-code group's row is the one clicked, not the option-uid group's OpCough0001 row.
     await page
-        .getByRole('row', { name: 'What a code maps to in this DHIS2 instance: OpCough0001' })
+        .getByRole('row', { name: 'Open the DHIS2 mapping for OpCough0001' })
         .filter({ has: page.getByRole('cell', { name: 'COUGH', exact: true }) })
         .click()
 
@@ -278,4 +278,38 @@ test('the back link returns to the listing', async ({ page }) => {
 
     await expect(page).toHaveURL(/#\/terminology$/)
     await expect(page.getByRole('heading', { name: 'Terminology', level: 2 })).toBeVisible()
+})
+
+/**
+ * Back walks back through the choices a reader made, and not through their typing.
+ *
+ * A page whose whole state is in the address gets the browser's own way back for free - but only if
+ * the writes that put it there push. Every one of them replacing meant Back left the app entirely
+ * from a screen a reader had made four choices on, which is the worst answer a Back button has.
+ * Typing is the exception: a history entry per character is a Back button that walks a word
+ * backwards, so a filter box still replaces.
+ */
+test('Back walks back through the tabs, and not through what was typed in the filter', async ({ page }) => {
+    await page.goto('/#/terminology')
+    await expect(page.getByRole('tab', { name: /Code systems/ })).toHaveAttribute('aria-selected', 'true')
+
+    await page.getByRole('tab', { name: /Value sets/ }).click()
+    await expect(page).toHaveURL(/type=ValueSet/)
+    await page.getByRole('tab', { name: /Concept maps/ }).click()
+    await expect(page).toHaveURL(/type=ConceptMap/)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/type=ValueSet/)
+    await expect(page.getByRole('tab', { name: /Value sets/ })).toHaveAttribute('aria-selected', 'true')
+
+    await page.goBack()
+    await expect(page).toHaveURL(/#\/terminology$/)
+    await expect(page.getByRole('tab', { name: /Code systems/ })).toHaveAttribute('aria-selected', 'true')
+
+    // Typing replaces rather than stacking: the address carries the search, and the history does
+    // not grow by one entry per character - Back is the way off this page, not through a word.
+    const entries = await page.evaluate(() => history.length)
+    await page.getByRole('textbox', { name: 'Filter terminology' }).fill('Symptom')
+    await expect(page).toHaveURL(/q=Symptom/)
+    expect(await page.evaluate(() => history.length)).toBe(entries)
 })

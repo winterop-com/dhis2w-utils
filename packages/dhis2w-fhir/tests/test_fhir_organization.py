@@ -87,7 +87,7 @@ _EXPECTED_ROOT_LOCATION = {
         {"system": "http://dhis2.org/fhir/id/org-unit-code", "value": "SL"},
     ],
     "name": "Sierra Leone",
-    "description": "DHIS2 organisation unit Sierra Leone (ImspTQPwCqd), level 1 - physical location.",
+    "description": "A physical location this DHIS2 instance holds as an organisation unit.",
     "status": "active",
     "extension": [_level_extension(1)],
     "managingOrganization": {"reference": "Organization/ImspTQPwCqd"},
@@ -132,7 +132,7 @@ _EXPECTED_DISTRICT_LOCATION = {
         {"system": "http://dhis2.org/fhir/id/org-unit-code", "value": "O6uvpzGd5pu"},
     ],
     "name": "Bo",
-    "description": "DHIS2 organisation unit Bo (O6uvpzGd5pu), level 2 - physical location.",
+    "description": "A physical location this DHIS2 instance holds as an organisation unit.",
     "status": "active",
     "position": {"longitude": -11.7383, "latitude": 7.9647},
     "extension": [_level_extension(2)],
@@ -548,14 +548,16 @@ def test_empty_prefix_keeps_profile_token() -> None:
 
 
 def test_every_registry_element_carries_the_dhis2_text_verbatim() -> None:
-    """A registry document is data end to end: description, name, and alias all spell what DHIS2 holds."""
+    """A registry document is data end to end: name and alias spell what DHIS2 holds, character for character.
+
+    The Location's `description` is the one element that is not DHIS2 text: it says what the
+    resource is, in one sentence, and leaves the unit's own words to `name` beside it.
+    """
     unit = _ROOT.model_copy(update={"name": "Region <A> & <B>", "short_name": "Short <A>"})
     documents = _documents(_instances([unit]))
     location = documents["registry/Location-ImspTQPwCqd.json"]
     organization = documents["registry/Organization-ImspTQPwCqd.json"]
-    assert location["description"] == (
-        "DHIS2 organisation unit Region <A> & <B> (ImspTQPwCqd), level 1 - physical location."
-    )
+    assert location["description"] == "A physical location this DHIS2 instance holds as an organisation unit."
     assert location["name"] == "Region <A> & <B>"
     assert organization["name"] == "Region <A> & <B>"
     assert organization["alias"] == ["Short <A>"]

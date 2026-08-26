@@ -16,17 +16,32 @@ StructureDefinitions, the extensions, the IG's `kind #requirements` CapabilitySt
 authored as FSH and only exist as JSON once SUSHI has compiled them, and no FSH compiler runs in
 this process. That costs the live store nothing: a capture server reads Questionnaire, CodeSystem,
 ValueSet, Location, and Organization (`CAPTURE_SERVER_READ_RESOURCE_TYPES`), every one of which
-comes out of a JSON builder here - the foundation terminology included. The form-type and
-period-type pairs backing the D2FormType and D2Period bindings, and the organisation-unit level and
-whole-selection pairs, are declared inside FSH files a live run never compiles, so each has a JSON
-twin that renders the same Python vocabulary the template renders: a client resolving a served
-form's form-type code system gets the code system, not a 404. All four ConceptMap families -
-option sets, categories, the attribute option combos an aggregate form is keyed by, and the
-resource type each tracked entity type is registered as - ride along with the terminology they map,
-so a live store serves the same reads, searches, and `$translate` answers over the maps that a
-compiled one does. The IG's own CapabilityStatement is still named by
+comes out of a JSON builder here - the foundation terminology included.
+
+WHAT ONE MODE PUBLISHES, BOTH MODES PUBLISH. A guide is one guide whichever way the process was
+started, so every vocabulary a compiled build writes is built here too, from the same Python the
+other target reads:
+
+* The form-type, period-type, and program-rule-action pairs backing the D2FormType, D2Period, and
+  D2ProgramRule bindings, and the organisation-unit level and whole-selection pairs. All five are
+  declared inside FSH files a live run never compiles, so each has a JSON twin rendering the same
+  Python vocabulary the template renders: a client resolving a served form's form-type code system
+  gets the code system, not a 404.
+* The identifier namespaces the ConceptMaps target - the option, category-option, and
+  category-option-combo UID and code systems - each enumerated as a complete CodeSystem beside the
+  maps that name it. A NamingSystem states what a namespace is and answers no `$validate-code`, so
+  a consumer validating a mapped identifier needs the enumeration whichever store it reads from.
+
+All four ConceptMap families - option sets, categories, the attribute option combos an aggregate
+form is keyed by, and the resource type each tracked entity type is registered as - ride along with
+the terminology they map, so a live store serves the same reads, searches, and `$translate` answers
+over the maps that a compiled one does. The IG's own CapabilityStatement is still named by
 `/metadata`, which `instantiates` it by canonical - a URL derived from config, needing no artifact
 to state.
+
+The example instances are the one thing a compiled store holds and a live one does not, and that is
+by design: an example is a teaching document a build writes into the guide, not a read a capture
+client resolves.
 """
 
 from __future__ import annotations
@@ -40,20 +55,30 @@ from dhis2w_core.client_context import open_client
 from dhis2w_fhir import (
     build_category_artifacts,
     build_category_concept_map_artifacts,
+    build_category_identifier_artifacts,
     build_data_dictionary_documents,
     build_foundation_terminology_documents,
     build_option_set_artifacts,
     build_option_set_concept_map_artifacts,
+    build_option_set_identifier_artifacts,
     build_organisation_unit_instances,
     build_organisation_unit_level_terminology_documents,
     build_organisation_unit_terminology_documents,
     build_questionnaire_documents,
 )
 from dhis2w_fhir.config import HostileNamePosture
+from dhis2w_fhir.foundation.documents import TerminologyPair, build_terminology_pair
+from dhis2w_fhir.foundation.schemas import (
+    PROGRAM_RULE_ACTION_DEFINITIONS,
+    PROGRAM_RULE_ACTION_TERMINOLOGY,
+    FoundationNaming,
+)
 from dhis2w_fhir.hostile_names import HostileNameGate
+from dhis2w_fhir.r4 import CodeSystemConcept
 from dhis2w_fhir.resources.attribute_combos import (
     build_attribute_combo_artifacts,
     build_attribute_combo_concept_map_artifacts,
+    build_attribute_combo_identifier_artifacts,
 )
 from dhis2w_fhir.resources.categories.decomposition import build_category_decomposition
 from dhis2w_fhir.resources.questionnaires.assignments import build_assignment_artifacts
@@ -144,6 +169,7 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
         inputs.sources, config, canonical, ig_status=ig_status, decomposition=decomposition
     )
     foundation_terminology = build_foundation_terminology_documents(config, canonical, ig_status=ig_status)
+    program_rule_actions = _program_rule_action_terminology(config, canonical, ig_status)
     organisation_unit_terminology = _organisation_unit_terminology(
         inputs.organisation_units, config, canonical, ig_status
     )
@@ -154,11 +180,17 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
         JsonBuild(
             artifacts=build_option_set_concept_map_artifacts(inputs.option_sets, config, canonical, ig_status=ig_status)
         ),
+        JsonBuild(
+            artifacts=build_option_set_identifier_artifacts(inputs.option_sets, config, canonical, ig_status=ig_status)
+        ),
         build_category_artifacts(
             inputs.categories, config, canonical, ig_status=ig_status, attribute_codes=inputs.attribute_codes
         ),
         JsonBuild(
             artifacts=build_category_concept_map_artifacts(inputs.categories, config, canonical, ig_status=ig_status)
+        ),
+        JsonBuild(
+            artifacts=build_category_identifier_artifacts(inputs.categories, config, canonical, ig_status=ig_status)
         ),
         build_organisation_unit_instances(
             inputs.organisation_units, config, canonical, attribute_codes=inputs.attribute_codes
@@ -170,6 +202,9 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
                 inputs.sources, config, canonical, ig_status=ig_status
             )
         ),
+        JsonBuild(
+            artifacts=build_attribute_combo_identifier_artifacts(inputs.sources, config, canonical, ig_status=ig_status)
+        ),
     )
     documents: list[CodeSystem | ConceptMap | Questionnaire | ValueSet] = [
         *questionnaires.questionnaires,
@@ -178,6 +213,8 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
         *data_dictionary.concept_maps,
         *foundation_terminology.code_systems,
         *foundation_terminology.value_sets,
+        program_rule_actions.code_system,
+        program_rule_actions.value_set,
         *[code_system for build in organisation_unit_terminology for code_system in build.code_systems],
         *[value_set for build in organisation_unit_terminology for value_set in build.value_sets],
     ]
@@ -208,6 +245,27 @@ def _serving_gate(config: GenerateConfig) -> HostileNameGate | None:
     if config.hostile_names is not HostileNamePosture.SUBSTITUTE:
         return None
     return HostileNameGate(posture=HostileNamePosture.SUBSTITUTE)
+
+
+def _program_rule_action_terminology(config: GenerateConfig, canonical: str, ig_status: IgStatus) -> TerminologyPair:
+    """The D2ProgramRuleAction pair, built from the same definitions `d2-program-rule.fsh.jinja` renders.
+
+    A served form lists the DHIS2 program rules its instance enforces, and each rule states what it
+    does as a code of this vocabulary under a required binding. The pair is declared beside the
+    extension in FSH and has no JSON target of its own, so a live run builds it here rather than
+    serving a form whose stated action code resolves to nothing.
+    """
+    names = FoundationNaming.from_naming(config.naming)
+    return build_terminology_pair(
+        [CodeSystemConcept(code=action.code, display=action.display) for action in PROGRAM_RULE_ACTION_DEFINITIONS],
+        PROGRAM_RULE_ACTION_TERMINOLOGY,
+        canonical,
+        code_system_name=names.program_rule_action_code_system,
+        code_system_id=names.program_rule_action_code_system_id,
+        value_set_name=names.program_rule_action_value_set,
+        value_set_id=names.program_rule_action_value_set_id,
+        ig_status=ig_status,
+    )
 
 
 def _organisation_unit_terminology(

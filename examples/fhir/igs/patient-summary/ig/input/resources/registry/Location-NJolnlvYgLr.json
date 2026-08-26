@@ -17,7 +17,7 @@
     }
   ],
   "name": "Kakoya MCHP",
-  "description": "DHIS2 organisation unit Kakoya MCHP (NJolnlvYgLr), level 4 - physical location.",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
   "status": "active",
   "position": {
     "longitude": -11.6664,

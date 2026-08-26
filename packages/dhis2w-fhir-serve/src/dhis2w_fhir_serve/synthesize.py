@@ -51,19 +51,24 @@ store generate the same envelope for the same program: DHIS2 refuses a registrat
 incident date of a program that collects one with `E1023`, and the declaration is what keeps a
 generated response postable in both modes.
 
-Two facts a compiled Questionnaire does not carry, and how they are decided here:
+The three instants such a registration carries are ordered rather than drawn independently: the
+incident is on or before the enrolment, and the enrolment on or before the moment the document was
+authored. That is the only order the three facts can stand in - an enrolment follows the incident it
+is about, and a document is written no earlier than the enrolment it states - and a reader who found
+a birth dated after the enrolment it opened read a document about nobody. All three are drawn from
+the seeded stream inside the one window and then sorted onto that order, so the same seed still
+spells the same three instants and no draw is ever repeated to satisfy the constraint.
 
-* **The data set's period type.** A generated aggregate response needs a DHIS2 reporting period, and
-  the compiled form says nothing about which type its data set reports on. The rule is: the period
-  type declared by a served example response answering the same questionnaire - a compiled IG ships
-  its `Usage: #example` instances, and each aggregate one carries the real type on its D2Period -
-  and `Monthly` when the store holds no such example (which is every `--live` store, since a live
-  build serves the read set and no examples). The response always carries the newest *completed*
-  period of whichever type was decided, so the value moves with the calendar and nothing else.
-* **`TRUE_ONLY` versus `BOOLEAN`.** The emitter answers both DHIS2 value types as a `boolean` item,
-  so a generated answer to either is a random `true` or `false`. A `TRUE_ONLY` data element only ever
-  holds `true` in DHIS2, and a generated `false` for one is a value the form admits but the instance
-  would not store.
+A generated aggregate response reports for the period type its own form declares. Every served
+Questionnaire carries the data set's `D2PeriodType` - the FSH template writes it and so does the
+JSON builder, so a compiled store and a `--live` one state the same type - and `Monthly` is what a
+form declaring none reports under. The response always carries the newest *completed* period of
+whichever type was decided, so the value moves with the calendar and nothing else.
+
+One fact a served Questionnaire does not carry, and how it is decided here: **`TRUE_ONLY` versus
+`BOOLEAN`**. The emitter answers both DHIS2 value types as a `boolean` item, so a generated answer to
+either is a random `true` or `false`. A `TRUE_ONLY` data element only ever holds `true` in DHIS2, and
+a generated `false` for one is a value the form admits but the instance would not store.
 """
 
 from __future__ import annotations
@@ -74,7 +79,7 @@ import string
 from typing import TYPE_CHECKING, Any, Final, Literal
 
 from dhis2w_fhir.names import flatten_whitespace
-from dhis2w_fhir.period import PERIOD_TYPE_NAMES, parse_period, recent_periods
+from dhis2w_fhir.period import parse_period, recent_periods
 from dhis2w_fhir.r4 import (
     Coding,
     Extension,
@@ -119,16 +124,14 @@ if TYPE_CHECKING:
 #: so a seed a client cannot spell in the operation's own input parameter is not one this server draws.
 MAXIMUM_SEED = 2**31 - 1
 
-#: The period type an aggregate response falls back to when the store holds no example to read one off.
+#: The period type an aggregate response reports under when its form declares none.
 DEFAULT_PERIOD_TYPE = "Monthly"
 
 #: The status a generated response carries. The aggregate contract requires it, and a generated
 #: response is a finished submission whatever the form kind, so every kind is generated completed.
 GENERATED_STATUS: Final[Literal["completed"]] = "completed"
 
-#: The resource types this module reads out of the store: examples for the period type, Locations
-#: for the organisation unit a generated response reports for.
-RESPONSE_RESOURCE_TYPE = "QuestionnaireResponse"
+#: The resource type this module reads out of the store: the Locations a generated response reports for.
 LOCATION_RESOURCE_TYPE = "Location"
 
 #: The form kinds whose generated response carries a tracker context - the person and the enrollment.
@@ -239,7 +242,7 @@ def generate_response(
     response answers against. A caller naming no spool generates a stage response that mints its own
     tracker pair, which is what a form kind whose context is data rather than metadata otherwise does.
     """
-    period = _reporting_period(index, naming, store, today) if index.form_kind == "aggregate" else None
+    period = _reporting_period(index, today) if index.form_kind == "aggregate" else None
     window = DateWindow.of_period(period) if period is not None else DateWindow.recent(today)
     generator = _Generator(
         index=index,
@@ -281,6 +284,39 @@ class _TrackerContext(BaseModel):
     incident_at: str | None = None
 
 
+class _CaptureDates(BaseModel):
+    """The instants one generated response states, on the only order the three facts can stand in."""
+
+    model_config = ConfigDict(frozen=True)
+
+    authored: str | None = None
+    enrolled_at: str | None = None
+    incident_at: str | None = None
+
+    @classmethod
+    def ordered(cls, *, authored: str | None, enrolled_at: str | None, incident_at: str | None) -> _CaptureDates:
+        """Sort the drawn instants onto `incident <= enrolled <= authored`, keeping every one of them.
+
+        The instants are a seeded draw over one window and land in no order at all, which put a
+        birth after the enrolment it opened in about half of the seeds. Sorting the values across
+        the facts is what fixes it: every drawn instant is still stated, each one still sits inside
+        the window it was drawn from, and the same seed still spells the same three - a redraw loop
+        would change the answer for a seed and could be asked to satisfy a window it never can.
+
+        The instants are UTC ISO-8601 strings of one width, so sorting them as text sorts them by
+        time. A fact the response does not carry takes no place in the order and is left absent.
+        """
+        facts = ("incident_at", "enrolled_at", "authored")
+        drawn = {"incident_at": incident_at, "enrolled_at": enrolled_at, "authored": authored}
+        stated = [fact for fact in facts if drawn[fact] is not None]
+        assigned = dict(zip(stated, sorted(value for value in drawn.values() if value is not None), strict=True))
+        return cls(
+            authored=assigned.get("authored"),
+            enrolled_at=assigned.get("enrolled_at"),
+            incident_at=assigned.get("incident_at"),
+        )
+
+
 class _Generator(BaseModel):
     """One seeded generation pass: the form's rules, the terminology behind it, and the window it sits in."""
 
@@ -305,10 +341,22 @@ class _Generator(BaseModel):
         """Assemble the response: the context its profile requires first, then the answered item tree.
 
         The context is drawn before the answers so that adding a question to a form moves only that
-        question's value - a response's timestamp and its tracker UIDs stay what they were.
+        question's value - a response's timestamp and its tracker UIDs stay what they were. The
+        instants are then ordered across the whole context rather than inside the tracker part of
+        it, because the moment a document was authored and the enrolment it states are one order.
         """
-        authored = self._date_time() if self.index.form_kind != "aggregate" else None
-        tracker = self._tracker_context() if self.index.form_kind in _SUBJECT_FORM_KINDS else None
+        drawn_authored = self._date_time() if self.index.form_kind != "aggregate" else None
+        drawn = self._tracker_context() if self.index.form_kind in _SUBJECT_FORM_KINDS else None
+        dates = _CaptureDates.ordered(
+            authored=drawn_authored,
+            enrolled_at=drawn.enrolled_at if drawn is not None else None,
+            incident_at=drawn.incident_at if drawn is not None else None,
+        )
+        tracker = (
+            None
+            if drawn is None
+            else drawn.model_copy(update={"enrolled_at": dates.enrolled_at, "incident_at": dates.incident_at})
+        )
         unique_token = (
             tracker.tracked_entity_uid if tracker is not None and self.index.form_kind in _MINTING_FORM_KINDS else None
         )
@@ -319,7 +367,7 @@ class _Generator(BaseModel):
             questionnaire=self.index.canonical,
             status=GENERATED_STATUS,
             subject=self._subject(tracker),
-            authored=authored,
+            authored=dates.authored,
             item=self._items(questionnaire.item or [], unique_token) or None,
         )
 
@@ -336,6 +384,9 @@ class _Generator(BaseModel):
 
         A person-only registration draws one UID rather than two, because it names the person it
         creates and no enrollment - there is none to name.
+
+        The two instants a registration states are drawn here and ordered by the caller, which is
+        where the moment the document was authored is known.
         """
         if self.index.form_kind == _ENTITY_FORM_KIND:
             return _TrackerContext(tracked_entity_uid=self._uid())
@@ -788,48 +839,24 @@ def _period_extension(period: PeriodValue, naming: CaptureNaming) -> Extension:
     )
 
 
-def _reporting_period(
-    index: CaptureIndex, naming: CaptureNaming, store: ResourceStore, today: datetime.date
-) -> PeriodValue | None:
+def _reporting_period(index: CaptureIndex, today: datetime.date) -> PeriodValue | None:
     """The newest completed period of the form's decided period type, or None when even the default fails."""
-    isos = recent_periods(resolve_period_type(index.canonical, naming, store), 1, today)
+    isos = recent_periods(resolve_period_type(index), 1, today)
     if not isos:
         isos = recent_periods(DEFAULT_PERIOD_TYPE, 1, today)
     return parse_period(isos[0]) if isos else None
 
 
-def resolve_period_type(canonical: str, naming: CaptureNaming, store: ResourceStore) -> str:
+def resolve_period_type(index: CaptureIndex) -> str:
     """Decide which DHIS2 period type a generated aggregate response reports for.
 
-    A compiled Questionnaire does not carry its data set's period type, so it is read off the first
-    served example response answering the same form - a compiled IG ships those instances, and each
-    aggregate one states the real type on its D2Period. A store holding no such example, which is
-    every `--live` store, falls back to `Monthly`.
+    One rule, because there is only one place the fact is written: the form's own `D2PeriodType`
+    declaration. Every served Questionnaire carries it - a compiled guide's SUSHI output and a
+    `--live` store's JSON builder both write the data set's type onto the form - so `$generate`
+    reports for the same period in either mode. `Monthly` is what a form declaring none reports
+    under, which is the type most DHIS2 data sets collect on.
     """
-    for entry in store.entries:
-        if entry.resource_type != RESPONSE_RESOURCE_TYPE:
-            continue
-        try:
-            example = QuestionnaireResponse.model_validate(entry.body)
-        except ValidationError:
-            continue
-        if example.questionnaire != canonical:
-            continue
-        declared = _declared_period_type(example, naming)
-        if declared in PERIOD_TYPE_NAMES:
-            return declared
-    return DEFAULT_PERIOD_TYPE
-
-
-def _declared_period_type(example: QuestionnaireResponse, naming: CaptureNaming) -> str | None:
-    """The period type one example response states on its D2Period extension, when it carries one."""
-    for extension in example.extension or []:
-        if extension.url != naming.period_url:
-            continue
-        for nested in extension.extension or []:
-            if nested.url == PERIOD_TYPE_SUB_EXTENSION and nested.valueCode:
-                return nested.valueCode
-    return None
+    return index.period_type or DEFAULT_PERIOD_TYPE
 
 
 def _capture_location_id(index: CaptureIndex, store: ResourceStore, seed: int) -> str:

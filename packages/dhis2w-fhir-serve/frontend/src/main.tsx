@@ -42,7 +42,11 @@ createRoot(document.getElementById('root')!).render(
                 <HashRouter>
                     <App />
                 </HashRouter>
-                <Toaster richColors closeButton position="bottom-right" />
+                {/* Where a toast lands and how it is dismissed are the Toaster's
+                    own, stated once in components/ui/sonner.tsx - see the note
+                    there about the two lines the foot of the screen already
+                    carries. */}
+                <Toaster richColors />
             </TooltipProvider>
         </ThemeProvider>
     </StrictMode>,

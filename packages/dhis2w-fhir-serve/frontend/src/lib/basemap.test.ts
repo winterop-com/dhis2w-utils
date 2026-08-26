@@ -242,7 +242,7 @@ describe('the popup lines', () => {
             name: 'Gbonkonlenken',
             levelLabel: 'Chiefdom',
             placeLine: 'Sierra Leone / Tonkolili',
-            belowLine: '4 organisation units below',
+            belowLine: '4 organisation units sit below this one',
             identifiers: [{ label: 'id/org-unit', value: 'KIUCimTXf8Q' }],
         })
     })
@@ -292,6 +292,6 @@ describe('the popup lines', () => {
         expect(leaf.placeLine).toBeNull()
         expect(leaf.belowLine).toBeNull()
         expect(one.placeLine).toBe('Sierra Leone / Bo')
-        expect(one.belowLine).toBe('1 organisation unit below')
+        expect(one.belowLine).toBe('1 organisation unit sits below this one')
     })
 })

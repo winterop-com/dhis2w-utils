@@ -17,7 +17,7 @@
     }
   ],
   "name": "Badala MCHP",
-  "description": "DHIS2 organisation unit Badala MCHP (tlMeFk8C4CG), level 4 - physical location.",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
   "status": "active",
   "extension": [
     {

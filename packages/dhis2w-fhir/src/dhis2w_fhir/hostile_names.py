@@ -18,13 +18,20 @@ There are two honest answers, and this module is where a run picks one:
   so nothing about it is refused.
 - **substitute** - publish the wording `substitute_build_aborting_text` produces and the code
   `substituted_code` produces, leaving the DHIS2 instance untouched. No UID is touched, every
-  rewritten concept carries its DHIS2 code as a `dhis2-code` property, and the ConceptMaps keep
-  taking a published concept back to its DHIS2 UID.
+  rewritten concept carries its DHIS2 code as a `dhis2-code` property and its DHIS2 name as a
+  `dhis2-name` property, and the ConceptMaps keep taking a published concept back to its DHIS2 UID.
 
 The gate applies both rewrites where DHIS2 metadata enters the emission inputs, so every target
 downstream inherits them: the Questionnaire's question text, the concept displays of the data
 dictionary, the category option combo vocabulary, the organisation unit registry, the identifier
 CodeSystems, the ConceptMaps, and the narrative pages all read the same rewritten projection.
+
+A name rewrite reaches the object's translations too. A DHIS2 NAME or FORM_NAME translation becomes
+the `_title`, `_name`, `_text`, or designation sitting beside the very element the rewrite already
+changed, so publishing one of the two byte-true would leave one resource stating two different names
+for one object - and the untouched half would still carry the character the rewrite exists to
+remove. Both halves take the same wording, and the instance's own spelling stays recoverable through
+`original_name`, which the emitters state as the `dhis2-name` property or extension.
 """
 
 from __future__ import annotations
@@ -35,6 +42,7 @@ from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir.coded import CodedProjectionIn, carries_substitutable_code, substituted_code
 from dhis2w_fhir.config import HostileNamePosture
+from dhis2w_fhir.i18n import FORM_NAME_PROPERTY, NAME_PROPERTY, TranslationIn
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, generate_note
 from dhis2w_fhir.resources.questionnaires.schemas import ProgramRuleIn, ProgramRuleVariableIn
 from dhis2w_fhir.validation.substitution import substitute_build_aborting_text
@@ -45,6 +53,7 @@ if TYPE_CHECKING:
 __all__ = [
     "SUBSTITUTED_CODE_FIELD",
     "SUBSTITUTED_NAME_FIELDS",
+    "SUBSTITUTED_TRANSLATION_PROPERTIES",
     "HostileNameGate",
     "HostileRewrite",
     "HostileRewriteConfirmation",
@@ -57,6 +66,21 @@ __all__ = [
 #: projection carries lands on a `description` or an extension `valueString` - neither of which is a
 #: name.
 SUBSTITUTED_NAME_FIELDS = frozenset({"name", "form_name"})
+
+#: Where the byte-true DHIS2 spelling of each rewritten name field is kept, so the guide can state it
+#: beside the wording it publishes. Only `CodedProjectionIn` carries these fields.
+_ORIGINAL_NAME_FIELDS: dict[str, str] = {"name": "original_name", "form_name": "original_form_name"}
+
+#: The DHIS2 translation properties a name rewrite reads. A translated NAME becomes the `_title`,
+#: `_name`, or concept designation beside the very name the rewrite already changed, and a translated
+#: FORM_NAME becomes a question's `_text` - so leaving them byte-true would publish one resource
+#: stating two different names for one object, in two different languages, one of them carrying the
+#: character the rewrite exists to remove. Every other translated property (DESCRIPTION, the date
+#: labels) lands on a `description` or an extension `valueString`, which is not a name.
+SUBSTITUTED_TRANSLATION_PROPERTIES = frozenset({NAME_PROPERTY, FORM_NAME_PROPERTY})
+
+#: The `TranslationIn` field a name rewrite reads on the properties above.
+_TRANSLATION_VALUE_FIELD = "value"
 
 #: The projection field a code rewrite reads. Only `CodedProjectionIn` carries it, which is exactly
 #: the set of projections whose code a published concept, identifier, or identity stem is built from.
@@ -181,6 +205,8 @@ class _ProjectionRewriter:
         """One projection with every rewritable name and code in it rewritten, or the projection itself when clean."""
         if type(model) in _UNREWRITTEN_PROJECTIONS:
             return model
+        coded = isinstance(model, CodedProjectionIn)
+        translates_a_name = isinstance(model, TranslationIn) and model.property in SUBSTITUTED_TRANSLATION_PROPERTIES
         updates: dict[str, Any] = {}
         for field_name in type(model).model_fields:
             value = getattr(model, field_name)
@@ -188,8 +214,15 @@ class _ProjectionRewriter:
                 replaced = self._rewritten_name(value)
                 if replaced != value:
                     updates[field_name] = replaced
+                    if coded:
+                        updates[_ORIGINAL_NAME_FIELDS[field_name]] = value
                 continue
-            if field_name == SUBSTITUTED_CODE_FIELD and isinstance(model, CodedProjectionIn) and isinstance(value, str):
+            if field_name == _TRANSLATION_VALUE_FIELD and translates_a_name and isinstance(value, str):
+                replaced = self._rewritten_name(value)
+                if replaced != value:
+                    updates[field_name] = replaced
+                continue
+            if field_name == SUBSTITUTED_CODE_FIELD and coded and isinstance(value, str):
                 published = self._rewritten_code(value)
                 if published != value:
                     updates[field_name] = published
@@ -306,8 +339,9 @@ def _name_note(rewrite: HostileRewrite) -> GenerateNote:
     """The note one rewritten DHIS2 name lands in the report as."""
     return generate_note(
         GenerateNoteCategory.NAME_SUBSTITUTION,
-        f"the DHIS2 name {rewrite.original!r} carries '<', which the IG publisher's build cannot survive; "
-        f"the guide publishes {rewrite.rewritten!r} and DHIS2 keeps the name it holds",
+        f"the DHIS2 name {rewrite.original!r} carries a comparison the IG publisher's pages cannot carry as it "
+        f"stands; the guide publishes {rewrite.rewritten!r}, states {rewrite.original!r} as a `dhis2-name` "
+        "property, and DHIS2 keeps the name it holds",
     )
 
 

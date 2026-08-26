@@ -6,7 +6,7 @@
       "http://example.org/fhir/StructureDefinition/d2-location"
     ]
   },
-  "description": "DHIS2 organisation unit 02 Phongsali (YvLOmtTQD6b), level 2 - physical location.",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
   "identifier": [
     {
       "system": "http://dhis2.org/fhir/id/org-unit",

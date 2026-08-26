@@ -627,7 +627,7 @@ Five families publish maps into one directory:
 ```
 ig/input/resources/concept-maps/ConceptMap-d2-os-<stem>-cm.json    option sets
 ig/input/resources/concept-maps/ConceptMap-d2-cat-<stem>-cm.json   categories
-ig/input/resources/concept-maps/ConceptMap-d2-aoc-<stem>-cm.json   attribute option combos
+ig/input/resources/concept-maps/ConceptMap-d2-aoc-<stem>-cm.json   attribute option combinations
 ig/input/resources/concept-maps/ConceptMap-d2-sex-cm.json          sex values
 ig/input/resources/concept-maps/ConceptMap-d2-section-cm.json      patient summary sections
 ```

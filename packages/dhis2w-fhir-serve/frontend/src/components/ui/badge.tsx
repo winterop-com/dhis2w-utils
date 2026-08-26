@@ -10,8 +10,13 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        // THE EDGE IS WHAT MAKES A CHIP A CHIP ON EVERY GROUND. The secondary
+        // fill is a step off the card, and a table's zebra stripe is a step off
+        // the card too - so a chip drawn by fill alone dissolves on every other
+        // row. The hairline carries it wherever the fill happens to match what
+        // is behind it.
         secondary:
-          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
+          "border-border/60 bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
         destructive:
           "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
         outline:

@@ -284,7 +284,7 @@ export const SIGN_IN_NOTES: Record<Exclude<AuthPosture, 'none'>, string> = {
         'against the instance and records your username on everything you capture. They are held ' +
         'for this browser tab only.',
     jwt:
-        'Getting a token is the identity provider’s business, not this server’s: sign in ' +
+        "Getting a token is the identity provider's business, not this server's: sign in " +
         'there the way you normally do and paste the token it gives you. This server checks the ' +
         'signature against the keys that provider publishes and records your username on everything ' +
         'you capture. The token is held for this browser tab only.',
@@ -308,7 +308,7 @@ export const SIGN_OUT_LABEL = 'Sign out'
  */
 export const SIGN_IN_REFUSALS: Record<Exclude<AuthPosture, 'none'>, string> = {
     token: 'This server did not accept this token.',
-    dhis2: 'DHIS2 did not accept this username and password.',
+    dhis2: 'This DHIS2 instance did not accept this username and password.',
     jwt: 'This server did not accept this token.',
 }
 

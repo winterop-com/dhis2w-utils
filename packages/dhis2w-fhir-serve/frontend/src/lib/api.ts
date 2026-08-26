@@ -384,22 +384,47 @@ export async function translateCode(
     return readJson<Parameters>(`/ConceptMap/$translate?${parameters.toString()}`)
 }
 
+/** What an accepted capture answered with - the receipt it was stored as, and what the server noted. */
+export interface CaptureReceipt {
+    /** The receipt id, off the `Location` the create interaction states. Null when it stated none. */
+    responseId: string | null
+    /** The information and warning issues the accepted capture still carried. */
+    outcome: OperationOutcome | null
+}
+
 /**
  * Submit one filled-in form.
  *
- * The server answers 201 with the stored receipt, or a 4xx OperationOutcome
- * naming every question it refused - and an accepted capture can still carry
- * warnings, which is why the caller gets the parsed response rather than a
- * boolean.
+ * The server answers 201 with an OperationOutcome, or a 4xx OperationOutcome naming every question
+ * it refused - and an accepted capture can still carry warnings, which is why the caller gets the
+ * parsed body rather than a boolean.
+ *
+ * THE RECEIPT ID IS IN THE HEADER, NOT IN THE BODY. R4 says a create states where the created
+ * resource is served from in `Location`, and this server does exactly that: the 201 body is the
+ * outcome, so a caller reading the body for an `id` finds none and can only say "a new receipt" for
+ * something that has a name. `receiptIdOf` is the one place that header is read.
  */
-export async function postQuestionnaireResponse(
-    response: QuestionnaireResponse,
-): Promise<QuestionnaireResponse> {
-    return readJson<QuestionnaireResponse>('/QuestionnaireResponse', {
+export async function postQuestionnaireResponse(response: QuestionnaireResponse): Promise<CaptureReceipt> {
+    const path = '/QuestionnaireResponse'
+    const answer = await apiFetch(path, {
         method: 'POST',
         headers: { 'Content-Type': FHIR_JSON_MEDIA_TYPE },
         body: JSON.stringify(response),
     })
+    const body: unknown = await answer.json().catch(() => null)
+    if (!answer.ok) throw new FhirRequestError(answer.status, body as OperationOutcome | null, path)
+    return {
+        responseId: receiptIdOf(answer.headers.get('Location')),
+        outcome: body as OperationOutcome | null,
+    }
+}
+
+/** The receipt id a create interaction's `Location` names: its last path segment, or null for none. */
+export function receiptIdOf(location: string | null): string | null {
+    if (location === null) return null
+    const segments = location.split(/[?#]/)[0].split('/').filter((segment) => segment !== '')
+    const last = segments.at(-1) ?? ''
+    return last === '' ? null : last
 }
 
 /**

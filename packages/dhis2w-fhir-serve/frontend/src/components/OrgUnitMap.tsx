@@ -178,13 +178,13 @@ const ENTER_GLOBE_LABEL = 'View as a globe'
 const EXIT_GLOBE_LABEL = 'View as a flat map'
 
 /** What the recenter button offers while a unit is selected. */
-const RECENTER_SELECTION_LABEL = 'Center on the selected organisation unit'
+const RECENTER_SELECTION_LABEL = 'Centre on the selected organisation unit'
 
 /** What it offers while nothing is - the framing target is then the whole registry. */
-const RECENTER_REGISTRY_LABEL = 'Center on the organisation units'
+const RECENTER_REGISTRY_LABEL = 'Centre on the organisation units'
 
 /** What the layers button offers: the choice of what is drawn under the boundaries. */
-const BASEMAP_CONTROL_LABEL = 'Choose the basemap'
+const BASEMAP_CONTROL_LABEL = 'Choose the background map'
 
 /**
  * The layers glyph: a stack of sheets, as a data-uri background image.
@@ -556,22 +556,37 @@ export function OrgUnitMap({
 function MapLegend({ overTiles }: { overTiles: boolean }) {
     return (
         <ul className="bg-card/90 text-muted-foreground absolute bottom-3 left-3 space-y-1 rounded-md border px-2.5 py-2 text-xs">
-            <li className="flex items-center gap-2" title="The organisation unit you picked.">
-                <span className="bg-map-selection size-2.5 rounded-[2px]" aria-hidden />
+            {/* EVERY SWATCH IS THE TIER'S OWN TWO COLOURS - the fill the layer paints and the
+                stroke it draws round it - read from the same tokens `readPalette` reads, so the
+                key cannot say one thing while the canvas paints another. The selected tier is the
+                one that made this rule: its area is `--map-selection` and its outline and its point
+                marker are `--map-selection-edge`, and a chip wearing only the fill was a different
+                amber from every selected facility on the map. */}
+            <li className="flex items-center gap-2" title="The one the tree and the details rail are showing.">
+                <span
+                    className="bg-map-selection border-map-selection-edge size-2.5 rounded-[2px] border"
+                    aria-hidden
+                />
                 Selected organisation unit
             </li>
-            <li className="flex items-center gap-2" title="Organisation units inside the one you picked.">
-                <span className="bg-primary/55 size-2.5 rounded-[2px]" aria-hidden />
-                Below the selection
+            <li className="flex items-center gap-2" title="Every level under it, not the immediate children alone.">
+                <span className="bg-primary/55 border-primary size-2.5 rounded-[2px] border" aria-hidden />
+                Organisation units below it
             </li>
             <li
                 className="flex items-center gap-2"
-                title="Organisation units this implementation guide publishes that are outside your selection."
+                title="Everything else this implementation guide publishes."
             >
-                {/* The swatch tracks the tier's real colour, which changes with the ground under
-                    it: a `--border` hairline is legible on a plain card and invisible on tiles. */}
+                {/* This tier is the one whose stroke changes with the ground under it: a `--border`
+                    hairline is legible on a plain card and invisible on tiles, so the layer takes
+                    the ink token over tiles and the swatch follows it. */}
                 <span
-                    className={cn('size-2.5 rounded-[2px]', overTiles ? 'bg-muted-foreground' : 'bg-border')}
+                    className={cn(
+                        'size-2.5 rounded-[2px] border',
+                        overTiles
+                            ? 'bg-muted-foreground/55 border-muted-foreground'
+                            : 'bg-border/55 border-border',
+                    )}
                     aria-hidden
                 />
                 Other organisation units
@@ -994,6 +1009,7 @@ function popupElement(content: UnitPopupContent, onOpen: () => void): HTMLElemen
     open.dataset.testid = 'org-unit-map-popup-open'
     open.className = 'interactive-link mt-1 block text-sm'
     open.textContent = 'Open'
+    open.setAttribute('aria-label', 'Open this organisation unit')
     open.addEventListener('click', onOpen)
     root.append(open)
     return root

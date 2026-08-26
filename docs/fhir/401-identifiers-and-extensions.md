@@ -103,7 +103,7 @@ response states one *period* of that type, and both draw on `D2PeriodType_VS`.
 #### `D2AttributeOptionCombos`
 
 `{canonical}/StructureDefinition/d2-attribute-option-combos`, a
-`valueCanonical` naming a ValueSet. The vocabulary of attribute option combos
+`valueCanonical` naming a ValueSet. The vocabulary of attribute option combinations
 this form's responses may be keyed under. Plural on purpose: its response-side
 sibling [`D2AttributeOptionCombo`](#d2attributeoptioncombo) is singular and
 carries the one combo a submission chose.

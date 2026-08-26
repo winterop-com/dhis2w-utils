@@ -79,7 +79,7 @@ describe('the lifecycle vocabulary', () => {
         const withdrawn = LIFECYCLE_HINTS.withdrawn
         expect(LIFECYCLE_LABELS.withdrawn).toBe('Withdrawn')
         expect(withdrawn.command).toBe('d2w fhir withdraw')
-        expect(withdrawn.tail).toContain('hidden copy')
+        expect(withdrawn.lead).toContain('keeps the record')
         expect(`${withdrawn.lead}${withdrawn.tail}`).not.toContain('deleted')
     })
 })

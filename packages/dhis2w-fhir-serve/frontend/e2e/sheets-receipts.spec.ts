@@ -95,3 +95,25 @@ test('the quick view and the page it links to are one reading of one receipt', a
     await expect(fullPage.getByRole('heading', { name: 'Capture context' })).toBeVisible()
     await expect(fullPage.getByRole('heading', { name: 'Answers' })).toBeVisible()
 })
+
+test('Back shuts the receipt panel and leaves the filter that was on', async ({ page, request }) => {
+    const receiptId = await generateAndPost(request, 512)
+
+    await page.goto('/#/responses')
+    await page.getByRole('button', { name: /^Received/ }).click()
+    await expect(page).toHaveURL(/#\/responses\?lifecycle=received$/)
+
+    await page.getByRole('row').filter({ hasText: receiptId }).click()
+    await expect(page).toHaveURL(new RegExp(`#/responses\\?lifecycle=received&open=${receiptId}$`))
+
+    // Opening a receipt is a place a reader went, so Back is the way out of it - and because the
+    // filter is in the address too, it is still on underneath.
+    await page.goBack()
+    await expect(page.getByTestId('receipt-sheet')).toHaveCount(0)
+    await expect(page).toHaveURL(/#\/responses\?lifecycle=received$/)
+    await expect(page.getByRole('button', { name: /^Received/ })).toHaveAttribute('aria-pressed', 'true')
+
+    // And Back again walks off the filter, onto the listing it was applied to.
+    await page.goBack()
+    await expect(page).toHaveURL(/#\/responses$/)
+})

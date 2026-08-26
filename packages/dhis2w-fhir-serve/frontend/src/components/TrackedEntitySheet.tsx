@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 
+import { RawResourceSheet } from '@/components/RawResourceSheet'
 import { TrackedEntitySections } from '@/components/TrackedEntitySections'
 import { Badge } from '@/components/ui/badge'
 import { TrackedEntityTypeBadge } from '@/components/KindBadge'
@@ -76,7 +77,7 @@ function TrackedEntityQuickView({
     dhis2BaseUrl: string | null
 }) {
     const record = useTrackedEntityRecord(opened.resourceType, opened.trackedEntityUid)
-    const { heading, type } = record
+    const { heading, type, words } = record
 
     return (
         <>
@@ -114,6 +115,18 @@ function TrackedEntityQuickView({
                     trackedEntityUid={opened.trackedEntityUid}
                     dhis2BaseUrl={dhis2BaseUrl}
                 />
+                {/* At the foot, as the last thing the panel offers - the same place the receipt
+                    panel offers its own document, and for the same reason: everything above is a
+                    reading of this, and a reading can be wrong in a way only the bytes show. */}
+                {record.resource !== null && (
+                    <div className="mt-6">
+                        <RawResourceSheet
+                            resource={record.resource}
+                            resourceType={opened.resourceType}
+                            description={`The ${words.one} exactly as this server serves it.`}
+                        />
+                    </div>
+                )}
             </SheetBody>
         </>
     )

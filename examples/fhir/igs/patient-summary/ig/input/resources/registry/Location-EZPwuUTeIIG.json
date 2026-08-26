@@ -17,7 +17,7 @@
     }
   ],
   "name": "Wara Wara Yagala",
-  "description": "DHIS2 organisation unit Wara Wara Yagala (EZPwuUTeIIG), level 3 - physical location.",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
   "status": "active",
   "position": {
     "longitude": -11.577432,

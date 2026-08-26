@@ -731,7 +731,7 @@ thing for anyone who was never told about the chord. Type, and it narrows:
   address, `#/tracked-entities?q=...`, so the result is a link you can send.
 - **Appearance** - the five themes below, and the switch between the light
   ground and the dark one.
-- **View** - **Collapse sidebar**, or **Expand sidebar** when it already is.
+- **View** - **Collapse the navigation**, or **Expand the navigation** when it already is.
 - **Help** - **Keyboard shortcuts**, the same list `?` puts up.
 - **Session** - **Sign out**, when this tab holds a credential.
 
@@ -798,11 +798,12 @@ the Evaluate editors and the organisation-unit map's boundary tiers included.
 Nothing else moves: the type, the spacing, and the corner radii are one design
 and stay put, so a theme is a palette rather than a second app.
 
-**Terminal is the one theme that moves a status colour**, and it says so here
-because a spool colour is a fact rather than a decoration: its identity is the
-phosphor green, so **Forwarded** and **Completed** move to a cyan rather than
-sit in the same green as **Received**. The rest of the lifecycle keeps the
-colours it has in every theme.
+**Every theme paints the same four state hues** - green for accepted, blue for
+waiting, red for a refusal, amber for one the guide must answer for - because a
+spool colour is a fact rather than a decoration, and a fact does not change
+meaning when the walls are repainted. Terminal's phosphor green is its identity,
+carried by `--primary` and the cast its uids wear, and it sits beside the
+accepted green rather than taking its place.
 
 ## Opening an identity in DHIS2
 

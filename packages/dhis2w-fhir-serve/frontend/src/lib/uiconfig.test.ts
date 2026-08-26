@@ -138,7 +138,7 @@ describe('the words a register speaks with', () => {
         const words = registerWords({ kind: 'people' })
         expect(words.one).toBe('person')
         expect(words.empty).toBe('This DHIS2 instance holds nobody.')
-        expect(words.missing).toBe('This DHIS2 instance holds nobody under that tracked entity uid.')
+        expect(words.missing).toBe('This DHIS2 instance holds nobody under that tracked entity UID.')
         expect(words.paging(1, 2)).toBe('Showing 1 of 2 people this DHIS2 instance holds as tracked entities.')
     })
 

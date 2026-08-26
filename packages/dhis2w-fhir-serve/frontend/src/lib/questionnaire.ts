@@ -1610,6 +1610,18 @@ export function dateTimeInputValue(text: string): string {
     return text.replace(/(Z|[+-]\d{2}:\d{2})$/, '')
 }
 
+/**
+ * What `<input type="date">` will accept back from a stored R4 dateTime: the calendar half of it.
+ *
+ * A date-only value is itself an R4 dateTime, so a control that asks for a date hands one straight
+ * to `normaliseDateTime` and nothing has to invent a clock reading. That is the point of asking for
+ * a date: an enrollment begins on a day, and the minutes `$generate` drew for it were a number
+ * nobody had a reason to believe.
+ */
+export function dateInputValue(text: string): string {
+    return dateTimeInputValue(text).slice(0, 10)
+}
+
 /** One key press, in the four facts the implicit-submission rule below reads off it. */
 export interface FormKeyPress {
     /** The key, as `KeyboardEvent.key` spells it. */
