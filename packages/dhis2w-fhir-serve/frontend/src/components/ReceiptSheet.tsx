@@ -44,7 +44,10 @@ export function ReceiptSheet({
     const open = responseId !== NO_RECEIPT_OPENED
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent data-testid="receipt-sheet">
+            {/* A receipt's answer rows carry a question, its disaggregation, a uid, and the
+                value - four columns that clip in the base width, and a clipped value is the one
+                column the panel exists to show. As wide as the viewport affords, short of it. */}
+            <SheetContent data-testid="receipt-sheet" className="sm:max-w-[min(64rem,92vw)]">
                 {open && <ReceiptQuickView responseId={responseId} />}
             </SheetContent>
         </Sheet>

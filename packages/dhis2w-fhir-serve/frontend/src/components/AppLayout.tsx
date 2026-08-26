@@ -297,41 +297,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     )}
                     style={!collapsed && railWidth !== null ? { width: railWidth } : undefined}
                 >
-                    {/* THE TOGGLE HOLDS ONE POSITION, WHICH IS WHY IT IS HERE.
-                        In the page header it rode the header's left edge, and the header's left
-                        edge is the rail's right edge - so collapsing the rail threw the control
-                        that collapsed it 176px sideways, and the pointer that pressed it was
-                        nowhere near the one that puts it back. The rail's own left edge is the
-                        viewport's, in both states: `px-4` expanded and a 32px button centred in
-                        the 64px collapsed rail put it at exactly 16px either way. That is the same
-                        promise the right-hand rails keep - a toggle stays where it was pressed. */}
+                    {/* THE LOGO OWNS THE CORNER, THE TOGGLE RIDES THE RAIL'S EDGE.
+                        The top-left corner is where every app puts its identity, so the wordmark
+                        sits there in both states, and the control that folds the rail sits on the
+                        edge it folds - `ml-auto` against the rail's right edge expanded, centred
+                        under the logo in the 64px collapsed rail. */}
                     <div
                         className={cn(
                             'flex items-center gap-2 px-4 py-4',
-                            collapsed && 'flex-col gap-3',
+                            collapsed && 'flex-col gap-3 px-0',
                         )}
                     >
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={toggle}
-                                    aria-label={collapsed ? EXPAND_NAVIGATION_LABEL : COLLAPSE_NAVIGATION_LABEL}
-                                    className="text-muted-foreground hover:text-foreground shrink-0"
-                                >
-                                    {collapsed ? (
-                                        <PanelLeftOpen className="size-4" />
-                                    ) : (
-                                        <PanelLeftClose className="size-4" />
-                                    )}
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right">
-                                {collapsed ? EXPAND_NAVIGATION_LABEL : COLLAPSE_NAVIGATION_LABEL}
-                            </TooltipContent>
-                        </Tooltip>
-
                         {/* The wordmark is the way home, which is the convention every
                             other app in a browser has already taught. */}
                         <NavLink
@@ -349,6 +325,30 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                 </span>
                             )}
                         </NavLink>
+
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={toggle}
+                                    aria-label={collapsed ? EXPAND_NAVIGATION_LABEL : COLLAPSE_NAVIGATION_LABEL}
+                                    className={cn(
+                                        'text-muted-foreground hover:text-foreground shrink-0',
+                                        !collapsed && 'ml-auto',
+                                    )}
+                                >
+                                    {collapsed ? (
+                                        <PanelLeftOpen className="size-4" />
+                                    ) : (
+                                        <PanelLeftClose className="size-4" />
+                                    )}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                                {collapsed ? EXPAND_NAVIGATION_LABEL : COLLAPSE_NAVIGATION_LABEL}
+                            </TooltipContent>
+                        </Tooltip>
                     </div>
 
                     <nav className="flex flex-col gap-1 px-2 py-2">

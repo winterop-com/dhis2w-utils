@@ -59,7 +59,7 @@ export function TrackedEntitySheet({
     const open = opened.trackedEntityUid !== NOTHING_OPENED
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent data-testid="tracked-entity-sheet">
+            <SheetContent data-testid="tracked-entity-sheet" className="sm:max-w-[min(64rem,92vw)]">
                 {open && (
                     <TrackedEntityQuickView opened={opened} dhis2BaseUrl={dhis2BaseUrl} />
                 )}

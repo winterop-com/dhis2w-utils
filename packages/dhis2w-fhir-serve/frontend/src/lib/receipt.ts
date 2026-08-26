@@ -195,6 +195,8 @@ export interface ReceiptContextFact {
     value: string
     /** True when the value is an identifier rather than something written for a person to read. */
     mono: boolean
+    /** An in-app route where this fact's subject has its own page, when it has one. */
+    to?: string
 }
 
 /**
