@@ -24,7 +24,7 @@ import { E2E_BASE_URL } from '../playwright.config.ts'
  */
 
 /** Which themes exist, in the order the picker offers them. Mirrors `THEMES` in lib/theme.ts. */
-const THEME_NAMES = ['clinical'] as const
+const THEME_NAMES = ['clinical', 'indigo', 'paper', 'contrast', 'terminal'] as const
 
 /**
  * The contrast one pair has to reach, by what the pair is for.
@@ -211,33 +211,42 @@ test('a typed receipt id prefix jumps to that receipt', async ({ page }) => {
     await expect(page).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
 })
 
-test('the palette offers no theme row while there is one theme, and the mode still switches', async ({
-    page,
-}) => {
+test('a theme chosen in the palette is painted, and is still painted after a reload', async ({ page }) => {
     await page.goto('/')
     await openPalette(page)
 
-    // One theme is no choice: the rows return when a second theme lands in THEMES.
-    await page.getByRole('combobox', { name: 'Command palette' }).fill('theme')
-    await expect(page.getByRole('option', { name: /theme$/ })).toHaveCount(0)
-
-    await page.getByRole('combobox', { name: 'Command palette' }).fill('dark')
+    await page.getByRole('combobox', { name: 'Command palette' }).fill('Terminal theme')
     await page.keyboard.press('Enter')
-    await expect(page.locator('html')).toHaveClass(/dark/)
 
-    // Put it back, so the specs after this one meet the ground every other spec assumes.
-    await openPalette(page)
-    await page.getByRole('combobox', { name: 'Command palette' }).fill('light')
-    await page.keyboard.press('Enter')
-    await expect(page.locator('html')).not.toHaveClass(/dark/)
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
+
+    // The attribute is written before the first paint by the inline script in index.html, off the
+    // same storage key lib/theme.ts writes. If those two ever disagree, this reload shows Clinical.
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
+
+    // Put it back, so the specs after this one meet the theme every other spec assumes.
+    await page.evaluate(() => {
+        localStorage.removeItem('d2w-fhir.theme')
+    })
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'clinical')
 })
 
-test('the gear offers the ground alone while there is one theme', async ({ page }) => {
+test('the gear offers every theme and marks the one in force', async ({ page }) => {
     await page.goto('/')
     await openSettings(page)
 
-    // One theme is no choice, so the menu asks only which ground the palette is painted on.
-    await expect(page.getByRole('menuitemradio', { name: /^Clinical/ })).toHaveCount(0)
+    // Both appearance controls live behind the one gear now: the five themes, and the ground.
+    await Promise.all(
+        ['Clinical', 'Indigo', 'Paper', 'Contrast', 'Terminal'].map((label) =>
+            expect(page.getByRole('menuitemradio', { name: new RegExp(`^${label}`) })).toBeVisible(),
+        ),
+    )
+    await expect(page.getByRole('menuitemradio', { name: /^Clinical/ })).toHaveAttribute(
+        'aria-checked',
+        'true',
+    )
     await expect(page.getByRole('menuitem', { name: /^Switch to dark mode/ })).toBeVisible()
 })
 
@@ -258,19 +267,31 @@ test('the header carries neither of them, so what is left on it is the page', as
     ).toBeVisible()
 })
 
-test('a stored theme name from a past build falls back before first paint', async ({ page }) => {
-    // The five-theme era stored names like 'terminal'; the pre-paint script in index.html reads
-    // the same storage key lib/theme.ts writes and knows exactly the themes this build has, so a
-    // leftover value paints the default rather than nothing.
+test('a theme chosen at the gear is painted, and is still painted after a reload', async ({ page }) => {
     await page.goto('/')
-    await page.evaluate(() => {
-        localStorage.setItem('d2w-fhir.theme', 'terminal')
-    })
+    await openSettings(page)
+    await page.getByRole('menuitemradio', { name: /^Terminal/ }).click()
+
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
+
+    // The attribute is written before the first paint by the inline script in index.html, off the
+    // same storage key lib/theme.ts writes. If those two ever disagree, this reload shows Clinical.
     await page.reload()
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'clinical')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
+
+    await openSettings(page)
+    await expect(page.getByRole('menuitemradio', { name: /^Terminal/ })).toHaveAttribute(
+        'aria-checked',
+        'true',
+    )
+    await page.keyboard.press('Escape')
+
+    // Put it back, so the specs after this one meet the theme every other spec assumes.
     await page.evaluate(() => {
         localStorage.removeItem('d2w-fhir.theme')
     })
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'clinical')
 })
 
 test('the gear is still reachable once the rail is collapsed to icons', async ({ page }) => {
@@ -280,7 +301,7 @@ test('the gear is still reachable once the rail is collapsed to icons', async ({
     const gear = page.getByRole('complementary').getByRole('button', { name: 'Settings' })
     await expect(gear).toBeVisible()
     await gear.click()
-    await expect(page.getByRole('menuitem', { name: /^Switch to dark mode/ })).toBeVisible()
+    await expect(page.getByRole('menuitemradio', { name: /^Clinical/ })).toBeVisible()
 
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Expand the navigation' }).click()
@@ -349,7 +370,7 @@ test('the palette states what kind of thing each row is, and what Return would d
     const dialog = page.getByRole('dialog', { name: 'Command palette' })
     await expect(dialog).toContainText('Open')
 
-    await page.getByRole('combobox', { name: 'Command palette' }).fill('dark mode')
+    await page.getByRole('combobox', { name: 'Command palette' }).fill('Terminal theme')
     await expect(dialog).toContainText('Switch')
     await page.keyboard.press('Escape')
 })
@@ -432,21 +453,26 @@ test('every theme stays legible on both grounds', async ({ page }) => {
     expect(measured, measured.join('\n')).toEqual([])
 })
 
-test('the map repaints when the ground flips', async ({ page }) => {
-    await page.goto('/#/organisation-units?unit=O6uvpzGd5pu')
+test('a theme change repaints the organisation-unit map with nothing reloaded', async ({ page }) => {
+    await page.goto('/#/organisation-units')
     const map = page.getByTestId('org-unit-map')
     await expect(map).toHaveAttribute('data-map-ready', 'true', { timeout: 15_000 })
 
-    // The map paints from the same tokens as the rest of the app, and it watches `<html>` for
-    // both axes - the light/dark class and the theme attribute. The attribute axis has nothing
-    // to flip to while this build carries one theme, so the ground is the axis under test; the
-    // marker showing the new ground with the canvas still ready is the repaint.
+    // The map paints from the same tokens as the rest of the app, and it watches `<html>` for both
+    // axes - the light/dark class and the theme attribute. Watching only the class would leave the
+    // boundaries in the previous theme's colours until the ground happened to flip.
+    const before = await map.getAttribute('data-map-theme')
     await openSettings(page)
-    await page.getByRole('menuitem', { name: /^Switch to dark mode/ }).click()
-    await expect(map).toHaveAttribute('data-map-theme', 'dark')
+    await page.getByRole('menuitemradio', { name: /^Terminal/ }).click()
+
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
+    // The ground did not change, so the map's own light/dark marker must not have either - what has
+    // to have happened is a repaint, which the marker cannot show. That it is still painted at all
+    // is what this asserts: a rebuild that threw would leave the canvas without it.
+    await expect(map).toHaveAttribute('data-map-theme', before ?? 'light')
     await expect(map).toHaveAttribute('data-map-ready', 'true')
 
-    await openSettings(page)
-    await page.getByRole('menuitem', { name: /^Switch to light mode/ }).click()
-    await expect(map).toHaveAttribute('data-map-theme', 'light')
+    await page.evaluate(() => {
+        localStorage.removeItem('d2w-fhir.theme')
+    })
 })

@@ -252,12 +252,12 @@ describe('looking one entity up in the register', () => {
     })
 
     it('ranks under every real command match, because its label quotes the query back', () => {
-        // Typing "mode" makes the lookup row read `Look up "mode" in Person` - a label match
-        // that says nothing. The mode row is what was asked for; the escape hatch trails it.
-        const actions = paletteActions(input({ register: 'Person', query: 'mode' }))
+        // Typing "theme" makes the lookup row read `Look up "theme" in Person` - a label match
+        // that says nothing. The theme rows are what was asked for; the escape hatch trails them.
+        const actions = paletteActions(input({ register: 'Person', query: 'theme' }))
         const lookup = byId(actions, 'register:lookup')
-        const mode = byId(actions, 'mode:switch')
-        expect(paletteScore(lookup, 'mode')).toBeLessThan(paletteScore(mode, 'mode'))
+        const theme = byId(actions, `theme:${THEMES[0].name}`)
+        expect(paletteScore(lookup, 'theme')).toBeLessThan(paletteScore(theme, 'theme'))
     })
 
     it('is lifted by its own vocabulary, still under a label match', () => {
@@ -267,12 +267,11 @@ describe('looking one entity up in the register', () => {
 })
 
 describe('how the app looks', () => {
-    it('offers no theme row while there is nothing to pick between', () => {
-        // One theme is no choice. The rows return when a second theme lands in THEMES, offering
-        // every theme with the one in force included and marked - the assertions for that live
-        // with the gate and come back with it.
-        const shown = labelsIn(paletteActions(input()), APPEARANCE_GROUP)
-        for (const theme of THEMES) expect(shown).not.toContain(`${theme.label} theme`)
+    it('offers every theme, the one in force included', () => {
+        // A list that dropped the current theme would re-order itself under the pointer the moment
+        // anything was chosen, and the row is what tells a reader which theme they are in.
+        const shown = labelsIn(paletteActions(input({ theme: 'terminal' })), APPEARANCE_GROUP)
+        for (const theme of THEMES) expect(shown).toContain(`${theme.label} theme`)
     })
 
     it('offers the ground that is not the one in force', () => {
@@ -284,11 +283,34 @@ describe('how the app looks', () => {
         )
     })
 
-    it('says "mode" for the ground, and never calls it a theme', () => {
+    it('says "mode" for the ground and "theme" for the palette, and never swaps them', () => {
+        // There are five themes now and each has both grounds, so a control offering to "switch to
+        // the dark theme" would be naming the wrong axis.
         expect(SWITCH_TO_DARK_LABEL).toBe('Switch to dark mode')
         expect(SWITCH_TO_LIGHT_LABEL).toBe('Switch to light mode')
         const modes = paletteActions(input()).filter((action) => action.effect.kind === 'mode')
         expect(modes.every((action) => !action.label.includes('theme'))).toBe(true)
+    })
+
+    it('carries the theme it would apply, so choosing a row cannot apply another', () => {
+        expect(byId(paletteActions(input()), 'theme:paper').effect).toEqual({ kind: 'theme', theme: 'paper' })
+    })
+
+    it('marks the theme in force, and marks nothing else', () => {
+        const actions = paletteActions(input({ theme: 'paper' }))
+        expect(actions.filter((action) => action.checked).map((action) => action.id)).toEqual([
+            'theme:paper',
+        ])
+    })
+
+    it('never marks the ground row, which offers the ground that is not in force', () => {
+        // A tick there would say the opposite of what the label says.
+        expect(byId(paletteActions(input({ dark: true })), 'mode:switch').checked).toBe(false)
+    })
+
+    it('is reachable by typing the word "theme" even where the label does not carry it', () => {
+        expect(paletteSearchValue(byId(paletteActions(input()), 'mode:switch'))).toContain('mode')
+        expect(paletteSearchValue(byId(paletteActions(input()), 'theme:terminal'))).toContain('theme')
     })
 })
 
@@ -313,6 +335,7 @@ describe('what a row says it will do', () => {
         const actions = paletteActions(input({ signedIn: true }))
         expect(paletteActionVerb(byId(actions, 'page:'))).toBe('Open')
         expect(paletteActionVerb(byId(actions, 'help:shortcuts'))).toBe('Open')
+        expect(paletteActionVerb(byId(actions, 'theme:paper'))).toBe('Switch')
         expect(paletteActionVerb(byId(actions, 'mode:switch'))).toBe('Switch')
         expect(paletteActionVerb(byId(actions, 'view:sidebar'))).toBe('Switch')
         expect(paletteActionVerb(byId(actions, 'session:sign-out'))).toBe('Run')
@@ -335,6 +358,7 @@ describe('what a row says it will do', () => {
         expect(byId(actions, 'page:').kind).toBe('Page')
         expect(byId(actions, 'form:anc-visit').kind).toBe('Form')
         expect(byId(actions, 'receipt:aa11').kind).toBe('Receipt')
+        expect(byId(actions, 'theme:paper').kind).toBe('Theme')
     })
 })
 
@@ -367,6 +391,7 @@ describe('the whole list', () => {
             'shortcuts',
             'sidebar',
             'sign-out',
+            'theme',
         ])
     })
 

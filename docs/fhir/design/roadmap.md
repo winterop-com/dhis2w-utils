@@ -1491,6 +1491,12 @@ Everything this section used to hold has shipped, and a roadmap states what is
 next rather than what happened - section 2 is where the built surface is
 described, and the git history is where it was built. What is left:
 
+- **Designed themes for the capture UI.** The app ships five themes today, and
+  a theme lands as one CSS block pair, one list row, and one pre-paint name.
+  Future themes are designed on the design canvas over real screens and judged
+  there before any block pair is written - grown token tweaks in a live facade
+  are how a palette drifts.
+
 - **The rest of the IPS document's sections.** `GET /Patient/{uid}/$summary`
   assembles the document, and one clinical section is mapped: Immunizations,
   through `[ips.sections.immunizations]`. Every further section arrives the same
@@ -1521,13 +1527,6 @@ described, and the git history is where it was built. What is left:
   composite token parameter plus a per-register declaration of filterable
   attributes, value types, and option-set canonicals). Both are designed;
   each is its own slice.
-
-- **Designed themes for the capture UI.** The app ships one palette in light
-  and dark; the theme machinery - one CSS block pair, one list row, one
-  pre-paint name - waits for themes designed as themes rather than grown as
-  variants. Candidates already argued: the warm paper surface, the amber
-  selection thread, and the ultra-clean high-contrast look. Design them on the
-  canvas, judge them against real pages, and land each as one block pair.
 
 - **The capture UI's parked vocabulary.** Settle the nav labels, the lifecycle
   labels, and the application's own name; the options are written, and the

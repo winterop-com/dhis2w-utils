@@ -23,26 +23,29 @@ import { chooseTheme, THEMES } from '@/lib/theme'
  * carried the wrong names would pass everything above it and change nothing on screen.
  */
 
-const items = (dark = false, theme: 'clinical' = 'clinical') => appearanceItems({ theme, dark })
+const items = (dark = false, theme: 'clinical' | 'terminal' = 'clinical') => appearanceItems({ theme, dark })
 
 afterEach(() => {
     vi.unstubAllGlobals()
 })
 
 describe('the menu behind the gear', () => {
-    it('offers the ground alone while there is one theme', () => {
-        // One theme is no choice, so the theme section hides itself and the menu asks the one
-        // question with two answers: which ground the palette is painted on.
+    it('offers both appearance controls, each under its own heading', () => {
+        // Two axes, two questions: which of the five themes, and which ground it is painted on.
         const sections = settingsSections(items())
-        expect(sections.map((section) => section.heading)).toEqual([MODE_SECTION])
-        expect(sections[0].items).toHaveLength(1)
+        expect(sections.map((section) => section.heading)).toEqual([THEME_SECTION, MODE_SECTION])
+        expect(sections[0].items).toHaveLength(THEMES.length)
+        expect(sections[1].items).toHaveLength(1)
     })
 
-    it('offers no theme row while there is nothing to pick between', () => {
-        // The rows return when a second theme lands in THEMES - offering every theme with the one
-        // in force included and marked; those assertions come back with the gate.
-        expect(items().filter((item) => item.section === THEME_SECTION)).toEqual([])
-        expect(THEMES.length).toBe(1)
+    it('offers every theme, the one in force included and marked', () => {
+        // A list that dropped the current theme would re-order itself under the pointer the moment
+        // anything was chosen, and the marked row is what says which theme is on.
+        const offered = items(false, 'terminal')
+        expect(offered.filter((item) => item.section === THEME_SECTION).map((item) => item.label)).toEqual(
+            THEMES.map((theme) => theme.label),
+        )
+        expect(offered.filter((item) => item.checked).map((item) => item.id)).toEqual(['theme:terminal'])
     })
 
     it('offers the ground that is not the one in force, and never marks it', () => {
@@ -69,11 +72,10 @@ describe('the menu behind the gear', () => {
         expect(new Set(offered.map((item) => item.id)).size).toBe(offered.length)
     })
 
-    it('applying a theme name paints the document', () => {
+    it('carries the theme it would apply, and applying it paints the document', () => {
         // The document is stubbed rather than emulated, as `lib/theme.test.ts` stubs it: what
         // applying a theme does is set one attribute on one element, and a recorder says exactly
-        // which attribute got which value. The row-to-effect half of this test returns with the
-        // theme rows themselves, when a second theme lands in THEMES.
+        // which attribute got which value.
         const written: { attribute: string; value: string }[] = []
         vi.stubGlobal('localStorage', {
             getItem: () => null,
@@ -87,7 +89,10 @@ describe('the menu behind the gear', () => {
             },
         })
 
-        expect(chooseTheme('clinical')).toBe('clinical')
-        expect(written).toEqual([{ attribute: 'data-theme', value: 'clinical' }])
+        const paper = items().find((item) => item.id === 'theme:paper')
+        expect(paper?.effect).toEqual({ kind: 'theme', theme: 'paper' })
+        if (paper?.effect.kind !== 'theme') throw new Error('the theme row carries no theme')
+        expect(chooseTheme(paper.effect.theme)).toBe('paper')
+        expect(written).toEqual([{ attribute: 'data-theme', value: 'paper' }])
     })
 })

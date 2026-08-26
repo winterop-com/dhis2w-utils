@@ -68,8 +68,7 @@ export interface SettingsInput {
  * was chosen, and the marked row is what tells a reader which theme they are actually in.
  */
 export function appearanceItems(input: SettingsInput): SettingsItem[] {
-    // One theme is no choice: the section hides itself until a second theme lands in THEMES.
-    const themes: SettingsItem[] = THEMES.length < 2 ? [] : THEMES.map((theme) => ({
+    const themes: SettingsItem[] = THEMES.map((theme) => ({
         id: `theme:${theme.name}`,
         section: THEME_SECTION,
         label: theme.label,
@@ -83,7 +82,7 @@ export function appearanceItems(input: SettingsInput): SettingsItem[] {
             id: 'mode:switch',
             section: MODE_SECTION,
             label: input.dark ? SWITCH_TO_LIGHT_LABEL : SWITCH_TO_DARK_LABEL,
-            hint: null,
+            hint: 'Every theme is designed for both',
             // Never marked: it offers the ground that is NOT in force, so a tick on it would say the
             // opposite of what the label says.
             checked: false,

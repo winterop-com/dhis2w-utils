@@ -29,7 +29,7 @@ a checkout needs `make build-frontend` once.
 - follow a receipt's lifecycle from the browser while `d2w fhir forward`
   runs in a terminal
 - reach any page, form, or receipt from the command palette on Cmd+K, see every
-  key the app answers with `?`, and pick which ground the screens are
+  key the app answers with `?`, and pick which of the five themes the screens are
   painted in
 
 ## Serve it
@@ -729,7 +729,7 @@ thing for anyone who was never told about the chord. Type, and it narrows:
   Person** (or in whatever this instance calls what it tracks), which opens the
   register with that identifier value already searched for. The search rides the
   address, `#/tracked-entities?q=...`, so the result is a link you can send.
-- **Appearance** - the switch between the light
+- **Appearance** - the five themes below, and the switch between the light
   ground and the dark one.
 - **View** - **Collapse the navigation**, or **Expand the navigation** when it already is.
 - **Help** - **Keyboard shortcuts**, the same list `?` puts up.
@@ -778,24 +778,32 @@ not find out by pressing keys.
 
 ## Settings, and the themes
 
-**The gear at the foot of the sidebar holds how the app looks.** One control
-today: **Mode**, the light ground or the dark one. The choice is remembered in
-this browser and applied before the first paint, so a reload never flashes one
-ground under another. Collapsed to icons, the gear stays where it is. The app
-is painted in one palette - Clinical, near-achromatic surfaces and one clinical
-blue - and the theme machinery underneath is kept for the designed themes that
-are planned; when a second theme lands, the gear grows a **Theme** section and
-the command palette grows its rows.
+**The gear at the foot of the sidebar holds how the app looks.** Two controls
+under two headings, because they are two questions: **Theme** is which of the
+five sets of colours the app spends, and **Mode** is the light ground or the dark
+one. Every theme is designed for both, and the choice is remembered in this
+browser and applied before the first paint, so a reload never flashes one theme
+under another. Collapsed to icons, the gear stays where it is.
+
+| Theme | What it looks like |
+| --- | --- |
+| **Clinical** | Near-achromatic surfaces and one clinical blue. The default - the app as it has always looked. |
+| **Indigo** | Deep blue surfaces under a violet identity. |
+| **Paper** | Warm surfaces and an ink blue, the way a printed form reads. |
+| **Contrast** | The widest separation this app has between text and the surface under it: achromatic surfaces reaching both ends, muted text most of the way back to the foreground, and borders that are lines rather than hints. |
+| **Terminal** | Phosphor green, and a ground to match. |
 
 A theme repaints everything the app draws from a token, the source colours in
 the Evaluate editors and the organisation-unit map's boundary tiers included.
 Nothing else moves: the type, the spacing, and the corner radii are one design
 and stay put, so a theme is a palette rather than a second app.
 
-**Both grounds paint the same four state hues** - green for accepted, blue for
+**Every theme paints the same four state hues** - green for accepted, blue for
 waiting, red for a refusal, amber for one the guide must answer for - because a
 spool colour is a fact rather than a decoration, and a fact does not change
-meaning when the walls are repainted.
+meaning when the walls are repainted. Terminal's phosphor green is its identity,
+carried by `--primary` and the cast its uids wear, and it sits beside the
+accepted green rather than taking its place.
 
 ## Opening an identity in DHIS2
 
