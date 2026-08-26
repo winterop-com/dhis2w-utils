@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "QZtMuEEV9Vv",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "QZtMuEEV9Vv"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211237"
+    }
+  ],
+  "name": "Rokupr CHC",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -12.9443,
+    "latitude": 9.0163
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMi45NDQzLDkuMDE2M10sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJRWnRNdUVFVjlWdiIsImxldmVsIjo0LCJuYW1lIjoiUm9rdXByIENIQyJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Rokupr CHC (QZtMuEEV9Vv)",
+        "size": 147
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/QZtMuEEV9Vv"
+  },
+  "partOf": {
+    "reference": "Location/QywkxFudXrC"
+  }
+}

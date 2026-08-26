@@ -178,6 +178,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     plan_questionnaire_stems,
 )
 from dhis2w_fhir.scaffold import build_scaffold_files
+from dhis2w_fhir.scaffold.project_templates import ProjectTemplate
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.spool import (
     IMPORT_REPORT_SUFFIX,
@@ -1184,17 +1185,26 @@ def _scope_summary(scope: ValidationScope) -> str:
     )
 
 
-async def init_project(directory: Path, options: InitOptions, *, force: bool = False) -> ScaffoldReport:
-    """Scaffold a SUSHI IG project into `directory`, skipping files that already exist unless `force`."""
-    report = ScaffoldReport(directory=directory.resolve())
-    for scaffold_file in build_scaffold_files(options):
+async def init_project(
+    directory: Path, options: InitOptions, *, force: bool = False, template: ProjectTemplate | None = None
+) -> ScaffoldReport:
+    """Scaffold a SUSHI IG project into `directory`, skipping files that already exist unless `force`.
+
+    `template` pre-populates the project from a guide already generated against a real DHIS2
+    instance, so the tree that lands compiles and serves without reaching an instance at all. Its
+    payload is reported apart from the scaffold's own files, which the payload never overwrites.
+    """
+    report = ScaffoldReport(directory=directory.resolve(), template=template.name if template else None)
+    for scaffold_file in build_scaffold_files(options, template=template):
         destination = directory / scaffold_file.relative_path
         if destination.exists() and not force:
-            report.skipped_files.append(scaffold_file.relative_path)
+            skipped = report.skipped_template_files if scaffold_file.from_template else report.skipped_files
+            skipped.append(scaffold_file.relative_path)
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(scaffold_file.content, encoding="utf-8")
-        report.created_files.append(scaffold_file.relative_path)
+        created = report.template_files if scaffold_file.from_template else report.created_files
+        created.append(scaffold_file.relative_path)
     return report
 
 

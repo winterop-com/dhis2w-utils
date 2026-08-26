@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "QZtMuEEV9Vv",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "QZtMuEEV9Vv"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211237"
+    }
+  ],
+  "name": "Rokupr CHC",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+          "code": "level-4",
+          "display": "Level 4"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/QywkxFudXrC"
+  },
+  "active": true
+}

@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "dCvUVvKnhMe",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "dCvUVvKnhMe"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260416"
+    }
+  ],
+  "name": "Malema 1 MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.4081,
+    "latitude": 7.0705
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS40MDgxLDcuMDcwNV0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJkQ3ZVVnZLbmhNZSIsImxldmVsIjo0LCJuYW1lIjoiTWFsZW1hIDEgTUNIUCJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Malema 1 MCHP (dCvUVvKnhMe)",
+        "size": 150
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/dCvUVvKnhMe"
+  },
+  "partOf": {
+    "reference": "Location/d9iMR1MpuIO"
+  }
+}

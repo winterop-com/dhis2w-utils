@@ -1,0 +1,43 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-category-option-code-id-cs",
+  "url": "http://dhis2.org/fhir/id/category-option-code",
+  "name": "D2CategoryOptionCodeIdentifierSystem_CS",
+  "title": "DHIS2 category option codes in use",
+  "description": "Every DHIS2 category option code this guide's concept maps target, enumerated. D2CategoryOptionCodeIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 7,
+  "concept": [
+    {
+      "code": "DAMAGES",
+      "display": "Damages"
+    },
+    {
+      "code": "EXPIRED",
+      "display": "Expired"
+    },
+    {
+      "code": "Project01",
+      "display": "Improve access to clean water"
+    },
+    {
+      "code": "Project02",
+      "display": "Provide access to primary health care"
+    },
+    {
+      "code": "Project03",
+      "display": "Improve access to medicines"
+    },
+    {
+      "code": "Project05",
+      "display": "Provide access to basic education"
+    },
+    {
+      "code": "VVM_CHANGE",
+      "display": "VVM Change"
+    }
+  ]
+}

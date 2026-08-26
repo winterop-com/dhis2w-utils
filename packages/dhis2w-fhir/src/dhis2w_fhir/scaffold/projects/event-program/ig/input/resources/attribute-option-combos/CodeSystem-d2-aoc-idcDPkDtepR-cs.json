@@ -1,0 +1,112 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-aoc-idcDPkDtepR-cs",
+  "url": "http://example.org/fhir/examples/event-program/CodeSystem/d2-aoc-idcDPkDtepR-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/category-combo",
+      "value": "idcDPkDtepR"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/category-combo-code",
+      "value": "idcDPkDtepR"
+    }
+  ],
+  "name": "D2AOC_idcDPkDtepR_CS",
+  "title": "Project",
+  "description": "DHIS2 attribute option combos of category combo Project (idcDPkDtepR). A data set on this combo keys every value it holds by one of them. Concept codes are DHIS2 category option combo UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 4,
+  "valueSet": "http://example.org/fhir/examples/event-program/ValueSet/d2-aoc-idcDPkDtepR-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 category option combo code.",
+      "type": "string"
+    },
+    {
+      "code": "category-yY2bQYqNt0o",
+      "uri": "http://dhis2.org/fhir/property/category-yY2bQYqNt0o",
+      "description": "DHIS2 category Project.",
+      "type": "Coding"
+    }
+  ],
+  "concept": [
+    {
+      "code": "pO5CEqK6c1s",
+      "display": "Improve access to clean water",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_1452092"
+        },
+        {
+          "code": "category-yY2bQYqNt0o",
+          "valueCoding": {
+            "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
+            "code": "i4Nbp8S2G6A",
+            "display": "Improve access to clean water"
+          }
+        }
+      ]
+    },
+    {
+      "code": "sSeEjeQ0Rgt",
+      "display": "Improve access to medicines",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_1452091"
+        },
+        {
+          "code": "category-yY2bQYqNt0o",
+          "valueCoding": {
+            "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
+            "code": "yMj2MnmNI8L",
+            "display": "Improve access to medicines"
+          }
+        }
+      ]
+    },
+    {
+      "code": "BqblOcSwGey",
+      "display": "Provide access to primary health care",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_1452093"
+        },
+        {
+          "code": "category-yY2bQYqNt0o",
+          "valueCoding": {
+            "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
+            "code": "OUUdG3sdOqb",
+            "display": "Provide access to primary health care"
+          }
+        }
+      ]
+    },
+    {
+      "code": "oawMLLH7OjA",
+      "display": "Provide access to basic education",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "COC_1452090"
+        },
+        {
+          "code": "category-yY2bQYqNt0o",
+          "valueCoding": {
+            "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-cat-yY2bQYqNt0o-cs",
+            "code": "M58XdOfhiJ7",
+            "display": "Provide access to basic education"
+          }
+        }
+      ]
+    }
+  ]
+}

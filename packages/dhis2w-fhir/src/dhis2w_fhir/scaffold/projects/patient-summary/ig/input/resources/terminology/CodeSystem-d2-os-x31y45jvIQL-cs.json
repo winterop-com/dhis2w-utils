@@ -1,0 +1,64 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-os-x31y45jvIQL-cs",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-x31y45jvIQL-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "x31y45jvIQL"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "x31y45jvIQL"
+    }
+  ],
+  "name": "D2OS_x31y45jvIQL_CS",
+  "title": "MNCH Infant Feeding",
+  "description": "DHIS2 option set MNCH Infant Feeding (x31y45jvIQL). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 3,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-x31y45jvIQL-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 option code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "bS16xfd2E1F",
+      "display": "Exclusive",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "Exclusive"
+        }
+      ]
+    },
+    {
+      "code": "fLCgjvxrw4c",
+      "display": "Replacement",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "Replacement"
+        }
+      ]
+    },
+    {
+      "code": "odMfnhhpjUj",
+      "display": "Mixed",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "Mixed"
+        }
+      ]
+    }
+  ]
+}

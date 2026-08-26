@@ -1,0 +1,27 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-os-oXR37f2wOb1-vs",
+  "url": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-oXR37f2wOb1-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "oXR37f2wOb1"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "oXR37f2wOb1"
+    }
+  ],
+  "name": "D2OS_oXR37f2wOb1_VS",
+  "title": "MNCH Infant HIV test",
+  "description": "DHIS2 option set MNCH Infant HIV test (oXR37f2wOb1). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-oXR37f2wOb1-cs"
+      }
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "dU3vTbLRLHy",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "dU3vTbLRLHy"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260432"
+    }
+  ],
+  "name": "Tambeyama MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.5141,
+    "latitude": 7.4722
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS41MTQxLDcuNDcyMl0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJkVTN2VGJMUkxIeSIsImxldmVsIjo0LCJuYW1lIjoiVGFtYmV5YW1hIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Tambeyama MCHP (dU3vTbLRLHy)",
+        "size": 151
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/dU3vTbLRLHy"
+  },
+  "partOf": {
+    "reference": "Location/RzKeCma9qb1"
+  }
+}

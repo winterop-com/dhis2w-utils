@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "plnHVbJR6p4",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "plnHVbJR6p4"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211234"
+    }
+  ],
+  "name": "Ahamadyya Mission Cl",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -12.9487,
+    "latitude": 9.0131
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMi45NDg3LDkuMDEzMV0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJwbG5IVmJKUjZwNCIsImxldmVsIjo0LCJuYW1lIjoiQWhhbWFkeXlhIE1pc3Npb24gQ2wifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Ahamadyya Mission Cl (plnHVbJR6p4)",
+        "size": 157
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/plnHVbJR6p4"
+  },
+  "partOf": {
+    "reference": "Location/QywkxFudXrC"
+  }
+}

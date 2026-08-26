@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "OynYyQiFu82",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "OynYyQiFu82"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226234"
+    }
+  ],
+  "name": "Kondeya MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.5287,
+    "latitude": 9.562
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS41Mjg3LDkuNTYyXSwidHlwZSI6IlBvaW50In0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6Ik95bll5UWlGdTgyIiwibGV2ZWwiOjQsIm5hbWUiOiJLb25kZXlhIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Kondeya MCHP (OynYyQiFu82)",
+        "size": 148
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/OynYyQiFu82"
+  },
+  "partOf": {
+    "reference": "Location/VGAFxBXz16y"
+  }
+}

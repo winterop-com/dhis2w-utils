@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "jr5hIZcJBXB",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "jr5hIZcJBXB"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260426"
+    }
+  ],
+  "name": "Kowama MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.5706,
+    "latitude": 7.4362
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS41NzA2LDcuNDM2Ml0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJqcjVoSVpjSkJYQiIsImxldmVsIjo0LCJuYW1lIjoiS293YW1hIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Kowama MCHP (jr5hIZcJBXB)",
+        "size": 148
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/jr5hIZcJBXB"
+  },
+  "partOf": {
+    "reference": "Location/eNtRuQrrZeo"
+  }
+}

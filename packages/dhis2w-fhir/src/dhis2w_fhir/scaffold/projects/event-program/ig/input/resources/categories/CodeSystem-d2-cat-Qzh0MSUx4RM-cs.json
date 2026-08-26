@@ -1,0 +1,64 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-cat-Qzh0MSUx4RM-cs",
+  "url": "http://example.org/fhir/examples/event-program/CodeSystem/d2-cat-Qzh0MSUx4RM-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/category",
+      "value": "Qzh0MSUx4RM"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/category-code",
+      "value": "STOCK_DISC"
+    }
+  ],
+  "name": "D2CAT_Qzh0MSUx4RM_CS",
+  "title": "Stock discarded",
+  "description": "DHIS2 category Stock discarded (Qzh0MSUx4RM). Concept codes are DHIS2 category option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 3,
+  "valueSet": "http://example.org/fhir/examples/event-program/ValueSet/d2-cat-Qzh0MSUx4RM-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 category option code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "YHb43JqCAmI",
+      "display": "Expired",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "EXPIRED"
+        }
+      ]
+    },
+    {
+      "code": "mInFlpnx6TQ",
+      "display": "Damages",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "DAMAGES"
+        }
+      ]
+    },
+    {
+      "code": "qKc2WhjMPKC",
+      "display": "VVM Change",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "VVM_CHANGE"
+        }
+      ]
+    }
+  ]
+}

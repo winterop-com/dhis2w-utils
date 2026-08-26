@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "DfUfwjM9am5",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "DfUfwjM9am5"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260392"
+    }
+  ],
+  "name": "Malen",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.801662,
+    "latitude": 7.477265
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6W1tbLTExLjcyNzIsNy41NjgxXSxbLTExLjcyODEsNy41NjQ5XSxbLTExLjcyODYsNy41NjA2XSxbLTExLjcyODcsNy41NTA3XSxbLTExLjcyODIsNy41NDIxXSxbLTExLjcyNzUsNy41Mzg5XSxbLTExLjcyNTYsNy41MzQ1XSxbLTExLjcyNDEsNy41Mjc3XSxbLTExLjcyMjMsNy41MjQ3XSxbLTExLjczNTksNy41MTIyXSxbLTExLjczODIsNy41MDk0XSxbLTExLjc0MDIsNy41MDY1XSxbLTExLjc0NCw3LjUwMzVdLFstMTEuNzQ1Nyw3LjUwMTNdLFstMTEuNzQ2NSw3LjQ5ODVdLFstMTEuNzQ3LDcuNDkzMV0sWy0xMS43NDc1LDcuNDkwNl0sWy0xMS43NDk3LDcuNDg1Ml0sWy0xMS43NTAyLDcuNDgwNV0sWy0xMS43NTAzLDcuNDcyOF0sWy0xMS43NTA4LDcuNDY5MV0sWy0xMS43NTMsNy40NjM4XSxbLTExLjc1MzcsNy40NjEyXSxbLTExLjc1MzYsNy40NTU4XSxbLTExLjc1MjMsNy40NTE3XSxbLTExLjc1MDYsNy40NDg5XSxbLTExLjc0OTIsNy40NDU4XSxbLTExLjc0NzIsNy40NDIzXSxbLTExLjc0NjMsNy40Mzk3XSxbLTExLjc0NTgsNy40MzNdLFstMTEuNzQ2LDcuNDI2Ml0sWy0xMS43NDY2LDcuNDIzNV0sWy0xMS43NTAyLDcuNDE2XSxbLTExLjc1MjcsNy40MTI3XSxbLTExLjc2MjUsNy40MDI4XSxbLTExLjc2NTUsNy4zOTk1XSxbLTExLjc2NzMsNy4zOTY4XSxbLTExLjc2OTEsNy4zOTI5XSxbLTExLjc3MTIsNy4zOTAyXSxbLTExLjc3NDYsNy4zODcyXSxbLTExLjc3ODksNy4zODUyXSxbLTExLjc4MzIsNy4zODI5XSxbLTExLjc4NzEsNy4zODExXSxbLTExLjc5MDQsNy4zNzg0XSxbLTExLjc5NzgsNy4zNzFdLFstMTEuODAxMSw3LjM2ODRdLFstMTEuODA0OSw3LjM2NjVdLFstMTEuODA3LDcuMzY1Ml0sWy0xMS44MTA5LDcuMzYxOV0sWy0xMS44MTI5LDcuMzYwNl0sWy0xMS44MTYxLDcuMzU5Ml0sWy0xMS44MjA0LDcuMzU2OF0sWy0xMS44MjM2LDcuMzU1NF0sWy0xMS44MjU2LDcuMzU0XSxbLTExLjgzMDIsNy4zNTAzXSxbLTExLjgzNiw3LjM0NzFdLFstMTEuODM4NSw3LjM0NDldLFstMTEuODQwNiw3LjM0Ml0sWy0xMS44NDU3LDcuMzM4NV0sWy0xMS44NDk2LDcuMzM2OF0sWy0xMS44NTM4LDcuMzM0NF0sWy0xMS44NTcsNy4zMzNdLFstMTEuODU5OCw3LjMzMTVdLFstMTEuODYyMiw3LjMzMDZdLFstMTEuODY0OSw3LjMzMDJdLFstMTEuODcwNCw3LjMzXSxbLTExLjg3NzIsNy4zNDA4XSxbLTExLjg4MjksNy4zNDg5XSxbLTExLjg4NDgsNy4zNTQ2XSxbLTExLjg4NTIsNy4zNTg2XSxbLTExLjg4NDEsNy4zNjI1XSxbLTExLjg3NTksNy4zNzcxXSxbLTExLjg3NTEsNy4zODIyXSxbLTExLjg3NTQsNy4zODYxXSxbLTExLjg3NzUsNy4zOTMzXSxbLTExLjg3ODYsNy40MDY4XSxbLTExLjg3OTIsNy40MTA3XSxbLTExLjg4MDQsNy40MTM5XSxbLTExLjg4MzYsNy40MTc3XSxbLTExLjg4Nyw3LjQyXSxbLTExLjg5Myw3LjQyMjNdLFstMTEuODk2LDcuNDI1Ml0sWy0xMS44OTczLDcuNDI4MV0sWy0xMS44OTczLDcuNDMzM10sWy0xMS44OTYsNy40MzddLFstMTEuODkzNSw3LjQ0MDJdLFstMTEuODg4Nyw3LjQ0NTRdLFstMTEuODg3Miw3LjQ1MDJdLFstMTEuODg2MSw3LjQ1OTRdLFstMTEuODg0LDcuNDYzM10sWy0xMS44ODA1LDcuNDY2Ml0sWy0xMS44NzY0LDcuNDY4M10sWy0xMS44Njk0LDcuNDcxMl0sWy0xMS44NjYyLDcuNDc0M10sWy0xMS44NjA1LDcuNDgzNV0sWy0xMS44NTQ1LDcuNDg2NF0sWy0xMS44NDc5LDcuNDg5MV0sWy0xMS44NDUyLDcuNDkxMl0sWy0xMS44NDIxLDcuNDk1OF0sWy0xMS44Mzc4LDcuNTAzMl0sWy0xMS44MjkzLDcuNTE0Nl0sWy0xMS44MjM3LDcuNTE5OF0sWy0xMS44MjIxLDcuNTIyNl0sWy0xMS44MjExLDcuNTI2OV0sWy0xMS44MjE1LDcuNTMwMl0sWy0xMS44MjI5LDcuNTM0OF0sWy0xMS44MjQ2LDcuNTQ0Nl0sWy0xMS44MjYsNy41NDg1XSxbLTExLjgyOTUsNy41NTQ4XSxbLTExLjgzMSw3LjU1OTJdLFstMTEuODMxMSw3LjU2NF0sWy0xMS44Myw3LjU2N10sWy0xMS44Mjc1LDcuNTY5Nl0sWy0xMS44MjE2LDcuNTczXSxbLTExLjgxMTksNy41Nzc2XSxbLTExLjgwNTIsNy41ODA0XSxbLTExLjc5ODEsNy41ODE0XSxbLTExLjc5MjYsNy41ODEyXSxbLTExLjc4ODYsNy41ODA1XSxbLTExLjc4MTYsNy41NzgxXSxbLTExLjc3NzcsNy41Nzc3XSxbLTExLjc3MzMsNy41Nzg1XSxbLTExLjc3MDgsNy41ODAyXSxbLTExLjc2OTIsNy41ODI5XSxbLTExLjc2OSw3LjU4NzRdLFstMTEuNzcwOSw3LjU5M10sWy0xMS43NzE4LDcuNTk3MV0sWy0xMS43NzE4LDcuNjAyN10sWy0xMS43NzAxLDcuNjA3N10sWy0xMS43Njc4LDcuNjEwNF0sWy0xMS43NjI3LDcuNjEzOF0sWy0xMS43NTk0LDcuNjE2OF0sWy0xMS43NTY1LDcuNjIwMl0sWy0xMS43NTUxLDcuNjIyOF0sWy0xMS43NTQ2LDcuNjI2OV0sWy0xMS43NTYzLDcuNjMzOV0sWy0xMS43NTY4LDcuNjM5M10sWy0xMS43NTQ5LDcuNjQ2NF0sWy0xMS43NTI2LDcuNjQ5N10sWy0xMS43NDg1LDcuNjUzNl0sWy0xMS43NDUxLDcuNjU1Nl0sWy0xMS43MzcsNy42NTkzXSxbLTExLjcyMzIsNy42NTk4XSxbLTExLjcyMTgsNy42NTQ2XSxbLTExLjcxNjksNy42NDFdLFstMTEuNzE3NSw3LjYzNzddLFstMTEuNzE5Myw3LjYzMTddLFstMTEuNzE5Nyw3LjYyNzVdLFstMTEuNzIwMSw3LjYxNDRdLFstMTEuNzIwNiw3LjYxMTZdLFstMTEuNzIyNyw3LjYwNTldLFstMTEuNzI2MSw3LjYwMTNdLFstMTEuNzM1OCw3LjU5MThdLFstMTEuNzM4Nyw3LjU4ODZdLFstMTEuNzQwOCw3LjU4NDldLFstMTEuNzQxNCw3LjU4MDldLFstMTEuNzQwOCw3LjU3ODldLFstMTEuNzM4NCw3LjU3NTVdLFstMTEuNzMxLDcuNTcxNV0sWy0xMS43MjcyLDcuNTY4MV1dXSwidHlwZSI6IlBvbHlnb24ifSwicHJvcGVydGllcyI6eyJkaGlzMklkIjoiRGZVZndqTTlhbTUiLCJsZXZlbCI6MywibmFtZSI6Ik1hbGVuIn0sInR5cGUiOiJGZWF0dXJlIn0=",
+        "title": "Malen (DfUfwjM9am5)",
+        "size": 2975
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-3",
+        "display": "Level 3"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/DfUfwjM9am5"
+  },
+  "partOf": {
+    "reference": "Location/bL4ooGhyHRQ"
+  }
+}

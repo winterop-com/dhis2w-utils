@@ -9961,6 +9961,8 @@ $ d2w fhir init [OPTIONS] [directory]
 
 **Options**:
 
+* `--template <str>`: Scaffold from a guide already generated against a real DHIS2 instance, so the project compiles and serves without reaching one. The template supplies the identity and the selection; --id, --canonical, --name, --title, --publisher and --status win over it. `--list-templates` names what this install carries.
+* `--list-templates`: Name every template this install can scaffold from, one line each, and exit.
 * `--id <str>`: IG package id.  [default: dhis2.fhir.example]
 * `--canonical <str>`: Canonical base URL for the IG (no trailing slash).  [default: http://example.org/fhir]
 * `--name <str>`: SUSHI name (default: derived from --id).

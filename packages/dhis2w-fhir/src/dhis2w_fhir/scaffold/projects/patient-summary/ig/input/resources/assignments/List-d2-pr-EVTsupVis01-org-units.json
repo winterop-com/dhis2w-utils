@@ -1,0 +1,365 @@
+{
+  "resourceType": "List",
+  "id": "d2-pr-EVTsupVis01-org-units",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/program",
+      "value": "EVTsupVis01"
+    }
+  ],
+  "status": "current",
+  "mode": "snapshot",
+  "title": "Supervision visit - assigned organisation units",
+  "entry": [
+    {
+      "item": {
+        "reference": "Location/ADeZNq1pKsu"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/AGrsLyKWrVX"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/CvYsZipdHMN"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/D7UVRRE9iUC"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/DErmFP7bri7"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/DF76ZjQtFSg"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/EO6ghLtWv4W"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/Ep5iWL1UKvF"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/F9zWBqG5Pmi"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/G6LbealddgU"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/GvstqlRRnpV"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/GyH8bjdOTsD"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/HC2NlwpoXfb"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/HDOnfLXKkYs"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/IlnqGuxfQAw"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/JKhjdiwoQZu"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/Jiymtq0A01x"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/JttXgTlQAGE"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/K6oyIMh7Lee"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/LFpl1falVZi"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/M9q1wOOsrXp"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/MErVkzdbsP5"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/MwfWgjMRgId"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/NJolnlvYgLr"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/NMcx2jmra3c"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/OynYyQiFu82"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/PLoeN9CaL7z"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/PMsF64R6OJX"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/RpjUEvgWSNO"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/SCc0TNTDJED"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/SKJoPDgjELa"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/SmhR2aaKLjw"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/T3iVyvrCpZ0"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/TbiRD4Bsz4Z"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/U7yKrx2QVet"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/UCwtaCrNUls"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/WjO2puYKysP"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/Xytauldn2QJ"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/ZOZ4s2gTPj7"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/aIsnJuZbmVA"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/bPHn9IgjKLC"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/bqSIIRuZ1qj"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/dWOAzMcK2Wt"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/eCfxBe1lnxb"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/eKoXODABUJe"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/esMAQ4vs4kM"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/fmLRqcL9sWF"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/gowgzHWc8FT"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/hMBotMwWnU1"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/iqd7BiRHor0"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/jj1MhWhHqta"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/kpDoH80fwdX"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/kuqKh33SPgg"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/kzmwOrwmzbW"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/lBMmM0HBp4s"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/m0PiiU5BteW"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/oDAoqMWcsJQ"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/oNqqmKD0zXj"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/oiSllOTiHNx"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/p310xqwAJge"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/qELjt3LRkSD"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/qO2JLjYrg91"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/qxbsDd9QYv6"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/rs87nYgwbKv"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/tlMeFk8C4CG"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/wYLjA4vN6Y9"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/wxMmC45UyNw"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/xX4lIVqF4yb"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/y77LiPqLMoq"
+      }
+    },
+    {
+      "item": {
+        "reference": "Location/zO5hgxxfU4T"
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-os-nH8Y04zS7UV-vs",
+  "url": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-nH8Y04zS7UV-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "nH8Y04zS7UV"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "nH8Y04zS7UV"
+    }
+  ],
+  "name": "D2OS_nH8Y04zS7UV_VS",
+  "title": "MNCH IPT",
+  "description": "DHIS2 option set MNCH IPT (nH8Y04zS7UV). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-nH8Y04zS7UV-cs"
+      }
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "GvstqlRRnpV",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "GvstqlRRnpV"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226271"
+    }
+  ],
+  "name": "Sumbaria MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.26109,
+    "latitude": 8.8685
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS4yNjEwOSw4Ljg2ODVdLCJ0eXBlIjoiUG9pbnQifSwicHJvcGVydGllcyI6eyJkaGlzMklkIjoiR3ZzdHFsUlJucFYiLCJsZXZlbCI6NCwibmFtZSI6IlN1bWJhcmlhIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Sumbaria MCHP (GvstqlRRnpV)",
+        "size": 151
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/GvstqlRRnpV"
+  },
+  "partOf": {
+    "reference": "Location/J4GiUImJZoE"
+  }
+}

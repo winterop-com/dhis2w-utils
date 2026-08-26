@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "cag6vQQ9SQk",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "cag6vQQ9SQk"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211275"
+    }
+  ],
+  "name": "Masselleh MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -12.7107,
+    "latitude": 9.2148
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMi43MTA3LDkuMjE0OF0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJjYWc2dlFROVNRayIsImxldmVsIjo0LCJuYW1lIjoiTWFzc2VsbGVoIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Masselleh MCHP (cag6vQQ9SQk)",
+        "size": 151
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/cag6vQQ9SQk"
+  },
+  "partOf": {
+    "reference": "Location/y5X4mP5XylL"
+  }
+}

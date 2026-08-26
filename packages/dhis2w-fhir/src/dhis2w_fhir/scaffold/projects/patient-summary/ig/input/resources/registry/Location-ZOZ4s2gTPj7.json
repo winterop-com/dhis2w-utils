@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "ZOZ4s2gTPj7",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "ZOZ4s2gTPj7"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226252"
+    }
+  ],
+  "name": "Serekolia MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.0768,
+    "latitude": 9.5348
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS4wNzY4LDkuNTM0OF0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJaT1o0czJnVFBqNyIsImxldmVsIjo0LCJuYW1lIjoiU2VyZWtvbGlhIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Serekolia MCHP (ZOZ4s2gTPj7)",
+        "size": 151
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/ZOZ4s2gTPj7"
+  },
+  "partOf": {
+    "reference": "Location/OTFepb1k9Db"
+  }
+}

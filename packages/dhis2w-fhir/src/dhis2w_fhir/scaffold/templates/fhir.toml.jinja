@@ -51,3 +51,7 @@ include_ids = [{% for uid in event_program_ids %}"{{ uid }}"{{ ", " if not loop.
 [generate.tracker_programs]
 include_ids = [{% for uid in tracker_program_ids %}"{{ uid }}"{{ ", " if not loop.last }}{% endfor %}]
 {% endif %}
+{% if selection %}
+
+{{ selection }}
+{% endif %}

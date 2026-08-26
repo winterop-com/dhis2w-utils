@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "FQ5CCuUKNLf",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "FQ5CCuUKNLf"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211263"
+    }
+  ],
+  "name": "Romando MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -12.9873,
+    "latitude": 8.8628
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMi45ODczLDguODYyOF0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJGUTVDQ3VVS05MZiIsImxldmVsIjo0LCJuYW1lIjoiUm9tYW5kbyBNQ0hQIn0sInR5cGUiOiJGZWF0dXJlIn0=",
+        "title": "Romando MCHP (FQ5CCuUKNLf)",
+        "size": 149
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/FQ5CCuUKNLf"
+  },
+  "partOf": {
+    "reference": "Location/xGMGhjA3y6J"
+  }
+}

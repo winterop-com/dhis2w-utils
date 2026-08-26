@@ -1,0 +1,49 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-cat-GLevLNI9wkl-cm",
+  "url": "http://example.org/fhir/examples/aggregate-minimal/ConceptMap/d2-cat-GLevLNI9wkl-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/category",
+    "value": "GLevLNI9wkl"
+  },
+  "name": "D2CAT_GLevLNI9wkl_CM",
+  "title": "default",
+  "description": "DHIS2 category default (GLevLNI9wkl). Every concept of D2CAT_GLevLNI9wkl_CS mapped to its DHIS2 category option UID and, where the category option carries one, its DHIS2 category option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/aggregate-minimal/ValueSet/d2-cat-GLevLNI9wkl-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-cat-GLevLNI9wkl-cs",
+      "target": "http://dhis2.org/fhir/id/category-option",
+      "element": [
+        {
+          "code": "xYerKDKCefk",
+          "display": "default",
+          "target": [
+            {
+              "code": "xYerKDKCefk",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-cat-GLevLNI9wkl-cs",
+      "target": "http://dhis2.org/fhir/id/category-option-code",
+      "element": [
+        {
+          "code": "xYerKDKCefk",
+          "display": "default",
+          "target": [
+            {
+              "code": "default",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

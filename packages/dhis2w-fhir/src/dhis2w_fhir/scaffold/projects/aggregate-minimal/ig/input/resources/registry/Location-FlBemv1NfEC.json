@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "FlBemv1NfEC",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "FlBemv1NfEC"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211256"
+    }
+  ],
+  "name": "Masungbala",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -12.747148,
+    "latitude": 9.121403
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6W1tbLTEyLjY2Nyw5LjEwMjJdLFstMTIuNjczOCw5LjEwMDhdLFstMTIuNjgyNSw5LjA5NjZdLFstMTIuNjg2Miw5LjA5MzZdLFstMTIuNjg4NSw5LjA5MDddLFstMTIuNjk0Miw5LjA4MDldLFstMTIuNzAxNCw5LjA3NDldLFstMTIuNzA3NCw5LjA2OTRdLFstMTIuNzE0MSw5LjA2MjZdLFstMTIuNzE4LDkuMDU3M10sWy0xMi43MjA4LDkuMDUwN10sWy0xMi43MjI1LDkuMDQ1Ml0sWy0xMi43MjM0LDkuMDQwN10sWy0xMi43MjMzLDkuMDM3M10sWy0xMi43MjE1LDkuMDI5NF0sWy0xMi43MjExLDkuMDI0OF0sWy0xMi43MjIsOS4wMTczXSxbLTEyLjcyMTgsOS4wMV0sWy0xMi43MzIyLDkuMDE2M10sWy0xMi43MzU3LDkuMDE5OF0sWy0xMi43Mzc0LDkuMDIyOV0sWy0xMi43NDIxLDkuMDM0OV0sWy0xMi43NDU4LDkuMDQyNF0sWy0xMi43NDk5LDkuMDQ5N10sWy0xMi43NTQxLDkuMDU1NF0sWy0xMi43NTU2LDkuMDU3OF0sWy0xMi43NTcsOS4wNjIyXSxbLTEyLjc1NjcsOS4wNjc4XSxbLTEyLjc1MTksOS4wNzcyXSxbLTEyLjc0ODMsOS4wODMyXSxbLTEyLjc0NTgsOS4wODZdLFstMTIuNzM3OCw5LjA5MTVdLFstMTIuNzM0LDkuMDk2XSxbLTEyLjczMzcsOS4wOTk0XSxbLTEyLjczNTIsOS4xMDIxXSxbLTEyLjczNzcsOS4xMDM4XSxbLTEyLjc0MTEsOS4xMDQ1XSxbLTEyLjc0NTMsOS4xMDQ2XSxbLTEyLjc4MjcsOS4xMDRdLFstMTIuNzg3LDkuMTAzNF0sWy0xMi43OTM4LDkuMTAxNl0sWy0xMi43OTkxLDkuMTAxNF0sWy0xMi44MDE4LDkuMTA0NV0sWy0xMi44MDgyLDkuMTA4M10sWy0xMi44MTAxLDkuMTA5Ml0sWy0xMi44MTQ4LDkuMTA5OF0sWy0xMi44MzE3LDkuMTA5NV0sWy0xMi44MzU1LDkuMTA5Nl0sWy0xMi44MzgyLDkuMTFdLFstMTIuODQwNCw5LjExMTJdLFstMTIuODQyNCw5LjExMzRdLFstMTIuODQzMyw5LjExNjhdLFstMTIuODQzNSw5LjEyMjNdLFstMTIuODQzMiw5LjEyNjNdLFstMTIuODQyNSw5LjEyODRdLFstMTIuODM5LDkuMTM1NV0sWy0xMi44MzY2LDkuMTM4OV0sWy0xMi44MjkzLDkuMTQ2M10sWy0xMi44MjUzLDkuMTQ5NV0sWy0xMi44MjA0LDkuMTUyMl0sWy0xMi44MTI2LDkuMTU5MV0sWy0xMi44MDk2LDkuMTYxMV0sWy0xMi44MDU4LDkuMTYyOV0sWy0xMi43OTc1LDkuMTY3M10sWy0xMi43OTE3LDkuMTcxN10sWy0xMi43ODczLDkuMTc0Ml0sWy0xMi43ODUxLDkuMTc2NV0sWy0xMi43ODIsOS4xODMxXSxbLTEyLjc4MTIsOS4xODc0XSxbLTEyLjc3MzIsOS4xODE1XSxbLTEyLjc2OTMsOS4xNzk4XSxbLTEyLjc2NDgsOS4xNzc2XSxbLTEyLjc1ODksOS4xNzYxXSxbLTEyLjc1MjcsOS4xNzM2XSxbLTEyLjc0OTksOS4xNzMxXSxbLTEyLjc0NjksOS4xNzI5XSxbLTEyLjc0Myw5LjE3MzFdLFstMTIuNzM5Myw5LjE3MzhdLFstMTIuNzM0LDkuMTc2Ml0sWy0xMi43MjgyLDkuMTc3N10sWy0xMi43MjM3LDkuMTc5N10sWy0xMi43MjA5LDkuMTgwM10sWy0xMi43MTYsOS4xODA2XSxbLTEyLjcwMTksOS4xODA2XSxbLTEyLjY5ODYsOS4xOF0sWy0xMi42OTYxLDkuMTc4NF0sWy0xMi42OTQ1LDkuMTc2NV0sWy0xMi42OTA5LDkuMTY5XSxbLTEyLjY5MDIsOS4xNjUyXSxbLTEyLjY5LDkuMTUyMV0sWy0xMi42ODk3LDkuMTQ5Ml0sWy0xMi42ODg4LDkuMTQ2Nl0sWy0xMi42ODU1LDkuMTM5OF0sWy0xMi42ODI5LDkuMTM0N10sWy0xMi42ODE0LDkuMTI4OF0sWy0xMi42NzcyLDkuMTIwNV0sWy0xMi42NzI0LDkuMTE0M10sWy0xMi42Njk0LDkuMTA3M10sWy0xMi42NjcsOS4xMDIyXV1dLCJ0eXBlIjoiUG9seWdvbiJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJGbEJlbXYxTmZFQyIsImxldmVsIjozLCJuYW1lIjoiTWFzdW5nYmFsYSJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Masungbala (FlBemv1NfEC)",
+        "size": 1893
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-3",
+        "display": "Level 3"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/FlBemv1NfEC"
+  },
+  "partOf": {
+    "reference": "Location/PMa2VCrupOd"
+  }
+}

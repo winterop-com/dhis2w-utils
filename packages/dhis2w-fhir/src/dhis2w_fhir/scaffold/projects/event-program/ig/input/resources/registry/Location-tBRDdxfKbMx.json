@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "tBRDdxfKbMx",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "tBRDdxfKbMx"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260442"
+    }
+  ],
+  "name": "Liya MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.6021,
+    "latitude": 6.989
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS42MDIxLDYuOTg5XSwidHlwZSI6IlBvaW50In0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6InRCUkRkeGZLYk14IiwibGV2ZWwiOjQsIm5hbWUiOiJMaXlhIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Liya MCHP (tBRDdxfKbMx)",
+        "size": 145
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/tBRDdxfKbMx"
+  },
+  "partOf": {
+    "reference": "Location/zSNUViKdkk3"
+  }
+}

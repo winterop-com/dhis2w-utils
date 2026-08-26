@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "BD9gU0GKlr2",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "BD9gU0GKlr2"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260378"
+    }
+  ],
+  "name": "Makpele",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.301837,
+    "latitude": 7.281175
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6W1tbLTExLjEzODMsNy4zMjFdLFstMTEuMTM5Niw3LjMxNjhdLFstMTEuMTQ3Myw3LjMxMjldLFstMTEuMTUxMiw3LjMwNjRdLFstMTEuMTU0NSw3LjMwMjVdLFstMTEuMTYyMiw3LjMwMTldLFstMTEuMTY4MSw3LjMwMjVdLFstMTEuMTY4MSw3LjI5Nl0sWy0xMS4xNyw3LjI4ODldLFstMTEuMTc0Niw3LjI4NzZdLFstMTEuMTc3Miw3LjI4MzhdLFstMTEuMTczMyw3LjI3OTldLFstMTEuMTc2Niw3LjI3MTRdLFstMTEuMTgwNCw3LjI3MDhdLFstMTEuMTc0Niw3LjI2MzldLFstMTEuMTc1OSw3LjI2MzddLFstMTEuMTgzNyw3LjI1NTldLFstMTEuMTkwOCw3LjI1NTJdLFstMTEuMTk2Niw3LjI0OTRdLFstMTEuMjAzOCw3LjI0NjhdLFstMTEuMjExNiw3LjI0ODFdLFstMTEuMjIsNy4yNDI5XSxbLTExLjIyMzIsNy4yNDIyXSxbLTExLjIyNzEsNy4yNDQ4XSxbLTExLjIzMjMsNy4yNDQ4XSxbLTExLjIzODEsNy4yMzk2XSxbLTExLjI0MTQsNy4yMzc3XSxbLTExLjI0Miw3LjIzMzhdLFstMTEuMjQ5MSw3LjIyOF0sWy0xMS4yNTY5LDcuMjI3M10sWy0xMS4yNjIxLDcuMjI3M10sWy0xMS4yNjYsNy4yMzMxXSxbLTExLjI3MDUsNy4yMzMxXSxbLTExLjI2OTIsNy4yMjczXSxbLTExLjI3MTksNy4yMjRdLFstMTEuMjcyNSw3LjIxODldLFstMTEuMjc3LDcuMjE4OV0sWy0xMS4yNzgzLDcuMjExMV0sWy0xMS4yODI5LDcuMjA5OF0sWy0xMS4yODI5LDcuMjA0XSxbLTExLjI4NDIsNy4xOTQzXSxbLTExLjI5MjYsNy4xOTFdLFstMTEuMjg5NCw3LjE5ODhdLFstMTEuMjk5MSw3LjE5ODhdLFstMTEuMjk5MSw3LjIwNzldLFstMTEuMzAzLDcuMjA5MV0sWy0xMS4zMDg4LDcuMjAzM10sWy0xMS4zMDc1LDcuMTkzNl0sWy0xMS4zMTE0LDcuMTg3MV0sWy0xMS4zMTA4LDcuMTgwNl0sWy0xMS4zMTgxLDcuMTcyMV0sWy0xMS4zMTgyLDcuMTcyNl0sWy0xMS4zMjA0LDcuMTczNl0sWy0xMS4zMjcyLDcuMTc0OV0sWy0xMS4zMzYsNy4xNzkzXSxbLTExLjM0MTUsNy4xODM1XSxbLTExLjM1MDMsNy4xODc5XSxbLTExLjM1MzEsNy4xODg1XSxbLTExLjM2MDksNy4xODg5XSxbLTExLjM2NDUsNy4xODk2XSxbLTExLjM2OTEsNy4xOTE1XSxbLTExLjM3NTgsNy4xOTMzXSxbLTExLjM4MTMsNy4xOTU1XSxbLTExLjM4NTMsNy4xOTZdLFstMTEuMzk0NSw3LjE5NjJdLFstMTEuMzk4Myw3LjE5NjldLFstMTEuNDAyOCw3LjE5OTFdLFstMTEuNDExMiw3LjIwM10sWy0xMS40MTcyLDcuMjA0NF0sWy0xMS40MjE2LDcuMjA2Nl0sWy0xMS40MjQ5LDcuMjA3OV0sWy0xMS40MzM1LDcuMjEyNF0sWy0xMS40Mzc0LDcuMjE1Nl0sWy0xMS40MzkxLDcuMjE3OV0sWy0xMS40NCw3LjIyMDVdLFstMTEuNDQwNCw3LjIyMzFdLFstMTEuNDQwMiw3LjIyNzddLFstMTEuNDM5Miw3LjIzMTddLFstMTEuNDM0LDcuMjM2OF0sWy0xMS40Mjk4LDcuMjQ1N10sWy0xMS40Mjg4LDcuMjUwOF0sWy0xMS40MjcxLDcuMjU0XSxbLTExLjQyNDYsNy4yNTY2XSxbLTExLjQyMjQsNy4yNTgzXSxbLTExLjQxODEsNy4yNjA0XSxbLTExLjQxNTYsNy4yNjIxXSxbLTExLjQxMjUsNy4yNjVdLFstMTEuNDA5Nyw3LjI2NzldLFstMTEuNDA4MSw3LjI3MDJdLFstMTEuNDA1NCw3LjI3NTRdLFstMTEuNDAxMyw3LjI4MDddLFstMTEuMzk4MSw3LjI4NjZdLFstMTEuMzkzOSw3LjI5MTldLFstMTEuMzkxMSw3LjI5NzFdLFstMTEuMzg5LDcuMjk5OV0sWy0xMS4zODQsNy4zMDUyXSxbLTExLjM4MTksNy4zMDgyXSxbLTExLjM4MDIsNy4zMTJdLFstMTEuMzc4Miw3LjMxNTVdLFstMTEuMzc2OCw3LjMxODddLFstMTEuMzc1NSw3LjMyMDhdLFstMTEuMzcxOCw3LjMyNTRdLFstMTEuMzY4NSw3LjMzMTNdLFstMTEuMzY2OCw3LjMzMzRdLFstMTEuMzYxOCw3LjMzODddLFstMTEuMzU5OCw3LjM0MTddLFstMTEuMzU4NCw3LjM0NDhdLFstMTEuMzU2MSw3LjM0OTFdLFstMTEuMzU0OCw3LjM1MjJdLFstMTEuMzUyNCw3LjM1NjVdLFstMTEuMzUxMSw3LjM1OTddLFstMTEuMzQ4Nyw3LjM2MzldLFstMTEuMzQ3NCw3LjM2NzFdLFstMTEuMzQ1NCw3LjM3MTJdLFstMTEuMzQ0Nyw3LjM3NF0sWy0xMS4zNDQyLDcuMzgwM10sWy0xMS4zNDI4LDcuMzg1OV0sWy0xMS4zNDIsNy4zOTE5XSxbLTExLjMyNzMsNy4zODUzXSxbLTExLjMxODIsNy4zODM0XSxbLTExLjMxMSw3LjM4MTJdLFstMTEuMzAxOSw3LjM3OTNdLFstMTEuMjg0NSw3LjM3MTNdLFstMTEuMjgwNyw3LjM3XSxbLTExLjI3NDYsNy4zNjk0XSxbLTExLjI1OSw3LjM2OTJdLFstMTEuMjUzMiw3LjM2ODJdLFstMTEuMjQ1Myw3LjM2NV0sWy0xMS4yMzc4LDcuMzYxMl0sWy0xMS4yMjI5LDcuMzUzNF0sWy0xMS4yMjA0LDcuMzUxN10sWy0xMS4yMTIsNy4zNDVdLFstMTEuMjA0NCw3LjM0MDhdLFstMTEuMTczMiw3LjMyNTNdLFstMTEuMTY1NCw3LjMyMjFdLFstMTEuMTU2NCw3LjMyMDJdLFstMTEuMTQ5Miw3LjMxOF0sWy0xMS4xNDA3LDcuMzE2NF0sWy0xMS4xMzgzLDcuMzIxXV1dLCJ0eXBlIjoiUG9seWdvbiJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJCRDlnVTBHS2xyMiIsImxldmVsIjozLCJuYW1lIjoiTWFrcGVsZSJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Makpele (BD9gU0GKlr2)",
+        "size": 2598
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-3",
+        "display": "Level 3"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/BD9gU0GKlr2"
+  },
+  "partOf": {
+    "reference": "Location/bL4ooGhyHRQ"
+  }
+}

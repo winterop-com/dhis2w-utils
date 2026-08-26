@@ -1,0 +1,19 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-category-option-id-cs",
+  "url": "http://dhis2.org/fhir/id/category-option",
+  "name": "D2CategoryOptionIdentifierSystem_CS",
+  "title": "DHIS2 category option UIDs in use",
+  "description": "Every DHIS2 category option UID this guide's concept maps target, enumerated. D2CategoryOptionIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 1,
+  "concept": [
+    {
+      "code": "xYerKDKCefk",
+      "display": "default"
+    }
+  ]
+}

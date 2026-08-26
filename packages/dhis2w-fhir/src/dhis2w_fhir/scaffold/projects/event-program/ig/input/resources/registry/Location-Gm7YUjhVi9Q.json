@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "Gm7YUjhVi9Q",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "Gm7YUjhVi9Q"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260415"
+    }
+  ],
+  "name": "Fairo CHC",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.4045,
+    "latitude": 7.0881
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS40MDQ1LDcuMDg4MV0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJHbTdZVWpoVmk5USIsImxldmVsIjo0LCJuYW1lIjoiRmFpcm8gQ0hDIn0sInR5cGUiOiJGZWF0dXJlIn0=",
+        "title": "Fairo CHC (Gm7YUjhVi9Q)",
+        "size": 146
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/Gm7YUjhVi9Q"
+  },
+  "partOf": {
+    "reference": "Location/d9iMR1MpuIO"
+  }
+}

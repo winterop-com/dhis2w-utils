@@ -1,0 +1,129 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-OsVaccType1-cm",
+  "url": "http://example.org/fhir/examples/aggregate-minimal/ConceptMap/d2-os-OsVaccType1-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "OsVaccType1"
+  },
+  "name": "D2OS_OsVaccType1_CM",
+  "title": "Vaccine type",
+  "description": "DHIS2 option set Vaccine type (OsVaccType1). Every concept of D2OS_OsVaccType1_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/aggregate-minimal/ValueSet/d2-os-OsVaccType1-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-os-OsVaccType1-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "OptVacBCG01",
+          "display": "BCG",
+          "target": [
+            {
+              "code": "OptVacBCG01",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OptVacMes01",
+          "display": "Measles",
+          "target": [
+            {
+              "code": "OptVacMes01",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OptVacPlo01",
+          "display": "Polio",
+          "target": [
+            {
+              "code": "OptVacPlo01",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OptVacDPT01",
+          "display": "DPT",
+          "target": [
+            {
+              "code": "OptVacDPT01",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OptVacHpB01",
+          "display": "Hepatitis B",
+          "target": [
+            {
+              "code": "OptVacHpB01",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-os-OsVaccType1-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "OptVacBCG01",
+          "display": "BCG",
+          "target": [
+            {
+              "code": "BCG",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OptVacMes01",
+          "display": "Measles",
+          "target": [
+            {
+              "code": "MEASLES",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OptVacPlo01",
+          "display": "Polio",
+          "target": [
+            {
+              "code": "POLIO",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OptVacDPT01",
+          "display": "DPT",
+          "target": [
+            {
+              "code": "DPT",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OptVacHpB01",
+          "display": "Hepatitis B",
+          "target": [
+            {
+              "code": "HEPB",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

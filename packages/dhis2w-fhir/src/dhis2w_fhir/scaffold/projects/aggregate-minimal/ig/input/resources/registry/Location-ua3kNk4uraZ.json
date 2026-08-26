@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "ua3kNk4uraZ",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "ua3kNk4uraZ"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211233"
+    }
+  ],
+  "name": "Modia MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -13.2239,
+    "latitude": 8.6414
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMy4yMjM5LDguNjQxNF0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJ1YTNrTms0dXJhWiIsImxldmVsIjo0LCJuYW1lIjoiTW9kaWEgTUNIUCJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Modia MCHP (ua3kNk4uraZ)",
+        "size": 147
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/ua3kNk4uraZ"
+  },
+  "partOf": {
+    "reference": "Location/QywkxFudXrC"
+  }
+}

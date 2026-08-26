@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "rxc497GUdDt",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "rxc497GUdDt"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211259"
+    }
+  ],
+  "name": "Banka Makuloh MCHP",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+          "code": "level-4",
+          "display": "Level 4"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/FlBemv1NfEC"
+  },
+  "active": true
+}

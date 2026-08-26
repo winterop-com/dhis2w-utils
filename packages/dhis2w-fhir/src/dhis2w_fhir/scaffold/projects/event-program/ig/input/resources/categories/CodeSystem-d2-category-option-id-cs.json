@@ -1,0 +1,43 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-category-option-id-cs",
+  "url": "http://dhis2.org/fhir/id/category-option",
+  "name": "D2CategoryOptionIdentifierSystem_CS",
+  "title": "DHIS2 category option UIDs in use",
+  "description": "Every DHIS2 category option UID this guide's concept maps target, enumerated. D2CategoryOptionIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 7,
+  "concept": [
+    {
+      "code": "M58XdOfhiJ7",
+      "display": "Provide access to basic education"
+    },
+    {
+      "code": "OUUdG3sdOqb",
+      "display": "Provide access to primary health care"
+    },
+    {
+      "code": "YHb43JqCAmI",
+      "display": "Expired"
+    },
+    {
+      "code": "i4Nbp8S2G6A",
+      "display": "Improve access to clean water"
+    },
+    {
+      "code": "mInFlpnx6TQ",
+      "display": "Damages"
+    },
+    {
+      "code": "qKc2WhjMPKC",
+      "display": "VVM Change"
+    },
+    {
+      "code": "yMj2MnmNI8L",
+      "display": "Improve access to medicines"
+    }
+  ]
+}

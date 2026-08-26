@@ -1,0 +1,69 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-pC3N9N77UmT-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-os-pC3N9N77UmT-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "pC3N9N77UmT"
+  },
+  "name": "D2OS_pC3N9N77UmT_CM",
+  "title": "Gender",
+  "description": "DHIS2 option set Gender (pC3N9N77UmT). Every concept of D2OS_pC3N9N77UmT_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-pC3N9N77UmT-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-pC3N9N77UmT-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "rBvjJYbMCVx",
+          "display": "Male",
+          "target": [
+            {
+              "code": "rBvjJYbMCVx",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "Mnp3oXrpAbK",
+          "display": "Female",
+          "target": [
+            {
+              "code": "Mnp3oXrpAbK",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-pC3N9N77UmT-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "rBvjJYbMCVx",
+          "display": "Male",
+          "target": [
+            {
+              "code": "Male",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "Mnp3oXrpAbK",
+          "display": "Female",
+          "target": [
+            {
+              "code": "Female",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

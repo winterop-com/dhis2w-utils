@@ -1,0 +1,43 @@
+# The project templates this install carries, one table each. `d2w fhir init --list-templates`
+# reads its listing straight off this file, so a template is named in exactly one place.
+#
+# Each table names the guide the payload beside it was generated from. `canonical` plays two
+# roles at once and has to: it is the address baked into every pre-built resource under the
+# template's ig/input/, and it is the default `--canonical` of a project scaffolded from it.
+# Scaffolding with a `--canonical` of your own rewrites the payload from this value to yours,
+# which is only sound because the two are the same address.
+
+# The rest of the example catalog, by name alone. These are guides `d2w fhir init --template`
+# scaffolds from a dhis2w-utils checkout and cannot scaffold anywhere else, and naming them here
+# is what lets an installed package refuse one by saying where it lives instead of denying it
+# exists. A checkout is the authority on the list: `test_fhir_init_templates.py` fails when this
+# array and `examples/fhir/igs/` disagree.
+checkout_only = [
+    "aggregate-disaggregated",
+    "facility-mixed",
+    "refused-names",
+    "registry-district",
+    "terminology-strict",
+    "tracker-registration",
+]
+
+[aggregate-minimal]
+summary = "The smallest complete guide: the forms, one district, no category axes."
+ig_id = "dhis2.fhir.examples.aggregate-minimal"
+canonical = "http://example.org/fhir/examples/aggregate-minimal"
+name = "ExamplesAggregateMinimal"
+title = "Minimal aggregate example guide"
+
+[event-program]
+summary = "A program without registration: one Questionnaire, one occurrence date, no enrollment."
+ig_id = "dhis2.fhir.examples.event-program"
+canonical = "http://example.org/fhir/examples/event-program"
+name = "ExamplesEventProgram"
+title = "Event program example guide"
+
+[patient-summary]
+summary = "An International Patient Summary at $summary: who a person is, and which recorded values are doses."
+ig_id = "dhis2.fhir.examples.patient-summary"
+canonical = "http://example.org/fhir/examples/patient-summary"
+name = "ExamplesPatientSummary"
+title = "Patient summary example guide"

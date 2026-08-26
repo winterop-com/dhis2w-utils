@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "k6lOze3vTzP",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "k6lOze3vTzP"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260435"
+    }
+  ],
+  "name": "Potoru CHC",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.4814,
+    "latitude": 7.5031
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS40ODE0LDcuNTAzMV0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJrNmxPemUzdlR6UCIsImxldmVsIjo0LCJuYW1lIjoiUG90b3J1IENIQyJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Potoru CHC (k6lOze3vTzP)",
+        "size": 147
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/k6lOze3vTzP"
+  },
+  "partOf": {
+    "reference": "Location/RzKeCma9qb1"
+  }
+}

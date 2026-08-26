@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "qIRCo0MfuGb",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "qIRCo0MfuGb"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211213"
+    }
+  ],
+  "name": "Gbinleh Dixion",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -12.939326,
+    "latitude": 9.169763
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6W1tbLTEyLjg5MTksOS4yNzExXSxbLTEyLjg4ODgsOS4yNjc2XSxbLTEyLjg4ODIsOS4yNjU1XSxbLTEyLjg4NTIsOS4yNTldLFstMTIuODgzMiw5LjI1NTVdLFstMTIuODgyMiw5LjI1MjFdLFstMTIuODgyMSw5LjI0OF0sWy0xMi44ODI3LDkuMjQ0NV0sWy0xMi44ODM4LDkuMjQyNV0sWy0xMi44ODczLDkuMjM4M10sWy0xMi44ODg4LDkuMjM2MV0sWy0xMi44ODk0LDkuMjMyNl0sWy0xMi44ODg5LDkuMjI5Nl0sWy0xMi44ODc2LDkuMjI3NF0sWy0xMi44ODUyLDkuMjI1OV0sWy0xMi44ODAyLDkuMjI0Nl0sWy0xMi44Nzc4LDkuMjIzOF0sWy0xMi44NzQzLDkuMjIxNF0sWy0xMi44NzY5LDkuMjE4MV0sWy0xMi44ODA4LDkuMjA5OV0sWy0xMi44ODE4LDkuMjA2XSxbLTEyLjg4MzIsOS4yMDM5XSxbLTEyLjg4ODcsOS4yMDE5XSxbLTEyLjg5MTEsOS4yMDA2XSxbLTEyLjg5MzEsOS4xOTg3XSxbLTEyLjg5NTUsOS4xOTU5XSxbLTEyLjg5NzQsOS4xOTJdLFstMTIuODk5NCw5LjE4ODRdLFstMTIuOSw5LjE4NjRdLFstMTIuOTAwMSw5LjE4MzNdLFstMTIuODk4OSw5LjE4MDFdLFstMTIuODk2Niw5LjE3NzldLFstMTIuODkwMyw5LjE3NThdLFstMTIuODg4Niw5LjE3MjhdLFstMTIuODg4OSw5LjE2ODNdLFstMTIuODkwNSw5LjE2NjJdLFstMTIuODkyOCw5LjE2NTZdLFstMTIuODk3LDkuMTY1M10sWy0xMi44OTk3LDkuMTY0NV0sWy0xMi45MDI1LDkuMTYyMV0sWy0xMi45MDM1LDkuMTU5OF0sWy0xMi45MDQ1LDkuMTU0OF0sWy0xMi45MDY3LDkuMTUwNF0sWy0xMi45MDc5LDkuMTQ3Ml0sWy0xMi45MTAzLDkuMTQyMV0sWy0xMi45MTE0LDkuMTM3XSxbLTEyLjkxMzksOS4xMzE3XSxbLTEyLjkxNTIsOS4xMjg2XSxbLTEyLjkxNzUsOS4xMjQzXSxbLTEyLjkxODksOS4xMjEyXSxbLTEyLjkyMDQsOS4xMTg5XSxbLTEyLjkyMjksOS4xMTYxXSxbLTEyLjkyOTksOS4xMDldLFstMTIuOTMyMyw5LjEwNTddLFstMTIuOTM0MSw5LjEwMThdLFstMTIuOTM2LDkuMDk4Ml0sWy0xMi45Mzc3LDkuMDk0M10sWy0xMi45NDE0LDkuMDg4NF0sWy0xMi45NDQ2LDkuMDg2M10sWy0xMi45NDc1LDkuMDg0XSxbLTEyLjk1MDYsOS4wNzk4XSxbLTEyLjk1MTIsOS4wNzU4XSxbLTEyLjk1MDksOS4wNzM1XSxbLTEyLjk0OTQsOS4wNjk1XSxbLTEyLjk1LDkuMDY2OF0sWy0xMi45NTQxLDkuMDYxXSxbLTEyLjk1Niw5LjA1NzJdLFstMTIuOTU4Nyw5LjA1MzldLFstMTIuOTY0Myw5LjA0OTNdLFstMTIuOTY4Miw5LjA1MDFdLFstMTIuOTcyMyw5LjA1MDFdLFstMTIuOTc2OCw5LjA0OTNdLFstMTIuOTgxNyw5LjA0NzNdLFstMTIuOTg1LDkuMDQ3NV0sWy0xMi45ODc3LDkuMDQ5XSxbLTEyLjk5MDgsOS4wNTI2XSxbLTEyLjk5MjMsOS4wNTc1XSxbLTEyLjk5MjQsOS4wNjY3XSxbLTEyLjk5MjgsOS4wNzA2XSxbLTEyLjk5NSw5LjA3NDldLFstMTIuOTk5Miw5LjA3ODRdLFstMTMuMDAxNCw5LjA3OTRdLFstMTMuMDA3Miw5LjA4MDhdLFstMTMuMDEwMSw5LjA4MjddLFstMTMuMDEyMSw5LjA4NDVdLFstMTMuMDE1Niw5LjA4OV0sWy0xMy4wMTE4LDkuMDkwOV0sWy0xMy4wMDIxLDkuMDk3NF0sWy0xMi45OTE2LDkuMTEyOF0sWy0xMi45ODA5LDkuMTMyNF0sWy0xMi45NzM0LDkuMTU4OV0sWy0xMi45NzMyLDkuMTY1MV0sWy0xMi45NzAyLDkuMTcxOF0sWy0xMi45NTYyLDkuMTgyMl0sWy0xMi45NTQyLDkuMTg5OF0sWy0xMi45NTg4LDkuMjM1M10sWy0xMi45NTI0LDkuMjQ5M10sWy0xMi45NDM4LDkuMjc1Nl0sWy0xMi45MzUxLDkuMjg2N10sWy0xMi45MjY1LDkuMjg2NV0sWy0xMi45MTY1LDkuMjgyNl0sWy0xMi45MDA3LDkuMjcxXSxbLTEyLjg5MzEsOS4yNzAzXSxbLTEyLjg5MTksOS4yNzExXV1dLCJ0eXBlIjoiUG9seWdvbiJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJxSVJDbzBNZnVHYiIsImxldmVsIjozLCJuYW1lIjoiR2JpbmxlaCBEaXhpb24ifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Gbinleh Dixion (qIRCo0MfuGb)",
+        "size": 1990
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-3",
+        "display": "Level 3"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/qIRCo0MfuGb"
+  },
+  "partOf": {
+    "reference": "Location/PMa2VCrupOd"
+  }
+}

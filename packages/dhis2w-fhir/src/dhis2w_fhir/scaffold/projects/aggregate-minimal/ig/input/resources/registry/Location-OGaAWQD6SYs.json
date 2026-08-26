@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "OGaAWQD6SYs",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "OGaAWQD6SYs"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211265"
+    }
+  ],
+  "name": "Kalainkay MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -13.0941,
+    "latitude": 8.8831
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMy4wOTQxLDguODgzMV0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJPR2FBV1FENlNZcyIsImxldmVsIjo0LCJuYW1lIjoiS2FsYWlua2F5IE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Kalainkay MCHP (OGaAWQD6SYs)",
+        "size": 151
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/OGaAWQD6SYs"
+  },
+  "partOf": {
+    "reference": "Location/xGMGhjA3y6J"
+  }
+}

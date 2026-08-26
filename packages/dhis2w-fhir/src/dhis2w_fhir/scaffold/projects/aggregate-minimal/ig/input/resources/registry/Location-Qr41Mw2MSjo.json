@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "Qr41Mw2MSjo",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "Qr41Mw2MSjo"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211240"
+    }
+  ],
+  "name": "Senthai MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -12.8863,
+    "latitude": 9.0668
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMi44ODYzLDkuMDY2OF0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJRcjQxTXcyTVNqbyIsImxldmVsIjo0LCJuYW1lIjoiU2VudGhhaSBNQ0hQIn0sInR5cGUiOiJGZWF0dXJlIn0=",
+        "title": "Senthai MCHP (Qr41Mw2MSjo)",
+        "size": 149
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/Qr41Mw2MSjo"
+  },
+  "partOf": {
+    "reference": "Location/QywkxFudXrC"
+  }
+}

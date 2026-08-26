@@ -1,0 +1,289 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-dgsftM0rXu2-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-os-dgsftM0rXu2-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "dgsftM0rXu2"
+  },
+  "name": "D2OS_dgsftM0rXu2_CM",
+  "title": "MNCH ARVs",
+  "description": "DHIS2 option set MNCH ARVs (dgsftM0rXu2). Every concept of D2OS_dgsftM0rXu2_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-dgsftM0rXu2-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-dgsftM0rXu2-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "NXyMwAwxNap",
+          "display": "NVP Only",
+          "target": [
+            {
+              "code": "NXyMwAwxNap",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OZH6GLUufaX",
+          "display": "TDF/3TC/NVP - 1",
+          "target": [
+            {
+              "code": "OZH6GLUufaX",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "fpfMGr05G23",
+          "display": "TDF/3TC/EFV - 1",
+          "target": [
+            {
+              "code": "fpfMGr05G23",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "snKkbSbKQFi",
+          "display": "AZT/3TC/NVP - 1",
+          "target": [
+            {
+              "code": "snKkbSbKQFi",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "QAr1LjJB7hV",
+          "display": "AZT/3TC/EFV - 1",
+          "target": [
+            {
+              "code": "QAr1LjJB7hV",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "J8tdCrlmoyp",
+          "display": "TDF/3TC/ATV/r - 2",
+          "target": [
+            {
+              "code": "J8tdCrlmoyp",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "e3Y43oVooNx",
+          "display": "TDF/3TC/LPV/r - 2",
+          "target": [
+            {
+              "code": "e3Y43oVooNx",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "ehhkhM0cmbA",
+          "display": "AZT/3TC/ATV/r - 2",
+          "target": [
+            {
+              "code": "ehhkhM0cmbA",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "bswStRDzLny",
+          "display": "AZT/3TC/LPV/r - 2",
+          "target": [
+            {
+              "code": "bswStRDzLny",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "wGQbXCz6qgd",
+          "display": "AZT/ddl/LPV/r - 2",
+          "target": [
+            {
+              "code": "wGQbXCz6qgd",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "bopJ9PaLnAZ",
+          "display": "ABC/ddl/LPV/r -2",
+          "target": [
+            {
+              "code": "bopJ9PaLnAZ",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "ARN7cNTxlRA",
+          "display": "Other 1st line",
+          "target": [
+            {
+              "code": "ARN7cNTxlRA",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OP2n2kZ3eWw",
+          "display": "Other 2nd line",
+          "target": [
+            {
+              "code": "OP2n2kZ3eWw",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-dgsftM0rXu2-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "NXyMwAwxNap",
+          "display": "NVP Only",
+          "target": [
+            {
+              "code": "NVP Only",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OZH6GLUufaX",
+          "display": "TDF/3TC/NVP - 1",
+          "target": [
+            {
+              "code": "TDF/3TC/NVP - 1",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "fpfMGr05G23",
+          "display": "TDF/3TC/EFV - 1",
+          "target": [
+            {
+              "code": "TDF/3TC/EFV - 1",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "snKkbSbKQFi",
+          "display": "AZT/3TC/NVP - 1",
+          "target": [
+            {
+              "code": "AZT/3TC/NVP - 1",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "QAr1LjJB7hV",
+          "display": "AZT/3TC/EFV - 1",
+          "target": [
+            {
+              "code": "AZT/3TC/EFV - 1",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "J8tdCrlmoyp",
+          "display": "TDF/3TC/ATV/r - 2",
+          "target": [
+            {
+              "code": "TDF/3TC/ATV/r - 2",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "e3Y43oVooNx",
+          "display": "TDF/3TC/LPV/r - 2",
+          "target": [
+            {
+              "code": "TDF/3TC/LPV/r - 2",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "ehhkhM0cmbA",
+          "display": "AZT/3TC/ATV/r - 2",
+          "target": [
+            {
+              "code": "AZT/3TC/ATV/r - 2",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "bswStRDzLny",
+          "display": "AZT/3TC/LPV/r - 2",
+          "target": [
+            {
+              "code": "AZT/3TC/LPV/r - 2",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "wGQbXCz6qgd",
+          "display": "AZT/ddl/LPV/r - 2",
+          "target": [
+            {
+              "code": "AZT/ddl/LPV/r - 2",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "bopJ9PaLnAZ",
+          "display": "ABC/ddl/LPV/r -2",
+          "target": [
+            {
+              "code": "ABC/ddl/LPV/r -2",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "ARN7cNTxlRA",
+          "display": "Other 1st line",
+          "target": [
+            {
+              "code": "Other 1st line",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "OP2n2kZ3eWw",
+          "display": "Other 2nd line",
+          "target": [
+            {
+              "code": "Other 2nd line",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

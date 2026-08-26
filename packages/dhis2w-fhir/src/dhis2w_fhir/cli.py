@@ -54,6 +54,8 @@ if TYPE_CHECKING:
     from dhis2w_fhir.doctor import DoctorReport
     from dhis2w_fhir.hostile_names import HostileNameGate, HostileRewrite
     from dhis2w_fhir.notes import GenerateNote
+    from dhis2w_fhir.scaffold.project_templates import ProjectTemplate
+    from dhis2w_fhir.scaffold.schemas import ScaffoldReport
     from dhis2w_fhir.service import (
         ForwardOutcome,
         ForwardReport,
@@ -287,6 +289,23 @@ def init_command(
     directory: Annotated[
         Path, typer.Argument(file_okay=False, help="Project directory (default: current directory).")
     ] = Path("."),
+    template: Annotated[
+        str | None,
+        typer.Option(
+            "--template",
+            help="Scaffold from a guide already generated against a real DHIS2 instance, so the project "
+            "compiles and serves without reaching one. The template supplies the identity and the "
+            "selection; --id, --canonical, --name, --title, --publisher and --status win over it. "
+            "`--list-templates` names what this install carries.",
+        ),
+    ] = None,
+    list_templates: Annotated[
+        bool,
+        typer.Option(
+            "--list-templates",
+            help="Name every template this install can scaffold from, one line each, and exit.",
+        ),
+    ] = False,
     ig_id: Annotated[str, typer.Option("--id", help="IG package id.")] = _DEFAULT_IG_ID,
     canonical: Annotated[
         str, typer.Option("--canonical", help="Canonical base URL for the IG (no trailing slash).")
@@ -377,12 +396,20 @@ def init_command(
     from dhis2w_fhir import InitOptions, service
     from dhis2w_fhir.names import pascal
 
+    if list_templates:
+        _list_project_templates()
+        return
     if refresh and force:
         raise typer.BadParameter(
             "--refresh and --force are mutually exclusive: --force rewrites every scaffold file including "
             "the ones you edited, --refresh rewrites only what it can rewrite without losing your edits"
         )
     if refresh:
+        if template is not None:
+            raise typer.BadParameter(
+                "--refresh and --template are mutually exclusive: a refresh brings an existing "
+                "project's scaffold-managed files up to date, and a template pre-populates a new one"
+            )
         _reject_scaffold_flags(
             ig_id=ig_id,
             canonical=canonical,
@@ -402,6 +429,21 @@ def init_command(
         return
     if max_level is not None and max_level < 1:
         raise typer.BadParameter("--max-level must be 1 or greater")
+    project_template = _resolve_project_template(template) if template is not None else None
+    if project_template is not None:
+        _reject_selection_flags(
+            template=project_template.name,
+            max_level=max_level,
+            data_set_ids=data_set_ids,
+            event_program_ids=event_program_ids,
+            tracker_program_ids=tracker_program_ids,
+        )
+        if ig_id == _DEFAULT_IG_ID:
+            ig_id = project_template.ig_id
+            name = name or project_template.ig_name
+            title = title or project_template.title
+        if canonical == _DEFAULT_CANONICAL:
+            canonical = project_template.canonical
     resolved_name = name or pascal(ig_id)
     options = InitOptions(
         ig_id=ig_id,
@@ -418,27 +460,118 @@ def init_command(
         event_program_ids=event_program_ids or [],
         tracker_program_ids=tracker_program_ids or [],
     )
-    report = asyncio.run(service.init_project(directory, options, force=force))
+    report = asyncio.run(service.init_project(directory, options, force=force, template=project_template))
     if is_json_output():
         typer.echo(report.model_dump_json(indent=2))
         return
-    render_detail(
-        "fhir init",
-        [
-            DetailRow("directory", str(report.directory)),
-            DetailRow("created", str(len(report.created_files))),
-            DetailRow("skipped", str(len(report.skipped_files))),
-        ],
-        console=STDERR_CONSOLE,
-    )
+    rows = [
+        DetailRow("directory", str(report.directory)),
+        DetailRow("created", str(len(report.created_files))),
+        DetailRow("skipped", str(len(report.skipped_files))),
+    ]
+    if project_template is not None:
+        rows.append(DetailRow("template", project_template.name))
+        rows.append(DetailRow("template files", str(len(report.template_files))))
+        rows.append(DetailRow("template files skipped", str(len(report.skipped_template_files))))
+    render_detail("fhir init", rows, console=STDERR_CONSOLE)
     for relative_path in report.created_files:
         _line(f"  created {relative_path}")
     for relative_path in report.skipped_files:
         _line(f"  skipped {relative_path} (exists; use --force to overwrite)")
+    if project_template is not None:
+        _print_template_next_steps(project_template, report, directory)
+        return
     if profile:
         _hint("next", f"run `d2w fhir generate` (profile `{profile}`)")
     else:
         _hint("next", "set `profile` in fhir.toml, then run `d2w fhir generate`")
+
+
+def _resolve_project_template(name: str) -> ProjectTemplate:
+    """Resolve `--template`, turning an unknown name into a user error that names what this install has."""
+    from dhis2w_fhir.scaffold.project_templates import UnknownTemplateError, resolve_template
+
+    try:
+        return resolve_template(name)
+    except UnknownTemplateError as error:
+        raise CliUserError(str(error)) from error
+
+
+def _list_project_templates() -> None:
+    """Render every template this install can scaffold from, one row each, off the template manifest."""
+    from dhis2w_fhir.scaffold.project_templates import list_templates
+
+    templates = list_templates()
+    if is_json_output():
+        typer.echo(f"[{','.join(template.model_dump_json() for template in templates)}]")
+        return
+    render_list(
+        "fhir init --template",
+        [
+            {
+                "template": template.name,
+                "ships in": template.origin.value,
+                "publishes": template.summary,
+            }
+            for template in templates
+        ],
+        [
+            ColumnSpec("template", "template", no_wrap=True),
+            ColumnSpec("ships in", "ships in", no_wrap=True),
+            ColumnSpec("publishes", "publishes"),
+        ],
+        console=STDERR_CONSOLE,
+    )
+    _hint(
+        "note",
+        "a bundled template rides the installed package; a checkout one is read from "
+        "examples/fhir/igs/ of the dhis2w-utils repository and exists only in a clone of it",
+    )
+
+
+def _print_template_next_steps(template: ProjectTemplate, report: ScaffoldReport, directory: Path) -> None:
+    """State what a template-scaffolded project already holds and the one step between it and a facade."""
+    _line(f"  laid down {len(report.template_files)} files from template `{template.name}` under ig/input/")
+    if report.skipped_template_files:
+        _line(
+            f"  left {len(report.skipped_template_files)} template files alone (they exist; use --force to overwrite)"
+        )
+    _hint(
+        "note", "the guide under ig/input/ was generated against a DHIS2 instance already - none is needed to serve it"
+    )
+    _hint("next", f"cd {directory} && make sushi, then `d2w fhir serve . --ui`")
+
+
+def _reject_selection_flags(
+    *,
+    template: str,
+    max_level: int | None,
+    data_set_ids: list[str] | None,
+    event_program_ids: list[str] | None,
+    tracker_program_ids: list[str] | None,
+) -> None:
+    """Refuse a template scaffold that also names a selection, naming the flags that would disagree with it.
+
+    A template ships the tree its own selection produced. Writing a different selection into
+    `fhir.toml` beside that tree states one thing in the configuration and another in the files, and
+    the project would serve the template's guide while claiming to publish something else. The way
+    to a selection of your own is to scaffold, edit `fhir.toml`, and run `d2w fhir generate` against
+    an instance that holds it.
+    """
+    given = {
+        "--max-level": max_level is not None,
+        "--data-set": bool(data_set_ids),
+        "--event-program": bool(event_program_ids),
+        "--tracker-program": bool(tracker_program_ids),
+    }
+    named = [flag for flag, was_given in given.items() if was_given]
+    if not named:
+        return
+    raise typer.BadParameter(
+        f"--template {template} ships the guide its own selection produced, so {', '.join(named)} would "
+        f"write a fhir.toml that disagrees with the tree beside it: drop the flag, or scaffold first and "
+        f"then edit fhir.toml and run `d2w fhir generate`"
+    )
 
 
 def _reject_scaffold_flags(

@@ -1,0 +1,74 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-os-kzgQRhOCadd-cs",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-kzgQRhOCadd-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "kzgQRhOCadd"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "kzgQRhOCadd"
+    }
+  ],
+  "name": "D2OS_kzgQRhOCadd_CS",
+  "title": "MNCH Polio doses (0-3)",
+  "description": "DHIS2 option set MNCH Polio doses (0-3) (kzgQRhOCadd). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 4,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-kzgQRhOCadd-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 option code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "sXfZuRdvhl5",
+      "display": "Dose 0",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "0"
+        }
+      ]
+    },
+    {
+      "code": "lFFqylGiWLk",
+      "display": "Dose 1",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "1"
+        }
+      ]
+    },
+    {
+      "code": "Xr0M5yEhtpT",
+      "display": "Dose 2",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "2"
+        }
+      ]
+    },
+    {
+      "code": "VBGXfSXgJzv",
+      "display": "Dose 3",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "3"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-option-code-id-cs",
+  "url": "http://dhis2.org/fhir/id/option-code",
+  "name": "D2OptionCodeIdentifierSystem_CS",
+  "title": "DHIS2 option codes in use",
+  "description": "Every DHIS2 option code this guide's concept maps target, enumerated. D2OptionCodeIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 42,
+  "concept": [
+    {
+      "code": "0",
+      "display": "Dose 0"
+    },
+    {
+      "code": "1",
+      "display": "Dose 1"
+    },
+    {
+      "code": "2",
+      "display": "Dose 2"
+    },
+    {
+      "code": "3",
+      "display": "Dose 3"
+    },
+    {
+      "code": "ABC/ddl/LPV/r -2",
+      "display": "ABC/ddl/LPV/r -2"
+    },
+    {
+      "code": "AZT/3TC/ATV/r - 2",
+      "display": "AZT/3TC/ATV/r - 2"
+    },
+    {
+      "code": "AZT/3TC/EFV - 1",
+      "display": "AZT/3TC/EFV - 1"
+    },
+    {
+      "code": "AZT/3TC/LPV/r - 2",
+      "display": "AZT/3TC/LPV/r - 2"
+    },
+    {
+      "code": "AZT/3TC/NVP - 1",
+      "display": "AZT/3TC/NVP - 1"
+    },
+    {
+      "code": "AZT/ddl/LPV/r - 2",
+      "display": "AZT/ddl/LPV/r - 2"
+    },
+    {
+      "code": "BCG",
+      "display": "BCG"
+    },
+    {
+      "code": "DPT",
+      "display": "DPT"
+    },
+    {
+      "code": "Exclusive",
+      "display": "Exclusive"
+    },
+    {
+      "code": "Female",
+      "display": "Female"
+    },
+    {
+      "code": "HEPB",
+      "display": "Hepatitis B"
+    },
+    {
+      "code": "IPT 1",
+      "display": "IPT 1"
+    },
+    {
+      "code": "IPT 2",
+      "display": "IPT 2"
+    },
+    {
+      "code": "IPT 3",
+      "display": "IPT 3"
+    },
+    {
+      "code": "MEASLES",
+      "display": "Measles"
+    },
+    {
+      "code": "Male",
+      "display": "Male"
+    },
+    {
+      "code": "Mixed",
+      "display": "Mixed"
+    },
+    {
+      "code": "NVP Only",
+      "display": "NVP Only"
+    },
+    {
+      "code": "NVP only",
+      "display": "NVP only"
+    },
+    {
+      "code": "Negative",
+      "display": "Negative"
+    },
+    {
+      "code": "Negative-Conf",
+      "display": "Negative (Confirmed)"
+    },
+    {
+      "code": "No",
+      "display": "No"
+    },
+    {
+      "code": "On CTX",
+      "display": "On CTX"
+    },
+    {
+      "code": "Other 1st line",
+      "display": "Other 1st line"
+    },
+    {
+      "code": "Other 2nd line",
+      "display": "Other 2nd line"
+    },
+    {
+      "code": "Others",
+      "display": "Others"
+    },
+    {
+      "code": "PCR",
+      "display": "PCR"
+    },
+    {
+      "code": "POLIO",
+      "display": "Polio"
+    },
+    {
+      "code": "Positive",
+      "display": "Positive"
+    },
+    {
+      "code": "Postive √",
+      "display": "Positive (Confirmed)"
+    },
+    {
+      "code": "Rapid",
+      "display": "Rapid"
+    },
+    {
+      "code": "Replacement",
+      "display": "Replacement"
+    },
+    {
+      "code": "TDF/3TC/ATV/r - 2",
+      "display": "TDF/3TC/ATV/r - 2"
+    },
+    {
+      "code": "TDF/3TC/EFV - 1",
+      "display": "TDF/3TC/EFV - 1"
+    },
+    {
+      "code": "TDF/3TC/LPV/r - 2",
+      "display": "TDF/3TC/LPV/r - 2"
+    },
+    {
+      "code": "TDF/3TC/NVP - 1",
+      "display": "TDF/3TC/NVP - 1"
+    },
+    {
+      "code": "Unknown",
+      "display": "Unknown"
+    },
+    {
+      "code": "Yes",
+      "display": "Yes"
+    }
+  ]
+}

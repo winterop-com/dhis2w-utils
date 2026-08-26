@@ -1,0 +1,103 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-os-OsVaccType1-cs",
+  "extension": [
+    {
+      "extension": [
+        {
+          "url": "attributeId",
+          "valueString": "AtrFhirOpS1"
+        },
+        {
+          "url": "attributeCode",
+          "valueString": "FHIR_CODE_SYSTEM_URI"
+        },
+        {
+          "url": "value",
+          "valueString": "http://snomed.info/sct"
+        }
+      ],
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-attribute-value"
+    }
+  ],
+  "url": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-os-OsVaccType1-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "OsVaccType1"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "VACCINE_TYPE"
+    }
+  ],
+  "name": "D2OS_OsVaccType1_CS",
+  "title": "Vaccine type",
+  "description": "DHIS2 option set Vaccine type (OsVaccType1). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 5,
+  "valueSet": "http://example.org/fhir/examples/aggregate-minimal/ValueSet/d2-os-OsVaccType1-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 option code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "OptVacBCG01",
+      "display": "BCG",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "BCG"
+        }
+      ]
+    },
+    {
+      "code": "OptVacMes01",
+      "display": "Measles",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "MEASLES"
+        }
+      ]
+    },
+    {
+      "code": "OptVacPlo01",
+      "display": "Polio",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "POLIO"
+        }
+      ]
+    },
+    {
+      "code": "OptVacDPT01",
+      "display": "DPT",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "DPT"
+        }
+      ]
+    },
+    {
+      "code": "OptVacHpB01",
+      "display": "Hepatitis B",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "HEPB"
+        }
+      ]
+    }
+  ]
+}
