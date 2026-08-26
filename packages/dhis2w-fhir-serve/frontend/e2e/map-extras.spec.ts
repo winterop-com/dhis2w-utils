@@ -153,7 +153,7 @@ test('a left-click on a boundary opens the popup, and Open is what selects', asy
     // The click asked a question; it did not write a selection into the address.
     expect(page.url()).not.toContain('unit=')
 
-    await popup.getByTestId('org-unit-map-popup-open').click()
+    await popup.getByTestId('org-unit-map-popup-select').click()
 
     await expect.poll(() => page.url()).toMatch(/#\/organisation-units\?unit=ImspTQPwCqd$/)
     await expect(page.getByRole('heading', { name: 'Sierra Leone', level: 3 })).toBeVisible()

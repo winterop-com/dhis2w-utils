@@ -23,9 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import {
     Select,
     SelectContent,
-    SelectGroup,
     SelectItem,
-    SelectLabel,
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
@@ -45,7 +43,6 @@ import {
     cellText,
     diagnosticHeadline,
     evaluationRequest,
-    exampleGroups,
     genericExamples,
     guidePresets,
     matchSummary,
@@ -168,27 +165,28 @@ export function Evaluate() {
     const registerResource = trackedEntitySettings(config).registers[0]?.resource ?? 'Patient'
 
     const [served, setServed] = useState<ServedResource[]>([])
-    const [form, setForm] = useState<EvaluationForm>(() => genericExamples('fhirpath')[0].form)
-    // Which example was loaded, and the source it came with.
-    //
-    // THE PICKER READS THE EDITOR RATHER THAN REMEMBERING THE LAST CLICK. An example is what is in
-    // the box, not what was once put there: a reader who loads "The given names on a Patient" and
-    // then writes their own expression is looking at their own work, and a picker still naming the
-    // example says the form is showing something it is not. So the name holds exactly as long as
-    // the source does, and typing over it - or typing it back - answers for itself.
-    const [loaded, setLoaded] = useState(() => {
-        const first = genericExamples('fhirpath')[0]
-        return { id: first.id, source: first.form.source }
-    })
-    const chosenExample = form.source === loaded.source ? loaded.id : ''
+    // THE EXPRESSION STARTS EMPTY; THE CONTEXT DOES NOT. The question is the reader's - an
+    // expression already in the box on arrival is somebody else's, and running it teaches only
+    // that the button works. The simple example Patient stays in the context box, so the first
+    // expression written has something to answer over, and the examples wait one glance to the
+    // right, each runnable as it stands.
+    const [form, setForm] = useState<EvaluationForm>(() => ({
+        ...genericExamples('fhirpath')[0].form,
+        source: '',
+    }))
+    // Which example is in the editor, read off the editor rather than remembered from the last
+    // click: an example is what is in the box, not what was once put there, so the highlight
+    // holds exactly as long as the source does and typing over it answers for itself.
+    const [loaded, setLoaded] = useState({ id: '', source: '' })
+    const chosenExample = loaded.id !== '' && form.source === loaded.source ? loaded.id : ''
     const [outcome, setOutcome] = useState<EvaluationOutcome | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [running, setRunning] = useState(false)
     // The panel choice lives for this mount of the page and nowhere else - deliberately plain
     // state, not storage, on the same argument the organisation units page makes about its
-    // inspector rail. It opens shut: the editor arrives loaded with a runnable example already,
-    // so the screen's first job needs no panel, and the corner control is where the list waits.
-    const [examplesShown, setExamplesShown] = useState(false)
+    // inspector rail. It opens open: the editor arrives empty, so the screen's first job is
+    // picking an example or writing an expression, and the list is where that starts.
+    const [examplesShown, setExamplesShown] = useState(true)
     // The rail's dragged width - a standing preference, unlike the open/shut choice above.
     const [examplesWidth, setExamplesWidth] = useState<number>(() => storedExamplesRailWidth())
 
@@ -221,9 +219,6 @@ export function Evaluate() {
         }
     }, [])
 
-    const generic = useMemo(() => genericExamples(form.language), [form.language])
-    const presets = useMemo(() => guidePresets(form.language, served), [form.language, served])
-    const offered = useMemo(() => [...generic, ...presets], [generic, presets])
 
     // The panel browses all three languages whatever the editor speaks; the current one leads.
     const examplesByLanguage = useMemo(
@@ -244,14 +239,15 @@ export function Evaluate() {
         setRefusal(null)
     }, [])
 
-    const pickLanguage = useCallback(
-        (language: EvaluationLanguage) => {
-            // The example goes with the language: a CQL library left in the box under FHIRPath would
-            // be a parse error the reader did not ask for.
-            load(genericExamples(language)[0])
-        },
-        [load],
-    )
+    const pickLanguage = useCallback((language: EvaluationLanguage) => {
+        // The box is the reader's under every language: switching empties it rather than loading
+        // somebody else's example, because a source left behind would be a parse error and a
+        // source put in would not be theirs. The pasted context speaks no language and stays.
+        setForm((previous) => ({ ...previous, language, source: '', expressionName: '' }))
+        setLoaded({ id: '', source: '' })
+        setOutcome(null)
+        setRefusal(null)
+    }, [])
 
     const notReady = whyNotReady(form)
 
@@ -289,31 +285,26 @@ export function Evaluate() {
         <>
             <PageHeader
                 title="Evaluate"
-                description="Run a FHIRPath expression, a CQL library, or a compiled ELM library against what this server serves. Pick an example to start with; every one of them runs as it stands."
+                description="Run a FHIRPath expression, a CQL library, or a compiled ELM library against what this server serves. Write your own, or pick one of the examples beside the editor - every one of them runs as it stands."
             />
 
-            {/* THE EDITORS TAKE THE HEIGHT THE WINDOW HAS. An expression box is worth exactly as
-                many lines as it can show, and a fixed rectangle with half a screen of dead air
-                under it on a tall window is the shape this replaced - the same argument the
-                organisation units page makes about its map. So the row claims the leftover height,
-                the editor card is a column inside it, and the boxes grow into what is left. When an
-                answer arrives underneath, the card gives that height back down to its own minimum
-                and the page scrolls, which is what `min-h-0` on the chain is for. */}
+            {/* THE EDITORS HOLD THEIR SIZE. Loading an example, and an answer arriving
+                underneath, must move nothing: a screen that reflows between the click and the
+                result reads as jumping around, and the reader loses the line they were on. So
+                both boxes own a fixed height and scroll inside it - a long library or a pasted
+                Bundle scrolls in place, and the page below only ever grows downward. */}
             <div
                 className={cn(
-                    'grid min-h-0 flex-1 gap-6',
+                    'grid gap-6',
                     examplesShown
                         ? 'lg:grid-cols-[minmax(0,1fr)_var(--examples-rail-width)]'
                         : 'lg:grid-cols-[minmax(0,1fr)_auto]',
                 )}
                 style={{ '--examples-rail-width': `${String(examplesWidth)}px` } as CSSProperties}
             >
-                <div className="flex min-h-0 min-w-0 flex-col gap-6">
-                    {/* `min-h` is the sensible minimum the editors need between them - two nine-rem
-                        boxes and the rows that name them. Below that the page scrolls rather than
-                        the card squeezing its own content out of sight. */}
-                    <Card className="flex min-h-[35rem] flex-1 flex-col">
-                        <CardContent className="flex min-h-0 flex-1 flex-col gap-4 py-6">
+                <div className="flex min-w-0 flex-col gap-6">
+                    <Card className="flex flex-col">
+                        <CardContent className="flex flex-col gap-4 py-6">
                             <div className="flex flex-wrap items-end gap-3">
                                 <div className="grid gap-1.5">
                                     <Label htmlFor="evaluate-language">Language</Label>
@@ -329,33 +320,6 @@ export function Evaluate() {
                                                 <SelectItem key={language.value} value={language.value}>
                                                     {language.label}
                                                 </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="grid gap-1.5">
-                                    <Label htmlFor="evaluate-example">Example</Label>
-                                    <Select
-                                        value={chosenExample}
-                                        onValueChange={(value) => {
-                                            const picked = offered.find((example) => example.id === value)
-                                            if (picked !== undefined) load(picked)
-                                        }}
-                                    >
-                                        <SelectTrigger id="evaluate-example" className="w-80">
-                                            <SelectValue placeholder="Pick an example" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {exampleGroups(offered).map((shelf) => (
-                                                <SelectGroup key={shelf.group}>
-                                                    <SelectLabel>{shelf.group}</SelectLabel>
-                                                    {shelf.examples.map((example) => (
-                                                        <SelectItem key={example.id} value={example.id}>
-                                                            {example.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectGroup>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -392,7 +356,7 @@ export function Evaluate() {
 
                             </div>
 
-                            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+                            <div className="flex flex-col gap-1.5">
                                 <Label id="evaluate-source-label" className="shrink-0">
                                     {sourceLabel(form.language)}
                                 </Label>
@@ -403,9 +367,9 @@ export function Evaluate() {
                                     labelId="evaluate-source-label"
                                     testId="evaluate-source"
                                     lineNumbersShown={form.language !== 'fhirpath'}
-                                    className="min-h-0 flex-1"
-                                    minHeight="9rem"
-                                    maxHeight="none"
+                                    className="shrink-0"
+                                    minHeight="16rem"
+                                    maxHeight="16rem"
                                 />
                             </div>
 
@@ -573,7 +537,7 @@ function ContextPicker({
             </div>
 
             {context.kind === 'inline' && (
-                <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5">
                     <Label id="evaluate-resource-label">Context resource</Label>
                     <CodeEditor
                         value={context.resource}
@@ -581,9 +545,9 @@ function ContextPicker({
                         language="json"
                         labelId="evaluate-resource-label"
                         testId="evaluate-context-resource"
-                        className="min-h-0 flex-1"
-                        minHeight="9rem"
-                        maxHeight="none"
+                        className="shrink-0"
+                        minHeight="14rem"
+                        maxHeight="14rem"
                     />
                 </div>
             )}

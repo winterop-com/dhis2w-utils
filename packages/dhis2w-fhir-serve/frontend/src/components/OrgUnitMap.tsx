@@ -230,7 +230,7 @@ export interface OrgUnitMapProps {
      * so the caller can hand the same frozen empty array on every no-selection render: a change of
      * identity here is what re-frames the camera and closes the popup. */
     focusUnitIds: readonly string[]
-    /** Select one unit: where a right-click on a shape and the popup's Open action both land. */
+    /** Select one unit: where a right-click on a shape and the popup's Select action both land. */
     onSelect: (unitId: string) => void
 }
 
@@ -257,6 +257,7 @@ export function OrgUnitMap({
     const popup = useRef<Popup | null>(null)
     // The unit lit under that popup, so closing or replacing the card puts it out.
     const highlighted = useRef<string | null>(null)
+    const hovered = useRef<string | null>(null)
 
     const [engineFailure, setEngineFailure] = useState<string | null>(null)
     const [ready, setReady] = useState(false)
@@ -401,7 +402,7 @@ export function OrgUnitMap({
         // because a layer switch rebuilds the shape layers and re-registering with them would
         // stack a second handler on every gesture. MapLibre resolves a layer-scoped listener when
         // the event fires, so a layer added later is covered by a listener registered now.
-        registerInteractions(instance, { select, registry, popup, highlighted })
+        registerInteractions(instance, { select, registry, popup, highlighted, hovered })
         instance.on('load', () => setReady(true))
         instance.on('moveend', () => setZoom(instance.getZoom()))
 
@@ -741,6 +742,12 @@ function applyLayers(
                 'case',
                 ['boolean', ['feature-state', 'highlight'], false],
                 overTiles ? 0.3 : 0.3,
+                // The hover fill: a step up from every tier's resting wash, never a step down,
+                // which is what the max over the resting value is for.
+                ['boolean', ['feature-state', 'hover'], false],
+                overTiles
+                    ? ['max', ['match', ['get', 'tier'], 'selected', 0.35, 'within', 0.08, 0.01], 0.2]
+                    : ['max', ['match', ['get', 'tier'], 'selected', 0.36, 'within', 0.1, 0.06], 0.22],
                 overTiles
                     ? ['match', ['get', 'tier'], 'selected', 0.35, 'within', 0.08, 0.01]
                     : ['match', ['get', 'tier'], 'selected', 0.36, 'within', 0.1, 0.06],
@@ -801,7 +808,12 @@ function applyLayers(
                 palette.selectionEdge,
                 palette.identity,
             ],
-            'circle-radius': ['match', ['get', 'tier'], 'selected', 7, 'within', 4.5, 3.5],
+            'circle-radius': [
+                'case',
+                ['boolean', ['feature-state', 'hover'], false],
+                ['match', ['get', 'tier'], 'selected', 8.5, 'within', 6, 5],
+                ['match', ['get', 'tier'], 'selected', 7, 'within', 4.5, 3.5],
+            ],
             'circle-opacity': ['match', ['get', 'tier'], 'within', 0.75, 1],
             // The ring is the surface itself, which is how two markers that overlap stay two
             // markers rather than becoming one blob.
@@ -815,7 +827,7 @@ function applyLayers(
  * The two gestures, registered on the map once and for the life of it.
  *
  * LEFT-CLICK ASKS, RIGHT-CLICK MOVES. A left-click on any shape opens the popup naming its unit,
- * with Open as the deliberate step into it - unless the map is still too far out for the click to
+ * with Select as the deliberate step into it - unless the map is still too far out for the click to
  * have meant one shape, in which case it eases a step in toward the click instead: progressive
  * drill, popup once the features read. A right-click is the drill-down whatever the zoom, and
  * selects outright. Registered on the map rather than per layer so the gestures share one answer to
@@ -824,7 +836,12 @@ function applyLayers(
 function registerInteractions(instance: MapLibreMap, handles: InteractionHandles): void {
     instance.on('click', (event) => {
         const hit = featureHitAt(instance, event.point)
-        if (hit === null) return
+        if (hit === null) {
+            // A click on nothing puts the popup away: open ground is the dismiss, the way
+            // clicking outside any card in this UI closes it.
+            handles.popup.current?.remove()
+            return
+        }
         const threshold = hit.kind === 'point' ? POINT_POPUP_MIN_ZOOM : BOUNDARY_POPUP_MIN_ZOOM
         if (instance.getZoom() < threshold) {
             instance.easeTo({ center: event.lngLat, zoom: instance.getZoom() + DRILL_ZOOM_STEP, duration: 400 })
@@ -838,14 +855,31 @@ function registerInteractions(instance: MapLibreMap, handles: InteractionHandles
         const hit = featureHitAt(instance, event.point)
         if (hit !== null) handles.select.current(hit.unitId)
     })
-    for (const layer of ['boundary-fill', 'unit-point']) {
-        instance.on('mouseenter', layer, () => {
-            instance.getCanvas().style.cursor = 'pointer'
-        })
-        instance.on('mouseleave', layer, () => {
-            instance.getCanvas().style.cursor = ''
-        })
+    // THE HOVER IS THE CLICK'S PROMISE. The shape that lights under the cursor is the one a
+    // left-click would ask about - the same featureHitAt answer, so the pin over a boundary
+    // lights the pin. One unit at a time, the way every interactive row in this UI takes its
+    // hover fill.
+    instance.on('mousemove', (event) => {
+        const hit = featureHitAt(instance, event.point)
+        hoverUnit(instance, handles, hit?.unitId ?? null)
+        instance.getCanvas().style.cursor = hit === null ? '' : 'pointer'
+    })
+    instance.on('mouseout', () => {
+        hoverUnit(instance, handles, null)
+        instance.getCanvas().style.cursor = ''
+    })
+}
+
+/** Light one unit's shapes under the cursor, and put out whatever was lit before. */
+function hoverUnit(instance: MapLibreMap, handles: InteractionHandles, unitId: string | null): void {
+    const previous = handles.hovered.current
+    if (previous === unitId) return
+    for (const source of ['org-unit-boundaries', 'org-unit-points']) {
+        if (instance.getSource(source) === undefined) continue
+        if (previous !== null) instance.removeFeatureState({ source, id: previous }, 'hover')
+        if (unitId !== null) instance.setFeatureState({ source, id: unitId }, { hover: true })
     }
+    handles.hovered.current = unitId
 }
 
 /**
@@ -890,6 +924,8 @@ interface InteractionHandles {
     popup: { current: Popup | null }
     /** The unit lit under the open popup, so the next popup can put it out. */
     highlighted: { current: string | null }
+    /** The unit lit under the cursor, so the next move can put it out. */
+    hovered: { current: string | null }
 }
 
 /** What a cursor position landed on: which unit, and whether by its pin or by its boundary. */
@@ -900,6 +936,13 @@ interface FeatureHit {
 
 /** The shape under a cursor position: a point when one is near, else the topmost boundary. */
 function featureHitAt(instance: MapLibreMap, position: Point): FeatureHit | null {
+    // The gestures register on the map for its whole life, and a cursor is often over the canvas
+    // while the style is still loading - so a query before the layers exist is a normal moment,
+    // not a failure. Querying a layer the style does not hold fires the engine's error event,
+    // which would replace the whole panel with a message about a race that resolves itself.
+    if (instance.getLayer('unit-point') === undefined || instance.getLayer('boundary-fill') === undefined) {
+        return null
+    }
     const around: [PointLike, PointLike] = [
         [position.x - POINT_HIT_RADIUS, position.y - POINT_HIT_RADIUS],
         [position.x + POINT_HIT_RADIUS, position.y + POINT_HIT_RADIUS],
@@ -1004,14 +1047,14 @@ function popupElement(content: UnitPopupContent, onOpen: () => void): HTMLElemen
         line.textContent = `${identifier.label} ${identifier.value}`
         root.append(line)
     }
-    const open = document.createElement('button')
-    open.type = 'button'
-    open.dataset.testid = 'org-unit-map-popup-open'
-    open.className = 'interactive-link mt-1 block text-sm'
-    open.textContent = 'Open'
-    open.setAttribute('aria-label', 'Open this organisation unit')
-    open.addEventListener('click', onOpen)
-    root.append(open)
+    const select = document.createElement('button')
+    select.type = 'button'
+    select.dataset.testid = 'org-unit-map-popup-select'
+    select.className = 'interactive-link mt-1 block text-sm'
+    select.textContent = 'Select'
+    select.setAttribute('aria-label', 'Select this organisation unit')
+    select.addEventListener('click', onOpen)
+    root.append(select)
     return root
 }
 

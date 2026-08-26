@@ -99,7 +99,6 @@ test('the reference beside the editor sets its function names in mono, marks and
     page,
 }) => {
     await page.goto('/#/evaluate')
-    await page.getByRole('button', { name: 'Expand the examples' }).click()
     // The panel opens on the examples; the vocabulary is a tab away, one per language.
     await page.getByRole('tab', { name: 'FHIRPath' }).click()
 

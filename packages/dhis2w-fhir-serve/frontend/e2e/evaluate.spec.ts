@@ -38,15 +38,22 @@ async function typeSource(page: Page, expression: string): Promise<void> {
 }
 
 test.describe('the evaluate screen', () => {
-    test('opens with an example already loaded, and running it answers what the server said', async ({
+    test('opens empty, and a panel example loads and answers what the server said', async ({
         page,
     }) => {
         await page.goto('/#/evaluate')
 
-        // No empty box: the first generic example is loaded before anything is clicked.
+        // The expression is the reader's: nothing is in that box on arrival, the button says
+        // why it waits, and the examples panel is already open beside it. The context box is
+        // not empty - the simple example Patient waits there for the first expression.
+        await expect(sourceEditor(page)).not.toContainText('Patient')
+        await expect(page.getByTestId('evaluate-context-resource')).toContainText('Lovelace')
+        await expect(page.getByRole('button', { name: 'Evaluate', exact: true })).toBeDisabled()
+        await expect(page.getByTestId('evaluate-examples')).toBeVisible()
+
+        await page.getByTestId('evaluate-examples').getByRole('button', { name: FHIRPATH_EXAMPLE }).click()
         await expect(sourceEditor(page)).toContainText('Patient.name.given')
         await expect(page.getByTestId('evaluate-context-resource')).toContainText('Lovelace')
-        await expect(page.getByRole('combobox', { name: 'Example' })).toContainText(FHIRPATH_EXAMPLE)
 
         await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
 
@@ -58,15 +65,17 @@ test.describe('the evaluate screen', () => {
         await expect(answer.getByRole('cell', { name: 'Byron', exact: true })).toBeVisible()
     })
 
-    test('picks CQL, loads its own example, and answers one row per define', async ({ page }) => {
+    test('picks CQL, and a panel example answers one row per define', async ({ page }) => {
         await page.goto('/#/evaluate')
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()
 
-        // The example goes with the language - a FHIRPath expression left behind would be a parse
-        // error the reader did not ask for.
-        await expect(page.getByRole('combobox', { name: 'Example' })).toContainText(CQL_EXAMPLE)
+        // Switching language empties the box - a FHIRPath expression left behind would be a
+        // parse error, and an example put in would not be the reader's.
+        await expect(page.getByRole('button', { name: 'Evaluate', exact: true })).toBeDisabled()
+
+        await page.getByTestId('evaluate-examples').getByRole('button', { name: CQL_EXAMPLE }).click()
         await expect(sourceEditor(page)).toContainText('define People: [Patient]')
 
         await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
@@ -97,11 +106,11 @@ test.describe('the evaluate screen', () => {
     test("offers a preset built from this guide's own resources, and runs it", async ({ page }) => {
         await page.goto('/#/evaluate')
 
-        const examples = page.getByRole('combobox', { name: 'Example' })
-        await examples.click()
         // The presets are found by what they ask rather than by which form the fixture happens to
         // publish first: which resource a guide holds is the guide's business, not this spec's.
-        const preset = page.getByRole('option', { name: /^Every question asked by / })
+        const preset = page
+            .getByTestId('evaluate-examples')
+            .getByRole('button', { name: /^Every question asked by / })
         await expect(preset.first()).toBeVisible()
         await preset.first().click()
 
@@ -130,6 +139,7 @@ test.describe('the evaluate screen', () => {
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()
+        await page.getByTestId('evaluate-examples').getByRole('button', { name: CQL_EXAMPLE }).click()
 
         // The proof that a highlighter is running at all: the document is spans with token classes,
         // not one text node. Which colour each gets is the theme's business and is asserted in the
@@ -141,7 +151,6 @@ test.describe('the evaluate screen', () => {
 
     test('holds a reference beside the editor, every language on its own tab', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         // Open with the screen, because the second thing a reader wonders is what else they could
         // have written, and the answer to that is a list rather than a search engine.
@@ -166,7 +175,6 @@ test.describe('the evaluate screen', () => {
 
     test('loads an example from the panel straight into the editor, and runs it', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         await page
             .getByTestId('evaluate-examples')
@@ -181,7 +189,6 @@ test.describe('the evaluate screen', () => {
 
     test('asks the household Bundle a question a single record could not answer', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         await page
             .getByTestId('evaluate-examples')
@@ -189,7 +196,10 @@ test.describe('the evaluate screen', () => {
             .click()
 
         // The whole Bundle is pasted into the context box, not a reference to one held elsewhere.
-        await expect(page.getByTestId('evaluate-context-resource')).toContainText('Tadesse')
+        // Asserted on its opening lines: the box is a fixed-height viewport over a virtualising
+        // editor, so text deep in the document is not in the DOM until scrolled to.
+        await expect(page.getByTestId('evaluate-context-resource')).toContainText('"Bundle"')
+        await expect(page.getByTestId('evaluate-context-resource')).toContainText('Selam')
 
         await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
 
@@ -201,7 +211,6 @@ test.describe('the evaluate screen', () => {
 
     test('states the CQL reference this engine answers, refusals included', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()
@@ -214,22 +223,21 @@ test.describe('the evaluate screen', () => {
         await expect(reference).toContainText('value set')
     })
 
-    test('starts folded, and the corner control is the way in and out', async ({ page }) => {
+    test('starts open, and the corner control is the way out and back', async ({ page }) => {
         await page.goto('/#/evaluate')
 
-        // The editor already holds a runnable example, so the panel waits in its corner.
-        await expect(page.getByTestId('evaluate-examples')).toHaveCount(0)
-        await page.getByRole('button', { name: 'Expand the examples' }).click()
+        // The editor arrives empty, so the panel - the way in - is already open.
         await expect(page.getByTestId('evaluate-examples')).toBeVisible()
-        // The control belongs to the panel it acts on, not to the toolbar above the editor.
         await page.getByRole('button', { name: 'Collapse the examples' }).click()
         await expect(page.getByTestId('evaluate-examples')).toHaveCount(0)
+        // The control belongs to the panel it acts on, not to the toolbar above the editor.
+        await page.getByRole('button', { name: 'Expand the examples' }).click()
+        await expect(page.getByTestId('evaluate-examples')).toBeVisible()
         await expect(page.getByRole('button', { name: 'Reference', exact: true })).toHaveCount(0)
     })
 
     test('runs a refusal example and shows the whole of what the engine said', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()
