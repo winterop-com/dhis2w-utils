@@ -110,6 +110,44 @@ export function formatHref(origin: string, request: PlaygroundRequest): string {
     return parsed.href
 }
 
+/** One query parameter the current path is declared to answer, with the server's own sentence. */
+export interface DeclaredParameter {
+    name: string
+    documentation: string | null
+}
+
+/**
+ * The parameters the CapabilityStatement declares for the path's resource type, plus the two
+ * every read answers.
+ *
+ * The path's first segment names the type - `/Questionnaire/abc` and `/Questionnaire?x` alike -
+ * and the declaration is per type, so a path outside the declared types (an operation, the service
+ * base) offers only the universal pair. `_count` and `_format` close the list because they are
+ * answered everywhere a search is and declared nowhere per type.
+ */
+export function declaredParameters(
+    capability: CapabilityStatement | null,
+    path: string,
+): DeclaredParameter[] {
+    const segment = path.trim().replace(/^\//, '').split(/[/?]/, 1)[0] ?? ''
+    const resource = capability?.rest?.[0]?.resource?.find((candidate) => candidate.type === segment)
+    const declared: DeclaredParameter[] = (resource?.searchParam ?? []).map((parameter) => ({
+        name: parameter.name,
+        documentation: parameter.documentation ?? null,
+    }))
+    const stated = new Set(declared.map((parameter) => parameter.name))
+    if (resource !== undefined && !stated.has('_count')) {
+        declared.push({ name: '_count', documentation: 'How many rows one page of a listing carries.' })
+    }
+    if (!stated.has('_format')) {
+        declared.push({
+            name: '_format',
+            documentation: 'json asks for the JSON answer from a place that cannot set an Accept header.',
+        })
+    }
+    return declared
+}
+
 /** What stands in the copied command where the credential would be - see this module's own note. */
 export const AUTHORIZATION_PLACEHOLDER = '<your credential>'
 
