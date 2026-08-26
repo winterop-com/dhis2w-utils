@@ -3653,7 +3653,11 @@ The package runs the official HL7 CQL and FHIRPath R4 compliance suites as part 
 its own test run.
 
 It ships the console script `d2w-fhir-engine` with `fhirpath`, `cql`, and `elm`
-sub-apps over the same engine.
+sub-apps over the same engine. Every command taking `--data` reads it by one rule:
+a Bundle becomes the data source retrieves read, any other resource becomes the
+context resource the evaluation is about. `cql measure` takes both halves off a
+Bundle - each `Patient` entry is a person to evaluate, and the whole Bundle is
+what the numerator retrieves from.
 
 It owns the R4 resource models at `dhis2w_fhir_engine.r4.resources`: `Patient`,
 `Bundle`, `QuestionnaireResponse`, `Composition`, `Extension`, and the rest.

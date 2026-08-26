@@ -20,6 +20,7 @@ from ..engine.exceptions import CQLError
 from ..generated.cql.cqlLexer import cqlLexer
 from ..generated.cql.cqlParser import cqlParser
 from ..r4 import MeasureEvaluator
+from .data import DATA_OPTION_HELP, MEASURE_DATA_OPTION_HELP, load_evaluation_data
 
 app = typer.Typer(
     name="cql",
@@ -134,19 +135,18 @@ def _read_existing_file(file: Path) -> str:
     return file.read_text()
 
 
-def _load_json_file(file: Path | None, label: str) -> dict[str, Any] | None:
-    """Load a JSON document from an optional path."""
-    if file is None:
-        return None
-    if not file.exists():
-        rprint(f"[red]Error:[/red] {label} file not found: {file}")
-        raise typer.Exit(1)
-    try:
-        loaded: dict[str, Any] = json.loads(file.read_text())
-    except json.JSONDecodeError as error:
-        rprint(f"[red]Error parsing JSON:[/red] {error}")
-        raise typer.Exit(1) from error
-    return loaded
+def _bind_repl_data(evaluator: CQLEvaluator, file: Path) -> dict[str, Any] | None:
+    """Point the session at a `--data` file and report which half of the rule it took."""
+    evaluation_data = load_evaluation_data(file)
+    evaluator.data_source = evaluation_data.data_source
+
+    rprint(f"[green]OK[/green] Loaded data: {file}")
+    if evaluation_data.data_source is not None:
+        rprint("  Bundle, read as the data source for retrieves")
+    elif evaluation_data.context_resource is not None:
+        rprint(f"  Resource type: {evaluation_data.context_resource.get('resourceType', 'unknown')}")
+
+    return evaluation_data.context_resource
 
 
 def _library_heading(name: str, version: str | None) -> str:
@@ -295,10 +295,11 @@ def definitions(
 def evaluate(
     expression: Annotated[str, typer.Argument(help="CQL expression to evaluate")],
     library: Annotated[Path | None, typer.Option("--library", "-l", help="CQL library file for context")] = None,
-    data: Annotated[Path | None, typer.Option("--data", "-d", help="JSON data file for context")] = None,
+    data: Annotated[Path | None, typer.Option("--data", "-d", help=DATA_OPTION_HELP)] = None,
 ) -> None:
-    """Evaluate a single CQL expression, optionally in the context of a library and a resource."""
-    evaluator = CQLEvaluator()
+    """Evaluate a single CQL expression, optionally against a library and the data behind `--data`."""
+    evaluation_data = load_evaluation_data(data)
+    evaluator = CQLEvaluator(data_source=evaluation_data.data_source)
 
     if library is not None:
         source = _read_existing_file(library)
@@ -308,7 +309,7 @@ def evaluate(
             rprint(f"[red]Error compiling library:[/red] {error}")
             raise typer.Exit(1) from error
 
-    resource = _load_json_file(data, "Data")
+    resource = evaluation_data.context_resource
 
     try:
         current_library = evaluator.current_library
@@ -327,12 +328,13 @@ def evaluate(
 def run(
     file: Annotated[Path, typer.Argument(help="CQL library file to run")],
     definition: Annotated[str | None, typer.Option("--definition", "-e", help="Single definition to evaluate")] = None,
-    data: Annotated[Path | None, typer.Option("--data", "-d", help="JSON data file for context")] = None,
+    data: Annotated[Path | None, typer.Option("--data", "-d", help=DATA_OPTION_HELP)] = None,
     output: Annotated[Path | None, typer.Option("--output", "-o", help="Write the results to this JSON file")] = None,
 ) -> None:
     """Run a CQL library and evaluate one definition or all of them."""
     source = _read_existing_file(file)
-    evaluator = CQLEvaluator()
+    evaluation_data = load_evaluation_data(data)
+    evaluator = CQLEvaluator(data_source=evaluation_data.data_source)
 
     try:
         library = evaluator.compile(source)
@@ -340,7 +342,7 @@ def run(
         rprint(f"[red]Error compiling library:[/red] {error}")
         raise typer.Exit(1) from error
 
-    resource = _load_json_file(data, "Data")
+    resource = evaluation_data.context_resource
 
     rprint(_library_heading(library.name, library.version))
     rprint()
@@ -449,7 +451,7 @@ def check(
 @app.command()
 def measure(
     file: Annotated[Path, typer.Argument(help="CQL measure file")],
-    data: Annotated[Path | None, typer.Option("--data", "-d", help="JSON Patient or Bundle resource")] = None,
+    data: Annotated[Path | None, typer.Option("--data", "-d", help=MEASURE_DATA_OPTION_HELP)] = None,
     patients: Annotated[Path | None, typer.Option("--patients", "-p", help="Directory of Patient JSON files")] = None,
     output: Annotated[Path | None, typer.Option("--output", "-o", help="Write the measure report to this file")] = None,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Also show stratifier results")] = False,
@@ -460,16 +462,16 @@ def measure(
         raise typer.Exit(1)
 
     patient_list: list[dict[str, Any]] = []
+    evaluation_data = load_evaluation_data(data)
 
     if data is not None:
-        content = _load_json_file(data, "Data") or {}
-        resource_type = content.get("resourceType")
-        if resource_type == "Bundle":
+        content = evaluation_data.document or {}
+        if evaluation_data.data_source is not None:
             for entry in content.get("entry", []):
                 resource = entry.get("resource", {})
                 if resource.get("resourceType") == "Patient":
                     patient_list.append(resource)
-        elif resource_type == "Patient":
+        elif content.get("resourceType") == "Patient":
             patient_list.append(content)
         else:
             rprint("[red]Error:[/red] Data must be a Patient or a Bundle resource")
@@ -492,7 +494,7 @@ def measure(
     if not patient_list:
         rprint("[yellow]Warning:[/yellow] No patients provided, using an empty population")
 
-    measure_evaluator = MeasureEvaluator()
+    measure_evaluator = MeasureEvaluator(data_source=evaluation_data.data_source)
     try:
         measure_evaluator.load_measure_file(str(file))
 
@@ -563,7 +565,7 @@ def export(
 @app.command()
 def repl(
     library: Annotated[Path | None, typer.Option("--library", "-l", help="CQL library file to load")] = None,
-    data: Annotated[Path | None, typer.Option("--data", "-d", help="FHIR resource JSON file for context")] = None,
+    data: Annotated[Path | None, typer.Option("--data", "-d", help=DATA_OPTION_HELP)] = None,
 ) -> None:
     """Start an interactive CQL evaluation session."""
     rprint("[bold blue]CQL[/bold blue]")
@@ -583,10 +585,7 @@ def repl(
 
     if data is not None and data.exists():
         try:
-            context_data = json.loads(data.read_text())
-            rprint(f"[green]OK[/green] Loaded data: {data}")
-            if isinstance(context_data, dict) and "resourceType" in context_data:
-                rprint(f"  Resource type: {context_data['resourceType']}")
+            context_data = _bind_repl_data(evaluator, data)
         except Exception as error:
             rprint(f"[yellow]Warning:[/yellow] Could not load data: {error}")
 
@@ -632,10 +631,7 @@ def repl(
                 rprint(f"[red]Error:[/red] File not found: {data_path}")
                 continue
             try:
-                context_data = json.loads(data_path.read_text())
-                rprint(f"[green]OK[/green] Loaded data: {data_path}")
-                if isinstance(context_data, dict) and "resourceType" in context_data:
-                    rprint(f"  Resource type: {context_data['resourceType']}")
+                context_data = _bind_repl_data(evaluator, data_path)
             except Exception as error:
                 rprint(f"[red]Error:[/red] {error}")
             continue
