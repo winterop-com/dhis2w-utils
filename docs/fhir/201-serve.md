@@ -143,13 +143,64 @@ byte-identical to what the compiled store would have served for the same
 metadata, because both come out of the same JSON builders - the CodeSystem and
 ValueSet pairs the foundation FSH declares included, so a client resolving the
 form-type, period-type, or organisation-unit terminology gets the same
-documents either way. What live mode leaves out is the definitional layer:
-StructureDefinitions and the profiles only exist as JSON once SUSHI has
-compiled them, and no FSH compiler runs in the server.
+documents either way. The definitional layer is the one part no builder in the
+server can produce - a profile is FSH until SUSHI has run - so neither mode
+builds it and both read it off disk, which
+[the next section](#the-guides-own-definitions-are-served) is about.
 
 Either way, the store is a snapshot: read once at startup and never re-read.
 Regenerate, recompile, or re-fetch, then restart the server to serve the new
 state.
+
+## The guide's own definitions are served { #the-guides-own-definitions-are-served }
+
+A profile is only worth naming if it can be fetched. Every response this server
+hands back names its `meta.profile`, the forms carry extensions, and `/metadata`
+names the definition behind `$generate` - each of those is a canonical URL, and a
+client that follows one has to land somewhere. Until the guide is published under
+a canonical of its own, the server serving it is the only address it has. So the
+server answers for it, by default, with no dial to turn on.
+
+Four types come out of the compiled guide beside everything else, read-only:
+
+| Type | What a client resolves with it |
+| --- | --- |
+| `StructureDefinition` | the profiles a response claims and the extensions the forms carry |
+| `ImplementationGuide` | the guide resource itself, which lists what the build published |
+| `OperationDefinition` | the definition `/metadata` names for `$generate` |
+| `CapabilityStatement` | the requirements statement `/metadata` says it instantiates - never this server's own instance statement, which only `/metadata` answers |
+
+They are read and searched exactly as `Questionnaire` and `CodeSystem` are, with
+the same `_id`, `url`, and `identifier` parameters. `url` is the one that
+matters, because a canonical is what a client has and an id is what it does not:
+
+```console
+$ curl -s 'localhost:8389/StructureDefinition?url=http://example.org/fhir/review/StructureDefinition/d2-aggregate-response' \
+  | jq '{total, profiles: [.entry[].resource.type]}'
+{
+  "total": 1,
+  "profiles": [
+    "QuestionnaireResponse"
+  ]
+}
+
+$ curl -s localhost:8389/StructureDefinition/d2-period-type | jq '{kind, type}'
+{
+  "kind": "complex-type",
+  "type": "Extension"
+}
+```
+
+The id is the compiled resource's `id`, not the name it was authored under in
+FSH: `StructureDefinition/d2-period-type` answers, and
+`StructureDefinition/D2PeriodType` is a `not-found` naming that id. Search `url`
+when you have the canonical and `_id` when you have the id.
+
+Both modes serve them and both read them off disk. A `--live` run over a project
+that has also been compiled hosts whatever that build left behind; a live run
+over a project that never has holds none of them, and `/metadata` declares none -
+there is nothing on disk to answer with, and the statement says so rather than
+advertising a read that would 404.
 
 ## `[serve]` in practice
 
@@ -282,9 +333,11 @@ profile local_basic (from fhir.toml)
 ```
 
 Seven types against a compiled run's fourteen is the definitional layer
-missing: no StructureDefinitions, no profiles, no ImplementationGuide - the
-documents only a FSH compile produces. The stored-response count is the spool
-on disk, which both modes read the same way.
+missing: no StructureDefinitions, no profiles, no ImplementationGuide. That
+project has never been compiled, so there is nothing on disk to read them from;
+compile it and a live run over it serves them too
+([the guide's own definitions](#the-guides-own-definitions-are-served)). The
+stored-response count is the spool on disk, which both modes read the same way.
 
 ## Serve from a synced copy { #serve-from-a-synced-copy }
 

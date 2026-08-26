@@ -1722,6 +1722,17 @@ bound to loopback by default that loads the project once at startup.
   `identifier={base}/id/program|<uid>` selects one program's stages, `_count`
   caps the entries rather than paging them and `_count=0` states the total
   alone, and an unrecognised parameter is ignored rather than refused.
+- **The guide's own conformance resources are served, by default.**
+  `StructureDefinition`, `ImplementationGuide`, `OperationDefinition`, and the
+  requirements `CapabilityStatement` that `/metadata` instantiates are read and
+  searched on the same routes and the same grammar as every other read type, so a profile canonical named on a response, an extension url carried
+  inside one, and the `$generate` definition `/metadata` names all resolve
+  against the server that served them - `url={canonical}` is the search, since a
+  client holding a canonical holds no id. They come out of the compiled guide in
+  either store mode: a `--live` run hosts whatever SUSHI last compiled beside the
+  project, and a run with nothing compiled beside it holds none and declares
+  none. It is the default until the guide is published under a canonical of its
+  own, and there is no dial for it.
 
 #### The tracked entity register
 
@@ -2350,10 +2361,34 @@ control per R4 item type.
   entry uses and the difference between a screen of 14 rows and one of 56
   stacked questions. Each uid is on screen once, the column's in its header and
   the element's beside its name; the categories the columns cut along are named
-  once above the table. An element cut differently opens its own table, and an
-  element whose cells are not numeric answers stays stacked. Every cell keeps
-  its own linkId and its place in document order, so a capture filled in
-  through the table is the QuestionnaireResponse the stacked drawing produced.
+  once for the run, and so is anything every cell of it accepts. An element cut
+  differently opens its own run, and an element whose cells are not numeric
+  answers stays stacked.
+- **How wide the cut is decides the run's shape.** Up to four combos it is the
+  table above. A combo cut over two categories - `Female, under 15y` - is banded
+  by whichever category has fewer options, for up to six bands and only where
+  every band ends up with the same options of every remaining category; the
+  banding is part of the table shape, so eight combos that band into two fours
+  are still a table. Wider than four, the run is rows instead: each element's
+  name as a band, one line per combo under it, and no sideways scrolling at any
+  width. Under a band the lines carry only the category the band did not name.
+  From thirty lines the band offers a filter box and an *Unfilled only* tick,
+  both of which hide lines from the screen and nothing else.
+- **Reordering a category combo does not move the renderer.** A DHIS2 admin who
+  swaps the categories inside a combo renames every combo in it and changes the
+  order DHIS2 expands the cells in. The shape is decided from the decomposition
+  the served combo vocabulary publishes - which category, which option, by uid -
+  never from where a comma falls in a name, so the band axis is chosen by option
+  count with the category name breaking a tie, and the bands and rows are read
+  back in each category's own option order. Both spellings of one cut are the
+  same screen, cell for cell.
+- **One switch per run overrides that default** - *Show as rows* on a table,
+  *Show as columns* on a list of rows - remembered per run in this browser, so a
+  form reopened is drawn the way it was left. A cut no arrangement makes a table
+  of offers no switch, because there is nothing to switch to.
+- **The submission is the same in every shape.** Every cell keeps its own linkId
+  and its place in document order, so a capture filled in as rows, as a table, or
+  under a filter is the one QuestionnaireResponse the stacked drawing produced.
 - **A run of scalar questions flows into as many columns as the screen has room
   for**, each control the width of the answer it takes - about sixty characters
   for free text, its natural width for a date, a dozen for a count. A narrative

@@ -11,12 +11,19 @@ instance per request rather than from the store - see `dhis2w_fhir_serve.registe
 it through `open_live_client`, so the store build and the register routes share one connection and
 one profile resolution.
 
-What the store holds is the served read-set and nothing else. The definitional artifacts -
+What the builders here produce is the served read-set and nothing else. The definitional artifacts -
 StructureDefinitions, the extensions, the IG's `kind #requirements` CapabilityStatement - are
 authored as FSH and only exist as JSON once SUSHI has compiled them, and no FSH compiler runs in
-this process. That costs the live store nothing: a capture server reads Questionnaire, CodeSystem,
+this process. That costs the read-set nothing: a capture server reads Questionnaire, CodeSystem,
 ValueSet, Location, and Organization (`CAPTURE_SERVER_READ_RESOURCE_TYPES`), every one of which
 comes out of a JSON builder here - the foundation terminology included.
+
+The conformance resources join the store all the same, read off whatever SUSHI last compiled beside
+the project rather than built here (`load_compiled_conformance_entries`). A guide is one guide
+whichever way the process was started, and the profiles a served response claims have to resolve
+somewhere; a live run over a project that has also been compiled hosts them exactly as a compiled run
+does. A live run over a project that never has holds none, and the CapabilityStatement declares none -
+which is the honest answer, since there is nothing on disk to serve.
 
 WHAT ONE MODE PUBLISHES, BOTH MODES PUBLISH. A guide is one guide whichever way the process was
 started, so every vocabulary a compiled build writes is built here too, from the same Python the
@@ -86,7 +93,7 @@ from dhis2w_fhir.service import fetch_live_ig_inputs, resolve_generation_profile
 from dhis2w_fhir.writer import JsonBuild
 
 from dhis2w_fhir_serve.log import LOGGER_NAME
-from dhis2w_fhir_serve.store import IdentifierToken, ResourceStore, StoreEntry
+from dhis2w_fhir_serve.store import IdentifierToken, ResourceStore, StoreEntry, load_compiled_conformance_entries
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -218,12 +225,18 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
         *[code_system for build in organisation_unit_terminology for code_system in build.code_systems],
         *[value_set for build in organisation_unit_terminology for value_set in build.value_sets],
     ]
+    conformance = load_compiled_conformance_entries(project)
     entries = [
         *(_entry(_document(resource)) for resource in documents),
         *(_entry(json.loads(artifact.content)) for build in json_builds for artifact in build.artifacts),
+        *conformance,
     ]
     for note in [*inputs.notes, *questionnaires.notes, *(note for build in json_builds for note in build.notes)]:
         logger.info("live store: %s", note.message)
+    logger.info(
+        "live store: hosting %d conformance resources from the compiled guide beside the project",
+        len(conformance),
+    )
     return ResourceStore(entries=tuple(entries))
 
 

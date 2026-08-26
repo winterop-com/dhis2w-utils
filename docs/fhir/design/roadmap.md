@@ -1497,6 +1497,22 @@ described, and the git history is where it was built. What is left:
   there before any block pair is written - grown token tweaks in a live facade
   are how a palette drifts.
 
+- **Recapture from a receipt.** A receipt is immutable - the spool never
+  rewrites what arrived - so "edit and send again" is a new capture that opens
+  the form prefilled from an existing receipt's answers. One affordance on the
+  receipt page, landing on the capture screen with every answer in place and
+  nothing submitted; correcting a rejected submission becomes filling the two
+  fields DHIS2 named and pressing Submit.
+
+- **Forward from the browser, posture-gated.** The Responses page shows the
+  queue; an operator should be able to drain it from there - per-receipt and
+  all-queued, always dry-run first with the report shown before a confirm.
+  The design decisions are the feature: refused outright under
+  `auth = "none"`, gated by scope elsewhere, and explicit about whose DHIS2
+  credential the forward spends - the live profile's, or under the `dhis2`
+  posture the caller's own. Pairs with recapture below: together they make
+  the Responses page a working queue rather than a ledger.
+
 - **The rest of the IPS document's sections.** `GET /Patient/{uid}/$summary`
   assembles the document, and one clinical section is mapped: Immunizations,
   through `[ips.sections.immunizations]`. Every further section arrives the same

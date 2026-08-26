@@ -53,11 +53,18 @@ async def test_read_of_an_unserved_type_is_not_supported(client: httpx.AsyncClie
     assert response.json()["issue"][0]["code"] == "not-supported"
 
 
-async def test_structure_definitions_are_loaded_but_never_served(client: httpx.AsyncClient) -> None:
+async def test_a_profile_the_guide_publishes_is_read_like_every_other_resource(
+    client: httpx.AsyncClient,
+) -> None:
+    """A served project hosts its own guide, so a profile it published is answered at its own address."""
     response = await client.get("/StructureDefinition/d2-aggregate-response")
 
-    assert response.status_code == 404
-    assert response.json()["issue"][0]["code"] == "not-supported"
+    assert response.status_code == 200
+    assert response.headers["content-type"] == FHIR_JSON
+    body = response.json()
+    assert body["resourceType"] == "StructureDefinition"
+    assert body["url"] == "http://example.org/fhir/StructureDefinition/d2-aggregate-response"
+    assert body["type"] == "QuestionnaireResponse"
 
 
 async def test_reading_a_receipt_returns_the_submission_as_received(

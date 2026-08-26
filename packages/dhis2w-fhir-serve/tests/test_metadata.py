@@ -82,16 +82,39 @@ async def test_metadata_declares_capture_against_every_captured_response_profile
 async def test_metadata_lists_only_the_read_types_the_store_holds(client: httpx.AsyncClient) -> None:
     types = _resource_types(await _metadata(client))
 
-    assert types == ["QuestionnaireResponse", "Questionnaire", "CodeSystem", "Organization"]
+    assert types == [
+        "QuestionnaireResponse",
+        "Questionnaire",
+        "CodeSystem",
+        "Organization",
+        "StructureDefinition",
+        "ImplementationGuide",
+    ]
     assert "ValueSet" not in types
     assert "Location" not in types
 
 
-async def test_metadata_never_advertises_a_type_the_facade_does_not_serve(client: httpx.AsyncClient) -> None:
+async def test_metadata_declares_the_conformance_resources_the_guide_publishes(
+    client: httpx.AsyncClient,
+) -> None:
+    """A served project hosts its own guide, and the statement says so where a client will read it."""
+    body = await _metadata(client)
+
+    for resource_type in ("StructureDefinition", "ImplementationGuide"):
+        declared = _resource(body, resource_type)
+        assert [interaction["code"] for interaction in declared["interaction"]] == ["read", "search-type"]
+        assert [parameter["name"] for parameter in declared["searchParam"]] == ["_id", "url", "identifier"]
+        assert "hosted here read-only" in declared["documentation"]
+        assert "url={canonical}" in declared["documentation"]
+
+
+async def test_metadata_declares_no_conformance_type_the_store_does_not_hold(
+    client: httpx.AsyncClient,
+) -> None:
+    """The compiled fixture publishes no operation definition, so no entry claims one is readable."""
     types = _resource_types(await _metadata(client))
 
-    assert "StructureDefinition" not in types
-    assert "ImplementationGuide" not in types
+    assert "OperationDefinition" not in types
 
 
 async def test_the_questionnaire_search_parameter_states_how_it_matches(client: httpx.AsyncClient) -> None:
