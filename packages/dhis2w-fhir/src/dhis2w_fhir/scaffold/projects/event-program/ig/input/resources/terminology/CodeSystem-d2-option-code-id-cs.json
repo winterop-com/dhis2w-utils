@@ -1,0 +1,35 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-option-code-id-cs",
+  "url": "http://dhis2.org/fhir/id/option-code",
+  "name": "D2OptionCodeIdentifierSystem_CS",
+  "title": "DHIS2 option codes in use",
+  "description": "Every DHIS2 option code this guide's concept maps target, enumerated. D2OptionCodeIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 5,
+  "concept": [
+    {
+      "code": "BCG",
+      "display": "BCG"
+    },
+    {
+      "code": "DPT",
+      "display": "DPT"
+    },
+    {
+      "code": "HEPB",
+      "display": "Hepatitis B"
+    },
+    {
+      "code": "MEASLES",
+      "display": "Measles"
+    },
+    {
+      "code": "POLIO",
+      "display": "Polio"
+    }
+  ]
+}

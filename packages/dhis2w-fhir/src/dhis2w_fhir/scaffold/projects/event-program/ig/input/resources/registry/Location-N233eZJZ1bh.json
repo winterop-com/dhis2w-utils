@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "N233eZJZ1bh",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "N233eZJZ1bh"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260388"
+    }
+  ],
+  "name": "Pejeh",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.542582,
+    "latitude": 7.545562
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6W1tbLTExLjQ5NTEsNy41MzRdLFstMTEuNDkzNSw3LjUzMDNdLFstMTEuNDkyNyw3LjUyNzRdLFstMTEuNDkyMyw3LjUyNDddLFstMTEuNDkyOSw3LjUyMDRdLFstMTEuNDk1MSw3LjUxNl0sWy0xMS40OTg5LDcuNTA3N10sWy0xMS41MDAzLDcuNTAxOF0sWy0xMS41MDIzLDcuNDk3M10sWy0xMS41MDMxLDcuNDk0XSxbLTExLjUwNzgsNy40OTRdLFstMTEuNTExNCw3LjQ5MzhdLFstMTEuNTE0MSw3LjQ5MzJdLFstMTEuNTE5Myw3LjQ5MDldLFstMTEuNTI0NCw3LjQ4OTddLFstMTEuNTI5NSw3LjQ4NzJdLFstMTEuNTMyNyw3LjQ4NThdLFstMTEuNTM2Myw3LjQ4MzldLFstMTEuNTM4Myw3LjQ4MzJdLFstMTEuNTQxNiw3LjQ4MjldLFstMTEuNTU0Myw3LjQ4MjldLFstMTEuNTU5Myw3LjQ4MTldLFstMTEuNTYxOSw3LjQ4XSxbLTExLjU2NDcsNy40NzY5XSxbLTExLjU2ODEsNy40NzExXSxbLTExLjU3MDcsNy40Njg2XSxbLTExLjU3NDQsNy40NjY3XSxbLTExLjU3ODYsNy40NjMxXSxbLTExLjU4MDcsNy40NjAyXSxbLTExLjU4MjYsNy40NTY0XSxbLTExLjU4NDgsNy40NTM0XSxbLTExLjU5MDgsNy40NDY3XSxbLTExLjU5MzQsNy40NDI4XSxbLTExLjU5NzgsNy40NF0sWy0xMS42MDA3LDcuNDM5NV0sWy0xMS42MDM3LDcuNDQwOV0sWy0xMS42MDY0LDcuNDQyOV0sWy0xMS42MDc1LDcuNDQ1NV0sWy0xMS42MDc4LDcuNDUwMV0sWy0xMS42MDg4LDcuNDUzNF0sWy0xMS42MTA3LDcuNDU3XSxbLTExLjYxNDYsNy40NjU1XSxbLTExLjYxNTMsNy40Njk0XSxbLTExLjYxNTUsNy40NzQ1XSxbLTExLjYxNTIsNy40Nzk2XSxbLTExLjYxNDYsNy40ODI0XSxbLTExLjYxMjUsNy40ODc0XSxbLTExLjYxMTgsNy40OTI2XSxbLTExLjYxMTgsNy40OTc3XSxbLTExLjYwODUsNy41MDAzXSxbLTExLjYwNDcsNy41MDIxXSxbLTExLjYwMDQsNy41MDQ1XSxbLTExLjU5NzIsNy41MDU4XSxbLTExLjU5MjksNy41MDgyXSxbLTExLjU4OTcsNy41MDk1XSxbLTExLjU4NjIsNy41MTE1XSxbLTExLjU4MjMsNy41MTMzXSxbLTExLjU3OTQsNy41MTUzXSxbLTExLjU3NDEsNy41MjAzXSxbLTExLjU3MTMsNy41MjI1XSxbLTExLjU2NjMsNy41MjUyXSxbLTExLjU2MjIsNy41Mjg3XSxbLTExLjU1OTMsNy41MzE2XSxbLTExLjU1NzEsNy41MzQ1XSxbLTExLjU1MzIsNy41NDIzXSxbLTExLjU1MjUsNy41NDUzXSxbLTExLjU1MjMsNy41NDg5XSxbLTExLjU1MjUsNy41NTcyXSxbLTExLjU1MzEsNy41NjAzXSxbLTExLjU1NDMsNy41NjIzXSxbLTExLjU1ODksNy41NjhdLFstMTEuNTYxNCw3LjU3MjZdLFstMTEuNTY2MSw3LjU3ODNdLFstMTEuNTY3Miw3LjU4MDhdLFstMTEuNTY3OCw3LjU4NDNdLFstMTEuNTY3Nyw3LjU4OF0sWy0xMS41NjcyLDcuNTkxNV0sWy0xMS41NjYxLDcuNTk2OF0sWy0xMS41NTg5LDcuNTk2M10sWy0xMS41NTQsNy41OTY4XSxbLTExLjU1MSw3LjU5ODJdLFstMTEuNTQ4NSw3LjYwMV0sWy0xMS41NDc1LDcuNjAzOV0sWy0xMS41NDcxLDcuNjA2OV0sWy0xMS41NDcyLDcuNjE2Nl0sWy0xMS41NDc3LDcuNjIzMl0sWy0xMS41NDgzLDcuNjI4XSxbLTExLjU1MTIsNy42MzkxXSxbLTExLjU1MTQsNy42NDM2XSxbLTExLjU1MDcsNy42NDczXSxbLTExLjU0OTEsNy42NTA1XSxbLTExLjU0NjEsNy42NTM2XSxbLTExLjU0MTIsNy42NTY0XSxbLTExLjUzNTksNy42NTc2XSxbLTExLjUyMiw3LjY1MTZdLFstMTEuNTE2OCw3LjY0ODddLFstMTEuNTE0LDcuNjQ2N10sWy0xMS41MDQ0LDcuNjM0NV0sWy0xMS41MDI2LDcuNjMxMl0sWy0xMS41MDA5LDcuNjI2N10sWy0xMS40OTkzLDcuNjIwN10sWy0xMS40OTgyLDcuNjA3MV0sWy0xMS40OTU2LDcuNTk0OF0sWy0xMS40OTU3LDcuNTg5Ml0sWy0xMS40OTc1LDcuNTgxMV0sWy0xMS40OTgxLDcuNTc2OF0sWy0xMS40OTgzLDcuNTYxNV0sWy0xMS40OTgyLDcuNTQ5MV0sWy0xMS40OTc4LDcuNTQzMV0sWy0xMS40OTcxLDcuNTM4N10sWy0xMS40OTUxLDcuNTM0XV1dLCJ0eXBlIjoiUG9seWdvbiJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJOMjMzZVpKWjFiaCIsImxldmVsIjozLCJuYW1lIjoiUGVqZWgifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Pejeh (N233eZJZ1bh)",
+        "size": 2110
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-3",
+        "display": "Level 3"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/N233eZJZ1bh"
+  },
+  "partOf": {
+    "reference": "Location/bL4ooGhyHRQ"
+  }
+}

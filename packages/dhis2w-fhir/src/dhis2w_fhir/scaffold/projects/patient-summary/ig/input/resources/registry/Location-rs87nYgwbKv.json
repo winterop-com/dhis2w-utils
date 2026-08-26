@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "rs87nYgwbKv",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "rs87nYgwbKv"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226266"
+    }
+  ],
+  "name": "Lengekoro MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.6759,
+    "latitude": 9.4663
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS42NzU5LDkuNDY2M10sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJyczg3bllnd2JLdiIsImxldmVsIjo0LCJuYW1lIjoiTGVuZ2Vrb3JvIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Lengekoro MCHP (rs87nYgwbKv)",
+        "size": 151
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/rs87nYgwbKv"
+  },
+  "partOf": {
+    "reference": "Location/Lt8U7GVWvSR"
+  }
+}

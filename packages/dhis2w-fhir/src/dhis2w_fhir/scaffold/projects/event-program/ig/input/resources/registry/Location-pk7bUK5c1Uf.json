@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "pk7bUK5c1Uf",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "pk7bUK5c1Uf"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260397"
+    }
+  ],
+  "name": "Ya Kpukumu Krim",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.759733,
+    "latitude": 7.215031
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6W1tbLTExLjY2ODksNy4yMjc1XSxbLTExLjY2NjMsNy4yMjQ3XSxbLTExLjY2NTMsNy4yMjI0XSxbLTExLjY2NDYsNy4yMTY5XSxbLTExLjY2MzcsNy4yMTQ0XSxbLTExLjY2MTgsNy4yMTA3XSxbLTExLjY2MDQsNy4yMDc1XSxbLTExLjY1ODIsNy4yMDMxXSxbLTExLjY1NzQsNy4xOTk0XSxbLTExLjY1NzIsNy4xODgzXSxbLTExLjY1Nyw3LjE4NTNdLFstMTEuNjU2NSw3LjE4MjRdLFstMTEuNjU0Miw3LjE3N10sWy0xMS42NTI0LDcuMTcwM10sWy0xMS42NTAxLDcuMTY2XSxbLTExLjY0ODgsNy4xNjI4XSxbLTExLjY0NjQsNy4xNTg1XSxbLTExLjY0NDksNy4xNTQ0XSxbLTExLjY0MjgsNy4xNTA3XSxbLTExLjY3MzYsNy4xNTEzXSxbLTExLjY3OTgsNy4xNTE1XSxbLTExLjY4MjcsNy4xNTIyXSxbLTExLjY4NzIsNy4xNTQyXSxbLTExLjY5MzksNy4xNTZdLFstMTEuNjk4NCw3LjE1NzldLFstMTEuNzAyMyw3LjE1ODZdLFstMTEuNzExNSw3LjE1ODldLFstMTEuNzE1NSw3LjE1OTVdLFstMTEuNzIwOSw3LjE2MTZdLFstMTEuNzI0OSw3LjE2MjRdLFstMTEuNzMwMSw3LjE2MjZdLFstMTEuNzQzOCw3LjE2MjZdLFstMTEuNzUxLDcuMTYyMl0sWy0xMS43NTQsNy4xNjE2XSxbLTExLjc1ODQsNy4xNTk2XSxbLTExLjc2MTIsNy4xNTldLFstMTEuNzY1MSw3LjE1ODldLFstMTEuNzY4OSw3LjE1OTZdLFstMTEuNzczNCw3LjE2MTZdLFstMTEuNzc2Myw3LjE2MjJdLFstMTEuNzgxMyw3LjE2MjVdLFstMTEuNzkzNSw3LjE2MjVdLFstMTEuNzk4MSw3LjE2MzFdLFstMTEuODAzNSw3LjE2NTNdLFstMTEuODA2OSw3LjE2Nl0sWy0xMS44MTUxLDcuMTY2NF0sWy0xMS44MTg1LDcuMTY3M10sWy0xMS44MjYxLDcuMTcxXSxbLTExLjgyOTcsNy4xNzRdLFstMTEuODM3Miw3LjE4MTRdLFstMTEuODQwMiw3LjE4MzZdLFstMTEuODQzNyw3LjE4NDddLFstMTEuODUwOSw3LjE4NTNdLFstMTEuODU1Niw3LjE4NjRdLFstMTEuODYwMSw3LjE4N10sWy0xMS44NTg2LDcuMTk0Nl0sWy0xMS44NTc2LDcuMjAzMV0sWy0xMS44NTY4LDcuMjA3XSxbLTExLjg1NTIsNy4yMTAyXSxbLTExLjg1MTIsNy4yMTVdLFstMTEuODQ5Myw3LjIxODddLFstMTEuODQ4MSw3LjIyMjldLFstMTEuODQ3OSw3LjIyNjNdLFstMTEuODQ5MSw3LjIzMjZdLFstMTEuODQ5MSw3LjIzNzFdLFstMTEuODQ2Myw3LjI0MDNdLFstMTEuODQyNSw3LjI0NzddLFstMTEuODQxNyw3LjI1MV0sWy0xMS44NDE0LDcuMjU5Ml0sWy0xMS44NDA4LDcuMjYyN10sWy0xMS44MzczLDcuMjcwMl0sWy0xMS44MzU3LDcuMjcyNF0sWy0xMS44MzAyLDcuMjc4NF0sWy0xMS44MjgsNy4yODEzXSxbLTExLjgyNTMsNy4yODYyXSxbLTExLjgyMjcsNy4yODk1XSxbLTExLjgxOTIsNy4yOTUxXSxbLTExLjgxNTMsNy4yOTMxXSxbLTExLjgxMDEsNy4yOTI4XSxbLTExLjc4NjYsNy4yOTI5XSxbLTExLjc4MjksNy4yOTI4XSxbLTExLjc3ODEsNy4yOTJdLFstMTEuNzc0MSw3LjI4OThdLFstMTEuNzcwOSw3LjI4ODVdLFstMTEuNzY2Niw3LjI4NjFdLFstMTEuNzYzNCw3LjI4NDddLFstMTEuNzYwNCw3LjI4MjZdLFstMTEuNzUyMSw3LjI3NDZdLFstMTEuNzQ5Miw3LjI3MV0sWy0xMS43NDczLDcuMjY3XSxbLTExLjc0NTMsNy4yNjM0XSxbLTExLjc0Myw3LjI1ODddLFstMTEuNzQwNCw3LjI1NjRdLFstMTEuNzM3NCw3LjI1NTZdLFstMTEuNzMyOSw3LjI1NTZdLFstMTEuNzI5NSw3LjI1NjRdLFstMTEuNzI1Miw3LjI1ODRdLFstMTEuNzIyNyw3LjI1ODZdLFstMTEuNzIwMiw3LjI1NzddLFstMTEuNzE4MSw3LjI1Nl0sWy0xMS43MTEzLDcuMjQ5Ml0sWy0xMS43MDczLDcuMjQ1OV0sWy0xMS43MDIzLDcuMjQzMl0sWy0xMS42OTQ5LDcuMjM3N10sWy0xMS42OTE3LDcuMjM2M10sWy0xMS42ODgsNy4yMzQ0XSxbLTExLjY4NTYsNy4yMzM2XSxbLTExLjY4MTMsNy4yMzI3XSxbLTExLjY3Niw3LjIzMDNdLFstMTEuNjcxOCw3LjIyODldLFstMTEuNjY4OSw3LjIyNzVdXV0sInR5cGUiOiJQb2x5Z29uIn0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6InBrN2JVSzVjMVVmIiwibGV2ZWwiOjMsIm5hbWUiOiJZYSBLcHVrdW11IEtyaW0ifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Ya Kpukumu Krim (pk7bUK5c1Uf)",
+        "size": 2116
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-3",
+        "display": "Level 3"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/pk7bUK5c1Uf"
+  },
+  "partOf": {
+    "reference": "Location/bL4ooGhyHRQ"
+  }
+}

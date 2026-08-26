@@ -69,6 +69,8 @@ The flags that matter, all optional:
 | `--sushi-timeout` | Seconds the IG publisher gives its internal SUSHI run (default 1800), written to `ig/fsh.ini`. |
 | `--max-level` | Deepest organisation-unit level to generate, seeding `[generate.organisation_units]` `max_level`. Rejected below 1. |
 | `--data-set`, `--event-program`, `--tracker-program` | UIDs to seed the `[generate.*]` `include_ids` selection tables with (each repeatable). |
+| `--template` | Pre-populate the project from a guide already generated against a real DHIS2 instance - see [Start from a template](#start-from-a-template). |
+| `--list-templates` | Name every template this install can scaffold from, one line each, and exit. |
 | `--force` | Overwrite scaffold files that already exist. |
 | `--refresh` | Bring an existing project's scaffold up to date - see below. Rejects `--force`. |
 
@@ -80,17 +82,94 @@ survive ([what it does](301-generation.md#hostile_names)) - plus
 `fhir.toml.example` documenting every option with its default; copy what you
 need across, and anything you omit keeps its default.
 
-!!! tip "Eight worked starting points"
-    [`examples/fhir/igs/`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/README.md)
-    holds eight complete project trees built exactly this way against the
-    seeded local instance, one per feature story - the smallest possible
-    guide, a disaggregated aggregate one, an event program, a tracker
-    program, a strict-terminology one, an organisation-unit registry, a
-    facility publishing every capture kind at once, and one whose generate
-    is refused by design. Each carries a README stating the `d2w fhir init`
-    command it was scaffolded with, the `fhir.toml` lines added by hand, and
-    what the compiled guide shows. Copying the one nearest your instance is
-    usually faster than starting from the flags above.
+## Start from a template
+
+Everything above scaffolds an empty project: the skeleton is there, and the
+guide inside it arrives when `d2w fhir generate` reads your instance. A
+template skips that wait. `--template` lays down a guide someone already
+generated against a real DHIS2 instance, so the project compiles and serves
+without reaching an instance at all.
+
+```console
+$ d2w fhir init --list-templates
+                              fhir init --template (9)
+┌────────────────────────┬──────────┬────────────────────────────────────────────┐
+│template                │ ships in │ publishes                                  │
+├────────────────────────┼──────────┼────────────────────────────────────────────┤
+│aggregate-minimal       │ bundled  │ The smallest complete guide: the forms,    │
+│                        │          │ one district, no category axes.            │
+│event-program           │ bundled  │ A program without registration: one        │
+│                        │          │ Questionnaire, one occurrence date, no     │
+│                        │          │ enrollment.                                │
+│patient-summary         │ bundled  │ An International Patient Summary at        │
+│                        │          │ $summary: who a person is, and which       │
+│                        │          │ recorded values are doses.                 │
+│aggregate-disaggregated │ checkout │ Disaggregated aggregate example guide      │
+│facility-mixed          │ checkout │ Mixed facility example guide               │
+│refused-names           │ checkout │ Refused names example guide                │
+│registry-district       │ checkout │ District registry example guide            │
+│terminology-strict      │ checkout │ Strict terminology example guide           │
+│tracker-registration    │ checkout │ Tracker registration example guide         │
+└────────────────────────┴──────────┴────────────────────────────────────────────┘
+note: a bundled template rides the installed package; a checkout one is read from
+examples/fhir/igs/ of the dhis2w-utils repository and exists only in a clone of it
+```
+
+The listing comes off the template manifest, so it names what this install
+actually holds rather than what some page once said it held. A bundled
+template's line is written for it; a checkout one's is its guide's own title.
+
+**Bundled or checkout.** A bundled template rides the installed package and
+works anywhere `d2w` does. A checkout one is read from
+[`examples/fhir/igs/`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/igs/README.md)
+of the dhis2w-utils repository, which no wheel carries, so it scaffolds only
+from a clone. Three of the nine ride the wheel; asking an installed package for
+one of the other six is refused by saying where it lives:
+
+```console
+$ d2w fhir init demo --template facility-mixed
+error: template `facility-mixed` belongs to the example catalog, which ships in the
+dhis2w-utils repository rather than in an installed package. This install carries
+aggregate-minimal, event-program, patient-summary. Run `d2w fhir init` from a clone
+of the repository to scaffold from `facility-mixed`.
+```
+
+**What a template supplies, and what your flags supply.** The template is the
+default and the flag wins:
+
+| Value | Without a flag | With a flag |
+| --- | --- | --- |
+| `--id`, `--canonical` | The template's own. | Yours. |
+| `--name`, `--title` | The template's own, but only while you keep its `--id`; name a different `--id` and they derive from yours as usual. | Yours. |
+| `--publisher`, `--status`, `--publisher-url` | The scaffold's defaults, never the template's - a project you scaffold is published by you. | Yours. |
+| `--profile` | Absent, exactly as an ordinary `init`. A template serves without an instance, so nothing needs one until you generate. | Yours. |
+| The `[generate]` and `[ips]` selection | The template's, appended to the scaffolded `fhir.toml`. | Refused - see below. |
+
+**`--canonical` reaches the whole tree.** A pre-built resource states its
+canonical in full - `Questionnaire.url`, `CodeSystem.url`, every `valueSet`
+reference - 409 of them in the smallest template. Scaffolding rewrites every
+one from the template's address to yours, so a project with a canonical of its
+own publishes nothing under the template's name.
+
+**A template refuses a selection of its own.** `--data-set`,
+`--event-program`, `--tracker-program`, and `--max-level` are rejected beside
+`--template`: the template ships the tree its own selection produced, and
+writing a different selection into `fhir.toml` would state one thing in the
+configuration and another in the files beside it. Scaffold first, then edit
+`fhir.toml` and run `d2w fhir generate` against an instance that holds what you
+named.
+
+**Your scaffold files stay yours.** Three of the files `init` writes live under
+`ig/input/` - `fsh/aliases.fsh`, `pagecontent/index.md`, and
+`ignoreWarnings.txt`. A template payload never lands on one of them, so
+[`--refresh`](#refresh-an-older-projects-scaffold) still maintains exactly the
+files it wrote.
+
+To take a template somewhere real, point the project at your own instance and
+regenerate: set `profile`, edit the selection to UIDs that instance holds, and
+run `d2w fhir generate`. That rewrites `ig/input/` from your metadata, and the
+template's content is gone - which is the intent. Until then it is a working
+guide you can read, compile, and serve.
 
 ## Install the pinned toolchain
 

@@ -1,0 +1,109 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-aoc-idcDPkDtepR-cm",
+  "url": "http://example.org/fhir/examples/event-program/ConceptMap/d2-aoc-idcDPkDtepR-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/category-combo",
+    "value": "idcDPkDtepR"
+  },
+  "name": "D2AOC_idcDPkDtepR_CM",
+  "title": "Project",
+  "description": "DHIS2 category combo Project (idcDPkDtepR). Every concept of D2AOC_idcDPkDtepR_CS mapped to its DHIS2 category option combo UID and, where the combo carries one, its DHIS2 category option combo code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/event-program/ValueSet/d2-aoc-idcDPkDtepR-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/event-program/CodeSystem/d2-aoc-idcDPkDtepR-cs",
+      "target": "http://dhis2.org/fhir/id/category-option-combo",
+      "element": [
+        {
+          "code": "pO5CEqK6c1s",
+          "display": "Improve access to clean water",
+          "target": [
+            {
+              "code": "pO5CEqK6c1s",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "sSeEjeQ0Rgt",
+          "display": "Improve access to medicines",
+          "target": [
+            {
+              "code": "sSeEjeQ0Rgt",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "BqblOcSwGey",
+          "display": "Provide access to primary health care",
+          "target": [
+            {
+              "code": "BqblOcSwGey",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "oawMLLH7OjA",
+          "display": "Provide access to basic education",
+          "target": [
+            {
+              "code": "oawMLLH7OjA",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/event-program/CodeSystem/d2-aoc-idcDPkDtepR-cs",
+      "target": "http://dhis2.org/fhir/id/category-option-combo-code",
+      "element": [
+        {
+          "code": "pO5CEqK6c1s",
+          "display": "Improve access to clean water",
+          "target": [
+            {
+              "code": "COC_1452092",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "sSeEjeQ0Rgt",
+          "display": "Improve access to medicines",
+          "target": [
+            {
+              "code": "COC_1452091",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "BqblOcSwGey",
+          "display": "Provide access to primary health care",
+          "target": [
+            {
+              "code": "COC_1452093",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "oawMLLH7OjA",
+          "display": "Provide access to basic education",
+          "target": [
+            {
+              "code": "COC_1452090",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

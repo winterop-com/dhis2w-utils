@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "weLTzWrLXCO",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "weLTzWrLXCO"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211255"
+    }
+  ],
+  "name": "Bapuya MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -13.1107,
+    "latitude": 9.0087
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMy4xMTA3LDkuMDA4N10sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJ3ZUxUeldyTFhDTyIsImxldmVsIjo0LCJuYW1lIjoiQmFwdXlhIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Bapuya MCHP (weLTzWrLXCO)",
+        "size": 148
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/weLTzWrLXCO"
+  },
+  "partOf": {
+    "reference": "Location/r06ohri9wA9"
+  }
+}

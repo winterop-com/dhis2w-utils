@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "YPSCWmJ3TyN",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "YPSCWmJ3TyN"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260431"
+    }
+  ],
+  "name": "Waiima MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.4531,
+    "latitude": 7.4467
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS40NTMxLDcuNDQ2N10sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJZUFNDV21KM1R5TiIsImxldmVsIjo0LCJuYW1lIjoiV2FpaW1hIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Waiima MCHP (YPSCWmJ3TyN)",
+        "size": 148
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/YPSCWmJ3TyN"
+  },
+  "partOf": {
+    "reference": "Location/RzKeCma9qb1"
+  }
+}

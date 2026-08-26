@@ -1,0 +1,38 @@
+{
+  "resourceType": "Location",
+  "id": "TJA0eGRoRpc",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "TJA0eGRoRpc"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260386"
+    }
+  ],
+  "name": "Upper Komende MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/TJA0eGRoRpc"
+  },
+  "partOf": {
+    "reference": "Location/NqWaKXcg01b"
+  }
+}

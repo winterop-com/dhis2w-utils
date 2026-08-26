@@ -52,12 +52,18 @@ class InitOptions(BaseModel):
 
 
 class ScaffoldFile(BaseModel):
-    """One file emitted by `d2w fhir init`: path relative to the project root plus its content."""
+    """One file emitted by `d2w fhir init`: path relative to the project root plus its content.
+
+    `from_template` separates the thirteen files the scaffold renders from the hundreds a template
+    payload lays down beside them. Only the former are identity-rendered, and only the former are
+    what `d2w fhir init --refresh` maintains.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     relative_path: str
     content: str
+    from_template: bool = False
 
 
 class ProjectScaffoldState(BaseModel):
@@ -85,11 +91,20 @@ class ScaffoldReport(BaseModel):
     lines of the user's own, so there is nothing to add), and `diverged_files` (holding lines the
     current scaffold does not write - the user's edits, or scaffold lines that have since changed;
     a line-preserving refresh cannot tell the two apart, so it claims neither and the file stays).
+
+    A project scaffolded from a template names it in `template` and reports its payload through
+    `template_files` and `skipped_template_files`, the same two verdicts as the scaffold's own
+    files. The payload is hundreds of files wide where the scaffold is thirteen, so it is counted
+    apart from `created_files` rather than folded into it: a caller reading the report sees which
+    files `d2w fhir init` composed and which tree it laid down beside them.
     """
 
     directory: Path
+    template: str | None = None
     created_files: list[str] = Field(default_factory=list)
     skipped_files: list[str] = Field(default_factory=list)
+    template_files: list[str] = Field(default_factory=list)
+    skipped_template_files: list[str] = Field(default_factory=list)
     refreshed_files: list[str] = Field(default_factory=list)
     unchanged_files: list[str] = Field(default_factory=list)
     extended_files: list[str] = Field(default_factory=list)

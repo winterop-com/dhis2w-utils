@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "AQQCxQqDxLe",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "AQQCxQqDxLe"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211224"
+    }
+  ],
+  "name": "Konta CHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -12.66,
+    "latitude": 9.38
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMi42Niw5LjM4XSwidHlwZSI6IlBvaW50In0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6IkFRUUN4UXFEeExlIiwibGV2ZWwiOjQsIm5hbWUiOiJLb250YSBDSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Konta CHP (AQQCxQqDxLe)",
+        "size": 142
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/AQQCxQqDxLe"
+  },
+  "partOf": {
+    "reference": "Location/kbPmt60yi0L"
+  }
+}

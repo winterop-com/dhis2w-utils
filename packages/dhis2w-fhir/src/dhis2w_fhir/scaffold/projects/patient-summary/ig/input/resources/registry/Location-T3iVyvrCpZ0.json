@@ -1,0 +1,38 @@
+{
+  "resourceType": "Location",
+  "id": "T3iVyvrCpZ0",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "T3iVyvrCpZ0"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226220"
+    }
+  ],
+  "name": "Kagbasia MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/T3iVyvrCpZ0"
+  },
+  "partOf": {
+    "reference": "Location/vEvs2ckGNQj"
+  }
+}

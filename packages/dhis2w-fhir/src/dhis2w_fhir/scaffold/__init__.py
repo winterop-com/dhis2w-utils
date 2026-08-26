@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 
 from dhis2w_fhir.config import GenerateConfig
+from dhis2w_fhir.scaffold.project_templates import ProjectTemplate, build_template_files, template_selection
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, normalize_project_name
 
 __all__ = ["FSH_INI_RELATIVE_PATH", "SUSHI_CONFIG_RELATIVE_PATH", "build_scaffold_files"]
@@ -27,16 +28,23 @@ _ENVIRONMENT = Environment(
 )
 
 
-def build_scaffold_files(options: InitOptions, *, copyright_year: int | None = None) -> list[ScaffoldFile]:
+def build_scaffold_files(
+    options: InitOptions, *, copyright_year: int | None = None, template: ProjectTemplate | None = None
+) -> list[ScaffoldFile]:
     """Build every file `d2w fhir init` writes, path-relative to the project root.
 
     `copyright_year` dates the sushi-config copyright and defaults to the current year. A refresh
     passes the year already in the project, so the comparison against the file on disk is faithful
     for a project scaffolded in an earlier year.
+
+    `template` pre-populates the project from a guide already generated against a real DHIS2
+    instance: its `[generate]` and `[ips]` tables extend the scaffolded `fhir.toml`, and its
+    `ig/input/` tree follows, readdressed to this project's canonical. The scaffold's own files are
+    rendered first and stay authoritative, so a payload never lands on a file a refresh maintains.
     """
     year = copyright_year if copyright_year is not None else datetime.now(tz=UTC).year
-    return [
-        _render("fhir.toml", "fhir.toml.jinja", options),
+    files = [
+        _render("fhir.toml", "fhir.toml.jinja", options, selection=template_selection(template) if template else None),
         _render("fhir.toml.example", "fhir.toml.example.jinja", options),
         _render(
             SUSHI_CONFIG_RELATIVE_PATH,
@@ -56,6 +64,13 @@ def build_scaffold_files(options: InitOptions, *, copyright_year: int | None = N
         _render("Dockerfile", "Dockerfile.jinja", options),
         _render(".gitignore", "gitignore.jinja", options),
     ]
+    if template is None:
+        return files
+    return files + build_template_files(
+        template,
+        canonical=options.canonical,
+        scaffold_managed={scaffold_file.relative_path for scaffold_file in files},
+    )
 
 
 def _render(relative_path: str, template_name: str, options: InitOptions, **extra: object) -> ScaffoldFile:

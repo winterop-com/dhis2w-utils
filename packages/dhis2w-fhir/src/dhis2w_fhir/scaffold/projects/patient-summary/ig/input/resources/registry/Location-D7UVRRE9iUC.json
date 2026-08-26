@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "D7UVRRE9iUC",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "D7UVRRE9iUC"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_226255"
+    }
+  ],
+  "name": "Gbentu CHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.6447,
+    "latitude": 9.9432
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS42NDQ3LDkuOTQzMl0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJEN1VWUlJFOWlVQyIsImxldmVsIjo0LCJuYW1lIjoiR2JlbnR1IENIUCJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Gbentu CHP (D7UVRRE9iUC)",
+        "size": 147
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/D7UVRRE9iUC"
+  },
+  "partOf": {
+    "reference": "Location/iEkBZnMDarP"
+  }
+}

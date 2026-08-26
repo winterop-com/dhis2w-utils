@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "y5X4mP5XylL",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "y5X4mP5XylL"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211270"
+    }
+  ],
+  "name": "Tonko Limba",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+          "code": "level-3",
+          "display": "Level 3"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/PMa2VCrupOd"
+  },
+  "active": true
+}

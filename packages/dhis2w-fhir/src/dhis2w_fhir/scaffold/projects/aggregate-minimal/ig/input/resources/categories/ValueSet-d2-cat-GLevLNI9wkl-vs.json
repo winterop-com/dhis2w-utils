@@ -1,0 +1,27 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-cat-GLevLNI9wkl-vs",
+  "url": "http://example.org/fhir/examples/aggregate-minimal/ValueSet/d2-cat-GLevLNI9wkl-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/category",
+      "value": "GLevLNI9wkl"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/category-code",
+      "value": "default"
+    }
+  ],
+  "name": "D2CAT_GLevLNI9wkl_VS",
+  "title": "default",
+  "description": "DHIS2 category default (GLevLNI9wkl). Concept codes are DHIS2 category option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-cat-GLevLNI9wkl-cs"
+      }
+    ]
+  }
+}

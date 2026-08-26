@@ -1,0 +1,89 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-x31y45jvIQL-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-os-x31y45jvIQL-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "x31y45jvIQL"
+  },
+  "name": "D2OS_x31y45jvIQL_CM",
+  "title": "MNCH Infant Feeding",
+  "description": "DHIS2 option set MNCH Infant Feeding (x31y45jvIQL). Every concept of D2OS_x31y45jvIQL_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-x31y45jvIQL-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-x31y45jvIQL-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "bS16xfd2E1F",
+          "display": "Exclusive",
+          "target": [
+            {
+              "code": "bS16xfd2E1F",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "fLCgjvxrw4c",
+          "display": "Replacement",
+          "target": [
+            {
+              "code": "fLCgjvxrw4c",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "odMfnhhpjUj",
+          "display": "Mixed",
+          "target": [
+            {
+              "code": "odMfnhhpjUj",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-x31y45jvIQL-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "bS16xfd2E1F",
+          "display": "Exclusive",
+          "target": [
+            {
+              "code": "Exclusive",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "fLCgjvxrw4c",
+          "display": "Replacement",
+          "target": [
+            {
+              "code": "Replacement",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "odMfnhhpjUj",
+          "display": "Mixed",
+          "target": [
+            {
+              "code": "Mixed",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

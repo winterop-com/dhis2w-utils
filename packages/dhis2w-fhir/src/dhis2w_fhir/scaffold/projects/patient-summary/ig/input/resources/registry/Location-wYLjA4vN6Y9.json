@@ -1,0 +1,38 @@
+{
+  "resourceType": "Location",
+  "id": "wYLjA4vN6Y9",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "wYLjA4vN6Y9"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_758923"
+    }
+  ],
+  "name": "Bambukoro MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/patient-summary/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/wYLjA4vN6Y9"
+  },
+  "partOf": {
+    "reference": "Location/VGAFxBXz16y"
+  }
+}

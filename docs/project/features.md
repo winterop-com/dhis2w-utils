@@ -518,6 +518,13 @@ chain in one command.
 
 `d2w fhir init` scaffolds a dockerized SUSHI project.
 
+- **`--template <name>`** scaffolds the project pre-populated from a guide
+  already generated against a real DHIS2 instance, so it compiles and serves
+  without reaching one; `--list-templates` names what the install carries.
+  Three templates ride the wheel (`aggregate-minimal`, `event-program`,
+  `patient-summary`); the rest of `examples/fhir/igs/` scaffolds from a
+  checkout.
+
 - **A `uv` project.** `pyproject.toml` declares `dhis2w-cli` + `dhis2w-fhir` +
   `dhis2w-fhir-serve`, all sourced from the repository on `main`, so the `d2w`
   binary, the plugin behind `d2w fhir`, and the server behind `d2w fhir serve`

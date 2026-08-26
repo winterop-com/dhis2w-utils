@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "NqWaKXcg01b",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "NqWaKXcg01b"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260384"
+    }
+  ],
+  "name": "Sowa",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.63639,
+    "latitude": 7.539597
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6W1tbLTExLjYxMTgsNy40OTc3XSxbLTExLjYxNTIsNy40OTg1XSxbLTExLjYxOTcsNy41MDA1XSxbLTExLjYyMjUsNy41MDExXSxbLTExLjYyNzQsNy41MDE3XSxbLTExLjYzMDEsNy41MDIzXSxbLTExLjYzNDgsNy41MDQyXSxbLTExLjYzODUsNy41MDQ5XSxbLTExLjY0NTMsNy41MDUzXSxbLTExLjY0ODksNy41MDZdLFstMTEuNjUzNiw3LjUwNzldLFstMTEuNjU2Myw3LjUwODVdLFstMTEuNjYxMiw3LjUwOTFdLFstMTEuNjYzOSw3LjUwOThdLFstMTEuNjY4NSw3LjUxMTddLFstMTEuNjcxNCw3LjUxMjNdLFstMTEuNjc2Miw3LjUxMjhdLFstMTEuNjc4OSw3LjUxMzVdLFstMTEuNjgzNiw3LjUxNTRdLFstMTEuNjg3Myw3LjUxNjFdLFstMTEuNjkzMSw3LjUxNjRdLFstMTEuNjk2OSw3LjUxNjldLFstMTEuNzAyNCw3LjUxOTFdLFstMTEuNzA1Miw3LjUxOTddLFstMTEuNzEsNy41MjAyXSxbLTExLjcxMjgsNy41MjA5XSxbLTExLjcxNzMsNy41MjI5XSxbLTExLjcyMjMsNy41MjQ3XSxbLTExLjcyNDEsNy41Mjc3XSxbLTExLjcyNTYsNy41MzQ1XSxbLTExLjcyNzUsNy41Mzg5XSxbLTExLjcyODIsNy41NDIxXSxbLTExLjcyODcsNy41NTA3XSxbLTExLjcyODYsNy41NjA2XSxbLTExLjcyODEsNy41NjQ5XSxbLTExLjcyNzIsNy41NjgxXSxbLTExLjcyMTIsNy41Njk3XSxbLTExLjcxMzYsNy41NzExXSxbLTExLjcwNzgsNy41NzMxXSxbLTExLjcwNSw3LjU3MzddLFstMTEuNzAyMSw3LjU3NF0sWy0xMS42OTc4LDcuNTczOV0sWy0xMS42OTM2LDcuNTczMV0sWy0xMS42ODYsNy41Njk1XSxbLTExLjY4MzEsNy41NjcyXSxbLTExLjY4MDcsNy41NjQzXSxbLTExLjY2OTksNy41NDc5XSxbLTExLjY2Niw3LjU0MzhdLFstMTEuNjYyNiw3LjU0MTJdLFstMTEuNjUzNyw3LjUzNTRdLFstMTEuNjQ5Nyw3LjUzMzddLFstMTEuNjQ1NCw3LjUzMjldLFstMTEuNjQxLDcuNTMyN10sWy0xMS42MzY2LDcuNTMyOF0sWy0xMS42MzIzLDcuNTMzM10sWy0xMS42Mjk1LDcuNTM0MV0sWy0xMS42MjU4LDcuNTM2M10sWy0xMS42MTc4LDcuNTQyM10sWy0xMS42MTQ0LDcuNTQ2NV0sWy0xMS42MTA4LDcuNTQ5Nl0sWy0xMS42MDM4LDcuNTUyOV0sWy0xMS42MDExLDcuNTU1Ml0sWy0xMS41OTg4LDcuNTU5XSxbLTExLjU5NDcsNy41Njg3XSxbLTExLjU5MSw3LjU4MV0sWy0xMS41ODg5LDcuNTg0NV0sWy0xMS41ODYxLDcuNTg3Nl0sWy0xMS41ODE3LDcuNTkxXSxbLTExLjU2NjEsNy41OTY4XSxbLTExLjU2NzIsNy41OTE1XSxbLTExLjU2NzcsNy41ODhdLFstMTEuNTY3OCw3LjU4NDNdLFstMTEuNTY3Miw3LjU4MDhdLFstMTEuNTY2MSw3LjU3ODNdLFstMTEuNTYxNCw3LjU3MjZdLFstMTEuNTU4OSw3LjU2OF0sWy0xMS41NTQzLDcuNTYyM10sWy0xMS41NTMxLDcuNTYwM10sWy0xMS41NTI1LDcuNTU3Ml0sWy0xMS41NTIzLDcuNTQ4OV0sWy0xMS41NTI1LDcuNTQ1M10sWy0xMS41NTMyLDcuNTQyM10sWy0xMS41NTcxLDcuNTM0NV0sWy0xMS41NTkzLDcuNTMxNl0sWy0xMS41NjIyLDcuNTI4N10sWy0xMS41NjYzLDcuNTI1Ml0sWy0xMS41NzEzLDcuNTIyNV0sWy0xMS41NzQxLDcuNTIwM10sWy0xMS41Nzk0LDcuNTE1M10sWy0xMS41ODIzLDcuNTEzM10sWy0xMS41ODYyLDcuNTExNV0sWy0xMS41ODk3LDcuNTA5NV0sWy0xMS41OTI5LDcuNTA4Ml0sWy0xMS41OTcyLDcuNTA1OF0sWy0xMS42MDA0LDcuNTA0NV0sWy0xMS42MDQ3LDcuNTAyMV0sWy0xMS42MDg1LDcuNTAwM10sWy0xMS42MTE4LDcuNDk3N11dXSwidHlwZSI6IlBvbHlnb24ifSwicHJvcGVydGllcyI6eyJkaGlzMklkIjoiTnFXYUtYY2cwMWIiLCJsZXZlbCI6MywibmFtZSI6IlNvd2EifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Sowa (NqWaKXcg01b)",
+        "size": 1879
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-3",
+        "display": "Level 3"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/NqWaKXcg01b"
+  },
+  "partOf": {
+    "reference": "Location/bL4ooGhyHRQ"
+  }
+}

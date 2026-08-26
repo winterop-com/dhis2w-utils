@@ -1,0 +1,27 @@
+{
+  "resourceType": "ValueSet",
+  "id": "d2-os-XdI8KRJiRoZ-vs",
+  "url": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-XdI8KRJiRoZ-vs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "XdI8KRJiRoZ"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "XdI8KRJiRoZ"
+    }
+  ],
+  "name": "D2OS_XdI8KRJiRoZ_VS",
+  "title": "MNCH Yes No",
+  "description": "DHIS2 option set MNCH Yes No (XdI8KRJiRoZ). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "compose": {
+    "include": [
+      {
+        "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-XdI8KRJiRoZ-cs"
+      }
+    ]
+  }
+}

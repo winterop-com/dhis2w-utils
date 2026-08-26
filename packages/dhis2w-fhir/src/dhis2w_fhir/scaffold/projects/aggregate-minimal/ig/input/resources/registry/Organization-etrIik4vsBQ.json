@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "etrIik4vsBQ",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "etrIik4vsBQ"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_211257"
+    }
+  ],
+  "name": "Kawula CHP",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+          "code": "level-4",
+          "display": "Level 4"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/FlBemv1NfEC"
+  },
+  "active": true
+}

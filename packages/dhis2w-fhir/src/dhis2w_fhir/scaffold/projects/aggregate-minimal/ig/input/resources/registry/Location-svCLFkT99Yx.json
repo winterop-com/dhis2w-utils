@@ -1,0 +1,38 @@
+{
+  "resourceType": "Location",
+  "id": "svCLFkT99Yx",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "svCLFkT99Yx"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_926000"
+    }
+  ],
+  "name": "Timbo CHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "extension": [
+    {
+      "url": "http://example.org/fhir/examples/aggregate-minimal/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/svCLFkT99Yx"
+  },
+  "partOf": {
+    "reference": "Location/y5X4mP5XylL"
+  }
+}

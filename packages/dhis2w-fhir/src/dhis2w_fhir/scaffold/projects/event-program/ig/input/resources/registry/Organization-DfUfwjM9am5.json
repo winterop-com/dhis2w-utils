@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "DfUfwjM9am5",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "DfUfwjM9am5"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260392"
+    }
+  ],
+  "name": "Malen",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+          "code": "level-3",
+          "display": "Level 3"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/bL4ooGhyHRQ"
+  },
+  "active": true
+}

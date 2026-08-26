@@ -1,0 +1,74 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-os-nH8Y04zS7UV-cs",
+  "url": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-nH8Y04zS7UV-cs",
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/option-set",
+      "value": "nH8Y04zS7UV"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/option-set-code",
+      "value": "nH8Y04zS7UV"
+    }
+  ],
+  "name": "D2OS_nH8Y04zS7UV_CS",
+  "title": "MNCH IPT",
+  "description": "DHIS2 option set MNCH IPT (nH8Y04zS7UV). Concept codes are DHIS2 option UIDs.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 4,
+  "valueSet": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-nH8Y04zS7UV-vs",
+  "property": [
+    {
+      "code": "dhis2-code",
+      "uri": "http://dhis2.org/fhir/property/dhis2-code",
+      "description": "DHIS2 option code.",
+      "type": "string"
+    }
+  ],
+  "concept": [
+    {
+      "code": "BszlRcyvU2p",
+      "display": "IPT 1",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "IPT 1"
+        }
+      ]
+    },
+    {
+      "code": "pXDp3sN3xJ7",
+      "display": "IPT 2",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "IPT 2"
+        }
+      ]
+    },
+    {
+      "code": "KGtyXqAprCc",
+      "display": "IPT 3",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "IPT 3"
+        }
+      ]
+    },
+    {
+      "code": "lqMX3VoXyDs",
+      "display": "On CTX",
+      "property": [
+        {
+          "code": "dhis2-code",
+          "valueString": "On CTX"
+        }
+      ]
+    }
+  ]
+}

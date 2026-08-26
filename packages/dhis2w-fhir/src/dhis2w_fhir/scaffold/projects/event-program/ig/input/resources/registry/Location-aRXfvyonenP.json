@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "aRXfvyonenP",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "aRXfvyonenP"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260396"
+    }
+  ],
+  "name": "Sengema CHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.7843,
+    "latitude": 7.4932
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS43ODQzLDcuNDkzMl0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJhUlhmdnlvbmVuUCIsImxldmVsIjo0LCJuYW1lIjoiU2VuZ2VtYSBDSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Sengema CHP (aRXfvyonenP)",
+        "size": 148
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/aRXfvyonenP"
+  },
+  "partOf": {
+    "reference": "Location/DfUfwjM9am5"
+  }
+}

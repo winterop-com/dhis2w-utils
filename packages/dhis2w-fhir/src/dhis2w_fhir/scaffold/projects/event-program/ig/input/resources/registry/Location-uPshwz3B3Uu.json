@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "uPshwz3B3Uu",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "uPshwz3B3Uu"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260436"
+    }
+  ],
+  "name": "Bandasuma CHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.4089,
+    "latitude": 7.3691
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS40MDg5LDcuMzY5MV0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJ1UHNod3ozQjNVdSIsImxldmVsIjo0LCJuYW1lIjoiQmFuZGFzdW1hIENIUCJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Bandasuma CHP (uPshwz3B3Uu)",
+        "size": 150
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/uPshwz3B3Uu"
+  },
+  "partOf": {
+    "reference": "Location/RzKeCma9qb1"
+  }
+}

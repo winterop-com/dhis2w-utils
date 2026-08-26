@@ -1,0 +1,89 @@
+{
+  "resourceType": "ConceptMap",
+  "id": "d2-os-udkr3ihaeD3-cm",
+  "url": "http://example.org/fhir/examples/patient-summary/ConceptMap/d2-os-udkr3ihaeD3-cm",
+  "identifier": {
+    "system": "http://dhis2.org/fhir/id/option-set",
+    "value": "udkr3ihaeD3"
+  },
+  "name": "D2OS_udkr3ihaeD3_CM",
+  "title": "MNCH DPT doses (1-3)",
+  "description": "DHIS2 option set MNCH DPT doses (1-3) (udkr3ihaeD3). Every concept of D2OS_udkr3ihaeD3_CS mapped to its DHIS2 option UID and, where the option carries one, its DHIS2 option code.",
+  "status": "draft",
+  "experimental": true,
+  "sourceCanonical": "http://example.org/fhir/examples/patient-summary/ValueSet/d2-os-udkr3ihaeD3-vs",
+  "group": [
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-udkr3ihaeD3-cs",
+      "target": "http://dhis2.org/fhir/id/option",
+      "element": [
+        {
+          "code": "HEjqfmniZAr",
+          "display": "Dose 1",
+          "target": [
+            {
+              "code": "HEjqfmniZAr",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "RqLFM2C8RnE",
+          "display": "Dose 2",
+          "target": [
+            {
+              "code": "RqLFM2C8RnE",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "lbb3GURUxGo",
+          "display": "Dose 3",
+          "target": [
+            {
+              "code": "lbb3GURUxGo",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-os-udkr3ihaeD3-cs",
+      "target": "http://dhis2.org/fhir/id/option-code",
+      "element": [
+        {
+          "code": "HEjqfmniZAr",
+          "display": "Dose 1",
+          "target": [
+            {
+              "code": "1",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "RqLFM2C8RnE",
+          "display": "Dose 2",
+          "target": [
+            {
+              "code": "2",
+              "equivalence": "equal"
+            }
+          ]
+        },
+        {
+          "code": "lbb3GURUxGo",
+          "display": "Dose 3",
+          "target": [
+            {
+              "code": "3",
+              "equivalence": "equal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+# The template's selection: which DHIS2 metadata this guide publishes. The tree under
+# ig/input/ was generated from exactly these UIDs, so it already matches them. Point the
+# project at an instance of your own and this is the first block to change - then run
+# `d2w fhir generate` to rewrite ig/input/ from what that instance holds.
+
+[generate.data_sets]
+include_ids = ["TuL8IOPzpHh"]
+
+[generate.event_programs]
+include_ids = ["EVTsupVis01"]
+
+[generate.tracker_programs]
+include_ids = ["PrAncCare01"]
+
+[generate.option_sets]
+# Naming the vocabularies is what keeps an option set no form uses out of the guide.
+# An absent table means every option set the instance holds.
+include_ids = ["OsVaccType1"]
+
+[generate.categories]
+# The DHIS2 built-in `default` category alone: this guide publishes the forms and no
+# category axis.
+include_ids = ["GLevLNI9wkl"]
+
+[generate.organisation_units]
+# One district, down to the facilities the forms are assigned at. Every unit publishes
+# an Organization and a Location, so this pair is the dial that bounds the compile.
+root = "PMa2VCrupOd"
+max_level = 4

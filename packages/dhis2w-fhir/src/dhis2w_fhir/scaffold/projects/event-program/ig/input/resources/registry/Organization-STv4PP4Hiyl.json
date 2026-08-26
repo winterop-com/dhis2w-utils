@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "STv4PP4Hiyl",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "STv4PP4Hiyl"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260401"
+    }
+  ],
+  "name": "Govt. Hosp. Pujehun",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+          "code": "level-4",
+          "display": "Level 4"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/QwMiPiME3bA"
+  },
+  "active": true
+}

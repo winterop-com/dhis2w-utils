@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "YpVol7asWvd",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "YpVol7asWvd"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260417"
+    }
+  ],
+  "name": "Kpanga Krim",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.860318,
+    "latitude": 7.285479
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6W1tbLTExLjg0OTEsNy4yMzcxXSxbLTExLjg1ODUsNy4yNDE2XSxbLTExLjg3MTMsNy4yNDU1XSxbLTExLjg3NzMsNy4yNDYxXSxbLTExLjg4OTQsNy4yNDYyXSxbLTExLjg5MjQsNy4yNDY1XSxbLTExLjg5NTMsNy4yNDczXSxbLTExLjg5OSw3LjI0OTNdLFstMTEuOTAyMiw3LjI1Ml0sWy0xMS45MDQ5LDcuMjU1Ml0sWy0xMS45MDY0LDcuMjU4NF0sWy0xMS45MDY4LDcuMjYzM10sWy0xMS45MDU2LDcuMjY4MV0sWy0xMS45MDMxLDcuMjcyMV0sWy0xMS45MDA0LDcuMjc0Nl0sWy0xMS44ODkyLDcuMjgwOF0sWy0xMS44ODY2LDcuMjgzMV0sWy0xMS44ODQ3LDcuMjg2XSxbLTExLjg4MTksNy4yOTI3XSxbLTExLjg4MDQsNy4zMDE3XSxbLTExLjg3OTIsNy4zMDYzXSxbLTExLjg3NDcsNy4zMjExXSxbLTExLjg3MTgsNy4zMjVdLFstMTEuODcwNCw3LjMzXSxbLTExLjg2NDksNy4zMzAyXSxbLTExLjg2MjIsNy4zMzA2XSxbLTExLjg1OTgsNy4zMzE1XSxbLTExLjg1Nyw3LjMzM10sWy0xMS44NTM4LDcuMzM0NF0sWy0xMS44NDk2LDcuMzM2OF0sWy0xMS44NDU3LDcuMzM4NV0sWy0xMS44NDA2LDcuMzQyXSxbLTExLjgzOTIsNy4zMzczXSxbLTExLjgzNzksNy4zMzQxXSxbLTExLjgzNTQsNy4zMjk4XSxbLTExLjgzNDEsNy4zMjY2XSxbLTExLjgzMjEsNy4zMjNdLFstMTEuODMxMyw3LjMyMDZdLFstMTEuODMwMSw3LjMxNTVdLFstMTEuODI3OCw3LjMxMTFdLFstMTEuODI2NCw3LjMwOF0sWy0xMS44MjQsNy4zMDM3XSxbLTExLjgyMjYsNy4zMDA1XSxbLTExLjgxOTIsNy4yOTUxXSxbLTExLjgyMjcsNy4yODk1XSxbLTExLjgyNTMsNy4yODYyXSxbLTExLjgyOCw3LjI4MTNdLFstMTEuODMwMiw3LjI3ODRdLFstMTEuODM1Nyw3LjI3MjRdLFstMTEuODM3Myw3LjI3MDJdLFstMTEuODQwOCw3LjI2MjddLFstMTEuODQxNCw3LjI1OTJdLFstMTEuODQxNyw3LjI1MV0sWy0xMS44NDI1LDcuMjQ3N10sWy0xMS44NDYzLDcuMjQwM10sWy0xMS44NDkxLDcuMjM3MV1dXSwidHlwZSI6IlBvbHlnb24ifSwicHJvcGVydGllcyI6eyJkaGlzMklkIjoiWXBWb2w3YXNXdmQiLCJsZXZlbCI6MywibmFtZSI6IktwYW5nYSBLcmltIn0sInR5cGUiOiJGZWF0dXJlIn0=",
+        "title": "Kpanga Krim (YpVol7asWvd)",
+        "size": 1130
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-3",
+        "display": "Level 3"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/YpVol7asWvd"
+  },
+  "partOf": {
+    "reference": "Location/bL4ooGhyHRQ"
+  }
+}

@@ -39,6 +39,40 @@ If you want one command that tells you whether an instance can carry this whole
 chain before you invest in it, run [`d2w fhir doctor`](201-doctor.md) first - it
 does every step below in a throwaway workspace and reports what breaks.
 
+## The fastest working facade
+
+The seven steps below build a guide from *your* instance, and steps 3 to 5 are
+the ones that need one. If what you want first is to see the thing working -
+the forms, the endpoint, the data-entry screens - start from a template
+instead. `--template` scaffolds a project pre-populated with a guide already
+generated against a real DHIS2 instance, so there is nothing to point at and
+nothing to wait for:
+
+```console
+$ d2w fhir init demo --template patient-summary
+...
+│created                │ 13              │
+│template               │ patient-summary │
+│template files         │ 269             │
+...
+  laid down 269 files from template `patient-summary` under ig/input/
+note: the guide under ig/input/ was generated against a DHIS2 instance already - none is needed to serve it
+next: cd demo && make sushi, then `d2w fhir serve . --ui`
+$ cd demo && make setup && make sushi
+...
+| You're making waves now!               0 Errors      0 Warnings |
+$ d2w fhir serve . --ui
+```
+
+Docker for the compile, and that is the whole dependency list. The endpoint
+answers `/metadata` as a FHIR server, the guide it serves holds six
+Questionnaires and 83 Locations, and the capture screens are at `/`.
+
+`d2w fhir init --list-templates` names the rest;
+[Start from a template](201-set-up-a-project.md#start-from-a-template)
+documents what a template supplies and what your own flags override. When you
+are ready to publish your own instance's metadata instead, come back to step 1.
+
 ## 1. Scaffold a project
 
 Any `d2w` runs this one command - `uv tool install dhis2w-cli` if you have

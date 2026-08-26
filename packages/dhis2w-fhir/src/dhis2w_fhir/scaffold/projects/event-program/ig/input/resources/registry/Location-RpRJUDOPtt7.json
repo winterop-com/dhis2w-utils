@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "RpRJUDOPtt7",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "RpRJUDOPtt7"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260405"
+    }
+  ],
+  "name": "Dandabu CHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.685,
+    "latitude": 7.4774
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS42ODUsNy40Nzc0XSwidHlwZSI6IlBvaW50In0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6IlJwUkpVRE9QdHQ3IiwibGV2ZWwiOjQsIm5hbWUiOiJEYW5kYWJ1IENIUCJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Dandabu CHP (RpRJUDOPtt7)",
+        "size": 147
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/RpRJUDOPtt7"
+  },
+  "partOf": {
+    "reference": "Location/QwMiPiME3bA"
+  }
+}

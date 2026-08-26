@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "CqARw68kXbB",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "CqARw68kXbB"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260402"
+    }
+  ],
+  "name": "Pehala MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.6188,
+    "latitude": 7.5234
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS42MTg4LDcuNTIzNF0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJDcUFSdzY4a1hiQiIsImxldmVsIjo0LCJuYW1lIjoiUGVoYWxhIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Pehala MCHP (CqARw68kXbB)",
+        "size": 148
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/CqARw68kXbB"
+  },
+  "partOf": {
+    "reference": "Location/QwMiPiME3bA"
+  }
+}

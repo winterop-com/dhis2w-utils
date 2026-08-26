@@ -1,0 +1,31 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "d2-category-option-combo-code-id-cs",
+  "url": "http://dhis2.org/fhir/id/category-option-combo-code",
+  "name": "D2CategoryOptionComboCodeIdentifierSystem_CS",
+  "title": "DHIS2 category option combo codes in use",
+  "description": "Every DHIS2 category option combo code this guide's concept maps target, enumerated. D2CategoryOptionComboCodeIdentifierSystem declares the same URL as an identifier system, which states what the namespace is without listing what is in it; this code system lists it, so a consumer - and the IG publisher - validates a mapped identifier out of the guide rather than against a terminology server.",
+  "status": "draft",
+  "experimental": true,
+  "caseSensitive": true,
+  "content": "complete",
+  "count": 4,
+  "concept": [
+    {
+      "code": "COC_1452090",
+      "display": "Provide access to basic education"
+    },
+    {
+      "code": "COC_1452091",
+      "display": "Improve access to medicines"
+    },
+    {
+      "code": "COC_1452092",
+      "display": "Improve access to clean water"
+    },
+    {
+      "code": "COC_1452093",
+      "display": "Provide access to primary health care"
+    }
+  ]
+}

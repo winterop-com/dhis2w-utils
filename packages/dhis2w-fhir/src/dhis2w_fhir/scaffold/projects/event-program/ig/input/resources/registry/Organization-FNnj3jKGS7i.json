@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "FNnj3jKGS7i",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "FNnj3jKGS7i"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260387"
+    }
+  ],
+  "name": "Bandajuma Clinic CHC",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+          "code": "level-4",
+          "display": "Level 4"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/NqWaKXcg01b"
+  },
+  "active": true
+}

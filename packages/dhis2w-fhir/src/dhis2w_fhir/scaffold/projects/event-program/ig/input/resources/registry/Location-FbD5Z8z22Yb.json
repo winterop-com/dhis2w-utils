@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "FbD5Z8z22Yb",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "FbD5Z8z22Yb"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260385"
+    }
+  ],
+  "name": "Geoma Jagor CHC",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.694,
+    "latitude": 7.5099
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS42OTQsNy41MDk5XSwidHlwZSI6IlBvaW50In0sInByb3BlcnRpZXMiOnsiZGhpczJJZCI6IkZiRDVaOHoyMlliIiwibGV2ZWwiOjQsIm5hbWUiOiJHZW9tYSBKYWdvciBDSEMifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Geoma Jagor CHC (FbD5Z8z22Yb)",
+        "size": 151
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/FbD5Z8z22Yb"
+  },
+  "partOf": {
+    "reference": "Location/NqWaKXcg01b"
+  }
+}

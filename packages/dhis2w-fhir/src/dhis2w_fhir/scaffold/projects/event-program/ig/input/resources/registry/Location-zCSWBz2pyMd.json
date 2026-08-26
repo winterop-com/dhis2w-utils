@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "zCSWBz2pyMd",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "zCSWBz2pyMd"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260412"
+    }
+  ],
+  "name": "Wai MCHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.4542,
+    "latitude": 7.0472
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS40NTQyLDcuMDQ3Ml0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJ6Q1NXQnoycHlNZCIsImxldmVsIjo0LCJuYW1lIjoiV2FpIE1DSFAifSwidHlwZSI6IkZlYXR1cmUifQ==",
+        "title": "Wai MCHP (zCSWBz2pyMd)",
+        "size": 145
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/zCSWBz2pyMd"
+  },
+  "partOf": {
+    "reference": "Location/d9iMR1MpuIO"
+  }
+}

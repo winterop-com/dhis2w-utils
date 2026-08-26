@@ -1,0 +1,35 @@
+{
+  "resourceType": "Organization",
+  "id": "pdF4XIHIGPx",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organization"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "pdF4XIHIGPx"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_543045"
+    }
+  ],
+  "name": "Bangoma MCHP",
+  "type": [
+    {
+      "coding": [
+        {
+          "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+          "code": "level-4",
+          "display": "Level 4"
+        }
+      ]
+    }
+  ],
+  "partOf": {
+    "reference": "Organization/pk7bUK5c1Uf"
+  },
+  "active": true
+}

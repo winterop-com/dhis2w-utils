@@ -1,0 +1,51 @@
+{
+  "resourceType": "Location",
+  "id": "kvzdkXBxHoN",
+  "meta": {
+    "profile": [
+      "http://example.org/fhir/examples/event-program/StructureDefinition/d2-location"
+    ]
+  },
+  "identifier": [
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit",
+      "value": "kvzdkXBxHoN"
+    },
+    {
+      "system": "http://dhis2.org/fhir/id/org-unit-code",
+      "value": "OU_260433"
+    }
+  ],
+  "name": "Njaluahun CHP",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
+  "status": "active",
+  "position": {
+    "longitude": -11.4446,
+    "latitude": 7.3924
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/location-boundary-geojson",
+      "valueAttachment": {
+        "contentType": "application/geo+json",
+        "data": "eyJnZW9tZXRyeSI6eyJjb29yZGluYXRlcyI6Wy0xMS40NDQ2LDcuMzkyNF0sInR5cGUiOiJQb2ludCJ9LCJwcm9wZXJ0aWVzIjp7ImRoaXMySWQiOiJrdnpka1hCeEhvTiIsImxldmVsIjo0LCJuYW1lIjoiTmphbHVhaHVuIENIUCJ9LCJ0eXBlIjoiRmVhdHVyZSJ9",
+        "title": "Njaluahun CHP (kvzdkXBxHoN)",
+        "size": 150
+      }
+    },
+    {
+      "url": "http://example.org/fhir/examples/event-program/StructureDefinition/d2-organisation-unit-level",
+      "valueCoding": {
+        "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
+        "code": "level-4",
+        "display": "Level 4"
+      }
+    }
+  ],
+  "managingOrganization": {
+    "reference": "Organization/kvzdkXBxHoN"
+  },
+  "partOf": {
+    "reference": "Location/RzKeCma9qb1"
+  }
+}
