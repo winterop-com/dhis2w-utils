@@ -199,6 +199,31 @@ export function trackedEntitySettings(config: UiConfig): TrackedEntitiesSettings
 }
 
 /**
+ * The register resource a form's subject lives in, per what the form names and what this run serves.
+ *
+ * THE FORM'S OWN WORD FIRST. A published form states its register in `subjectType`, and that is the
+ * whole answer whenever it is there: the form knows which register its registrations land in, and no
+ * reading of the served set can improve on it.
+ *
+ * WHAT AN UNNAMED SUBJECT FALLS BACK TO IS THE SERVED SET, NOT A LITERAL. A run that serves exactly
+ * one register serves that one for every form, so a deployment whose registrations land in `Specimen`
+ * is answered with `Specimen` rather than with a resource type it never serves - which is the whole
+ * of the difference between a search control that is offered and one that is offered and then always
+ * refused. Where a run serves several, the first one is not a better guess than any other, so this
+ * answers the guide's unnamed-type default and lets the conformance document have the last word: a
+ * search over a register this run does not serve is declared nowhere, and the gate reading that
+ * declaration hides the control. A run serving none answers the same default for the same reason.
+ */
+export function registerResourceForSubjectType(
+    subjectType: string | undefined,
+    settings: TrackedEntitiesSettings,
+): string {
+    if (subjectType !== undefined) return subjectType
+    if (settings.registers.length === 1) return settings.registers[0].resource
+    return PEOPLE_RESOURCE_TYPE
+}
+
+/**
  * Whether this server takes a filled-in form, with silence read as taking one.
  *
  * The one place that reading is made, so a form screen and anything that grows beside it later

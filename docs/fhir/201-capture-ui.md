@@ -461,7 +461,8 @@ fail.
 
 A **live** server publishes `GET /{RegisterType}?identifier=` per served
 register - the form's `subjectType` says which one its registrations land in,
-`Patient` only by default - and then the control
+and a form naming none is read as registering into the one register this run
+states it serves - and then the control
 offers a second option, **Find in this DHIS2 instance**. Type an identifier
 value and the search runs against the instance once the typing stops. What it
 searches is stated on the control: the identifier values DHIS2 holds - the
