@@ -219,11 +219,16 @@ export function OrgUnits() {
         [selected, assignmentIndex, formsById],
     )
 
-    // How big the registry is, and - while the box has something in it - how much of it the filter
-    // admits. The tree's own count says the same thing above the rows; down here it survives the
-    // hierarchy being scrolled and the rail being dragged over it.
+    // WHERE THE READER IS, not how big the registry is - the Hierarchy header already counts the
+    // registry, and a bar restating it never changed as the selection did, which read as a stuck
+    // duplicate. Down here: the selected unit's whole path, which survives the tree being
+    // scrolled away, and the filter's match count while the box has something in it.
     useStatusLine(
-        registry.loading || registry.error !== null ? null : countedNoun(tree.total, 'organisation unit'),
+        registry.loading || registry.error !== null
+            ? null
+            : selected === null
+              ? 'No organisation unit selected'
+              : [...ancestorsOf(tree, selected.id).map((ancestor) => ancestor.name), selected.name].join(' / '),
         matchCount === null ? null : `${formatCount(matchCount)} matching`,
     )
 
