@@ -184,7 +184,7 @@ async def evaluate(client: httpx.AsyncClient, library: str, tracked_entity_uid: 
             },
         },
     )
-    if answered.status_code != httpx.codes.OK:
+    if answered.status_code != 200:
         for issue in answered.json().get("issue", []):
             print(f"  refused: {issue['diagnostics']}")
         answered.raise_for_status()

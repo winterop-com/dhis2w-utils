@@ -160,7 +160,7 @@ async def evaluate(client: httpx.AsyncClient, body: dict[str, Any]) -> dict[str,
     a stored resource it does not hold, a language it does not evaluate.
     """
     answered = await client.post("/$evaluate", json=body, headers={"Content-Type": "application/fhir+json"})
-    if answered.status_code != httpx.codes.OK:
+    if answered.status_code != 200:
         print(f"  refused: {answered.text[:300]}")
         answered.raise_for_status()
     parameters: dict[str, Any] = answered.json()

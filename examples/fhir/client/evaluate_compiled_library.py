@@ -152,7 +152,7 @@ async def evaluate(client: httpx.AsyncClient, language: str, source: str, resour
             "context": {"kind": "stored", "resource_type": "Questionnaire", "resource_id": resource_id},
         },
     )
-    if answered_by.status_code != httpx.codes.OK:
+    if answered_by.status_code != 200:
         print(f"  refused: {answered_by.text[:300]}")
         answered_by.raise_for_status()
     body: dict[str, Any] = answered_by.json()
