@@ -30,6 +30,8 @@ import {
     nothingMatchesMessage,
     terminologyOrigin,
     terminologyRowLink,
+    terminologyShelfCaption,
+    TERMINOLOGY_RESOURCE_NOUNS,
     type IdentifierBadge,
 } from '@/lib/terminology'
 
@@ -151,6 +153,8 @@ export function Terminology() {
         TerminologyType,
         {
             label: string
+            /** One row of this tab, singular, for the sentences that count them. */
+            noun: string
             countLabel: string
             loading: boolean
             error: string | null
@@ -161,6 +165,7 @@ export function Terminology() {
     > = {
         CodeSystem: {
             label: 'Code systems',
+            noun: TERMINOLOGY_RESOURCE_NOUNS.CodeSystem,
             countLabel: 'Concepts',
             loading: codeSystems.loading,
             error: codeSystems.error,
@@ -170,6 +175,7 @@ export function Terminology() {
         },
         ValueSet: {
             label: 'Value sets',
+            noun: TERMINOLOGY_RESOURCE_NOUNS.ValueSet,
             countLabel: 'Systems',
             loading: valueSets.loading,
             error: valueSets.error,
@@ -179,6 +185,7 @@ export function Terminology() {
         },
         ConceptMap: {
             label: 'Concept maps',
+            noun: TERMINOLOGY_RESOURCE_NOUNS.ConceptMap,
             countLabel: 'Mappings',
             loading: conceptMaps.loading,
             error: conceptMaps.error,
@@ -272,6 +279,7 @@ export function Terminology() {
                         title={active.label}
                         caption=""
                         resourceType={activeType}
+                        resourceNoun={active.noun}
                         countLabel={active.countLabel}
                         loading={active.loading}
                         error={active.error}
@@ -285,8 +293,9 @@ export function Terminology() {
                         <TerminologySection
                             key={shelf.origin}
                             title={shelf.title}
-                            caption={shelf.caption}
+                            caption={terminologyShelfCaption(shelf, activeType)}
                             resourceType={activeType}
+                            resourceNoun={active.noun}
                             countLabel={active.countLabel}
                             loading={active.loading}
                             error={active.error}
@@ -353,6 +362,7 @@ function TerminologySection({
     title,
     caption,
     resourceType,
+    resourceNoun,
     countLabel,
     loading,
     error,
@@ -364,6 +374,8 @@ function TerminologySection({
     title: string
     caption: string
     resourceType: string
+    /** What one row of this tab is, singular - the noun the shelf's own count is spoken in. */
+    resourceNoun: string
     countLabel: string
     loading: boolean
     error: string | null
@@ -386,9 +398,12 @@ function TerminologySection({
                 </div>
                 {rows.length > 0 && (
                     <p className="text-muted-foreground text-xs">
+                        {/* The noun, because a shelf headed "Option sets" on the concept-map tab
+                            holds concept maps: a bare count under that heading reads as counting
+                            the option sets. */}
                         {matching.length === rows.length
-                            ? `${String(rows.length)} published`
-                            : `${String(matching.length)} of ${String(rows.length)}`}
+                            ? `${countedNoun(rows.length, resourceNoun)} published`
+                            : `${formatCount(matching.length)} of ${countedNoun(rows.length, resourceNoun)}`}
                     </p>
                 )}
             </div>
@@ -449,7 +464,7 @@ function TerminologySection({
                                             <IdentifierBadges badges={row.identifiers} />
                                         </TableCell>
                                         <TableCell className="text-right font-mono text-xs">
-                                            {row.count ?? '-'}
+                                            {row.count === null ? '-' : formatCount(row.count)}
                                         </TableCell>
                                         <TableCell className="w-8" aria-hidden>
                                             <ChevronRight className="interactive-mark size-4" />

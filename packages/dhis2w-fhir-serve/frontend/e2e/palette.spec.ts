@@ -407,14 +407,20 @@ test('the sidebar chord collapses the rail and puts it back', async ({ page }) =
     await expect.poll(async () => (await rail.boundingBox())?.width).toBe(wide)
 })
 
-test('the palette states what kind of thing each row is, and what Return would do to it', async ({
+test('the palette states what kind of thing a row is where its shelf does not, and what Return would do to it', async ({
     page,
 }) => {
     await page.goto('/')
     await openPalette(page)
 
-    // One line per row: the name, the line about it, and the kind at the far edge.
-    await expect(page.getByRole('option', { name: /^Evaluate/ })).toContainText('Page')
+    // One line per row: the name, the line about it, and the kind at the far edge. The Appearance
+    // shelf holds themes beside the ground switch, so its heading names neither and each row says
+    // which of the two it is.
+    await expect(page.getByRole('option', { name: /^Terminal theme/ })).toContainText('Theme')
+
+    // And a row whose shelf is headed by its own kind does not repeat it - "Page" at the far edge
+    // of a row three pixels under a "Pages" heading is one fact wearing two costumes.
+    await expect(page.getByRole('option', { name: /^Evaluate/ })).not.toContainText('Page')
 
     const dialog = page.getByRole('dialog', { name: 'Command palette' })
     await expect(dialog).toContainText('Open')

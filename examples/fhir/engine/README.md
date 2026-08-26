@@ -67,6 +67,11 @@ the example with the missing names stated when they are absent.
 across three of them, two weights. Those counts are small enough to check the engine's answers by
 eye, which is the point — an example that reports 3 of 4 lets you find the fourth child yourself.
 
+[`clinic.json`](clinic.json) is that same Bundle written out, for the command line — the `d2w-fhir-engine`
+sub-apps read files, not Python modules. [`coverage.cql`](coverage.cql) counts children and asks
+whether any dose was recorded; [`measles-coverage.cql`](measles-coverage.cql) is the quality measure,
+one definition per population. Both are the libraries the guide's command-line transcripts run.
+
 ## Prerequisites
 
 ```bash
@@ -93,11 +98,16 @@ never a traceback.
 ## The command line
 
 Everything here has a command-line twin. The engine ships the `d2w-fhir-engine` console script with
-`fhirpath`, `cql`, and `elm` sub-apps:
+`fhirpath`, `cql`, and `elm` sub-apps. Run these from this directory and they read the files beside
+them:
 
 ```bash
-d2w-fhir-engine fhirpath eval "Patient.name.given" --resource patient.json
-d2w-fhir-engine cql run library.cql --data bundle.json
-d2w-fhir-engine cql measure measure.cql --data bundle.json
-d2w-fhir-engine elm convert library.cql --output library.elm.json
+d2w-fhir-engine fhirpath eval "Bundle.entry.resource.ofType(Patient).count()" --resource clinic.json
+d2w-fhir-engine cql run coverage.cql --data clinic.json
+d2w-fhir-engine cql measure measles-coverage.cql --data clinic.json
+d2w-fhir-engine elm convert coverage.cql --quiet
 ```
+
+`--data` reads by one rule: **a Bundle becomes the data source retrieves reach, any other resource
+becomes the context the evaluation is about.** That is why `cql run coverage.cql --data clinic.json`
+answers `Child Count 4` rather than `0`.

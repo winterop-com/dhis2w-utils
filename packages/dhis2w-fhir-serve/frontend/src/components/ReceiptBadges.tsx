@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { FORM_TYPE_LABELS, type FormType } from '@/lib/fhir'
 import { LIFECYCLE_LABELS, LIFECYCLE_TINTS, type SpoolResponseSummary } from '@/lib/spool'
+import { countedNoun } from '@/lib/utils'
 
 /**
  * The two badges a receipt is recognised by, wherever it is rendered.
@@ -34,13 +35,11 @@ export function LifecycleBadge({
                     <TooltipTrigger asChild>
                         <TriangleAlert
                             className="text-status-refused size-3.5 shrink-0"
-                            aria-label={`${summary.warnings.length} ${summary.warnings.length === 1 ? 'warning' : 'warnings'} recorded on capture`}
+                            aria-label={`${countedNoun(summary.warnings.length, 'warning')} on this receipt`}
                         />
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
-                        {summary.warnings.length}{' '}
-                        {summary.warnings.length === 1 ? 'warning' : 'warnings'} recorded when this
-                        was captured
+                        {countedNoun(summary.warnings.length, 'warning')} on this receipt
                     </TooltipContent>
                 </Tooltip>
             )}

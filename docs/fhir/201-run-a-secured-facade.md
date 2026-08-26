@@ -148,9 +148,11 @@ the `[serve]` table.
 
 **Do not skip this before the facade leaves your machine.** A project whose
 `fhir.toml` names no `auth` key binds loopback and refuses to start anywhere
-else, so the server will not quietly become reachable - but it will also not
-serve anyone until you choose a posture. There are three, and the choice is one
-line somebody writes down.
+else, so the server will not quietly become reachable - but on loopback it
+serves every caller that reaches it, because the unwritten posture is `none`.
+There are four postures, and the choice is one line somebody writes down.
+`none` written out is the fourth: the deliberate sentence that this facade
+serves everybody, which is what the refusal above is asking for.
 
 ```console
 $ export D2W_FHIR_SERVE_TOKENS='a-long-random-value,another-for-the-second-client'

@@ -273,7 +273,7 @@ export function Playground() {
                                 served from. Every request carries{' '}
                                 <code className="font-mono">Accept: {FHIR_JSON_MEDIA_TYPE}</code>
                                 {scheme === null
-                                    ? ', and this browser is signing nothing.'
+                                    ? ', and this browser sends no credentials.'
                                     : `, and the ${scheme} credential this browser holds.`}
                             </p>
 
@@ -538,6 +538,11 @@ function Presets({
             {presetShelves(presets).map((shelf) => (
                 <div key={shelf.group} className="space-y-1">
                     <h3 className="text-sm font-semibold">{shelf.group}</h3>
+                    {/* What every row under this heading has in common, said here instead of on
+                        each of them - see `SHELF_NOTES`. */}
+                    {shelf.note !== null && (
+                        <p className="text-muted-foreground pb-1 text-xs">{shelf.note}</p>
+                    )}
                     {shelf.presets.map((preset) => (
                         <button
                             key={preset.id}
@@ -549,7 +554,9 @@ function Presets({
                             className="hover:bg-muted focus-visible:ring-ring/50 grid w-full gap-0.5 rounded-md px-2 py-1.5 text-left focus-visible:ring-[3px] focus-visible:outline-none"
                         >
                             <span className="font-mono text-xs break-all">{preset.label}</span>
-                            <span className="text-muted-foreground text-xs">{preset.hint}</span>
+                            {preset.hint !== null && (
+                                <span className="text-muted-foreground text-xs">{preset.hint}</span>
+                            )}
                             {/* The label already shows the placeholder, so this says that one has to
                                 be replaced and never repeats which one. */}
                             {!preset.runnable && (

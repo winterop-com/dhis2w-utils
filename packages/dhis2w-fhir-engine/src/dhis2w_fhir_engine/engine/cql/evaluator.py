@@ -191,6 +191,16 @@ class CQLEvaluator:
         return self._current_library
 
     @property
+    def data_source(self) -> DataSource | None:
+        """Get the data source retrieves read."""
+        return self._data_source
+
+    @data_source.setter
+    def data_source(self, value: DataSource | None) -> None:
+        """Set the data source retrieves read."""
+        self._data_source = value
+
+    @property
     def plugin_registry(self) -> CQLPluginRegistry | None:
         """Get the plugin registry."""
         return self._plugin_registry

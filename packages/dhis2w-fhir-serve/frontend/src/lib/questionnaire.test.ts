@@ -2196,6 +2196,31 @@ describe('an item description', () => {
     it('is null for an item DHIS2 describes not at all', () => {
         expect(spec.byLinkId.get('UOlfIjgN8X6')?.description).toBeNull()
     })
+
+    it('is null where DHIS2 describes an object with its own name', () => {
+        // DHIS2 requires a description of nothing, so a great many objects are saved with the name
+        // typed into the description box. Rendered, that is a label with a quieter copy of itself
+        // under it, on every question of a registration form.
+        const named = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                {
+                    linkId: 'w75KJ2mc4zz',
+                    text: 'First name',
+                    type: 'string',
+                    extension: [
+                        {
+                            url: 'http://localhost:8080/fhir/StructureDefinition/d2-description',
+                            valueString: 'First name',
+                        },
+                    ],
+                },
+            ],
+        })
+        expect(named.byLinkId.get('w75KJ2mc4zz')?.description).toBeNull()
+        expect(named.byLinkId.get('w75KJ2mc4zz')?.text).toBe('First name')
+    })
 })
 
 /**

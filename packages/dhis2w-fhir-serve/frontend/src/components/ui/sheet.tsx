@@ -89,12 +89,23 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  resizable = true,
   onOpenAutoFocus,
   onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  /**
+   * Whether this panel joins the shared dragged width, or keeps the width its own class states.
+   *
+   * The shared width is right for a panel holding a record - a reader sizes "the panel" once and
+   * every record opens at it. It is wrong for a panel holding a form: a lookup box does not read
+   * better at 1100px, and a width dragged on a record would open it over the table it was opened
+   * from. So a panel sized to its content opts out, and the drag edge goes with it - a handle that
+   * moves nothing is a control that lies.
+   */
+  resizable?: boolean
 }) {
   // A side panel is readable at different widths for different content, so its left edge drags.
   // The chosen width is one fact shared by every panel - a reader sizes "the panel", not each
@@ -131,7 +142,7 @@ function SheetContent({
         data-slot="sheet-content"
         ref={contentRef}
         style={
-          side === "right" && draggedWidth !== null
+          resizable && side === "right" && draggedWidth !== null
             ? { width: draggedWidth, maxWidth: `min(${String(SHEET_WIDEST)}px, 85vw)` }
             : undefined
         }
@@ -161,7 +172,7 @@ function SheetContent({
         )}
         {...props}
       >
-        {side === "right" && (
+        {resizable && side === "right" && (
           <div
             role="separator"
             aria-orientation="vertical"

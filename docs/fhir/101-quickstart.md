@@ -105,29 +105,34 @@ counting what was created - thirteen files, none skipped.
 
 ## 2. Install the project's own toolchain
 
-The scaffolded `pyproject.toml` declares the d2w packages and pins them at one
-commit, so the plugin and its core are never mismatched builds. `uv sync`
-writes `.venv` plus the `uv.lock` that records the pin.
+The scaffolded `pyproject.toml` declares the d2w packages, which resolve from
+PyPI as one release - each package's own dependency floors hold the CLI, the
+generator, and the server to the same version, so the plugin and its core are
+never mismatched builds. `uv sync` writes `.venv` plus the `uv.lock` that pins
+the exact one.
 
 ```console
 $ uv sync
 Using CPython 3.13.14
 Creating virtual environment at: .venv
-   Updating https://github.com/winterop-com/dhis2w-utils (main)
-    Updated https://github.com/winterop-com/dhis2w-utils (0f30586)
-Resolved 97 packages in 16.24s
-   Building dhis2w-cli @ git+https://github.com/winterop-com/dhis2w-utils@0f30586
-   Building dhis2w-fhir @ git+https://github.com/winterop-com/dhis2w-utils@0f30586
-...
-Prepared 6 packages in 1.14s
-Installed 91 packages in 195ms
+Resolved 99 packages in 2.22s
+Installed 93 packages in 260ms
  + aiofile==3.12.3
+...
+ + dhis2w-cli==1.8.3
+ + dhis2w-client==1.8.3
+ + dhis2w-core==1.8.3
+ + dhis2w-fhir==1.8.3
+ + dhis2w-fhir-engine==1.8.3
+ + dhis2w-fhir-serve==1.8.3
 ...
 ```
 
-The `...` hide the rest of the six built packages and the 91 installed ones.
-Commit `uv.lock`: it is what makes a regenerate reproducible on another
-machine.
+The `...` hide the rest of the 93 installed packages. Commit `uv.lock`: it is
+what makes a regenerate reproducible on another machine. To track the
+repository's `main` branch instead of releases, the scaffolded
+`pyproject.toml` carries a commented-out `[tool.uv.sources]` git entry showing
+the shape.
 
 ## 3. Point it at a DHIS2 instance
 

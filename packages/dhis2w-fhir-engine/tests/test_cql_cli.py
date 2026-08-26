@@ -17,10 +17,71 @@ SIMPLE_MEASURE = DATA_DIRECTORY / "simple_measure.cql"
 VALID_LIBRARY = "library Test version '1.0'\n\ndefine Sum: 1 + 2 + 3\n"
 INVALID_LIBRARY = "this is not valid cql @@@@"
 
+RETRIEVE_LIBRARY = (
+    "library Coverage version '1.0'\n"
+    "using FHIR version '4.0.1'\n\n"
+    'define "Child Count": Count([Patient])\n'
+    'define "Any Dose": exists [Immunization]\n'
+)
+"""Two definitions that reach nothing but retrieves, so their answers state whether a data source is wired."""
+
+COVERAGE_MEASURE = (
+    "library MeaslesCoverage version '1.0'\n"
+    "using FHIR version '4.0.1'\n\n"
+    "context Patient\n\n"
+    'define "Initial Population": true\n'
+    'define "Denominator": "Initial Population"\n'
+    'define "Numerator": exists [Immunization]\n'
+)
+"""A measure whose numerator is a retrieve, so the score states whether a data source is wired."""
+
+CLINIC_BUNDLE = {
+    "resourceType": "Bundle",
+    "type": "collection",
+    "entry": [
+        {"resource": {"resourceType": "Patient", "id": "child-1", "gender": "female"}},
+        {"resource": {"resourceType": "Patient", "id": "child-2", "gender": "female"}},
+        {"resource": {"resourceType": "Patient", "id": "child-3", "gender": "male"}},
+        {"resource": {"resourceType": "Patient", "id": "child-4", "gender": "female"}},
+        {
+            "resource": {
+                "resourceType": "Immunization",
+                "id": "dose-1",
+                "status": "completed",
+                "patient": {"reference": "Patient/child-1"},
+            }
+        },
+        {
+            "resource": {
+                "resourceType": "Immunization",
+                "id": "dose-2",
+                "status": "completed",
+                "patient": {"reference": "Patient/child-2"},
+            }
+        },
+        {
+            "resource": {
+                "resourceType": "Immunization",
+                "id": "dose-3",
+                "status": "completed",
+                "patient": {"reference": "Patient/child-3"},
+            }
+        },
+    ],
+}
+"""Four children, three of them vaccinated - the same shape as `examples/fhir/engine/clinic.json`."""
+
 
 def write_library(directory: Path, name: str, source: str) -> Path:
     file = directory / name
     file.write_text(source)
+    return file
+
+
+def write_bundle(directory: Path, name: str = "clinic.json") -> Path:
+    """Write the clinic Bundle into a directory and return its path."""
+    file = directory / name
+    file.write_text(json.dumps(CLINIC_BUNDLE))
     return file
 
 
@@ -312,6 +373,110 @@ class TestMeasure:
 
         assert result.exit_code == 0
         assert json.loads(output.read_text())["resourceType"] == "MeasureReport"
+
+
+class TestBundleBehindData:
+    """The `--data` rule: a Bundle is the data source retrieves read, any other resource is the context."""
+
+    def test_run_reaches_the_bundle_entries(self, tmp_path: Path) -> None:
+        library = write_library(tmp_path, "coverage.cql", RETRIEVE_LIBRARY)
+        bundle = write_bundle(tmp_path)
+
+        result = runner.invoke(app, ["run", str(library), "--data", str(bundle)])
+
+        assert result.exit_code == 0
+        assert "Child Count" in result.output
+        assert "4" in result.output
+        assert "True" in result.output
+
+    def test_run_answers_one_definition_off_the_bundle(self, tmp_path: Path) -> None:
+        library = write_library(tmp_path, "coverage.cql", RETRIEVE_LIBRARY)
+        bundle = write_bundle(tmp_path)
+
+        result = runner.invoke(app, ["run", str(library), "--definition", "Child Count", "--data", str(bundle)])
+
+        assert result.exit_code == 0
+        assert "Child Count: 4" in result.output
+
+    def test_run_writes_the_bundle_answers_to_a_file(self, tmp_path: Path) -> None:
+        library = write_library(tmp_path, "coverage.cql", RETRIEVE_LIBRARY)
+        bundle = write_bundle(tmp_path)
+        output = tmp_path / "results.json"
+
+        result = runner.invoke(app, ["run", str(library), "--data", str(bundle), "--output", str(output)])
+
+        assert result.exit_code == 0
+        written = json.loads(output.read_text())
+        assert written["Child Count"] == 4
+        assert written["Any Dose"] is True
+
+    def test_run_without_data_reaches_nothing(self, tmp_path: Path) -> None:
+        library = write_library(tmp_path, "coverage.cql", RETRIEVE_LIBRARY)
+        output = tmp_path / "results.json"
+
+        result = runner.invoke(app, ["run", str(library), "--output", str(output)])
+
+        assert result.exit_code == 0
+        written = json.loads(output.read_text())
+        assert written["Child Count"] == 0
+        assert written["Any Dose"] is False
+
+    def test_run_keeps_a_single_resource_as_the_context(self, tmp_path: Path) -> None:
+        library = write_library(
+            tmp_path,
+            "gender.cql",
+            "library Gender version '1.0'\nusing FHIR version '4.0.1'\n\ndefine Gender: Patient.gender\n",
+        )
+        data = tmp_path / "patient.json"
+        data.write_text(json.dumps({"resourceType": "Patient", "id": "child-1", "gender": "female"}))
+
+        result = runner.invoke(app, ["run", str(library), "--definition", "Gender", "--data", str(data)])
+
+        assert result.exit_code == 0
+        assert "female" in result.output
+
+    def test_measure_scores_the_numerator_off_the_bundle(self, tmp_path: Path) -> None:
+        measure = write_library(tmp_path, "measles-coverage.cql", COVERAGE_MEASURE)
+        bundle = write_bundle(tmp_path)
+        output = tmp_path / "report.json"
+
+        result = runner.invoke(app, ["measure", str(measure), "--data", str(bundle), "--output", str(output)])
+
+        assert result.exit_code == 0
+        assert "Evaluating 4 patient(s)" in result.output
+        assert "75.00%" in result.output
+
+        report = json.loads(output.read_text())
+        counts = {
+            population["code"]["coding"][0]["code"]: population["count"]
+            for population in report["group"][0]["population"]
+        }
+        assert counts["initial-population"] == 4
+        assert counts["denominator"] == 4
+        assert counts["numerator"] == 3
+
+    def test_measure_without_data_source_scores_no_numerator(self, tmp_path: Path) -> None:
+        measure = write_library(tmp_path, "measles-coverage.cql", COVERAGE_MEASURE)
+        patients = tmp_path / "patients"
+        patients.mkdir()
+        for identifier in ("child-1", "child-2", "child-3", "child-4"):
+            (patients / f"{identifier}.json").write_text(
+                json.dumps({"resourceType": "Patient", "id": identifier, "gender": "female"})
+            )
+
+        result = runner.invoke(app, ["measure", str(measure), "--patients", str(patients)])
+
+        assert result.exit_code == 0
+        assert "Evaluating 4 patient(s)" in result.output
+        assert "0.00%" in result.output
+
+    def test_eval_reaches_the_bundle_entries(self, tmp_path: Path) -> None:
+        bundle = write_bundle(tmp_path)
+
+        result = runner.invoke(app, ["eval", "Count([Patient])", "--data", str(bundle)])
+
+        assert result.exit_code == 0
+        assert "4" in result.output
 
 
 class TestExport:

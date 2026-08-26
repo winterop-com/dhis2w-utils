@@ -376,10 +376,11 @@ what the project publishes.
 ### Response spool
 
 Every received QuestionnaireResponse, written atomically to `.serve/responses/received/` and read
-back from whichever of `received/`, `forwarded/`, and `rejected/` `d2w fhir forward` has since
-moved it to. The directory is the index and is re-read on every call, because the forwarder renames
-files while the server runs. A stored response is a receipt - the submission as it arrived, never a
-live view of DHIS2 data.
+back from whichever of `received/`, `forwarded/`, `rejected/`, and `withdrawn/` it has since been
+moved to - the first three by `d2w fhir forward`, the fourth by `d2w fhir withdraw`. The directory
+is the index and is re-read on every call, because those commands rename files while the server
+runs. A stored response is a receipt - the submission as it arrived, never a live view of DHIS2
+data.
 
 ::: dhis2w_fhir_serve.spool
 

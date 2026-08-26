@@ -184,6 +184,14 @@ test('a server that states nothing about capture is read as receiving', async ({
 
     await page.goto(`/#/forms/${AGGREGATE_FORM}`)
 
-    await expect(page.getByRole('button', { name: 'Submit' })).toBeEnabled()
+    // Nothing is answered yet, so Submit refuses for a reason that is about the form rather than
+    // about this server - a response carrying no answer records nothing.
+    await expect(page.getByRole('button', { name: 'Submit' })).toBeDisabled()
+    await expect(page.getByText('Answer at least one question before submitting')).toBeVisible()
     await expect(page.getByText('This server does not accept submissions')).toHaveCount(0)
+
+    // Answered, and this server takes it.
+    await page.getByRole('button', { name: 'Fill with test data' }).click()
+    await expect(page.getByText('Filled with test data')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Submit' })).toBeEnabled()
 })

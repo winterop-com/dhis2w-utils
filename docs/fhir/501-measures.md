@@ -174,27 +174,40 @@ to read it.
 
 ## From the command line
 
-`cql measure` scores a measure without Python. `--data` carrying a Bundle supplies
-both the people to evaluate and the data source the numerator retrieves from:
+`cql measure` scores a measure without Python. **A Bundle behind `--data` supplies
+both halves of the run: every `Patient` entry is a person to evaluate, and the whole
+Bundle is the data source the numerator retrieves from.** The measure above is
+[`examples/fhir/engine/measles-coverage.cql`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/measles-coverage.cql)
+and the clinic is
+[`clinic.json`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/clinic.json)
+beside it:
 
 ```console
-$ d2w-fhir-engine cql measure coverage.cql --data clinic.json
-Measure: coverage.cql
-Evaluating 2 patient(s)...
+$ d2w-fhir-engine cql measure measles-coverage.cql --data clinic.json
+Measure: measles-coverage.cql
+Evaluating 4 patient(s)...
 
-        Group: default
-┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
-┃ Population         ┃  Count ┃
-┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
-│ initial-population │      2 │
-│ denominator        │      2 │
-│ numerator          │      1 │
-│ Score              │ 50.00% │
-└────────────────────┴────────┘
+          Group: default
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Population            ┃  Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ initial-population    │      4 │
+│ denominator           │      4 │
+│ denominator-exclusion │      0 │
+│ numerator             │      3 │
+│ Score                 │ 75.00% │
+└───────────────────────┴────────┘
 ```
 
-`--patients` reads a directory of Patient JSON files instead, and `--output` writes
-the report to disk.
+Four children, three with a dose recorded: the same 3 of 4 the Python run above
+scores, from the command line and against the same clinic.
+
+`--patients` reads a directory of Patient JSON files instead. That names who is
+evaluated but supplies no data source, so a numerator written as a retrieve finds
+nothing and the measure scores `0.00%` - reach for `--patients` when the people
+carry their own answer, and for a Bundle when the numerator has to look something
+up. `--output` writes the FHIR `MeasureReport` to disk, and `--verbose` adds the
+stratifier results.
 
 ## Scoring a real DHIS2 cohort
 

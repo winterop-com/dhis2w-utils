@@ -13,6 +13,8 @@ import {
     CONCEPTS_ELSEWHERE,
     NOTHING_ASKED,
     TERMINOLOGY_FILTER_PARAMETER,
+    TERMINOLOGY_ORIGINS,
+    terminologyShelfCaption,
     TRANSLATE_QUESTION,
     askedConcept,
     codeSystemContentLabel,
@@ -356,6 +358,44 @@ describe('identifier badges', () => {
             { label: 'identifier', value: 'bare' },
         ])
         expect(identifierBadges(undefined)).toEqual([])
+    })
+
+    it('draws one badge for a DHIS2 object whose code is its uid', () => {
+        // Two chips reading `id/option-set OsSymptom01` and `code/option-set OsSymptom01` are one
+        // identifier wearing two prefixes, and telling them apart costs a character-by-character
+        // read. The first system the resource states keeps the value.
+        expect(
+            identifierBadges([
+                { system: 'http://dhis2.org/fhir/id/option-set', value: 'OsSymptom01' },
+                { system: 'http://dhis2.org/fhir/code/option-set', value: 'OsSymptom01' },
+            ]),
+        ).toEqual([{ label: 'id/option-set', value: 'OsSymptom01' }])
+    })
+})
+
+/**
+ * A shelf's caption on each of the three tabs.
+ *
+ * The shelf is a DHIS2 origin and the tab is a FHIR resource, and a caption naming only the first
+ * told a reader of the concept maps that they were looking at option sets.
+ */
+describe('a terminology shelf caption', () => {
+    const optionSets = TERMINOLOGY_ORIGINS[0]
+
+    it('names the resource the tab shows', () => {
+        expect(terminologyShelfCaption(optionSets, 'ConceptMap')).toBe(
+            'The concept maps published for the option sets this DHIS2 instance declares. What a coded question is answered from.',
+        )
+        expect(terminologyShelfCaption(optionSets, 'CodeSystem')).toBe(
+            'The code systems published for the option sets this DHIS2 instance declares. What a coded question is answered from.',
+        )
+    })
+
+    it('stops at the subject where the shelf states nothing further', () => {
+        const other = TERMINOLOGY_ORIGINS[TERMINOLOGY_ORIGINS.length - 1]
+        expect(terminologyShelfCaption(other, 'ValueSet')).toBe(
+            'The value sets published for DHIS2 objects outside the identifier conventions the shelves above are read from.',
+        )
     })
 })
 

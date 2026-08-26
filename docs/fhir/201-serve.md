@@ -61,7 +61,7 @@ d2w fhir serve
 run above, `make serve` is `uv run d2w fhir serve --ui` - the same endpoint
 plus the capture UI at `/`.)
 
-![The Overview: the spool pulse, the quick-entry cards, and the server strip](../img/fhir/capture-ui-overview.png)
+![The Overview: the receipt counts one per lifecycle state, the served forms as cards that open them, and the strip naming the guide this server serves](../img/fhir/capture-ui-overview.png)
 
 Then, from another shell, ask the server what it is:
 
@@ -69,7 +69,7 @@ Then, from another shell, ask the server what it is:
 $ curl -s localhost:8390/metadata | jq '.software, .implementation.description'
 {
   "name": "d2w fhir serve",
-  "version": "1.7.0.dev0"
+  "version": "1.9.0.dev0"
 }
 "DHIS2 FHIR capture facade (compiled store); stored QuestionnaireResponses are submissions as received - receipts, not a live view of DHIS2 data"
 ```
@@ -184,7 +184,7 @@ the same `_id`, `url`, and `identifier` parameters. `url` is the one that
 matters, because a canonical is what a client has and an id is what it does not:
 
 ```console
-$ curl -s 'localhost:8389/StructureDefinition?url=http://example.org/fhir/review/StructureDefinition/d2-aggregate-response' \
+$ curl -s 'localhost:8390/StructureDefinition?url=http://example.org/fhir/review/StructureDefinition/d2-aggregate-response' \
   | jq '{total, profiles: [.entry[].resource.type]}'
 {
   "total": 1,
@@ -193,7 +193,7 @@ $ curl -s 'localhost:8389/StructureDefinition?url=http://example.org/fhir/review
   ]
 }
 
-$ curl -s localhost:8389/StructureDefinition/d2-period-type | jq '{kind, type}'
+$ curl -s localhost:8390/StructureDefinition/d2-period-type | jq '{kind, type}'
 {
   "kind": "complex-type",
   "type": "Extension"
@@ -276,22 +276,25 @@ A second live-only table says how a lookup is answered rather than what may be
 looked up: `[serve.search]`. Its one key, `backend`, names what a register
 search runs through, and `"dhis2"` - the default, and what a project that writes
 no table gets - is the DHIS2 instance itself, asked one exact-match query per
-search key while somebody waits. The reason the key exists before there is a
-second value for it is the shape it forces: a search answers with tracked entity
-identifiers, and the record behind a match is then read back live, under the
-credentials the request runs as, so DHIS2 authorizes every record this server
-hands out whatever found it. A search index can therefore sit behind that key
-without this server deciding on the instance's behalf who may see whom. `"index"`
-arrives with the OpenSearch backend and is refused until then, naming the key it
-was refused at.
+search key while somebody waits. `"projection"` is the other value: the
+materialized copy `d2w fhir sync` fills, asked one indexed query however many
+keys and types are in scope -
+[Serve from a synced copy](#serve-from-a-synced-copy) is what it takes and what
+it changes. What both values share is the shape the key forces: a search answers
+with tracked entity identifiers, and the record behind a match is then read back
+live, under the credentials the request runs as, so DHIS2 authorizes every record
+this server hands out whatever found it. A search index can therefore sit behind
+that key without this server deciding on the instance's behalf who may see whom.
+`"index"` is not a value yet - it is the name held for the OpenSearch backend,
+and a project writing it is refused by name, at the key it was written under.
 
-The table has one more setting, `basemaps` - the raster tile layers the
-capture UI's organisation-unit map offers under the boundaries. The screens'
-layer control lists them, opens on the first, and always carries a **None**
-entry beside them; `basemaps = []` offers None alone, which is the posture of
-a deployment that must reach no origin but this server. Every `[serve]` key,
-the basemap policy included, is covered in
-[Configure serving](301-serving.md).
+Beside those tables, `[serve]` carries the basemap policy as an array of tables,
+`[[serve.basemaps]]` - the raster tile layers the capture UI's organisation-unit
+map offers under the boundaries. The screens' layer control lists them, opens on
+the first, and always carries a **None** entry beside them; `basemaps = []`
+offers None alone, which is the posture of a deployment that must reach no
+origin but this server. Every `[serve]` key, the basemap policy included, is
+covered in [Configure serving](301-serving.md).
 
 ## Who may call this server
 
@@ -402,7 +405,7 @@ nothing.
 content, and this server answers it only from the projection:
 
 ```console
-$ curl -sG http://127.0.0.1:8080/Patient --data-urlencode '_content=minata-Ren'
+$ curl -sG http://127.0.0.1:8390/Patient --data-urlencode '_content=minata-Ren'
 ```
 
 It is spelled `_content` and not `name` or `family` on purpose. This server does

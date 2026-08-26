@@ -1,17 +1,17 @@
 # Examples index
 
-> **Learning path · step 5 of 8** — Curated task index. Prev: [Python tutorial](client/tutorial.md). Next: [API reference](api/index.md). `examples/{cli,client,mcp}/` is the source of truth for what's on disk; this page is the curated headline view.
+> **Learning path · step 5 of 8** — Curated task index. Prev: [Python tutorial](client/tutorial.md). Next: [API reference](api/index.md). `examples/{cli,client,mcp,fhir}/` is the source of truth for what's on disk; this page is the curated headline view.
 
 One copy of each example, running against DHIS2 v41, v42, and v43 alike. An example that exists for a single major lives under that major's subdirectory — `examples/client/v43/` for the v43 schema divergences, `examples/client/v41/` for the v41 wire quirks; see [Schema diff: v41 -> v42 -> v43](architecture/schema-diff-v41-v42-v43.md) for what they demonstrate.
 
-Each entry below: **file path → what it demonstrates → which concept doc explains it**. This page is curated — it covers the headline examples per topic; not every single file shows up here. `ls examples/{cli,client,mcp}/` is the source of truth, and each surface directory has a README of its own.
+Each entry below: **file path → what it demonstrates → which concept doc explains it**. This page is curated — it covers the headline examples per topic; not every single file shows up here. `ls examples/{cli,client,mcp,fhir}/` is the source of truth, and each surface directory has a README of its own.
 
-Examples come in four groups — the three surfaces, plus [FHIR](#fhir-examples), which carries three of its own:
+Examples come in four groups — the three surfaces, plus [FHIR](#fhir-examples), which carries four of its own:
 
 - **CLI** (`examples/cli/*.sh`) — bash invocations of the `d2w` Typer CLI. Run with `bash examples/cli/<name>.sh` with the venv on `PATH` (via `source .venv/bin/activate` or `uv run -- bash ...`).
 - **Client** (`examples/client/*.py`) — Python library usage. Run with `uv run python examples/client/<name>.py`.
 - **MCP** (`examples/mcp/*.py`) — FastMCP tool calls through an in-process client. Run with `uv run python examples/mcp/<name>.py`.
-- **FHIR** (`examples/fhir/{cli,client,engine}/`) — the FHIR surface, grouped on its own because it is its own product: `cli/` and `client/` are the two shapes of caller for `d2w fhir`, and `engine/` is the evaluation engine, which has no DHIS2 in it at all.
+- **FHIR** (`examples/fhir/{cli,client,engine,igs}/`) — the FHIR surface, grouped on its own because it is its own product: `cli/` and `client/` are the two shapes of caller for `d2w fhir`, `engine/` is the evaluation engine, which has no DHIS2 in it at all, and `igs/` holds nine complete project trees, one per feature story, which are also the catalog `d2w fhir init --template` scaffolds from.
 
 Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.config/dhis2/profiles.toml` / `DHIS2_PROFILE` env (see [profiles](architecture/profiles.md)). Assume a seeded local stack (`make dhis2-run`) unless stated otherwise.
 
@@ -19,11 +19,12 @@ Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.c
 
 `d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. `dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages, so this group is one copy that runs on every major. The narrative these sit under is the [`d2w fhir` guide series](fhir/index.md), which opens at the [Introduction](fhir/100-introduction.md).
 
-The headline rows are below. The Python library path has forty-eight examples in all — grouped from "build a response from my own data" through reading a form, converting to DHIS2, sending, evaluating over a served guide, driving the toolchain, and embedding the facade in your own process — catalogued in [`examples/fhir/client/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/README.md). The evaluation engine has nine of its own, catalogued in [`examples/fhir/engine/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/README.md).
+The headline rows are below. The Python library path has forty-nine examples in all — grouped from "build a response from my own data" through reading a form, converting to DHIS2, sending, evaluating over a served guide, driving the toolchain, and embedding the facade in your own process — catalogued in [`examples/fhir/client/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/README.md). The evaluation engine has nine of its own, catalogued in [`examples/fhir/engine/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/README.md).
 
 | Example | What it demonstrates | Related docs |
 | --- | --- | --- |
 | [`fhir/cli/init.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/init.sh) | `d2w fhir init` — scaffold a dockerized SUSHI IG project, offline, with the identity and selection dials | [Set up an IG project](fhir/201-set-up-a-project.md) |
+| [`fhir/cli/init_from_template.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/init_from_template.sh) | `d2w fhir init --list-templates` / `--template` — scaffold from a guide already generated against an instance, so the project compiles and serves without reaching one | [Start from a template](fhir/201-set-up-a-project.md#start-from-a-template) |
 | [`fhir/cli/init_refresh.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/init_refresh.sh) | `d2w fhir init --refresh` — bring an existing project's scaffold-managed files up to date without losing a line | [Set up an IG project](fhir/201-set-up-a-project.md) |
 | [`fhir/cli/generate.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/generate.sh) | `d2w fhir generate` — the whole IG source from one pass over the instance | [Generate the IG source](fhir/201-generate.md) |
 | [`fhir/cli/generate_foundation.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/generate_foundation.sh) | `d2w fhir generate foundation` — the instance-independent artifacts, with no client opened | [Generate the IG source](fhir/201-generate.md) |

@@ -5,9 +5,13 @@ import {
     APPEARANCE_GROUP,
     COLLAPSE_NAVIGATION_LABEL,
     EXPAND_NAVIGATION_LABEL,
+    FORM_KIND,
     FORMS_GROUP,
     HELP_GROUP,
+    HELP_KIND,
     MINIMUM_RECEIPT_PREFIX_LENGTH,
+    MODE_KIND,
+    PAGE_KIND,
     PAGES_GROUP,
     paletteActions,
     paletteActionVerb,
@@ -15,13 +19,19 @@ import {
     paletteScore,
     paletteSearchValue,
     paletteShelves,
+    RECEIPT_KIND,
     RECEIPTS_AT_REST,
     RECEIPTS_PER_PREFIX,
     RESPONSES_GROUP,
+    SEARCH_KIND,
     SESSION_GROUP,
+    SESSION_KIND,
+    shelfNamesItsKind,
     SWITCH_TO_DARK_LABEL,
     SWITCH_TO_LIGHT_LABEL,
+    THEME_KIND,
     VIEW_GROUP,
+    VIEW_KIND,
     type PaletteAction,
     type PaletteInput,
 } from '@/lib/palette'
@@ -519,3 +529,31 @@ describe('how the palette ranks what is typed', () => {
         expect(filter('a value no action carries', 'dark')).toBe(0)
     })
 })
+
+/**
+ * Where the kind at a row's far edge earns its place, and where it is the heading again.
+ *
+ * A "Pages" shelf whose every row ends in "Page" states one fact twice, three pixels apart. The
+ * shelves whose heading is not the kind's own word keep it, because there it says something the
+ * heading does not.
+ */
+describe('the kind a row wears', () => {
+    it('is dropped where the shelf heading is already the kind, singular or plural', () => {
+        expect(shelfNamesItsKind(PAGES_GROUP, PAGE_KIND)).toBe(true)
+        expect(shelfNamesItsKind(FORMS_GROUP, FORM_KIND)).toBe(true)
+        expect(shelfNamesItsKind(VIEW_GROUP, VIEW_KIND)).toBe(true)
+        expect(shelfNamesItsKind(HELP_GROUP, HELP_KIND)).toBe(true)
+        expect(shelfNamesItsKind(SESSION_GROUP, SESSION_KIND)).toBe(true)
+    })
+
+    it('is kept where the heading says something else', () => {
+        // "Receipt" under "Responses" is a second word for the row, not the heading again.
+        expect(shelfNamesItsKind(RESPONSES_GROUP, RECEIPT_KIND)).toBe(false)
+        // Appearance holds themes beside the ground switch, so each row says which it is.
+        expect(shelfNamesItsKind(APPEARANCE_GROUP, THEME_KIND)).toBe(false)
+        expect(shelfNamesItsKind(APPEARANCE_GROUP, MODE_KIND)).toBe(false)
+        // A register's shelf is headed by the register's own name.
+        expect(shelfNamesItsKind('Person', SEARCH_KIND)).toBe(false)
+    })
+})
+

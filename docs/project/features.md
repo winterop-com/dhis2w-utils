@@ -526,11 +526,13 @@ chain in one command.
   checkout.
 
 - **A `uv` project.** `pyproject.toml` declares `dhis2w-cli` + `dhis2w-fhir` +
-  `dhis2w-fhir-serve`, all sourced from the repository on `main`, so the `d2w`
-  binary, the plugin behind `d2w fhir`, and the server behind `d2w fhir serve`
-  are one build. The committed `uv.lock` pins the toolchain every make target
-  drives through `uv run d2w`; a `.python-version` of `3.13` pins the
-  interpreter beside it.
+  `dhis2w-fhir-serve`, which resolve from PyPI as one release - each package's
+  dependency floors hold the `d2w` binary, the plugin behind `d2w fhir`, and the
+  server behind `d2w fhir serve` to the same version. The committed `uv.lock`
+  pins the exact one every make target drives through `uv run d2w`; a
+  `.python-version` of `3.13` pins the interpreter beside it. A commented
+  `[tool.uv.sources]` block in the same file is the opt-in for tracking the
+  repository's `main` branch instead.
 - **The rest of the tree.** `fhir.toml`, `sushi-config.yaml`, the Makefile, the
   Dockerfile, and a `.gitignore` covering `.venv/` and the generated
   `ig/input/resources/` but never the lock nor `ig/input/fsh/`. `load/` and
@@ -3680,7 +3682,11 @@ The package runs the official HL7 CQL and FHIRPath R4 compliance suites as part 
 its own test run.
 
 It ships the console script `d2w-fhir-engine` with `fhirpath`, `cql`, and `elm`
-sub-apps over the same engine.
+sub-apps over the same engine. Every command taking `--data` reads it by one rule:
+a Bundle becomes the data source retrieves read, any other resource becomes the
+context resource the evaluation is about. `cql measure` takes both halves off a
+Bundle - each `Patient` entry is a person to evaluate, and the whole Bundle is
+what the numerator retrieves from.
 
 It owns the R4 resource models at `dhis2w_fhir_engine.r4.resources`: `Patient`,
 `Bundle`, `QuestionnaireResponse`, `Composition`, `Extension`, and the rest.

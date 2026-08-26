@@ -15,6 +15,7 @@ from rich.table import Table
 from ..engine.elm import ELMEvaluator, ELMSerializer
 from ..engine.elm.exceptions import ELMError, ELMExecutionError, ELMValidationError
 from .cql import format_result
+from .data import DATA_OPTION_HELP, load_evaluation_data
 
 app = typer.Typer(
     name="elm",
@@ -38,21 +39,6 @@ def _load_library(evaluator: ELMEvaluator, file: Path) -> None:
     except ELMError as error:
         rprint(f"[red]Error loading ELM:[/red] {error}")
         raise typer.Exit(1) from error
-
-
-def _load_context_resource(data: Path | None) -> dict[str, Any] | None:
-    """Load the optional JSON context resource."""
-    if data is None:
-        return None
-    if not data.exists():
-        rprint(f"[red]Error:[/red] Data file not found: {data}")
-        raise typer.Exit(1)
-    try:
-        resource: dict[str, Any] = json.loads(data.read_text())
-    except json.JSONDecodeError as error:
-        rprint(f"[red]Error parsing JSON:[/red] {error}")
-        raise typer.Exit(1) from error
-    return resource
 
 
 def _parse_parameters(parameter_arguments: list[str] | None) -> dict[str, Any] | None:
@@ -157,7 +143,7 @@ def load(
 def evaluate(
     file: Annotated[Path, typer.Argument(help="ELM JSON file")],
     definition: Annotated[str, typer.Argument(help="Definition name to evaluate")],
-    data: Annotated[Path | None, typer.Option("--data", "-d", help="JSON data file for context")] = None,
+    data: Annotated[Path | None, typer.Option("--data", "-d", help=DATA_OPTION_HELP)] = None,
     parameter: Annotated[
         list[str] | None, typer.Option("--param", "-p", help="Parameter in name=value form, repeatable")
     ] = None,
@@ -165,10 +151,11 @@ def evaluate(
     """Evaluate one definition from an ELM library."""
     _require_existing_file(file)
 
-    evaluator = ELMEvaluator()
+    evaluation_data = load_evaluation_data(data)
+    evaluator = ELMEvaluator(data_source=evaluation_data.data_source)
     _load_library(evaluator, file)
 
-    resource = _load_context_resource(data)
+    resource = evaluation_data.context_resource
     parameters = _parse_parameters(parameter)
 
     try:
@@ -186,7 +173,7 @@ def evaluate(
 @app.command()
 def run(
     file: Annotated[Path, typer.Argument(help="ELM JSON file to run")],
-    data: Annotated[Path | None, typer.Option("--data", "-d", help="JSON data file for context")] = None,
+    data: Annotated[Path | None, typer.Option("--data", "-d", help=DATA_OPTION_HELP)] = None,
     parameter: Annotated[
         list[str] | None, typer.Option("--param", "-p", help="Parameter in name=value form, repeatable")
     ] = None,
@@ -196,14 +183,15 @@ def run(
     """Run every definition in an ELM library."""
     _require_existing_file(file)
 
-    evaluator = ELMEvaluator()
+    evaluation_data = load_evaluation_data(data)
+    evaluator = ELMEvaluator(data_source=evaluation_data.data_source)
     try:
         library = evaluator.load_file(file)
     except ELMError as error:
         rprint(f"[red]Error loading ELM:[/red] {error}")
         raise typer.Exit(1) from error
 
-    resource = _load_context_resource(data)
+    resource = evaluation_data.context_resource
     parameters = _parse_parameters(parameter)
 
     rprint(_library_heading(evaluator.get_library_info(library)))

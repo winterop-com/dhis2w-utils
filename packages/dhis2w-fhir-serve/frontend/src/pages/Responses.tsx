@@ -327,7 +327,7 @@ function QuarantinedSection({ count, files }: { count: number; files: Quarantine
                 <span className="machine-identifier text-xs">{stated}</span>
             </h3>
             <p className="text-muted-foreground text-sm">
-                {stated === 1 ? 'One file reached' : `${String(stated)} files reached`} this project's spool
+                {stated === 1 ? 'One file reached' : `${formatCount(stated)} files reached`} this project's spool
                 and could not be read as a receipt. {stated === 1 ? 'It is' : 'They are'} in no state, and{' '}
                 {stated === 1 ? 'is' : 'are'} not in the table below.
             </p>

@@ -41,6 +41,7 @@ import {
     RECEIPT_KIND,
     SEARCH_KIND,
     SESSION_KIND,
+    shelfNamesItsKind,
     THEME_KIND,
     VIEW_KIND,
     type PaletteAction,
@@ -308,9 +309,13 @@ export function CommandPalette({
                                                     </span>
                                                 )}
                                             </span>
-                                            <span className="text-muted-foreground shrink-0 pl-3 text-xs">
-                                                {action.kind}
-                                            </span>
+                                            {/* The kind only where the heading above does not
+                                                already say it - see `shelfNamesItsKind`. */}
+                                            {!shelfNamesItsKind(shelf.group, action.kind) && (
+                                                <span className="text-muted-foreground shrink-0 pl-3 text-xs">
+                                                    {action.kind}
+                                                </span>
+                                            )}
                                         </CommandItem>
                                     )
                                 })}

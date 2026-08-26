@@ -19,7 +19,8 @@ what a valid capture is ([The capture contract](401-capture-contract.md)).
 - evaluate a FHIRPath expression, a CQL library, or a compiled ELM library over
   what the facade serves with `$evaluate`, and read the answer as `Parameters`
 - post a capture and read every kind of answer the server gives
-- read the two non-FHIR endpoints, `/spool` and `/uiconfig`
+- read the two facade endpoints a capture client acts on, `/spool` and
+  `/uiconfig`
 
 **The runnable version of this page** is
 [`examples/fhir/client/consume_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/consume_facade.py) -
@@ -28,7 +29,10 @@ capture, the receipt, and `/spool` end to end. Point it at your own facade with
 `uv run python examples/fhir/client/consume_facade.py http://localhost:8123`.
 The rest of that directory is the library path: `generate_ig.py` builds a guide
 from Python and `forward_spool.py` drains one. In Python, `FacadeClient` from
-`dhis2w_fhir` is the typed path over everything on this page -
+`dhis2w_fhir` is the typed path over the parts of this page a capture client
+lives in: `/metadata`, the reads and the searches, `$generate`, the post and its
+receipt, and an evaluation. `$translate`, `$summary`, the tracked-entity
+endpoints, `/spool`, and `/uiconfig` are addresses a caller asks for itself.
 [`examples/fhir/client/send_with_the_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/send_with_the_client.py)
 is the same submit-and-read-back loop with no request built by hand.
 
@@ -83,9 +87,12 @@ The test is one question, deliberately: does any media range in the header admit
 JSON? `*/*`, `application/*`, `application/json`, `application/fhir+json`, and
 every other `application/…+json` do, so an absent header, a browser's header,
 and a `curl` with no flags are all answered exactly as before. Only a client
-that named formats and named no JSON among them meets the 406. The two non-FHIR
-endpoints below, `/spool` and `/uiconfig`, negotiate nothing: they answer plain
-`application/json` about this facade rather than resources out of it.
+that named formats and named no JSON among them meets the 406. The facade's own
+endpoints negotiate nothing, because they answer about this facade rather than
+with resources out of it: `/spool` and `/uiconfig` below,
+`/tracked-entities/{uid}/enrollments`, `/evaluate`, `/terminology/lookup` and
+`/terminology/validate-code`, `/whoami`, and `/cds-services` all answer plain
+`application/json` whatever a request asked for.
 
 **`_format` overrides the header, which is what makes a FHIR query a link.**
 R4 defines the parameter for the client that cannot set an `Accept` - the one
@@ -284,7 +291,7 @@ and it is taken verbatim rather than intersected with the published one - a UID
 it names that the guide never published is served as a `Patient`
 ([Configure serving](301-serving.md#tracked_entities)).
 
-### The register search: `identifier`
+### The register search {#the-register-search-identifier}
 
 Every search above answers from what the project published. This one answers
 from the DHIS2 instance the server runs against, at request time, which is why
@@ -296,8 +303,19 @@ $ curl -s localhost:8389/Patient?identifier=SCEN-A-0001
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is answered from the DHIS2 instance this facade runs against, and this process serves a compiled implementation guide; start it with `--live` to search the register."}]}
 ```
 
-**`identifier` is the whole search surface**, in both of FHIR's token forms.
-A system-qualified token names which key the value is:
+**Three parameters search a register, and they ask three different questions.**
+`identifier` names which record a value belongs to, `_tag` names which tracked
+entity type a record is of, and `d2-attribute` names a value a record holds.
+Each has a subsection below, and `/metadata` declares each one on the register
+entry that answers it. A register served from a synced copy answers a fourth,
+`_content`, which is the last subsection here. Naming two of them asks for the
+records that satisfy both - they narrow each other, though several `identifier`
+tokens are alternatives among themselves, which that subsection explains.
+
+#### `identifier`: which record a value names
+
+`identifier` takes both of FHIR's token forms. A system-qualified token names
+which key the value is:
 
 ```console
 $ curl -s -G localhost:8391/Patient \
@@ -347,20 +365,71 @@ there, two parameters narrow each other; here, every token and every
 comma-separated value is another key to try, and their matches are unioned. A
 client holding two cards for one person asks once.
 
-**A parameter this server cannot apply is refused, not ignored.** This is the
-second place the register parts company with the searches above, and for the
-same reason the union semantics exist: an unapplied filter here would be
-answered with the register itself, and a client that asked for the people called
-Smith would read every row of that answer as a Smith. So the server says what it
-answers on:
+#### `_tag`: which tracked entity type a record is of
 
-```console
-$ curl -s 'localhost:8391/Patient?family=Smith'
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`family` is not a search parameter this server answers `Patient` on: `identifier` is the one it supports"}]}
+One FHIR resource type is one register over the union of the tracked entity
+types the published map takes onto it, so `GET /Device` answers about the cold
+chain fridges and the delivery vehicles alike. `_tag` is how a caller asks that
+union about one of its types, and it is R4's own token search over exactly the
+element each record states its type in - the `meta.tag` every projection
+carries:
+
+```bash
+curl -s -G localhost:8391/Patient \
+  --data-urlencode '_tag=http://dhis2.org/fhir/id/tracked-entity-type|nEenWmSyUEp'
+
+curl -s 'localhost:8391/Patient?_tag=nEenWmSyUEp'
 ```
 
-**A server with a synced copy answers one more: `_content`.** Where the operator
-has configured
+Both forms are the same query: there is one tag on these resources, so naming
+the code alone is unambiguous. It narrows the identifier search's scope, the
+listing's walk, and the `_count=0` count alike, and it rides every `next` and
+`previous` link so a walk stays inside the type it started in. A `_tag` naming a
+type this resource is not served over is a query nothing can satisfy, and comes
+back as an empty searchset rather than a refusal - a tag names a value a record
+may or may not hold.
+
+#### `d2-attribute`: what a record holds
+
+`identifier` answers the attributes that name somebody. The attributes that
+describe a lot of people - sex, district of residence, whether consent was given
+- name nobody, and FHIR has no element for them: their values ride the
+`D2TrackedEntityAttributeValue` extension, so the parameter over them is this
+project's own, spelled with the `d2-` prefix everything DHIS2-specific here is
+spelled with. `d2-attribute={trackedEntityAttributeUid}|{value}` is one
+attribute and one value:
+
+```bash
+curl -s -G localhost:8391/Patient --data-urlencode 'd2-attribute=cejWyOfXge6|Female'
+```
+
+**It answers equality and nothing else** - no prefix, no substring, no range, no
+`:missing`, no ordering. Case is the one thing it ignores, because DHIS2's own
+`eq` ignores it (BUGS.md 109), so the two search backends agree
+on every value in the register rather than on the ones typed the way they were
+stored. A caller who wants "starts with" wants `_content` below.
+
+**Two occurrences narrow; a comma does not split.**
+`d2-attribute=A|x&d2-attribute=B|y` is whoever holds both, which is what R4 says
+two instances of one parameter mean. The value is taken whole rather than split
+on commas - this is the one place the token grammar departs from R4 deliberately,
+because `Smith, John` is a value somebody actually holds and splitting it would
+make them unfindable by it. It narrows the listing, the identifier search, the
+`_content` search, and the `_count=0` count alike, under either backend, and it
+rides the listing's links the way `_tag` does.
+
+Which attributes a register filters on is what the published registration forms
+of its types ask - the same values every record it hands back already carries -
+and it is declared per register at `/metadata` and at `/uiconfig`, so a client
+reads the set before it searches. There is no configuration key narrowing it:
+a dial that hid a filter over data the server hands over anyway would read like
+a control and not be one. An attribute a request names and this register does
+not filter on is a 400 naming the ones it does.
+
+#### `_content`: a text search over a synced copy
+
+**A register served from a synced copy answers one more parameter.** Where the
+operator has configured
 [`[serve.search] backend = "projection"`](301-serving.md#search-backend), the
 register also answers R4's own parameter for a text search over a resource's
 whole content - a case-insensitive substring of any value the person holds:
@@ -388,21 +457,37 @@ and no walk to follow. Every record on the page was read from the instance under
 your own credentials whichever backend found it, and `GET /Patient/{id}` is
 answered from the instance in every posture.
 
-`_count` is honoured beside `identifier` and caps the matches handed back, on
+#### What every register search shares
+
+**A parameter this server cannot apply is refused, not ignored.** This is where
+the register parts company with the searches above, and for the same reason the
+union semantics exist: an unapplied filter here would be answered with the
+register itself, and a client that asked for the people called Smith would read
+every row of that answer as a Smith. So the server says what it answers on, and
+names all three:
+
+```console
+$ curl -s 'localhost:8391/Patient?family=Smith'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`family` is not a search parameter this server answers `Patient` on: it answers `_tag`, `d2-attribute`, `identifier`"}]}
+```
+
+`_count` is honoured beside any of them and caps the matches handed back, on
 the same terms as every other searchset here - `total` states how many there
 were, and `_count=0` states that number alone. `page` belongs to the listing
-below and is refused on an identifier search, which is answered whole rather
+below and is refused on a search, which is answered whole rather
 than paged. A request naming no parameter at all is the listing, unchanged.
 
-An identifier nobody holds, and a system this guide publishes nothing for, are
-both an empty searchset - never a 404, which on a search path would say the
-endpoint does not exist:
+An identifier nobody holds, a system this guide publishes nothing for, and a tag
+naming a type this resource is not served over are all an empty searchset - never
+a 404, which on a search path would say the endpoint does not exist:
 
 ```console
 $ curl -s 'localhost:8391/Patient?identifier=NO-SUCH-ID' | jq '.type, .total'
 "searchset"
 0
 ```
+
+#### What a record comes back as
 
 **The Patient is identity, plus whatever the instance nominated.** No `name`, no
 `gender`, no `birthDate` unless
@@ -965,6 +1050,19 @@ client reads `GET /CodeSystem/{id}` and `GET /ValueSet/{id}` and walks them.
 `Questionnaire`, `$translate` on `ConceptMap`, `$summary` on the register's
 people where a project publishes summaries, and `$evaluate` at the service base.
 
+**Two plain reads answer the questions those operations would have.**
+`GET /terminology/lookup?system=&code=` says what one code means, and
+`GET /terminology/validate-code?code=` with either a `valueset` or a `system`
+says whether a code is in a published value set or is a code of a published
+system at all. Both are typed JSON on lowercase paths and both answer about this
+project's own vocabularies and nothing else - a SNOMED CT or a LOINC code comes
+back as a code this server publishes no system for, which is true and more useful
+than a guess. They are not `$lookup` and `$validate-code` because answering those
+properly means answering for the external systems a real implementation guide
+composes, which this facade cannot do and should not appear to.
+`/metadata` names both in its `description`, so a client finds them without
+probing.
+
 ## `$generate`: a valid submission on demand
 
 Hand it a served form and it answers with a synthetic
@@ -1299,19 +1397,22 @@ because forwarding a receipt must not expire the id its sender was handed.
 
 The one read that is not FHIR, because what it serves are not elements of a
 QuestionnaireResponse: the instant the facade accepted each submission, the
-form kind it was validated as, its warnings, its lifecycle state, and
-DHIS2's import report behind a rejection. Plain `application/json`:
+form kind it was validated as, who it was validated under, its warnings, its
+lifecycle state, and whatever DHIS2 or the drain said about it. Plain
+`application/json`:
 
 ```console
-$ curl -s localhost:8389/spool | jq '{total, counts}'
+$ curl -s localhost:8389/spool | jq '{total, counts, next_url}'
 {
   "total": 987,
   "counts": {
     "received": 0,
     "forwarded": 703,
     "rejected": 284,
-    "withdrawn": 0
-  }
+    "withdrawn": 0,
+    "malformed": 0
+  },
+  "next_url": "http://localhost:8389/spool?_count=50&page=bzUwbjk4Nw"
 }
 $ curl -s localhost:8389/spool | jq '.responses[0]'
 {
@@ -1321,6 +1422,7 @@ $ curl -s localhost:8389/spool | jq '.responses[0]'
   "form_kind": "tracker-event",
   "questionnaire": "http://localhost:8080/fhir/Questionnaire/ZzYYXq4fJie",
   "questionnaire_id": "ZzYYXq4fJie",
+  "submitted_by": null,
   "status": "completed",
   "authored": "2026-07-26T08:00:00Z",
   "answer_count": 14,
@@ -1338,16 +1440,28 @@ $ curl -s localhost:8389/spool | jq '.responses[0]'
     "updated": 0,
     "ignored": 0,
     "deleted": 0
-  }
+  },
+  "refusal": null,
+  "withdrawal": null
 }
 ```
 
-**`rejection` and `imported` are the two halves of what DHIS2 answered**, and at
-most one is ever present: `rejection` only on a `rejected` receipt, `imported`
-only on a `forwarded` one, both `null` on a `received` one that has not been
-forwarded yet. `rejection` additionally carries an `issues` array, one entry per
-DHIS2 import error with its `error_code`, `subject`, and `message` - which is
-how a `E1023` or an `E8023` reaches the person who has to fix the capture.
+**Four slots carry what happened to a receipt, and which one is filled follows
+from where the receipt sits.** `rejection` and `imported` are the two halves of
+what DHIS2 answered a drain - `rejection` only on a `rejected` receipt,
+`imported` only on a `forwarded` one. `refusal` is the queue's own history rather
+than a DHIS2 answer: it appears only on a `received` receipt the last committing
+drain would not translate, and states when that drain looked, how many drains
+have refused the receipt so far, and why - the receipt stays queued and the next
+drain retries it. `withdrawal` appears only on a `withdrawn` receipt and is what
+`d2w fhir withdraw` recorded: the instant, the DHIS2 event it named, what DHIS2
+counted as deleted, and the note saying what remains in the instance, because
+DHIS2 soft-deletes and a listing that said "deleted" would claim more than the
+toolkit can stand behind. A receipt with nothing yet to say about it carries four
+nulls. `rejection` and `refusal` each carry an `issues` or `reasons` array, one
+entry per thing named against the payload with its `error_code`, `subject`, and
+`message` - which is how a `E1023` or an `E8023` reaches the person who has to
+fix the capture.
 
 `lifecycle` is which spool directory the receipt is in rather than anything
 written into the file, so it is always the current truth. A receipt whose stored
@@ -1355,17 +1469,40 @@ resource will not parse as a `QuestionnaireResponse` is still listed, with the
 envelope fields filled and every derived field - `status`, `authored`, `period`,
 `organisation_unit`, `tracked_entity` - left null rather than guessed at.
 
-It is what the capture UI's Overview and Responses pages read, and the
-lifecycle states are the spool directories the forwarder moves receipts
-between - see [Forward captures into DHIS2](201-forward.md).
+**`counts` has a fifth key that is not a lifecycle state.** `malformed` is the
+holding pen: bytes the spool moved aside because they do not read as a receipt at
+all. They are not in `total`, they are not in `responses`, and the listing's own
+`malformed` array states each one with what stopped it.
+
+**The listing pages, with the same two parameters the register listing uses.**
+`_count` is how many rows a page carries - **50** by default, and a request naming
+more than **500** is served 500 rather than refused. `page` is an opaque cursor a
+client only ever gets from `next_url` or `previous_url`; `self_url` is the page
+you are on, as a client may ask for it again and be handed the same one. `total`
+is the whole listing on every page of one walk, and `counts` is the whole spool
+rather than the page - a queue depth that changed with the page you were looking
+at would be no queue depth at all.
+
+```console
+$ curl -s 'localhost:8389/spool?_count=abc'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`_count` was given `abc`, which is not a number of rows"}]}
+$ curl -s 'localhost:8389/spool?page=12'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`page` is not a page of this listing: its value comes from the `next` or `previous` link of a result, and is not a number a client composes"}]}
+```
+
+Every read re-reads the directory, because `d2w fhir forward` and `d2w fhir
+withdraw` rename files while this server runs. It is what the capture UI's
+Overview and Responses pages read, and the lifecycle states are the spool
+directories those two commands move receipts between - see
+[Forward captures into DHIS2](201-forward.md).
 
 ## `/uiconfig`: what the UI is allowed to know
 
 The handful of run-time settings the capture UI has to act on - today, whether
-this run receives submissions at all, the basemap layers it offers with the
-attribution the server can honestly state for each, the address of the DHIS2
-instance it resolved a profile for, which is what an identity on a page links
-back to, and whether this run answers
+this run receives submissions at all, which credential it checks and over which
+routes, the basemap layers it offers with the attribution the server can honestly
+state for each, the address of the DHIS2 instance it resolved a profile for,
+which is what an identity on a page links back to, and whether this run answers
 about the instance's tracked entities at all. Deliberately not the profile's
 name, its credentials, the
 host this process listens on, or the strictness dial: those describe the process
@@ -1376,6 +1513,11 @@ leaks them.
 $ curl -s localhost:8389/uiconfig | jq .
 {
   "capture": true,
+  "auth": {
+    "posture": "none",
+    "scope": "write",
+    "issuer": null
+  },
   "basemaps": [
     {
       "name": "OpenStreetMap",
@@ -1388,12 +1530,34 @@ $ curl -s localhost:8389/uiconfig | jq .
     "enabled": true,
     "listing": true,
     "registers": [
-      { "resource": "Patient", "types": [{ "uid": "nEenWmSyUEp", "name": "Person" }] },
-      { "resource": "Specimen", "types": [{ "uid": "Kd6Nk9wnAJa", "name": "Specimen batch" }] }
+      {
+        "resource": "Patient",
+        "types": [{ "uid": "nEenWmSyUEp", "name": "Person" }],
+        "filter_attributes": [
+          { "uid": "cejWyOfXge6", "name": "Gender", "value_type": "TEXT",
+            "value_set": "http://localhost:8080/fhir/ValueSet/d2-os-pC3N9N77UmT-vs",
+            "types": ["nEenWmSyUEp"] }
+        ]
+      },
+      {
+        "resource": "Specimen",
+        "types": [{ "uid": "Kd6Nk9wnAJa", "name": "Specimen batch" }],
+        "filter_attributes": []
+      }
     ]
   }
 }
 ```
+
+`auth` is the posture this run resolved, and it is here because a screen has to
+know whether to offer a sign-in before it has been refused once: `posture` is
+which credential the server checks, `scope` is whether that check covers every
+route or the writes alone, and `issuer` names the OpenID Connect issuer under
+`jwt` and is `null` otherwise. It is the posture, never a credential - what a
+caller has to present is a fact about the server, and the sign-in gate reads the
+same posture off `/metadata`'s security block. A document that omitted `auth`
+would read as `none`, which is the right reading of silence for a screen, so this
+run always states it.
 
 `capture` is `[serve] capture` as this run resolved it, and the screens gate
 their **Submit** on it: false, and a form still opens and fills and reads, with
@@ -1418,7 +1582,7 @@ discovering them from a refusal, so a control that cannot be answered is never
 drawn in the first place. What is reported is what this run does, not what the
 file says: a compiled run reports `enabled` false whatever `fhir.toml` states,
 because the register answers from an instance and a compiled run is connected to
-none. The other four settings of that table shape the answers rather than the
+none. The other five settings of that table shape the answers rather than the
 screens, so the browser is never told them.
 
 `registers` is the third fact, and it is the published `D2TET_CM` read for a
@@ -1433,6 +1597,15 @@ name is what a reader working in DHIS2 recognises. It is `[]` whenever
 `enabled` is false, because a page the navigation does not offer has no sections
 to name.
 
+`filter_attributes` rides each register entry, and it is what a filter control is
+drawn from: the attributes
+[`d2-attribute`](#d2-attribute-what-a-record-holds) filters that register by, in
+the order its forms ask them, each with the name a label reads, the DHIS2 value
+type an input is shaped by, the value set a picker is filled from where the
+attribute binds one, and which of the register's tracked entity types ask it.
+`/metadata` declares the same set in its `d2-attribute` documentation, so a
+screen and a FHIR client read one answer.
+
 Both live on single lowercase path segments precisely so they can never
 shadow a FHIR resource type, which is PascalCase.
 
@@ -1440,4 +1613,6 @@ Next: [Identifiers and the D2 extensions](401-identifiers-and-extensions.md)
 - the identifier families and extensions every resource this API serves
 carries. The
 [`dhis2w_fhir_serve` API reference](api-dhis2w-fhir-serve.md) covers the
-store, the spool, and the capture path as importable Python.
+store, the spool, and the capture path as importable Python, and
+[`FacadeClient`](api-dhis2w-fhir.md#a-client-for-a-running-facade) is the
+client side of the same surface.
