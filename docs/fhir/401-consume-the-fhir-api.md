@@ -129,10 +129,15 @@ method it refuses. `GET /` is the capture UI's under `--ui`
 
 ## Reads and searches
 
-Seven definitional types are served - `Questionnaire`, `CodeSystem`,
-`ValueSet`, `Location`, `Organization`, `List`, and `ConceptMap` - plus
-`QuestionnaireResponse`, the one type the facade also receives, and, under
-`--live` only, whichever resources
+Eleven definitional types are served. Seven are the published content -
+`Questionnaire`, `CodeSystem`, `ValueSet`, `Location`, `Organization`, `List`,
+and `ConceptMap` - and four are the guide's own conformance resources,
+`StructureDefinition`, `ImplementationGuide`, `OperationDefinition`, and the
+requirements `CapabilityStatement` that `/metadata` instantiates, hosted
+so that a canonical found on a served resource resolves against the server that
+served it ([the guide's own definitions](201-serve.md#the-guides-own-definitions-are-served)).
+Beside them is `QuestionnaireResponse`, the one type the facade also receives,
+and, under `--live` only, whichever resources
 [the register](#the-register-what-the-instance-holds-one-resource-per-tracked-entity-type)
 publishes. Anything else is refused with an OperationOutcome saying so, rather
 than a bare 404 that would read as "no such resource":

@@ -33,11 +33,21 @@ else about it changed. The receipts it already holds are read and searched at th
 dropping their interactions would be this statement claiming less than the server does. `$generate`
 stays for the same reason: it reads a published form and answers with a draft, and writes nothing.
 
-The read set is the capture contract's read types plus ConceptMap. The IG's `kind #requirements`
-statement names the resources a capture *client* resolves a form from, and ConceptMap is not one of
-them - it is what a forwarder reads a concept back into DHIS2 identifiers with. This installation
-serves it all the same, because the maps are published IG artifacts sitting in the same store as
-everything else, and an instance is free to support more than the statement it instantiates.
+The read set is the capture contract's read types, plus ConceptMap, plus the guide's own conformance
+resources. The IG's `kind #requirements` statement names the resources a capture *client* resolves a
+form from, and neither of the other two groups is among them - ConceptMap is what a forwarder reads a
+concept back into DHIS2 identifiers with, and a StructureDefinition is what a validator resolves a
+profile from. This installation serves both all the same, because they are published IG artifacts
+sitting in the same store as everything else, and an instance is free to support more than the
+statement it instantiates.
+
+The conformance entries are the ones that make a served project self-hosting: a guide's canonicals
+have to resolve somewhere, and until the guide is published under its own canonical this server is
+the only address they have. They carry the same interactions and the same three search parameters as
+every other read type, and `CONFORMANCE_DOCUMENTATION` is where the entry says why it is there - `url`
+is the parameter that matters on them, because a client holding a profile canonical it found on a
+response has a canonical and no id. Each is declared exactly when the store holds that type, on the
+same terms as ConceptMap: a project served before it was ever compiled declares none of them.
 
 The resource operations are declared on the resource entry they are answered under, which is the
 entry a client resolves the URL from. `$translate` is answered at `/ConceptMap/$translate` and is declared on
@@ -103,7 +113,7 @@ from dhis2w_fhir.r4 import (
 from dhis2w_fhir_serve.register.filtering import ATTRIBUTE_FILTER_PARAMETER
 from dhis2w_fhir_serve.register.projection import PERSON_RESOURCE_TYPES
 from dhis2w_fhir_serve.spool import current_instant
-from dhis2w_fhir_serve.store import CONCEPT_MAP_RESOURCE_TYPE
+from dhis2w_fhir_serve.store import CONCEPT_MAP_RESOURCE_TYPE, GUIDE_CONFORMANCE_RESOURCE_TYPES
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject
@@ -115,8 +125,30 @@ if TYPE_CHECKING:
 #: The resource type the facade receives captures on, alongside the read types it serves.
 QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE = "QuestionnaireResponse"
 
-#: Every type the facade answers a read and a search for: the capture contract's, plus ConceptMap.
-SERVED_READ_RESOURCE_TYPES = (*CAPTURE_SERVER_READ_RESOURCE_TYPES, CONCEPT_MAP_RESOURCE_TYPE)
+#: Every type the facade answers a read and a search for: the capture contract's, ConceptMap, and the
+#: conformance resources the compiled guide publishes.
+SERVED_READ_RESOURCE_TYPES = (
+    *CAPTURE_SERVER_READ_RESOURCE_TYPES,
+    CONCEPT_MAP_RESOURCE_TYPE,
+    *GUIDE_CONFORMANCE_RESOURCE_TYPES,
+)
+
+#: What a conformance entry states about why this server answers for it.
+#:
+#: The sentence a client needs is the one about canonicals: a profile named on a response, an
+#: extension url carried inside one, and the operation definition this document names are all
+#: canonicals somebody has to be able to resolve, and until the guide is published somewhere of its
+#: own this server is the only address they have. `url` is how they are asked for, which is why the
+#: declaration says so rather than leaving a client to search by id it has no way of knowing.
+CONFORMANCE_DOCUMENTATION = (
+    "A conformance resource of the guide this server serves, hosted here read-only so the guide is "
+    "resolvable before it is published anywhere of its own. Every canonical the resources this "
+    "server answers carry - the profiles a response claims, the extensions the served forms and "
+    "responses use, and the operation definitions this document names - is asked for here with "
+    "`url={canonical}`. It comes from the compiled guide in either store mode: a live run hosts "
+    "whatever was last compiled beside the project, and a run with nothing compiled beside it holds "
+    "none of these and declares none."
+)
 
 #: The name the software element reports, matching the command that runs it.
 SOFTWARE_NAME = "d2w fhir serve"
@@ -701,6 +733,19 @@ def _register_documentation(
     return f"{stated} {listing} {PROJECTION_DOCUMENTATION}{record}"
 
 
+def _read_documentation(resource_type: str) -> str | None:
+    """What one read entry states about itself, which only the conformance resources need to say.
+
+    The published artifacts a capture client reads need no sentence here: a Questionnaire entry
+    saying that a Questionnaire is a form would tell a reader what the type name already told them.
+    The conformance resources do need one, because what they are here for is not obvious from the
+    type - a server hosting its own guide's profiles is a thing a client has to be told it may lean on.
+    """
+    if resource_type in GUIDE_CONFORMANCE_RESOURCE_TYPES:
+        return CONFORMANCE_DOCUMENTATION
+    return None
+
+
 def _operations(
     resource_type: str, canonical: str, names: FoundationNaming
 ) -> list[CapabilityStatementOperation] | None:
@@ -776,6 +821,7 @@ def _read_resource(
     """Declare one read type the store holds, with the three search parameters the facade answers."""
     return CapabilityStatementResource(
         type=resource_type,
+        documentation=_read_documentation(resource_type),
         operation=_operations(resource_type, canonical, names),
         interaction=[
             CapabilityStatementInteraction(code="read"),

@@ -422,9 +422,13 @@ being skipped.
 `ig/fsh-generated/resources` and `ig/input/resources`, read whole. `--live`
 builds the same read set off a DHIS2 instance at startup instead, running the
 JSON twins of the generate builders; parity between the two is gated by tests.
-A live store holds no FSH-only definitional artifacts - no StructureDefinitions,
-no `kind = #requirements` CapabilityStatement - and `/metadata` names the store
-mode it is running.
+A live store builds no FSH-only definitional artifacts, because no FSH compiler
+runs in the server. The guide's conformance resources - `StructureDefinition`,
+`ImplementationGuide`, `OperationDefinition` - are read off whatever was last
+compiled beside the project instead, in either mode, so a canonical named on a
+served resource resolves against the server that served it. A live run over a
+project that was never compiled holds none of them and declares none.
+`/metadata` names the store mode it is running.
 
 Reads, search, `$translate`, `$generate`, capture, and the spool behave
 identically either way. What needs live is the register.

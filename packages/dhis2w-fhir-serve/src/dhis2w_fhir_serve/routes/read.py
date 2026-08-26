@@ -8,8 +8,11 @@ serve Specimen" and "there is no Questionnaire with that id".
 The two catch-alls answer from three sources. Every definitional resource comes from the store,
 byte-faithful to what the IG published - ConceptMap included, which is read here as a document and
 translated through at `/ConceptMap/$translate`, the two being different ways to ask about the same
-published maps. QuestionnaireResponse comes from the spool, where each resource is a receipt of a
-submission - what a client sent, not what DHIS2 now holds. And the register's resource types - the
+published maps, and the guide's own conformance resources included too, which is what makes a served
+project self-hosting: a profile canonical found on a response is resolved with `url=` on the same
+search this module answers for every other type. QuestionnaireResponse comes from the spool, where
+each resource is a receipt of a submission - what a client sent, not what DHIS2 now holds. And the
+register's resource types - the
 ones the published `D2TET_CM` takes a tracked entity type onto - come from the DHIS2 instance, per
 request, and are dispatched to `dhis2w_fhir_serve.routes.register` before anything here reads the
 store. Which types those are is known only once the store has been loaded, so the dispatch is a

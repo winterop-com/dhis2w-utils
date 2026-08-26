@@ -75,16 +75,20 @@ def test_capability_reports_the_store_and_points_at_the_spool_for_the_queue(comp
 def test_the_stated_type_count_is_the_one_the_statement_itself_declares(compiled_project: FhirProject) -> None:
     """The summary sentence counts the entries below it, never the store's own types.
 
-    The store holds seven types and this statement declares six of them - a StructureDefinition and
-    an ImplementationGuide are published artifacts nobody reads through this facade - so counting the
-    store would put a number in the prose that the table of entries beside it contradicts.
+    The two numbers are different in both directions. A StructureMap is a compiled artifact this
+    facade serves no read for, so it is in the store and in no entry; QuestionnaireResponse is the
+    capture type, so it is an entry whether or not a receipt has ever been stored. Counting the store
+    would put a number in the prose that the table of entries beside it contradicts.
     """
-    capability = _capability(compiled_project, FULL_SUMMARY)
+    with_unserved = StoreSummary(counts_by_type={**FULL_SUMMARY.counts_by_type, "StructureMap": 1})
+
+    capability = _capability(compiled_project, with_unserved)
     declared = capability.rest[0].resource or [] if capability.rest else []
 
+    assert "StructureMap" not in [resource.type for resource in declared]
     assert capability.description is not None
     assert f"served under the {len(declared)} resource types this statement declares" in capability.description
-    assert "6 resource types" in capability.description
+    assert "8 resource types" in capability.description
 
 
 def test_each_store_mode_says_what_this_installation_is(compiled_project: FhirProject) -> None:
@@ -114,7 +118,49 @@ def test_capability_lists_the_read_types_in_the_captured_order(compiled_project:
         "ValueSet",
         "Location",
         "Organization",
+        "StructureDefinition",
+        "ImplementationGuide",
     ]
+
+
+def test_the_conformance_entries_say_why_a_client_may_lean_on_them(compiled_project: FhirProject) -> None:
+    """A server hosting its own guide's definitions is a fact a client has to be told, in the document."""
+    capability = _capability(compiled_project, FULL_SUMMARY)
+    resources = capability.rest[0].resource or [] if capability.rest else []
+    conformance = [resource for resource in resources if resource.type == "StructureDefinition"]
+
+    assert len(conformance) == 1
+    documentation = conformance[0].documentation or ""
+    assert "hosted here read-only" in documentation
+    assert "the profiles a response claims" in documentation
+    assert "url={canonical}" in documentation
+
+
+def test_a_read_type_a_capture_client_already_knows_states_nothing_extra(compiled_project: FhirProject) -> None:
+    """Only the conformance entries carry a sentence; a Questionnaire entry would restate its own type."""
+    capability = _capability(compiled_project, FULL_SUMMARY)
+    resources = capability.rest[0].resource or [] if capability.rest else []
+
+    questionnaire = next(resource for resource in resources if resource.type == "Questionnaire")
+    assert questionnaire.documentation is None
+
+
+def test_a_store_with_no_compiled_guide_declares_no_conformance_type(compiled_project: FhirProject) -> None:
+    """A live run over a project that was never compiled hosts none of them, and claims none."""
+    without_conformance = StoreSummary(
+        counts_by_type={
+            key: count
+            for key, count in FULL_SUMMARY.counts_by_type.items()
+            if key not in ("StructureDefinition", "ImplementationGuide")
+        }
+    )
+
+    capability = _capability(compiled_project, without_conformance, live=True)
+    types = [resource.type for resource in capability.rest[0].resource or []] if capability.rest else []
+
+    assert "StructureDefinition" not in types
+    assert "ImplementationGuide" not in types
+    assert "OperationDefinition" not in types
 
 
 def test_concept_map_joins_the_read_types_when_the_store_holds_maps(compiled_project: FhirProject) -> None:
@@ -133,8 +179,10 @@ def test_concept_map_joins_the_read_types_when_the_store_holds_maps(compiled_pro
         "Location",
         "Organization",
         "ConceptMap",
+        "StructureDefinition",
+        "ImplementationGuide",
     ]
-    concept_map = resources[-1]
+    concept_map = next(resource for resource in resources if resource.type == "ConceptMap")
     assert [interaction.code for interaction in concept_map.interaction or []] == ["read", "search-type"]
     assert [operation.name for operation in concept_map.operation or []] == ["translate"]
 

@@ -339,6 +339,63 @@ async def test_live_entries_are_indexed_and_marked_live(
 
 
 @respx.mock
+async def test_a_live_run_hosts_the_conformance_resources_compiled_beside_the_project(
+    live_profile: None,  # noqa: ARG001
+    live_project: FhirProject,
+) -> None:
+    """One guide, either mode: the definitional layer is read off disk where a build has left one.
+
+    Nothing else is taken from the compiled tree. What the instance answers is what the builders
+    build, and the profiles are the one thing no builder here can produce - they are FSH until SUSHI
+    has run - so a live run over a project that has also been compiled serves them and nothing more.
+    """
+    _mock_instance()
+    _write_compiled_profile(live_project)
+
+    store = await _built_store(live_project)
+
+    assert "StructureDefinition" in store.types_present()
+    profile = store.by_canonical(f"{_CANONICAL}/StructureDefinition/d2-aggregate-response")
+    assert profile is not None
+    assert profile.resource_id == "d2-aggregate-response"
+    assert profile.source == "ig/fsh-generated/resources/StructureDefinition-d2-aggregate-response.json"
+    assert "Questionnaire" not in {entry.resource_type for entry in store.entries if entry.source != "live"}
+
+
+@respx.mock
+async def test_a_live_run_over_a_project_that_was_never_compiled_hosts_none(
+    live_profile: None,  # noqa: ARG001
+    live_project: FhirProject,
+) -> None:
+    """The default live posture: no build on disk, so no definitional layer, and no claim of one."""
+    _mock_instance()
+
+    store = await _built_store(live_project)
+
+    assert "StructureDefinition" not in store.types_present()
+    assert "ImplementationGuide" not in store.types_present()
+
+
+def _write_compiled_profile(project: FhirProject) -> None:
+    """Put one compiled profile beside a live project, as a SUSHI run over the same project would."""
+    compiled = project.ig_directory / "fsh-generated" / "resources"
+    compiled.mkdir(parents=True, exist_ok=True)
+    (compiled / "StructureDefinition-d2-aggregate-response.json").write_text(
+        json.dumps(
+            {
+                "resourceType": "StructureDefinition",
+                "id": "d2-aggregate-response",
+                "url": f"{_CANONICAL}/StructureDefinition/d2-aggregate-response",
+                "status": "active",
+                "kind": "resource",
+                "type": "QuestionnaireResponse",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+@respx.mock
 async def test_the_live_store_holds_both_concept_map_families(
     live_profile: None,  # noqa: ARG001
     live_project: FhirProject,

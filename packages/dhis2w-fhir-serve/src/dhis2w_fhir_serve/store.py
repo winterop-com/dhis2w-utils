@@ -11,6 +11,11 @@ what a FHIR client reads back is exactly what the project publishes. ConceptMap 
 read further than its index: `$translate` answers off mappings, not off a document, so the stored
 maps are parsed into their R4 models at load and held alongside the entries.
 
+`GUIDE_CONFORMANCE_RESOURCE_TYPES` is the one set of types this module names for a reason other than
+indexing. They ride the compiled tree like everything else, and `load_compiled_conformance_entries`
+reads them out of it on their own so that a live store - built from a DHIS2 instance, holding no
+definitional layer of its own - hosts the same guide the compiled one does.
+
 This module knows nothing about DHIS2 - a live store is built elsewhere and lands in the same
 `ResourceStore` shape.
 """
@@ -34,6 +39,23 @@ COMPILED_RESOURCES_RELATIVE_PATH = "fsh-generated/resources"
 
 #: The resource type `$translate` reads its mappings from.
 CONCEPT_MAP_RESOURCE_TYPE = "ConceptMap"
+
+#: The conformance resources a compiled guide publishes, which a served project hosts read-only.
+#:
+#: A guide has to be resolvable before it is published somewhere of its own, and until then the
+#: facade serving it is the only address its canonicals have. These three are what SUSHI actually
+#: emits for a generated project: the profiles and extensions a response claims, the guide resource
+#: that lists them, and the definition of the one operation `/metadata` declares. SearchParameter is
+#: not among them because a generated project emits none, and a type nothing writes is a type the
+#: store would never hold.
+# CapabilityStatement here is the guide's `kind #requirements` statement - the one /metadata
+# `instantiates` - not this server's own instance statement, which /metadata alone answers.
+GUIDE_CONFORMANCE_RESOURCE_TYPES = (
+    "StructureDefinition",
+    "ImplementationGuide",
+    "OperationDefinition",
+    "CapabilityStatement",
+)
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -74,8 +96,10 @@ class StoreEntry(BaseModel):
 
     An IG holds resource types this repo has no models for (StructureDefinition, ImplementationGuide,
     whatever a project hand-writes into `input/resources`), and the server's contract is byte-faithful
-    passthrough: modelling a subset would silently drop the rest. The dict leaves the store only as an
-    HTTP response body, never as an argument another layer reads fields off.
+    passthrough: modelling a subset would silently drop the rest. That is what lets the conformance
+    resources be served without a model apiece - a profile is answered as the bytes SUSHI wrote. The
+    dict leaves the store only as an HTTP response body, never as an argument another layer reads
+    fields off.
     """
 
 
@@ -218,6 +242,25 @@ def load_compiled_store(project: FhirProject) -> ResourceStore:
 
     entries = [_read_entry(path, project.project_root) for path in [*compiled_paths, *predefined_paths]]
     return ResourceStore(entries=tuple(entries))
+
+
+def load_compiled_conformance_entries(project: FhirProject) -> tuple[StoreEntry, ...]:
+    """Read the conformance resources out of a project's compiled IG, and nothing else from it.
+
+    This is how one guide reaches both store modes. A compiled store already holds these along with
+    everything else the build wrote, and a live store is built from a DHIS2 instance and has no
+    definitional layer of its own - no FSH compiler runs in the server - so a live run reads them
+    from whatever SUSHI last compiled beside the project and hosts that.
+
+    A project with no compiled tree beside it holds none, and says so by holding none: the store has
+    fewer types and the CapabilityStatement declares exactly the types the store has. The parse is
+    the strict one `load_compiled_store` uses, for the reason stated there.
+    """
+    compiled_directory = project.ig_directory / "fsh-generated" / "resources"
+    if not compiled_directory.is_dir():
+        return ()
+    entries = (_read_entry(path, project.project_root) for path in sorted(compiled_directory.glob("*.json")))
+    return tuple(entry for entry in entries if entry.resource_type in GUIDE_CONFORMANCE_RESOURCE_TYPES)
 
 
 def _read_entry(path: Path, project_root: Path) -> StoreEntry:

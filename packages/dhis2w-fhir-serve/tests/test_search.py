@@ -151,7 +151,7 @@ async def test_a_receipt_search_refuses_a_count_it_cannot_read(client: httpx.Asy
 
 
 async def test_search_of_an_unserved_type_is_not_supported(client: httpx.AsyncClient) -> None:
-    response = await client.get("/StructureDefinition")
+    response = await client.get("/Observation")
 
     assert response.status_code == 404
     assert response.json()["issue"][0]["code"] == "not-supported"
