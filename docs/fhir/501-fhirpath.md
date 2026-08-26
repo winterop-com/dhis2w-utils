@@ -8,7 +8,9 @@ FHIRPath, XPath, JSONPath, or anything of that family.
 **Before you start:** nothing installed but the engine. `uv add
 dhis2w-fhir-engine`, or `uv sync` inside this repository. No DHIS2 instance, no
 server, and no generated project: everything on this page runs against JSON you
-paste in.
+paste in - with one exception, held to the end.
+[Run it against a served project](#run-it-against-a-served-project) needs all
+three.
 
 **You will be able to:**
 
@@ -65,8 +67,8 @@ you want when reading documents from many systems that fill in different fields.
 
 ## Navigating one resource
 
-Everything below runs against this Patient, which is what a DHIS2 tracked entity
-looks like once `d2w fhir serve --live` has mapped it:
+Everything below runs against this Patient - a small immunisation clinic's
+Patient record:
 
 ```json
 {
@@ -190,9 +192,9 @@ as you compare an element to a reporting period boundary.
 
 ## Navigating a Bundle
 
-A `Bundle` is how a FHIR server hands back a set of resources, and it is what
-`d2w fhir serve --live` builds out of a DHIS2 cohort. Every resource sits under
-`entry.resource`, of every type, mixed together and in no guaranteed order.
+A `Bundle` is the shape a FHIR server hands back a set of resources in. Every
+resource sits under `entry.resource`, of every type, mixed together and in no
+guaranteed order.
 
 So the first move of any expression over a Bundle is to say which type you meant.
 That is `ofType()`:

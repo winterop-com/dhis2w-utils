@@ -18,11 +18,12 @@ one page, with the command that does each and the link that owns it - read it
 first if you are new here. Everything else in this series is depth behind one of
 those steps, or one of the capabilities that sit beyond them.
 
-The series is graded: **101** pages explain and demonstrate, **201** pages
-operate a project day to day, **301** pages configure `fhir.toml`, **401**
-pages integrate against and extend what the project publishes, and **501**
-pages teach the expression languages that compute over FHIR data. Every page
-states who it is for; start where your question lives.
+The series is graded 100 to 501: the **100** page is the front door, **101**
+pages explain and demonstrate, **201** pages operate a project day to day,
+**301** pages configure `fhir.toml`, **401** pages integrate against and extend
+what the project publishes, and **501** pages teach the expression languages
+that compute over FHIR data. Every page states who it is for; start where your
+question lives.
 
 Every term either side of the boundary - DHIS2's and FHIR's - has an entry in
 the [Glossary](glossary.md). Read it first if a word in any page below is
@@ -129,7 +130,9 @@ not a menu - the pages build on each other left to right.
 The expression languages that compute over FHIR data, in the
 `dhis2w-fhir-engine` package. Written for someone who knows DHIS2 and has never
 seen an expression language, and needing no DHIS2 instance, no server, and no
-generated project - every page runs against data you paste in.
+generated project - every page runs against data you paste in. The exception is
+held to the end of each language page: a closing section that runs the same
+logic against a served project or a seeded instance, and says so.
 
 - [FHIRPath](501-fhirpath.md) - the smaller language: paths, filters, and
   functions over one resource or one Bundle, and why every expression answers

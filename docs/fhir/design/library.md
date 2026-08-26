@@ -11,6 +11,16 @@ against, and every line number was read rather than remembered. Where a function
 described as private, the leading underscore is the evidence; where it is described as
 invisible, the absence from a package's `__all__` is.
 
+!!! note "Trued up 2026-08-26"
+    This paper reflects the design conversation that produced it, and the tree has moved
+    since. The rows and findings below were re-read against the current packages on
+    2026-08-26 and corrected where the code had answered them - the doctor surface, the
+    serve modules the API pages render, `ServeSettings.resolve`, the four-level facade
+    ladder, and the CQL reading. Section 3's proposed contract is largely built:
+    `ServeSettings.resolve`, `ServeRuntime`, `open_serve_runtime`, and `ServeRouters` all
+    exist and are exported. What stays is the doctrine in section 1 and the reasoning
+    behind each recommendation, which is what the paper is for.
+
 ## The short version
 
 **The toolchain is far more importable than it looks, and almost none of that is
@@ -97,7 +107,7 @@ questions.
 | **Forward** - refusal sidecars | `ForwardImportRecord` (`:4412`) is the on-disk report shape and is exported | `_record_refusals` (`:5222`), including the attempt counter at `:5242`; `_file_terminal_refusals` (`:5180`); `TERMINAL_REFUSAL_CATEGORIES` (`:4279`) is public and unexported; the sidecar text constants are private | One public call that records a refusal against a spooled response, over the `ForwardRefusalRecord` the spool already defines | `ASSEMBLY-ONLY` |
 | **Reports** - the files a run leaves behind | The validation renderers (markdown, CSV, PDF) and `render_doctor_markdown` | Everything else. `_write_forward_report` (`cli.py:1674`), `_completeness_report_lines` (`:1577`), `_overwritten_value_report_lines` (`:1632`), `_write_generate_notes` (`:468`), `_write_doctor_report` (`:2243`). **The forward report and the generate notes have no renderer anywhere outside `cli.py`** | Renderers in the library taking a report model and returning text; the command keeps the path and nothing else | `ASSEMBLY-ONLY` |
 | **Exit codes** | Nothing, and correctly so | Three rules, each derived from a public property but stated only in a command body: `report.error_count` (`cli.py:973`), `report.rejected` or `report.stopped` (`:2011`), `report.failed_phases` (`:2331`) | Optionally a predicate per report model. An embedder can reconstruct all three today, but has to read `cli.py` to learn them | `ASSEMBLY-ONLY` |
-| **Serve** - settings | `ServeSettings` (`settings.py:14`) is exported and frozen | The resolution is not. Flag-over-`[serve]` precedence for host, port, strict codes, the UI, and the basemaps sits in `cli.py:1270-1276`; `basemaps_from_options` refusal mapping at `:1275-1278`; the profile-to-`dhis2_base_url` step at `:1283-1295`; the compiled-guide preflight at `:1284-1285` | `ServeSettings.resolve(project, ...)`, mirroring `RegisterSurface.resolve` (`register/surface.py:70`). An embedder must get the same settings `d2w fhir serve` gets, or the two facades differ silently | `ASSEMBLY-ONLY` |
+| **Serve** - settings | `ServeSettings` is exported and frozen, and so is the resolution: `ServeSettings.resolve(project, ...)` (`settings.py:120`) holds the flag-over-`[serve]` precedence, the basemap parsing, the profile-to-`dhis2_base_url` step, and the compiled-guide preflight, and the command calls it | Nothing | Unchanged. This row is what the recommendation in section 3.3 asked for, and it is the one an embedder must reach for: an embedder that resolves its own settings gets a facade that differs from `d2w fhir serve`'s silently | `LIBRARY` |
 | **Serve** - context assembly | `ServeContext` (`app.py:58`), `build_store` (`:105`), `create_app` (`:74`), `server_version` (`:120`) | `_lifespan` (`app.py:126`) wires six steps privately: `load_project`, `open_live_client`, `build_store`, `ResponseSpool.at`, `TrackedEntityIndex.from_store` into `RegisterSurface.resolve`, and `build_metadata_body`. It also decides where the live client lives (`app.state.live_client`) | An async context manager yielding the assembled runtime, with `_lifespan` as its first caller. Section 3 | `ASSEMBLY-ONLY` |
 | **Serve** - the routers | None of the nine. `register_routes` (`routes/__init__.py:43`) is the only exported mount, and it takes a `FastAPI` | Nine router modules, all reached by module path: `metadata.py:29`, `routes/capture.py:57` and `:60`, `routes/root.py:37`, `routes/translate.py:37`, `routes/generate.py:46`, `routes/spool.py:66`, `routes/uiconfig.py:67`, `routes/enrollments.py:74`, `routes/read.py:75`. The `Accept` dependency `require_json_is_acceptable` (`routes/negotiation.py:57`) and the HEAD sweep `_accept_head_wherever_get_is_served` (`routes/__init__.py:86`) are unexported and private respectively | Routers exported by name with their mount requirements stated as data. Section 3 | `ASSEMBLY-ONLY` |
 | **Serve** - the store | `ResourceStore`, `StoreEntry`, `StoreSummary`, `SearchQuery`, `IdentifierToken`, `load_compiled_store`, `CompiledIgMissingError`, `COMPILED_RESOURCES_RELATIVE_PATH` - all re-exported | Nothing. `store.py:14` says it plainly: "This module knows nothing about DHIS2" | Unchanged, except for the graduation question in section 6 | `LIBRARY` |
@@ -119,14 +129,17 @@ already take models and return models, sitting one `__all__` entry away from bei
 published. The layering this project chose is doing its job; the surface declaration has
 not kept up with it.
 
-**Finding 2 - the docs already promise more than the imports deliver.**
-`docs/fhir/api-dhis2w-fhir.md:140` renders `::: dhis2w_fhir.doctor` under the heading
-"The conformance runner", and not one doctor symbol is importable from `dhis2w_fhir`.
-`docs/fhir/api-dhis2w-fhir-serve.md` renders `dhis2w_fhir_serve.live`,
-`routes.read`, `routes.capture`, `routes.register`, and `routes.generate`, none of which
-the package exports. A reader who follows the API reference lands on `ImportError` or on
-a module path the package docstring calls unstable. That is the most concrete harm in
-this paper.
+**Finding 2 - the docs promised more than the imports delivered, and the tree closed the
+gap.** This was the most concrete harm in the paper: `docs/fhir/api-dhis2w-fhir.md`
+rendered `::: dhis2w_fhir.doctor` under "The conformance runner" while no doctor symbol
+was importable, and `docs/fhir/api-dhis2w-fhir-serve.md` rendered
+`dhis2w_fhir_serve.live` and four route modules the package did not export. Both are now
+published: `dhis2w_fhir.__init__` re-exports the doctor surface, `run_doctor`,
+`DoctorOptions`, and `DoctorReport` included, and `dhis2w_fhir_serve.__init__` re-exports
+`build_live_store`, `open_live_client`, and the route modules' names. The finding stands
+as a rule rather than as a defect: an `::: module` reference in the API pages is a
+promise the package's `__all__` has to keep, and a page rendering a module the package
+does not export is the same harm again.
 
 **Finding 3 - the toolchain already reaches past its own surface.** Three places do it.
 `dhis2w_fhir/cli.py:1256` imports five names from `dhis2w_fhir_serve` behind a guarded
@@ -199,10 +212,12 @@ cycle, applies a HEAD-parity sweep to every one, and gives the FHIR subset a mou
 
 ### 3.2 The five seams that are not seams yet
 
-**Settings resolution.** An embedder constructing `ServeSettings` by hand gets a
-different facade from `d2w fhir serve` unless they reproduce `cli.py:1270-1296` exactly -
-the flag-over-table precedence, the basemap parsing, the profile-to-base-URL step, and
-the compiled-guide preflight. Nothing warns them.
+**Settings resolution.** *Built.* `ServeSettings.resolve` (`settings.py:120`) is the
+classmethod section 3.3 proposes, and the command calls it, so an embedder asking for
+`d2w fhir serve`'s posture asks by name. The seam this paragraph described - an embedder
+constructing `ServeSettings` by hand and reproducing the precedence rules from a command
+body - is closed. What remains is the rule: constructing the model directly is still
+allowed and is now a deliberate departure rather than an accident.
 
 **The runtime.** There is no way to obtain a loaded `ServeContext` other than starting an
 ASGI application and letting its lifespan run. A test, a batch job, or an embedding
@@ -486,9 +501,11 @@ fetch. **Reserved**: whether the binder lands once in `dhis2w-ql` over a client 
 or three times in the version plugin trees. See section 6.
 
 **Why the capstone is last, and why it matters.** The ladder in `examples/fhir/client/`
-today runs `minimal_facade.py` (one route, nothing written down),
-`basic_facade.py` (one client, a health route, a log line per verdict), and
-`complex_facade.py` (a durable spool and a background drain). `complex_facade.py:26` already
+runs four levels, not three: `minimal_facade.py` (one route, nothing written down),
+`basic_facade.py` (one client, a health route, a log line per verdict),
+`complex_facade.py` (a durable spool and a background drain), and `advanced_facade.py`
+(tracker routing, the coded-answer dial, and the rest) - the four are walked in order in
+[Build your own facade](../401-build-your-own-facade.md). `complex_facade.py:26` already
 makes the argument this whole paper generalises: "half the imports are the served
 facade's own. Writing receipts durably is not a thing worth having a second version of,
 so this level uses the one that exists." The level above it currently ends by conceding
@@ -502,18 +519,19 @@ contract is not finished.
 ## 6. Owner decisions this paper reserves
 
 - **The `cql` reading.** The capability list that prompted this paper named "cql" among
-  the library-worthy capabilities. There is no CQL - Clinical Quality Language - anywhere
-  in this repository: no parser, no evaluator, no dependency, no roadmap item. The
-  plausible reading is **`dhis2w-ql`**, the `d2w ql` query language, whose engine is
-  importable and whose DHIS2 binding is not, and whose example corpus is eighty `.d2ql`
-  files with no Python door - and which already emits FHIR through its general-purpose
-  `fold` and `transform` stages (`examples/d2ql/fhir-de-codesystem.d2ql`,
-  `export-fhir-bundle.d2ql`, `fhir-dataset-questionnaire.d2ql`), which is what makes it a
-  FHIR-toolchain capability at all. **This paper does not assume that reading.** If CQL
-  proper was meant, it is a new capability with no code behind it and belongs in the
-  roadmap rather than in this audit. The two names are also worth keeping apart in prose:
-  this repository's language is **d2ql**, a pipeline query and transform language with an
-  embedded `d2path` expression core, and it shares no lineage with Clinical Quality
+  the library-worthy capabilities, and it can be read two ways, because this repository
+  has both. **CQL proper** - Clinical Quality Language - is `dhis2w-fhir-engine`: a
+  parser, an evaluator, a measure evaluator, the `d2w-fhir-engine cql` sub-app, and the
+  [CQL](../501-cql.md) and [Quality measures](../501-measures.md) pages that teach them.
+  **`dhis2w-ql`** is the `d2w ql` query language, whose engine is importable and whose
+  DHIS2 binding is not, whose example corpus is eighty `.d2ql` files with no Python door,
+  and which already emits FHIR through its general-purpose `fold` and `transform` stages
+  (`examples/d2ql/fhir-de-codesystem.d2ql`, `export-fhir-bundle.d2ql`,
+  `fhir-dataset-questionnaire.d2ql`). This paper audits the `d2w fhir` surface and takes
+  the `dhis2w-ql` reading for its own table; the engine's own surface is a second audit,
+  not a row here. The two names are worth keeping apart in prose either way: this
+  repository's query language is **d2ql**, a pipeline query and transform language with
+  an embedded `d2path` expression core, and it shares no lineage with Clinical Quality
   Language.
 - **Whether the doctor's declared CLI-only status survives the doctrine.**
   `doctor.py:13-15` says the runner is CLI-only the way `d2w profile` is, and it acts
