@@ -25,6 +25,7 @@ import {
     type Questionnaire,
     type QuestionnaireResponse,
     type Reference,
+    type QuestionnaireItem,
 } from '@/lib/fhir'
 import {
     answersFromResponse,
@@ -67,8 +68,12 @@ import {
     periodShape,
     repeatsPerEnrollment,
     reportingPeriodTypeOf,
+    formBlocks,
+    splitByFirstDimension,
     type AnswerState,
+    type FormBlock,
     type FormKeyPress,
+    type QuestionnaireSpec,
 } from '@/lib/questionnaire'
 import { carriesUnitOnExtension, reportingUnitOf, type OrgUnitChoice } from '@/lib/orgunits'
 import { marksAnExistingSubject } from '@/lib/patients'
@@ -666,6 +671,184 @@ describe('an answer outside what the form accepts', () => {
         const answers = { ...answersOf({ asked: 'false' }), ...answersOf({ bounded: '99' }) }
 
         expect(answerBreaches(gated, answers)).toEqual([])
+    })
+})
+
+describe('the shape a run of items is drawn in', () => {
+    const childHealth = flattenQuestionnaire(servedForm('BfMAe6Itzgt'))
+
+    /** The blocks of one group's children, which is what one section of a form is drawn from. */
+    function blocksOfSection(spec: QuestionnaireSpec, sectionLinkId: string): FormBlock[] {
+        return formBlocks(spec, spec.byLinkId.get(sectionLinkId)?.childLinkIds ?? [], enabledLinkIds(spec, {}))
+    }
+
+    /** One data element cut into the bands named, the way an aggregate form states one. */
+    function bandedElement(linkId: string, bands: string[]): QuestionnaireItem {
+        return {
+            linkId,
+            type: 'group',
+            text: linkId,
+            item: bands.map((band) => ({
+                linkId: `${linkId}.${band}`,
+                type: 'integer',
+                text: band,
+                code: [{ system: 'http://example.org/coc', code: band }],
+            })),
+        }
+    }
+
+    it('reads a section of elements cut the same way as one table', () => {
+        const [block, ...rest] = blocksOfSection(childHealth, 'Y2rk0vzgvAx')
+
+        expect(rest).toEqual([])
+        expect(block.kind).toBe('disaggregation')
+        if (block.kind !== 'disaggregation') return
+        // Fifteen data elements, one row each, and the four combos stated once as the columns
+        // rather than once per element - which is the whole of what the table is for.
+        expect(block.groupLinkIds).toHaveLength(15)
+        expect(block.groupLinkIds[0]).toBe('s46m5MS0hxu')
+        expect(block.columns.map((column) => column.label)).toEqual([
+            'Fixed, <1y',
+            'Fixed, >1y',
+            'Outreach, <1y',
+            'Outreach, >1y',
+        ])
+        expect(block.columns.map((column) => column.code)).toEqual([
+            'Prlt0C1RF0s',
+            'psbwp3CQEhs',
+            'V6L425pT3A0',
+            'hEFKSsPV5et',
+        ])
+    })
+
+    it('opens a new table where the cut changes', () => {
+        const spec = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                bandedElement('first', ['Under 1', 'Over 1']),
+                bandedElement('second', ['Under 1', 'Over 1']),
+                // The element DHIS2 reports for one age band alone. Nothing about it belongs in the
+                // table above it: its columns are a different cut, and a row under those headers
+                // would claim the value was reported for a band it was not.
+                bandedElement('narrower', ['Over 1']),
+                bandedElement('wider', ['Under 1', 'Over 1', 'Over 5']),
+                bandedElement('third', ['Under 1', 'Over 1']),
+            ],
+        })
+        const blocks = formBlocks(spec, spec.rootLinkIds, enabledLinkIds(spec, {}))
+
+        expect(blocks.map((block) => (block.kind === 'disaggregation' ? block.groupLinkIds : block.key))).toEqual([
+            ['first', 'second'],
+            // One cell is not a cut, so the narrower element falls back to the stacked drawing.
+            'narrower',
+            ['wider'],
+            ['third'],
+        ])
+        const wider = blocks[2]
+        if (wider.kind !== 'disaggregation') throw new Error('the third block is the wider element')
+        expect(wider.columns.map((column) => column.label)).toEqual(['Under 1', 'Over 1', 'Over 5'])
+    })
+
+    it('flows a run of scalar questions into columns and keeps every link id in document order', () => {
+        const stock = flattenQuestionnaire(attributeComboForm)
+        const blocks = formBlocks(stock, stock.rootLinkIds, enabledLinkIds(stock, {}))
+
+        expect(blocks.map((block) => block.kind)).toEqual(['disaggregation', 'scalars'])
+        const [table, scalars] = blocks
+        if (table.kind !== 'disaggregation' || scalars.kind !== 'scalars') throw new Error('unexpected blocks')
+        expect(table.groupLinkIds).toEqual(['cZnQDuF3IDz', 'FvKdfA2SuWI', 'WVrH6j3Wfye'])
+        expect(scalars.linkIds).toEqual(stock.rootLinkIds.slice(3))
+    })
+
+    it('leaves a narrative on a line of its own and keeps a group out of the flow', () => {
+        const mixed = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                { linkId: 'count', type: 'integer', text: 'Cases' },
+                { linkId: 'note', type: 'text', text: 'What happened' },
+                { linkId: 'day', type: 'date', text: 'Reported on' },
+                { linkId: 'section', type: 'group', text: 'A section', item: [{ linkId: 'inside', type: 'string' }] },
+            ],
+        })
+        const blocks = formBlocks(mixed, mixed.rootLinkIds, enabledLinkIds(mixed, {}))
+
+        expect(blocks.map((block) => block.kind)).toEqual(['scalars', 'item', 'scalars', 'item'])
+        expect(blocks.map((block) => (block.kind === 'scalars' ? block.linkIds : [block.key]))).toEqual([
+            ['count'],
+            ['note'],
+            ['day'],
+            ['section'],
+        ])
+    })
+
+    it('leaves a group whose cells are not numbers stacked', () => {
+        const coded = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                {
+                    linkId: 'element',
+                    type: 'group',
+                    text: 'An element',
+                    item: [
+                        { linkId: 'element.one', type: 'choice', text: 'Fixed' },
+                        { linkId: 'element.two', type: 'choice', text: 'Outreach' },
+                    ],
+                },
+            ],
+        })
+        const blocks = formBlocks(coded, coded.rootLinkIds, enabledLinkIds(coded, {}))
+
+        expect(blocks).toEqual([{ kind: 'item', key: 'element', linkId: 'element' }])
+    })
+
+    it('drops a cell the form has stopped asking, and with it the table that cell shaped', () => {
+        const spec = flattenQuestionnaire({
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                { linkId: 'gate', type: 'boolean', text: 'Report the second age band' },
+                {
+                    linkId: 'first',
+                    type: 'group',
+                    text: 'First element',
+                    item: [
+                        { linkId: 'first.a', type: 'integer', text: 'Under 1' },
+                        {
+                            linkId: 'first.b',
+                            type: 'integer',
+                            text: 'Over 1',
+                            enableWhen: [{ question: 'gate', operator: '=', answerBoolean: true }],
+                        },
+                    ],
+                },
+                {
+                    linkId: 'second',
+                    type: 'group',
+                    text: 'Second element',
+                    item: [
+                        { linkId: 'second.a', type: 'integer', text: 'Under 1' },
+                        { linkId: 'second.b', type: 'integer', text: 'Over 1' },
+                    ],
+                },
+            ],
+        })
+
+        // With the gate answered both elements are cut the same way and share one table; with it
+        // unanswered the first element holds a single cell, which is not a cut at all - so it falls
+        // back to the stacked drawing and the second element opens its own table.
+        const answered = enabledLinkIds(spec, { gate: [{ ...EMPTY_SLOT, text: 'true' }] })
+        expect(formBlocks(spec, spec.rootLinkIds, answered).map((block) => block.kind)).toEqual([
+            'scalars',
+            'disaggregation',
+        ])
+        expect(formBlocks(spec, spec.rootLinkIds, enabledLinkIds(spec, {})).map((block) => block.kind)).toEqual([
+            'scalars',
+            'item',
+            'disaggregation',
+        ])
     })
 })
 
@@ -2277,5 +2460,36 @@ describe('the box a numeric question is filled in through', () => {
     it('states which keypad a touch device offers, since the type no longer says', () => {
         expect(numericInputShape('integer').inputMode).toBe('numeric')
         expect(numericInputShape('decimal').inputMode).toBe('decimal')
+    })
+})
+
+describe('a two-dimensional cut split by its first dimension', () => {
+    const column = (label: string) => ({ label, code: null })
+
+    it('slices eight comma-labelled combos into one facet per first value', () => {
+        const facets = splitByFirstDimension(
+            ['Female, under 15y', 'Female, 15-24y', 'Female, 25-49y', 'Female, over 49y',
+             'Male, under 15y', 'Male, 15-24y', 'Male, 25-49y', 'Male, over 49y'].map(column),
+        )
+        expect(facets?.map((facet) => facet.heading)).toEqual(['Female', 'Male'])
+        expect(facets?.[0].labels).toEqual(['under 15y', '15-24y', '25-49y', 'over 49y'])
+        expect(facets?.[1].indices).toEqual([4, 5, 6, 7])
+    })
+
+    it('keeps a narrow cut as one table', () => {
+        expect(splitByFirstDimension(['0-11m', '12-59m', '5-14y', '15y+'].map(column))).toBeNull()
+    })
+
+    it('refuses a cut whose facets do not repeat the same suffixes', () => {
+        const facets = splitByFirstDimension(
+            ['Female, under 15y', 'Female, 15-24y', 'Female, 25-49y', 'Female, over 49y',
+             'Male, under 15y', 'Male, 15-24y', 'Male, 25-49y', 'Male, 50y+'].map(column),
+        )
+        expect(facets).toBeNull()
+    })
+
+    it('refuses labels that carry no second dimension', () => {
+        const labels = Array.from({ length: 8 }, (_, index) => `Band ${String(index)}`)
+        expect(splitByFirstDimension(labels.map(column))).toBeNull()
     })
 })

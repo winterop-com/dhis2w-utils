@@ -59,7 +59,7 @@ export function ReportingUnitPicker({
     const offered = scope.choices.length
 
     return (
-        <div className="grid gap-2 rounded-lg border p-4">
+        <div className="bg-card text-card-foreground grid gap-2 rounded-lg border p-4">
             <Label htmlFor={CONTROL_ID}>
                 Reporting from
                 <span className="text-destructive" aria-hidden>

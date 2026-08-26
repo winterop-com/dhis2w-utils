@@ -76,6 +76,9 @@ const PAIRS: [string, string, number][] = [
     ['primary', 'background', FLOORS.identity],
     ['accent-foreground', 'accent', FLOORS.accent],
     ['sidebar-accent-foreground', 'sidebar-accent', FLOORS.accent],
+    // The two states whose fills measure short as words: their ink variants are held to AA text.
+    ['good-ink', 'card', 4.5],
+    ['warning-ink', 'card', 4.5],
     ['status-received', 'card', FLOORS.status],
     ['status-forwarded', 'card', FLOORS.status],
     ['status-rejected', 'card', FLOORS.status],
@@ -120,10 +123,10 @@ async function postReceipt(): Promise<string> {
     }
 }
 
-/** Open the settings menu from the foot of the rail, and wait until it is actually there. */
+/** Open the settings dialog from the gear at the foot of the rail, and wait until it is really up. */
 async function openSettings(page: Page): Promise<void> {
     await page.getByRole('complementary').getByRole('button', { name: 'Settings' }).click()
-    await expect(page.getByRole('menu')).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
 }
 
 /** Open the palette the way a person does, and wait until it is actually there.
@@ -237,17 +240,47 @@ test('the gear offers every theme and marks the one in force', async ({ page }) 
     await page.goto('/')
     await openSettings(page)
 
-    // Both appearance controls live behind the one gear now: the five themes, and the ground.
+    // Both appearance controls live behind the one gear: every theme, and the ground.
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
     await Promise.all(
-        ['Clinical', 'Indigo', 'Paper', 'Contrast', 'Terminal'].map((label) =>
-            expect(page.getByRole('menuitemradio', { name: new RegExp(`^${label}`) })).toBeVisible(),
+        ['Clinical', 'Indigo', 'Paper', 'Contrast', 'Terminal', 'DHIS2', 'FHIR'].map((label) =>
+            expect(dialog.getByRole('radio', { name: new RegExp(`^${label}`) })).toBeVisible(),
         ),
     )
-    await expect(page.getByRole('menuitemradio', { name: /^Clinical/ })).toHaveAttribute(
-        'aria-checked',
-        'true',
-    )
-    await expect(page.getByRole('menuitem', { name: /^Switch to dark mode/ })).toBeVisible()
+    await expect(dialog.getByRole('radio', { name: /^Clinical/ })).toBeChecked()
+    await expect(dialog.getByRole('button', { name: /^Switch to dark mode/ })).toBeVisible()
+
+    // The gear says Settings, so what it opens has to be more than the colours: a rail down the
+    // left says up front everything the dialog holds, and appearance is the section it opens at.
+    await expect(dialog.getByRole('tab', { name: 'Appearance' })).toHaveAttribute('aria-selected', 'true')
+    await expect(dialog.getByRole('tab', { name: 'Keyboard shortcuts' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Appearance' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+})
+
+test('the rail moves between sections, and the box at the top of it searches every one', async ({ page }) => {
+    await page.goto('/')
+    await openSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+
+    await dialog.getByRole('tab', { name: 'Keyboard shortcuts' }).click()
+    await expect(dialog.getByText('Open the command palette')).toBeVisible()
+    await expect(dialog.getByRole('radio', { name: /^Clinical/ })).toHaveCount(0)
+
+    // Typing something the section in front of you cannot answer moves you to the one that can,
+    // which is the whole of jumping to a hit: the rows themselves are the result.
+    await dialog.getByRole('searchbox', { name: 'Search settings' }).fill('phosphor')
+    await expect(dialog.getByRole('tab', { name: 'Appearance' })).toHaveAttribute('aria-selected', 'true')
+    await expect(dialog.getByRole('radio', { name: /^Terminal/ })).toBeVisible()
+    await expect(dialog.getByRole('radio', { name: /^Clinical/ })).toHaveCount(0)
+    await expect(dialog.getByRole('tab', { name: 'Keyboard shortcuts' })).toHaveCount(0)
+
+    // A box nothing answers to says so, rather than leaving a reader in front of an empty pane.
+    await dialog.getByRole('searchbox', { name: 'Search settings' }).fill('nothing here is called this')
+    await expect(dialog.getByText('No setting matches what you typed')).toBeVisible()
+
+    await page.keyboard.press('Escape')
 })
 
 test('the header carries neither of them, so what is left on it is the page', async ({ page }) => {
@@ -257,22 +290,31 @@ test('the header carries neither of them, so what is left on it is the page', as
     await expect(header.getByRole('button', { name: 'Theme' })).toHaveCount(0)
     await expect(header.getByRole('button', { name: /^Switch to (dark|light) mode/ })).toHaveCount(0)
 
-    // What the header does keep: the page's name and the server light. The navigation's own
-    // toggle lives in the rail, at the one position it holds in both states.
+    // What the header does keep: the server light - and, only on a detail route, the section the
+    // page belongs to. On a section's own page the heading below already names it, so the bar
+    // naming it too would be one fact in two rows. The navigation's own toggle lives in the rail,
+    // at the one position it holds in both states.
     await expect(header.getByRole('button', { name: 'Collapse the navigation' })).toHaveCount(0)
-    await expect(header.locator('h1')).toHaveText('Overview')
+    await expect(header.locator('h1')).toHaveCount(0)
     await expect(header.getByRole('button', { name: /Server status/ })).toBeVisible()
     await expect(
         page.getByRole('complementary').getByRole('button', { name: 'Collapse the navigation' }),
     ).toBeVisible()
+
+    await page.goto('/#/responses/does-not-exist')
+    await expect(header.locator('h1')).toHaveText('Responses')
 })
 
 test('a theme chosen at the gear is painted, and is still painted after a reload', async ({ page }) => {
     await page.goto('/')
     await openSettings(page)
-    await page.getByRole('menuitemradio', { name: /^Terminal/ }).click()
+    await page.getByRole('dialog', { name: 'Settings' }).getByRole('radio', { name: /^Terminal/ }).click()
 
+    // The dialog stays open on top of it: a theme is a thing you look at, so the reader is left in
+    // front of the list with the app behind it already repainted.
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
+    await page.keyboard.press('Escape')
 
     // The attribute is written before the first paint by the inline script in index.html, off the
     // same storage key lib/theme.ts writes. If those two ever disagree, this reload shows Clinical.
@@ -280,10 +322,9 @@ test('a theme chosen at the gear is painted, and is still painted after a reload
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
 
     await openSettings(page)
-    await expect(page.getByRole('menuitemradio', { name: /^Terminal/ })).toHaveAttribute(
-        'aria-checked',
-        'true',
-    )
+    await expect(
+        page.getByRole('dialog', { name: 'Settings' }).getByRole('radio', { name: /^Terminal/ }),
+    ).toBeChecked()
     await page.keyboard.press('Escape')
 
     // Put it back, so the specs after this one meet the theme every other spec assumes.
@@ -301,7 +342,9 @@ test('the gear is still reachable once the rail is collapsed to icons', async ({
     const gear = page.getByRole('complementary').getByRole('button', { name: 'Settings' })
     await expect(gear).toBeVisible()
     await gear.click()
-    await expect(page.getByRole('menuitemradio', { name: /^Clinical/ })).toBeVisible()
+    await expect(
+        page.getByRole('dialog', { name: 'Settings' }).getByRole('radio', { name: /^Clinical/ }),
+    ).toBeVisible()
 
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Expand the navigation' }).click()
@@ -311,8 +354,11 @@ test('? puts every key this app answers on screen, and typing a ? does not', asy
     await page.goto('/')
     await page.keyboard.press('?')
 
-    const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+    // The keys are a section of Settings rather than an overlay of their own, so the press opens
+    // that dialog and lands on the section it was asked for.
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
     await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole('tab', { name: 'Keyboard shortcuts' })).toBeFocused()
     // The chord nobody discovers is the first row, which is the whole reason the list exists.
     await expect(dialog.getByText('Open the command palette')).toBeVisible()
     await expect(dialog.getByText('Collapse or expand the navigation')).toBeVisible()
@@ -322,16 +368,19 @@ test('? puts every key this app answers on screen, and typing a ? does not', asy
     // A `?` typed into a box is a question mark. The palette's own box is the nearest one to hand.
     await openPalette(page)
     await page.getByRole('combobox', { name: 'Command palette' }).fill('?')
-    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
     await page.keyboard.press('Escape')
 })
 
-test('the gear leads to the same list, for anyone who would not press a bare key', async ({ page }) => {
+test('the palette leads to the same list, for anyone who would not press a bare key', async ({ page }) => {
     await page.goto('/')
-    await openSettings(page)
-    await page.getByRole('menuitem', { name: /Keyboard shortcuts/ }).click()
+    await openPalette(page)
+    await page.getByRole('combobox', { name: 'Command palette' }).fill('keyboard')
+    await page.getByRole('option', { name: /Keyboard shortcuts/ }).click()
 
-    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole('tab', { name: 'Keyboard shortcuts' })).toBeFocused()
     await page.keyboard.press('Escape')
 })
 
@@ -463,7 +512,8 @@ test('a theme change repaints the organisation-unit map with nothing reloaded', 
     // boundaries in the previous theme's colours until the ground happened to flip.
     const before = await map.getAttribute('data-map-theme')
     await openSettings(page)
-    await page.getByRole('menuitemradio', { name: /^Terminal/ }).click()
+    await page.getByRole('dialog', { name: 'Settings' }).getByRole('radio', { name: /^Terminal/ }).click()
+    await page.keyboard.press('Escape')
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'terminal')
     // The ground did not change, so the map's own light/dark marker must not have either - what has

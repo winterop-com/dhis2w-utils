@@ -816,3 +816,91 @@ test.describe('a stage form answering for a captured registration', () => {
         expect(stageReceipt?.tracked_entity).toBe(trackedEntity)
     })
 })
+
+/**
+ * The shape a form is drawn in, which is the shape of the answers it asks for.
+ *
+ * A CONTROL STATES WHAT GOES IN IT. A weekly case count typed into a box wide enough for a sentence
+ * is a form asking for the wrong thing, and fifty-six disaggregated cells stacked one per row is a
+ * screen nobody reads to the bottom of. So the renderer draws a run of data elements cut the same
+ * way as the table DHIS2's own data entry uses, flows scalar questions into as many columns as the
+ * screen has room for, and gives every control the width of its answer.
+ *
+ * AND THE SUBMISSION IS UNMOVED BY ALL OF IT. The last spec here is the one that matters: a table
+ * cell is the same question it was, so a capture filled in through the table produces the answers
+ * the receipt reads back, linkId for linkId.
+ */
+test.describe('the shape a form is drawn in', () => {
+    /** One cell of the `BCG doses given` row, which the fixture's data set reports as a whole number. */
+    const WHOLE_NUMBER_CELL = 'BCG doses given Fixed, <1y'
+
+    /** One cell of a row the same data set reports as a decimal, cut by the same four combos. */
+    const DECIMAL_CELL = 'Fully Immunized child Fixed, <1y'
+
+    test('a numeric question is a numeric control', async ({ page }) => {
+        await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+
+        // A text box with a numeric keypad rather than `type="number"`, which drops the characters
+        // it cannot parse - the capture states what it could not carry instead of rewriting it
+        // under the cursor. The keypad is the one thing that differs between the two value types.
+        const wholeNumber = page.getByLabel(WHOLE_NUMBER_CELL)
+        await expect(wholeNumber).toHaveAttribute('inputmode', 'numeric')
+        await expect(wholeNumber).toHaveAttribute('type', 'text')
+        await expect(page.getByLabel(DECIMAL_CELL)).toHaveAttribute('inputmode', 'decimal')
+
+        // And it is a box a count fits in, not one a sentence fits in.
+        const box = await wholeNumber.boundingBox()
+        expect(box?.width ?? 0).toBeLessThan(160)
+    })
+
+    test('a section of elements cut the same way is one table', async ({ page }) => {
+        await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+
+        const immunization = page.getByRole('table').filter({ hasText: 'BCG doses given' })
+        // Fifteen data elements, one row each, under a header that names the four combos once -
+        // rather than fifteen stacks of four labelled cells.
+        await expect(immunization.getByRole('row')).toHaveCount(16)
+        await expect(immunization.getByRole('columnheader')).toHaveCount(5)
+        await expect(immunization.getByRole('columnheader', { name: /Fixed, <1y/ })).toHaveCount(1)
+        await expect(immunization.getByRole('rowheader', { name: /BCG doses given/ })).toHaveCount(1)
+
+        // The categories the columns cut along are stated once, above the table, because a combo's
+        // name is the corner of a grid and never says which grid.
+        await expect(
+            page.getByText('Disaggregated by Location Fixed/Outreach and EPI/nutrition age').first(),
+        ).toBeVisible()
+
+        // Every cell of the row is still its own question, keyed by its own link id.
+        for (const combo of ['Fixed, <1y', 'Fixed, >1y', 'Outreach, <1y', 'Outreach, >1y']) {
+            await expect(page.getByLabel(`BCG doses given ${combo}`)).toHaveCount(1)
+        }
+    })
+
+    test('a table submits the answers its cells hold', async ({ page }) => {
+        await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+        await page.getByRole('button', { name: 'Fill with test data' }).click()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
+
+        // One cell typed over by hand and one left as the draw filled it: the first proves the
+        // table's own input reaches the submission, the second that the other fifty-five did not
+        // move while it was typed.
+        const typed = page.getByLabel(WHOLE_NUMBER_CELL)
+        await typed.fill('7')
+        const drawn = page.getByLabel('BCG doses given Outreach, >1y')
+        const drawnValue = await drawn.inputValue()
+        expect(drawnValue).not.toBe('')
+
+        await page.getByRole('button', { name: 'Submit' }).click()
+        await expect(page.getByText('The server accepted this submission')).toBeVisible()
+        await expect(page).toHaveURL(/#\/responses$/)
+
+        await page.getByRole('row').filter({ hasText: 'Child Health' }).first().click()
+        const typedAnswer = page.getByRole('row').filter({ hasText: 's46m5MS0hxu.Prlt0C1RF0s' })
+        await expect(typedAnswer).toHaveCount(1)
+        await expect(typedAnswer).toContainText('BCG doses given')
+        await expect(typedAnswer).toContainText('Fixed, <1y')
+        await expect(typedAnswer).toContainText('7')
+        const drawnAnswer = page.getByRole('row').filter({ hasText: 's46m5MS0hxu.hEFKSsPV5et' })
+        await expect(drawnAnswer).toContainText(drawnValue)
+    })
+})

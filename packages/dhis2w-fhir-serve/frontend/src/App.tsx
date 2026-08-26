@@ -6,6 +6,7 @@ import { FormFill } from '@/pages/FormFill'
 import { Forms } from '@/pages/Forms'
 import { OrgUnits } from '@/pages/OrgUnits'
 import { Overview } from '@/pages/Overview'
+import { Playground } from '@/pages/Playground'
 import { ResponseDetail } from '@/pages/ResponseDetail'
 import { Responses } from '@/pages/Responses'
 import { Server } from '@/pages/Server'
@@ -82,6 +83,7 @@ export default function App() {
                 />
                 <Route path="organisation-units" element={<OrgUnits />} />
                 <Route path="evaluate" element={<Evaluate />} />
+                <Route path="playground" element={<Playground />} />
                 <Route path="terminology" element={<Terminology />} />
                 <Route path="terminology/:resourceType/:resourceId" element={<TerminologyDetail />} />
                 <Route path="server" element={<Server />} />

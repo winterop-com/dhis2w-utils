@@ -79,13 +79,14 @@ test('a group of disaggregated cells names the categories it is cut by', async (
         page.getByText('Disaggregated by Location Fixed/Outreach and EPI/nutrition age').first(),
     ).toBeVisible()
 
-    // And the cells themselves are in the order the form asks them. Nothing in this UI sorts a
+    // And the columns are in the order the form asks its cells. Nothing in this UI sorts a
     // decomposition: DHIS2's order is the order a paper register is read in.
-    const cells = page
-        .getByRole('group')
+    const columns = page
+        .getByRole('table')
         .filter({ hasText: 'BCG doses given' })
+        .getByRole('columnheader')
         .getByText(/^(Fixed|Outreach), [<>]1y$/)
-    await expect(cells).toHaveText(['Fixed, <1y', 'Fixed, >1y', 'Outreach, <1y', 'Outreach, >1y'])
+    await expect(columns).toHaveText(['Fixed, <1y', 'Fixed, >1y', 'Outreach, <1y', 'Outreach, >1y'])
 })
 
 test('an attribute DHIS2 generates is asked of nobody and answered by nothing', async ({ page }) => {

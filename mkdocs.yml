@@ -208,6 +208,7 @@ nav:
           - Architecture: fhir/architecture.md
           - Roadmap + review guide: fhir/design/roadmap.md
           - The conversion layer: fhir/design/conversion.md
+          - What a concept's code is: fhir/design/concept-codes.md
           - Corrections and withdrawals: fhir/design/data-lifecycle.md
           - DHIS2 fidelity audit: fhir/design/dhis2-fidelity.md
           - The enrollment resource: fhir/design/enrollment-resource.md

@@ -162,19 +162,51 @@ rows. Every question is labelled with its DHIS2 uid as well as its text,
 because that uid is what the server's refusals, the spool, and DHIS2 itself
 all name it by.
 
+### The shape a form is drawn in
+
+A control is as wide as what goes in it. A weekly case count is a box a dozen
+characters across, with a numeric keypad and the digits set right; a name, a
+code or an address gets about sixty characters, which is the line a reader
+takes in at a glance; a date is the width of a date. The one control that
+keeps the full width is the narrative box a DHIS2 `LONG_TEXT` data element
+asks for, because the answer is paragraphs and a paragraph is what a wide box
+helps.
+
+Questions whose answers are that shape then share the line: a run of them
+flows into as many columns as the screen has room for, so the same form reads
+as one column on a laptop split in two and as three or four on a wide screen.
+A narrative, a section, and a question that takes several answers each keep a
+line of their own.
+
+**A run of data elements cut the same way is one table.** An aggregate data
+set nests a question per category option combo under a group per data element,
+so fourteen elements cut by four age bands is fifty-six questions - and
+stacked, each with its own label, its own uid and its own row, that is a
+screen nobody reads to the bottom of. The elements share one ordered set of
+combos, which is what a header row states once: the data elements are the
+rows, the combos are the columns, the answer is the cell where they meet, and
+every uid is on screen exactly once - the column's in its header, the
+element's beside its name. It is the shape DHIS2's own data entry uses.
+
+An element cut differently opens its own table, and an element whose cells are
+coded, dated or narrative answers stays stacked - a table cell is a box a
+number fits in. Whichever shape a run is drawn in, the keyboard walks it in
+document order and every cell keeps its own linkId: a capture filled in
+through a table is the same QuestionnaireResponse the stack produced.
+
 DHIS2 holds more about a form than R4 has elements for, and a generated form
 carries the rest as extensions the screen reads:
 
 - **A data element's description** is help text somebody wrote for whoever
   fills the form in - "Count a dose once, on the day it was given" - and it
   reads under the question's label. A section's reads under its heading.
-- **A group of disaggregated cells names the categories it is cut by**:
-  *Disaggregated by Location Fixed/Outreach and EPI/nutrition age*. A cell is
-  labelled with its category option combo's own name - `Fixed, <1y` - which
-  names one corner of a grid and never says which grid, so the axes are stated
-  once above the cells. They are joined from the served combo vocabulary's own
-  property declarations, in the order DHIS2 declares the category combo:
-  nothing here sorts a decomposition, or a combo expansion.
+- **A table of disaggregated cells names the categories it is cut by**:
+  *Disaggregated by Location Fixed/Outreach and EPI/nutrition age*, above it. A
+  column is headed with its category option combo's own name - `Fixed, <1y` -
+  which names one corner of a grid and never says which grid, so the axes are
+  stated once. They are joined from the served combo vocabulary's own property
+  declarations, in the order DHIS2 declares the category combo: nothing here
+  sorts a decomposition, or a combo expansion.
 - **A stage form says whether it repeats** - *Repeats: each visit is its own
   record* - where the form describes itself, and on its row in the forms
   listing. A form declaring nothing states nothing.
@@ -655,6 +687,10 @@ began, and the organisation unit it sits at.
   and the column its parser stopped on, and the screen shows that line with a
   caret under the character. See [FHIRPath](501-fhirpath.md) and
   [CQL](501-cql.md) for the languages themselves.
+- **Playground** is the API itself with the reading taken off: build a request,
+  send it, and read the bytes under the status code. It is the page an
+  integration starts from, and [The Playground](#the-playground) below is the
+  whole of it.
 - **Server** renders `/metadata` in full: the declared operations, and per
   resource type the interactions, the search parameter names, and the profile
   count, with each type's row unfolding into the server's own prose - the
@@ -710,6 +746,62 @@ keywords, strings, comments, and date literals told apart from one another. The
 same rendering paints the JSON results underneath, the receipt page's **Raw
 QuestionnaireResponse**, and the Server page's **Raw CapabilityStatement**, in
 whichever theme and on whichever ground the header is set to.
+
+## The Playground
+
+Every other page in this app is a reading of the API: Forms is a
+`GET /Questionnaire` laid out as cards, Server is `GET /metadata` laid out as
+tables. **Playground** is the other thing - one request, sent to this same
+server, answered in the box below it, JSON first. It is where an integration
+starts, because the question a client author has is what the address is and what
+comes back, and everywhere else in the app that has been answered for them.
+
+**The builder** is a method (`GET` or `POST`, the two this facade answers), a
+path relative to the service base, and query parameters as rows rather than as
+one long line to proofread. The address the three add up to is printed under
+the buttons, so there is never a question about what **Send** would send. A path
+pasted with its query already on it keeps it and the rows are appended, because
+both halves are things you typed. A `POST` gets a JSON body in the same
+CodeMirror editor the Evaluate screen writes expressions in.
+
+Every request goes to this same origin, carries
+`Accept: application/fhir+json`, and is signed with whatever credential this
+browser holds - the same one every other page here signs with, so a request that
+works on this page works on the others and the other way round.
+
+**The presets** beside the builder are this server's own declaration, read back
+as addresses: `/metadata`, one search per resource type the CapabilityStatement
+says answers a search, the read-by-id shape, and one row per declared operation:
+`$generate` on Questionnaire, `$translate` on ConceptMap, and `$evaluate` at the
+service base. A guide that publishes no ConceptMaps declares no `$translate` and
+is offered no row for it. Three of the rows name a resource, and the page reads
+one of each off this server so they answer on the first press rather than
+carrying a `{id}` you have to fill in; where the guide publishes neither, the
+row says the placeholder has to be replaced. Choosing a row fills the builder
+and stops there - half of what this screen teaches is what an address is made
+of, and a row that fired on click would answer before you had read it.
+
+**The answer** is the status code, the round trip in milliseconds, and the body
+pretty-printed in the same block the receipt page and the Server page render
+JSON in. An `OperationOutcome` lands in that block like anything else: on this
+facade a refusal is a FHIR resource saying why, and a page that hid it behind a
+red card would teach the opposite of what the server does. The one thing that is
+not an answer is a request nothing responded to, which says so in its own words.
+
+**Two ways out of the browser.** **Open in a new tab** takes a `GET` to its own
+address with `_format=json` on it, which is how a caller asks for JSON where the
+header is not theirs to set. **Copy as curl** writes the current request as a
+command that runs in a terminal, single-quoted throughout so a query string, a
+JSON body, and a FHIRPath expression carrying its own quotes all survive the
+paste. Where this browser is signed in, the command names the `Authorization`
+header and its scheme and puts a placeholder where the credential would be: the
+command is for pasting into a ticket or a chat window, and a live credential
+must not travel with it.
+
+**Sent requests** under the answer is the last twenty this browser sent - method,
+address, status - and choosing one puts the whole request back in the builder,
+query rows and body included. It lives in this browser's own storage and reaches
+no server.
 
 ## The query behind every screen
 
@@ -800,17 +892,33 @@ is the "back one character" that text fields and the Evaluate editors both
 answer. It fires while a box or an editor has focus - clearing the screen down to
 the work in front of you is worth most mid-form.
 
-The gear in the lower left leads to the same list, for anybody who would rather
-not find out by pressing keys.
+The list is a section of the settings dialog, so the gear in the lower left leads
+to it too - and `?` opens that dialog with the section already selected.
 
-## Settings, and the themes
+## Settings
 
-**The gear at the foot of the sidebar holds how the app looks.** Two controls
-under two headings, because they are two questions: **Theme** is which of the
-five sets of colours the app spends, and **Mode** is the light ground or the dark
-one. Every theme is designed for both, and the choice is remembered in this
-browser and applied before the first paint, so a reload never flashes one theme
-under another. Collapsed to icons, the gear stays where it is.
+**The gear at the foot of the sidebar opens everything you can set about this
+app.** A rail down the left names the sections, the one you are in fills the
+right, and a box at the top of the rail searches across all of them at once: type
+`phosphor` and the rail drops to the section holding the row that says it, with
+that row the only one left. Nothing here is saved - a choice applies the instant
+it is made, and the dialog stays open in front of it. Collapsed to icons, the
+gear stays where it is; on a narrow screen the rail lies down into a strip above
+the pane rather than taking a second column.
+
+Two sections today:
+
+- **Appearance** - the themes, and the ground they are painted on.
+- **Keyboard shortcuts** - the same list `?` puts up. Pressing `?`, or choosing
+  the palette's row for it, opens the dialog with this section selected.
+
+### Appearance
+
+Two controls under two headings, because they are two questions: **Theme** is
+which of the seven sets of colours the app spends, and **Mode** is the light
+ground or the dark one. Every theme is designed for both, and the choice is
+remembered in this browser and applied before the first paint, so a reload never
+flashes one theme under another.
 
 | Theme | What it looks like |
 | --- | --- |
@@ -819,6 +927,8 @@ under another. Collapsed to icons, the gear stays where it is.
 | **Paper** | Warm surfaces and an ink blue, the way a printed form reads. |
 | **Contrast** | The widest separation this app has between text and the surface under it: achromatic surfaces reaching both ends, muted text most of the way back to the foreground, and borders that are lines rather than hints. |
 | **Terminal** | Phosphor green, and a ground to match. |
+| **DHIS2** | Steel-blue chrome over the familiar gray - the instance's own face. |
+| **FHIR** | Warm white under the flame, spent only where the app acts. |
 
 A theme repaints everything the app draws from a token, the source colours in
 the Evaluate editors and the organisation-unit map's boundary tiers included.

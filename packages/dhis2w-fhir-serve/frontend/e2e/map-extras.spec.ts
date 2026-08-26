@@ -210,7 +210,8 @@ test('the popup wears the app card tokens in both themes', async ({ page }) => {
     // The ground is switched at the gear in the lower left, which is where both appearance
     // controls live - the header carries neither.
     await page.getByRole('complementary').getByRole('button', { name: 'Settings' }).click()
-    await page.getByRole('menuitem', { name: /^Switch to dark mode/ }).click()
+    await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: /^Switch to dark mode/ }).click()
+    await page.keyboard.press('Escape')
     await expect(map).toHaveAttribute('data-map-theme', 'dark')
 
     const darkCard = await resolvedCardColor()

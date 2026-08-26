@@ -55,7 +55,7 @@ export function AttributeOptionComboPicker({
     const label = attributeOptionComboLabel(expansion.title)
 
     return (
-        <div className="grid gap-2 rounded-lg border p-4">
+        <div className="bg-card text-card-foreground grid gap-2 rounded-lg border p-4">
             <Label htmlFor={CONTROL_ID}>
                 {label}
                 <span className="text-destructive" aria-hidden>
