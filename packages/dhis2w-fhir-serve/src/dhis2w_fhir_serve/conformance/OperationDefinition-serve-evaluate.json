@@ -1,0 +1,97 @@
+{
+  "resourceType": "OperationDefinition",
+  "id": "serve-evaluate",
+  "url": "https://winterop-com.github.io/dhis2w-utils/fhir/OperationDefinition/serve-evaluate",
+  "name": "ServeEvaluate",
+  "title": "Evaluate a FHIRPath expression, CQL library, or ELM library over this facade",
+  "status": "active",
+  "kind": "operation",
+  "description": "Runs one source over at most one resource and answers a Parameters resource in the CQL-on-FHIR shape: one parameter per define the library declared, named by the define - value[x] where a define answered one primitive, resource where it answered a FHIR resource, one part per value where it answered several, and an OperationOutcome part where it refused. What stopped the whole run - a source that would not parse, a define the library does not declare - is the outcome parameter, an OperationOutcome whose issue carries the line and column the parser stopped on. A bad expression is a 200 with that outcome: everything a person's typing can do wrong is an answer, not an error. A define that matched nothing is absent, which is FHIR's own spelling of an empty collection. The same JSON body POST /evaluate takes is also accepted here; which shape arrived is decided by resourceType and nothing else about the evaluation changes.",
+  "code": "evaluate",
+  "system": true,
+  "type": false,
+  "instance": false,
+  "parameter": [
+    {
+      "name": "language",
+      "use": "in",
+      "min": 1,
+      "max": "1",
+      "documentation": "Which of the three languages the source is written in: fhirpath (one expression answering one collection), cql (a library whose every define answers a value), or elm (that same library already compiled, as the JSON another compiler emitted).",
+      "type": "code"
+    },
+    {
+      "name": "source",
+      "use": "in",
+      "min": 1,
+      "max": "1",
+      "documentation": "The FHIRPath expression, the CQL library text, or the ELM library as JSON.",
+      "type": "string"
+    },
+    {
+      "name": "expression",
+      "use": "in",
+      "min": 0,
+      "max": "1",
+      "documentation": "Which define to answer. Omitted, a CQL or ELM library answers every define it declares.",
+      "type": "string"
+    },
+    {
+      "name": "context",
+      "use": "in",
+      "min": 0,
+      "max": "1",
+      "documentation": "The one resource the source runs over. Omitted, the source runs over no resource at all. The kind part names which of the three contexts this is, and decides which sibling parts are read.",
+      "part": [
+        {
+          "name": "kind",
+          "use": "in",
+          "min": 1,
+          "max": "1",
+          "documentation": "stored, inline, or registered.",
+          "type": "code"
+        },
+        {
+          "name": "resourceType",
+          "use": "in",
+          "min": 0,
+          "max": "1",
+          "documentation": "With kind stored: the served resource's type. With kind registered: the resource type the register serves the entity as, defaulting to Patient.",
+          "type": "code"
+        },
+        {
+          "name": "resourceId",
+          "use": "in",
+          "min": 0,
+          "max": "1",
+          "documentation": "With kind stored: the served resource's id, exactly as a read names it.",
+          "type": "id"
+        },
+        {
+          "name": "resource",
+          "use": "in",
+          "min": 0,
+          "max": "1",
+          "documentation": "With kind inline: the resource itself, carried in the request.",
+          "type": "Resource"
+        },
+        {
+          "name": "trackedEntityUid",
+          "use": "in",
+          "min": 0,
+          "max": "1",
+          "documentation": "With kind registered: the DHIS2 tracked entity UID the register resolves at request time, under the caller's own authorization where the posture forwards it.",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "return",
+      "use": "out",
+      "min": 1,
+      "max": "1",
+      "documentation": "The defines as a Parameters resource, plus outcome where something stopped the run.",
+      "type": "Parameters"
+    }
+  ]
+}

@@ -244,6 +244,40 @@ def load_compiled_store(project: FhirProject) -> ResourceStore:
     return ResourceStore(entries=tuple(entries))
 
 
+BUILTIN_CONFORMANCE_DIRECTORY = "conformance"
+"""Where this package keeps the conformance resources that are the facade's own, not any guide's."""
+
+
+def builtin_conformance_entries() -> tuple[StoreEntry, ...]:
+    """The conformance resources this package itself publishes, served by every run.
+
+    One today: the `$evaluate` OperationDefinition, whose canonical the CapabilityStatement names.
+    The facade never names a canonical it cannot answer for, so what /metadata points at is readable
+    here and searchable by `url` exactly like the guide's own definitions. Product-level rather than
+    per-guide, which is why these ride the package instead of the compiled tree.
+    """
+    entries: list[StoreEntry] = []
+    package_directory = Path(__file__).parent / BUILTIN_CONFORMANCE_DIRECTORY
+    for path in sorted(package_directory.glob("*.json")):
+        body = json.loads(path.read_text())
+        entries.append(
+            StoreEntry(
+                resource_type=str(body["resourceType"]),
+                resource_id=str(body["id"]),
+                canonical_url=body.get("url"),
+                identifiers=(),
+                source=path.as_posix(),
+                body=body,
+            )
+        )
+    return tuple(entries)
+
+
+def attach_builtin_conformance(store: ResourceStore) -> ResourceStore:
+    """The store with the package's own conformance resources appended, whichever mode built it."""
+    return ResourceStore(entries=(*store.entries, *builtin_conformance_entries()))
+
+
 def load_compiled_conformance_entries(project: FhirProject) -> tuple[StoreEntry, ...]:
     """Read the conformance resources out of a project's compiled IG, and nothing else from it.
 

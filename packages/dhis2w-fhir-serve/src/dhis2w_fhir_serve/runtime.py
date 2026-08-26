@@ -65,7 +65,7 @@ from dhis2w_fhir_serve.routes.context import (
 )
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool
-from dhis2w_fhir_serve.store import ResourceStore, load_compiled_store
+from dhis2w_fhir_serve.store import ResourceStore, attach_builtin_conformance, load_compiled_store
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -232,8 +232,8 @@ async def build_store(settings: ServeSettings, project: FhirProject, client: Dhi
     rather than serving an empty IG that reads to a client as a project that published nothing.
     """
     if client is not None:
-        return await build_live_store(project, settings, client)
-    return load_compiled_store(project)
+        return attach_builtin_conformance(await build_live_store(project, settings, client))
+    return attach_builtin_conformance(load_compiled_store(project))
 
 
 @asynccontextmanager

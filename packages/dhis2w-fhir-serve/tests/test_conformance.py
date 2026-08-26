@@ -16,7 +16,14 @@ from urllib.parse import urlencode
 import httpx
 import pytest
 from dhis2w_fhir.config import FhirProject, load_fhir_config
-from dhis2w_fhir_serve.store import GUIDE_CONFORMANCE_RESOURCE_TYPES, load_compiled_conformance_entries
+from dhis2w_fhir_serve.capability import EVALUATE_OPERATION_DEFINITION
+from dhis2w_fhir_serve.store import (
+    GUIDE_CONFORMANCE_RESOURCE_TYPES,
+    ResourceStore,
+    attach_builtin_conformance,
+    builtin_conformance_entries,
+    load_compiled_conformance_entries,
+)
 
 WriteResource = Callable[[Path, dict[str, Any]], None]
 
@@ -187,3 +194,31 @@ def test_a_compiled_tree_holding_no_conformance_resource_hosts_none(
     project = FhirProject(config=load_fhir_config(config_path), config_path=config_path.resolve())
 
     assert load_compiled_conformance_entries(project) == ()
+
+
+def test_the_evaluate_definition_is_a_builtin_entry() -> None:
+    """The package publishes the $evaluate OperationDefinition as a store entry of its own."""
+    entries = builtin_conformance_entries()
+    assert [entry.resource_id for entry in entries] == ["serve-evaluate"]
+    entry = entries[0]
+    assert entry.resource_type == "OperationDefinition"
+    assert entry.canonical_url == EVALUATE_OPERATION_DEFINITION
+    assert entry.body["code"] == "evaluate"
+    assert entry.body["system"] is True
+
+
+def test_attach_appends_without_touching_the_guide() -> None:
+    """Attaching the builtin entries keeps what a store holds and adds the package's own."""
+    attached = attach_builtin_conformance(ResourceStore(entries=()))
+    assert [entry.resource_id for entry in attached.entries] == ["serve-evaluate"]
+
+
+async def test_the_evaluate_definition_reads_and_searches_by_canonical(client: httpx.AsyncClient) -> None:
+    """GET by id answers the definition, and `url` resolves the canonical /metadata names."""
+    read = await client.get("/OperationDefinition/serve-evaluate", headers={"Accept": FHIR_JSON})
+    assert read.status_code == 200
+    assert read.json()["url"] == EVALUATE_OPERATION_DEFINITION
+
+    searched = await client.get("/OperationDefinition", params={"url": EVALUATE_OPERATION_DEFINITION})
+    assert searched.status_code == 200
+    assert searched.json()["total"] == 1

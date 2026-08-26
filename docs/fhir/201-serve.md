@@ -170,6 +170,13 @@ Four types come out of the compiled guide beside everything else, read-only:
 | `OperationDefinition` | the definition `/metadata` names for `$generate` |
 | `CapabilityStatement` | the requirements statement `/metadata` says it instantiates - never this server's own instance statement, which only `/metadata` answers |
 
+One more definition is the facade's own rather than any guide's: the
+`$evaluate` OperationDefinition, whose canonical `/metadata` names. Every run
+serves it at `/OperationDefinition/serve-evaluate` and resolves it by `url`
+like the guide's definitions, and the same document is published at the
+canonical itself, so the one address this server mints is also the one it
+always answers for.
+
 They are read and searched exactly as `Questionnaire` and `CodeSystem` are, with
 the same `_id`, `url`, and `identifier` parameters. `url` is the one that
 matters, because a canonical is what a client has and an id is what it does not:
