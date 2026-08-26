@@ -18,6 +18,14 @@ export interface StatusLine {
     left: string
     /** The note on the right, or null when the page has none. */
     right: string | null
+    /**
+     * The left statement as a walkable trail, when it is one.
+     *
+     * A selected organisation unit's path is not only a fact, it is four places a reader may want
+     * next - so each segment before the last carries the route that selects it, and the bar draws
+     * links instead of a sentence. The last segment is where the reader already is and stays prose.
+     */
+    trail?: { label: string; to: string | null }[]
 }
 
 /** What a page publishes into, and what the bar reads out of. */
@@ -53,12 +61,20 @@ export function useStatusBarLine(): StatusLine | null {
  * rather than a missing one - there is no skeleton, because a count nobody has yet is not a count
  * that is loading somewhere on this screen.
  */
-export function useStatusLine(left: string | null, right: string | null = null): void {
+export function useStatusLine(
+    left: string | null,
+    right: string | null = null,
+    trail?: { label: string; to: string | null }[],
+): void {
     const held = useContext(StatusBarContext)
     const { pathname } = useLocation()
     const publish = held?.publish
+    // Joined to one string for the dependency list: a trail is rebuilt every render by its page,
+    // and an array identity in the deps would republish the same line forever.
+    const trailKey = trail?.map((segment) => `${segment.label}\u0000${segment.to ?? ''}`).join('\u001f') ?? null
     useEffect(() => {
         if (left === null || publish === undefined) return
-        publish({ path: pathname, left, right })
-    }, [left, right, pathname, publish])
+        publish({ path: pathname, left, right, trail })
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- trailKey stands in for trail.
+    }, [left, right, pathname, publish, trailKey])
 }

@@ -214,6 +214,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                         <FilterBox
                             label="Filter concepts"
                             placeholder="Filter by code, display, or property"
+                            autoFocus
                             value={query}
                             onChange={(next) => {
                                 setQuery(next)
@@ -225,7 +226,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                 </div>
 
                 {concepts.length === 0 ? (
-                    <p className="text-muted-foreground rounded-lg border px-4 py-8 text-sm">
+                    <p className="text-muted-foreground bg-card rounded-lg border px-4 py-8 text-sm">
                         This CodeSystem carries no concepts. A{' '}
                         <code className="font-mono">content</code> of{' '}
                         <code className="font-mono">not-present</code> means the concepts live
@@ -233,7 +234,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                         empty system.
                     </p>
                 ) : matching.length === 0 ? (
-                    <p className="text-muted-foreground rounded-lg border px-4 py-8 text-sm">
+                    <p className="text-muted-foreground bg-card rounded-lg border px-4 py-8 text-sm">
                         {nothingMatchesMessage(query)}
                     </p>
                 ) : (
@@ -698,7 +699,7 @@ function MappingGroup({
                 </span>
             </div>
             {matching.length === 0 ? (
-                <p className="text-muted-foreground rounded-lg border px-4 py-8 text-sm">
+                <p className="text-muted-foreground bg-card rounded-lg border px-4 py-8 text-sm">
                     {query.trim() === ''
                         ? 'This group states no mappings.'
                         : nothingMatchesMessage(query)}
@@ -791,7 +792,7 @@ function ResourceFacts({
     children?: ReactNode
 }) {
     return (
-        <div className="space-y-3 rounded-lg border p-4">
+        <div className="bg-card space-y-3 rounded-lg border p-4">
             <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
                 <div className="min-w-0 flex-1 space-y-3 md:max-w-3xl">
                     {description !== undefined && <p className="text-sm">{description}</p>}
@@ -901,11 +902,14 @@ function FilterBox({
     placeholder,
     value,
     onChange,
+    autoFocus = false,
 }: {
     label: string
     placeholder: string
     value: string
     onChange: (next: string) => void
+    /** True on the one box that is the page's primary act - finding a concept starts at typing. */
+    autoFocus?: boolean
 }) {
     return (
         // Wide enough for its own placeholder: "Filter by code, display, or property" is what the
@@ -920,6 +924,8 @@ function FilterBox({
                 aria-label={label}
                 placeholder={placeholder}
                 value={value}
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- the page's primary act.
+                autoFocus={autoFocus}
                 onChange={(event) => onChange(event.target.value)}
             />
         </div>

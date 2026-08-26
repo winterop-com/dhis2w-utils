@@ -64,6 +64,8 @@ not a menu - the pages build on each other left to right.
   publisher, build time, and the two caches.
 - [Serve the guide](201-serve.md) - the read-and-capture facade, and what a
   live run serves that a compiled run does not.
+- [Secure the facade](201-secure.md) - security is opt-in: the loopback-only
+  default, and the token, DHIS2, and JWT postures with their scopes.
 - [Capture in the browser](201-capture-ui.md) - the form filler a served
   project offers.
 - [Forward captures into DHIS2](201-forward.md) - draining the serve spool
