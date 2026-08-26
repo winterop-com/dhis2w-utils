@@ -2515,6 +2515,23 @@ function collectItems(
     return linkIds
 }
 
+/**
+ * The help text an item carries, and nothing where the help text is the question again.
+ *
+ * DHIS2 requires a description of nothing, so a great many objects are saved with the name typed
+ * into the description box - a "First name" data element described as "First name". Rendered, that
+ * is a label with a second, quieter label under it: it asks the reader to compare two strings to
+ * find out that the second says nothing, and it does that on every question of a registration form.
+ * Help text that repeats its own label is help text the form does not have.
+ */
+function helpText(item: QuestionnaireItem): string | null {
+    const stated =
+        item.extension?.find((candidate) => candidate.url.endsWith(DESCRIPTION_EXTENSION_SUFFIX))?.valueString ??
+        null
+    if (stated === null) return null
+    return stated.trim() === (item.text ?? '').trim() ? null : stated
+}
+
 /** One item, read into the node a control renders from. */
 function readItem(
     item: QuestionnaireItem,
@@ -2533,9 +2550,7 @@ function readItem(
         depth: ancestorLinkIds.length,
         type: item.type,
         text: item.text ?? null,
-        description:
-            item.extension?.find((candidate) => candidate.url.endsWith(DESCRIPTION_EXTENSION_SUFFIX))
-                ?.valueString ?? null,
+        description: helpText(item),
         required: item.required === true,
         repeats: item.repeats === true,
         readOnly: item.readOnly === true,

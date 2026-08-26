@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import type { EvaluationLanguage } from '@/lib/evaluate'
-import { DOCUMENTATION_SITE, languageReference, proseRuns, referenceEntryCount } from '@/lib/reference'
+import {
+    DOCUMENTATION_SITE,
+    languageReference,
+    markConfigurationKeys,
+    proseRuns,
+    referenceEntryCount,
+} from '@/lib/reference'
 
 /**
  * The reference panel's content, checked for the two ways a reference goes wrong.
@@ -196,3 +202,29 @@ describe('the mono spellings inside the prose', () => {
         expect(marked.length).toBeGreaterThan(20)
     })
 })
+
+/**
+ * A fhir.toml setting named in server prose, marked as the machine spelling it is.
+ *
+ * The `none` authentication posture's own sentence writes `[serve] auth` bare, and a key set in the
+ * same face as the words around it asks the reader to notice a bracket.
+ */
+describe('the settings server prose names', () => {
+    it('marks a bare table-and-key so it reads as a machine spelling', () => {
+        expect(markConfigurationKeys('unless the project states [serve] auth in its fhir.toml.')).toBe(
+            'unless the project states `[serve] auth` in its fhir.toml.',
+        )
+    })
+
+    it('leaves a key the server already marked exactly as it marked it', () => {
+        const stated = 'this project sets `[serve.tracked_entities] enabled` to false'
+        expect(markConfigurationKeys(stated)).toBe(stated)
+    })
+
+    it('leaves prose naming no setting alone', () => {
+        expect(markConfigurationKeys('This server checks no credential.')).toBe(
+            'This server checks no credential.',
+        )
+    })
+})
+

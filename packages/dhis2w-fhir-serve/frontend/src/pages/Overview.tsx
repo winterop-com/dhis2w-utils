@@ -32,7 +32,7 @@ import {
     type SpoolCounts,
     type SpoolResponseSummary,
 } from '@/lib/spool'
-import { cn, countedNoun } from '@/lib/utils'
+import { cn, countedNoun, formatCount } from '@/lib/utils'
 
 /**
  * The root route: the state of capture, right now, in one screen.
@@ -66,8 +66,8 @@ export function Overview() {
 
     // The three sections of this page as one line: what arrived, what a capture can be started
     // from, and how much of a FHIR server is behind both. The types come off the same
-    // CapabilityStatement the identity strip reads, and are said as "served" for the reason stated
-    // there - the Server page counts a different set and names it.
+    // CapabilityStatement the identity strip reads, and are said as "served" because that is what
+    // the REST block enumerates - the same set the Server page's table lists.
     const servedTypes = capability?.rest?.[0]?.resource?.length ?? 0
     useStatusLine(
         spoolLoading || forms.loading
@@ -189,7 +189,7 @@ function StatTile({
     return (
         <Link
             to={`/responses?lifecycle=${lifecycle}`}
-            aria-label={`${LIFECYCLE_LABELS[lifecycle]} ${String(count)} - ${subtitle}. Open the responses filtered to this state.`}
+            aria-label={`${LIFECYCLE_LABELS[lifecycle]} ${formatCount(count)} - ${subtitle}. Open the responses filtered to this state.`}
             className={cn(
                 'bg-card hover:bg-accent/40 focus-visible:ring-ring/50 block rounded-lg border p-4 transition-colors focus-visible:ring-[3px] focus-visible:outline-none',
                 actionable && 'border-status-received/40',
@@ -209,7 +209,7 @@ function StatTile({
                     actionable ? 'text-5xl' : 'text-3xl',
                 )}
             >
-                {count}
+                {formatCount(count)}
             </span>
             <span className="text-muted-foreground mt-1 block text-sm">{subtitle}</span>
         </Link>
@@ -235,7 +235,7 @@ function QuarantinedTile({ count }: { count: number }) {
             // quarantined file is in none of them - it is listed in its own section at the top of
             // that page, which is where this tile lands.
             to="/responses"
-            aria-label={`${QUARANTINED_LABEL} ${String(count)} - ${QUARANTINED_SUBTITLE}. Open the responses, where these files are listed above the table.`}
+            aria-label={`${QUARANTINED_LABEL} ${formatCount(count)} - ${QUARANTINED_SUBTITLE}. Open the responses, where these files are listed above the table.`}
             className="bg-card hover:bg-accent/40 focus-visible:ring-ring/50 block rounded-lg border p-4 transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
         >
             <span className="flex items-center gap-2">
@@ -246,7 +246,7 @@ function QuarantinedTile({ count }: { count: number }) {
                 data-testid="spool-malformed-count"
                 className="mt-2 block text-3xl font-semibold tracking-tight"
             >
-                {count}
+                {formatCount(count)}
             </span>
             <span className="text-muted-foreground mt-1 block text-sm">{QUARANTINED_SUBTITLE}</span>
         </Link>
@@ -356,7 +356,7 @@ function CaptureSection({
                     <div className="mt-3">
                         <Button asChild variant="outline" size="sm">
                             <Link to="/forms">
-                                All {slice.total} forms
+                                All {formatCount(slice.total)} forms
                                 <ArrowRight aria-hidden />
                             </Link>
                         </Button>
@@ -382,9 +382,7 @@ function FormCard({ questionnaire }: { questionnaire: Questionnaire }) {
             <span className="text-sm font-medium">{title}</span>
             <span className="mt-auto flex flex-wrap items-center gap-2">
                 <KindBadge kind={kind} />
-                <span className="prose-hint text-xs">
-                    {questions} question{questions === 1 ? '' : 's'}
-                </span>
+                <span className="prose-hint text-xs">{countedNoun(questions, 'question')}</span>
             </span>
         </Link>
     )
@@ -413,10 +411,9 @@ function ServerIdentity({
 
     return (
         <section className="space-y-3">
-            <SectionHeading
-                title="This server"
-                description="What this server offers."
-            />
+            {/* Heading and button only. A line between them reading "What this server offers." was
+                the button's own words a second time, over a card that already shows them. */}
+            <h3 className="text-base font-semibold">This server</h3>
             <PageState
                 loading={checking && capability === null}
                 status={reachability === 'unreachable' ? 'unreachable' : null}
@@ -452,10 +449,9 @@ function ServerIdentity({
                         </span>
 
                         <span className="text-muted-foreground text-sm">
-                            {/* Served rather than stored: the Server page states both counts and
-                                says why they differ, and an unqualified count here would be the
-                                one that reads as contradicting it. */}
-                            {resourceTypes} resource types served
+                            {/* Served rather than stored: this counts the types the REST block
+                                answers for, which is the set the Server page's own table lists. */}
+                            {countedNoun(resourceTypes, 'resource type')} served
                         </span>
 
                         {operations.length > 0 && (

@@ -10,6 +10,7 @@
  */
 
 import type { AuthPosture, AuthScope } from '@/lib/auth'
+import { formatCount } from '@/lib/utils'
 
 /** One raster layer the organisation-unit map offers under the boundaries. */
 export interface BasemapLayer {
@@ -346,8 +347,8 @@ const PEOPLE_WORDS: RegisterWords = {
         'This server answers a search for one person and does not list everyone this DHIS2 instance holds.',
     paging: (shown, total) =>
         total === null
-            ? `Showing ${String(shown)} people. This DHIS2 instance stated no total.`
-            : `Showing ${String(shown)} of ${String(total)} people this DHIS2 instance holds as tracked entities.`,
+            ? `Showing ${formatCount(shown)} people. This DHIS2 instance stated no total.`
+            : `Showing ${formatCount(shown)} of ${formatCount(total)} people this DHIS2 instance holds as tracked entities.`,
 }
 
 const TRACKED_ENTITY_WORDS: RegisterWords = {
@@ -358,8 +359,8 @@ const TRACKED_ENTITY_WORDS: RegisterWords = {
         'This server answers a search for one tracked entity and does not list every one this DHIS2 instance holds.',
     paging: (shown, total) =>
         total === null
-            ? `Showing ${String(shown)} tracked entities. This DHIS2 instance stated no total.`
-            : `Showing ${String(shown)} of ${String(total)} tracked entities this DHIS2 instance holds.`,
+            ? `Showing ${formatCount(shown)} tracked entities. This DHIS2 instance stated no total.`
+            : `Showing ${formatCount(shown)} of ${formatCount(total)} tracked entities this DHIS2 instance holds.`,
 }
 
 /** The words for one named tracked entity type, built around the name the instance holds for it. */
@@ -371,8 +372,8 @@ function typeWords(name: string): RegisterWords {
         declined: `This server answers a search for one ${name} and does not list every ${name} this DHIS2 instance holds.`,
         paging: (shown, total) =>
             total === null
-                ? `Showing ${String(shown)} ${name} tracked entities. This DHIS2 instance stated no total.`
-                : `Showing ${String(shown)} of ${String(total)} ${name} tracked entities this DHIS2 instance holds.`,
+                ? `Showing ${formatCount(shown)} ${name} tracked entities. This DHIS2 instance stated no total.`
+                : `Showing ${formatCount(shown)} of ${formatCount(total)} ${name} tracked entities this DHIS2 instance holds.`,
     }
 }
 

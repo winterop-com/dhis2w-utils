@@ -81,10 +81,10 @@ test('a long code system pages rather than rendering thousands of rows', async (
 
     await page.getByRole('textbox', { name: 'Filter concepts' }).fill('danger')
     await expect(page.getByTestId('status-bar-summary')).toContainText(/Showing 1 of 1 concept$/)
-    // The end of a list is where a reader looks for the way on, so the two moves are drawn and
-    // disabled rather than absent - nothing there reads as a page that failed to render one.
-    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled()
-    await expect(page.getByRole('button', { name: 'Previous', exact: true })).toBeDisabled()
+    // One page holds everything the filter left, so there is no paging to draw: two dead buttons
+    // under a complete table would say the list continues and then refuse to continue it.
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Previous', exact: true })).toHaveCount(0)
 })
 
 test('the listing filter reaches into the codes and names the system that holds a match', async ({

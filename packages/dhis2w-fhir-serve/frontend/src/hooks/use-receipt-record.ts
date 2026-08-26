@@ -52,6 +52,8 @@ export interface ReceiptRecordState {
     /** True while the form read is still in flight, which is not the same as it being gone. */
     formPending: boolean
     rows: ReceiptAnswerRow[]
+    /** What the served form calls each of its link ids, so a warning quoting one can name it. */
+    questions: ReadonlyMap<string, string>
     facts: ReceiptContextFact[]
     /** The program rules the form declares, so DHIS2's refusal by uid can be named. */
     rules: ProgramRule[]
@@ -110,11 +112,25 @@ export function useReceiptRecord(responseId: string): ReceiptRecordState {
     // module-wide, so this is free for anyone who reached the receipt by filling a form.
     const registry = useOrgUnitRegistry()
 
-    const rows = useMemo(() => {
-        if (stored.resource === null) return []
-        const spec = form.resource === null ? null : flattenQuestionnaire(form.resource)
-        return joinAnswersToQuestions(spec, stored.resource)
-    }, [form.resource, stored.resource])
+    const spec = useMemo(
+        () => (form.resource === null ? null : flattenQuestionnaire(form.resource)),
+        [form.resource],
+    )
+
+    const rows = useMemo(
+        () => (stored.resource === null ? [] : joinAnswersToQuestions(spec, stored.resource)),
+        [spec, stored.resource],
+    )
+
+    // Every item the form states text for, keyed by link id: the capture validator quotes link ids
+    // and the receipt says the question - see `namedCaptureWarning`.
+    const questions = useMemo(() => {
+        const named = new Map<string, string>()
+        for (const node of spec?.nodes ?? []) {
+            if (node.text !== null && node.text.trim() !== '') named.set(node.linkId, node.text)
+        }
+        return named
+    }, [spec])
 
     const title =
         summary === null
@@ -131,6 +147,7 @@ export function useReceiptRecord(responseId: string): ReceiptRecordState {
         formMissing,
         formPending,
         rows,
+        questions,
         facts: contextFacts(
             summary,
             stored.resource,

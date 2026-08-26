@@ -77,7 +77,7 @@ describe('the settings dialog', () => {
         expect(APPEARANCE_LABEL).toBe('Appearance')
         expect(THEME_GROUP).toBe('Theme')
         expect(MODE_GROUP).toBe('Mode')
-        expect(SETTINGS_DESCRIPTION).toBe('How the app looks, and every key it answers')
+        expect(SETTINGS_DESCRIPTION).toBe('Appearance and keyboard shortcuts')
         for (const section of SETTINGS_SECTIONS) expect(section.heading).not.toMatch(/^(The|On the) /)
         for (const item of items()) expect(item.label).not.toMatch(/^(The|On the) /)
     })

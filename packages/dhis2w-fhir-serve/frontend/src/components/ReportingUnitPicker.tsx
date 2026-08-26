@@ -31,19 +31,23 @@ const CONTROL_ID = 'reporting-organisation-unit'
  * submit would withhold the server's own refusal, which names the missing context better than this
  * screen can. The control says which of the two it is in instead.
  *
- * WHY IT SAYS IT IS KEPT. A chosen organisation unit stays chosen for the rest of the browser tab,
- * so the next form opens reporting from the same place - a supervisor filing six forms for one
- * facility answers this control once. That is a fact about what the next form will do, so the
- * control states it rather than leaving a person to discover it. When the kept unit is one this
- * form's assignment excludes, the draft's own unit stands and the mismatch is stated too: the
- * difference between "the same unit as last time" and "some other unit" is exactly what a person
- * checking their submission needs to see.
+ * WHY IT SAYS IT IS KEPT, AND ONLY ONCE IT IS TRUE. A chosen organisation unit stays chosen for the
+ * rest of the browser tab, so the next form opens reporting from the same place - a supervisor
+ * filing six forms for one facility answers this control once. That is a fact about what the next
+ * form will do, so the control states it rather than leaving a person to discover it. Before
+ * anything is chosen there is nothing kept: what is in the control is the unit `$generate` drew out
+ * of the units this form admits, and telling a person their choice is being kept before they have
+ * made one is how a drawn unit gets submitted as though it had been read. So the line says which of
+ * the two the control is holding. When the kept unit is one this form's assignment excludes, the
+ * draft's own unit stands and the mismatch is stated too: the difference between "the same unit as
+ * last time" and "some other unit" is exactly what a person checking their submission needs to see.
  */
 export function ReportingUnitPicker({
     formKind,
     declaresAttributeOptionCombo,
     selectedUnitId,
     keptUnitNotAdmitted,
+    chosen,
     onChange,
 }: {
     /** The form's DHIS2 kind, which decides what the organisation unit means for the submission. */
@@ -53,6 +57,8 @@ export function ReportingUnitPicker({
     selectedUnitId: string | null
     /** True when this browser tab keeps an organisation unit that this form is not assigned to. */
     keptUnitNotAdmitted: boolean
+    /** True once somebody picked a unit - before that, what is shown is the server's own draw. */
+    chosen: boolean
     onChange: (choice: OrgUnitChoice) => void
 }) {
     const scope = useOrgUnitScope()
@@ -93,10 +99,22 @@ export function ReportingUnitPicker({
                     it opens on the organisation unit the server drafted.
                 </p>
             )}
-            <p className="text-muted-foreground text-xs">
-                The chosen organisation unit is kept for this browser tab, so the next form opens
-                reporting from it.
-            </p>
+            {/* Which of the two the control is holding. The draw is a starting point and says so;
+                the keeping is stated once there is a choice to keep. */}
+            {chosen ? (
+                <p className="text-muted-foreground text-xs">
+                    The chosen organisation unit is kept for this browser tab, so the next form opens
+                    reporting from it.
+                </p>
+            ) : (
+                selectedUnitId !== null && (
+                    <p className="text-muted-foreground text-xs">
+                        Nothing has been chosen here yet. The server drew this organisation unit out
+                        of the ones this form may be reported from - pick the one the submission is
+                        actually from, and that choice is kept for this browser tab.
+                    </p>
+                )
+            )}
             {selectedUnitId === null && !scope.loading && offered > 0 && (
                 <p className="text-muted-foreground text-xs">
                     Nothing is chosen yet, because the server has not answered with its generated
@@ -122,7 +140,7 @@ function unitMeaning(formKind: FormType | null, declaresAttributeOptionCombo: bo
         return 'The organisation unit this person is enrolled at. It is context, not an answer - this DHIS2 instance files the enrollment under it.'
     }
     if (formKind === 'tracked-entity') {
-        return 'The organisation unit this person is registered at. It is context, not an answer - this DHIS2 instance files the person under it, and this form enrols them in no program.'
+        return 'The organisation unit this person is registered at. It is context, not an answer - this DHIS2 instance files the person under it, and this form enrolls them in no program.'
     }
     return 'The organisation unit this submission reports from. It is context, not an answer.'
 }

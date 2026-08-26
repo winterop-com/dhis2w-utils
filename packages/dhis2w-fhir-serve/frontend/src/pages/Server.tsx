@@ -5,6 +5,7 @@ import { CodeBlock } from '@/components/CodeEditor'
 import { ApiLink } from '@/components/ApiLink'
 import { PageHeader, PageState } from '@/components/PageState'
 import { ProseText } from '@/components/ProseText'
+import { markConfigurationKeys } from '@/lib/reference'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,9 +34,16 @@ import {
 } from '@/lib/uiconfig'
 import { countedNoun } from '@/lib/utils'
 
-/** What each posture is called on this page. Name the fact, not the config value. */
+/**
+ * What each posture is called on this page. Name the fact, not the config value.
+ *
+ * `none` leads with the fact itself rather than with its consequence: "Every caller is served" is
+ * true and it is the second thing a reader needs, behind the one word that says which posture this
+ * process is in. The sentence about the loopback interface follows from the server's own security
+ * prose, which is where the condition on it belongs.
+ */
 const AUTHENTICATION_LABELS: Record<string, string> = {
-    none: 'Every caller is served',
+    none: 'No authentication',
     token: 'A token this deployment issued',
     dhis2: 'The DHIS2 credentials of whoever is calling',
     jwt: 'A token from an OpenID Connect issuer',
@@ -58,12 +66,6 @@ const SCOPE_LABELS: Record<string, string> = {
  * ConceptMap, each only when the store holds that type), and the interactions,
  * search parameters and profile counts per resource type, because all three are
  * conditional on what the project actually published.
- *
- * TWO COUNTS OF "TYPES" LIVE ON THIS SCREEN AND THEY COUNT DIFFERENT THINGS.
- * The description the server wrote counts the types its store holds; the table
- * below counts the types the REST block answers for, and a live run answers for
- * register types it stores none of. Each is named where it is drawn, so the
- * table is not read as contradicting the sentence above it.
  *
  * EVERY SENTENCE THIS PAGE PRINTS IS THE SERVER'S OWN PROSE, and the server
  * marks its machine spellings with backticks. They are drawn through `ProseText`
@@ -161,7 +163,10 @@ export function Server() {
                             )}
                             {rest?.security?.description && (
                                 <p className="text-muted-foreground">
-                                    <ProseText text={rest.security.description} />
+                                    {/* The `none` posture's sentence names `[serve] auth` bare, and
+                                        a fhir.toml key set in the face of the words around it is a
+                                        key a reader walks past - see `markConfigurationKeys`. */}
+                                    <ProseText text={markConfigurationKeys(rest.security.description)} />
                                 </p>
                             )}
                         </CardContent>
@@ -222,9 +227,7 @@ export function Server() {
                         <div className="space-y-0.5">
                             <h3 className="text-base font-semibold">Resource types this server answers for</h3>
                             <p className="text-muted-foreground text-sm">
-                                What a caller can read from this server, and how. The count in the
-                                description above is of the types this server stores, which is a
-                                different set.
+                                What a caller can read from this server, and how.
                             </p>
                         </div>
                         <div className="show-scrollbars overflow-x-auto md:overflow-x-visible rounded-lg border">
@@ -317,8 +320,17 @@ function ResourceRows({
                         <span className="font-mono text-xs">-</span>
                     ) : (
                         <div className="flex flex-wrap gap-1">
+                            {/* A name is not a contract, and `d2-attribute` is the name on this page
+                                that says least on its own - `_id` and `identifier` are FHIR's and a
+                                caller has met them. So the declaration's own paragraph rides each
+                                chip, and the whole of it is still under the unfolded row. */}
                             {parameters.map((parameter) => (
-                                <Badge key={parameter.name} variant="outline" className="font-mono text-[11px]">
+                                <Badge
+                                    key={parameter.name}
+                                    variant="outline"
+                                    className="font-mono text-[11px]"
+                                    title={parameter.documentation}
+                                >
                                     {parameter.name}
                                 </Badge>
                             ))}

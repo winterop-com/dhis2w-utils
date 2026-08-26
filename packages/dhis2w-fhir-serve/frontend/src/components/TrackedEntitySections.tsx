@@ -18,7 +18,7 @@ import { formIdentifier, formTitle, type Questionnaire } from '@/lib/fhir'
 import { trackedEntityAttributeLabel, type PatientProjection } from '@/lib/patients'
 import { formatInstant } from '@/lib/spool'
 import type { RegisterWords } from '@/lib/uiconfig'
-import { cn } from '@/lib/utils'
+import { cn, formatCount } from '@/lib/utils'
 
 /**
  * What this DHIS2 instance holds about one tracked entity, as sections.
@@ -148,7 +148,8 @@ function EventSection({ state, words }: { state: TrackedEntityEventsState; words
                     </ul>
                     {state.total !== null && state.total > state.events.length && (
                         <p className="text-muted-foreground text-xs">
-                            Showing {state.events.length} of the {state.total} events this DHIS2 instance
+                            Showing {formatCount(state.events.length)} of the{' '}
+                            {formatCount(state.total)} events this DHIS2 instance
                             holds for this {words.one}.
                         </p>
                     )}

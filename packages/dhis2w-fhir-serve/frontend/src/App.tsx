@@ -1,6 +1,8 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes } from 'react-router-dom'
 
 import { AppLayout } from '@/components/AppLayout'
+import { PageHeader } from '@/components/PageState'
+import { Card, CardContent } from '@/components/ui/card'
 import { Evaluate } from '@/pages/Evaluate'
 import { FormFill } from '@/pages/FormFill'
 import { Forms } from '@/pages/Forms'
@@ -66,6 +68,9 @@ import { TrackedEntityDetail } from '@/pages/TrackedEntityDetail'
  * The index route is the Overview - the state of capture in one screen - and
  * every listing keeps a path of its own, so `/forms` is a link that can be sent
  * rather than "whatever the root happens to show".
+ *
+ * An address none of them matches is answered by `NotFound`, at the address it
+ * was opened at.
  */
 export default function App() {
     return (
@@ -87,9 +92,40 @@ export default function App() {
                 <Route path="terminology" element={<Terminology />} />
                 <Route path="terminology/:resourceType/:resourceId" element={<TerminologyDetail />} />
                 <Route path="server" element={<Server />} />
-                {/* An unknown hash route returns to the overview rather than a blank page. */}
-                <Route path="*" element={<Navigate to="/" replace />} />
+                <Route path="*" element={<NotFound />} />
             </Routes>
         </AppLayout>
+    )
+}
+
+/**
+ * An address this app does not answer, said plainly.
+ *
+ * NOT A REDIRECT. Exchanging an unknown hash for the overview leaves a reader looking at a page
+ * they did not ask for, with the address bar quietly rewritten and nothing anywhere saying that a
+ * link was wrong - which is indistinguishable from the app having lost their place. So the address
+ * is answered where it was opened, the same way the register answers a link to a page this run does
+ * not serve, and the way back to the overview is a link rather than something that already happened.
+ */
+function NotFound() {
+    return (
+        <>
+            <PageHeader
+                title="Nothing at this address"
+                description="This app does not answer for the address in the browser bar."
+            />
+            <Card>
+                <CardContent className="text-muted-foreground py-8 text-sm">
+                    <p data-testid="route-not-found">
+                        The link may be from a run of this app that served a page this one does not,
+                        or the address may have been mistyped.{' '}
+                        <Link to="/" className="interactive-link">
+                            Open the overview
+                        </Link>
+                        .
+                    </p>
+                </CardContent>
+            </Card>
+        </>
     )
 }

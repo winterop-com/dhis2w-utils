@@ -30,7 +30,7 @@ import { SHORTCUTS_TITLE } from '@/lib/shortcuts'
 export const SETTINGS_LABEL = 'Settings'
 
 /** One line under the dialog's title, saying what a reader will find in it. */
-export const SETTINGS_DESCRIPTION = 'How the app looks, and every key it answers'
+export const SETTINGS_DESCRIPTION = 'Appearance and keyboard shortcuts'
 
 /** What the dialog calls the section that decides how the app looks. */
 export const APPEARANCE_LABEL = 'Appearance'

@@ -16,7 +16,7 @@ import {
 } from '@/lib/catalogue'
 import { formIdentifier, formTitle, formTypeOf, questionCount, type Questionnaire } from '@/lib/fhir'
 import { repeatsPerEnrollment } from '@/lib/questionnaire'
-import { cn, countedNoun } from '@/lib/utils'
+import { cn, countedNoun, formatCount } from '@/lib/utils'
 
 /**
  * Every form this server publishes, grouped by the DHIS2 capture model it came from.
@@ -196,7 +196,7 @@ function FormSection({
             <div className="space-y-0.5">
                 <h3 className="text-base font-semibold">
                     {heading}
-                    <span className="prose-hint ml-2 text-xs font-normal">{count}</span>
+                    <span className="prose-hint ml-2 text-xs font-normal">{formatCount(count)}</span>
                 </h3>
                 <p className="prose-hint text-sm">{explainer}</p>
             </div>

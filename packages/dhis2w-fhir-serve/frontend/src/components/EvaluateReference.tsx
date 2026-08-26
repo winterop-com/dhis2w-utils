@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { exampleGroups, type EvaluationExample, type EvaluationLanguage } from '@/lib/evaluate'
 import { languageReference, type LanguageReference } from '@/lib/reference'
-import { cn } from '@/lib/utils'
+import { cn, formatCount } from '@/lib/utils'
 
 /**
  * What this server answers, beside the box somebody is writing in.
@@ -110,7 +110,7 @@ function ExampleBrowser({
     return (
         <div className="space-y-5" data-testid="evaluate-examples">
             <p className="text-muted-foreground text-xs">
-                {total} examples across the three languages, each one runnable as it stands. Choosing one
+                {formatCount(total)} examples across the three languages, each one runnable as it stands. Choosing one
                 replaces what is in the editor, and one from another language brings its language along.
             </p>
             {ordered.map((candidate) => (
@@ -203,7 +203,7 @@ function ReferenceBody({ reference }: { reference: LanguageReference }) {
                     <div className="flex flex-wrap items-baseline gap-2">
                         <h3 className="text-sm font-semibold">{section.title}</h3>
                         <Badge variant="secondary" className="text-[10px]">
-                            {section.entries.length}
+                            {formatCount(section.entries.length)}
                         </Badge>
                     </div>
                     {section.note !== undefined && (

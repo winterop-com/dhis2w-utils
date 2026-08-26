@@ -412,14 +412,21 @@ export function pageOf<T>(rows: T[], page: number, size: number = CONCEPT_PAGE_S
  * list - R4's own cardinality, not the emitter's choice - so both shapes are read. The label is
  * the last two segments of the identifier system (`.../id/option-set` reads as `id/option-set`),
  * which is what tells a uid identifier apart from a code identifier at a glance.
+ *
+ * ONE VALUE IS ONE BADGE. A DHIS2 object whose code is its uid carries the same string under both
+ * systems, and two chips reading `id/option-set OsSymptom01` and `code/option-set OsSymptom01` are
+ * one identifier wearing two prefixes - the reader has to compare them character by character to
+ * find out they say the same thing. The first system the resource states keeps the value.
  */
 export function identifierBadges(identifier: Identifier | Identifier[] | undefined): IdentifierBadge[] {
     const identifiers = identifier === undefined ? [] : Array.isArray(identifier) ? identifier : [identifier]
-    return identifiers.flatMap((candidate) =>
-        candidate.value === undefined
-            ? []
-            : [{ label: systemLabel(candidate.system), value: candidate.value }],
-    )
+    const shown: IdentifierBadge[] = []
+    for (const candidate of identifiers) {
+        if (candidate.value === undefined) continue
+        if (shown.some((badge) => badge.value === candidate.value)) continue
+        shown.push({ label: systemLabel(candidate.system), value: candidate.value })
+    }
+    return shown
 }
 
 /** The last two path segments of a system url, which is how a DHIS2 identifier system reads. */
@@ -576,35 +583,69 @@ export function matchingCodeCount(
  */
 export type TerminologyOrigin = 'option-set' | 'category' | 'dictionary' | 'built-in' | 'other'
 
+/** One shelf of the listing: what it is called, what its rows came from, and what that is for. */
+export interface TerminologyShelf {
+    origin: TerminologyOrigin
+    title: string
+    /** What the rows on this shelf were generated from, as the second half of a sentence. */
+    subject: string
+    /** What that subject is for, or null where the subject says it. */
+    note: string | null
+}
+
 /** The shelves in the order the listing lays them out, each with the sentence that heads it. */
-export const TERMINOLOGY_ORIGINS: { origin: TerminologyOrigin; title: string; caption: string }[] = [
+export const TERMINOLOGY_ORIGINS: TerminologyShelf[] = [
     {
         origin: 'option-set',
         title: 'Option sets',
-        caption: 'The option sets this DHIS2 instance declares - what a coded question is answered from.',
+        subject: 'the option sets this DHIS2 instance declares',
+        note: 'What a coded question is answered from.',
     },
     {
         origin: 'category',
         title: 'Categories',
-        caption: 'DHIS2 categories and attribute option combinations - how aggregate values are disaggregated.',
+        subject: 'DHIS2 categories and attribute option combinations',
+        note: 'How aggregate values are disaggregated.',
     },
     {
         origin: 'dictionary',
         title: 'Data dictionary',
-        caption:
-            'One registry each for what this DHIS2 instance declares: data elements, tracked entity attributes and types, category option combinations, organisation unit levels.',
+        subject: 'the registries this DHIS2 instance declares',
+        note: 'Data elements, tracked entity attributes and types, category option combinations, organisation unit levels.',
     },
     {
         origin: 'built-in',
         title: 'Built-in',
-        caption: 'Vocabularies the DHIS2 platform fixes in code - the same on every instance.',
+        subject: 'the vocabularies the DHIS2 platform fixes in code',
+        note: 'The same on every instance.',
     },
     {
         origin: 'other',
         title: 'Other vocabularies',
-        caption: 'Published outside the identifier conventions the groups above are read from.',
+        subject: 'DHIS2 objects outside the identifier conventions the shelves above are read from',
+        note: null,
     },
 ]
+
+/** What each of the three tabs calls one of its rows, singular - the noun a shelf counts in. */
+export const TERMINOLOGY_RESOURCE_NOUNS: Record<string, string> = {
+    CodeSystem: 'code system',
+    ValueSet: 'value set',
+    ConceptMap: 'concept map',
+}
+
+/**
+ * What one shelf of one tab is about, in the words of the resource the tab shows.
+ *
+ * THE SHELF IS A DHIS2 ORIGIN AND THE TAB IS A FHIR RESOURCE, and a caption that named only the
+ * first told a reader of the concept maps that they were looking at option sets. So the sentence
+ * opens on what the rows are - concept maps - and the shelf's subject follows it.
+ */
+export function terminologyShelfCaption(shelf: TerminologyShelf, resourceType: string): string {
+    const noun = TERMINOLOGY_RESOURCE_NOUNS[resourceType] ?? 'resource'
+    const opening = `The ${noun}s published for ${shelf.subject}.`
+    return shelf.note === null ? opening : `${opening} ${shelf.note}`
+}
 
 /** Which shelf one artifact id belongs on. */
 export function terminologyOrigin(identifier: string): TerminologyOrigin {
