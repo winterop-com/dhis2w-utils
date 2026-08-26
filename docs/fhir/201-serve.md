@@ -698,3 +698,5 @@ the scaffold gitignores it, and the IG publisher never renders it.
 
 Next: [Capture in the browser](201-capture-ui.md) - the same facade with a
 UI on it - then [Forward captures into DHIS2](201-forward.md).
+[Run a secured facade](201-run-a-secured-facade.md) walks the whole path in
+one page, securing included.

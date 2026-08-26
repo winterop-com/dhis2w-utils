@@ -17,7 +17,7 @@ Every example reads the active DHIS2 profile from `.dhis2/profiles.toml` / `~/.c
 
 ## FHIR examples
 
-`d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. `dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages, so this group is one copy that runs on every major. The narrative these sit under is the [`d2w fhir` guide series](fhir/index.md).
+`d2w fhir` turns a DHIS2 instance's metadata into a FHIR Implementation Guide, serves the compiled guide as a read-and-capture endpoint, and posts what that endpoint captured back into DHIS2. `dhis2w-fhir` and `dhis2w-fhir-serve` are not per-version packages, so this group is one copy that runs on every major. The narrative these sit under is the [`d2w fhir` guide series](fhir/index.md), which opens at the [Introduction](fhir/100-introduction.md).
 
 The headline rows are below. The Python library path has forty-eight examples in all — grouped from "build a response from my own data" through reading a form, converting to DHIS2, sending, evaluating over a served guide, driving the toolchain, and embedding the facade in your own process — catalogued in [`examples/fhir/client/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/README.md). The evaluation engine has nine of its own, catalogued in [`examples/fhir/engine/README.md`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/README.md).
 

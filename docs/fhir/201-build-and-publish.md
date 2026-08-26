@@ -404,5 +404,5 @@ scaffolded with is where consumers will expect to find it. Before handing
 it over, read `ig/output/qa.html` - the publisher's own QA summary of
 errors, warnings, and broken links.
 
-Next: [Serve the IG](201-serve.md) - the compiled guide, answered live as a
+Next: [Serve the guide](201-serve.md) - the compiled guide, answered live as a
 FHIR endpoint.

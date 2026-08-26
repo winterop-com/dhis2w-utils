@@ -6,6 +6,8 @@ Guide in a browser before reading anything longer.
 **Before you start:** `uv` and Docker installed; network access to a DHIS2
 instance - and a detour through
 [FHIR for DHIS2 people](101-fhir-concepts.md) if words like CodeSystem are new.
+New to this entirely? [Introduction](100-introduction.md) is the three steps
+on one page before you run anything.
 
 **You will be able to:**
 
@@ -447,4 +449,6 @@ What a client captures lands in a local spool, and
 default - which closes the loop from published contract to data in the
 instance.
 
-Next: [Set up an IG project](201-set-up-a-project.md)
+Next: [Set up an IG project](201-set-up-a-project.md), or
+[Run a secured facade](201-run-a-secured-facade.md) for the same road carried
+through securing and forwarding.
