@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { AlertTriangle, Inbox, TriangleAlert, Undo2 } from 'lucide-react'
 
 import { PageState } from '@/components/PageState'
@@ -67,6 +68,11 @@ export function ReceiptSections({ record }: { record: ReceiptRecordState }) {
                         seed={record.seed}
                         spoolLoading={record.spoolLoading}
                         spoolError={record.spoolError}
+                        formRoute={
+                            record.formMissing || record.questionnaireId === ''
+                                ? null
+                                : `/forms/${record.questionnaireId}`
+                        }
                     />
 
                     <CaptureContextSection facts={record.facts} />
@@ -141,7 +147,7 @@ function CaptureContextSection({ facts }: { facts: ReceiptContextFact[] }) {
             </div>
             <dl className="grid gap-x-6 gap-y-3 bg-card rounded-lg border p-4 text-sm sm:grid-cols-3">
                 {facts.map((fact) => (
-                    <Fact key={fact.label} label={fact.label} value={fact.value} mono={fact.mono} />
+                    <Fact key={fact.label} label={fact.label} value={fact.value} mono={fact.mono} to={fact.to} />
                 ))}
             </dl>
         </section>
@@ -155,12 +161,15 @@ function ReceiptFacts({
     seed,
     spoolLoading,
     spoolError,
+    formRoute,
 }: {
     summary: SpoolResponseSummary | null
     stored: QuestionnaireResponse
     seed: string | null
     spoolLoading: boolean
     spoolError: string | null
+    /** The capture screen for the form this receipt answers, when this server still serves it. */
+    formRoute: string | null
 }) {
     return (
         <div className="space-y-3 bg-card rounded-lg border p-4">
@@ -172,9 +181,18 @@ function ReceiptFacts({
             {stored.questionnaire !== undefined && (
                 <p className="text-xs">
                     <span className="text-muted-foreground">Questionnaire </span>
-                    <span className="machine-identifier break-all">
-                        {stored.questionnaire}
-                    </span>
+                    {/* The canonical is the receipt's own claim; the link is this server's answer
+                        to it - the form's capture screen, when the form is still served. */}
+                    {formRoute === null ? (
+                        <span className="machine-identifier break-all">{stored.questionnaire}</span>
+                    ) : (
+                        <Link
+                            to={formRoute}
+                            className="machine-identifier hover:text-foreground break-all underline underline-offset-2"
+                        >
+                            {stored.questionnaire}
+                        </Link>
+                    )}
                 </p>
             )}
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
@@ -330,11 +348,23 @@ function AnswerValue({
     if (value.kind === 'text') return <span className="text-sm">{value.text}</span>
     if (value.kind === 'reference') {
         const named = value.display ?? (value.unitId === null ? null : (unitNames.get(value.unitId)?.name ?? null))
+        const inRegistry = value.unitId !== null && unitNames.has(value.unitId)
         return (
             <span className="flex flex-wrap items-center gap-2">
-                <span className={named === null ? 'machine-identifier text-xs' : 'text-sm'}>
-                    {named ?? value.reference}
-                </span>
+                {/* A unit the registry knows has a place on the hierarchy page, so its name is
+                    the way there; a reference nothing resolves stays the text the receipt holds. */}
+                {named !== null && inRegistry ? (
+                    <Link
+                        to={`/organisation-units?unit=${value.unitId ?? ''}`}
+                        className="hover:text-foreground text-sm underline underline-offset-2"
+                    >
+                        {named}
+                    </Link>
+                ) : (
+                    <span className={named === null ? 'machine-identifier text-xs' : 'text-sm'}>
+                        {named ?? value.reference}
+                    </span>
+                )}
                 {named !== null && value.unitId !== null && (
                     <MachineBadge className="text-[10px]">{value.unitId}</MachineBadge>
                 )}
@@ -521,12 +551,30 @@ function keyedIssues(issues: SpoolRejectionIssue[]): { key: string; issue: Spool
     }))
 }
 
-/** One labelled fact in a detail grid. */
-function Fact({ label, value, mono = false }: { label: string; value: ReactNode; mono?: boolean }): ReactNode {
+/** One labelled fact in a detail grid, linking to its subject's own page when it has one. */
+function Fact({
+    label,
+    value,
+    mono = false,
+    to,
+}: {
+    label: string
+    value: ReactNode
+    mono?: boolean
+    to?: string
+}): ReactNode {
     return (
         <div className="min-w-0">
             <dt className="text-muted-foreground text-xs">{label}</dt>
-            <dd className={mono ? 'font-mono text-xs break-words' : 'break-words'}>{value}</dd>
+            <dd className={mono ? 'font-mono text-xs break-words' : 'break-words'}>
+                {to === undefined ? (
+                    value
+                ) : (
+                    <Link to={to} className="hover:text-foreground underline underline-offset-2">
+                        {value}
+                    </Link>
+                )}
+            </dd>
         </div>
     )
 }

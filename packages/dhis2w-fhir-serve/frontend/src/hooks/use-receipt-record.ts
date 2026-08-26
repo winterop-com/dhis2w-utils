@@ -189,7 +189,14 @@ function contextFacts(
                   }
                   const named = fact.label === ORGANISATION_UNIT_FACT_LABEL ? units.get(fact.value) : undefined
                   if (named === undefined) return { label: fact.label, value: fact.value, mono: true }
-                  return { label: fact.label, value: `${named.name} (${fact.value})`, mono: false }
+                  // The registry names it, so the hierarchy page can show it - a fact with its
+                  // own page is a link to that page.
+                  return {
+                      label: fact.label,
+                      value: `${named.name} (${fact.value})`,
+                      mono: false,
+                      to: `/organisation-units?unit=${fact.value}`,
+                  }
               })
     if (stored === null) return derived
     const combo = attributeOptionComboFact(stored, attributeCodeSystem)
