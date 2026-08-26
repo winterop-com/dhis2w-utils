@@ -316,7 +316,7 @@ function registerActions(register: string | null, query: string): PaletteAction[
 }
 
 /**
- * How the app looks: the themes when there is more than one, and the other ground.
+ * How the app looks: the five themes, and the other ground.
  *
  * One shelf rather than two, because a reader who came here to change how the app looks does not
  * know in advance whether the change they want is a theme or the ground - and the two are one
@@ -327,8 +327,7 @@ function registerActions(register: string | null, query: string): PaletteAction[
  * reader which theme they are actually in.
  */
 function appearanceActions(dark: boolean, current: ThemeName): PaletteAction[] {
-    // One theme is no choice: the rows return when a second theme lands in THEMES.
-    const themes: PaletteAction[] = THEMES.length < 2 ? [] : THEMES.map((theme) => ({
+    const themes: PaletteAction[] = THEMES.map((theme) => ({
         id: `theme:${theme.name}`,
         group: APPEARANCE_GROUP,
         label: `${theme.label} theme`,
