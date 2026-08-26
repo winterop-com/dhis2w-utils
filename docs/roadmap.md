@@ -4,6 +4,8 @@ A running inventory of what the workspace covers today, gaps surfaced during use
 
 The FHIR plugin keeps its own plan: roadmap, settled and open decisions, review dimensions, and build measurements all live in the [FHIR roadmap and review guide](fhir/design/roadmap.md), and this page does not restate them.
 
+**Open source at 2.0.0.** The workspace ships under a proprietary license today; the 2.0.0 release makes it fully open source. The license choice and the relicensing mechanics are settled as part of cutting that release, not before.
+
 ## Current state
 
 ### Workspace surface
