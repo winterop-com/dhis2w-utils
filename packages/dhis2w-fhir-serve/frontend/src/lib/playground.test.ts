@@ -17,6 +17,7 @@ import {
     RESOURCE_ID_PLACEHOLDER,
     type PlaygroundRequest,
     type ServerSamples,
+    declaredParameters,
 } from '@/lib/playground'
 
 /**
@@ -294,5 +295,33 @@ describe('the body as the response box shows it', () => {
 
     it('shows the bytes as they arrived when they are not JSON at all', () => {
         expect(prettyBody('<!doctype html>')).toBe('<!doctype html>')
+    })
+})
+
+describe('declaredParameters offers what the path answers', () => {
+    const capability = {
+        rest: [{
+            resource: [{
+                type: 'Questionnaire',
+                searchParam: [
+                    { name: '_id', documentation: 'The logical id.' },
+                    { name: 'url', documentation: 'The canonical.' },
+                ],
+            }],
+        }],
+    } as never
+
+    it('lists the declared parameters plus the universal pair for a typed path', () => {
+        const names = declaredParameters(capability, '/Questionnaire/abc').map((parameter) => parameter.name)
+        expect(names).toEqual(['_id', 'url', '_count', '_format'])
+    })
+
+    it('offers only _format outside the declared types', () => {
+        const names = declaredParameters(capability, '/$evaluate').map((parameter) => parameter.name)
+        expect(names).toEqual(['_format'])
+    })
+
+    it('answers nothing-plus-_format with no capability yet', () => {
+        expect(declaredParameters(null, '/Questionnaire').map((parameter) => parameter.name)).toEqual(['_format'])
     })
 })

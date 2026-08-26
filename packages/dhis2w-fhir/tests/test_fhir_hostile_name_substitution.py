@@ -481,11 +481,12 @@ def _hostile_instance() -> dict[str, list[dict[str, Any]]]:
 def _unrefused_instance() -> dict[str, list[dict[str, Any]]]:
     """An instance whose build-aborting names sit only where no emit-site gate reads them.
 
-    A data element's DHIS2 form name is the question's label, and a category option combo's name is
-    both a cell's label and a data dictionary concept display - and neither is a name the four
+    A category option combo's name is both a cell's label and a data dictionary concept display, and
+    a category combo's own name is the disaggregation the pages narrate - neither is a name the
     refusals read. This is the surface a national instance carried 738 of, which generated
     successfully and then aborted the publisher; it is what makes the parity assertion above worth
-    something.
+    something. The form name is deliberately clean here: it is the question's label wherever DHIS2
+    states one, so the question gate reads it and a hostile one never reaches this path.
     """
     instance = _hostile_instance()
     instance["dataSets"] = [
@@ -499,7 +500,7 @@ def _unrefused_instance() -> dict[str, list[dict[str, Any]]]:
                     "dataElement": {
                         "id": "DeUnr000001",
                         "name": "Weight",
-                        "formName": "Weight, <5kg",
+                        "formName": "Weight (kg)",
                         "valueType": "NUMBER",
                         "categoryCombo": _category_combo(),
                     }

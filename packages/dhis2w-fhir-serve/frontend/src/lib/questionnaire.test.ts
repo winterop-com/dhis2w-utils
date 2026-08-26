@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import generateAggregateFixture from '@/lib/__fixtures__/generate-BfMAe6Itzgt.json'
 import generateEventFixture from '@/lib/__fixtures__/generate-EVTsupVis01.json'
@@ -65,12 +65,29 @@ import {
     implicitlySubmits,
     numericInputShape,
     isWellShapedPeriod,
+    liveTotal,
     periodShape,
+    recentPeriods,
     repeatsPerEnrollment,
     reportingPeriodTypeOf,
     formBlocks,
-    splitByFirstDimension,
+    comboFilterPlaceholder,
+    comboRows,
+    defaultDisaggregationOrientation,
+    facetColumns,
+    offersComboFilter,
+    offersOrientationSwitch,
+    openedDisaggregationOrientation,
+    ORIENTATION_STORAGE_KEY_PREFIX,
+    otherOrientation,
+    rememberDisaggregationOrientation,
+    rowAxisName,
+    storedDisaggregationOrientation,
+    visibleComboRows,
+    widestGridTable,
     type AnswerState,
+    type DisaggregationColumn,
+    type DisaggregationFacet,
     type FormBlock,
     type FormKeyPress,
     type QuestionnaireSpec,
@@ -2251,7 +2268,7 @@ describe('the category axes a disaggregated group is cut by', () => {
     const spec = flattenQuestionnaire(form, dictionaryOfCodeSystems([combos]))
 
     it('names each cell`s axes in the order the concept states them', () => {
-        expect(spec.byLinkId.get('s46m5MS0hxu.Prlt0C1RF0s')?.categoryAxes).toEqual([
+        expect(spec.byLinkId.get('s46m5MS0hxu.Prlt0C1RF0s')?.decomposition.map((choice) => choice.axis)).toEqual([
             'Location Fixed/Outreach',
             'EPI/nutrition age',
         ])
@@ -2275,13 +2292,13 @@ describe('the category axes a disaggregated group is cut by', () => {
     })
 
     it('states nothing for a question that is not a cell, or for a dictionary not yet read', () => {
-        expect(spec.byLinkId.get('p1MDHOT6ENy')?.categoryAxes).toEqual([])
+        expect(spec.byLinkId.get('p1MDHOT6ENy')?.decomposition).toEqual([])
         expect(groupCategoryAxes(flattenQuestionnaire(form), 's46m5MS0hxu')).toEqual([])
     })
 
     it('falls back to the property code when a declaration names no category', () => {
         const unnamed = dictionaryOfCodeSystems([combos]).byConcept.get(`${combos.url ?? ''}|pn1upwnbxfn`)
-        expect(unnamed?.categoryAxes).toEqual(['category-Unnamed01'])
+        expect(unnamed?.decomposition.map((choice) => choice.axis)).toEqual(['category-Unnamed01'])
     })
 })
 
@@ -2405,6 +2422,135 @@ describe('a reporting period', () => {
     })
 })
 
+/** A Wednesday in August 2026, which is what every list below is counted back from. */
+const A_WEDNESDAY = new Date(2026, 7, 19)
+
+/**
+ * The periods a person is offered, which is the other half of asking for one.
+ *
+ * Every case here pins two things at once: the identifier, because it is what DHIS2 keys the
+ * submission by, and the label, because it is the only part anybody reads. A list whose words and
+ * identifiers disagree would be a control that files a month nobody chose.
+ */
+describe('the recent periods a form offers', () => {
+    it('counts months back from the one today falls in, most recent first', () => {
+        const offered = recentPeriods('Monthly', A_WEDNESDAY)
+        expect(offered).toHaveLength(13)
+        expect(offered[0]).toEqual({ iso: '202608', label: 'August 2026' })
+        // The one an aggregate form opens on: the last month that is over.
+        expect(offered[1]).toEqual({ iso: '202607', label: 'July 2026' })
+        expect(offered[12]).toEqual({ iso: '202508', label: 'August 2025' })
+    })
+
+    it('crosses the new year without losing the year', () => {
+        const offered = recentPeriods('Monthly', new Date(2026, 0, 9))
+        expect(offered[1]).toEqual({ iso: '202512', label: 'December 2025' })
+        expect(offered[2]?.iso).toBe('202511')
+    })
+
+    it('counts days back through the ends of months', () => {
+        const offered = recentPeriods('Daily', new Date(2026, 2, 2))
+        expect(offered[0]).toEqual({ iso: '20260302', label: '2 March 2026' })
+        expect(offered[1]).toEqual({ iso: '20260301', label: '1 March 2026' })
+        expect(offered[2]).toEqual({ iso: '20260228', label: '28 February 2026' })
+    })
+
+    it('names a week by its ISO number and the Monday it opens on', () => {
+        const offered = recentPeriods('Weekly', A_WEDNESDAY)
+        expect(offered).toHaveLength(13)
+        expect(offered[0]).toEqual({ iso: '2026W34', label: 'Week 34, 2026 (starts Mon 17 Aug)' })
+        expect(offered[1]).toEqual({ iso: '2026W33', label: 'Week 33, 2026 (starts Mon 10 Aug)' })
+    })
+
+    it('gives a week the year its Thursday falls in, which is not always the calendar one', () => {
+        // 1 January 2027 is a Friday, so that week is the last of 2026 and DHIS2 spells it `2026W53`.
+        expect(recentPeriods('Weekly', new Date(2027, 0, 1))[0]).toEqual({
+            iso: '2026W53',
+            label: 'Week 53, 2026 (starts Mon 28 Dec)',
+        })
+    })
+
+    it('bands a two-month period on the odd month DHIS2 numbers it by', () => {
+        const offered = recentPeriods('BiMonthly', A_WEDNESDAY)
+        expect(offered).toHaveLength(9)
+        expect(offered[0]).toEqual({ iso: '202607B', label: 'July to August 2026' })
+        expect(offered[1]).toEqual({ iso: '202605B', label: 'May to June 2026' })
+        expect(offered[4]?.iso).toBe('202511B')
+    })
+
+    it('counts quarters, half-years and years in what each of them measures', () => {
+        expect(recentPeriods('Quarterly', A_WEDNESDAY).slice(0, 2)).toEqual([
+            { iso: '2026Q3', label: 'July to September 2026' },
+            { iso: '2026Q2', label: 'April to June 2026' },
+        ])
+        expect(recentPeriods('SixMonthly', A_WEDNESDAY).slice(0, 2)).toEqual([
+            { iso: '2026S2', label: 'July to December 2026' },
+            { iso: '2026S1', label: 'January to June 2026' },
+        ])
+        expect(recentPeriods('Yearly', A_WEDNESDAY)).toEqual([
+            { iso: '2026', label: '2026' },
+            { iso: '2025', label: '2025' },
+            { iso: '2024', label: '2024' },
+            { iso: '2023', label: '2023' },
+            { iso: '2022', label: '2022' },
+            { iso: '2021', label: '2021' },
+        ])
+    })
+
+    // The types whose identifiers number themselves from an offset this UI does not hold. A list of
+    // them would be a list of periods a person could pick that DHIS2 does not have, so there is none
+    // and the identifier box is what states one.
+    it('offers nothing for a type it cannot count back through', () => {
+        expect(recentPeriods('WeeklyWednesday', A_WEDNESDAY)).toEqual([])
+        expect(recentPeriods('BiWeekly', A_WEDNESDAY)).toEqual([])
+        expect(recentPeriods('FinancialApril', A_WEDNESDAY)).toEqual([])
+        expect(recentPeriods(null, A_WEDNESDAY)).toEqual([])
+    })
+
+    it('offers identifiers its own checker admits', () => {
+        for (const periodType of ['Daily', 'Weekly', 'Monthly', 'BiMonthly', 'Quarterly', 'SixMonthly', 'Yearly']) {
+            for (const option of recentPeriods(periodType, A_WEDNESDAY)) {
+                expect(isWellShapedPeriod(option.iso, periodType)).toBe(true)
+            }
+        }
+    })
+})
+
+/**
+ * What a row of boxes adds up to while it is being typed in.
+ *
+ * A check figure and never an answer: nothing here is submitted, and what it is for is the 1370
+ * typed where 137 was meant being visible at the desk rather than in a DHIS2 validation rule a
+ * fortnight later.
+ */
+describe('the live total of a row of cells', () => {
+    it('adds what has been typed and treats a blank as nothing typed', () => {
+        expect(liveTotal(['12', '48', '137', '29'])).toBe(226)
+        expect(liveTotal(['12', '', '  ', '29'])).toBe(41)
+    })
+
+    it('has no total for a row nobody has typed in, because zero would be a claim of zero', () => {
+        expect(liveTotal([])).toBeNull()
+        expect(liveTotal(['', '   ', ''])).toBeNull()
+    })
+
+    it('states nothing at all where one box holds something it cannot add', () => {
+        // Skipping the unreadable box would put a figure on screen that disagrees with the boxes
+        // above it and says nothing about why, which is worse than stating no total.
+        expect(liveTotal(['12', '1.2.3'])).toBeNull()
+        expect(liveTotal(['12', '-'])).toBeNull()
+        expect(liveTotal(['12', 'seven'])).toBeNull()
+        expect(liveTotal(['12', '0x10'])).toBeNull()
+        expect(liveTotal(['12', 'Infinity'])).toBeNull()
+    })
+
+    it('adds decimals to a figure a person could have written down', () => {
+        expect(liveTotal(['0.1', '0.2'])).toBe(0.3)
+        expect(liveTotal(['1.5', '2.25'])).toBe(3.75)
+        expect(liveTotal(['-4', '10'])).toBe(6)
+    })
+})
+
 /** One Enter in a text box, with whatever the case at hand changes about it. */
 const press = (over: Partial<FormKeyPress>): FormKeyPress => ({
     key: 'Enter',
@@ -2463,33 +2609,493 @@ describe('the box a numeric question is filled in through', () => {
     })
 })
 
-describe('a two-dimensional cut split by its first dimension', () => {
-    const column = (label: string) => ({ label, code: null })
+/**
+ * One combo of a cut, as the served vocabulary states it: the categories it takes, and its options.
+ *
+ * The label is built from the decomposition the way the emitter builds it, which is exactly why the
+ * renderer must not read it: reorder the categories and every label here is rewritten, while the
+ * decomposition under it says the same thing.
+ */
+function combo(choices: readonly (readonly [string, string])[]): DisaggregationColumn {
+    const decomposition = choices.map(([axis, optionLabel]) => ({
+        axis,
+        optionCode: `${axis}-${optionLabel}`,
+        optionLabel,
+    }))
+    return { label: decomposition.map((choice) => choice.optionLabel).join(', '), code: null, decomposition }
+}
 
-    it('slices eight comma-labelled combos into one facet per first value', () => {
-        const facets = splitByFirstDimension(
-            ['Female, under 15y', 'Female, 15-24y', 'Female, 25-49y', 'Female, over 49y',
-             'Male, under 15y', 'Male, 15-24y', 'Male, 25-49y', 'Male, over 49y'].map(column),
-        )
+/**
+ * A whole cut, expanded the way DHIS2 expands one: a nested loop over the categories, outermost first.
+ *
+ * Naming the categories in a different order is what a DHIS2 admin does when they reorder a category
+ * combo, and it produces a different column order and a different label per column - which is the
+ * whole thing the renderer has to be indifferent to.
+ */
+function cut(...axes: readonly (readonly [string, readonly string[]])[]): DisaggregationColumn[] {
+    let rows: (readonly [string, string])[][] = [[]]
+    for (const [axis, options] of axes) {
+        rows = rows.flatMap((prefix) => options.map((option) => [...prefix, [axis, option] as const]))
+    }
+    return rows.map((choices) => combo(choices))
+}
+
+/** The four ages the two-dimensional fixtures below are cut by, beside whichever other category. */
+const AGES = ['under 15y', '15-24y', '25-49y', 'over 49y']
+
+/** A gender-by-age cut, spelled the way an instance that lists gender first spells it. */
+const GENDER_BY_AGE = cut(['Gender', ['Female', 'Male']], ['HIV age', AGES])
+
+/** As many country names as a test needs, which is more than a band axis can hold. */
+function countries(count: number): string[] {
+    return Array.from({ length: count }, (_, index) => `Country ${String(index + 1).padStart(3, '0')}`)
+}
+
+/** A gender-by-country cut, with the categories listed in whichever order is asked for. */
+function genderByCountry(count: number, genderFirst: boolean): DisaggregationColumn[] {
+    const gender = ['Gender', ['Female', 'Male']] as const
+    const country = ['Country', countries(count)] as const
+    return genderFirst ? cut(gender, country) : cut(country, gender)
+}
+
+describe('a cut banded along the category with fewest options', () => {
+    it('bands eight combos by gender, the smaller of its two categories', () => {
+        const facets = facetColumns(GENDER_BY_AGE)
         expect(facets?.map((facet) => facet.heading)).toEqual(['Female', 'Male'])
-        expect(facets?.[0].labels).toEqual(['under 15y', '15-24y', '25-49y', 'over 49y'])
+        expect(facets?.[0].labels).toEqual(AGES)
         expect(facets?.[1].indices).toEqual([4, 5, 6, 7])
+        expect(facets?.[0].axis).toBe('Gender')
     })
 
     it('keeps a narrow cut as one table', () => {
-        expect(splitByFirstDimension(['0-11m', '12-59m', '5-14y', '15y+'].map(column))).toBeNull()
+        expect(facetColumns(cut(['Age', ['0-11m', '12-59m', '5-14y', '15y+']]))).toBeNull()
     })
 
-    it('refuses a cut whose facets do not repeat the same suffixes', () => {
-        const facets = splitByFirstDimension(
-            ['Female, under 15y', 'Female, 15-24y', 'Female, 25-49y', 'Female, over 49y',
-             'Male, under 15y', 'Male, 15-24y', 'Male, 25-49y', 'Male, 50y+'].map(column),
+    // The split is offered exactly where a cut has outgrown the grid, so a six-column cut that bands
+    // into two threes is a grid again rather than a list repeating "Pregnant" down six rows.
+    it('bands a six-column cut that a grid no longer holds', () => {
+        const six = cut(['Pregnancy', ['Pregnant', 'Non-pregnant']], ['Point of service', ['Fixed', 'Outreach', 'School']])
+        expect(facetColumns(six)?.map((facet) => facet.heading)).toEqual(['Pregnant', 'Non-pregnant'])
+        expect(defaultDisaggregationOrientation(six)).toBe('grid')
+    })
+
+    it('refuses a cut whose bands do not hold the same options', () => {
+        const ragged = [
+            ...AGES.map((age) => combo([['Gender', 'Female'], ['HIV age', age]])),
+            ...['under 15y', '15-24y', '25-49y', '50y+'].map((age) => combo([['Gender', 'Male'], ['HIV age', age]])),
+        ]
+        expect(facetColumns(ragged)).toBeNull()
+    })
+
+    it('refuses a cut that decomposes over one category only', () => {
+        expect(facetColumns(cut(['Band', countries(8)]))).toBeNull()
+    })
+
+    it('refuses a cut whose vocabulary has not been read', () => {
+        const unread = GENDER_BY_AGE.map((each) => ({ ...each, decomposition: [] }))
+        expect(facetColumns(unread)).toBeNull()
+    })
+
+    it('bands along the smaller category even when neither is two', () => {
+        const wards = ['Ward A', 'Ward B', 'Ward C', 'Ward D', 'Ward E', 'Ward F', 'Ward G']
+        const facets = facetColumns(cut(['Ward', wards], ['Age', AGES]))
+        expect(facets?.map((facet) => facet.heading)).toEqual(AGES)
+        expect(facets?.[0].labels).toEqual(wards)
+    })
+
+    it('refuses a cut whose categories are both wider than a band', () => {
+        expect(facetColumns(cut(['Ward', countries(7)], ['Band', AGES.concat('50y+', 'not stated', 'unknown')]))).toBeNull()
+    })
+
+    it('settles a tie on option count by the category name, so equals never swap', () => {
+        const arms = ['Control', 'Treated', 'Crossover']
+        const zones = ['North', 'South', 'East']
+        const asked = cut(['Zone', zones], ['Arm', arms])
+        const other = cut(['Arm', arms], ['Zone', zones])
+        expect(facetColumns(asked)?.[0].axis).toBe('Arm')
+        expect(facetColumns(other)?.[0].axis).toBe('Arm')
+    })
+})
+
+/**
+ * The invariant the owner set: reordering the categories inside a combo must not move the renderer.
+ *
+ * A DHIS2 admin who swaps gender and country in a category combo renames every combo in it and
+ * changes the order DHIS2 expands the cells in. Nothing below reads either. What these check is that
+ * the two spellings of one cut are drawn identically - the same band axis, the same bands in the same
+ * order, the same rows in the same order under each - so a reorder is a fact about DHIS2's listing
+ * and not about anybody's screen.
+ *
+ * The answers were never at risk: a cell is keyed by its own linkId and its combo uid, so a reorder
+ * is presentation and the submission is untouched. `a reordered cut answers on the same cells` is the
+ * test that names it.
+ */
+describe('a category combo reordered by an admin', () => {
+    const genderFirst = genderByCountry(16, true)
+    const countryFirst = genderByCountry(16, false)
+
+    it('bands by gender whichever category the combo lists first', () => {
+        for (const spelling of [genderFirst, countryFirst]) {
+            const facets = facetColumns(spelling)
+            expect(facets?.map((facet) => facet.heading)).toEqual(['Female', 'Male'])
+            expect(facets?.[0].axis).toBe('Gender')
+            expect(facets?.[0].labels).toEqual(countries(16))
+        }
+    })
+
+    it('draws both spellings as the same bands, rows and shape', () => {
+        const asked = facetColumns(genderFirst)
+        const other = facetColumns(countryFirst)
+        expect(asked?.map((facet) => ({ heading: facet.heading, axis: facet.axis, labels: facet.labels }))).toEqual(
+            other?.map((facet) => ({ heading: facet.heading, axis: facet.axis, labels: facet.labels })),
         )
-        expect(facets).toBeNull()
+        expect(defaultDisaggregationOrientation(genderFirst)).toBe(defaultDisaggregationOrientation(countryFirst))
+        expect(widestGridTable(genderFirst)).toBe(widestGridTable(countryFirst))
+        expect(offersOrientationSwitch(genderFirst)).toBe(offersOrientationSwitch(countryFirst))
     })
 
-    it('refuses labels that carry no second dimension', () => {
-        const labels = Array.from({ length: 8 }, (_, index) => `Band ${String(index)}`)
-        expect(splitByFirstDimension(labels.map(column))).toBeNull()
+    it('reads the same row labels in the same order under every band', () => {
+        const asked = facetColumns(genderFirst)
+        const other = facetColumns(countryFirst)
+        expect(comboRows(genderFirst, asked?.[1] ?? null).map((row) => row.label)).toEqual(
+            comboRows(countryFirst, other?.[1] ?? null).map((row) => row.label),
+        )
+    })
+
+    // The rows point at different columns in the two spellings, because DHIS2 expanded the cells in a
+    // different order - and they point at the same *combos*, which is what a cell is answered by.
+    it('answers on the same cells in both spellings, whatever the column order', () => {
+        const asked = facetColumns(genderFirst)
+        const other = facetColumns(countryFirst)
+        const named = (columns: DisaggregationColumn[], facet: DisaggregationFacet | null) =>
+            comboRows(columns, facet).map((row) =>
+                [...columns[row.index].decomposition]
+                    .map((choice) => choice.optionCode)
+                    .sort((left, right) => left.localeCompare(right))
+                    .join('|'),
+            )
+        expect(named(genderFirst, asked?.[0] ?? null)).toEqual(named(countryFirst, other?.[0] ?? null))
+    })
+
+    /**
+     * One data element group cut by a whole combo list, as a served form and its vocabulary state it.
+     *
+     * The long way round on purpose: this goes through the served CodeSystem, the dictionary, the
+     * flattener and the partition, so what it compares is the run a browser would actually draw
+     * rather than a hand-built column list.
+     */
+    function servedRun(axes: readonly (readonly [string, readonly string[]])[]): FormBlock {
+        const columns = cut(...axes)
+        const url = 'http://example.org/fhir/CodeSystem/d2-coc-cs'
+        const vocabulary: CodeSystem = {
+            resourceType: 'CodeSystem',
+            status: 'active',
+            url,
+            property: axes.map(([axis]) => ({
+                code: `category-${axis}`,
+                description: `DHIS2 category ${axis}.`,
+                type: 'Coding',
+            })),
+            concept: columns.map((column, index) => ({
+                code: `COC${String(index)}`,
+                display: column.label,
+                property: column.decomposition.map((choice) => ({
+                    code: `category-${choice.axis}`,
+                    valueCoding: { code: choice.optionCode, display: choice.optionLabel },
+                })),
+            })),
+        }
+        const form: Questionnaire = {
+            resourceType: 'Questionnaire',
+            status: 'active',
+            item: [
+                {
+                    linkId: 'ART',
+                    text: 'ART clients',
+                    type: 'group',
+                    item: columns.map((column, index) => ({
+                        linkId: `ART.COC${String(index)}`,
+                        text: column.label,
+                        type: 'integer' as const,
+                        code: [{ system: url, code: `COC${String(index)}` }],
+                    })),
+                },
+            ],
+        }
+        const spec = flattenQuestionnaire(form, dictionaryOfCodeSystems([vocabulary]))
+        return formBlocks(spec, spec.rootLinkIds, enabledLinkIds(spec, {}))[0]
+    }
+
+    /** What a run is drawn as, in the only terms that matter: its bands, its rows and its shape. */
+    function drawnAs(block: FormBlock) {
+        if (block.kind !== 'disaggregation') throw new Error('the run is not a disaggregated one')
+        const facets = facetColumns(block.columns)
+        return {
+            orientation: defaultDisaggregationOrientation(block.columns),
+            axis: facets?.[0].axis ?? null,
+            headings: facets?.map((facet) => facet.heading) ?? null,
+            rows: facets?.map((facet) => comboRows(block.columns, facet).map((row) => row.label)) ?? null,
+            // The combo each row answers, named by its own decomposition rather than by a column
+            // position - the one identity that survives DHIS2 expanding the cells the other way.
+            answered:
+                facets?.map((facet) =>
+                    comboRows(block.columns, facet).map((row) =>
+                        [...block.columns[row.index].decomposition]
+                            .map((choice) => choice.optionCode)
+                            .sort((left, right) => left.localeCompare(right))
+                            .join('|'),
+                    ),
+                ) ?? null,
+        }
+    }
+
+    // The whole invariant in one assertion: two served forms differing only in the order their
+    // category combo lists its categories are drawn as the same run, cell for cell.
+    it('draws the same run from a form whose combo lists its categories the other way', () => {
+        const gender = ['Gender', ['Female', 'Male']] as const
+        const country = ['Country', countries(16)] as const
+        const asked = servedRun([gender, country])
+        const other = servedRun([country, gender])
+
+        // The two forms really are different forms - different cell order, different combo names -
+        // or this would be an assertion about nothing.
+        const labels = (block: FormBlock) => (block.kind === 'disaggregation' ? block.columns.map((c) => c.label) : [])
+        expect(labels(asked)).not.toEqual(labels(other))
+        expect(labels(asked)[1]).toBe('Female, Country 002')
+        expect(labels(other)[1]).toBe('Country 001, Male')
+
+        expect(drawnAs(asked)).toEqual(drawnAs(other))
+    })
+
+    // Three categories is where the order the run met them in stops being a safe order to keep: the
+    // band takes one and the other two still have to be put in a settled order, or the row labels
+    // read "Fixed, under 1y" one day and "under 1y, Fixed" the next.
+    it('draws the same run from a cut over three categories, listed any way round', () => {
+        const gender = ['Gender', ['Female', 'Male']] as const
+        const location = ['Location', ['Fixed', 'Outreach', 'School']] as const
+        const age = ['Age', ['under 1y', '1-4y', '5-14y', 'over 14y']] as const
+        const drawn = [
+            drawnAs(servedRun([gender, location, age])),
+            drawnAs(servedRun([age, gender, location])),
+            drawnAs(servedRun([location, age, gender])),
+        ]
+        expect(drawn[1]).toEqual(drawn[0])
+        expect(drawn[2]).toEqual(drawn[0])
+        expect(drawn[0].axis).toBe('Gender')
+    })
+
+    it('draws the same narrow run either way round too', () => {
+        const location = ['Location', ['Fixed', 'Outreach']] as const
+        const age = ['EPI age', ['under 1y', 'over 1y', 'unknown']] as const
+        expect(drawnAs(servedRun([location, age]))).toEqual(drawnAs(servedRun([age, location])))
+    })
+
+    it('bands a gender-by-age cut by gender in either spelling', () => {
+        const other = cut(['HIV age', AGES], ['Gender', ['Female', 'Male']])
+        expect(facetColumns(other)?.map((facet) => facet.heading)).toEqual(['Female', 'Male'])
+        expect(facetColumns(other)?.[0].labels).toEqual(AGES)
+        expect(facetColumns(GENDER_BY_AGE)?.[0].labels).toEqual(facetColumns(other)?.[0].labels)
+    })
+})
+
+describe('the shape a disaggregated run opens in', () => {
+    it('draws a cut of four as a grid', () => {
+        expect(defaultDisaggregationOrientation(cut(['Age', ['0-11m', '12-59m', '5-14y', '15y+']]))).toBe('grid')
+    })
+
+    it('draws a cut of five as rows', () => {
+        const five = cut(['Age', ['0-11m', '12-59m', '5-14y', '15y+', 'Unknown']])
+        expect(defaultDisaggregationOrientation(five)).toBe('vertical')
+    })
+
+    // Banding is the grid form of a wide cut rather than an alternative to it: eight columns that
+    // band into two fours is a table four columns wide, twice.
+    it('draws eight combos that band into two fours as a grid', () => {
+        expect(widestGridTable(GENDER_BY_AGE)).toBe(4)
+        expect(defaultDisaggregationOrientation(GENDER_BY_AGE)).toBe('grid')
+    })
+
+    it('draws a cut whose bands are still five wide as rows', () => {
+        const wide = cut(['Gender', ['Female', 'Male']], ['HIV age', [...AGES, 'not stated']])
+        expect(facetColumns(wide)).not.toBeNull()
+        expect(defaultDisaggregationOrientation(wide)).toBe('vertical')
+    })
+
+    it('draws a gender-by-country cut as rows inside its gender bands, in either spelling', () => {
+        for (const genderFirst of [true, false]) {
+            const wide = genderByCountry(16, genderFirst)
+            expect(widestGridTable(wide)).toBe(16)
+            expect(defaultDisaggregationOrientation(wide)).toBe('vertical')
+        }
+    })
+
+    it('offers the switch on a wide cut a grid could still draw', () => {
+        expect(offersOrientationSwitch(cut(['Age', ['0-11m', '12-59m', '5-14y', '15y+', 'Unknown']]))).toBe(true)
+    })
+
+    it('offers no switch on a cut no arrangement makes a table of', () => {
+        expect(offersOrientationSwitch(genderByCountry(16, true))).toBe(false)
+        expect(offersOrientationSwitch(genderByCountry(16, false))).toBe(false)
+    })
+
+    it('names the other shape, which is what the switch says it will do', () => {
+        expect(otherOrientation('grid')).toBe('vertical')
+        expect(otherOrientation('vertical')).toBe('grid')
+    })
+})
+
+/**
+ * A storage of the methods this module uses, and nothing else.
+ *
+ * Node has no `localStorage` without being told where to keep one, and a file on disk is not what
+ * these tests are about. What is under test is which key is written and what an unreadable one falls
+ * back to, and a Map answers both.
+ */
+function inMemoryStorage(): Storage {
+    const entries = new Map<string, string>()
+    return {
+        getItem: (key: string) => entries.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+            entries.set(key, value)
+        },
+        removeItem: (key: string) => {
+            entries.delete(key)
+        },
+        clear: () => {
+            entries.clear()
+        },
+        key: (index: number) => [...entries.keys()][index] ?? null,
+        get length() {
+            return entries.size
+        },
+    }
+}
+
+describe('a run whose shape somebody chose', () => {
+    beforeEach(() => {
+        vi.stubGlobal('localStorage', inMemoryStorage())
+    })
+
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    const four = cut(['Age', ['0-11m', '12-59m', '5-14y', '15y+']])
+
+    it('opens on the ladder while nothing has been chosen', () => {
+        expect(openedDisaggregationOrientation('s46m5MS0hxu', four)).toBe('grid')
+    })
+
+    it('opens on the choice once one is made', () => {
+        rememberDisaggregationOrientation('s46m5MS0hxu', 'vertical')
+        expect(openedDisaggregationOrientation('s46m5MS0hxu', four)).toBe('vertical')
+    })
+
+    it("keeps one run's choice off every other run", () => {
+        rememberDisaggregationOrientation('s46m5MS0hxu', 'vertical')
+        expect(openedDisaggregationOrientation('tU7GixyHhsv', four)).toBe('grid')
+    })
+
+    it("writes under the app's own namespace", () => {
+        rememberDisaggregationOrientation('s46m5MS0hxu', 'vertical')
+        expect(localStorage.getItem(`${ORIENTATION_STORAGE_KEY_PREFIX}s46m5MS0hxu`)).toBe('vertical')
+    })
+
+    it('falls back to the ladder when storage is blocked', () => {
+        vi.stubGlobal('localStorage', {
+            getItem: () => {
+                throw new Error('denied')
+            },
+            setItem: () => {
+                throw new Error('denied')
+            },
+        })
+        expect(storedDisaggregationOrientation('s46m5MS0hxu')).toBeNull()
+        expect(() => {
+            rememberDisaggregationOrientation('s46m5MS0hxu', 'vertical')
+        }).not.toThrow()
+        expect(openedDisaggregationOrientation('s46m5MS0hxu', four)).toBe('grid')
+    })
+})
+
+describe('the rows one vertical block draws', () => {
+    it('carries the whole combo label where no band has named half of it', () => {
+        expect(comboRows(GENDER_BY_AGE, null).map((row) => row.label)).toEqual(
+            GENDER_BY_AGE.map((each) => each.label),
+        )
+    })
+
+    it('carries only what its band did not say', () => {
+        const facets = facetColumns(GENDER_BY_AGE)
+        expect(facets).not.toBeNull()
+        const rows = comboRows(GENDER_BY_AGE, facets?.[1] ?? null)
+        expect(rows.map((row) => row.label)).toEqual(AGES)
+        // The positions are the run's own, which is what still finds the cell under a band.
+        expect(rows.map((row) => row.index)).toEqual([4, 5, 6, 7])
+    })
+
+    it('names the category the rows are still cut by', () => {
+        const facets = facetColumns(genderByCountry(16, false))
+        expect(rowAxisName(['Country', 'Gender'], facets?.[0] ?? null)).toBe('Country')
+        expect(rowAxisName(['Age'], null)).toBe('Age')
+        expect(rowAxisName([], null)).toBeNull()
+    })
+
+    it('names the same row category in either spelling of the cut', () => {
+        const asked = facetColumns(genderByCountry(16, true))
+        const other = facetColumns(genderByCountry(16, false))
+        expect(rowAxisName(['Gender', 'Country'], asked?.[0] ?? null)).toBe('Country')
+        expect(rowAxisName(['Country', 'Gender'], other?.[0] ?? null)).toBe('Country')
+    })
+
+    it('offers the filter only once the list is one nobody scrolls', () => {
+        expect(offersComboFilter(comboRows(GENDER_BY_AGE, null))).toBe(false)
+        expect(offersComboFilter(comboRows(genderByCountry(32, true), null))).toBe(true)
+    })
+
+    it('says how many of what the filter box narrows', () => {
+        const rows = comboRows(genderByCountry(32, true), facetColumns(genderByCountry(32, true))?.[0] ?? null)
+        expect(comboFilterPlaceholder(rows, 'Facility')).toBe('Filter 32 Facility')
+        expect(comboFilterPlaceholder(rows, null)).toBe('Filter options')
+    })
+})
+
+/** A block where nobody has typed anything yet, which is what an unfilled-only tick shows all of. */
+const nothingFilled = () => false
+
+/** A block where the first and third rows hold a value and the other two are still waiting. */
+const firstAndThirdFilled = (index: number) => index === 0 || index === 2
+
+describe('a filtered vertical block', () => {
+    const rows = comboRows(cut(['District', ['Kambia', 'Kailahun', 'Kenema', 'Bombali']]), null)
+
+    it('shows every row while the box is empty', () => {
+        expect(visibleComboRows(rows, '', false, nothingFilled)).toHaveLength(4)
+        expect(visibleComboRows(rows, '   ', false, nothingFilled)).toHaveLength(4)
+    })
+
+    it('narrows to the rows whose label holds what was typed, whatever the casing', () => {
+        expect(visibleComboRows(rows, 'ka', false, nothingFilled).map((row) => row.label)).toEqual([
+            'Kambia',
+            'Kailahun',
+        ])
+        expect(visibleComboRows(rows, 'KENEMA', false, nothingFilled).map((row) => row.label)).toEqual(['Kenema'])
+    })
+
+    it('shows only what is still waiting for a value when asked to', () => {
+        expect(visibleComboRows(rows, '', true, firstAndThirdFilled).map((row) => row.label)).toEqual([
+            'Kailahun',
+            'Bombali',
+        ])
+    })
+
+    it('reads the box and the tick together', () => {
+        expect(visibleComboRows(rows, 'ka', true, firstAndThirdFilled).map((row) => row.label)).toEqual(['Kailahun'])
+    })
+
+    // The whole promise of the filter: it is a fact about the screen, and the positions it hands
+    // back are the run's own - so nothing that is hidden loses the cell it answers.
+    it("hands back the run's own positions, never renumbered ones", () => {
+        expect(visibleComboRows(rows, 'bombali', false, nothingFilled).map((row) => row.index)).toEqual([3])
     })
 })

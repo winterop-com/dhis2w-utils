@@ -1,21 +1,39 @@
-import { createContext, use, type Dispatch, type ReactNode } from 'react'
+import { createContext, use, useState, type Dispatch, type ReactNode } from 'react'
+import { Columns3, Rows3 } from 'lucide-react'
 
 import { AnswerControl } from '@/components/AnswerControl'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import {
+    comboFilterPlaceholder,
+    comboRows,
     disaggregationCells,
     enabledLinkIds,
+    facetColumns,
     formBlocks,
-    splitByFirstDimension,
     groupCategoryAxes,
+    isAnswered,
+    liveTotal,
+    offersComboFilter,
+    offersOrientationSwitch,
+    openedDisaggregationOrientation,
+    otherOrientation,
+    rememberDisaggregationOrientation,
+    rowAxisName,
     TRUE_ONLY_VALUE_TYPE,
+    visibleComboRows,
     type AnswerAction,
     type AnswerState,
+    type ComboRow,
     type DisaggregationColumn,
+    type DisaggregationFacet,
+    type DisaggregationOrientation,
     type FormBlock,
     type QuestionnaireNode,
     type QuestionnaireSpec,
@@ -228,7 +246,7 @@ function FormBlocks({
         <>
             {formBlocks(spec, linkIds, enabled).map((block) =>
                 block.kind === 'disaggregation' ? (
-                    <DisaggregationTable
+                    <DisaggregationRun
                         key={block.key}
                         spec={spec}
                         block={block}
@@ -269,26 +287,38 @@ function FormBlocks({
     )
 }
 
+/** What the switch says it will do next, which is the shape it is not in now. */
+export const SHOW_AS_ROWS_LABEL = 'Show as rows'
+export const SHOW_AS_COLUMNS_LABEL = 'Show as columns'
+
+/** What the tick beside the filter box asks for: the rows still waiting for a value. */
+export const UNFILLED_ONLY_LABEL = 'Unfilled only'
+
 /**
- * Several data elements cut the same way, as the table DHIS2 enters them in.
+ * Several data elements cut the same way, in whichever of the two shapes the run is drawn in.
  *
- * ONE FACT, ONCE. Stacked, this run states its four category option combos fourteen times over,
- * each with its own label and its own uid chip - fifty-six labels for four facts. As a table the
- * combos are the header row, the data elements are the row labels, and every uid is still on screen
- * exactly once: the column's in its header, the element's beside its name. The categories the
- * columns cut along are named once above the table, because a combo's name is the corner of a grid
- * and never says which grid.
+ * ONE FACT, ONCE. Stacked one question per combo, this run states its four category option combos
+ * fourteen times over - fifty-six labels for four facts. Both shapes here spend those labels once:
+ * the grid puts the combos in a header row and the elements down the side, and the vertical form puts
+ * the element in a band and the combos down the page under it. The categories the cut runs along are
+ * named once for the whole run, because a combo's name is the corner of a grid and never says which
+ * grid, and so is anything every cell of the run states about what it accepts.
  *
- * THE CELLS ARE THE SAME QUESTIONS THEY WERE. Every input keeps its own linkId, its own answer slot
- * and its own reducer dispatch, so what a table produces and what a stack produced are the same
- * QuestionnaireResponse. Reading order is row by row, which is document order, so the keyboard walks
- * the form the way the form is written.
+ * THE LADDER DECIDES THE SHAPE AND A PERSON OVERRIDES IT. `defaultDisaggregationOrientation` reads
+ * the width of the cut - four combos or fewer is a grid, wider is rows - and the switch on the band
+ * is how somebody who wants the other one says so, kept per run in this browser. A cut with no grid
+ * form at all offers no switch: see `offersOrientationSwitch`.
+ *
+ * THE CELLS ARE THE SAME QUESTIONS IN EITHER SHAPE. Every input keeps its own linkId, its own answer
+ * slot and its own reducer dispatch, so the submission a grid produces and the submission a list of
+ * rows produces are the same QuestionnaireResponse - and so is the one produced under a filter, which
+ * hides rows from the screen and nothing else. Reading order is document order in both.
  *
  * WHAT EACH CELL IS NAMED. A cell's label is two words in a header row a screen reader has already
  * left, so each input carries the element and the combo as its own accessible name - "Malaria
  * (Deaths under 5 yrs) 0-11m" - which is the whole address of the value being typed.
  */
-function DisaggregationTable({
+function DisaggregationRun({
     spec,
     block,
     answers,
@@ -301,176 +331,300 @@ function DisaggregationTable({
     enabled: ReadonlySet<string>
     dispatch: Dispatch<AnswerAction>
 }) {
-    const locked = use(LockedQuestionsContext)
     const axes = groupCategoryAxes(spec, block.groupLinkIds[0])
-    // A cut over two dimensions writes both into every combo label - "Female, under 15y" - and a
-    // single table over all of them is wider than any screen, which side-scrolls a data-entry
-    // surface nobody enjoys. When every label splits on the same comma and the suffixes line up
-    // group for group, the first dimension becomes one table apiece: Female's ages, then Male's.
-    const facets = splitByFirstDimension(block.columns)
+    // A cut over two categories is wider than any screen as one table, so the category with fewest
+    // options becomes a band apiece: Female's ages, then Male's. Read from the decomposition the
+    // served vocabulary publishes rather than from the combo's name, which is why reordering the
+    // categories inside a combo does not redraw the form - see `facetColumns`. Banding is structure
+    // rather than shape: it holds in both orientations, and what changes is what is drawn inside a band.
+    const facets = facetColumns(block.columns)
+    // The run's first group uid is the run's name in storage. It is stable for as long as the form is:
+    // the run begins at that element because the elements before it are cut differently.
+    const runKey = block.groupLinkIds[0]
+    // WHAT IS HELD IS THE OVERRIDE, NOT THE SHAPE. The ladder reads the served combo vocabulary, and
+    // that arrives one render after the form does - so a shape decided at mount would be decided
+    // before anything is known about the cut, and a run that bands into two fours would be latched as
+    // rows for as long as the page is open. The ladder is asked again every render instead, and only
+    // a person's own choice is state.
+    const [override, setOverride] = useState<DisaggregationOrientation | null>(null)
+    const [query, setQuery] = useState('')
+    const [unfilledOnly, setUnfilledOnly] = useState(false)
+    const switchable = offersOrientationSwitch(block.columns)
+    const orientation = switchable ? (override ?? openedDisaggregationOrientation(runKey, block.columns)) : 'vertical'
+    const rows = comboRows(block.columns, facets?.[0] ?? null)
+    const filtering = orientation === 'vertical' && offersComboFilter(rows)
+    const filterPlaceholder = comboFilterPlaceholder(rows, rowAxisName(axes, facets?.[0] ?? null))
+    const flip = () => {
+        const next = otherOrientation(orientation)
+        setOverride(next)
+        rememberDisaggregationOrientation(runKey, next)
+    }
+
     return (
         <div className="grid gap-2">
-            {axes.length > 0 && (
-                <p className="text-muted-foreground text-xs">Disaggregated by {joinNames(axes)}</p>
-            )}
-            {facets !== null &&
-                facets.map((facet) => (
-                    <div key={facet.heading} className="grid gap-1.5">
-                        <p className="text-sm font-medium">{facet.heading}</p>
-                        <FacetTable
-                            spec={spec}
-                            block={block}
-                            columnIndices={facet.indices}
-                            columnLabels={facet.labels}
-                            answers={answers}
-                            enabled={enabled}
-                            dispatch={dispatch}
-                        />
-                    </div>
-                ))}
-            {facets === null && (
-            <div className="overflow-x-auto rounded-lg border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            {/* The corner names what the rows are, because a table whose first
-                                column has no heading asks the reader to work out what it holds. */}
-                            <TableHead scope="col">Data element</TableHead>
-                            {block.columns.map((column) => (
-                                <TableHead key={columnKey(column)} scope="col">
-                                    <span className="flex items-center gap-2">
-                                        <span>{column.label}</span>
-                                        {column.code !== null && <CodeBadge code={column.code} />}
-                                    </span>
-                                </TableHead>
-                            ))}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {block.groupLinkIds.map((groupLinkId) => {
-                            const group = spec.byLinkId.get(groupLinkId)
-                            const description = group?.description ?? null
-                            return (
-                                <TableRow key={groupLinkId}>
-                                    {/* The row label takes the slack, which is what keeps the
-                                        answer columns the width of the answers: a table is as wide
-                                        as its card, and with every column sharing the surplus a
-                                        three-digit count sat in a box wide enough for a sentence. */}
-                                    <TableHead
-                                        scope="row"
-                                        className="min-w-48 py-2 align-top text-wrap whitespace-normal"
-                                    >
-                                        <span className="flex flex-wrap items-baseline gap-2">
-                                            <span>{group?.text ?? groupLinkId}</span>
-                                            {group?.code?.code !== undefined && (
-                                                <CodeBadge code={group.code.code} />
-                                            )}
-                                        </span>
-                                        {description !== null && (
-                                            <span className="text-muted-foreground block text-xs font-normal">
-                                                {description}
-                                            </span>
-                                        )}
-                                    </TableHead>
-                                    {disaggregationCells(spec, groupLinkId, enabled).map((cellLinkId) => {
-                                        const cell = spec.byLinkId.get(cellLinkId)
-                                        if (cell === undefined) return null
-                                        const cellLocked = locked.linkIds.has(cellLinkId)
-                                        return (
-                                            <TableCell key={cellLinkId} className="align-top">
-                                                <Label htmlFor={cellLinkId} className="sr-only">
-                                                    {group?.text ?? groupLinkId} {cell.text ?? cellLinkId}
-                                                </Label>
-                                                <AnswerControl
-                                                    node={cell}
-                                                    slots={answers[cellLinkId] ?? []}
-                                                    locked={cellLocked}
-                                                    controlClassName="w-full min-w-20"
-                                                    dispatch={dispatch}
-                                                />
-                                                {cellLocked ? (
-                                                    <p className="text-muted-foreground mt-1 text-xs">
-                                                        {locked.note}
-                                                    </p>
-                                                ) : (
-                                                    <QuestionHint node={cell} className="mt-1" />
-                                                )}
-                                            </TableCell>
-                                        )
-                                    })}
-                                </TableRow>
-                            )
-                        })}
-                    </TableBody>
-                </Table>
+            {/* The run's own strip: what the cut is, on the left, and the one control that decides
+                the whole run's shape on the right. The two ways of narrowing a long band belong to
+                the band they narrow and sit there instead. */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <RunNotes spec={spec} block={block} axes={axes} enabled={enabled} />
+                {switchable && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={flip}
+                                aria-label={orientation === 'grid' ? SHOW_AS_ROWS_LABEL : SHOW_AS_COLUMNS_LABEL}
+                            >
+                                {orientation === 'grid' ? <Rows3 /> : <Columns3 />}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            {orientation === 'grid' ? SHOW_AS_ROWS_LABEL : SHOW_AS_COLUMNS_LABEL}
+                        </TooltipContent>
+                    </Tooltip>
+                )}
             </div>
+            {facets === null ? (
+                <RunBody
+                    spec={spec}
+                    block={block}
+                    facet={null}
+                    facetKey=""
+                    orientation={orientation}
+                    answers={answers}
+                    enabled={enabled}
+                    filtering={filtering}
+                    filterPlaceholder={filterPlaceholder}
+                    query={query}
+                    unfilledOnly={unfilledOnly}
+                    onQuery={setQuery}
+                    onUnfilledOnly={setUnfilledOnly}
+                    dispatch={dispatch}
+                />
+            ) : (
+                facets.map((facet, position) => (
+                    <RunBody
+                        key={facet.heading}
+                        spec={spec}
+                        block={block}
+                        facet={facet}
+                        facetKey={String(position)}
+                        orientation={orientation}
+                        answers={answers}
+                        enabled={enabled}
+                        filtering={filtering}
+                        filterPlaceholder={filterPlaceholder}
+                        query={query}
+                        unfilledOnly={unfilledOnly}
+                        onQuery={setQuery}
+                        onUnfilledOnly={setUnfilledOnly}
+                        dispatch={dispatch}
+                    />
+                ))
             )}
         </div>
     )
 }
 
-/** One facet's table: the same rows, only the columns of one first-dimension value. */
-function FacetTable({
+/**
+ * One run's worth of cells - the whole cut, or one facet of it - drawn as a grid or as rows.
+ *
+ * THE BOX IS THE UNIT AND THE BAND IS ITS NAME. Everything a run draws lands in a bordered box, and
+ * the box is headed by an accent band carrying what it holds: the facet's own value where the ladder
+ * banded the cut, the data element where the run is drawn as rows. A grid over a cut nothing banded
+ * has no such name - the elements are its rows and the combos are its columns, both already headed -
+ * so it takes the box without a band rather than a band with nothing to say in it.
+ */
+function RunBody({
     spec,
     block,
-    columnIndices,
-    columnLabels,
+    facet,
+    facetKey,
+    orientation,
+    answers,
+    enabled,
+    filtering,
+    filterPlaceholder,
+    query,
+    unfilledOnly,
+    onQuery,
+    onUnfilledOnly,
+    dispatch,
+}: {
+    spec: QuestionnaireSpec
+    block: Extract<FormBlock, { kind: 'disaggregation' }>
+    /** The facet this body draws, or null when the cut has no facet form and is drawn whole. */
+    facet: DisaggregationFacet | null
+    /** This facet's position in the run, which is what keeps one band's tick apart from the next's. */
+    facetKey: string
+    orientation: DisaggregationOrientation
+    answers: AnswerState
+    enabled: ReadonlySet<string>
+    /** Whether these bands offer the two ways of narrowing their lines. */
+    filtering: boolean
+    filterPlaceholder: string
+    query: string
+    unfilledOnly: boolean
+    onQuery: (query: string) => void
+    onUnfilledOnly: (unfilledOnly: boolean) => void
+    dispatch: Dispatch<AnswerAction>
+}) {
+    const rows = comboRows(block.columns, facet)
+    const totalled = addsUpToATotal(block.columns)
+    if (orientation === 'grid') {
+        return (
+            <div className="bg-card overflow-hidden rounded-lg border">
+                {facet !== null && <BandHeading>{facet.heading}</BandHeading>}
+                <DisaggregationTable
+                    spec={spec}
+                    block={block}
+                    rows={rows}
+                    totalled={totalled}
+                    answers={answers}
+                    enabled={enabled}
+                    dispatch={dispatch}
+                />
+            </div>
+        )
+    }
+    return (
+        <div className="grid gap-2">
+            {facet !== null && <p className="text-sm font-medium">{facet.heading}</p>}
+            {block.groupLinkIds.map((groupLinkId) => (
+                <ElementRows
+                    key={groupLinkId}
+                    spec={spec}
+                    groupLinkId={groupLinkId}
+                    bandKey={`${groupLinkId}-${facetKey}`}
+                    rows={rows}
+                    totalled={totalled}
+                    answers={answers}
+                    enabled={enabled}
+                    filtering={filtering}
+                    filterPlaceholder={filterPlaceholder}
+                    query={filtering ? query : ''}
+                    unfilledOnly={filtering && unfilledOnly}
+                    onQuery={onQuery}
+                    onUnfilledOnly={onUnfilledOnly}
+                    dispatch={dispatch}
+                />
+            ))}
+        </div>
+    )
+}
+
+/**
+ * The accent strip a band-box is headed with, and whatever belongs beside the name on it.
+ *
+ * One component for both shapes, because a reader should not have to work out whether *Female* over a
+ * table and *BCG doses given* over a list of lines are the same kind of heading. They are: each names
+ * what the box under it holds.
+ */
+function BandHeading({ children }: { children: ReactNode }) {
+    return (
+        <div className="bg-accent text-accent-foreground flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5 text-sm font-semibold">
+            {children}
+        </div>
+    )
+}
+
+/**
+ * One table: the elements of the run down the side, the combos it was handed across the top.
+ *
+ * The rows it is handed are the whole cut or one facet's slice of it, which is what lets the same
+ * table serve a cut of four combos and one facet of a cut of eight.
+ *
+ * THE COLUMN OF TOTALS IS THE ARITHMETIC SOMEBODY WAS GOING TO DO ANYWAY. A row of counts is read
+ * against its own total - it is how a 1370 typed where 137 was meant is caught, at the desk rather
+ * than in a DHIS2 validation rule a fortnight later - so the table closes every row with what it
+ * currently adds to, recomputed as the boxes are typed in. Nothing of it is submitted: see
+ * `liveTotal` for what a blank counts as and what an unreadable box does to the figure.
+ *
+ * NO UIDS IN HERE. Every cell of this table belongs to a data element and a category option combo
+ * that both have one, and a chip on each would put fifty-six identifiers on a screen whose whole
+ * purpose is fifty-six numbers. The uids stay a click away, on the form's own heading and in the
+ * API and raw views, which is where somebody looking for one goes.
+ */
+function DisaggregationTable({
+    spec,
+    block,
+    rows,
+    totalled,
     answers,
     enabled,
     dispatch,
 }: {
     spec: QuestionnaireSpec
     block: Extract<FormBlock, { kind: 'disaggregation' }>
-    columnIndices: number[]
-    columnLabels: string[]
+    rows: ComboRow[]
+    /** Whether these cells are one element cut several ways, which is what a total may add. */
+    totalled: boolean
     answers: AnswerState
     enabled: ReadonlySet<string>
     dispatch: Dispatch<AnswerAction>
 }) {
     const locked = use(LockedQuestionsContext)
     return (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto">
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead scope="col">Data element</TableHead>
-                        {columnIndices.map((columnIndex, position) => {
-                            const column = block.columns[columnIndex]
+                        {/* The corner names what the rows are, because a table whose first column
+                            has no heading asks the reader to work out what it holds. It is also the
+                            column that takes the slack: the answer columns are the width of an
+                            answer, and a three-digit count in a box wide enough for a sentence is a
+                            box that was never about the count. */}
+                        <TableHead scope="col" className="w-full">
+                            Data element
+                        </TableHead>
+                        {rows.map((row) => {
+                            const column = block.columns[row.index]
                             return (
-                                <TableHead key={columnKey(column)} scope="col">
-                                    <span className="flex items-center gap-2">
-                                        <span>{columnLabels[position]}</span>
-                                        {column.code !== null && <CodeBadge code={column.code} />}
-                                    </span>
+                                <TableHead key={columnKey(column)} scope="col" className="h-9 w-28 text-right">
+                                    {row.label}
                                 </TableHead>
                             )
                         })}
+                        {totalled && (
+                            <TableHead scope="col" className="text-muted-foreground h-9 w-16 text-right">
+                                Total
+                            </TableHead>
+                        )}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {block.groupLinkIds.map((groupLinkId) => {
                         const group = spec.byLinkId.get(groupLinkId)
+                        const description = group?.description ?? null
                         const cells = disaggregationCells(spec, groupLinkId, enabled)
+                        const total = totalled
+                            ? liveTotal(rows.map((row) => cellLiteral(answers, cells[row.index])))
+                            : null
                         return (
                             <TableRow key={groupLinkId}>
-                                <TableHead
-                                    scope="row"
-                                    className="min-w-48 py-2 align-top text-wrap whitespace-normal"
-                                >
-                                    <span className="flex flex-wrap items-baseline gap-2">
-                                        <span>{group?.text ?? groupLinkId}</span>
-                                        {group?.code?.code !== undefined && <CodeBadge code={group.code.code} />}
-                                    </span>
+                                {/* The row label takes the slack, which is what keeps the answer
+                                    columns the width of the answers: a table is as wide as its card,
+                                    and with every column sharing the surplus a three-digit count sat
+                                    in a box wide enough for a sentence. */}
+                                <TableHead scope="row" className="min-w-48 py-1.5 align-top text-wrap whitespace-normal">
+                                    <span>{group?.text ?? groupLinkId}</span>
+                                    {description !== null && (
+                                        <span className="text-muted-foreground block text-xs font-normal">
+                                            {description}
+                                        </span>
+                                    )}
                                 </TableHead>
-                                {columnIndices.map((columnIndex) => {
-                                    const cellLinkId = cells[columnIndex]
+                                {rows.map((row) => {
+                                    const cellLinkId = cells[row.index]
                                     const cell = cellLinkId === undefined ? undefined : spec.byLinkId.get(cellLinkId)
                                     if (cellLinkId === undefined || cell === undefined) {
-                                        return <TableCell key={`${groupLinkId}-${String(columnIndex)}`} />
+                                        return <TableCell key={`${groupLinkId}-${String(row.index)}`} />
                                     }
                                     const cellLocked = locked.linkIds.has(cellLinkId)
                                     return (
-                                        <TableCell key={cellLinkId} className="align-top">
+                                        <TableCell key={cellLinkId} className="px-1.5 py-1 align-top">
                                             <Label htmlFor={cellLinkId} className="sr-only">
                                                 {group?.text ?? groupLinkId} {cell.text ?? cellLinkId}
                                             </Label>
@@ -481,14 +635,17 @@ function FacetTable({
                                                 controlClassName="w-full min-w-20"
                                                 dispatch={dispatch}
                                             />
-                                            {cellLocked ? (
+                                            {cellLocked && (
                                                 <p className="text-muted-foreground mt-1 text-xs">{locked.note}</p>
-                                            ) : (
-                                                <QuestionHint node={cell} className="mt-1" />
                                             )}
                                         </TableCell>
                                     )
                                 })}
+                                {totalled && (
+                                    <TableCell className="text-muted-foreground px-3 py-1 text-right align-middle tabular-nums">
+                                        {total === null ? '' : String(total)}
+                                    </TableCell>
+                                )}
                             </TableRow>
                         )
                     })}
@@ -496,6 +653,280 @@ function FacetTable({
             </Table>
         </div>
     )
+}
+
+/**
+ * One data element of a run, drawn as rows: its name as a band, and a line per combo under it.
+ *
+ * WHY THE ROWS WRAP INTO COLUMN GROUPS RATHER THAN RUNNING ON. A cut of ninety-six options is a
+ * ninety-six-line column with a screen of white beside it, and the eye that has to travel that far
+ * loses the band the rows belong to. Flowing them into as many groups as the width holds keeps the
+ * whole element in view without a single row leaving its own reading order - the flow runs down a
+ * group and on to the next, which is the order the form states its combos in. Nothing scrolls
+ * sideways here at any width, which is the whole reason this shape exists.
+ *
+ * A SHORT ELEMENT DOES NOT FLOW. Four rows split into three groups is a grid nobody asked for, so the
+ * flow starts where a single column starts being long.
+ */
+function ElementRows({
+    spec,
+    groupLinkId,
+    bandKey,
+    rows,
+    totalled,
+    answers,
+    enabled,
+    filtering,
+    filterPlaceholder,
+    query,
+    unfilledOnly,
+    onQuery,
+    onUnfilledOnly,
+    dispatch,
+}: {
+    spec: QuestionnaireSpec
+    groupLinkId: string
+    /** This band's own name, which is what keeps its tick's id apart from every other band's. */
+    bandKey: string
+    rows: ComboRow[]
+    /** Whether these lines are one element cut several ways, which is what a total may add. */
+    totalled: boolean
+    answers: AnswerState
+    enabled: ReadonlySet<string>
+    filtering: boolean
+    filterPlaceholder: string
+    query: string
+    unfilledOnly: boolean
+    onQuery: (query: string) => void
+    onUnfilledOnly: (unfilledOnly: boolean) => void
+    dispatch: Dispatch<AnswerAction>
+}) {
+    const locked = use(LockedQuestionsContext)
+    const group = spec.byLinkId.get(groupLinkId)
+    const cells = disaggregationCells(spec, groupLinkId, enabled)
+    const visible = visibleComboRows(rows, query, unfilledOnly, (index) => {
+        const cellLinkId = cells[index]
+        const cell = cellLinkId === undefined ? undefined : spec.byLinkId.get(cellLinkId)
+        return cell !== undefined && isAnswered(cell, answers)
+    })
+    // Over every line the element has, never over the ones a filter left on screen: the total is
+    // what this element currently reports, and a figure that changed because somebody typed three
+    // letters into a filter box would be a figure about the filter.
+    const total = totalled ? liveTotal(rows.map((row) => cellLiteral(answers, cells[row.index]))) : null
+    return (
+        <div className="bg-card overflow-hidden rounded-lg border">
+            <BandHeading>
+                <span>{group?.text ?? groupLinkId}</span>
+                {filtering && (
+                    <ComboFilter
+                        placeholder={filterPlaceholder}
+                        query={query}
+                        unfilledOnly={unfilledOnly}
+                        bandKey={bandKey}
+                        onQuery={onQuery}
+                        onUnfilledOnly={onUnfilledOnly}
+                    />
+                )}
+                {total !== null && (
+                    <span className="ml-auto font-normal tabular-nums">Total {String(total)}</span>
+                )}
+            </BandHeading>
+            {group?.description !== null && group?.description !== undefined && (
+                <p className="text-muted-foreground border-b px-3 py-1.5 text-xs">{group.description}</p>
+            )}
+            {visible.length === 0 ? (
+                <p className="text-muted-foreground px-3 py-2 text-xs">No option matches what is asked for</p>
+            ) : (
+                <div className={cn('px-3 py-2', COLUMN_GROUP_CLASSES[columnGroups(visible.length)])}>
+                    {visible.map((row) => {
+                        const cellLinkId = cells[row.index]
+                        const cell = cellLinkId === undefined ? undefined : spec.byLinkId.get(cellLinkId)
+                        if (cellLinkId === undefined || cell === undefined) return null
+                        const cellLocked = locked.linkIds.has(cellLinkId)
+                        return (
+                            <div
+                                key={cellLinkId}
+                                className="flex break-inside-avoid items-center justify-between gap-3 py-0.5"
+                            >
+                                <Label htmlFor={cellLinkId} className="min-w-0 flex-wrap items-baseline gap-2">
+                                    {/* The element first and the combo second, which is the order a
+                                        table cell names itself in - so one address finds a value
+                                        whichever shape the run is drawn in, for a screen reader and
+                                        for anything else that goes looking by name. The band carries
+                                        the element on screen, so only a screen reader hears it here. */}
+                                    <span className="sr-only">{`${group?.text ?? groupLinkId} `}</span>
+                                    <span className="truncate">{row.label}</span>
+                                </Label>
+                                <AnswerControl
+                                    node={cell}
+                                    slots={answers[cellLinkId] ?? []}
+                                    locked={cellLocked}
+                                    controlClassName="w-[4.5rem] shrink-0 text-right tabular-nums"
+                                    dispatch={dispatch}
+                                />
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+            {locked.linkIds.has(cells[0] ?? '') && (
+                <p className="text-muted-foreground px-3 pb-2 text-xs">{locked.note}</p>
+            )}
+        </div>
+    )
+}
+
+/**
+ * How many groups the lines of one band wrap into, read off how many lines there are.
+ *
+ * A count rather than a width, because the point is the height: four lines split into three groups
+ * is a grid nobody asked for, and ninety-six in one column is a band whose heading has left the
+ * screen by the time the last box is reached. The steps are where a single column stops being a list
+ * and starts being a scroll. What each group is *worth* in pixels is the browser's - CSS columns
+ * divide whatever width the card gives them.
+ */
+function columnGroups(lineCount: number): 1 | 2 | 3 {
+    if (lineCount < 10) return 1
+    return lineCount <= 24 ? 2 : 3
+}
+
+/**
+ * The three column counts as classes, spelled out so the stylesheet's scanner can see them.
+ *
+ * The width cap is what keeps a group a column of lines rather than a line of two halves: a label on
+ * the far left and its box on the far right, a screen apart, is a pairing the eye has to travel to
+ * make. About twenty-six rems is as wide as one of these lines reads, so one group is held to it and
+ * two are held to twice it; three fill whatever the card has, which lands at about the same width.
+ */
+const COLUMN_GROUP_CLASSES: Record<1 | 2 | 3, string> = {
+    1: 'columns-1 max-w-[26rem]',
+    2: 'columns-2 max-w-[54rem] gap-x-7',
+    3: 'columns-3 gap-x-7',
+}
+
+/** What one cell's box currently holds, verbatim - the literal a total is computed from. */
+function cellLiteral(answers: AnswerState, cellLinkId: string | undefined): string {
+    if (cellLinkId === undefined) return ''
+    return answers[cellLinkId]?.[0]?.text ?? ''
+}
+
+/**
+ * Whether the cells of this run are one data element cut several ways, which is what adds up.
+ *
+ * THE RUN IS NOT ALWAYS A CUT. A section of plain numeric data elements - deliveries in a facility,
+ * deliveries in the community, low birth weights - is a group of numeric questions and reaches this
+ * renderer as one, which is what lets it read as a block rather than as seven stacked controls. What
+ * it is not is one quantity measured seven ways, so a total under it would add live births to bed
+ * nets and call the answer a figure. The decomposition the served combo vocabulary publishes is what
+ * tells the two apart: a real cut states which category option each cell stands for, and a column
+ * that states none is a data element in its own right. A vocabulary this server has not published
+ * leaves every column stating none, so nothing is totalled until it lands - which is the right way
+ * round, because a total nobody can account for is worse than no total.
+ */
+function addsUpToATotal(columns: readonly DisaggregationColumn[]): boolean {
+    return columns.every((column) => column.decomposition.length > 0)
+}
+
+/**
+ * The two ways of getting to one row of a wide cut: name part of it, or ask for the ones still empty.
+ *
+ * ON THE BAND OF THE ELEMENT IT NARROWS. A run of fifteen elements cut ninety-six ways is fifteen
+ * screens of lines, so a filter stated once at the top of the run is a control that has scrolled away
+ * by the time anybody wants it. Every band carries its own, and all of them ask the same question -
+ * what is typed into one narrows every band of the run, because the lines they hold are the same
+ * ninety-six options and somebody looking for Bombali is looking for it in all of them.
+ */
+function ComboFilter({
+    placeholder,
+    query,
+    unfilledOnly,
+    bandKey,
+    onQuery,
+    onUnfilledOnly,
+}: {
+    placeholder: string
+    query: string
+    unfilledOnly: boolean
+    /** The band's own name, which is what keeps the tick's id unique on a form with several bands. */
+    bandKey: string
+    onQuery: (query: string) => void
+    onUnfilledOnly: (unfilledOnly: boolean) => void
+}) {
+    const tickId = `${bandKey}-unfilled-only`
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            <Input
+                type="search"
+                value={query}
+                aria-label={placeholder}
+                placeholder={placeholder}
+                onChange={(event) => {
+                    onQuery(event.target.value)
+                }}
+                className="bg-card h-7 w-52 text-sm font-normal"
+            />
+            <Label htmlFor={tickId} className="gap-1.5 text-xs font-normal">
+                <input
+                    id={tickId}
+                    type="checkbox"
+                    checked={unfilledOnly}
+                    onChange={(event) => {
+                        onUnfilledOnly(event.target.checked)
+                    }}
+                    className="accent-primary size-3.5"
+                />
+                {UNFILLED_ONLY_LABEL}
+            </Label>
+        </div>
+    )
+}
+
+/**
+ * What a whole run states about itself: what its cells are cut by, and what every one of them accepts.
+ *
+ * ONE FACT ONCE, AND THE CELLS ARE WHERE IT WAS SAID FIFTY-SIX TIMES. Every cell of a run is the same
+ * data element cut a different way, so "0 or more" under each of them is one fact wearing fifty-six
+ * costumes. When every cell of the run says the same thing, it is said here instead and the cells say
+ * nothing; when they differ - a run whose elements carry different bounds - each cell keeps its own,
+ * because a single line could then only be wrong.
+ */
+function RunNotes({
+    spec,
+    block,
+    axes,
+    enabled,
+}: {
+    spec: QuestionnaireSpec
+    block: Extract<FormBlock, { kind: 'disaggregation' }>
+    axes: string[]
+    enabled: ReadonlySet<string>
+}) {
+    const shared = sharedCellNote(spec, block, enabled)
+    if (axes.length === 0 && shared === null) return null
+    return (
+        <p className="text-muted-foreground text-xs">
+            {axes.length > 0 && <span>Disaggregated by {joinNames(axes)}</span>}
+            {axes.length > 0 && shared !== null && <span aria-hidden> - </span>}
+            {shared !== null && <span>{shared}</span>}
+        </p>
+    )
+}
+
+/** What every cell of a run says about what it accepts, or null when they do not all say the same. */
+function sharedCellNote(
+    spec: QuestionnaireSpec,
+    block: Extract<FormBlock, { kind: 'disaggregation' }>,
+    enabled: ReadonlySet<string>,
+): string | null {
+    const notes = block.groupLinkIds.flatMap((groupLinkId) =>
+        disaggregationCells(spec, groupLinkId, enabled).map((cellLinkId) => {
+            const cell = spec.byLinkId.get(cellLinkId)
+            return cell === undefined ? '' : questionNotes(cell).join(', ')
+        }),
+    )
+    const first = notes[0]
+    if (first === undefined || first === '') return null
+    return notes.every((note) => note === first) ? first : null
 }
 
 /** A column's own key: the combo uid when it has one, and its label when the form codes it with none. */
@@ -545,6 +976,19 @@ function joinNames(names: string[]): string {
 
 /** What this question takes beyond its label: bounds, the two answers a tick has, repetition, read-only. */
 function QuestionHint({ node, className }: { node: QuestionnaireNode; className?: string }) {
+    const notes = questionNotes(node)
+    if (notes.length === 0) return null
+    return <p className={cn('text-muted-foreground text-xs', className)}>{notes.join(', ')}</p>
+}
+
+/**
+ * Everything one question states about what it accepts, as the phrases a reader is shown.
+ *
+ * A list rather than a sentence because two callers need it in two shapes: the hint under one control
+ * reads it as a sentence, and a run of disaggregated cells compares it cell against cell to find out
+ * whether the whole run has one thing to say.
+ */
+function questionNotes(node: QuestionnaireNode): string[] {
     const notes: string[] = []
     if (node.minimum !== null && node.maximum !== null) notes.push(`between ${node.minimum} and ${node.maximum}`)
     else if (node.minimum !== null) notes.push(`${node.minimum} or more`)
@@ -573,8 +1017,7 @@ function QuestionHint({ node, className }: { node: QuestionnaireNode; className?
     } else if (node.readOnly) {
         notes.push('read only')
     }
-    if (notes.length === 0) return null
-    return <p className={cn('text-muted-foreground text-xs', className)}>{notes.join(', ')}</p>
+    return notes
 }
 
 /** One Card's worth of the form: a top-level group, or a run of questions that sit outside one. */

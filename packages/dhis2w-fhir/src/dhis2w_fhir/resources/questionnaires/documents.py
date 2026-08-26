@@ -118,6 +118,7 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     DISPLAY_IN_LIST_PROPERTY_DESCRIPTION,
     DOMAIN_PROPERTY_DESCRIPTION,
     FORM_KIND_PROFILES,
+    FORM_NAME_CONCEPT_PROPERTY,
     GENERATED_PROPERTY,
     GENERATED_PROPERTY_DESCRIPTION,
     PATTERN_PROPERTY,
@@ -966,13 +967,14 @@ def _item_type_code(value: str) -> _ItemTypeCode:
 def _data_element_concepts(
     data_elements: dict[str, QuestionnaireItemIn], locales: list[str]
 ) -> list[CodeSystemConcept]:
-    """One concept per referenced data element, carrying its DHIS2 code and its domain type."""
+    """One concept per referenced data element, carrying its DHIS2 code, form name, and domain type."""
     concepts: list[CodeSystemConcept] = []
     for item in sorted(data_elements.values(), key=lambda entry: (entry.name, entry.uid)):
         properties = _code_property(item.dhis2_code)
         domain = domain_code(item.domain_type)
         if domain is not None:
             properties.append(CodeSystemConceptProperty(code=_DOMAIN_PROPERTY, valueCode=domain))
+        properties.extend(_form_name_property(item.form_name))
         properties.append(CodeSystemConceptProperty(code=_VALUE_TYPE_PROPERTY, valueCode=item.value_type))
         concepts.append(
             CodeSystemConcept(
@@ -1006,6 +1008,7 @@ def _tracked_entity_attribute_concepts(referenced: ReferencedObjects, locales: l
             display=flatten_whitespace(item.name),
             property=[
                 *_code_property(item.dhis2_code),
+                *_form_name_property(item.form_name),
                 CodeSystemConceptProperty(code=_VALUE_TYPE_PROPERTY, valueCode=item.value_type),
                 CodeSystemConceptProperty(code=_UNIQUE_PROPERTY, valueBoolean=item.unique),
                 CodeSystemConceptProperty(
@@ -1060,6 +1063,18 @@ def _code_property(code: str | None) -> list[CodeSystemConceptProperty]:
     if not code:
         return []
     return [CodeSystemConceptProperty(code=_CODE_PROPERTY, valueString=code)]
+
+
+def _form_name_property(form_name: str | None) -> list[CodeSystemConceptProperty]:
+    """The `form-name` property one concept carries, or nothing at all when DHIS2 states no form name.
+
+    The dictionary is a reference surface, so the concept displays the DHIS2 name; the form name is
+    stated beside it because that is the text every question asking the object is labelled with, and
+    a consumer reading the vocabulary would otherwise reach only one of the two spellings.
+    """
+    if not form_name:
+        return []
+    return [CodeSystemConceptProperty(code=FORM_NAME_CONCEPT_PROPERTY, valueString=flatten_whitespace(form_name))]
 
 
 def _support_pair(
@@ -1143,6 +1158,20 @@ def _property_declarations(
                 uri=f"{property_base}/{_DOMAIN_PROPERTY}",
                 description=DOMAIN_PROPERTY_DESCRIPTION,
                 type="code",
+            )
+        )
+    carries_form_name = any(
+        concept_property.code == FORM_NAME_CONCEPT_PROPERTY
+        for concept in concepts
+        for concept_property in concept.property or []
+    )
+    if carries_form_name:
+        declarations.append(
+            CodeSystemProperty(
+                code=FORM_NAME_CONCEPT_PROPERTY,
+                uri=f"{property_base}/{FORM_NAME_CONCEPT_PROPERTY}",
+                description=terminology.form_name_property_description,
+                type="string",
             )
         )
     carries_value_type = any(

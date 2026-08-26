@@ -126,26 +126,37 @@ test('an edited reporting period is captured as the identifier, with no range cl
     const period = page.getByLabel('Reporting period')
     await expect(period).toBeVisible()
     // The type is the data set's own, declared by the form itself, and is stated rather than asked -
-    // which is what makes the identifier below editable without a calendar: what changes is which
-    // month, not which shape.
+    // which is what makes the period a list of recent months rather than a calendar: what changes is
+    // which month, not which shape.
     await expect(page.getByText('Monthly period, as the data set reports.', { exact: false })).toBeVisible()
-    await expect(page.getByText('A Monthly period is spelled like 202607.', { exact: false })).toBeVisible()
+    await expect(page.getByText('Recent Monthly periods, most recent first.', { exact: false })).toBeVisible()
 
-    const drafted = await period.inputValue()
+    // The control opens on the month the draft states, in the words a person reports in and with the
+    // identifier DHIS2 keys by beside them.
+    // The identifier trails the words on the control - `July 2026` then `202607` - so it is read
+    // off the end rather than out of the middle of a year.
+    const drafted = (await period.textContent())?.match(/\d{6}$/)?.[0] ?? ''
     expect(drafted).toMatch(/^\d{6}$/)
+
+    // And any period at all can still be stated, which is what the list does not close off.
+    await period.click()
+    await page.getByRole('option', { name: 'Other period' }).click()
+    const identifier = page.getByLabel('Period identifier')
+    await expect(identifier).toHaveValue(drafted)
 
     // Required, and shaped: an aggregate submission is keyed by its period, so neither an empty box
     // nor an identifier of another shape is one this form will send.
     const submit = page.getByRole('button', { name: 'Submit' })
-    await period.fill('')
+    await identifier.fill('')
     await expect(submit).toBeDisabled()
     await expect(page.getByText('This submission reports for a period, and none is stated')).toBeVisible()
-    await period.fill('july')
+    await identifier.fill('july')
     await expect(submit).toBeDisabled()
     await expect(page.getByText('july is not a Monthly period')).toBeVisible()
+    await expect(page.getByText('A Monthly period is spelled like 202607.', { exact: false })).toBeVisible()
 
     const edited = drafted.endsWith('01') ? `${drafted.slice(0, 4)}02` : `${drafted.slice(0, 4)}01`
-    await period.fill(edited)
+    await identifier.fill(edited)
     await expect(submit).toBeEnabled()
 
     const receiptId = await submitCapture(page)
@@ -158,6 +169,39 @@ test('an edited reporting period is captured as the identifier, with no range cl
     // And no date range at all: resolving one is DHIS2 period arithmetic this UI does not have, the
     // sub-extension is optional, and the ISO period is what is captured.
     expect(captured?.extension?.some((sub) => sub.url === 'period')).toBe(false)
+})
+
+/**
+ * The other way to state a period, which is the one nearly everybody uses.
+ *
+ * A DHIS2 period is an identifier and a month is a month, so the control offers the months of the
+ * type the data set reports for - the current one and the twelve before it - in the words a person
+ * reports in. What this pins is that the words and the identifier agree: the month chosen on screen
+ * is the identifier the receipt carries.
+ */
+test('a period chosen from the recent months is the identifier the receipt carries', async ({ page, request }) => {
+    await openForm(page, AGGREGATE_FORM)
+
+    const period = page.getByLabel('Reporting period')
+    await period.click()
+    // Thirteen months, and the way to type any other period.
+    const offered = page.getByRole('option')
+    await expect(offered).toHaveCount(14)
+    await expect(offered.last()).toHaveText('Other period')
+
+    // Two months back: neither the month in progress nor the one the draft already stated, so what
+    // the receipt carries can only have come from this choice.
+    const chosen = offered.nth(2)
+    const iso = (await chosen.textContent())?.match(/\d{6}$/)?.[0] ?? ''
+    expect(iso).toMatch(/^\d{6}$/)
+    await chosen.click()
+    await expect(period).toContainText(iso)
+
+    const receiptId = await submitCapture(page)
+    const stored = await storedResponse(request, receiptId)
+    const captured = stored.extension?.find((extension) => extension.url.endsWith('/d2-period'))
+    expect(captured?.extension?.find((sub) => sub.url === 'iso')?.valueString).toBe(iso)
+    expect(captured?.extension?.find((sub) => sub.url === 'type')?.valueCode).toBe('Monthly')
 })
 
 test('an edited enrollment date is the date the stored enrollment begins', async ({ page, request }) => {

@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 /**
  * The capture loop, end to end, against the real server.
@@ -830,6 +830,12 @@ test.describe('a stage form answering for a captured registration', () => {
  * cell is the same question it was, so a capture filled in through the table produces the answers
  * the receipt reads back, linkId for linkId.
  */
+/** The Immunization run's table, which is what the switch takes away and gives back. */
+const immunizationTable = (page: Page) => page.getByRole('table').filter({ hasText: 'BCG doses given' })
+
+/** The switch on the first run of the form, which is the fifteen-element Immunization one. */
+const runSwitch = (page: Page, label: string) => page.getByRole('button', { name: label }).first()
+
 test.describe('the shape a form is drawn in', () => {
     /** One cell of the `BCG doses given` row, which the fixture's data set reports as a whole number. */
     const WHOLE_NUMBER_CELL = 'BCG doses given Fixed, <1y'
@@ -860,7 +866,8 @@ test.describe('the shape a form is drawn in', () => {
         // Fifteen data elements, one row each, under a header that names the four combos once -
         // rather than fifteen stacks of four labelled cells.
         await expect(immunization.getByRole('row')).toHaveCount(16)
-        await expect(immunization.getByRole('columnheader')).toHaveCount(5)
+        // The four combos, the corner that names what the rows are, and the column of totals.
+        await expect(immunization.getByRole('columnheader')).toHaveCount(6)
         await expect(immunization.getByRole('columnheader', { name: /Fixed, <1y/ })).toHaveCount(1)
         await expect(immunization.getByRole('rowheader', { name: /BCG doses given/ })).toHaveCount(1)
 
@@ -894,6 +901,121 @@ test.describe('the shape a form is drawn in', () => {
         await expect(page.getByText('The server accepted this submission')).toBeVisible()
         await expect(page).toHaveURL(/#\/responses$/)
 
+        await page.getByRole('row').filter({ hasText: 'Child Health' }).first().click()
+        const typedAnswer = page.getByRole('row').filter({ hasText: 's46m5MS0hxu.Prlt0C1RF0s' })
+        await expect(typedAnswer).toHaveCount(1)
+        await expect(typedAnswer).toContainText('BCG doses given')
+        await expect(typedAnswer).toContainText('Fixed, <1y')
+        await expect(typedAnswer).toContainText('7')
+        const drawnAnswer = page.getByRole('row').filter({ hasText: 's46m5MS0hxu.hEFKSsPV5et' })
+        await expect(drawnAnswer).toContainText(drawnValue)
+    })
+
+    /**
+     * The column of totals: the arithmetic somebody was going to do on paper, done as they type.
+     *
+     * None of it is submitted - a data set's own totals are DHIS2's to compute - so what is checked
+     * here is that the figure follows the boxes and states nothing it cannot account for.
+     */
+    test('each row of a table states what it currently adds up to', async ({ page }) => {
+        await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+
+        const row = immunizationTable(page).getByRole('row').filter({ hasText: 'BCG doses given' })
+        await expect(row).toHaveCount(1)
+        const total = row.getByRole('cell').last()
+
+        // A row nobody has typed in has no total, because a zero there would be this screen
+        // claiming zero doses on behalf of whoever had not filled it in yet.
+        await expect(total).toHaveText('')
+
+        await page.getByLabel(WHOLE_NUMBER_CELL).fill('12')
+        await expect(total).toHaveText('12')
+
+        // Live, and the three empty boxes count as nothing rather than as zero.
+        await page.getByLabel('BCG doses given Outreach, >1y').fill('29')
+        await expect(total).toHaveText('41')
+
+        // And a box holding something that cannot be added leaves no figure at all: a total that
+        // quietly skipped it would disagree with the boxes above it and say nothing about why.
+        await page.getByLabel('BCG doses given Fixed, >1y').fill('1.2.3')
+        await expect(total).toHaveText('')
+    })
+
+    test('a run drawn as rows states each total on the band it belongs to', async ({ page }) => {
+        await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+        await runSwitch(page, 'Show as rows').click()
+        await expect(immunizationTable(page)).toHaveCount(0)
+
+        // The same figure the table's own column states, in the place the row form has for it: the
+        // element's band, which is where its name already is.
+        await page.getByLabel(WHOLE_NUMBER_CELL).fill('12')
+        await page.getByLabel('BCG doses given Outreach, >1y').fill('29')
+        await expect(page.getByText('Total 41')).toBeVisible()
+    })
+
+    test('the switch draws a run as rows, and this browser remembers that', async ({ page }) => {
+        await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+        await expect(immunizationTable(page)).toHaveCount(1)
+
+        // The label names what pressing does next, which is the convention every toggle here follows.
+        await runSwitch(page, 'Show as rows').click()
+        await expect(immunizationTable(page)).toHaveCount(0)
+        await expect(runSwitch(page, 'Show as columns')).toBeVisible()
+
+        // The choice is the run's own and it outlives the page: a form reopened is drawn as it was
+        // left, and the runs nobody had an opinion about are still tables.
+        await page.reload()
+        await expect(page.getByLabel(WHOLE_NUMBER_CELL)).toBeVisible()
+        await expect(immunizationTable(page)).toHaveCount(0)
+        await expect(runSwitch(page, 'Show as columns')).toBeVisible()
+        await expect(page.getByRole('table').filter({ hasText: 'Vitamin A given to' })).toHaveCount(1)
+
+        await runSwitch(page, 'Show as columns').click()
+        await expect(immunizationTable(page)).toHaveCount(1)
+    })
+
+    test('a run drawn as rows keeps every cell and scrolls nowhere sideways', async ({ page }) => {
+        await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+        await runSwitch(page, 'Show as rows').click()
+        await expect(immunizationTable(page)).toHaveCount(0)
+
+        // Every combo of the element is still a line of its own, still its own question, and still
+        // answering to the address a table cell answered to.
+        for (const combo of ['Fixed, <1y', 'Fixed, >1y', 'Outreach, <1y', 'Outreach, >1y']) {
+            await expect(page.getByLabel(`BCG doses given ${combo}`)).toHaveCount(1)
+        }
+        // The element is a band above its lines rather than a word on each of them.
+        await expect(page.getByText('BCG doses given').first()).toBeVisible()
+
+        // The whole promise of this shape: no width of screen makes it side-scroll.
+        const overflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        )
+        expect(overflow).toBeLessThanOrEqual(0)
+    })
+
+    test('a form filled in as rows submits the answers a table would', async ({ page }) => {
+        await page.goto(`/#/forms/${AGGREGATE_FORM}`)
+        await page.getByRole('button', { name: 'Fill with test data' }).click()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
+
+        const drawn = page.getByLabel('BCG doses given Outreach, >1y')
+        const drawnValue = await drawn.inputValue()
+        expect(drawnValue).not.toBe('')
+
+        // The shape changes and the answers do not: what the draw put in a cell is what the line
+        // holds, because it is the same question with the same link id either way.
+        await runSwitch(page, 'Show as rows').click()
+        await expect(immunizationTable(page)).toHaveCount(0)
+        await expect(page.getByLabel('BCG doses given Outreach, >1y')).toHaveValue(drawnValue)
+
+        await page.getByLabel(WHOLE_NUMBER_CELL).fill('7')
+        await page.getByRole('button', { name: 'Submit' }).click()
+        await expect(page.getByText('The server accepted this submission')).toBeVisible()
+        await expect(page).toHaveURL(/#\/responses$/)
+
+        // The receipt reads back the same link ids the table's own submission wrote - the assertions
+        // here are the ones the table test makes, against a form filled in the other shape.
         await page.getByRole('row').filter({ hasText: 'Child Health' }).first().click()
         const typedAnswer = page.getByRole('row').filter({ hasText: 's46m5MS0hxu.Prlt0C1RF0s' })
         await expect(typedAnswer).toHaveCount(1)

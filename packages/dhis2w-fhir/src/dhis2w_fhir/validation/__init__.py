@@ -46,9 +46,12 @@ is already covered instance-wide by the sweep, or is safe by construction:
   of `/api/metadata` - `dataElements`, `categoryOptionCombos`, `dataSets`,
   `programs`, `sections`, `programStageSections`, `organisationUnits`, `attributes`
   - so the sweep already checks each object's `name`, the text that becomes a
-  resource `title` / `name` and a concept `display`. The other DHIS2 text the
-  emitters read (`formName`, `shortName`, `description`) lands in resource data
-  elements rather than in the page furniture the publisher's template injects raw.
+  resource `title` / `name` and a concept `display`. It checks `formName` beside it
+  on the two collections DHIS2 gives one to, because a form name is the `text` of
+  every question asking the object and lands on the same page positions the name
+  does. The other DHIS2 text the emitters read (`shortName`, `description`) lands
+  in resource data elements rather than in the page furniture the publisher's
+  template injects raw.
 - **Generated ids.** Under `source = "id"` every emitted resource id is a DHIS2
   UID (or `level-<n>`), valid and unique by construction; under the code sources
   the code-stem pass checks the codes the ids would derive from.
@@ -217,6 +220,16 @@ _CODE_IDENTIFIER_COLLECTIONS = frozenset(
 #: publisher's strict parse of the page it just wrote fails on the malformed cell. '>' is text to an HTML
 #: parser and a bare '&' is widely tolerated, so neither is claimed to be fatal without having seen it.
 _BUILD_ABORTING_CHARACTER = "<"
+
+#: How a finding names the DHIS2 field it read, so a reader knows which of the two spellings to
+#: change. The name is the reference spelling every vocabulary displays; the form name is the input
+#: spelling a question's `text` takes wherever DHIS2 states one.
+_NAME_FIELD_LABEL = "name"
+_FORM_NAME_FIELD_LABEL = "form name"
+
+#: The swept collections DHIS2 gives a form name to, which are exactly the two a form asks its
+#: questions from. Every other collection answers the sweep without the field.
+_FORM_NAME_COLLECTIONS = frozenset({"dataElements", "trackedEntityAttributes"})
 
 
 def build_aborting_code(code: str | None) -> bool:
@@ -388,7 +401,7 @@ def _template_hostile_character(name: str) -> str | None:
     return next((character for character in _TEMPLATE_HOSTILE_CHARACTERS if character in name), None)
 
 
-def _template_hostile_message(name: str, character: str) -> str:
+def _template_hostile_message(name: str, character: str, field_label: str = _NAME_FIELD_LABEL) -> str:
     """Say which character breaks the build or the published pages, and what breaks, in the caller's own words."""
     consequence = (
         "so `make build` fails: the publisher strict-parses the page it just wrote and cannot read it back"
@@ -396,8 +409,8 @@ def _template_hostile_message(name: str, character: str) -> str:
         else "so pages for this resource render malformed"
     )
     return (
-        f"name {display_code(name)} contains {character!r} which the IG publisher template injects into HTML "
-        f"unescaped, {consequence}; change the name in DHIS2"
+        f"{field_label} {display_code(name)} contains {character!r} which the IG publisher template injects into "
+        f"HTML unescaped, {consequence}; change the {field_label} in DHIS2"
     )
 
 
@@ -411,10 +424,10 @@ def _template_hostile_severity(character: str) -> Literal["error", "warning"]:
     return "error" if character == _BUILD_ABORTING_CHARACTER else "warning"
 
 
-def _substituted_name_message(name: str, published: str) -> str:
+def _substituted_name_message(name: str, published: str, field_label: str = _NAME_FIELD_LABEL) -> str:
     """Say what the guide publishes in one build-aborting name's place, and what DHIS2 keeps."""
     return (
-        f"published as {published!r} - the name is rewritten for publication "
+        f"published as {published!r} - the {field_label} is rewritten for publication "
         f'(hostile_names = "substitute"); DHIS2 keeps {name!r}'
     )
 
@@ -428,7 +441,7 @@ def _survivable_character_clause(character: str) -> str:
 
 
 def _template_hostile_grade(
-    name: str, character: str, *, substituting: bool
+    name: str, character: str, *, substituting: bool, field_label: str = _NAME_FIELD_LABEL
 ) -> tuple[Literal["error", "warning", "info"], str]:
     """The severity and wording one hostile name carries under the posture this run grades under.
 
@@ -439,11 +452,12 @@ def _template_hostile_grade(
     """
     published = substitute_build_aborting_text(name)
     if not substituting or published == name:
-        return _template_hostile_severity(character), _template_hostile_message(name, character)
+        return _template_hostile_severity(character), _template_hostile_message(name, character, field_label)
     remaining = _template_hostile_character(published)
     if remaining is None:
-        return "info", _substituted_name_message(name, published)
-    return "warning", f"{_substituted_name_message(name, published)}; {_survivable_character_clause(remaining)}"
+        return "info", _substituted_name_message(name, published, field_label)
+    substituted = _substituted_name_message(name, published, field_label)
+    return "warning", f"{substituted}; {_survivable_character_clause(remaining)}"
 
 
 def _template_hostile_finding(
@@ -454,6 +468,36 @@ def _template_hostile_finding(
     if character is None:
         return None
     severity, message = _template_hostile_grade(name, character, substituting=substituting)
+    return ValidationFinding(
+        severity=severity,
+        category="template-hostile-name",
+        resource_type=resource_type,
+        uid=uid,
+        name=name,
+        code=code,
+        message=message,
+    )
+
+
+def _template_hostile_form_name_finding(
+    resource_type: str, uid: str, name: str, form_name: str | None, code: str | None, *, substituting: bool
+) -> ValidationFinding | None:
+    """Flag one question object whose DHIS2 form name carries a character the template cannot survive.
+
+    A form name is the `text` of every question asking the object, so it lands on the same page
+    positions the name does and costs the same build - which is why it is graded under the same
+    category rather than one of its own. Only a data element and a tracked entity attribute carry
+    one; the finding still names the object under its DHIS2 name, because that is what a reader
+    searches the instance for.
+    """
+    if form_name is None or resource_type not in _FORM_NAME_COLLECTIONS:
+        return None
+    character = _template_hostile_character(form_name)
+    if character is None:
+        return None
+    severity, message = _template_hostile_grade(
+        form_name, character, substituting=substituting, field_label=_FORM_NAME_FIELD_LABEL
+    )
     return ValidationFinding(
         severity=severity,
         category="template-hostile-name",
@@ -599,6 +643,11 @@ def _collection_findings(
         hostile = _template_hostile_finding(collection.resource, item.uid, name, item.code, substituting=substituting)
         if hostile is not None:
             findings.append(_rescoped(hostile, in_scope))
+        hostile_form_name = _template_hostile_form_name_finding(
+            collection.resource, item.uid, name, item.form_name, item.code, substituting=substituting
+        )
+        if hostile_form_name is not None:
+            findings.append(_rescoped(hostile_form_name, in_scope))
         hostile_code = _template_hostile_code_finding(
             collection.resource, item.uid, name, item.code, in_scope=in_scope, substituting=substituting
         )

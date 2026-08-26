@@ -217,6 +217,7 @@ avoiding a refusal, which is why it ranks below the items that do produce refusa
 | --- | --- | --- | --- | --- |
 | `valueType` | One of 27 types, from `TEXT` to `GEOJSON` | `CARRIED` | `Questionnaire.item.type`, a `value-type` code property on `D2DE_CS`, and `minValue` / `maxValue` for the five bounded numeric types | capture, forward |
 | `domainType` (`AGGREGATE` / `TRACKER`) | Which half of DHIS2 the element belongs to | `CARRIED` | A `domain` code property on `D2DE_CS` | capture |
+| `formName` | The spelling written for input, where `name` is written for analytics and reference | `CARRIED` | `Questionnaire.item.text` wherever DHIS2 states one, and a `form-name` string property on `D2DE_CS`. The concept display stays `name`, so one concept reaches both spellings | capture |
 | `optionSet` | The element's answers come from a list | `CARRIED` | `item.answerValueSet` pointing at `D2OS_<stem>_VS` | capture, forward |
 | `REFERENCE` and `TRACKER_ASSOCIATE` value types | The answer points at another DHIS2 object | `CARRIED` | As `item.type = #string`, with the reason recorded in the emitter: the guide publishes no FHIR resource for the object these point at | capture |
 | `zeroIsSignificant` | Whether a stored zero is a measurement or noise DHIS2 may drop | `WORTH CARRYING` | A `zero-is-significant` boolean property on `D2DE_CS`, beside `value-type` | capture, forward |
@@ -365,6 +366,7 @@ none of the 19 states a constraint DHIS2 does not enforce.
 | --- | --- | --- | --- | --- |
 | Tracked entity type | What kind of thing is tracked - not always a person | `CARRIED` | `[generate.tracked_entity_types]` maps a type UID onto one of nine FHIR resource types, driving `subjectType` and the response profiles' reference targets | capture, forward |
 | Tracked entity attribute | A question asked about the entity itself | `CARRIED` | `D2TEA_CS` with `value-type`, plus `D2TrackedEntityAttributeValue` on the subject resource | capture, forward |
+| `formName` on an attribute | The spelling written for input, as on a data element | `CARRIED` | `Questionnaire.item.text` wherever DHIS2 states one, and a `form-name` string property on `D2TEA_CS` | capture |
 | `unique` | The value identifies its subject | `CARRIED` | A `unique` boolean property on `D2TEA_CS`; unique values ride `identifier` under `<base>/tracked-entity-attribute/<uid>` | capture, output leg |
 | `searchable` (per program, per type) | A person can be found by this attribute | `CARRIED` | A `searchable` roll-up property plus one `searchable-<contextUid>` property per asking context | output leg |
 | `mandatory` (per program, per type) | The attribute must be answered | `CARRIED` | `item.required` | capture |

@@ -19,6 +19,12 @@ Description: {{ terminology.description_literal }}
 * ^property[=].description = {{ terminology.domain_property_description_literal }}
 * ^property[=].type = #code
 {% endif %}
+{% if terminology.declares_form_name %}
+* ^property[+].code = #form-name
+* ^property[=].uri = "{{ terminology.property_base }}/form-name"
+* ^property[=].description = {{ terminology.form_name_property_description_literal }}
+* ^property[=].type = #string
+{% endif %}
 {% if terminology.declares_value_type %}
 * ^property[+].code = #value-type
 * ^property[=].uri = "{{ terminology.property_base }}/value-type"
@@ -76,6 +82,10 @@ Description: {{ terminology.description_literal }}
 {% if concept.domain_code is not none %}
 * #{{ concept.uid }} ^property[+].code = #domain
 * #{{ concept.uid }} ^property[=].valueCode = #{{ concept.domain_code }}
+{% endif %}
+{% if concept.form_name_literal is not none %}
+* #{{ concept.uid }} ^property[+].code = #form-name
+* #{{ concept.uid }} ^property[=].valueString = {{ concept.form_name_literal }}
 {% endif %}
 {% if concept.value_type_code is not none %}
 * #{{ concept.uid }} ^property[+].code = #value-type

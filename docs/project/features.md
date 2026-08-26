@@ -606,9 +606,11 @@ chain in one command.
   sets and their options, categories and their category options, organisation
   units, data sets, event programs, tracker programs and their stages, tracked
   entity types, and the data elements and tracked entity attributes those forms
-  ask as questions - a question's name is its label and its data-dictionary
-  concept display, both byte-true DHIS2 data. Every target that writes a form's
-  name reads the same gate, so `generate pages` and `generate examples` refuse
+  ask as questions - a question's name is its data-dictionary concept display and
+  its label wherever DHIS2 writes no form name, and its form name is that label
+  wherever DHIS2 writes one; the gate reads both spellings, byte-true DHIS2 data
+  either way, and the refusal says which of the two to change. Every target that
+  writes a form's name reads the same gate, so `generate pages` and `generate examples` refuse
   exactly what `generate questionnaires` refuses. The parity with
   `fhir validate` runs both ways: a validate error on the build path is a
   generate refusal, and a generate refusal is a validate error on the build
@@ -630,10 +632,10 @@ chain in one command.
   run under either answer. The rewrite lands where DHIS2 metadata enters the
   emission inputs, before a single identity, stem, or decomposition is planned off
   a name, so every target inherits one spelling - which is also how it covers the
-  class no refusal reaches: a DHIS2 form name and a category option combo name,
-  which become question text and data dictionary concept displays (one national
-  selection generated cleanly and handed the publisher 738 of them). Every rewrite
-  is a `name-substitution` note, one per distinct DHIS2 name.
+  class no refusal reaches: a category option combo name, which becomes a cell's
+  label and a data dictionary concept display (one national selection generated
+  cleanly and handed the publisher 738 of them). Every rewrite is a
+  `name-substitution` note, one per distinct DHIS2 name.
 - **The substitute posture hyphenates every code carrying a space.** An R4 `code`
   admits single internal spaces, so `Pre eclampsia` is legal FHIR and nothing
   refuses it - and the publisher's anchor slug strips the whitespace, so it and a
@@ -1174,9 +1176,9 @@ registration form become `Questionnaire` instances.
 #### The data dictionary
 
 - **`D2TEA_CS` / `_VS`** is the tracked-entity-attribute support pair the
-  registration form's item codes point into: `dhis2-code`, `value-type`, a
-  `unique` boolean marking the attributes that are business identifiers, and
-  searchability with its provenance.
+  registration form's item codes point into: `dhis2-code`, `form-name`,
+  `value-type`, a `unique` boolean marking the attributes that are business
+  identifiers, and searchability with its provenance.
 - **Searchability carries its provenance**: a `searchable` roll-up true where
   any context this run publishes declares it, plus one
   `searchable-<contextUid>` boolean per context that asked the attribute -
@@ -1185,6 +1187,16 @@ registration form become `Questionnaire` instances.
   declared once with the context named in words, and every flag is read off the
   very `programTrackedEntityAttributes` / `trackedEntityTypeAttributes` join
   the forms already cost.
+- **Input surfaces speak `formName`, reference surfaces speak `name`.** DHIS2
+  writes a data element's `name` for analytics and reference and its `formName`
+  to clarify what a person is being asked, so a `Questionnaire.item.text` - an
+  aggregate question, an event or tracker stage question, a registration form's
+  attribute, and the group heading of a disaggregated element - is the form name
+  wherever DHIS2 states one and the name wherever it does not. The dictionary is
+  the reference surface: a `D2DE_CS` or `D2TEA_CS` concept keeps displaying the
+  name and states the form name beside it as a `form-name` string property, so
+  one concept reaches both spellings. A disaggregated element's cells are
+  labelled by their category option combo, which has no form name of its own.
 - **Every dictionary property is declared only where a concept carries it**,
   and `dhis2-code` is written only where DHIS2 states a code rather than
   repeating the UID the concept code already is.
@@ -2359,21 +2371,26 @@ control per R4 item type.
   one table** - the elements are the rows, the combos are the columns, the
   answer is the cell where they meet - which is the shape DHIS2's own data
   entry uses and the difference between a screen of 14 rows and one of 56
-  stacked questions. Each uid is on screen once, the column's in its header and
-  the element's beside its name; the categories the columns cut along are named
-  once for the run, and so is anything every cell of it accepts. An element cut
-  differently opens its own run, and an element whose cells are not numeric
-  answers stays stacked.
+  stacked questions. Every cell is a bordered box a count fits in, the rows are
+  striped, and the whole run sits in a bordered box of its own. The categories
+  the columns cut along are named once for the run, and so is anything every
+  cell of it accepts; no uid is repeated inside a run, since fifty-six
+  identifiers on a screen of fifty-six numbers is not where anybody looks for
+  one. An element cut differently opens its own run, and an element whose cells
+  are not numeric answers stays stacked.
 - **How wide the cut is decides the run's shape.** Up to four combos it is the
   table above. A combo cut over two categories - `Female, under 15y` - is banded
   by whichever category has fewer options, for up to six bands and only where
   every band ends up with the same options of every remaining category; the
   banding is part of the table shape, so eight combos that band into two fours
-  are still a table. Wider than four, the run is rows instead: each element's
-  name as a band, one line per combo under it, and no sideways scrolling at any
-  width. Under a band the lines carry only the category the band did not name.
-  From thirty lines the band offers a filter box and an *Unfilled only* tick,
-  both of which hide lines from the screen and nothing else.
+  are still a table, one per band, each band headed by the value it stands for.
+  Wider than four, the run is rows instead: each element in a box of its own with
+  its name on the band across the top, one line per combo under it, wrapped into
+  two column groups past about ten lines and three past two dozen, and no
+  sideways scrolling at any width. Under a facet band the lines carry only the
+  category the band did not name. From thirty lines the band itself offers a
+  filter box and an *Unfilled only* tick, both of which hide lines from the
+  screen and nothing else.
 - **Reordering a category combo does not move the renderer.** A DHIS2 admin who
   swaps the categories inside a combo renames every combo in it and changes the
   order DHIS2 expands the cells in. The shape is decided from the decomposition
@@ -2382,6 +2399,16 @@ control per R4 item type.
   count with the category name breaking a tie, and the bands and rows are read
   back in each category's own option order. Both spellings of one cut are the
   same screen, cell for cell.
+- **Every row states what it currently adds up to.** A muted **Total** column
+  closes each row of a table, and the row form states the same figure on the
+  element's own band (*Total 226*, over every line it has, filtered or not).
+  Both recompute as the boxes are typed in, and neither is submitted: a data
+  set's own totals are DHIS2's to compute. A row nobody has typed in has no
+  total rather than a zero, a blank beside a figure counts as nothing, and a box
+  holding something that is not a number leaves no figure at all. A run whose
+  cells are not one element cut several ways - a section of plain numeric data
+  elements reaches the same shape - is drawn without totals, because adding two
+  different quantities is not a figure.
 - **One switch per run overrides that default** - *Show as rows* on a table,
   *Show as columns* on a list of rows - remembered per run in this browser, so a
   form reopened is drawn the way it was left. A cut no arrangement makes a table
@@ -2422,8 +2449,16 @@ control per R4 item type.
   the button as a box: a fill writes the drawn seed into it, the next fill asks
   for whatever it holds, and the seed rides the submission - so the receipt
   states which draw it came from and a reported bug can be drawn again.
-- **Only the Submit button submits a capture.** Enter in a text box - the
-  reporting period, a question, the person search - is swallowed, because HTML's
+- **The reporting period is chosen from recent periods of the data set's own
+  type** - the current one and the twelve before it, eight quarters, or five
+  years - each labelled for a person (*July 2026*, *Week 34, 2026 (starts Mon 17
+  Aug)*) with the identifier DHIS2 keys by beside it, most recent first, opening
+  on the period the draft states. **Other period** reveals the identifier box
+  for any period at all, which is also what a type whose numbering carries an
+  offset (`BiWeekly`, `2026WedW30`, `2026April`) gets instead of a list of
+  periods DHIS2 might not have.
+- **Only the Submit button submits a capture.** Enter in a text box - the period
+  identifier, a question, the person search - is swallowed, because HTML's
   implicit submission would post a form somebody was still filling in and a
   receipt is permanent.
 - **A coded question offering more than fifty options is searched, not

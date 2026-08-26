@@ -34,6 +34,8 @@ import {
     type PlaygroundPreset,
     type PlaygroundRequest,
     type SentRequest,
+    declaredParameters,
+    type DeclaredParameter,
 } from '@/lib/playground'
 import { cn, RESIZE_HANDLE_TINT } from '@/lib/utils'
 
@@ -275,7 +277,7 @@ export function Playground() {
                                     : `, and the ${scheme} credential this browser holds.`}
                             </p>
 
-                            <QueryParameters request={request} onChange={setRequest} />
+                            <QueryParameters request={request} onChange={setRequest} declared={declaredParameters(capability, request.path)} />
 
                             {request.method === 'POST' && (
                                 <div className="flex flex-col gap-1.5">
@@ -345,10 +347,25 @@ export function Playground() {
 function QueryParameters({
     request,
     onChange,
+    declared,
 }: {
     request: PlaygroundRequest
     onChange: (next: PlaygroundRequest) => void
+    /** What the current path is declared to answer, for the suggestions and the datalist. */
+    declared: DeclaredParameter[]
 }) {
+    /** Fill the first nameless row with a suggested name, or append a row carrying it. */
+    const suggest = (name: string) => {
+        const empty = request.parameters.findIndex((parameter) => parameter.name.trim() === '')
+        if (empty === -1) {
+            onChange({ ...request, parameters: [...request.parameters, { name, value: '' }] })
+            return
+        }
+        const parameters = request.parameters.map((parameter, position) =>
+            position === empty ? { ...parameter, name } : parameter,
+        )
+        onChange({ ...request, parameters })
+    }
     const setParameter = (index: number, next: Partial<{ name: string; value: string }>) => {
         const parameters = request.parameters.map((parameter, position) =>
             position === index ? { ...parameter, ...next } : parameter,
@@ -358,6 +375,27 @@ function QueryParameters({
     return (
         <div className="flex flex-col gap-2" data-testid="playground-parameters">
             <Label>Query parameters</Label>
+            {declared.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-muted-foreground text-xs">This path answers</span>
+                    {declared.map((parameter) => (
+                        <button
+                            key={parameter.name}
+                            type="button"
+                            onClick={() => suggest(parameter.name)}
+                            title={parameter.documentation ?? undefined}
+                            className="machine-identifier hover:bg-accent hover:text-accent-foreground rounded-full border px-2 py-0.5 text-[11px]"
+                        >
+                            {parameter.name}
+                        </button>
+                    ))}
+                </div>
+            )}
+            <datalist id="playground-parameter-names">
+                {declared.map((parameter) => (
+                    <option key={parameter.name} value={parameter.name} />
+                ))}
+            </datalist>
             {request.parameters.map((parameter, index) => (
                 // The index is the identity here on purpose: a row IS its position in the query
                 // string, the rows carry no id of their own, and two rows may legitimately share a
@@ -368,6 +406,7 @@ function QueryParameters({
                     <Input
                         aria-label={`Parameter ${String(index + 1)} name`}
                         className="w-48 font-mono"
+                        list="playground-parameter-names"
                         value={parameter.name}
                         onChange={(event) => setParameter(index, { name: event.target.value })}
                     />

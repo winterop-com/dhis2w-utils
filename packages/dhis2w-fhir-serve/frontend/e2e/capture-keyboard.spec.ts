@@ -37,10 +37,15 @@ test('Enter in a text box on a form does not post the capture', async ({ page, r
     const before = await spoolTotal(request)
     await openForm(page, AGGREGATE_FORM)
 
+    // The identifier box, which is the text box the capture context has: the period is chosen from
+    // a list of recent months, and Other period is what opens the box any period can be typed into.
     const period = page.getByLabel('Reporting period')
     await expect(period).toBeVisible()
     await period.click()
-    await period.press('Enter')
+    await page.getByRole('option', { name: 'Other period' }).click()
+    const identifier = page.getByLabel('Period identifier')
+    await identifier.click()
+    await identifier.press('Enter')
 
     // Nowhere else, nothing accepted, and nothing in the spool: the page a person was filling in is
     // the page they are still on.

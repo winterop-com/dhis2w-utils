@@ -359,16 +359,8 @@ function ResourceRows({
     )
 }
 
-/**
- * The sentence in `capability.py` that carries the attribute catalog, quoted to be found again.
- *
- * `_filter_documentation` writes the catalog into the parameter's prose because the raw document
- * has to name the attributes - a UID is not something anybody guesses. This screen has the same
- * catalog structured, from `/uiconfig`, so the sentence is cut where the enumeration starts and a
- * table states it instead. A documentation string without the marker renders whole, so a wording
- * change over there degrades this screen to prose rather than breaking it.
- */
-const ATTRIBUTE_CATALOG_MARKER = ' The attributes it filters on are '
+/** The one parameter whose catalog this screen states as a table - the register's value filter. */
+const ATTRIBUTE_FILTER_PARAMETER = 'd2-attribute'
 
 /** One parameter's contract - its prose, with the attribute catalog as a table when it is one. */
 function ParameterDocumentation({
@@ -379,11 +371,14 @@ function ParameterDocumentation({
     attributes: FilterAttribute[]
 }) {
     if (parameter.documentation === undefined) return <>-</>
-    const catalog = parameter.documentation.indexOf(ATTRIBUTE_CATALOG_MARKER)
-    if (catalog === -1 || attributes.length === 0) return <ProseText text={parameter.documentation} />
+    // The declaration states the grammar and points at the registration Questionnaires for the
+    // catalog; this screen has the same catalog structured, from /uiconfig, and states it as a
+    // table under the prose - the one place a person reads the contract and the columns together.
+    const catalog = parameter.name === ATTRIBUTE_FILTER_PARAMETER && attributes.length > 0
+    if (!catalog) return <ProseText text={parameter.documentation} />
     return (
         <div className="space-y-2">
-            <ProseText text={parameter.documentation.slice(0, catalog)} />
+            <ProseText text={parameter.documentation} />
             <div className="show-scrollbars overflow-x-auto rounded-md border">
                 <Table>
                     <TableHeader>

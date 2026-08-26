@@ -85,6 +85,10 @@
           "valueString": "TEA_NATIONAL_ID"
         },
         {
+          "code": "form-name",
+          "valueString": "National id"
+        },
+        {
           "code": "value-type",
           "valueCode": "TEXT"
         },
@@ -123,6 +127,12 @@
       "code": "dhis2-code",
       "uri": "http://dhis2.org/fhir/property/dhis2-code",
       "description": "DHIS2 tracked entity attribute code.",
+      "type": "string"
+    },
+    {
+      "code": "form-name",
+      "uri": "http://dhis2.org/fhir/property/form-name",
+      "description": "DHIS2 tracked entity attribute form name, which is the text of every question asking it. Absent where DHIS2 states none, in which case the question is asked under the concept display.",
       "type": "string"
     },
     {

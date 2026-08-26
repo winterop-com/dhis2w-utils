@@ -678,12 +678,13 @@ def _summary_operation(summaries: bool, resource_type: str) -> list[CapabilitySt
 
 
 def _filter_documentation(register: ServedRegister) -> str:
-    """What one register's value filter answers, and which attributes it answers it on.
+    """What one register's value filter answers, and where the attributes it answers it on are declared.
 
-    The attributes are named in the declaration rather than left to a client to discover, because the
-    parameter is worthless without them: `d2-attribute` names an attribute by DHIS2 UID, and a UID is
-    not something anybody guesses. They are the attributes this register's own types collect, so a
-    register of samples names a sample's attributes and never a person's.
+    The declaration states the grammar and points at the structure rather than enumerating the
+    catalog: fifty attributes spelled into one sentence buried the rules a caller actually needs,
+    and the attributes are already declared structurally - each registration Questionnaire lists
+    them item by item with the value type and, where coded, the bound ValueSet. The count is here
+    so a reader knows the pointer is worth following.
     """
     if not register.filter_attributes:
         return (
@@ -691,24 +692,13 @@ def _filter_documentation(register: ServedRegister) -> str:
             "publishes no registration form for the tracked entity types it is served over, so "
             "nothing states what they collect."
         )
-    return f"{ATTRIBUTE_FILTER_DOCUMENTATION} The attributes it filters on are {_attribute_labels(register)}."
-
-
-def _attribute_labels(register: ServedRegister) -> str:
-    """The filterable attributes as a client has to read them - the UID, the name, and what the values are.
-
-    The bound ValueSet is named where DHIS2 binds an option set, because that is the difference
-    between a filter a caller can enumerate the values of and one they have to already know a value
-    of. `/uiconfig` carries the same canonical as a value, for a screen drawing a control from it.
-    """
-    labels: list[str] = []
-    for attribute in register.filter_attributes:
-        named = (
-            attribute.attribute_uid if attribute.display is None else f"{attribute.display} ({attribute.attribute_uid})"
-        )
-        stated = named if attribute.value_type is None else f"{named}, whose values are {attribute.value_type}"
-        labels.append(stated if attribute.value_set is None else f"{stated} drawn from `{attribute.value_set}`")
-    return "; ".join(labels)
+    count = len(register.filter_attributes)
+    return (
+        f"{ATTRIBUTE_FILTER_DOCUMENTATION} It filters on the {count} tracked entity attributes this "
+        "register's registration forms declare - each registration Questionnaire lists them item by "
+        "item, with the attribute's UID as the item `linkId`, its value type, and, where the values "
+        "are coded, the bound ValueSet."
+    )
 
 
 def _type_labels(register: ServedRegister) -> str:

@@ -238,6 +238,7 @@ class SupportTerminologyProfile(BaseModel):
 
     `value_type_property_description` is per-pair because the two pairs that declare a value type
     describe a different DHIS2 object; a pair whose concepts carry no value type never renders it.
+    `form_name_property_description` is per-pair for the same reason.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -246,6 +247,7 @@ class SupportTerminologyProfile(BaseModel):
     description: str
     code_property_description: str
     value_type_property_description: str = ""
+    form_name_property_description: str = ""
 
 
 #: The support pair over every data element the generated questionnaires ask a question from.
@@ -256,6 +258,10 @@ DATA_ELEMENT_TERMINOLOGY = SupportTerminologyProfile(
     ),
     code_property_description="DHIS2 data element code.",
     value_type_property_description="DHIS2 data element value type.",
+    form_name_property_description=(
+        "DHIS2 data element form name, which is the text of every question asking it. Absent where DHIS2 states "
+        "none, in which case the question is asked under the concept display."
+    ),
 )
 
 #: The support pair over every tracked entity attribute the generated registration forms ask about.
@@ -267,6 +273,10 @@ TRACKED_ENTITY_ATTRIBUTE_TERMINOLOGY = SupportTerminologyProfile(
     ),
     code_property_description="DHIS2 tracked entity attribute code.",
     value_type_property_description="DHIS2 tracked entity attribute value type.",
+    form_name_property_description=(
+        "DHIS2 tracked entity attribute form name, which is the text of every question asking it. Absent where "
+        "DHIS2 states none, in which case the question is asked under the concept display."
+    ),
 )
 
 #: The support pair over every tracked entity type the generated forms register an entity as.
@@ -312,6 +322,12 @@ CATEGORY_OPTION_COMBO_TERMINOLOGY = SupportTerminologyProfile(
 
 #: The description of the `domain` concept property, which only the data-element pair declares.
 DOMAIN_PROPERTY_DESCRIPTION = "DHIS2 data element domain type."
+
+#: The concept property carrying the DHIS2 form name, which the two question pairs declare. The
+#: dictionary is the reference surface, so a concept displays the DHIS2 name and states the form
+#: name beside it - a consumer holding one concept reaches both the spelling analytics knows the
+#: object by and the spelling every question asking it is labelled with, without reading a form.
+FORM_NAME_CONCEPT_PROPERTY = "form-name"
 
 #: The description of the `unique` concept property, which only the attribute pair declares. A
 #: unique tracked entity attribute is a business identifier - a national id, a case number - so a

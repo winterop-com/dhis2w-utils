@@ -259,6 +259,38 @@ def test_a_section_holding_a_disaggregated_question_renders_as_a_grid() -> None:
     assert items[1].extension is None
 
 
+def test_a_question_is_labelled_with_the_dhis2_form_name_where_dhis2_states_one() -> None:
+    """An input surface speaks the form name: DHIS2 writes it to clarify what a person is being asked."""
+    question = _children(_items(_one(_DATA_SET))[0])[0]
+    assert (question.linkId, question.text) == ("De1aaaaaaaa", "BCG")
+
+
+def test_a_question_falls_back_to_the_dhis2_name_where_dhis2_states_no_form_name() -> None:
+    """An object DHIS2 gives no form name is asked under the one name it has."""
+    question = _children(_items(_one(_DATA_SET))[1])[0]
+    assert (question.linkId, question.text) == ("De3aaaaaaaa", "Gender")
+
+
+def test_a_disaggregated_group_takes_the_form_name_while_its_cells_keep_the_combo_names() -> None:
+    """The group is the question, so it is labelled from the form name; a cell is a category option combo."""
+    form_named = _MEASLES.model_copy(update={"form_name": "Measles"})
+    source = _DATA_SET.model_copy(
+        update={"sections": [QuestionnaireSectionIn(uid="Sec1aaaaaaa", name="Immunization", items=[form_named])]}
+    )
+    group = _children(_items(_one(source))[0])[0]
+    assert (group.type, group.text) == ("group", "Measles")
+    assert [cell["text"] for cell in _emitted(group)["item"]] == ["<1y", ">1y"]
+
+
+def test_the_data_dictionary_displays_the_dhis2_name_and_states_the_form_name_beside_it() -> None:
+    """A reference surface speaks the name; the form name is the property a consumer reaches the label through."""
+    build = build_data_dictionary_documents([_DATA_SET], GenerateConfig(), _CANONICAL, ig_status="draft")
+    concepts = {concept["code"]: concept for concept in _emitted(build.code_systems[0])["concept"]}
+    assert concepts["De1aaaaaaaa"]["display"] == "BCG doses given"
+    assert {"code": "form-name", "valueString": "BCG"} in concepts["De1aaaaaaaa"]["property"]
+    assert [entry for entry in concepts["De3aaaaaaaa"]["property"] if entry["code"] == "form-name"] == []
+
+
 def test_a_disaggregated_question_becomes_a_group_of_one_cell_per_option_combo() -> None:
     """Each cell asks the element's question for one category option combo, coded from the combo CodeSystem."""
     group = _children(_items(_one(_DATA_SET))[0])[1]
@@ -413,11 +445,12 @@ def test_the_naming_tokens_flow_into_the_names_and_the_support_ids() -> None:
 
 
 def test_the_data_element_code_system_declares_only_the_properties_its_concepts_carry() -> None:
-    """A property no concept carries is left undeclared - the domain and the DHIS2 code alike."""
+    """A property no concept carries is left undeclared - the domain, the form name, and the DHIS2 code alike."""
     with_domain = build_data_dictionary_documents([_DATA_SET], GenerateConfig(), _CANONICAL, ig_status="draft")
     assert [entry["code"] for entry in _emitted(with_domain.code_systems[0])["property"]] == [
         "dhis2-code",
         "domain",
+        "form-name",
         "value-type",
     ]
     without = build_data_dictionary_documents([_STAGE], GenerateConfig(), _CANONICAL, ig_status="draft")

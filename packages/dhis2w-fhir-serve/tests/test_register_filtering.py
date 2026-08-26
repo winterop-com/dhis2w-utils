@@ -560,6 +560,10 @@ def test_the_metadata_declares_the_filter_and_says_it_answers_equality_alone(
     assert declared.type == "token"
     assert "It matches that value exactly - equality and nothing else" in documentation
     assert "case is ignored" in documentation
-    assert f"Sex ({REGISTRATION_CODED_ATTRIBUTE})" in documentation
-    assert SEX_VALUE_SET in documentation, "a coded attribute names the vocabulary its values come from"
+    # The grammar is stated and the catalog is pointed at, not enumerated: fifty attributes spelled
+    # into one sentence buried the rules, and each registration Questionnaire already declares them
+    # item by item. The count is the one catalog fact the sentence keeps.
+    assert "registration forms declare" in documentation
+    assert "linkId" in documentation
+    assert REGISTRATION_CODED_ATTRIBUTE not in documentation, "the catalog lives in the Questionnaires, not here"
     assert SPECIMEN_UNIQUE_ATTRIBUTE not in documentation
