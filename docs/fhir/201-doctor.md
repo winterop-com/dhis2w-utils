@@ -406,3 +406,6 @@ That file is the artifact. Attach it to the handover.
   what a regenerate keeps and what it rewrites, once drift says to run one.
 - [Troubleshooting](201-troubleshooting.md) - the failure modes doctor
   names, one by one.
+
+Next: [Set up an IG project](201-set-up-a-project.md) - the project you build
+once doctor says the instance can carry one.

@@ -23,6 +23,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | File | Commands | Runs in `make verify-examples` |
 | --- | --- | --- |
 | [`init.sh`](cli/init.sh) | `d2w fhir init` — scaffold a project, offline, with the identity and selection dials | yes |
+| [`init_from_template.sh`](cli/init_from_template.sh) | `d2w fhir init --list-templates` / `--template` — scaffold from a guide already generated against an instance, so the project compiles and serves without reaching one | yes |
 | [`init_refresh.sh`](cli/init_refresh.sh) | `d2w fhir init --refresh` — update the scaffold-managed files without losing a line | yes |
 | [`generate.sh`](cli/generate.sh) | `d2w fhir generate` — the whole IG source from one pass over the instance | yes |
 | [`generate_foundation.sh`](cli/generate_foundation.sh) | `d2w fhir generate foundation` — the instance-independent artifacts, no client opened | yes |
