@@ -86,3 +86,16 @@ test('declares ConceptMap among the read types', async ({ page }) => {
     await expect(row).toHaveCount(1)
     await expect(row).toContainText('read')
 })
+
+test('names the query it is a rendering of, and opens it in the format this server answers in', async ({
+    page,
+}) => {
+    // THE CHIP IS THE PAGE'S OWN SOURCE, SAID OUT LOUD. Everything above it is this app's reading of
+    // the CapabilityStatement; the link is the document. `_format=json` is what makes it openable at
+    // all - a browser following a bare link sends an `Accept` naming markup, and the FHIR surface
+    // refuses that with a 406 rather than sending JSON under a media type the client disclaimed.
+    await page.goto('/#/server')
+
+    await expect(page.getByTestId('api-link')).toHaveAttribute('href', '/metadata?_format=json')
+    await expect(page.getByTestId('api-link')).toHaveAttribute('target', '_blank')
+})

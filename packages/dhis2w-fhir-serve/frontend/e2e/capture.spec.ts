@@ -96,6 +96,9 @@ test('the Responses page starts empty and says where a response comes from', asy
     await expect(page.getByRole('heading', { name: 'Responses', level: 2 })).toBeVisible()
     await expect(page.getByText('Nothing has been captured into this project yet')).toBeVisible()
     await expect(page.getByText('$generate')).toBeVisible()
+    // The listing names its own FHIR search whether or not it has anything to list: the query is a
+    // fact about the page, and an integrator arriving at an empty spool still wants the route.
+    await expect(page.getByTestId('api-link')).toHaveAttribute('href', '/QuestionnaireResponse?_format=json')
 })
 
 test('a generated response posts back and shows up as a received receipt', async ({ page, request }) => {

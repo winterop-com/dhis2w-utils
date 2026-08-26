@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronRight, Search } from 'lucide-react'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
+import { ApiLink } from '@/components/ApiLink'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -222,6 +223,7 @@ export function Terminology() {
             <PageHeader
                 title="Terminology"
                 description="The code systems, value sets, and concept maps this server publishes - and the codes inside them."
+                aside={<ApiLink path={`/${activeType}`} />}
             />
 
             <div className="mb-6 flex items-center gap-2">

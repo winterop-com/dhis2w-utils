@@ -906,7 +906,8 @@ the scaffold gitignores it, and the IG publisher never renders it.
   answers a 405 there saying so.
 - **One format.** Every FHIR route answers `application/fhir+json`. A request
   whose `Accept` rules JSON out is answered 406 rather than sent a body it said
-  it could not read.
+  it could not read. R4's `_format=json` overrides the header, so any query is
+  a link a browser can open.
 - **The store is a snapshot.** Restart to serve regenerated state.
 - **The server never writes to DHIS2.** A capture is a receipt and nothing
   more. Writing to the instance is [`d2w fhir forward`](201-forward.md).

@@ -214,7 +214,7 @@ function AttributeSection({
             {rows.length === 0 ? (
                 <p className="text-muted-foreground rounded-lg border px-4 py-6 text-sm">{empty}</p>
             ) : (
-                <div className="show-scrollbars overflow-x-auto md:overflow-x-visible rounded-lg border">
+                <div className="show-scrollbars overflow-x-auto rounded-lg border">
                     <Table>
                         <TableHeader>
                             <TableRow>

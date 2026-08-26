@@ -194,6 +194,7 @@ from dhis2w_fhir_serve.register.projection import attribute_values, registered_e
 from dhis2w_fhir_serve.register.surface import RegisterSurface
 from dhis2w_fhir_serve.register.wire import fetch_tracked_entity, upstream_refusal_text
 from dhis2w_fhir_serve.routes.context import projection_store, serve_context
+from dhis2w_fhir_serve.routes.negotiation import FORMAT_PARAMETER
 from dhis2w_fhir_serve.routes.read import (
     HonoredParameter,
     alternatives,
@@ -348,12 +349,16 @@ def _require_answerable_parameters(
     `d2-attribute` is answered on every register for the same reason and on both backends alike: an
     exact-match tracker filter is precisely what it asks for, so the backend that cannot answer
     `_content` answers this one natively.
+
+    `_format` is passed over rather than listed: it names the format the answer comes back in, not a
+    row the answer is narrowed to, and the negotiation has already settled it. Listing it among the
+    parameters a register answers would offer it as a search it is not.
     """
     answerable = {IDENTIFIER_SEARCH_PARAMETER, TAG_SEARCH_PARAMETER, ATTRIBUTE_FILTER_PARAMETER, COUNT_PARAMETER}
     if lookup.from_projection():
         answerable.add(CONTENT_SEARCH_PARAMETER)
     for name in request.query_params:
-        if name in answerable:
+        if name in answerable or name == FORMAT_PARAMETER:
             continue
         if name == PAGE_PARAMETER:
             if not searching:

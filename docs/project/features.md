@@ -1641,6 +1641,12 @@ bound to loopback by default that loads the project once at startup.
   `/spool`, `/uiconfig`, `/evaluate`, `/terminology/*`, and `/cds-services`
   negotiate nothing. `POST /` is a 405 saying the facade runs no batch and no
   transaction.
+- **`_format` as R4 defines it.** `_format=json`, `_format=application/json`,
+  and `_format=application/fhir+json` - in any casing - make JSON acceptable
+  whatever the `Accept` header said, so any FHIR query is a link a browser can
+  open. Any other value is a 406 naming the three spellings, even where the
+  header would have admitted JSON. It narrows no search: a route that screens
+  its search parameters passes over it.
 
 #### Evaluating, terminology, and CDS Hooks
 
@@ -2237,6 +2243,17 @@ TypeScript + Tailwind v4 + shadcn/ui app under
 `packages/dhis2w-fhir-serve/frontend/`, built into the Python package and
 shipped inside the wheel.
 
+- **Every screen names the query behind it.** A screen that reads a resource
+  carries a small **API** chip beside its heading, linking the FHIR query it is
+  a rendering of - `/metadata` on Server, `/Questionnaire` on Forms,
+  `/Questionnaire/{id}` on a form, the active tab's type on Terminology,
+  `/QuestionnaireResponse/{id}` on a receipt, `/Location/{id}` on an
+  organisation unit, `/{resourceType}/{uid}` on a tracked entity. The register's
+  chip carries the live query, filters and all, so it opens what the table is
+  the answer to. Each link carries `_format=json` and opens in a new tab, so it
+  answers in the server's own format rather than meeting the 406 a browser's
+  `Accept` would earn. Evaluate carries none: `$evaluate` is a POST.
+
 #### Signing in
 
 - **The shell reads the posture off `/metadata` before it draws a page**, because
@@ -2804,7 +2821,7 @@ an identifier search and a paged listing on one page, with a detail route at
 #### Settings, and the keys
 
 - **One gear at the foot of the sidebar** holds both appearance controls - the
-  five themes under **Theme**, the light or dark ground under **Mode** - and a
+  seven themes under **Theme**, the light or dark ground under **Mode** - and a
   way into the list of shortcuts. The header keeps the collapse control, the
   page's name, who is signed in, and the server light, and carries neither
   appearance control. Collapsed to icons the gear stays where it is, with the
@@ -2845,13 +2862,13 @@ an identifier search and a paged listing on one page, with a detail route at
   sibling by specificity rather than by source order. A unit test reads
   `index.css` and fails a theme that leaves a token behind; a Playwright case
   paints every token pair into a canvas and puts it through the WCAG contrast
-  formula, on all five themes and both grounds.
+  formula, on every theme and both grounds.
 - **Geometry is not a theme axis**: no theme redeclares `--radius`, so the whole
   surface still rescales from one number.
 - **Terminal moves one status colour and says so**: its identity is the phosphor
   green, so `forwarded` and `completed` become a cyan rather than share the
   identity's hue with `received`. Every other theme keeps the lifecycle colours
-  unchanged, and `--map-selection` stays an amber pair in all five so a selected
+  unchanged, and `--map-selection` stays a second hue category from every identity so a selected
   organisation unit is never a stronger shade of the wash beneath it.
 - **The organisation-unit map follows both axes.** It watches `<html>` for the
   class and the attribute, and rebuilds its layers from the tokens on either -

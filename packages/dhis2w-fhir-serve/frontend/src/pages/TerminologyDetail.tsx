@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ChevronRight, Search } from 'lucide-react'
 
+import { ApiLink } from '@/components/ApiLink'
 import { CodeLookupSheet } from '@/components/CodeLookupSheet'
 import { IdentifierBadges } from '@/components/IdentifierBadges'
 import { DomainBadge, MachineBadge } from '@/components/KindBadge'
@@ -118,6 +119,7 @@ function TerminologyResource({
                     <Badge variant="outline" className="machine-identifier text-[10px]">
                         {resourceId}
                     </Badge>
+                    <ApiLink path={`/${resourceType}/${resourceId}`} />
                 </div>
             </div>
 

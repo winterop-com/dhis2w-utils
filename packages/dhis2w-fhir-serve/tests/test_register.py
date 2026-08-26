@@ -424,6 +424,27 @@ async def test_an_unanswerable_parameter_beside_an_identifier_is_refused_too(
     assert "`birthdate`" in response.json()["issue"][0]["diagnostics"]
 
 
+async def test_a_format_is_not_a_search_parameter_the_register_screens(live_client: httpx.AsyncClient) -> None:
+    """`_format` names the format the searchset comes back in, so it narrows the search by nothing."""
+    _read_route(None, _NATIONAL_ID)
+    _search_route(_entity())
+
+    response = await live_client.get(f"/Patient?identifier={_NATIONAL_ID}&_format=json")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+
+
+async def test_a_format_is_not_offered_as_something_the_register_searches_on(live_client: httpx.AsyncClient) -> None:
+    """The refusal lists the searches a register runs, and the format the answer arrives in is not one."""
+    _read_route(None, "NOBODY00001")
+    _search_route()
+
+    response = await live_client.get("/Patient?family=Smith")
+
+    assert "_format" not in response.json()["issue"][0]["diagnostics"]
+
+
 async def test_a_page_named_on_an_identifier_search_is_refused(live_client: httpx.AsyncClient) -> None:
     """`page` walks the listing; a search naming an identifier is answered whole, so the two do not combine."""
     _read_route(None, _NATIONAL_ID)

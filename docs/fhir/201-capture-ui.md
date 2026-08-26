@@ -29,7 +29,7 @@ a checkout needs `make build-frontend` once.
 - follow a receipt's lifecycle from the browser while `d2w fhir forward`
   runs in a terminal
 - reach any page, form, or receipt from the command palette on Cmd+K, see every
-  key the app answers with `?`, and pick which of the five themes the screens are
+  key the app answers with `?`, and pick which of the seven themes the screens are
   painted in
 
 ## Serve it
@@ -711,6 +711,31 @@ same rendering paints the JSON results underneath, the receipt page's **Raw
 QuestionnaireResponse**, and the Server page's **Raw CapabilityStatement**, in
 whichever theme and on whichever ground the header is set to.
 
+## The query behind every screen
+
+**Every screen that reads a resource names the query it read, and the name is a
+link.** It sits beside the page's own heading - a small **API** chip with an
+arrow on it - and it opens the server's answer in a new tab, in the format the
+server publishes. Server opens `/metadata`, Forms opens `/Questionnaire`, a form
+opens `/Questionnaire/{id}`, Terminology opens the tab you are on, a receipt
+opens `/QuestionnaireResponse/{id}`, an organisation unit opens `/Location/{id}`.
+
+The register's chip is the interesting one: it carries whatever the page is
+currently narrowed by - the value typed in the box, the tracked entity type
+chosen, the attribute filter - so the link always opens the query the table on
+screen is the answer to, rather than the bare route.
+
+Every one of those links carries `_format=json`, which is R4's way of asking a
+server for its format from a place that cannot set an `Accept` header. Without
+it a browser following the link would be refused with a 406, because the FHIR
+surface answers `application/fhir+json` and a browser asks for markup. See
+[`Accept` and the service base](401-consume-the-fhir-api.md#accept-and-the-service-base).
+
+This is what the UI is for as much as capture is. The facade exists to be
+integrated against, and an integrator reading a page here can copy the query
+behind it into their own client without reconstructing it from documentation.
+Evaluate carries no chip: `$evaluate` is a POST, and there is no URL to open.
+
 ## Getting anywhere: Cmd+K
 
 **Cmd+K** on a Mac, **Ctrl+K** everywhere else, opens a command palette over
@@ -731,7 +756,7 @@ thing for anyone who was never told about the chord. Type, and it narrows:
   Person** (or in whatever this instance calls what it tracks), which opens the
   register with that identifier value already searched for. The search rides the
   address, `#/tracked-entities?q=...`, so the result is a link you can send.
-- **Appearance** - the five themes below, and the switch between the light
+- **Appearance** - the seven themes below, and the switch between the light
   ground and the dark one.
 - **View** - **Collapse the navigation**, or **Expand the navigation** when it already is.
 - **Help** - **Keyboard shortcuts**, the same list `?` puts up.

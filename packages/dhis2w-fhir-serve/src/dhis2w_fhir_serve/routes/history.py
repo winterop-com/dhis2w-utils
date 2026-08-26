@@ -86,6 +86,7 @@ from dhis2w_fhir_serve.passthrough import RegisterReader, register_reader
 from dhis2w_fhir_serve.register.wire import upstream_refusal_text
 from dhis2w_fhir_serve.routes.capture import capture_state
 from dhis2w_fhir_serve.routes.context import serve_context
+from dhis2w_fhir_serve.routes.negotiation import FORMAT_PARAMETER
 from dhis2w_fhir_serve.routes.read import base_url, requested_entry_cap
 from dhis2w_fhir_serve.spool import COUNT_PARAMETER, PAGE_PARAMETER, SpoolCursor, requested_cursor
 
@@ -219,9 +220,13 @@ def _projection(request: Request) -> RecordProjection:
 
 
 def _require_answerable_parameters(request: Request) -> None:
-    """Refuse a record read naming a parameter this surface cannot apply to it."""
+    """Refuse a record read naming a parameter this surface cannot apply to it.
+
+    `_format` is passed over: it names the format the record comes back in, which the negotiation
+    settled before this ran, and it narrows the record by nothing.
+    """
     for name in request.query_params:
-        if name not in ANSWERED_PARAMETERS:
+        if name not in ANSWERED_PARAMETERS and name != FORMAT_PARAMETER:
             raise UnsupportedSearchParameterError(EVENTS_SURFACE_NAME, name, ANSWERED_PARAMETERS)
 
 

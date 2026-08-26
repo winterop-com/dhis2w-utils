@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Inbox, TriangleAlert, Undo2 } from 'lucide-react'
 
+import { apiHref } from '@/components/ApiLink'
 import { PageState } from '@/components/PageState'
 import { ProseText } from '@/components/ProseText'
 import { MachineBadge } from '@/components/KindBadge'
@@ -117,8 +118,20 @@ export function ReceiptSections({ record }: { record: ReceiptRecordState }) {
 
                     <p className="text-muted-foreground flex items-start gap-2 text-xs">
                         <Inbox className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                        The full resource reads back verbatim at{' '}
-                        <code className="font-mono">GET /QuestionnaireResponse/{record.responseId}</code>
+                        <span>
+                            The full resource reads back verbatim at{' '}
+                            {/* The sentence already named the query; this makes the claim one a
+                                reader can check without leaving the receipt to type it out. */}
+                            <a
+                                className="interactive-link font-mono"
+                                href={apiHref(`/QuestionnaireResponse/${record.responseId}`)}
+                                target="_blank"
+                                rel="noreferrer"
+                                data-testid="api-link"
+                            >
+                                GET /QuestionnaireResponse/{record.responseId}
+                            </a>
+                        </span>
                     </p>
                 </div>
             )}
@@ -277,7 +290,7 @@ function AnswersSection({
                         : 'This receipt carries no answers at all - an empty submission the validator accepted for its context alone.'}
                 </p>
             ) : (
-                <div className="show-scrollbars bg-card overflow-x-auto md:overflow-x-visible rounded-lg border">
+                <div className="show-scrollbars bg-card overflow-x-auto rounded-lg border">
                     <Table>
                         <TableHeader>
                             <TableRow>

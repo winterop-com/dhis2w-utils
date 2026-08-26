@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 
+import { ApiLink } from '@/components/ApiLink'
 import { RawResourceSheet } from '@/components/RawResourceSheet'
 import { TrackedEntitySections } from '@/components/TrackedEntitySections'
 import { Badge } from '@/components/ui/badge'
@@ -107,6 +108,7 @@ function TrackedEntityQuickView({
                             <ArrowUpRight className="size-4" aria-hidden />
                         </Link>
                     </Button>
+                    <ApiLink path={`/${opened.resourceType}/${opened.trackedEntityUid}`} />
                 </div>
             </SheetHeader>
             <SheetBody>

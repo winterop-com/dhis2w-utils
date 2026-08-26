@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 import { CodeBlock } from '@/components/CodeEditor'
+import { ApiLink } from '@/components/ApiLink'
 import { PageHeader, PageState } from '@/components/PageState'
 import { ProseText } from '@/components/ProseText'
 import { Badge } from '@/components/ui/badge'
@@ -98,6 +99,7 @@ export function Server() {
             <PageHeader
                 title="Server"
                 description="The CapabilityStatement this server publishes at /metadata. It is the server's whole contract: there is no OpenAPI document."
+                aside={<ApiLink path="/metadata" />}
             />
             <PageState
                 loading={checking && capability === null}

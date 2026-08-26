@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Eraser, Send, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { ApiLink } from '@/components/ApiLink'
 import { AttributeOptionComboPicker } from '@/components/AttributeOptionComboPicker'
 import { EnrollmentPicker, type EnrollmentSource } from '@/components/EnrollmentPicker'
 import { OrgUnitScopeProvider } from '@/components/OrgUnitPicker'
@@ -1144,6 +1145,9 @@ function FormFillHeader({
                         {questions} question{questions === 1 ? '' : 's'}
                     </span>
                 )}
+                {/* The form itself, as the server publishes it - which is the resource this whole
+                    page is one rendering of. */}
+                <ApiLink path={`/Questionnaire/${questionnaireId}`} />
             </div>
             {questionnaire?.description !== undefined && (
                 <p className="text-muted-foreground text-sm">{questionnaire.description}</p>
