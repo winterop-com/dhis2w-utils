@@ -2803,8 +2803,9 @@ an identifier search and a paged listing on one page, with a detail route at
 
 #### Settings, and the keys
 
-- **One gear at the foot of the sidebar** holds both appearance controls - the
-  five themes under **Theme**, the light or dark ground under **Mode** - and a
+- **One gear at the foot of the sidebar** holds the appearance control - the
+  light or dark ground under **Mode**; the **Theme** section returns when a
+  second designed theme lands - and a
   way into the list of shortcuts. The header keeps the collapse control, the
   page's name, who is signed in, and the server light, and carries neither
   appearance control. Collapsed to icons the gear stays where it is, with the
@@ -2845,7 +2846,7 @@ an identifier search and a paged listing on one page, with a detail route at
   sibling by specificity rather than by source order. A unit test reads
   `index.css` and fails a theme that leaves a token behind; a Playwright case
   paints every token pair into a canvas and puts it through the WCAG contrast
-  formula, on all five themes and both grounds.
+  formula, on every theme and both grounds.
 - **Geometry is not a theme axis**: no theme redeclares `--radius`, so the whole
   surface still rescales from one number.
 - **Terminal moves one status colour and says so**: its identity is the phosphor

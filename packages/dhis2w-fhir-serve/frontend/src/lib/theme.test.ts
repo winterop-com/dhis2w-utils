@@ -86,8 +86,10 @@ afterEach(() => {
 })
 
 describe('the themes this app has', () => {
-    it('offers five, each with a name, a label, and a line about what it looks like', () => {
-        expect(THEMES).toHaveLength(5)
+    it('offers one, with a name, a label, and a line about what it looks like', () => {
+        // One today; designed themes are planned, and each lands as a row here plus a block pair
+        // in index.css. Every row must carry all three fields whatever the count.
+        expect(THEMES).toHaveLength(1)
         for (const theme of THEMES) {
             expect(theme.name).toMatch(/^[a-z]+$/)
             expect(theme.label.length).toBeGreaterThan(0)
@@ -133,7 +135,7 @@ describe('reading a name', () => {
     })
 
     it('reads a name it has as that theme', () => {
-        expect(themeByName('terminal').label).toBe('Terminal')
+        expect(themeByName('clinical').label).toBe('Clinical')
     })
 })
 
@@ -143,8 +145,14 @@ describe('what this browser last chose', () => {
     })
 
     it('is what was stored, when what was stored is a theme this app has', () => {
+        localStorage.setItem(THEME_STORAGE_KEY, 'clinical')
+        expect(storedThemeName()).toBe('clinical')
+    })
+
+    it('is the default when what was stored is a theme a past build had', () => {
+        // The five-theme era stored names like this one; a leftover value is not worth a screen.
         localStorage.setItem(THEME_STORAGE_KEY, 'paper')
-        expect(storedThemeName()).toBe('paper')
+        expect(storedThemeName()).toBe(DEFAULT_THEME_NAME)
     })
 
     it('is the default when what was stored is not a theme this app has', () => {
@@ -155,10 +163,10 @@ describe('what this browser last chose', () => {
 
 describe('choosing one', () => {
     it('persists it, paints it, and reports it', () => {
-        chooseTheme('indigo')
-        expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('indigo')
-        expect(written).toEqual([{ attribute: THEME_ATTRIBUTE, value: 'indigo' }])
-        expect(themeSnapshot()).toBe('indigo')
+        chooseTheme('clinical')
+        expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('clinical')
+        expect(written).toEqual([{ attribute: THEME_ATTRIBUTE, value: 'clinical' }])
+        expect(themeSnapshot()).toBe('clinical')
     })
 
     it('falls back to the default for a name this app does not have, and stores that', () => {
@@ -174,17 +182,17 @@ describe('choosing one', () => {
         const stop = subscribeToTheme(() => {
             told += 1
         })
-        chooseTheme('terminal')
-        chooseTheme('paper')
+        chooseTheme('clinical')
+        chooseTheme('clinical')
         stop()
-        chooseTheme('contrast')
+        chooseTheme('clinical')
         expect(told).toBe(2)
     })
 
     it('brings the store into step with what was stored, on mount', () => {
-        localStorage.setItem(THEME_STORAGE_KEY, 'contrast')
-        expect(initialiseTheme()).toBe('contrast')
-        expect(themeSnapshot()).toBe('contrast')
+        localStorage.setItem(THEME_STORAGE_KEY, 'clinical')
+        expect(initialiseTheme()).toBe('clinical')
+        expect(themeSnapshot()).toBe('clinical')
     })
 })
 
