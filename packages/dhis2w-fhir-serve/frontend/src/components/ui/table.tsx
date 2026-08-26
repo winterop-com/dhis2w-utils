@@ -10,9 +10,16 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     // bands floating on whatever happens to be behind them: an unstriped row is
     // the card, the zebra is a step off it, and the header is two. A table
     // already inside a Card gets the same surface it had.
+    //
+    // The horizontal scroll lives below `md` only. A scroll container on any
+    // axis traps `position: sticky`, and the sticky header cells below stick
+    // to the page's own scroller - so on wider screens, where the tables fit,
+    // this container must not be one. A page whose table genuinely overflows
+    // a desktop keeps its own `overflow-x-auto` wrapper and forgoes the
+    // sticky header there.
     <div
       data-slot="table-container"
-      className="bg-card relative w-full overflow-x-auto"
+      className="bg-card relative w-full overflow-x-auto md:overflow-x-visible"
     >
       <table
         data-slot="table"
@@ -25,9 +32,20 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
 
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
+    // The header cells are sticky so the column meanings stay while a long
+    // listing scrolls under them. Sticky sits on the cells rather than the
+    // thead (per-cell sticking is the reliable form across engines), each
+    // cell paints its own opaque ground because a stuck cell travels away
+    // from the thead's, and the bottom rule is an inset shadow because a
+    // collapsed border stays behind in the row flow. Inside a scroll
+    // container - a sheet's table, a page that kept `overflow-x-auto` - the
+    // cells simply never stick, and nothing else changes.
     <thead
       data-slot="table-header"
-      className={cn("bg-table-head [&_tr]:border-b", className)}
+      className={cn(
+        "bg-table-head [&_tr]:border-b [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-table-head [&_th]:shadow-[inset_0_-1px_0_var(--border)]",
+        className
+      )}
       {...props}
     />
   )

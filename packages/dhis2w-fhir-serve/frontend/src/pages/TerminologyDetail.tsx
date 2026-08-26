@@ -236,7 +236,7 @@ function CodeSystemDetail({ codeSystem }: { codeSystem: CodeSystem }) {
                     </p>
                 ) : (
                     <>
-                        <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                        <div className="show-scrollbars overflow-x-auto md:overflow-x-visible rounded-lg border">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -557,7 +557,7 @@ function ValueSetDetail({ valueSet }: { valueSet: ValueSet }) {
                             : nothingMatchesMessage(query)
                     }
                 >
-                    <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                    <div className="show-scrollbars overflow-x-auto md:overflow-x-visible rounded-lg border">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -703,7 +703,7 @@ function MappingGroup({
                 </p>
             ) : (
                 <>
-                    <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                    <div className="show-scrollbars overflow-x-auto md:overflow-x-visible rounded-lg border">
                         <Table>
                             <TableHeader>
                                 <TableRow>

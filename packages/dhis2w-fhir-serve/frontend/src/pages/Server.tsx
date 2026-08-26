@@ -21,10 +21,16 @@ import { useUiConfig } from '@/hooks/use-ui-config'
 import {
     declaredOperations,
     type CapabilityStatement,
+    type CapabilityStatementResource,
     type CapabilityStatementSearchParam,
 } from '@/lib/fhir'
-import { authSettings } from '@/lib/uiconfig'
-import { cn, countedNoun } from '@/lib/utils'
+import {
+    authSettings,
+    registerFilterAttributes,
+    trackedEntitySettings,
+    type FilterAttribute,
+} from '@/lib/uiconfig'
+import { countedNoun } from '@/lib/utils'
 
 /** What each posture is called on this page. Name the fact, not the config value. */
 const AUTHENTICATION_LABELS: Record<string, string> = {
@@ -73,7 +79,10 @@ export function Server() {
     const operations = declaredOperations(capability)
     // The posture comes off `/uiconfig` rather than off the document above, because the scope is a
     // fact `/metadata` states only in prose - see `lib/uiconfig`.
-    const authentication = authSettings(useUiConfig().config)
+    const uiConfig = useUiConfig().config
+    const authentication = authSettings(uiConfig)
+    // The same attribute catalog the statement writes as prose, structured - see the register rows.
+    const registers = trackedEntitySettings(uiConfig).registers
 
     // The two tables under the identity card, counted. "Served" and "declared" are the words the
     // document itself uses, and the types counted here are the ones the REST block answers for -
@@ -163,7 +172,7 @@ export function Server() {
                                 This server declares no operations.
                             </p>
                         ) : (
-                            <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                            <div className="show-scrollbars overflow-x-auto md:overflow-x-visible rounded-lg border">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -216,7 +225,7 @@ export function Server() {
                                 different set.
                             </p>
                         </div>
-                        <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                        <div className="show-scrollbars overflow-x-auto md:overflow-x-visible rounded-lg border">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -227,46 +236,22 @@ export function Server() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {(rest?.resource ?? []).map((resource) => (
-                                        <Fragment key={resource.type}>
-                                            <TableRow
-                                                className={cn(resource.documentation !== undefined && 'border-b-0')}
-                                            >
-                                                <TableCell className="align-top font-medium">
-                                                    {resource.type}
-                                                </TableCell>
-                                                <TableCell className="align-top font-mono text-xs">
-                                                    {(resource.interaction ?? [])
-                                                        .map((interaction) => interaction.code)
-                                                        .join(', ') || '-'}
-                                                </TableCell>
-                                                <TableCell className="align-top">
-                                                    <SearchParameters
-                                                        parameters={resource.searchParam ?? []}
-                                                    />
-                                                </TableCell>
-                                                <TableCell className="align-top text-right font-mono text-xs">
-                                                    {resource.supportedProfile?.length ?? 0}
-                                                </TableCell>
-                                            </TableRow>
-                                            {/* The type's own paragraph is the one place a register
-                                                states which DHIS2 tracked entity types it serves
-                                                under this resource, so it is on the screen rather
-                                                than only in the raw document. It runs under its own
-                                                row instead of inside the type cell, because it is a
-                                                sentence and the cell above it is a name. */}
-                                            {resource.documentation !== undefined && (
-                                                <TableRow>
-                                                    <TableCell
-                                                        colSpan={4}
-                                                        className="text-muted-foreground max-w-prose px-2 pt-0 pb-2 text-xs whitespace-normal"
-                                                    >
-                                                        <ProseText text={resource.documentation} />
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </Fragment>
-                                    ))}
+                                    {(rest?.resource ?? []).map((resource) => {
+                                        const register = registers.find(
+                                            (candidate) => candidate.resource === resource.type,
+                                        )
+                                        return (
+                                            <ResourceRows
+                                                key={resource.type}
+                                                resource={resource}
+                                                attributes={
+                                                    register === undefined
+                                                        ? []
+                                                        : registerFilterAttributes(register)
+                                                }
+                                            />
+                                        )
+                                    })}
                                 </TableBody>
                             </Table>
                         </div>
@@ -283,28 +268,151 @@ export function Server() {
 const SERVICE_BASE_LABEL = 'The service base'
 
 /**
- * One type's search parameters, each with what the server wrote about it.
+ * One resource type's rows: the scannable line, and its contract unfolded on demand.
  *
- * WHY THE PARAGRAPH AND NOT JUST THE NAME. A name is not a contract: `d2-attribute` is a whole
- * grammar with an exact-match rule attached, and the server states that rule in the parameter's own
- * documentation. A page that printed the names alone sent a reader to the raw document to find out
- * what any of them takes - which is the one thing this page exists to save them.
+ * THE NAMES ARE AMBIENT, THE PROSE WAITS. A name is not a contract - `d2-attribute` is a whole
+ * grammar with an exact-match rule attached - but nine types each stating every parameter's whole
+ * paragraph is a page nobody can scan, and most of those paragraphs are the same sentence about the
+ * identifier token. So the row shows what a caller scans for - the type, the interactions, the
+ * parameter names - and the type's own paragraph with every parameter's contract unfolds under it,
+ * still saving the trip to the raw document without charging every reader for it.
  */
-function SearchParameters({ parameters }: { parameters: CapabilityStatementSearchParam[] }) {
-    if (parameters.length === 0) return <span className="font-mono text-xs">-</span>
+function ResourceRows({
+    resource,
+    attributes,
+}: {
+    resource: CapabilityStatementResource
+    /** The register's filterable attributes from /uiconfig, empty for a type that is no register. */
+    attributes: FilterAttribute[]
+}) {
+    const [unfolded, setUnfolded] = useState(false)
+    const parameters = resource.searchParam ?? []
     return (
-        <dl className="grid gap-1.5">
-            {parameters.map((parameter) => (
-                <div key={parameter.name} className="grid gap-0.5">
-                    <dt className="font-mono text-xs">{parameter.name}</dt>
-                    {parameter.documentation !== undefined && (
-                        <dd className="text-muted-foreground max-w-prose text-xs whitespace-normal">
-                            <ProseText text={parameter.documentation} />
-                        </dd>
+        <Fragment>
+            <TableRow className={unfolded ? 'border-b-0' : undefined}>
+                <TableCell className="align-top font-medium">
+                    {/* The button carries no label of its own, so the cell's accessible name stays
+                        the bare type - which is also what the tests find a row by. */}
+                    <button
+                        type="button"
+                        aria-expanded={unfolded}
+                        onClick={() => setUnfolded(!unfolded)}
+                        className="hover:text-foreground focus-visible:ring-ring/50 -mx-1 flex items-center gap-1 rounded px-1 focus-visible:ring-[3px] focus-visible:outline-none"
+                    >
+                        {unfolded ? (
+                            <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+                        ) : (
+                            <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+                        )}
+                        {resource.type}
+                    </button>
+                </TableCell>
+                <TableCell className="align-top font-mono text-xs">
+                    {(resource.interaction ?? []).map((interaction) => interaction.code).join(', ') || '-'}
+                </TableCell>
+                <TableCell className="align-top">
+                    {parameters.length === 0 ? (
+                        <span className="font-mono text-xs">-</span>
+                    ) : (
+                        <div className="flex flex-wrap gap-1">
+                            {parameters.map((parameter) => (
+                                <Badge key={parameter.name} variant="outline" className="font-mono text-[11px]">
+                                    {parameter.name}
+                                </Badge>
+                            ))}
+                        </div>
                     )}
-                </div>
-            ))}
-        </dl>
+                </TableCell>
+                <TableCell className="align-top text-right font-mono text-xs">
+                    {resource.supportedProfile?.length ?? 0}
+                </TableCell>
+            </TableRow>
+            {unfolded && (
+                <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={4} className="space-y-3 px-4 pt-0 pb-4 whitespace-normal">
+                        {resource.documentation !== undefined && (
+                            <p className="text-muted-foreground max-w-prose text-xs">
+                                <ProseText text={resource.documentation} />
+                            </p>
+                        )}
+                        {parameters.length > 0 && (
+                            <dl className="grid gap-2">
+                                {parameters.map((parameter) => (
+                                    <div key={parameter.name} className="grid gap-0.5">
+                                        <dt className="font-mono text-xs font-medium">{parameter.name}</dt>
+                                        <dd className="text-muted-foreground max-w-prose text-xs">
+                                            <ParameterDocumentation
+                                                parameter={parameter}
+                                                attributes={attributes}
+                                            />
+                                        </dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        )}
+                    </TableCell>
+                </TableRow>
+            )}
+        </Fragment>
+    )
+}
+
+/**
+ * The sentence in `capability.py` that carries the attribute catalog, quoted to be found again.
+ *
+ * `_filter_documentation` writes the catalog into the parameter's prose because the raw document
+ * has to name the attributes - a UID is not something anybody guesses. This screen has the same
+ * catalog structured, from `/uiconfig`, so the sentence is cut where the enumeration starts and a
+ * table states it instead. A documentation string without the marker renders whole, so a wording
+ * change over there degrades this screen to prose rather than breaking it.
+ */
+const ATTRIBUTE_CATALOG_MARKER = ' The attributes it filters on are '
+
+/** One parameter's contract - its prose, with the attribute catalog as a table when it is one. */
+function ParameterDocumentation({
+    parameter,
+    attributes,
+}: {
+    parameter: CapabilityStatementSearchParam
+    attributes: FilterAttribute[]
+}) {
+    if (parameter.documentation === undefined) return <>-</>
+    const catalog = parameter.documentation.indexOf(ATTRIBUTE_CATALOG_MARKER)
+    if (catalog === -1 || attributes.length === 0) return <ProseText text={parameter.documentation} />
+    return (
+        <div className="space-y-2">
+            <ProseText text={parameter.documentation.slice(0, catalog)} />
+            <div className="show-scrollbars overflow-x-auto rounded-md border">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="h-8 text-xs">Attribute</TableHead>
+                            <TableHead className="h-8 text-xs">UID</TableHead>
+                            <TableHead className="h-8 text-xs">Values</TableHead>
+                            <TableHead className="h-8 text-xs">Value set</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {attributes.map((attribute) => (
+                            <TableRow key={attribute.uid}>
+                                <TableCell className="py-1.5 text-xs">
+                                    {attribute.name ?? attribute.uid}
+                                </TableCell>
+                                <TableCell className="py-1.5 font-mono text-[11px]">
+                                    {attribute.uid}
+                                </TableCell>
+                                <TableCell className="py-1.5 font-mono text-[11px]">
+                                    {attribute.value_type ?? '-'}
+                                </TableCell>
+                                <TableCell className="py-1.5 font-mono text-[11px] break-all">
+                                    {attribute.value_set ?? '-'}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
     )
 }
 
