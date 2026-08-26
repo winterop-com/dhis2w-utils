@@ -886,9 +886,9 @@ test.describe('the people this DHIS2 instance holds', () => {
         const row = page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID })
         await row.click()
 
-        // The listing keeps its address: reading a register is a scanning job, and opening a row
-        // used to cost the page, its filters, and the reader's place in it.
-        await expect(page).toHaveURL(/#\/tracked-entities$/)
+        // The address says which quick view is open, so a reload or a sent link opens on the same
+        // record - and shutting it gives the bare listing address back.
+        await expect(page).toHaveURL(/#\/tracked-entities\?open=Patient%3ATeiPerson01$/)
         const sheet = page.getByTestId('tracked-entity-sheet')
         // Headed by the value that names them, with the instance's own word for what they are.
         await expect(sheet.getByRole('heading', { name: NATIONAL_ID })).toBeVisible()
@@ -900,6 +900,7 @@ test.describe('the people this DHIS2 instance holds', () => {
 
         await page.keyboard.press('Escape')
         await expect(sheet).toHaveCount(0)
+        await expect(page).toHaveURL(/#\/tracked-entities$/)
         await expect(row).toBeFocused()
     })
 
@@ -914,11 +915,16 @@ test.describe('the people this DHIS2 instance holds', () => {
         await page.keyboard.press('Enter')
 
         await expect(page.getByTestId('tracked-entity-sheet')).toBeVisible()
-        // A record is a thing somebody links to, so the sheet carries the way to its own address
-        // rather than replacing it.
-        await page.getByRole('link', { name: 'Open the full page' }).click()
-        await expect(page).toHaveURL(new RegExp(`#/tracked-entities/Patient/${PERSON_UID}$`))
-        await expect(page.getByRole('heading', { name: NATIONAL_ID })).toBeVisible()
+        // A record is a thing somebody links to, so the sheet carries the way to its own address -
+        // opened in its own tab, keeping the listing and the reader's place. Asserted off the
+        // link itself rather than followed: this spec's server is a per-page mock, and a fresh tab
+        // would open against nothing.
+        const fullPageLink = page.getByRole('link', { name: 'Open the full page' })
+        await expect(fullPageLink).toHaveAttribute(
+            'href',
+            new RegExp(`#/tracked-entities/Patient/${PERSON_UID}$`),
+        )
+        await expect(fullPageLink).toHaveAttribute('target', '_blank')
     })
 
     test('keeps the search and asks for no listing at all when this run declines one', async ({ page }) => {

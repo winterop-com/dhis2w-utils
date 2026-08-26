@@ -162,11 +162,13 @@ export function paletteActions(input: PaletteInput): PaletteAction[] {
         ...pageActions(input.pages),
         ...formActions(input.forms),
         ...receiptActions(input.receipts, input.query),
-        ...registerActions(input.register, input.query),
         ...appearanceActions(input.dark, input.theme),
         ...viewActions(input.sidebarCollapsed),
         ...helpActions(),
         ...sessionActions(input.signedIn),
+        // Last, because it is the escape hatch: it matches whatever was typed by quoting it back,
+        // and a fallback that opens the list would bury what was actually asked for.
+        ...registerActions(input.register, input.query),
     ]
 }
 
@@ -493,6 +495,14 @@ export function paletteScore(action: PaletteAction, query: string): number {
     // else. Words that happen to spell part of one are not a match on it.
     const label = prose(action.label, action.identifier)
     const tokens = search.split(/\s+/).filter((token) => token !== '')
+    // The register lookup quotes the query inside its own label, so a label match on it says
+    // nothing - left to the ordinary rules it would tie every genuine match and surface first by
+    // build order. It is the palette's escape hatch, so it scores as one: under every real match,
+    // above nothing-at-all, lifted only by its own vocabulary ("search", "find", ...).
+    if (action.kind === SEARCH_KIND) {
+        const vocabulary = [action.kind, ...action.keywords].join(' ').toLowerCase()
+        return tokens.every((token) => vocabulary.includes(token)) ? 0.5 : 0.3
+    }
     if (label.startsWith(search)) return 0.9
     if (label !== '' && tokens.every((token) => wordsOf(label).some((word) => word.startsWith(token))))
         return 0.8

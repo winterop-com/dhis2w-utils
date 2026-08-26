@@ -9,20 +9,23 @@
  * run resolved - so the links exist exactly when the server knows which instance to point at, and
  * not at all when it does not.
  *
- * WHY THE MAINTENANCE APP. It is the one screen in DHIS2 that opens a single metadata object by uid
- * on a stable, bookmarkable route, and it has carried the same route on every major this toolchain
- * supports (v41, v42, v43). On 2.43 the app itself is served through the global shell - the path
- * below redirects to `/apps/maintenance` carrying its own fragment along - and shows a banner
- * pointing at the newer Metadata Management app, which has no by-uid route of its own to link to.
+ * WHY THE METADATA MANAGEMENT APP. It is the one screen in DHIS2 that opens a single metadata object
+ * by uid on a stable, bookmarkable route, and it is the app the platform now ships for the job: the
+ * older Maintenance app it replaces is no longer listed in `/api/apps` on 2.43 at all, and the
+ * screens still reachable there banner themselves as no longer maintained.
  *
- * THE ROUTE, VERIFIED AGAINST A RUNNING 2.43.1 INSTANCE, is
- * `{base}/dhis-web-maintenance/index.html#/edit/{section}/{type}/{uid}` - each of the four pairs
- * below opened the named object's own edit form.
+ * THE ROUTE, VERIFIED AGAINST A RUNNING 2.43.2 INSTANCE ON 2026-08-26, is
+ * `{base}/dhis-web-metadata-management/index.html#/{collection}/{uid}` - the collection is the
+ * plural the app's own menu uses, and each of the five below opened the named object's own edit
+ * form. The path redirects into the global shell as `/apps/metadata-management` carrying its own
+ * fragment along, and the app then appends whichever section it opens on - a data set arrives at
+ * `?section=setup`, a program at `?section=programDetails`, a program stage at `?section=stageSetup`
+ * - so the address sent is the shortest one that resolves, not the one the app settles on.
  *
- * WHY A PERSON GOES SOMEWHERE ELSE. A tracked entity is not metadata - Maintenance has no page for
- * one - so a person opens in the Capture app instead, on the enrollment dashboard that app is built
- * around. That is the one other link this module makes, and `captureEnrollmentUrl` argues its own
- * shape.
+ * WHY A PERSON GOES SOMEWHERE ELSE. A tracked entity is not metadata - the metadata screens have no
+ * page for one - so a person opens in the Capture app instead, on the enrollment dashboard that app
+ * is built around. That is the one other link this module makes, and `captureEnrollmentUrl` argues
+ * its own shape.
  *
  * Pure, like the rest of lib/: a base url, a kind, and a uid in; a string or null out. Null is what
  * every caller renders as "no link", which is the state a server with no resolved profile puts the
@@ -32,33 +35,33 @@
 import { formTypeOf, dataSetOf, programOf, programStageOf, type CodeSystem, type Questionnaire } from '@/lib/fhir'
 import type { PatientEnrollment } from '@/lib/patients'
 
-/** The Maintenance app's entry point, under a DHIS2 instance's base url. */
-export const MAINTENANCE_APP_PATH = '/dhis-web-maintenance/index.html'
+/** The Metadata Management app's entry point, under a DHIS2 instance's base url. */
+export const METADATA_MANAGEMENT_APP_PATH = '/dhis-web-metadata-management/index.html'
 
 /**
  * The Capture app's entry point, under a DHIS2 instance's base url.
  *
- * The legacy path rather than `/apps/capture`, and deliberately: on 2.43 this redirects into the
- * global shell carrying its own fragment along, which the shell then forwards into the app - so one
- * spelling works across the majors this toolchain supports, exactly as the Maintenance path does.
+ * The bundled-app path rather than `/apps/capture`, and deliberately: on 2.43 this redirects into
+ * the global shell carrying its own fragment along, which the shell then forwards into the app - so
+ * one spelling works across the majors this toolchain supports, as the metadata path does too.
  */
 export const CAPTURE_APP_PATH = '/dhis-web-capture/index.html'
 
-/** The kinds of DHIS2 object this UI holds a uid for and can open in Maintenance. */
+/** The kinds of DHIS2 object this UI holds a uid for and can open in Metadata Management. */
 export type MaintenanceObject = 'organisationUnit' | 'dataSet' | 'program' | 'programStage' | 'dataElement'
 
 /**
- * Which Maintenance section owns each kind.
+ * Which collection of the Metadata Management app owns each kind.
  *
- * A program stage is edited inside the program section rather than one of its own, which is the one
- * pair that does not read off the type's own name.
+ * Every one is the plural of the type's own name, including a program stage: the app edits a stage
+ * on a route of its own rather than inside the program that holds it.
  */
-const MAINTENANCE_SECTIONS: Record<MaintenanceObject, string> = {
-    organisationUnit: 'organisationUnitSection',
-    dataSet: 'dataSetSection',
-    program: 'programSection',
-    programStage: 'programSection',
-    dataElement: 'dataElementSection',
+const METADATA_MANAGEMENT_COLLECTIONS: Record<MaintenanceObject, string> = {
+    organisationUnit: 'organisationUnits',
+    dataSet: 'dataSets',
+    program: 'programs',
+    programStage: 'programStages',
+    dataElement: 'dataElements',
 }
 
 /** How each kind is named in the words of a link, so an accessible name says what it opens. */
@@ -81,7 +84,7 @@ export const MAINTENANCE_OBJECT_LABELS: Record<MaintenanceObject, string> = {
 export const DATA_ELEMENT_CODE_SYSTEM_ID_SUFFIX = 'de-cs'
 
 /**
- * One object's page in a DHIS2 instance's Maintenance app, or null when there is nothing to open.
+ * One object's page in a DHIS2 instance's Metadata Management app, or null when nothing to open.
  *
  * Null on a missing base url is the ordinary case rather than an error: a server that resolved no
  * profile states so, and every caller renders no link at all instead of a link that goes nowhere.
@@ -94,7 +97,7 @@ export function maintenanceUrl(
     if (baseUrl === null || baseUrl.trim() === '') return null
     if (uid === null || uid.trim() === '') return null
     const root = baseUrl.trim().replace(/\/+$/, '')
-    return `${root}${MAINTENANCE_APP_PATH}#/edit/${MAINTENANCE_SECTIONS[object]}/${object}/${uid.trim()}`
+    return `${root}${METADATA_MANAGEMENT_APP_PATH}#/${METADATA_MANAGEMENT_COLLECTIONS[object]}/${uid.trim()}`
 }
 
 /**

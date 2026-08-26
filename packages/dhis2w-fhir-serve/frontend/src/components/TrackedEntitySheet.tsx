@@ -3,6 +3,7 @@ import { ArrowUpRight } from 'lucide-react'
 
 import { TrackedEntitySections } from '@/components/TrackedEntitySections'
 import { Badge } from '@/components/ui/badge'
+import { TrackedEntityTypeBadge } from '@/components/KindBadge'
 import { Button } from '@/components/ui/button'
 import {
     Sheet,
@@ -12,7 +13,6 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet'
 import { useTrackedEntityRecord } from '@/hooks/use-tracked-entity-record'
-import { cn } from '@/lib/utils'
 
 /** What the sheet says nothing has been opened as, which is also what a shut sheet reads back as. */
 const NOTHING_OPENED = ''
@@ -85,14 +85,7 @@ function TrackedEntityQuickView({
                     unique - because the served projection carries no name to head it with. */}
                 <SheetTitle className="font-mono">{heading}</SheetTitle>
                 <div className="flex flex-wrap items-center gap-2">
-                    {type !== null && (
-                        <Badge
-                            variant="secondary"
-                            className={cn(type.isMachineSpelling && 'font-mono text-[10px]')}
-                        >
-                            {type.text}
-                        </Badge>
-                    )}
+                    {type !== null && <TrackedEntityTypeBadge name={type} />}
                     {/* Dropped when the heading is already the uid: a record headed by a tracked
                         entity uid - because this instance holds no unique value for whoever this is
                         - would otherwise state one string twice as though it were two facts. */}
@@ -101,8 +94,14 @@ function TrackedEntityQuickView({
                             {opened.trackedEntityUid}
                         </Badge>
                     )}
+                    {/* A new tab, as the arrow says: the full page is for keeping or sending, and
+                        taking the listing away to show it would cost the reader their place. */}
                     <Button asChild variant="outline" size="sm">
-                        <Link to={`/tracked-entities/${opened.resourceType}/${opened.trackedEntityUid}`}>
+                        <Link
+                            to={`/tracked-entities/${opened.resourceType}/${opened.trackedEntityUid}`}
+                            target="_blank"
+                            rel="noreferrer"
+                        >
                             Open the full page
                             <ArrowUpRight className="size-4" aria-hidden />
                         </Link>

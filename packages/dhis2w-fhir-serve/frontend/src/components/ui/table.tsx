@@ -23,7 +23,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn("bg-table-head [&_tr]:border-b", className)}
       {...props}
     />
   )
@@ -33,7 +33,12 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
       data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
+      className={cn(
+        // Hover lives here rather than on TableRow so only body rows answer the pointer - a header
+        // row is a label, and a label that lights up promises a click it cannot honour.
+        "[&_tr:last-child]:border-0 [&>tr]:even:not-hover:bg-table-zebra [&>tr]:hover:bg-[color-mix(in_oklab,var(--accent)_65%,transparent)] [&>tr]:has-aria-expanded:bg-[color-mix(in_oklab,var(--accent)_65%,transparent)]",
+        className
+      )}
       {...props}
     />
   )
@@ -57,7 +62,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        "border-b transition-colors data-[state=selected]:bg-muted",
         className
       )}
       {...props}

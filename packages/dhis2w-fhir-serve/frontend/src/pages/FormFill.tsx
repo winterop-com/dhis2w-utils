@@ -203,9 +203,11 @@ export function FormFill() {
     const [incidentDate, setIncidentDate] = useState<string | null>(null)
     const [reportingPeriodIso, setReportingPeriodIso] = useState<string | null>(null)
     const [dictionary, setDictionary] = useState<QuestionDictionary>(NO_DICTIONARY)
-    // The seed a fill draws from, and the seed the last fill drew - one box, because they are one
-    // fact: what is in it is what the next fill asks for, and a fill writes what it got back into it.
+    // The seed the last fill drew, or the seed a person asked for. One box, two directions: a fill
+    // writes the seed it got back so the draw can be reported and reproduced, but only a seed the
+    // person typed is a request - otherwise every fill after the first would replay the same draw.
     const [seed, setSeed] = useState('')
+    const [seedStated, setSeedStated] = useState(false)
     // Whether this server takes what is filled in here. A form on a server that receives nothing is
     // still worth opening and reading, so the page is the page it always was and only the Submit goes.
     const receivesSubmissions = capturesSubmissions(useUiConfig().config)
@@ -362,7 +364,7 @@ export function FormFill() {
         // would be a routing bug rather than a state a person can reach.
         if (filling || questionnaire === null) return
         setFilling(true)
-        generateResponse(questionnaireId, statedSeed(seed))
+        generateResponse(questionnaireId, seedStated ? statedSeed(seed) : undefined)
             .then((generated) => {
                 setEnvelope(generated)
                 setAttributeOptionCombo((current) => refilledAttributeOptionCombo(current, generated))
@@ -378,10 +380,11 @@ export function FormFill() {
                     answers: answersFromResponse(flattenQuestionnaire(questionnaire), generated),
                 })
                 setIssues([])
-                // The draw states which seed produced it, and the box holds that seed from here on:
-                // the same seed fills this form with the same answers, and it rides the submission,
-                // so a receipt somebody reports can be drawn again from what the box says.
+                // The draw states which seed produced it, and the box shows that seed as the draw's
+                // receipt: typing it back in (here or on another screen) reproduces the answers. A
+                // shown seed is not a request, so the next fill draws fresh.
                 setSeed(generateSeedOf(generated) ?? '')
+                setSeedStated(false)
                 toast.success('Filled with test data', {
                     description: 'Change anything you like before submitting.',
                 })
@@ -392,7 +395,7 @@ export function FormFill() {
                 })
             })
             .finally(() => setFilling(false))
-    }, [filling, questionnaire, questionnaireId, seed, clearStatedDates])
+    }, [filling, questionnaire, questionnaireId, seed, seedStated, clearStatedDates])
 
     // How far through the form this is, published before the read has landed so the hook order does
     // not depend on whether the server holds the form. `unansweredRequiredLinkIds` is asked again
@@ -670,7 +673,7 @@ export function FormFill() {
 
             {/* Sticky rather than fixed: it belongs to the form, so it scrolls with it on a
                 short one and pins itself over a long one. */}
-            <div className="bg-sidebar sticky bottom-0 z-10 mt-6 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 md:-mx-8 md:px-8">
+            <div className="bg-card sticky -bottom-6 z-10 mt-6 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 md:-mx-8 md:px-8">
                 <Button
                     type="submit"
                     disabled={
@@ -688,7 +691,13 @@ export function FormFill() {
                     <Sparkles className="size-4" />
                     {filling ? 'Filling' : 'Fill with test data'}
                 </Button>
-                <SeedField seed={seed} onChange={setSeed} />
+                <SeedField
+                    seed={seed}
+                    onChange={(typed) => {
+                        setSeed(typed)
+                        setSeedStated(typed.trim() !== '')
+                    }}
+                />
                 {/* The one control here whose reach is not obvious from its name: it empties what
                     was filled in and deliberately leaves two pieces of context standing, so the
                     tooltip states both halves rather than letting a person discover the second. */}
@@ -763,8 +772,8 @@ export function FormFill() {
  * A SEED IS ONLY WORTH SHOWING IF IT CAN BE SPENT AGAIN. `$generate` states which seed drew a
  * response, the same seed draws the same answers, and that is what makes a reported bug something
  * another person can put on their own screen. So the seed is a control rather than a line: a fill
- * writes the drawn seed into it, and the next fill asks for whatever it holds. Empty is the ordinary
- * case - the server draws a fresh one and says which.
+ * writes the drawn seed into it as the draw's receipt, and typing a seed asks the next fill for
+ * exactly that draw. A shown receipt is not a request - repeated fills draw fresh each time.
  */
 function SeedField({ seed, onChange }: { seed: string; onChange: (seed: string) => void }) {
     return (
@@ -780,8 +789,8 @@ function SeedField({ seed, onChange }: { seed: string; onChange: (seed: string) 
                 />
             </TooltipTrigger>
             <TooltipContent side="top">
-                The same seed fills this form with the same answers, and rides the submission, so a
-                receipt says which draw it came from. Empty draws a fresh one.
+                Each fill draws fresh test data and shows the seed it drew. Type a seed to fill this
+                form with that draw's answers again.
             </TooltipContent>
         </Tooltip>
     )

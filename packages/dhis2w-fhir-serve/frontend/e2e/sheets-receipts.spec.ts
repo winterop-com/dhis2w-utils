@@ -72,17 +72,26 @@ test('the quick view and the page it links to are one reading of one receipt', a
     await page.getByRole('row').filter({ hasText: receiptId }).click()
 
     const sheet = page.getByTestId('receipt-sheet')
-    // The form the receipt answers is what heads it, and the raw document is under it here as it is
-    // on the page - the escape hatch that makes the rest of either honest.
+    // The form the receipt answers is what heads it, and the raw document waits behind a button at
+    // the panel's foot - the escape hatch that makes the rest honest.
     await expect(sheet.getByRole('link', { name: 'Child Health' })).toBeVisible()
     await sheet.getByRole('button', { name: 'Raw QuestionnaireResponse' }).click()
     await expect(page.getByTestId('raw-questionnaire-response')).toContainText(
         '"resourceType": "QuestionnaireResponse"',
     )
+    await page.keyboard.press('Escape')
 
+    // The address carries the open quick view, so a reload - or the same address sent to somebody
+    // else - lands with the panel already open on the same receipt.
+    await expect(page).toHaveURL(new RegExp(`#/responses\\?open=${receiptId}$`))
+    await page.reload()
+    await expect(page.getByTestId('receipt-sheet').getByRole('link', { name: 'Child Health' })).toBeVisible()
+
+    const fullPageOpened = page.context().waitForEvent('page')
     await page.getByRole('link', { name: 'Open the full page' }).click()
-    await expect(page).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
-    await expect(page.getByRole('heading', { name: 'Child Health', level: 2 })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Capture context' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Answers' })).toBeVisible()
+    const fullPage = await fullPageOpened
+    await expect(fullPage).toHaveURL(new RegExp(`#/responses/${receiptId}$`))
+    await expect(fullPage.getByRole('heading', { name: 'Child Health', level: 2 })).toBeVisible()
+    await expect(fullPage.getByRole('heading', { name: 'Capture context' })).toBeVisible()
+    await expect(fullPage.getByRole('heading', { name: 'Answers' })).toBeVisible()
 })

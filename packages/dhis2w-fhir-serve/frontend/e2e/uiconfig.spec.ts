@@ -111,11 +111,11 @@ test('an identity links into the instance the server resolved a profile for', as
 
     // The organisation unit itself, from the rail header that names it.
     const unit = page.getByRole('link', {
-        name: "Open the organisation unit Ngelehun CHC in this DHIS2 instance's Maintenance app",
+        name: "Open the organisation unit Ngelehun CHC in this DHIS2 instance's Metadata Management app",
     })
     await expect(unit).toHaveAttribute(
         'href',
-        `${INSTANCE}/dhis-web-maintenance/index.html#/edit/organisationUnitSection/organisationUnit/DiszpKrYNg8`,
+        `${INSTANCE}/dhis-web-metadata-management/index.html#/organisationUnits/DiszpKrYNg8`,
     )
     // Opened elsewhere, and with no handle back to this page.
     await expect(unit).toHaveAttribute('target', '_blank')
@@ -123,13 +123,12 @@ test('an identity links into the instance the server resolved a profile for', as
 
     // And the forms shelved at that unit: a data set links to its data set, a stage to its stage.
     const shelf = page.getByTestId('org-unit-forms')
-    await expect(shelf.getByRole('link', { name: /Open the data set .* Maintenance app/ }).first()).toHaveAttribute(
-        'href',
-        /#\/edit\/dataSetSection\/dataSet\/[A-Za-z0-9]+$/,
-    )
     await expect(
-        shelf.getByRole('link', { name: /Open the program stage .* Maintenance app/ }).first(),
-    ).toHaveAttribute('href', /#\/edit\/programSection\/programStage\/[A-Za-z0-9]+$/)
+        shelf.getByRole('link', { name: /Open the data set .* Metadata Management app/ }).first(),
+    ).toHaveAttribute('href', /#\/dataSets\/[A-Za-z0-9]+$/)
+    await expect(
+        shelf.getByRole('link', { name: /Open the program stage .* Metadata Management app/ }).first(),
+    ).toHaveAttribute('href', /#\/programStages\/[A-Za-z0-9]+$/)
 })
 
 test('a data element concept row opens the data element it is the uid of', async ({ page }) => {
@@ -140,7 +139,7 @@ test('a data element concept row opens the data element it is the uid of', async
     const row = page.getByRole('row').filter({ hasText: 'DeAncDanger' })
     await expect(row.getByRole('link')).toHaveAttribute(
         'href',
-        `${INSTANCE}/dhis-web-maintenance/index.html#/edit/dataElementSection/dataElement/DeAncDanger`,
+        `${INSTANCE}/dhis-web-metadata-management/index.html#/dataElements/DeAncDanger`,
     )
 })
 

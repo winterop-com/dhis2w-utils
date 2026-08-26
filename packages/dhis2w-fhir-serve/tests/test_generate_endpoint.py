@@ -787,14 +787,20 @@ async def test_a_format_constrained_answer_is_spelled_the_way_its_dhis2_value_ty
     assert posted == 201
 
 
-async def test_a_free_text_answer_still_names_the_question_it_answers(
+async def test_a_free_text_answer_is_a_seeded_word_behind_an_example_prefix(
     capture_project: FhirProject,
     write_resource: Callable[[Path, dict[str, Any]], None],
 ) -> None:
-    """Free text is what DHIS2 stores for a TEXT question, so naming the question is an honest answer to it."""
+    """Free text has no shape to draw, so the draw is a seeded word - varying per seed, marked synthetic."""
     response, _ = await _generated_wide_response(capture_project, write_resource, seed=5)
+    repeated, _ = await _generated_wide_response(capture_project, write_resource, seed=5)
+    other, _ = await _generated_wide_response(capture_project, write_resource, seed=6)
 
-    assert _answered_strings(response)["DeFreeText1"] == "Example DeFreeText1"
+    drawn = _answered_strings(response)["DeFreeText1"]
+
+    assert drawn.startswith("Example ")
+    assert drawn == _answered_strings(repeated)["DeFreeText1"]
+    assert drawn != _answered_strings(other)["DeFreeText1"]
 
 
 async def test_a_value_type_holding_a_document_or_a_dhis2_reference_is_left_unanswered(

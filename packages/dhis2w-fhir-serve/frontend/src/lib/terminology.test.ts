@@ -20,6 +20,7 @@ import {
     conceptPropertyCoding,
     conceptPropertyCodingLink,
     conceptPropertyColumns,
+    conceptPropertyTreatment,
     conceptPropertyValue,
     declaredColumnLabel,
     enumeratedConceptCount,
@@ -127,6 +128,37 @@ describe('concept property columns', () => {
 
     it('answers nothing for a system with no properties at all', () => {
         expect(conceptPropertyColumns({ resourceType: 'CodeSystem', status: 'draft' })).toEqual([])
+    })
+})
+
+/**
+ * Which property columns hold a value out of a small fixed set.
+ *
+ * KEYED ON THE PROPERTY CODE, WHICH IS THE PART THE SERVED DOCUMENT GUARANTEES. `d2-de-cs` declares
+ * `domain` and `value-type` with their own `uri` and a type of `code`; nothing guarantees a value
+ * anywhere else in the guide will not read like one of theirs, and a category option named
+ * "Aggregate" must not turn into a tinted chip because a string matched.
+ */
+describe('the treatment a concept property column wears', () => {
+    it('chips the two columns whose values come out of a fixed set', () => {
+        expect(conceptPropertyTreatment('domain')).toBe('domain')
+        expect(conceptPropertyTreatment('value-type')).toBe('value-type')
+    })
+
+    it('leaves every other property of the generated systems plain', () => {
+        for (const code of ['dhis2-code', 'unique', 'searchable', 'generated', 'pattern', 'display-in-list']) {
+            expect(conceptPropertyTreatment(code), code).toBe('plain')
+        }
+    })
+
+    it('leaves a per-object column plain, whatever the object is called', () => {
+        expect(conceptPropertyTreatment('category-fMZEcRHuamy')).toBe('plain')
+        expect(conceptPropertyTreatment('searchable-IpHINAT79UW')).toBe('plain')
+    })
+
+    it('reads the code rather than the value, so a lookalike display stays plain', () => {
+        expect(conceptPropertyTreatment('Domain')).toBe('plain')
+        expect(conceptPropertyTreatment('aggregate')).toBe('plain')
     })
 })
 

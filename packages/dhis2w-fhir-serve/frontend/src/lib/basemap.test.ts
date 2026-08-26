@@ -229,19 +229,21 @@ describe('the starfield', () => {
 })
 
 describe('the popup lines', () => {
-    it('says the name, the level the human way, the parent, and what sits below', () => {
+    it('says the name, the level the human way, the place as a path, and what sits below', () => {
         const content = unitPopupContent({
-            name: 'Bo',
-            level: { code: 'level-2', display: 'District', system: null, depth: 2 },
-            parentName: 'Sierra Leone',
+            name: 'Gbonkonlenken',
+            level: { code: 'level-3', display: 'Chiefdom', system: null, depth: 3 },
+            ancestorNames: ['Sierra Leone', 'Tonkolili'],
             descendantCount: 4,
+            identifiers: [{ label: 'id/org-unit', value: 'KIUCimTXf8Q' }],
         })
 
         expect(content).toEqual({
-            name: 'Bo',
-            levelLabel: 'District',
-            parentName: 'Sierra Leone',
+            name: 'Gbonkonlenken',
+            levelLabel: 'Chiefdom',
+            placeLine: 'Sierra Leone / Tonkolili',
             belowLine: '4 organisation units below',
+            identifiers: [{ label: 'id/org-unit', value: 'KIUCimTXf8Q' }],
         })
     })
 
@@ -249,8 +251,9 @@ describe('the popup lines', () => {
         const content = unitPopupContent({
             name: 'Bo',
             level: { code: 'level-2', display: null, system: null, depth: 2 },
-            parentName: null,
+            ancestorNames: [],
             descendantCount: 0,
+            identifiers: [],
         })
 
         expect(content.levelLabel).toBe('Level 2')
@@ -261,20 +264,34 @@ describe('the popup lines', () => {
         const content = unitPopupContent({
             name: 'Bo',
             level: { code: 'custom-tier', display: null, system: null, depth: null },
-            parentName: null,
+            ancestorNames: [],
             descendantCount: 0,
+            identifiers: [],
         })
 
         expect(content.levelLabel).toBe('custom-tier')
     })
 
     it('omits every line it has nothing to say on, singular included', () => {
-        const leaf = unitPopupContent({ name: 'Ngelehun CHC', level: null, parentName: null, descendantCount: 0 })
-        const one = unitPopupContent({ name: 'Badjia', level: null, parentName: 'Bo', descendantCount: 1 })
+        const leaf = unitPopupContent({
+            name: 'Ngelehun CHC',
+            level: null,
+            ancestorNames: [],
+            descendantCount: 0,
+            identifiers: [],
+        })
+        const one = unitPopupContent({
+            name: 'Badjia',
+            level: null,
+            ancestorNames: ['Sierra Leone', 'Bo'],
+            descendantCount: 1,
+            identifiers: [],
+        })
 
         expect(leaf.levelLabel).toBeNull()
-        expect(leaf.parentName).toBeNull()
+        expect(leaf.placeLine).toBeNull()
         expect(leaf.belowLine).toBeNull()
+        expect(one.placeLine).toBe('Sierra Leone / Bo')
         expect(one.belowLine).toBe('1 organisation unit below')
     })
 })

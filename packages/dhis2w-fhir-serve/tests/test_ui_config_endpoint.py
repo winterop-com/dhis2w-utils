@@ -177,7 +177,9 @@ def test_the_register_is_reported_as_a_live_run_resolves_it(capture_project: Fhi
     Each also carries what it is filtered by, and the two entries carry different attributes: a
     register of people is filtered by what a person's forms ask and a register of samples by what a
     sample's do. The coded one names the ValueSet its values are drawn from, which is the difference
-    between a control a screen can draw as a select and one it has to draw as a box.
+    between a control a screen can draw as a select and one it has to draw as a box, and each names
+    the tracked entity types that declare it, so a screen narrowed to one type offers that type's own
+    attributes.
     """
     index = TrackedEntityIndex.from_store(capture_project, load_compiled_store(capture_project))
     registers = [
@@ -185,14 +187,43 @@ def test_the_register_is_reported_as_a_live_run_resolves_it(capture_project: Fhi
             resource="Patient",
             types=[RegisteredTypeUiConfig(uid=REGISTRATION_TRACKED_ENTITY_TYPE_UID, name="Person")],
             filter_attributes=[
-                FilterableAttributeUiConfig(uid="TeaNationId", name="National identifier", value_type="TEXT"),
-                FilterableAttributeUiConfig(uid="TeaBirthDat", name="Date of birth", value_type="DATE"),
                 FilterableAttributeUiConfig(
-                    uid=REGISTRATION_CODED_ATTRIBUTE, name="Sex", value_type="TEXT", value_set=SEX_VALUE_SET
+                    uid="TeaNationId",
+                    name="National identifier",
+                    value_type="TEXT",
+                    types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID],
                 ),
-                FilterableAttributeUiConfig(uid="TeaHousehld", name="Household size", value_type="INTEGER_POSITIVE"),
-                FilterableAttributeUiConfig(uid="TeaSystemId", name="Programme identifier", value_type="TEXT"),
-                FilterableAttributeUiConfig(uid="TeaConsent1", name="Consent given", value_type="TRUE_ONLY"),
+                FilterableAttributeUiConfig(
+                    uid="TeaBirthDat",
+                    name="Date of birth",
+                    value_type="DATE",
+                    types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID],
+                ),
+                FilterableAttributeUiConfig(
+                    uid=REGISTRATION_CODED_ATTRIBUTE,
+                    name="Sex",
+                    value_type="TEXT",
+                    value_set=SEX_VALUE_SET,
+                    types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID],
+                ),
+                FilterableAttributeUiConfig(
+                    uid="TeaHousehld",
+                    name="Household size",
+                    value_type="INTEGER_POSITIVE",
+                    types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID],
+                ),
+                FilterableAttributeUiConfig(
+                    uid="TeaSystemId",
+                    name="Programme identifier",
+                    value_type="TEXT",
+                    types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID],
+                ),
+                FilterableAttributeUiConfig(
+                    uid="TeaConsent1",
+                    name="Consent given",
+                    value_type="TRUE_ONLY",
+                    types=[REGISTRATION_TRACKED_ENTITY_TYPE_UID],
+                ),
             ],
         ),
         RegisterUiConfig(
@@ -202,7 +233,10 @@ def test_the_register_is_reported_as_a_live_run_resolves_it(capture_project: Fhi
             ],
             filter_attributes=[
                 FilterableAttributeUiConfig(
-                    uid=SPECIMEN_UNIQUE_ATTRIBUTE, name="Laboratory reference", value_type="TEXT"
+                    uid=SPECIMEN_UNIQUE_ATTRIBUTE,
+                    name="Laboratory reference",
+                    value_type="TEXT",
+                    types=[SPECIMEN_TRACKED_ENTITY_TYPE_UID],
                 )
             ],
         ),

@@ -810,8 +810,8 @@ Every identity these screens show is a DHIS2 uid: an organisation unit, a data
 set, a program, one of its stages, a data element. Reading one here answers
 *what the guide published*; the next question is usually *what the instance
 holds*, and the screens answer that with a small external-link mark beside the
-identity, opening that object's own page in the DHIS2 instance's Maintenance
-app in a new tab. It is there in three places:
+identity, opening that object's own page in the DHIS2 instance's Metadata
+Management app in a new tab. It is there in three places:
 
 - the organisation-unit rail header, beside the selected unit's name;
 - each **Data sets** and **Programs** row of that rail, on the data set,
@@ -819,9 +819,9 @@ app in a new tab. It is there in three places:
 - each concept row of the data-element dictionary (`D2DE_CS`), on the data
   element the concept code is the uid of;
 - each enrollment listed on a person's page in the register, which opens that
-  enrollment in the instance's **Capture** app rather than in Maintenance -
-  an enrollment is a record about somebody, not a metadata object, and
-  Capture is where DHIS2 shows it.
+  enrollment in the instance's **Capture** app rather than in the metadata
+  screens - an enrollment is a record about somebody, not a metadata object,
+  and Capture is where DHIS2 shows it.
 
 **The links exist only when the server knows which instance to point at.**
 The address comes from the DHIS2 profile the serve run resolved (see
@@ -831,12 +831,15 @@ to a search page, nothing - because a guide with no named instance behind it
 has nowhere honest to point. Only the address ever reaches the browser; the
 profile's name and its credentials do not.
 
-!!! note "On DHIS2 2.43 the Maintenance app says it is superseded"
-    2.43 serves the Maintenance app through the global shell and shows a
-    banner pointing at the newer Metadata Management app. The link still opens
-    the object's own edit form, which is what these links are for; the
-    Maintenance route is used because it is the one by-uid metadata route that
-    is the same on every DHIS2 major this toolchain supports.
+!!! note "Which app the metadata links open"
+    The **Metadata Management** app, on
+    `{base}/dhis-web-metadata-management/index.html#/{collection}/{uid}` - the
+    collection being the plural of the object's type. That path redirects into
+    2.43's global shell as `/apps/metadata-management`, carrying its own
+    fragment along, and the app then adds whichever section it opens on. The
+    older Maintenance app is not what these links point at: 2.43 no longer
+    lists it in `/api/apps`, and the screens still reachable there banner
+    themselves as no longer maintained.
 
 ## How the screenshots on this page are made
 

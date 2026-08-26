@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 
-import { ReceiptSections } from '@/components/ReceiptSections'
+import { RawResourceSheet, ReceiptSections } from '@/components/ReceiptSections'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -76,8 +76,10 @@ function ReceiptQuickView({ responseId }: { responseId: string }) {
                     <Badge variant="outline" className="machine-identifier text-[10px]">
                         {responseId}
                     </Badge>
+                    {/* A new tab, as the arrow says: the full page is for keeping or sending, and
+                        taking the listing away to show it would cost the reader their place. */}
                     <Button asChild variant="outline" size="sm">
-                        <Link to={`/responses/${responseId}`}>
+                        <Link to={`/responses/${responseId}`} target="_blank" rel="noreferrer">
                             Open the full page
                             <ArrowUpRight className="size-4" aria-hidden />
                         </Link>
@@ -86,6 +88,13 @@ function ReceiptQuickView({ responseId }: { responseId: string }) {
             </SheetHeader>
             <SheetBody>
                 <ReceiptSections record={record} />
+                {/* At the foot, as the last thing the panel offers: the document behind everything
+                    above, behind a button because it is long and the panel is a summary. */}
+                {record.stored.resource !== null && (
+                    <div className="mt-6">
+                        <RawResourceSheet resource={record.stored.resource} />
+                    </div>
+                )}
             </SheetBody>
         </>
     )

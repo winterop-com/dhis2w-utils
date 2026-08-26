@@ -209,6 +209,13 @@ export const PATIENT_PAGE_PARAMETER = 'page'
 export const REGISTER_QUERY_PARAMETER = 'q'
 
 /**
+ * Where the register page carries the tracked entity whose quick view is open, so a reload or a
+ * sent link opens on the same record. `#/tracked-entities?open=<resource>:<uid>` beside the other
+ * parameters - the resource half names the register section the quick view belongs to.
+ */
+export const REGISTER_OPEN_PARAMETER = 'open'
+
+/**
  * Where the register page carries the tracked entity type it is narrowed to, so a filter is a link.
  *
  * `#/tracked-entities?type=<uid>` beside `?q=<value>`, and for the same reason: a narrowed register

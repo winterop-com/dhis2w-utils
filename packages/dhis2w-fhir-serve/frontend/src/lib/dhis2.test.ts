@@ -9,10 +9,17 @@ import type { PatientEnrollment } from '@/lib/patients'
 /**
  * The route out of the guide and into the instance it came from.
  *
- * WHY THESE ARE UNIT TESTS AND NOT ONLY BROWSER ONES. The four routes below were checked by hand
- * against a running DHIS2 2.43.1 - each opened the named object's own edit form - and what these
- * hold is that the strings the app builds are still those routes. A browser test can prove a link
- * is rendered and where it points; only the instance can prove the route resolves, and it did.
+ * WHY THESE ARE UNIT TESTS AND NOT ONLY BROWSER ONES. The five routes below were driven against a
+ * running DHIS2 2.43.2 on 2026-08-26 - each opened the named object's own edit form, headed
+ * "Edit: <the object's name>" - and what these hold is that the strings the app builds are still
+ * those routes. A browser test can prove a link is rendered and where it points; only the instance
+ * can prove the route resolves, and it did:
+ *
+ * - `#/dataElements/fbfJHSPpUQD` opened "Edit: ANC 1st visit"
+ * - `#/dataSets/BfMAe6Itzgt` opened "Edit: Child Health"
+ * - `#/programs/IpHINAT79UW` opened "Edit: Child Programme"
+ * - `#/programStages/A03MvHHogjR` opened "Edit: Birth"
+ * - `#/organisationUnits/Rp268JB6Ne4` opened "Edit: Adonkia CHP"
  */
 
 const INSTANCE = 'https://play.example.org/dhis'
@@ -20,26 +27,32 @@ const INSTANCE = 'https://play.example.org/dhis'
 /** One aggregate form as the goldens publish it, so the identifier join is the real wire shape. */
 const AGGREGATE = questionnaireFixture as unknown as Questionnaire
 
-describe('a Maintenance app url', () => {
-    it('opens each kind of object in the section that owns it', () => {
+describe('a Metadata Management app url', () => {
+    const APP = `${INSTANCE}/dhis-web-metadata-management/index.html`
+
+    it('opens each kind of object in the collection that owns it', () => {
         expect(maintenanceUrl(INSTANCE, 'organisationUnit', 'Rp268JB6Ne4')).toBe(
-            `${INSTANCE}/dhis-web-maintenance/index.html#/edit/organisationUnitSection/organisationUnit/Rp268JB6Ne4`,
+            `${APP}#/organisationUnits/Rp268JB6Ne4`,
         )
-        expect(maintenanceUrl(INSTANCE, 'dataSet', 'BfMAe6Itzgt')).toBe(
-            `${INSTANCE}/dhis-web-maintenance/index.html#/edit/dataSetSection/dataSet/BfMAe6Itzgt`,
-        )
-        expect(maintenanceUrl(INSTANCE, 'dataElement', 'DeAncDanger')).toBe(
-            `${INSTANCE}/dhis-web-maintenance/index.html#/edit/dataElementSection/dataElement/DeAncDanger`,
-        )
-        // A program stage is edited inside the program section rather than one of its own.
+        expect(maintenanceUrl(INSTANCE, 'dataSet', 'BfMAe6Itzgt')).toBe(`${APP}#/dataSets/BfMAe6Itzgt`)
+        expect(maintenanceUrl(INSTANCE, 'dataElement', 'DeAncDanger')).toBe(`${APP}#/dataElements/DeAncDanger`)
+        // A program stage is edited on a route of its own rather than inside the program.
         expect(maintenanceUrl(INSTANCE, 'programStage', 'A03MvHHogjR')).toBe(
-            `${INSTANCE}/dhis-web-maintenance/index.html#/edit/programSection/programStage/A03MvHHogjR`,
+            `${APP}#/programStages/A03MvHHogjR`,
         )
+        expect(maintenanceUrl(INSTANCE, 'program', 'IpHINAT79UW')).toBe(`${APP}#/programs/IpHINAT79UW`)
+    })
+
+    it('sends the shortest address that resolves, leaving the app to name the section it opens on', () => {
+        // A data set settles on `?section=setup` and a program on `?section=programDetails` once the
+        // app has read the object; neither belongs in a link, because neither is needed to get there.
+        expect(maintenanceUrl(INSTANCE, 'dataSet', 'BfMAe6Itzgt')).not.toContain('section=')
+        expect(maintenanceUrl(INSTANCE, 'program', 'IpHINAT79UW')).not.toContain('section=')
     })
 
     it('joins one slash to the instance however its address was written', () => {
         expect(maintenanceUrl('https://play.example.org/', 'program', 'lxAQ7Zs9VYR')).toBe(
-            'https://play.example.org/dhis-web-maintenance/index.html#/edit/programSection/program/lxAQ7Zs9VYR',
+            'https://play.example.org/dhis-web-metadata-management/index.html#/programs/lxAQ7Zs9VYR',
         )
     })
 

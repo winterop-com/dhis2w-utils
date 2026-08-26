@@ -4,13 +4,14 @@ import { ArrowLeft } from 'lucide-react'
 import { PageState } from '@/components/PageState'
 import { TrackedEntitySections } from '@/components/TrackedEntitySections'
 import { Badge } from '@/components/ui/badge'
+import { TrackedEntityTypeBadge } from '@/components/KindBadge'
 import { Button } from '@/components/ui/button'
 import { useStatusLine } from '@/hooks/use-status-bar'
 import { useTrackedEntityRecord } from '@/hooks/use-tracked-entity-record'
 import { useUiConfig } from '@/hooks/use-ui-config'
+import { countedNoun } from '@/lib/utils'
 import { RegisterNotServed } from '@/pages/TrackedEntities'
 import { PEOPLE_RESOURCE_TYPE, registerTitle, trackedEntitySettings } from '@/lib/uiconfig'
-import { cn, countedNoun } from '@/lib/utils'
 
 /**
  * One tracked entity the DHIS2 instance holds, as a page of its own.
@@ -92,11 +93,7 @@ function TrackedEntityRecord({
                 </Button>
                 <h2 className="font-mono text-xl font-semibold tracking-tight">{heading}</h2>
                 <div className="flex flex-wrap items-center gap-2">
-                    {type !== null && (
-                        <Badge variant="secondary" className={cn(type.isMachineSpelling && 'font-mono text-[10px]')}>
-                            {type.text}
-                        </Badge>
-                    )}
+                    {type !== null && <TrackedEntityTypeBadge name={type} />}
                     {/* The uid badge is dropped when the heading is already the uid. A page headed by
                         a tracked entity uid - because this instance holds no unique value for whoever
                         this is - would otherwise state that one string twice, once large and once

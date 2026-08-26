@@ -294,34 +294,47 @@ export function starfieldPaint(): StarfieldPaint {
 export interface UnitPopupFacts {
     name: string
     level: OrgUnitLevel | null
-    parentName: string | null
+    /** The ancestor names, outermost first - where the unit sits, spelled as a path. */
+    ancestorNames: string[]
     descendantCount: number
+    /** The DHIS2 identifier values the unit carries, label and value, in the served order. */
+    identifiers: UnitPopupIdentifier[]
+}
+
+/** One identifier line the popup spells in the machine face. */
+export interface UnitPopupIdentifier {
+    label: string
+    value: string
 }
 
 /** The popup's lines, ready to render: a null line is omitted rather than written empty. */
 export interface UnitPopupContent {
     name: string
     levelLabel: string | null
-    parentName: string | null
+    /** The ancestors joined into one path - "Sierra Leone / Tonkolili" - or null for a root. */
+    placeLine: string | null
     belowLine: string | null
+    identifiers: UnitPopupIdentifier[]
 }
 
 /**
  * The lines a shape's popup says about its unit.
  *
  * The level is spelled the human way, once: the display its CodeSystem states, else `Level <n>`
- * from the code's own number - never the `level-<n>` machine casing, which belongs to the machine
- * contexts the inspector already keeps it in. The below-line exists only when something is below.
+ * from the code's own number - never the `level-<n>` machine casing, which stays in the machine
+ * lines below. The place line is the whole ancestor path, because "Yoni" alone answers nothing on
+ * a map of one country's lookalike villages. The below-line exists only when something is below.
  */
 export function unitPopupContent(facts: UnitPopupFacts): UnitPopupContent {
     return {
         name: facts.name,
         levelLabel: facts.level === null ? null : humanLevel(facts.level),
-        parentName: facts.parentName,
+        placeLine: facts.ancestorNames.length === 0 ? null : facts.ancestorNames.join(' / '),
         belowLine:
             facts.descendantCount === 0
                 ? null
                 : `${String(facts.descendantCount)} organisation ${facts.descendantCount === 1 ? 'unit' : 'units'} below`,
+        identifiers: facts.identifiers,
     }
 }
 

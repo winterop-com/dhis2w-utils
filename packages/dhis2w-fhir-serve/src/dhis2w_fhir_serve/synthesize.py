@@ -185,6 +185,12 @@ _REPEATED_SELECTIONS = 2
 #: The host a generated URL points at - `.invalid` is reserved by RFC 2606 and resolves nowhere.
 _GENERATED_URL_HOST = "https://example.invalid"
 
+#: The alphabet a seeded free-text word is spelled from: alternating consonants and vowels, so the
+#: word is pronounceable, and a spread wide enough that two draws rarely collide.
+_WORD_CONSONANTS = "bdfghklmnprstv"
+_WORD_VOWELS = "aeiou"
+_WORD_SYLLABLES = 3
+
 
 def draw_seed() -> int:
     """Draw the seed a `$generate` call that named none is answered from."""
@@ -525,7 +531,7 @@ class _Generator(BaseModel):
         DHIS2 value type's to say, because that is what DHIS2 grades the value against on import -
         R4 asks a coordinate, a phone number, an email address, a letter, and a username all as
         `string` items, and DHIS2 parses each of the five. Only a value type DHIS2 stores as free
-        text falls through to the wording that names the question.
+        text falls through to a seeded word behind an `Example` prefix.
         """
         element = question.answer_element
         if element == "valueInteger":
@@ -553,7 +559,7 @@ class _Generator(BaseModel):
         )
         if constrained is not None:
             return QuestionnaireResponseAnswer(valueString=constrained)
-        return QuestionnaireResponseAnswer(valueString=f"Example {question.link_id}")
+        return QuestionnaireResponseAnswer(valueString=f"Example {_seeded_word(self._random)}")
 
     def _date(self, question: CaptureQuestion) -> str:
         """A calendar day inside the window, moved into whatever range the question's bounds admit.
@@ -610,6 +616,19 @@ class _Generator(BaseModel):
         all - and what keeps the 201 round trip standing whichever way the pair was decided.
         """
         return _shaped_uid(self._random)
+
+
+def _seeded_word(generator: random.Random) -> str:
+    """A seeded pronounceable word, so a free-text answer varies draw to draw and reads as a word.
+
+    Free text is the one value DHIS2 stores rather than parses, so nothing constrains its shape -
+    and a fixed wording there made every fill after the first look like the button had stopped
+    working. The word is drawn from the fill's own generator, so the same seed spells the same word,
+    and the `Example` prefix the caller adds keeps it legible as synthetic rather than as a claim
+    about a person.
+    """
+    word = "".join(generator.choice(_WORD_CONSONANTS) + generator.choice(_WORD_VOWELS) for _ in range(_WORD_SYLLABLES))
+    return word.capitalize()
 
 
 def _distinct_answer(question: CaptureQuestion, token: str) -> QuestionnaireResponseAnswer | None:

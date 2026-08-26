@@ -32,7 +32,7 @@ import { useUiConfig } from '@/hooks/use-ui-config'
 import { signInIsRequired, signOut, SIGN_OUT_LABEL } from '@/lib/auth'
 import { type PalettePage } from '@/lib/palette'
 import { REGISTER_TITLE, registerTitle, trackedEntitySettings, type UiConfig } from '@/lib/uiconfig'
-import { cn } from '@/lib/utils'
+import { cn, RESIZE_HANDLE_TINT } from '@/lib/utils'
 
 /** One entry in the sidebar rail: where it goes, what it is called, and what it is for. */
 export interface NavItem {
@@ -125,9 +125,78 @@ export function palettePages(settings: UiConfig): PalettePage[] {
     return offeredNavItems(settings).map((item) => ({ path: item.path, label: item.label, hint: item.hint }))
 }
 
+/** How long the rail's width transition runs - the labels wait exactly this long to mount. */
+const SIDEBAR_WIDTH_TRANSITION_MS = 200
+
+// How narrow and how wide the rail drags, and where the chosen width is remembered.
+const SIDEBAR_MINIMUM_WIDTH = 192
+const SIDEBAR_MAXIMUM_WIDTH = 420
+const SIDEBAR_WIDTH_STORAGE_KEY = 'sidebar-width'
+
+/** The width the reader last dragged the rail to, or null when they never have (or storage is blocked). */
+function storedSidebarWidth(): number | null {
+    try {
+        const kept = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
+        return Number.isFinite(kept) && kept >= SIDEBAR_MINIMUM_WIDTH && kept <= SIDEBAR_MAXIMUM_WIDTH
+            ? kept
+            : null
+    } catch {
+        return null
+    }
+}
+
+/** Remember a dragged rail width, silently letting go when storage is blocked. */
+function keepSidebarWidth(width: number): void {
+    try {
+        window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(Math.round(width)))
+    } catch {
+        // A private window forgets; the rail still resizes for this tab.
+    }
+}
+
 /** Sidebar shell: collapsible navigation rail, status header, page content. */
 export function AppLayout({ children }: { children: ReactNode }) {
     const { collapsed, toggle } = useSidebar()
+    // The rail expands first and the words arrive after: labels mounted mid-transition would
+    // wrap and reflow inside a still-narrowing column, which reads as the text crawling in.
+    // Collapsing runs the other way - words gone at once, then the rail narrows.
+    const [labelsShown, setLabelsShown] = useState(!collapsed)
+    useEffect(() => {
+        if (collapsed) {
+            setLabelsShown(false)
+            return
+        }
+        const settled = setTimeout(() => setLabelsShown(true), SIDEBAR_WIDTH_TRANSITION_MS)
+        return () => clearTimeout(settled)
+    }, [collapsed])
+    // The rail's right edge drags, and the chosen width is remembered - the collapse toggle still
+    // rules, so a collapsed rail is icon-wide whatever width the drag last chose.
+    const [railWidth, setRailWidth] = useState<number | null>(() => storedSidebarWidth())
+    const [railResizing, setRailResizing] = useState(false)
+    const railRef = useRef<HTMLElement | null>(null)
+    const beginRailResize = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (collapsed) return
+        event.preventDefault()
+        setRailResizing(true)
+        const startX = event.clientX
+        const startWidth = railRef.current?.getBoundingClientRect().width ?? 240
+        let latest = startWidth
+        const follow = (move: PointerEvent) => {
+            latest = Math.min(
+                Math.max(startWidth + (move.clientX - startX), SIDEBAR_MINIMUM_WIDTH),
+                SIDEBAR_MAXIMUM_WIDTH,
+            )
+            setRailWidth(latest)
+        }
+        const release = () => {
+            document.removeEventListener('pointermove', follow)
+            document.removeEventListener('pointerup', release)
+            setRailResizing(false)
+            keepSidebarWidth(latest)
+        }
+        document.addEventListener('pointermove', follow)
+        document.addEventListener('pointerup', release)
+    }
     const { pathname } = useLocation()
     const auth = useAuth()
     // The shell asks the same question the status light does: the posture is read off `/metadata`,
@@ -212,10 +281,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <StatusBarProvider>
             <div className="flex h-svh overflow-hidden">
                 <aside
+                    ref={railRef}
                     className={cn(
-                        'bg-sidebar hidden shrink-0 flex-col overflow-y-auto border-r transition-[width] duration-200 md:flex',
+                        'bg-sidebar relative hidden shrink-0 flex-col overflow-y-auto border-r md:flex',
+                        railResizing ? 'transition-none' : 'transition-[width] duration-200',
                         collapsed ? 'w-16' : 'w-60',
                     )}
+                    style={!collapsed && railWidth !== null ? { width: railWidth } : undefined}
                 >
                     {/* The wordmark is the way home, which is the convention every
                         other app in a browser has already taught. */}
@@ -231,7 +303,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
                         <div className="bg-foreground text-background dark:bg-primary dark:text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
                             <Stethoscope className="size-4" aria-hidden />
                         </div>
-                        {!collapsed && <span className="text-lg font-bold tracking-tight">Capture</span>}
+                        {labelsShown && (
+                            <span className="animate-in fade-in text-lg font-bold tracking-tight duration-150">
+                                Capture
+                            </span>
+                        )}
                     </NavLink>
 
                     <nav className="flex flex-col gap-1 px-2 py-2">
@@ -270,8 +346,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                         )}
                                         aria-hidden
                                     />
-                                    {!collapsed && (
-                                        <span className="grid">
+                                    {labelsShown && (
+                                        <span className="animate-in fade-in grid duration-150">
                                             <span>{item.label}</span>
                                             <span
                                                 className={cn(
@@ -310,13 +386,27 @@ export function AppLayout({ children }: { children: ReactNode }) {
                         with a tooltip, exactly as every entry above it is. */}
                     <div className="border-t p-2">
                         <SettingsMenu
-                            collapsed={collapsed}
+                            collapsed={!labelsShown}
                             onShowShortcuts={() => {
                                 setShortcutsOpen(true)
                             }}
                         />
                     </div>
                 </aside>
+
+                {/* The rail's drag edge, riding its border as a sibling rather than inside it - the
+                    rail scrolls, and a handle inside a scrolling box would scroll away with it. */}
+                <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize the navigation"
+                    onPointerDown={beginRailResize}
+                    className={cn(
+                        'z-10 -ml-1.5 hidden w-1.5 shrink-0 cursor-col-resize touch-none md:block',
+                        RESIZE_HANDLE_TINT,
+                        collapsed && 'pointer-events-none',
+                    )}
+                />
 
                 {/* `min-h-0` on the column and on `main`: without it a flex item's automatic minimum
                     is its content, and a page that wants to fill the viewport - the org-unit browser,
