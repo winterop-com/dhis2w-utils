@@ -212,7 +212,7 @@ started as a server that accepts nobody.
 only. Binding any other interface with the key absent is refused:
 
 ```text
-error: `0.0.0.0` is not a loopback interface, and this project's fhir.toml states no [serve] auth. Write the posture down before serving the facade where other hosts can reach it - add one line under [serve] in fhir.toml: auth = "none" to serve every caller, auth = "token" to take a static bearer token out of D2W_FHIR_SERVE_TOKENS, or auth = "dhis2" to have every caller present the DHIS2 credentials this facade checks against the instance. --auth states the same thing for one run.
+error: `0.0.0.0` is not a loopback interface, and this project's fhir.toml states no `[serve] auth`. Write the posture down before serving the facade where other hosts can reach it - add one line under `[serve]` in fhir.toml: `auth = "none"` to serve every caller, `auth = "token"` to take a static bearer token out of `D2W_FHIR_SERVE_TOKENS`, `auth = "dhis2"` to have every caller present the DHIS2 credentials this facade checks against the instance, or `auth = "jwt"` to take a token from an OpenID Connect issuer named in `[serve.jwt] issuer`. `--auth` states the same thing for one run.
 ```
 
 `auth = "none"` written out passes that check. The difference is deliberate: an
@@ -780,7 +780,7 @@ about the instance's records at all is one decision, not one per kind. Every
 setting has a default that makes the register work without your writing the
 table at all; you write it when a deployment wants the register narrowed, or a
 page size the default does not fit. Unlike the rest of `[serve]`, there is no
-command-line flag for any of these six - a run that should answer less is a
+command-line flag for any of these seven - a run that should answer less is a
 project that says so in the file.
 
 ```toml
@@ -794,9 +794,9 @@ page_size_limit = 100
 #### `enabled` { #tracked_entities-enabled }
 
 **In plain words.** Whether this server answers questions about people at all.
-On - the default - a live run searches by identifier, lists people, and lists
-one person's enrollments. Off, none of the three exists: the run is live in
-every other way, and the people surface is simply not there.
+On - the default - a live run answers all five of the register questions
+above. Off, none of the five exists: the run is live in every other way, and
+the people surface is simply not there.
 
 **When you would change it.** Two situations, and neither is a fault being
 worked around. A live run whose whole job is to serve the guide's forms
@@ -820,7 +820,7 @@ and a registration form's **Person** control offers **New person** alone -
 exactly what a compiled guide offers. Nothing is greyed out or half-offered:
 the screens are told what this server answers and draw only that.
 
-**Default:** `true` - **If you leave it out:** a live run answers all three
+**Default:** `true` - **If you leave it out:** a live run answers all five
 questions and a compiled run answers none of them. That difference is the mode
 doing the work, not this setting.
 
@@ -1377,7 +1377,7 @@ published definition rather than one this project invented.
 ## Forwarding it: the `[forward]` section { #forward }
 
 `d2w fhir forward` is the other half of the loop the capture server opens - see
-[Forward captures into DHIS2](201-forward.md). Four options in `fhir.toml`
+[Forward captures into DHIS2](201-forward.md). Six options in `fhir.toml`
 belong to it, and each but `live` has a command-line flag that outranks it for one run:
 **flag beats table beats default**, the same order the rest of `[serve]`
 follows. Which folder a drain reads is not here - it is
@@ -1515,8 +1515,8 @@ queued. Running `d2w fhir forward --import --overwrites allow` sends it.
 
 **Default:** `"allow"` - **If you leave it out:** every figure an earlier
 submission already sent is sent again and named in the run report, and nothing
-is refused over it. That is what a drain has always done; the key is what lets
-a deployment say otherwise.
+is refused over it. That is what a drain does; the key is what lets a
+deployment say otherwise.
 
 **If you get it wrong:** the two values are `"allow"` and `"refuse"`, quoted.
 Anything else - `"reject"`, `"off"`, a bare `false` - stops the run with a
@@ -1524,6 +1524,82 @@ printout naming `forward.overwrites`. `--overwrites allow` and
 `--overwrites refuse` override it either way for one run. The key reaches
 aggregate figures only: tracker records carry their own DHIS2 identity, so they
 collide rather than overwrite, and no setting here changes that.
+
+### `corrections`
+
+**In plain words.** Whether this deployment receives a submission that names
+the receipt it corrects. `overwrites` above governs an *unmarked* second
+capture of the same tuple; this governs a *marked* one - a submission whose
+status says `amended` and which states which earlier receipt it amends.
+`"off"` - the default - refuses that status at capture, with a 422 naming this
+key, so nothing is stored that no drain would act on. `"amend"` receives it,
+and the submission waits in `received/` like any other receipt.
+
+**When you would change it.** Turn it to `"amend"` in a deployment that means
+to let a submitter reach back into what DHIS2 already holds through a declared,
+reviewable amendment rather than through a silent second capture. Leave it
+`"off"` everywhere else: publishing forms and forwarding them is not by itself
+a decision to accept retractions of what was forwarded.
+
+**Example.**
+
+```toml
+[forward]
+corrections = "amend"
+```
+
+The facade accepts an `amended` submission and stores it. What a drain does
+with one today is state the posture it ran under and forward the response as a
+new record - the identity work that makes an amendment land on the corrected
+receipt is the design in
+[Corrections and withdrawals](design/data-lifecycle.md), and
+[Correcting or withdrawing what you forwarded](201-forward.md#correcting-or-withdrawing-what-you-forwarded)
+says exactly how far it reaches.
+
+**Default:** `"off"` - **If you leave it out:** a submission declaring itself a
+correction is refused at capture, naming this key, and forwarded data changes
+only through whatever `overwrites` allows.
+
+**If you get it wrong:** the two values are `"off"` and `"amend"`, quoted.
+Anything else stops the run with a printout naming `forward.corrections`.
+`--corrections off` and `--corrections amend` override it for one run; the run
+report prints the posture it resolved, so an operator reading it does not have
+to open `fhir.toml` beside it.
+
+### `withdrawals`
+
+**In plain words.** Whether this deployment retracts from DHIS2 what one of its
+forwarded receipts landed. `"retract"` is what `d2w fhir withdraw` requires
+before it deletes anything; `"off"` - the default - makes that command refuse,
+naming this key. The drain never deletes, so this key is read by
+`d2w fhir withdraw` rather than by `d2w fhir forward`.
+
+**When you would change it.** Turn it to `"retract"` where somebody accountable
+has decided that taking an event back out of the instance is a thing this
+deployment does, and who may do it. **Withdrawal is terminal**: DHIS2 burns the
+UID of a tracker object it deletes and refuses it under every import strategy
+afterwards, so a withdrawn receipt can never be forwarded again and a
+withdrawal is never half of a delete-then-recreate.
+
+**Example.**
+
+```toml
+[forward]
+withdrawals = "retract"
+```
+
+`d2w fhir withdraw <receipt id>` now runs - dry run by default, like every
+other write here, so the delete goes to the real tracker endpoint under its
+validate-only mode first. [Withdraw what you
+forwarded](201-forward.md#withdraw-what-you-forwarded) is the command.
+
+**Default:** `"off"` - **If you leave it out:** `d2w fhir withdraw` refuses in
+one line naming this key, and a submission whose status is `entered-in-error`
+is refused at capture the same way a correction is.
+
+**If you get it wrong:** the two values are `"off"` and `"retract"`, quoted.
+Anything else stops the run with a printout naming `forward.withdrawals`.
+`--withdrawals off` and `--withdrawals retract` override it for one run.
 
 Next: [The capture contract](401-capture-contract.md) - the integrate tier
 starts with what a valid submission carries. Or back to

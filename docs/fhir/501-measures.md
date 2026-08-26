@@ -175,23 +175,33 @@ to read it.
 ## From the command line
 
 `cql measure` scores a measure without Python. `--data` carrying a Bundle supplies
-both the people to evaluate and the data source the numerator retrieves from:
+the people to evaluate - every `Patient` entry in it becomes one row of the
+population:
 
 ```console
-$ d2w-fhir-engine cql measure coverage.cql --data clinic.json
-Measure: coverage.cql
-Evaluating 2 patient(s)...
+$ d2w-fhir-engine cql measure measles_coverage.cql --data clinic.json
+Measure: measles_coverage.cql
+Evaluating 4 patient(s)...
 
-        Group: default
-┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
-┃ Population         ┃  Count ┃
-┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
-│ initial-population │      2 │
-│ denominator        │      2 │
-│ numerator          │      1 │
-│ Score              │ 50.00% │
-└────────────────────┴────────┘
+         Group: default
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Population            ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ initial-population    │     4 │
+│ denominator           │     4 │
+│ denominator-exclusion │     0 │
+│ numerator             │     0 │
+│ Score                 │ 0.00% │
+└───────────────────────┴───────┘
 ```
+
+The four children arrive, and the numerator is empty: `exists [Immunization]`
+is a retrieve, and this command runs the measure with no data source behind
+its retrieves, so every one of them answers with nothing. The numerator of 3
+earlier on this page came from `MeasureEvaluator(data_source=BundleDataSource(bundle))`
+- passing the data source is a Python-level thing, and the command line has no
+flag for it. Use the command for the shape of a report and the Python path for
+a scored one.
 
 `--patients` reads a directory of Patient JSON files instead, and `--output` writes
 the report to disk.
