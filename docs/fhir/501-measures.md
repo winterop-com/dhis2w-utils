@@ -174,37 +174,40 @@ to read it.
 
 ## From the command line
 
-`cql measure` scores a measure without Python. `--data` carrying a Bundle supplies
-the people to evaluate - every `Patient` entry in it becomes one row of the
-population:
+`cql measure` scores a measure without Python. **A Bundle behind `--data` supplies
+both halves of the run: every `Patient` entry is a person to evaluate, and the whole
+Bundle is the data source the numerator retrieves from.** The measure above is
+[`examples/fhir/engine/measles-coverage.cql`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/measles-coverage.cql)
+and the clinic is
+[`clinic.json`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/engine/clinic.json)
+beside it:
 
 ```console
-$ d2w-fhir-engine cql measure measles_coverage.cql --data clinic.json
-Measure: measles_coverage.cql
+$ d2w-fhir-engine cql measure measles-coverage.cql --data clinic.json
+Measure: measles-coverage.cql
 Evaluating 4 patient(s)...
 
-         Group: default
-┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
-┃ Population            ┃ Count ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
-│ initial-population    │     4 │
-│ denominator           │     4 │
-│ denominator-exclusion │     0 │
-│ numerator             │     0 │
-│ Score                 │ 0.00% │
-└───────────────────────┴───────┘
+          Group: default
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Population            ┃  Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ initial-population    │      4 │
+│ denominator           │      4 │
+│ denominator-exclusion │      0 │
+│ numerator             │      3 │
+│ Score                 │ 75.00% │
+└───────────────────────┴────────┘
 ```
 
-The four children arrive, and the numerator is empty: `exists [Immunization]`
-is a retrieve, and this command runs the measure with no data source behind
-its retrieves, so every one of them answers with nothing. The numerator of 3
-earlier on this page came from `MeasureEvaluator(data_source=BundleDataSource(bundle))`
-- passing the data source is a Python-level thing, and the command line has no
-flag for it. Use the command for the shape of a report and the Python path for
-a scored one.
+Four children, three with a dose recorded: the same 3 of 4 the Python run above
+scores, from the command line and against the same clinic.
 
-`--patients` reads a directory of Patient JSON files instead, and `--output` writes
-the report to disk.
+`--patients` reads a directory of Patient JSON files instead. That names who is
+evaluated but supplies no data source, so a numerator written as a retrieve finds
+nothing and the measure scores `0.00%` - reach for `--patients` when the people
+carry their own answer, and for a Bundle when the numerator has to look something
+up. `--output` writes the FHIR `MeasureReport` to disk, and `--verbose` adds the
+stratifier results.
 
 ## Scoring a real DHIS2 cohort
 

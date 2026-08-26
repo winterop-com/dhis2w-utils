@@ -143,6 +143,11 @@ d2w-fhir-engine elm convert library.cql --output library.elm.json
 Each sub-app also carries `parse`, `ast`, `tokens`, `show`, and `validate` for inspecting a source
 before running it.
 
+`--data` reads by one rule wherever it appears: **a Bundle becomes the data source retrieves read,
+any other resource becomes the context resource the evaluation is about.** `cql measure` takes both
+halves off a Bundle - every `Patient` entry is a person to evaluate, and the whole Bundle is what the
+numerator retrieves from.
+
 ## FHIR version binding
 
 `FhirVersionBinding` is the whole of the engine's version knowledge: the patient-reference element

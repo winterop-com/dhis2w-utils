@@ -1,0 +1,271 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "child-1",
+        "active": true,
+        "identifier": [
+          {
+            "system": "http://example.org/dhis2/trackedEntities",
+            "value": "child-1"
+          },
+          {
+            "system": "http://example.org/clinic/register",
+            "value": "REG-1"
+          }
+        ],
+        "name": [
+          {
+            "use": "official",
+            "given": [
+              "Amara",
+              "Isata"
+            ],
+            "family": "Kamara"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "2023-02-11",
+        "managingOrganization": {
+          "reference": "Organization/ngelehun-chc"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "child-2",
+        "active": true,
+        "identifier": [
+          {
+            "system": "http://example.org/dhis2/trackedEntities",
+            "value": "child-2"
+          },
+          {
+            "system": "http://example.org/clinic/register",
+            "value": "REG-2"
+          }
+        ],
+        "name": [
+          {
+            "use": "official",
+            "given": [
+              "Bintu"
+            ],
+            "family": "Sesay"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "2023-05-30",
+        "managingOrganization": {
+          "reference": "Organization/ngelehun-chc"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "child-3",
+        "active": true,
+        "identifier": [
+          {
+            "system": "http://example.org/dhis2/trackedEntities",
+            "value": "child-3"
+          },
+          {
+            "system": "http://example.org/clinic/register",
+            "value": "REG-3"
+          }
+        ],
+        "name": [
+          {
+            "use": "official",
+            "given": [
+              "Chernor"
+            ],
+            "family": "Bangura"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "2023-08-14",
+        "managingOrganization": {
+          "reference": "Organization/ngelehun-chc"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "child-4",
+        "active": true,
+        "identifier": [
+          {
+            "system": "http://example.org/dhis2/trackedEntities",
+            "value": "child-4"
+          },
+          {
+            "system": "http://example.org/clinic/register",
+            "value": "REG-4"
+          }
+        ],
+        "name": [
+          {
+            "use": "official",
+            "given": [
+              "Daphne"
+            ],
+            "family": "Koroma"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "2024-01-09",
+        "managingOrganization": {
+          "reference": "Organization/ngelehun-chc"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Immunization",
+        "id": "dose-1",
+        "status": "completed",
+        "patient": {
+          "reference": "Patient/child-1"
+        },
+        "occurrenceDateTime": "2024-02-20",
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "836383007",
+              "display": "Measles vaccine"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Immunization",
+        "id": "dose-2",
+        "status": "completed",
+        "patient": {
+          "reference": "Patient/child-2"
+        },
+        "occurrenceDateTime": "2024-06-11",
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "836383007",
+              "display": "Measles vaccine"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Immunization",
+        "id": "dose-3",
+        "status": "completed",
+        "patient": {
+          "reference": "Patient/child-2"
+        },
+        "occurrenceDateTime": "2024-06-11",
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "871908002",
+              "display": "Diphtheria vaccine"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Immunization",
+        "id": "dose-4",
+        "status": "completed",
+        "patient": {
+          "reference": "Patient/child-3"
+        },
+        "occurrenceDateTime": "2024-09-02",
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "871908002",
+              "display": "Diphtheria vaccine"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "weight-1",
+        "status": "final",
+        "subject": {
+          "reference": "Patient/child-1"
+        },
+        "effectiveDateTime": "2024-02-20",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "valueQuantity": {
+          "value": 9200,
+          "unit": "g",
+          "system": "http://unitsofmeasure.org",
+          "code": "g"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "weight-2",
+        "status": "final",
+        "subject": {
+          "reference": "Patient/child-2"
+        },
+        "effectiveDateTime": "2024-06-11",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "valueQuantity": {
+          "value": 8100,
+          "unit": "g",
+          "system": "http://unitsofmeasure.org",
+          "code": "g"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Organization",
+        "id": "ngelehun-chc",
+        "name": "Ngelehun CHC",
+        "active": true
+      }
+    }
+  ]
+}

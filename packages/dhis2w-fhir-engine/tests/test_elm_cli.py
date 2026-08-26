@@ -210,6 +210,51 @@ class TestConvert:
         assert "File not found" in result.output
 
 
+class TestBundleBehindData:
+    """The `--data` rule holds for ELM too: a Bundle is the data source retrieves read."""
+
+    @pytest.fixture
+    def retrieve_library(self, tmp_path: Path) -> Path:
+        """An ELM library whose one definition is a retrieve count."""
+        source = (
+            "library Coverage version '1.0'\nusing FHIR version '4.0.1'\n\ndefine \"Child Count\": Count([Patient])\n"
+        )
+        file = tmp_path / "coverage.elm.json"
+        file.write_text(ELMSerializer().serialize_library_json(source))
+        return file
+
+    @pytest.fixture
+    def bundle(self, tmp_path: Path) -> Path:
+        """Two children as a collection Bundle."""
+        file = tmp_path / "clinic.json"
+        file.write_text(
+            json.dumps(
+                {
+                    "resourceType": "Bundle",
+                    "type": "collection",
+                    "entry": [
+                        {"resource": {"resourceType": "Patient", "id": "child-1"}},
+                        {"resource": {"resourceType": "Patient", "id": "child-2"}},
+                    ],
+                }
+            )
+        )
+        return file
+
+    def test_eval_reaches_the_bundle_entries(self, retrieve_library: Path, bundle: Path) -> None:
+        result = runner.invoke(app, ["eval", str(retrieve_library), "Child Count", "--data", str(bundle)])
+
+        assert result.exit_code == 0
+        assert "2" in result.output
+
+    def test_run_reaches_the_bundle_entries(self, retrieve_library: Path, bundle: Path) -> None:
+        result = runner.invoke(app, ["run", str(retrieve_library), "--data", str(bundle)])
+
+        assert result.exit_code == 0
+        assert "Child Count" in result.output
+        assert "2" in result.output
+
+
 class TestThroughTheRootApp:
     def test_elm_convert_is_reachable_from_the_root_app(self) -> None:
         result = runner.invoke(root_app, ["elm", "convert", str(HELLO_WORLD), "--quiet"])
