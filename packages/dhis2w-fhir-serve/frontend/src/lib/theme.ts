@@ -31,7 +31,7 @@
  */
 
 /** The name one theme is stored and written under: its `data-theme` value and its localStorage value. */
-export type ThemeName = 'clinical' | 'indigo' | 'paper' | 'contrast' | 'terminal'
+export type ThemeName = 'clinical' | 'indigo' | 'paper' | 'contrast' | 'terminal' | 'dhis2' | 'fhir'
 
 /** One theme: what it is called on screen, and what it looks like. */
 export interface Theme {
@@ -78,6 +78,16 @@ export const THEMES: Theme[] = [
         name: 'terminal',
         label: 'Terminal',
         hint: 'Phosphor green, and a ground to match.',
+    },
+    {
+        name: 'dhis2',
+        label: 'DHIS2',
+        hint: 'Steel-blue chrome over the familiar gray - the instance\'s own face.',
+    },
+    {
+        name: 'fhir',
+        label: 'FHIR',
+        hint: 'Warm white under the flame, spent only where the app acts.',
     },
 ]
 
