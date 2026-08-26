@@ -27,7 +27,10 @@ plain httpx against a served project, walking discovery, search, `$generate`, a
 capture, the receipt, and `/spool` end to end. Point it at your own facade with
 `uv run python examples/fhir/client/consume_facade.py http://localhost:8123`.
 The rest of that directory is the library path: `generate_ig.py` builds a guide
-from Python and `forward_spool.py` drains one.
+from Python and `forward_spool.py` drains one. In Python, `FacadeClient` from
+`dhis2w_fhir` is the typed path over everything on this page -
+[`examples/fhir/client/send_with_the_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/send_with_the_client.py)
+is the same submit-and-read-back loop with no request built by hand.
 
 **Every endpoint on this page answers the same way with no server running.**
 [Embed the facade](401-embed-the-facade.md) builds the application in your own

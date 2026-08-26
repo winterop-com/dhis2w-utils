@@ -2235,6 +2235,16 @@ search into the copy and leaves the *disclosing* half exactly where it is.
   measurement and what closes each gap are in
   [the materialized projection](../fhir/design/projection.md).
 
+### A client for a running facade
+
+`FacadeClient` in `dhis2w-fhir` is a typed async client for a running
+`d2w fhir serve` facade: `capability`, `read`, `read_response`, `search` (over a
+typed `ResourceQuery`), `resolve` by canonical, `generate`, `submit_response`
+(answering a `CaptureReceipt` with the id, the location, and the warnings), and
+`evaluate`. Credentials are `BearerToken`, `UsernamePassword`, or
+`PersonalAccessToken`; a refusal raises `FacadeError` carrying the facade's
+`OperationOutcome`.
+
 ### Embed the facade
 
 `dhis2w-fhir-serve` publishes what `d2w fhir serve` assembles, so an application

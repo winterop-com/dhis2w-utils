@@ -67,6 +67,12 @@ surface.
   `read_refusal_record`, `ForwardRefusalRecord`, `RefusalReason`, `SPOOL_RELATIVE_PATH`).
   `ForwardRefusalRecord` is the declared type of `SpooledReceipt.refusal`, so a caller
   reading receipts holds instances of it either way.
+- Talk to a running facade from Python without composing a request (`FacadeClient`, with
+  `submit_response` answering a `CaptureReceipt`, `generate`, `read_response`, `read`,
+  `search` over a `ResourceQuery`, `resolve` for a canonical, `capability`, and `evaluate`
+  answering an `EvaluationOutcome`). Credentials are `BearerToken`, `UsernamePassword`, or
+  `PersonalAccessToken`; a refusal raises `FacadeError` carrying the `OperationOutcome` the
+  facade stated its reason in.
 
 Every capability above that reads DHIS2 takes the connection as an argument:
 `client=` on `validate_codes`, `run_doctor`, and each generate target, with the `Profile`
@@ -247,6 +253,33 @@ say that a value it is about to send is one an earlier submission already sent. 
 that write exactly as it counts a first entry, so the spool is where the answer lives.
 
 ::: dhis2w_fhir.overwrite
+
+### A client for a running facade
+
+`FacadeClient` is the typed path to a `d2w fhir serve` facade: construct it against a base
+url, hand `submit_response` a filled form, and read the receipt id off what comes back. The
+facade publishes no OpenAPI document - `/metadata` is its contract - so this client is
+hand-written against the routes it mounts rather than generated from a schema.
+
+Three shapes are worth knowing before the first call. A `create` answers an
+`OperationOutcome` and not the resource, so the id of an accepted submission is the last
+segment of the `Location` header - `CaptureReceipt` carries both, plus the warnings the
+answer stated. A 201 means the facade stored the submission durably, not that anything
+reached DHIS2; `d2w fhir forward` is what drains the queue. And an expression that will not
+parse is a 200 carrying its line and column, so `evaluate` answers an `EvaluationOutcome`
+rather than raising - `FacadeError` is reserved for a request the facade cannot serve at all.
+
+```python
+from dhis2w_fhir import FacadeClient
+
+async with FacadeClient("http://127.0.0.1:8123") as facade:
+    draft = await facade.generate("BfMAe6Itzgt", seed=20260)
+    receipt = await facade.submit_response(draft)
+    print(receipt.response_id, receipt.note)
+    stored = await facade.read_response(receipt.response_id)
+```
+
+::: dhis2w_fhir.facade
 
 ### Package surface
 

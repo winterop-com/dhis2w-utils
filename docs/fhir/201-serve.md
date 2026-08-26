@@ -303,7 +303,9 @@ caller's own DHIS2 credentials, a token from an OpenID Connect issuer, or
 `none` written out deliberately - and each is one line of `fhir.toml` away.
 [Secure the facade](201-secure.md) is all of it: the postures, the scope they
 cover, who the register is read as under each, and how to check a credential
-without spending one.
+without spending one. A Python caller reaches a guarded facade with
+`FacadeClient(base_url, auth=...)` from `dhis2w_fhir`: `BearerToken` under
+`token` and `jwt`, `UsernamePassword` or `PersonalAccessToken` under `dhis2`.
 
 ## Serving with a profile also links the screens back to the instance
 
