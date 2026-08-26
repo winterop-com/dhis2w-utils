@@ -33,6 +33,9 @@ _ABORTING_CODE = "ENTO - IRS < 6 Months"
 #: A name the publisher's template cannot survive, shaped like the ones real instances carry.
 _ABORTING_NAME = "Mortality < 5 years by gender"
 
+#: A form name the publisher's template cannot survive, shaped like the ones real instances carry.
+_HOSTILE_FORM_NAME = "Weight < 5kg"
+
 
 async def _scaffold_project(directory: Path) -> None:
     """Scaffold a minimal project so the generate targets have a fhir.toml and an ig tree."""
@@ -475,6 +478,28 @@ def _poison(instance: dict[str, list[dict[str, Any]]], uid: str) -> None:
     assert found, f"the parity instance holds no object {uid}"
 
 
+def _set_form_name(instance: dict[str, list[dict[str, Any]]], uid: str, form_name: str) -> None:
+    """Give the named question object a DHIS2 form name, wherever in the instance it sits."""
+    found = any(
+        _set_object_form_name(entry, uid, form_name) for collection in instance.values() for entry in collection
+    )
+    assert found, f"the parity instance holds no object {uid}"
+
+
+def _set_object_form_name(entry: dict[str, Any], uid: str, form_name: str) -> bool:
+    """Write a form name onto one wire object, or any object nested inside it."""
+    found = entry.get("id") == uid
+    if found:
+        entry["formName"] = form_name
+    for value in entry.values():
+        if isinstance(value, dict):
+            found = _set_object_form_name(value, uid, form_name) or found
+        for nested in value if isinstance(value, list) else []:
+            if isinstance(nested, dict):
+                found = _set_object_form_name(nested, uid, form_name) or found
+    return found
+
+
 def _poison_object(entry: dict[str, Any], uid: str) -> bool:
     """Rename one wire object, or any object nested inside it, walking the lists DHIS2 nests them in."""
     found = entry.get("id") == uid and "name" in entry
@@ -536,8 +561,16 @@ def _sweep_body(instance: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
 
 
 def _swept(item: dict[str, Any]) -> dict[str, Any]:
-    """One object as the sweep projects it: its id, its name, and its code and nothing else."""
-    return {"id": item["id"], "name": item["name"], "code": item.get("code")}
+    """One object as the sweep projects it: its id, its two names, and its code and nothing else.
+
+    DHIS2 answers the sweep without `formName` on every collection that has no such field, which is
+    every collection but the two a form asks its questions from - so the key is written only where
+    the fixture states one.
+    """
+    swept = {"id": item["id"], "name": item["name"], "code": item.get("code")}
+    if "formName" in item:
+        swept["formName"] = item["formName"]
+    return swept
 
 
 #: Every object kind a `fhir.toml` selection can put on the build path, with the sweep collection
@@ -710,6 +743,86 @@ async def test_generate_refuses_a_question_name_that_aborts_the_publisher(
     assert uid in message
     assert asked_by in message
     assert "Change the name in DHIS2" in message
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    ("uid", "collection"),
+    [("DePar000001", "dataElements"), ("TeAtt000001", "trackedEntityAttributes")],
+)
+async def test_generate_refuses_a_question_form_name_that_aborts_the_publisher(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+    uid: str,
+    collection: str,
+) -> None:
+    """A form name is the question's label wherever DHIS2 states one, so the gate reads it beside the name."""
+    mock_system_info("v42")
+    await _parity_project(tmp_path)
+    instance = _parity_instance()
+    _set_form_name(instance, uid, _HOSTILE_FORM_NAME)
+    _mock_parity_instance(instance)
+
+    with pytest.raises(service.BuildAbortingNameError) as raised:
+        await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    message = str(raised.value)
+    assert collection in message
+    assert uid in message
+    assert "has a form name carrying" in message
+    assert "Change the form name in DHIS2" in message
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    ("uid", "collection"),
+    [("DePar000001", "dataElements"), ("TeAtt000001", "trackedEntityAttributes")],
+)
+async def test_validate_grades_a_hostile_form_name_the_way_it_grades_a_name(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+    uid: str,
+    collection: str,
+) -> None:
+    """The parity holds on the form name too: what generate refuses, validate calls a selection error."""
+    mock_system_info("v42")
+    await _parity_project(tmp_path)
+    instance = _parity_instance()
+    _set_form_name(instance, uid, _HOSTILE_FORM_NAME)
+    _mock_parity_instance(instance)
+    project = load_project(tmp_path)
+
+    report = await service.validate_codes(resolve_profile("probe"), project.config.generate)
+
+    graded = [finding for finding in report.findings if finding.uid == uid and finding.category == _NAME_CATEGORY]
+    assert graded, f"validate raised no name finding on {uid}"
+    assert graded[0].severity == "error"
+    assert graded[0].scope == "selection"
+    assert graded[0].resource_type == collection
+    assert "form name" in graded[0].message
+
+
+@respx.mock
+async def test_a_clean_form_name_is_neither_an_error_nor_a_refusal(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A form name DHIS2 states cleanly is published as the question's label and graded by nobody."""
+    mock_system_info("v42")
+    await _parity_project(tmp_path)
+    instance = _parity_instance()
+    _set_form_name(instance, "DePar000001", "Weight in kilograms")
+    _mock_parity_instance(instance)
+    project = load_project(tmp_path)
+
+    report = await service.validate_codes(resolve_profile("probe"), project.config.generate)
+    assert [finding.uid for finding in report.findings if finding.severity == "error"] == []
+
+    generated = await service.generate_full(resolve_profile("probe"), project)
+    assert generated.questionnaires.questionnaire_count > 0
 
 
 @respx.mock

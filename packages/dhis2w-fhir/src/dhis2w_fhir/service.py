@@ -632,16 +632,27 @@ _QUESTION_COLLECTIONS: dict[str, str] = {
 }
 
 
+#: What each question spelling becomes on disk, named in the refusal so a reader knows which of the
+#: two DHIS2 fields to change. A name is the concept display of the data dictionary, and the question
+#: text of every object DHIS2 gives no form name; a form name is the question text wherever DHIS2
+#: states one, which is the input surface the name never reaches.
+_QUESTION_NAME_SURFACES: dict[str, str] = {
+    "name": "the question text and the data dictionary concept it publishes",
+    "form name": "the question text of every form asking it",
+}
+
+
 def _refuse_build_aborting_question_names(sources: Sequence[QuestionnaireSourceIn]) -> None:
-    """Refuse the run when the name of a question one of these forms asks aborts the publisher's build.
+    """Refuse the run when a name or form name of a question one of these forms asks aborts the build.
 
-    A data element's name is the `text` of its question and the `display` of its concept in
-    `data-dictionary/data-elements.fsh`; a tracked entity attribute's name is the same two places in
-    the attribute half of the dictionary. Both stay byte-true DHIS2 data, and the publisher writes
-    both into pages it strict-parses after writing, so a `<` in either aborts `make build` exactly as
-    a data set's own name does.
+    A data element's name is the `display` of its concept in `data-dictionary/data-elements.fsh` and
+    the `text` of its question wherever DHIS2 states no form name; a tracked entity attribute's name
+    is the same two places in the attribute half of the dictionary. A form name is the question text
+    wherever DHIS2 states one - the input spelling, which the name never displaces. All of them stay
+    byte-true DHIS2 data, and the publisher writes them into pages it strict-parses after writing, so
+    a `<` in any of them aborts `make build` exactly as a data set's own name does.
 
-    Only the name is read. A question object is a concept inside the dictionary rather than an
+    Only the two names are read. A question object is a concept inside the dictionary rather than an
     artifact of its own, so its DHIS2 code never becomes an identifier value - which is why
     `dataElements` and `trackedEntityAttributes` are absent from validate's code-identifier
     collections, and why gating their codes here would refuse runs validate calls clean.
@@ -649,16 +660,17 @@ def _refuse_build_aborting_question_names(sources: Sequence[QuestionnaireSourceI
     for source in sources:
         collection = _QUESTION_COLLECTIONS[FORM_KIND_PROFILES[source.kind].question_subject]
         for item in _source_items(source):
-            if not build_aborting_name(item.name):
-                continue
-            raise BuildAbortingNameError(
-                f"{collection} {item.name!r} ({item.uid}), asked by {_SOURCE_CODE_COLLECTIONS[source.kind]} "
-                f"{source.name!r} ({source.uid}), has a name carrying '<'. A DHIS2 name stays byte-true on the "
-                "question text and on the data dictionary concept it publishes, which the IG publisher writes "
-                "into pages it strict-parses after writing, so `make build` aborts in its last pass, once every "
-                "resource has already been rendered. Change the name in DHIS2, then run `d2w fhir validate` for "
-                "the full report."
-            )
+            for field_label, spelling in (("name", item.name), ("form name", item.form_name)):
+                if spelling is None or not build_aborting_name(spelling):
+                    continue
+                raise BuildAbortingNameError(
+                    f"{collection} {item.name!r} ({item.uid}), asked by {_SOURCE_CODE_COLLECTIONS[source.kind]} "
+                    f"{source.name!r} ({source.uid}), has a {field_label} carrying '<'. A DHIS2 {field_label} "
+                    f"stays byte-true on {_QUESTION_NAME_SURFACES[field_label]}, which the IG publisher writes "
+                    "into pages it strict-parses after writing, so `make build` aborts in its last pass, once "
+                    "every resource has already been rendered. Change the "
+                    f"{field_label} in DHIS2, then run `d2w fhir validate` for the full report."
+                )
 
 
 def _refuse_build_aborting_form_objects(sources: Sequence[QuestionnaireSourceIn]) -> None:
@@ -829,15 +841,25 @@ _REGISTRY_RENDER_COST_INSTANCES = 2_000
 #: makes its findings worth having.
 _SWEEP_TIMEOUT_SECONDS = 600.0
 
+#: What the instance sweep asks of every collection at once. `formName` exists only on the two
+#: collections a form asks its questions from; DHIS2's field filter answers the rest without it,
+#: exactly as it already answers `code` for the collections that carry none.
+_SWEEP_FIELDS = "id,name,formName,code"
+
 
 def _sweep_collections(raw: dict[str, object]) -> list[MetadataCollectionIn]:
-    """Wrap the raw `/api/metadata?fields=id,name,code` body into typed sweep sources."""
+    """Wrap the raw instance-sweep body into typed sweep sources."""
     collections: list[MetadataCollectionIn] = []
     for resource, value in raw.items():
         if resource in _SWEEP_EXCLUDED_COLLECTIONS or not isinstance(value, list):
             continue
         items = [
-            MetadataItemIn(uid=str(entry["id"]), name=entry.get("name"), code=entry.get("code"))
+            MetadataItemIn(
+                uid=str(entry["id"]),
+                name=entry.get("name"),
+                form_name=entry.get("formName"),
+                code=entry.get("code"),
+            )
             for entry in value
             if isinstance(entry, dict) and entry.get("id")
         ]
@@ -899,7 +921,7 @@ async def validate_codes(
         scope = await resolve_validation_scope(client, config)
         progress.complete(_scope_summary(scope))
         progress.step("instance sweep", "sweeping instance metadata (can take a minute on a large instance)")
-        raw = await client.get_raw("/api/metadata", params={"fields": "id,name,code", "defaults": "EXCLUDE"})
+        raw = await client.get_raw("/api/metadata", params={"fields": _SWEEP_FIELDS, "defaults": "EXCLUDE"})
         collections = _sweep_collections(raw)
         object_count = sum(len(collection.items) for collection in collections)
         progress.complete(f"{len(collections):,} collections, {object_count:,} objects")

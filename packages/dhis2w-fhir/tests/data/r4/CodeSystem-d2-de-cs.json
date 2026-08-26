@@ -171,6 +171,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "ARV at birth"
+        },
+        {
           "code": "value-type",
           "valueCode": "TEXT"
         }
@@ -187,6 +191,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "Apgar Score"
         },
         {
           "code": "value-type",
@@ -207,6 +215,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "Apgar comment"
+        },
+        {
           "code": "value-type",
           "valueCode": "LONG_TEXT"
         }
@@ -223,6 +235,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "BCG dose"
         },
         {
           "code": "value-type",
@@ -243,6 +259,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "Child ARVs"
+        },
+        {
           "code": "value-type",
           "valueCode": "TEXT"
         }
@@ -259,6 +279,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "DPT dose"
         },
         {
           "code": "value-type",
@@ -279,6 +303,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "HIV Test Type"
+        },
+        {
           "code": "value-type",
           "valueCode": "TEXT"
         }
@@ -295,6 +323,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "IPT dose"
         },
         {
           "code": "value-type",
@@ -315,6 +347,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "Infant Feeding"
+        },
+        {
           "code": "value-type",
           "valueCode": "TEXT"
         }
@@ -331,6 +367,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "Infant HIV Test Result"
         },
         {
           "code": "value-type",
@@ -351,6 +391,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "Infant Weight (g)"
+        },
+        {
           "code": "value-type",
           "valueCode": "NUMBER"
         }
@@ -367,6 +411,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "Measles dose"
         },
         {
           "code": "value-type",
@@ -387,6 +435,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "OPV dose"
+        },
+        {
           "code": "value-type",
           "valueCode": "TEXT"
         }
@@ -403,6 +455,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "Penta dose"
         },
         {
           "code": "value-type",
@@ -423,6 +479,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "Results given to caretaker"
+        },
+        {
           "code": "value-type",
           "valueCode": "TEXT"
         }
@@ -439,6 +499,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "Septrin Given"
         },
         {
           "code": "value-type",
@@ -459,6 +523,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "Visit comment (optional)"
+        },
+        {
           "code": "value-type",
           "valueCode": "LONG_TEXT"
         }
@@ -475,6 +543,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "Vit A"
         },
         {
           "code": "value-type",
@@ -495,6 +567,10 @@
           "valueCode": "tracker"
         },
         {
+          "code": "form-name",
+          "valueString": "Weight (g)"
+        },
+        {
           "code": "value-type",
           "valueCode": "NUMBER"
         }
@@ -511,6 +587,10 @@
         {
           "code": "domain",
           "valueCode": "tracker"
+        },
+        {
+          "code": "form-name",
+          "valueString": "Yellow fever dose"
         },
         {
           "code": "value-type",
@@ -1272,6 +1352,12 @@
       "uri": "http://dhis2.org/fhir/property/domain",
       "description": "DHIS2 data element domain type.",
       "type": "code"
+    },
+    {
+      "code": "form-name",
+      "uri": "http://dhis2.org/fhir/property/form-name",
+      "description": "DHIS2 data element form name, which is the text of every question asking it. Absent where DHIS2 states none, in which case the question is asked under the concept display.",
+      "type": "string"
     },
     {
       "code": "value-type",

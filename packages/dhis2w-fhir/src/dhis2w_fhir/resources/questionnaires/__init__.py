@@ -527,6 +527,9 @@ class _SupportConcept(BaseModel):
     code_literal: str | None = None
     """The DHIS2 code as an FSH literal, or None when DHIS2 states none and the property is left off."""
 
+    form_name_literal: str | None = None
+    """The DHIS2 form name as an FSH literal, or None when DHIS2 states none and the property is left off."""
+
     domain_code: str | None = None
     value_type_code: str | None = None
     unique_literal: str | None = None
@@ -582,6 +585,7 @@ class _SupportTerminologyView(BaseModel):
     description_literal: str
     property_base: str
     property_description_literal: str
+    form_name_property_description_literal: str
     domain_property_description_literal: str
     value_type_property_description_literal: str
     unique_property_description_literal: str
@@ -605,6 +609,11 @@ class _SupportTerminologyView(BaseModel):
     def declares_code(self) -> bool:
         """Whether any concept carries a DHIS2 code, so the CodeSystem must declare the property."""
         return any(concept.code_literal is not None for concept in self.concepts)
+
+    @property
+    def declares_form_name(self) -> bool:
+        """Whether any concept carries a DHIS2 form name, so the CodeSystem must declare the property."""
+        return any(concept.form_name_literal is not None for concept in self.concepts)
 
     @property
     def declares_domain(self) -> bool:
@@ -1378,6 +1387,7 @@ def _data_element_terminology(
             uid=item.uid,
             display_literal=quote(item.name),
             code_literal=quote(item.code) if item.code else None,
+            form_name_literal=quote(item.form_name) if item.form_name else None,
             domain_code=domain_code(item.domain_type),
             value_type_code=item.value_type,
             designations=name_translations(item.translations, config.locales),
@@ -1419,6 +1429,7 @@ def _tracked_entity_attribute_terminology(
             uid=item.uid,
             display_literal=quote(item.name),
             code_literal=quote(item.code) if item.code else None,
+            form_name_literal=quote(item.form_name) if item.form_name else None,
             value_type_code=item.value_type,
             unique_literal="true" if item.unique else "false",
             searchable_literal="true" if referenced.searchable_anywhere(item.uid) else "false",
@@ -1606,6 +1617,7 @@ def _support_terminology_artifact(
         description_literal=quote(terminology.description),
         property_base=property_base,
         property_description_literal=quote(terminology.code_property_description),
+        form_name_property_description_literal=quote(terminology.form_name_property_description),
         domain_property_description_literal=quote(DOMAIN_PROPERTY_DESCRIPTION),
         value_type_property_description_literal=quote(terminology.value_type_property_description),
         unique_property_description_literal=quote(UNIQUE_PROPERTY_DESCRIPTION),

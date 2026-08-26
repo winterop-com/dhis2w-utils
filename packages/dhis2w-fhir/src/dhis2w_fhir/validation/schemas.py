@@ -108,12 +108,19 @@ class CodeCoverage(BaseModel):
 
 
 class MetadataItemIn(BaseModel):
-    """The metadata-object projection from the instance-wide `/api/metadata?fields=id,name,code` sweep."""
+    """The metadata-object projection from the instance-wide `/api/metadata` sweep.
+
+    `form_name` is the input spelling DHIS2 writes for the objects a form asks as questions - a data
+    element and a tracked entity attribute - and is absent on every other collection the sweep walks.
+    It is graded beside the name because it is the question text wherever DHIS2 states one, which is
+    a page position the IG publisher strict-parses just as the name's own positions are.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     uid: str
     name: str | None = None
+    form_name: str | None = None
     code: str | None = None
 
 

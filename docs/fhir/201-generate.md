@@ -259,13 +259,38 @@ as given). Points worth knowing:
   translation extensions; a question DHIS2 gives a form name to takes its
   label translation from `FORM_NAME`. Nothing else is emitted.
 
+## Know which spelling a surface speaks
+
+A DHIS2 data element carries two spellings, and they are written for two
+audiences. `name` is written for analytics and reference - it has to be unique
+and it reads like a report column. `formName` is written for input: not always
+to shorten, but to clarify what a person is being asked. So each surface speaks
+the one it is for.
+
+**Input surfaces speak `formName`, reference surfaces speak `name`.** A
+`Questionnaire.item.text` - a data set question, an event programme question, a
+tracker stage question, a registration form's tracked entity attribute, and the
+group heading of a disaggregated element - is the form name wherever DHIS2
+states one and the name wherever it does not. The data dictionary is the
+reference surface, so a `D2DE_CS` or `D2TEA_CS` concept keeps displaying the
+name and states the form name beside it as a `form-name` property; a consumer
+holding one concept reaches both spellings. The cells of a disaggregated
+question are labelled by their category option combo, which has no form name of
+its own.
+
+Both spellings are person-written, so both pass the same gate: a `<` in a form
+name refuses a run and is graded a `template-hostile-name` error by
+`d2w fhir validate` exactly as a `<` in a name is.
+
 ## Know what a run refuses to write
 
-A DHIS2 name is kept byte-true on the resource it becomes, and the IG publisher
-writes those names into pages it strict-parses after writing. A `<` opens a tag,
-so the parse of the page it just wrote fails - hours in, once every resource has
-already been rendered. A run that would write such a name is refused whole
-before a single file is written, naming the object and exiting 1:
+A DHIS2 name is kept byte-true on the resource it becomes, and a DHIS2 form name
+is kept byte-true on the question it labels; the IG publisher writes both into
+pages it strict-parses after writing. A `<` opens a tag, so the parse of the page
+it just wrote fails - hours in, once every resource has already been rendered. A
+run that would write such a name is refused whole before a single file is
+written, naming the object and which of its two spellings carries the character,
+and exiting 1:
 
 ```console
 $ d2w fhir generate
@@ -382,13 +407,13 @@ property
 ```
 
 Substitution reaches further than the refusal does. The refusal reads the names
-of the objects a selection publishes and the questions they ask; the rewrite
-reads every name the emission publishes, which also covers a DHIS2 form name and
-the cell names of a disaggregation. Those two reach a Questionnaire's question
-text and the data dictionary's concept displays without passing any refusal - one
-national selection generated cleanly and then handed the publisher 738 of them.
-Under `refuse` that class is caught by `d2w fhir check-artifacts`, before you
-spend a build on it; under `substitute` it never reaches the disk.
+and form names of the objects a selection publishes and the questions they ask;
+the rewrite reads every name the emission publishes, which also covers the cell
+names of a disaggregation. Those reach a Questionnaire's cell labels and the
+data dictionary's category option combo displays without passing any refusal -
+one national selection generated cleanly and then handed the publisher 738 of
+them. Under `refuse` that class is caught by `d2w fhir check-artifacts`, before
+you spend a build on it; under `substitute` it never reaches the disk.
 
 ## Read the notes
 
