@@ -257,6 +257,7 @@ export function OrgUnitMap({
     const popup = useRef<Popup | null>(null)
     // The unit lit under that popup, so closing or replacing the card puts it out.
     const highlighted = useRef<string | null>(null)
+    const hovered = useRef<string | null>(null)
 
     const [engineFailure, setEngineFailure] = useState<string | null>(null)
     const [ready, setReady] = useState(false)
@@ -401,7 +402,7 @@ export function OrgUnitMap({
         // because a layer switch rebuilds the shape layers and re-registering with them would
         // stack a second handler on every gesture. MapLibre resolves a layer-scoped listener when
         // the event fires, so a layer added later is covered by a listener registered now.
-        registerInteractions(instance, { select, registry, popup, highlighted })
+        registerInteractions(instance, { select, registry, popup, highlighted, hovered })
         instance.on('load', () => setReady(true))
         instance.on('moveend', () => setZoom(instance.getZoom()))
 
@@ -741,6 +742,12 @@ function applyLayers(
                 'case',
                 ['boolean', ['feature-state', 'highlight'], false],
                 overTiles ? 0.3 : 0.3,
+                // The hover fill: a step up from every tier's resting wash, never a step down,
+                // which is what the max over the resting value is for.
+                ['boolean', ['feature-state', 'hover'], false],
+                overTiles
+                    ? ['max', ['match', ['get', 'tier'], 'selected', 0.35, 'within', 0.08, 0.01], 0.2]
+                    : ['max', ['match', ['get', 'tier'], 'selected', 0.36, 'within', 0.1, 0.06], 0.22],
                 overTiles
                     ? ['match', ['get', 'tier'], 'selected', 0.35, 'within', 0.08, 0.01]
                     : ['match', ['get', 'tier'], 'selected', 0.36, 'within', 0.1, 0.06],
@@ -801,7 +808,12 @@ function applyLayers(
                 palette.selectionEdge,
                 palette.identity,
             ],
-            'circle-radius': ['match', ['get', 'tier'], 'selected', 7, 'within', 4.5, 3.5],
+            'circle-radius': [
+                'case',
+                ['boolean', ['feature-state', 'hover'], false],
+                ['match', ['get', 'tier'], 'selected', 8.5, 'within', 6, 5],
+                ['match', ['get', 'tier'], 'selected', 7, 'within', 4.5, 3.5],
+            ],
             'circle-opacity': ['match', ['get', 'tier'], 'within', 0.75, 1],
             // The ring is the surface itself, which is how two markers that overlap stay two
             // markers rather than becoming one blob.
@@ -838,14 +850,31 @@ function registerInteractions(instance: MapLibreMap, handles: InteractionHandles
         const hit = featureHitAt(instance, event.point)
         if (hit !== null) handles.select.current(hit.unitId)
     })
-    for (const layer of ['boundary-fill', 'unit-point']) {
-        instance.on('mouseenter', layer, () => {
-            instance.getCanvas().style.cursor = 'pointer'
-        })
-        instance.on('mouseleave', layer, () => {
-            instance.getCanvas().style.cursor = ''
-        })
+    // THE HOVER IS THE CLICK'S PROMISE. The shape that lights under the cursor is the one a
+    // left-click would ask about - the same featureHitAt answer, so the pin over a boundary
+    // lights the pin. One unit at a time, the way every interactive row in this UI takes its
+    // hover fill.
+    instance.on('mousemove', (event) => {
+        const hit = featureHitAt(instance, event.point)
+        hoverUnit(instance, handles, hit?.unitId ?? null)
+        instance.getCanvas().style.cursor = hit === null ? '' : 'pointer'
+    })
+    instance.on('mouseout', () => {
+        hoverUnit(instance, handles, null)
+        instance.getCanvas().style.cursor = ''
+    })
+}
+
+/** Light one unit's shapes under the cursor, and put out whatever was lit before. */
+function hoverUnit(instance: MapLibreMap, handles: InteractionHandles, unitId: string | null): void {
+    const previous = handles.hovered.current
+    if (previous === unitId) return
+    for (const source of ['org-unit-boundaries', 'org-unit-points']) {
+        if (instance.getSource(source) === undefined) continue
+        if (previous !== null) instance.removeFeatureState({ source, id: previous }, 'hover')
+        if (unitId !== null) instance.setFeatureState({ source, id: unitId }, { hover: true })
     }
+    handles.hovered.current = unitId
 }
 
 /**
@@ -890,6 +919,8 @@ interface InteractionHandles {
     popup: { current: Popup | null }
     /** The unit lit under the open popup, so the next popup can put it out. */
     highlighted: { current: string | null }
+    /** The unit lit under the cursor, so the next move can put it out. */
+    hovered: { current: string | null }
 }
 
 /** What a cursor position landed on: which unit, and whether by its pin or by its boundary. */
