@@ -139,6 +139,7 @@ test.describe('the evaluate screen', () => {
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()
+        await page.getByTestId('evaluate-examples').getByRole('button', { name: CQL_EXAMPLE }).click()
 
         // The proof that a highlighter is running at all: the document is spans with token classes,
         // not one text node. Which colour each gets is the theme's business and is asserted in the
