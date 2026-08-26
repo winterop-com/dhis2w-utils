@@ -2,8 +2,10 @@
 
 `/{resource_type}` and `/{resource_type}/{resource_id}` match any path of their shape, so the
 read router mounts last and every router carrying a fixed path mounts ahead of it. `/metadata`,
-`/spool`, `/uiconfig`, `/whoami`, `/evaluate`, and `/cds-services` are one-segment fixed paths and
-all sit in that group, as do the deeper fixed paths under them - the
+`/spool`, `/uiconfig`, `/metadata-health`, `/whoami`, `/evaluate`, and `/cds-services` are
+one-segment fixed paths and all sit in that group - a hyphen is not a path separator, so
+`/metadata-health` is a segment of its own and shadows neither `/metadata` nor a resource type - as
+are the deeper fixed paths under them - the
 `/tracked-entities/{uid}/enrollments` listing and the `/tracked-entities/{uid}/events` record beside
 it, `/terminology/validate-code` and
 `/terminology/lookup`, and one service's `/cds-services/{id}`. FHIR resource types are PascalCase,
@@ -108,8 +110,8 @@ class ServeRouters(BaseModel):
     """The routers answering plain JSON about this facade rather than FHIR resources out of it.
 
     Their order is the order an application picking a subset of the facade reads them in: what a
-    running server holds (`/spool`, `/uiconfig`), what it answers about the instance
-    (`/tracked-entities/{uid}/enrollments`), and what it runs over either (`/evaluate`,
+    running server holds (`/spool`, `/uiconfig`, `/metadata-health`), what it answers about the
+    instance (`/tracked-entities/{uid}/enrollments`), and what it runs over either (`/evaluate`,
     `/terminology/*`, `/cds-services`).
     """
 
@@ -170,6 +172,7 @@ def serve_routers(
     from dhis2w_fhir_serve.routes.evaluate_operation import router as evaluate_operation_router
     from dhis2w_fhir_serve.routes.generate import router as generate_router
     from dhis2w_fhir_serve.routes.history import router as history_router
+    from dhis2w_fhir_serve.routes.metadata_health import router as metadata_health_router
     from dhis2w_fhir_serve.routes.read import router as read_router
     from dhis2w_fhir_serve.routes.root import build_root_router
     from dhis2w_fhir_serve.routes.spool import router as spool_router
@@ -201,6 +204,7 @@ def serve_routers(
         *naming,
         spool_router,
         ui_config_router,
+        metadata_health_router,
         enrollments_router,
         evaluate_router,
         terminology_router,

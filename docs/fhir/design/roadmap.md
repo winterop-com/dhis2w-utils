@@ -1498,6 +1498,21 @@ described, and the git history is where it was built. What is left:
   there before any block pair is written - grown token tweaks in a live facade
   are how a palette drifts.
 
+- **Acting on a metadata health finding, from the row it is stated on.** The
+  Metadata health page reports and nothing more: it names the object, the DHIS2
+  field at fault, the problem, and what the grade costs, and then a reader goes
+  and finds the object in DHIS2 themselves. Reporting shipped first because a
+  defect nobody can see is a defect nobody fixes, and because the read half
+  needs no decisions - the findings are `d2w fhir validate`'s own. The write
+  half needs several: which fields may be corrected from a browser at all (a
+  code and a translation, plausibly; a name is what every report in the
+  instance is keyed on), whose DHIS2 credential the write spends - the serve
+  run's profile, or under the `dhis2` posture the caller's own - what a bulk
+  correction over a run of data elements looks like, and what happens to the
+  guide on disk, which was generated from the spelling that just changed. A
+  link out to the object's own page in the instance's Metadata Management app
+  is the smallest first step, and settles none of those.
+
 - **Recapture from a receipt.** A receipt is immutable - the spool never
   rewrites what arrived - so "edit and send again" is a new capture that opens
   the form prefilled from an existing receipt's answers. One affordance on the

@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/AppLayout'
 import { Evaluate } from '@/pages/Evaluate'
 import { FormFill } from '@/pages/FormFill'
 import { Forms } from '@/pages/Forms'
+import { MetadataHealth } from '@/pages/MetadataHealth'
 import { OrgUnits } from '@/pages/OrgUnits'
 import { Overview } from '@/pages/Overview'
 import { Playground } from '@/pages/Playground'
@@ -18,7 +19,7 @@ import { TrackedEntityDetail } from '@/pages/TrackedEntityDetail'
 /**
  * The route table.
  *
- * Flat and hash-routed. Flat because the six top-level pages are peers and the
+ * Flat and hash-routed. Flat because the top-level pages are peers and the
  * four detail routes below are one segment deeper rather than a nested layout;
  * hash-routed because `d2w fhir serve --ui` mounts
  * the bundle as plain static files behind every FHIR route, and a static mount
@@ -56,6 +57,13 @@ import { TrackedEntityDetail } from '@/pages/TrackedEntityDetail'
  * contexts that need no DHIS2 instance - a pasted resource, a resource this
  * guide publishes - are the two it opens with.
  *
+ * `/metadata-health` is the second page that can be offered or not, and for the
+ * same reason the register is: grading DHIS2 metadata needs a DHIS2 instance, so
+ * a run reading a compiled guide off disk offers no entry to it. Unlike the
+ * register it is still answered at the address - the server states in words that
+ * there is no instance behind it - so a bookmark kept from a live run lands on an
+ * explanation rather than being sent elsewhere.
+ *
  * `/organisation-units` is the one page that keeps its selection in the query
  * string (`#/organisation-units?unit=<uid>`) rather than in the path: the tree,
  * the detail panel, and the map are one screen over one read, and an
@@ -84,6 +92,7 @@ export default function App() {
                 <Route path="organisation-units" element={<OrgUnits />} />
                 <Route path="evaluate" element={<Evaluate />} />
                 <Route path="playground" element={<Playground />} />
+                <Route path="metadata-health" element={<MetadataHealth />} />
                 <Route path="terminology" element={<Terminology />} />
                 <Route path="terminology/:resourceType/:resourceId" element={<TerminologyDetail />} />
                 <Route path="server" element={<Server />} />

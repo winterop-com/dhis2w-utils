@@ -149,7 +149,7 @@ async def test_the_settings_carry_nothing_a_browser_has_no_business_knowing(
     """The model is the enumeration of what the UI acts on, and the omissions are the point."""
     body = (await ui_config_client.get(UI_CONFIG_PATH)).json()
 
-    assert set(body) == {"auth", "capture", "basemaps", "dhis2_base_url", "tracked_entities"}
+    assert set(body) == {"auth", "capture", "basemaps", "dhis2_base_url", "tracked_entities", "metadata_health"}
     assert set(body["auth"]) == {"posture", "scope", "issuer"}
     serialised = str(body)
     for leaked in ("profile", "project_dir", "strict_codes", "live", "port", "token", "realm"):

@@ -3,7 +3,7 @@
 WHY THIS EXISTS AT ALL. Everything else the UI renders it reads out of FHIR: the forms are
 Questionnaires, the hierarchy is Locations, the server's own identity is the CapabilityStatement.
 This is the one class of fact that is none of those - not something the guide published, but
-something about *how this process was started*. Four things are that today. `[serve] capture` says
+something about *how this process was started*. Five things are that today. `[serve] capture` says
 whether this server receives submissions at all, which is what lets a form screen say so rather than
 offer a Submit that answers 405. `[serve.basemaps]` names
 the raster layers the organisation-unit map may draw under the boundaries, which is a deployment
@@ -12,7 +12,9 @@ The profile this run resolved names the DHIS2 instance the guide was generated f
 lets a published organisation unit, form, or data element link back to the object it came from. And
 `[serve.tracked_entities]` decides whether there is a register to navigate to at all, which no
 published resource states: a Questionnaire that registers people is published by projects whose
-server answers for none.
+server answers for none. And whether this run reaches a DHIS2 instance decides whether there is any
+metadata to report the health of, which is the same class of fact and is what `metadata_health`
+carries.
 
 WHY NOT `/metadata`. A CapabilityStatement describes the FHIR interface - what a client may read,
 search, and post. A tile template is not part of that interface and would have to ride in an
@@ -55,7 +57,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.requests import Request
 
-from dhis2w_fhir_serve.routes.context import serve_context
+from dhis2w_fhir_serve.routes.context import live_client, serve_context
 
 if TYPE_CHECKING:
     from dhis2w_fhir_serve.register.surface import RegisterSurface
@@ -226,6 +228,25 @@ class TrackedEntitiesUiConfig(BaseModel):
     """
 
 
+class MetadataHealthUiConfig(BaseModel):
+    """Whether this process can grade the DHIS2 metadata behind the guide it serves.
+
+    A resolved fact rather than a setting read back, exactly as `TrackedEntitiesUiConfig.enabled`
+    is: grading metadata needs an instance to grade, so a compiled run answers false and a live one
+    answers true. It is read off the connection this process actually holds rather than off `live`,
+    which is the same question `/metadata-health` itself branches on - a navigation entry drawn from
+    a setting the route does not read would be an entry that could lie.
+
+    `/metadata-health` still answers on a compiled run, saying in words that there is no instance
+    behind this server, so a reader who followed a link there is told rather than shown a blank page.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool
+    """Whether this run reaches a DHIS2 instance and so has metadata to report on."""
+
+
 class AuthUiConfig(BaseModel):
     """How this process decides who is calling, as a screen has to name it - the posture, never a secret.
 
@@ -272,6 +293,10 @@ class UiConfig(BaseModel):
     `auth` is always stated, and a document that omitted it would be read as `none` - which is the
     right reading of silence for a screen, and the reason the sign-in gate does not learn the posture
     here. See this module's own note.
+
+    `metadata_health` is None on the same terms `tracked_entities` is: a server saying nothing about
+    whether it can grade an instance is one a screen must assume nothing about, and reads exactly as
+    `enabled = false`. This process always states it, because it always knows.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -281,6 +306,7 @@ class UiConfig(BaseModel):
     basemaps: list[BasemapLayer] = Field(default_factory=list)
     dhis2_base_url: str | None = None
     tracked_entities: TrackedEntitiesUiConfig | None = None
+    metadata_health: MetadataHealthUiConfig | None = None
 
 
 @router.get(UI_CONFIG_PATH)
@@ -298,6 +324,7 @@ async def read_ui_config(request: Request) -> UiConfig:
         basemaps=basemap_layers(settings.basemaps),
         dhis2_base_url=public_instance_url(settings.dhis2_base_url),
         tracked_entities=tracked_entities_config(live=settings.live, surface=context.register_surface),
+        metadata_health=MetadataHealthUiConfig(enabled=live_client(request) is not None),
     )
 
 

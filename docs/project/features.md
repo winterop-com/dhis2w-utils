@@ -1657,8 +1657,8 @@ bound to loopback by default that loads the project once at startup.
   and the drainer cannot land on two directories.
 - **Content negotiation.** Every FHIR route answers `application/fhir+json`; an
   `Accept` that rules JSON out is a 406 naming the one format served, while
-  `/spool`, `/uiconfig`, `/evaluate`, `/terminology/*`, and `/cds-services`
-  negotiate nothing. `POST /` is a 405 saying the facade runs no batch and no
+  `/spool`, `/uiconfig`, `/metadata-health`, `/evaluate`, `/terminology/*`, and
+  `/cds-services` negotiate nothing. `POST /` is a 405 saying the facade runs no batch and no
   transaction.
 - **`_format` as R4 defines it.** `_format=json`, `_format=application/json`,
   and `_format=application/fhir+json` - in any casing - make JSON acceptable
@@ -2922,6 +2922,33 @@ an identifier search and a paged listing on one page, with a detail route at
 - **The address is the base url of the profile the serve run resolved**, served
   on `/uiconfig` with any userinfo stripped - so a run that resolved no profile
   carries no links at all, rather than a link that goes nowhere.
+
+#### Metadata health
+
+- **`/metadata-health` is the `d2w fhir validate` analysis rendered over the
+  served selection**, off a `GET /metadata-health` endpoint that reruns the
+  validator over the connection the process already holds - the same passes, the
+  same graders, and the same sentence per finding, so one defect read in a
+  terminal and read in a browser is one defect.
+- **Live runs only, and a compiled run is told why.** The endpoint answers on
+  every run: a process with no DHIS2 instance behind it answers
+  `available: false` with the reason in words, because "there is nothing here to
+  check and here is why" is a state a screen renders rather than a status code it
+  has to interpret. `/uiconfig` carries the same fact as
+  `metadata_health.enabled`, so the navigation entry is drawn only where the page
+  has something to show.
+- **Findings are shelved by severity first and DHIS2 collection second**, each
+  row naming the object and its uid, the DHIS2 field at fault, the problem, and
+  what the grade costs - the build stops, the published resource is degraded, or
+  the object is outside what this project publishes.
+- **Translation coverage is the analysis the command does not do.** The locales
+  in use are the union of the tags the selection's own translations carry, read
+  one bounded request per resource kind rather than one per object and with no
+  system-settings read; against that set the page states coverage per locale and
+  lists every object holding no name translation, and no form-name translation
+  where DHIS2 gives it a form name.
+- **Reporting only.** Nothing on the page writes to DHIS2 and nothing offers to;
+  acting on a finding is a near-term roadmap item.
 
 #### Command palette
 

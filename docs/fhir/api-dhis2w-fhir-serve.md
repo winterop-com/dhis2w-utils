@@ -591,6 +591,20 @@ because that service takes none through its public surface.
 
 ::: dhis2w_fhir_serve.routes.terminology
 
+### Metadata health
+
+`GET /metadata-health` - what the DHIS2 instance behind a live run holds that the guide cannot carry
+cleanly. The findings are `d2w fhir validate`'s own, reread over the connection this process already
+holds, and the translation coverage beside them is this module's: which locales the selection is
+being maintained in, how much of it each covers, and which objects hold no translation the rest
+already have. `translation_coverage` is a pure function over the projected objects, so the
+arithmetic behind every number on the page answers with no server running. A run serving a compiled
+guide answers `available: false` with the reason in words rather than a refusal.
+
+::: dhis2w_fhir_serve.health
+
+::: dhis2w_fhir_serve.routes.metadata_health
+
 ### CDS Hooks
 
 `GET /cds-services` and `POST /cds-services/{id}` - the discovery document and one service, which

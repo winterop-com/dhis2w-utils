@@ -794,6 +794,43 @@ began, and the organisation unit it sits at.
 
     ![One code system: a concept per row with its code, its display, the DHIS2 identifier it carries, and the value type, over a filter across all of them](../img/fhir/capture-ui-code-system.png)
 
+- **Metadata health** is the `d2w fhir validate` analysis rendered over the
+    served selection, with translation coverage beside it. It is offered by a
+    run that reaches a DHIS2 instance and by no other: grading metadata needs
+    metadata to grade, so the navigation entry is absent on a run serving a
+    compiled guide, and the address still answers there - it says in words that
+    there is no instance behind this server, so a bookmark kept from a live run
+    lands on an explanation rather than on an empty table.
+
+    The page opens on a strip: how many errors, warnings, and notes the
+    instance holds, and one row per locale in use showing how much of the
+    selection it covers. Under it the findings are shelved by severity first and
+    by DHIS2 collection second - an error stops the build whichever kind of
+    object it sits on, and somebody fixing names fixes a run of data elements at
+    once. Each row names the object and its uid, the DHIS2 field at fault, the
+    problem in the validator's own words, and what the grade costs: an error
+    stops `make build`, a warning degrades what the guide publishes for the
+    object, a note sits on an object outside what this project publishes. The
+    wording is the same sentence [Validate the codes](201-validate.md) writes
+    into its report files, because one defect read in a terminal and read in a
+    browser has to be one defect.
+
+    **Translations not written** is the analysis the command does not do. The
+    locales in use are the union of the tags the selection's own translations
+    carry - no system-settings read, because an instance is being maintained in
+    the languages somebody wrote into it - and against that set the table lists
+    every object holding no name translation, and no form-name translation where
+    DHIS2 gives it a form name. An instance nobody has translated has no locales,
+    no coverage rows, and no gaps, which is the honest reading of a deployment
+    working in one language. One filter box over the page narrows the findings
+    and the gaps together, by object name or uid.
+
+    !!! note "Reporting only, for now"
+        The page reports; it changes nothing in DHIS2 and offers nothing that
+        would. Acting on a finding from the row it is stated on - opening the
+        object and correcting the name, the code, or the translation - is a
+        near-term item on the [FHIR roadmap](design/roadmap.md).
+
 - **Evaluate** is a place to run one expression and see what this server
   answers: pick FHIRPath, CQL, or a compiled ELM library, pick what it runs
   over - a resource pasted below, a resource from this guide, a person this
