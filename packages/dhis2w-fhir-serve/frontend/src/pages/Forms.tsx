@@ -6,7 +6,13 @@ import { KindBadge } from '@/components/KindBadge'
 import { PageHeader, PageState } from '@/components/PageState'
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useStatusLine } from '@/hooks/use-status-bar'
-import { TRACKED_ENTITY_FORM_SHELF, catalogueForms, isEventProgram, type ProgramGroup } from '@/lib/catalogue'
+import {
+    TRACKED_ENTITY_FORM_SHELF,
+    TRACKED_ENTITY_FORM_SHELF_NOTE,
+    catalogueForms,
+    isEventProgram,
+    type ProgramGroup,
+} from '@/lib/catalogue'
 import { formIdentifier, formTitle, formTypeOf, questionCount, type Questionnaire } from '@/lib/fhir'
 import { repeatsPerEnrollment } from '@/lib/questionnaire'
 import { cn, countedNoun } from '@/lib/utils'
@@ -53,7 +59,7 @@ export function Forms() {
                   countedNoun(catalog.dataSets.length, 'data set'),
                   countedNoun(eventPrograms.length, 'event program'),
                   countedNoun(trackerPrograms.length, 'tracker program'),
-                  countedNoun(catalog.people.length, 'registration form'),
+                  countedNoun(catalog.people.length, 'tracked entity registration'),
               ].join(' - '),
     )
 
@@ -69,11 +75,10 @@ export function Forms() {
                 empty={resources.length === 0}
                 emptyMessage={
                     <>
-                        This project publishes no Questionnaires. Run{' '}
-                        <code className="font-mono">d2w fhir generate</code>, then{' '}
-                        <code className="font-mono">make sushi</code> to compile the implementation
-                        guide - or serve straight from the DHIS2 instance with{' '}
-                        <code className="font-mono">--live</code>.
+                        This project publishes no Questionnaires. They appear once the
+                        implementation guide has been generated and compiled:{' '}
+                        <code className="font-mono">d2w fhir generate</code> - or serve straight
+                        from the DHIS2 instance with <code className="font-mono">--live</code>.
                     </>
                 }
             >
@@ -134,7 +139,7 @@ export function Forms() {
                             testid="forms-people"
                             heading={TRACKED_ENTITY_FORM_SHELF}
                             count={catalog.people.length}
-                            explainer="Registers a person in this DHIS2 instance without enrolling them in a program."
+                            explainer={TRACKED_ENTITY_FORM_SHELF_NOTE}
                         >
                             <FormGrid>
                                 {catalog.people.map((questionnaire) => (

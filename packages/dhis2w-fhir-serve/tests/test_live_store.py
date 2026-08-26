@@ -173,6 +173,26 @@ _PROGRAMS_PAYLOAD = {
 _TRACKER_STAGE_UID = "A03MvHHogjR"
 _TRACKER_PROGRAM_UID = "IpHINAT79UW"
 
+#: Every vocabulary a generated guide publishes off its own definitions rather than off the
+#: instance's data - the four foundation pairs and the identifier namespaces its maps target. They
+#: are the parity set: a compiled build writes all of them, so a live run serves all of them.
+_DEFINITIONAL_TERMINOLOGY_IDS = frozenset(
+    {
+        "d2-form-type-cs",
+        "d2-form-type-vs",
+        "d2-period-type-cs",
+        "d2-period-type-vs",
+        "d2-program-rule-action-cs",
+        "d2-program-rule-action-vs",
+        "d2-ou-level-cs",
+        "d2-ou-level-vs",
+        "d2-option-id-cs",
+        "d2-option-code-id-cs",
+        "d2-category-option-id-cs",
+        "d2-category-option-code-id-cs",
+    }
+)
+
 
 def _mock_instance(data_sets: dict[str, Any] | None = None, option_sets: dict[str, Any] | None = None) -> respx.Route:
     """Mock every endpoint the live fetch reads (respx-active), returning the system-info route.
@@ -381,6 +401,79 @@ async def test_the_live_store_serves_the_terminology_the_foundation_fsh_declares
 
 
 @respx.mock
+async def test_the_live_store_serves_the_program_rule_action_pair(
+    live_profile: None,  # noqa: ARG001
+    live_project: FhirProject,
+) -> None:
+    """A served form states what each of its program rules does as a code, so the vocabulary is served too.
+
+    The pair is declared beside the D2ProgramRule extension in FSH and has no JSON target of its own,
+    which is why a live run builds it here rather than serving a required binding onto a 404.
+    """
+    _mock_instance()
+
+    store = await _built_store(live_project)
+
+    code_system = _bodies(store, "CodeSystem")["d2-program-rule-action-cs"]
+    value_set = _bodies(store, "ValueSet")["d2-program-rule-action-vs"]
+
+    assert code_system["url"] == f"{_CANONICAL}/CodeSystem/d2-program-rule-action-cs"
+    assert code_system["content"] == "complete"
+    assert {"code": "HIDEFIELD", "display": "Hide a question"} in code_system["concept"]
+    assert code_system["count"] == len(code_system["concept"])
+    assert value_set["compose"]["include"] == [{"system": f"{_CANONICAL}/CodeSystem/d2-program-rule-action-cs"}]
+
+
+@respx.mock
+async def test_the_live_store_enumerates_every_identifier_namespace_its_maps_target(
+    live_profile: None,  # noqa: ARG001
+    live_project: FhirProject,
+) -> None:
+    """A NamingSystem answers no `$validate-code`, so the enumeration a compiled build writes is built here.
+
+    One CodeSystem per namespace the option-set, category, and attribute-combo maps target, at the
+    same URL the NamingSystem declares, enumerating exactly the identifiers this selection uses.
+    """
+    _mock_instance()
+
+    store = await _built_store(live_project)
+
+    code_systems = _bodies(store, "CodeSystem")
+    options = code_systems["d2-option-id-cs"]
+
+    assert options["url"] == f"{_IDENTIFIER_BASE}/option"
+    assert options["content"] == "complete"
+    assert {concept["code"] for concept in options["concept"]} == {"kRRUtYaGett", "EBE0c8sZazS"}
+    assert {concept["code"] for concept in code_systems["d2-option-code-id-cs"]["concept"]} == {"NB", "CS"}
+    assert {concept["code"] for concept in code_systems["d2-category-option-id-cs"]["concept"]} == {
+        "TNYQzTHdoxL",
+        "apsOixVZlf1",
+    }
+    assert {concept["code"] for concept in code_systems["d2-category-option-code-id-cs"]["concept"]} == {"F", "M"}
+
+
+@respx.mock
+async def test_the_live_store_publishes_the_terminology_a_compiled_build_publishes(
+    live_profile: None,  # noqa: ARG001
+    live_project: FhirProject,
+) -> None:
+    """Parity, stated as one assertion: every vocabulary the generate targets write is served live.
+
+    The two stores are built from different inputs - a compiled one reads files SUSHI wrote, a live
+    one reads an instance - so what is compared is the artifact ids, which are the guide's own and
+    are the same in both. Example instances are the one thing a compiled store holds and a live one
+    does not, and that is by design: an example is a teaching document, not a read a client resolves.
+    """
+    _mock_instance()
+
+    store = await _built_store(live_project)
+
+    published = set(_bodies(store, "CodeSystem")) | set(_bodies(store, "ValueSet"))
+
+    assert published >= _DEFINITIONAL_TERMINOLOGY_IDS
+
+
+@respx.mock
 async def test_the_live_store_serves_the_organisation_unit_code_list_when_it_is_turned_on(
     live_profile: None,  # noqa: ARG001
     tmp_path: Path,
@@ -500,7 +593,9 @@ async def test_live_facade_answers_reads_and_searches_over_the_built_store(
             )
 
     assert metadata.status_code == 200
-    assert "(live store)" in metadata.json()["implementation"]["description"]
+    assert metadata.json()["implementation"]["description"].startswith(
+        "A FHIR capture facade over a live DHIS2 instance."
+    )
     assert read.status_code == 200
     assert read.json()["url"] == f"{_CANONICAL}/Questionnaire/BfMAe6Itzgt"
     bundle = search.json()

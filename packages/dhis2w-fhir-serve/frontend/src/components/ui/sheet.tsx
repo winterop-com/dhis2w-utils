@@ -47,13 +47,29 @@ function SheetOverlay({
 
 // How narrow and how wide a dragged panel may go, and where its chosen width is remembered.
 const SHEET_MINIMUM_WIDTH = 384
+const SHEET_WIDEST = 1100
 const SHEET_WIDTH_STORAGE_KEY = "sheet-width"
+
+/**
+ * The widest a panel may be, here and now.
+ *
+ * TWO CEILINGS, BECAUSE THEY ANSWER DIFFERENT THINGS. 1100px is a reading measure: past it the JSON
+ * and the fact grids inside a panel run to lines nobody tracks across. 85% of the window is what
+ * keeps a panel a panel - a sheet covering the page it is over stops being something you read
+ * *beside* what you came from. The smaller of the two wins, and it is applied to the drag and to the
+ * width read back out of storage alike: a width kept on a wide monitor must not open as a full-page
+ * overlay on a laptop.
+ */
+function widestSheet(): number {
+  return Math.min(SHEET_WIDEST, window.innerWidth * 0.85)
+}
 
 /** The width a reader last dragged a panel to, or null when they never have (or storage is blocked). */
 function storedSheetWidth(): number | null {
   try {
     const kept = Number(window.localStorage.getItem(SHEET_WIDTH_STORAGE_KEY))
-    return Number.isFinite(kept) && kept >= SHEET_MINIMUM_WIDTH ? kept : null
+    if (!Number.isFinite(kept) || kept < SHEET_MINIMUM_WIDTH) return null
+    return Math.min(kept, widestSheet())
   } catch {
     return null
   }
@@ -91,10 +107,7 @@ function SheetContent({
     const startWidth = contentRef.current?.getBoundingClientRect().width ?? SHEET_MINIMUM_WIDTH
     let latest = startWidth
     const follow = (move: PointerEvent) => {
-      latest = Math.min(
-        Math.max(startWidth + (startX - move.clientX), SHEET_MINIMUM_WIDTH),
-        window.innerWidth * 0.95,
-      )
+      latest = Math.min(Math.max(startWidth + (startX - move.clientX), SHEET_MINIMUM_WIDTH), widestSheet())
       setDraggedWidth(latest)
     }
     const release = () => {
@@ -119,7 +132,7 @@ function SheetContent({
         ref={contentRef}
         style={
           side === "right" && draggedWidth !== null
-            ? { width: draggedWidth, maxWidth: "95vw" }
+            ? { width: draggedWidth, maxWidth: `min(${String(SHEET_WIDEST)}px, 85vw)` }
             : undefined
         }
         onOpenAutoFocus={(event) => {

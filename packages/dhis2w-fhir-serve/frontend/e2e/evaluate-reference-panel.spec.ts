@@ -16,7 +16,7 @@ function sourceEditor(page: Page) {
 
 test('keeps the language tabs on screen while the shelves under them scroll', async ({ page }) => {
     await page.goto('/#/evaluate')
-    await page.getByRole('button', { name: 'Expand the examples panel' }).click()
+    await page.getByRole('button', { name: 'Expand the examples' }).click()
 
     const tabs = page.getByRole('tab', { name: 'CQL' })
     await expect(tabs).toBeVisible()
@@ -30,7 +30,7 @@ test('keeps the language tabs on screen while the shelves under them scroll', as
 
 test('stops naming an example once the source it loaded has been typed over', async ({ page }) => {
     await page.goto('/#/evaluate')
-    await page.getByRole('button', { name: 'Expand the examples panel' }).click()
+    await page.getByRole('button', { name: 'Expand the examples' }).click()
 
     const picker = page.getByRole('combobox', { name: 'Example' })
     await expect(picker).toContainText('The given names on a Patient')
@@ -50,7 +50,7 @@ test('stops naming an example once the source it loaded has been typed over', as
 
 test('sends a reader to a published page rather than to a path in a source tree', async ({ page }) => {
     await page.goto('/#/evaluate')
-    await page.getByRole('button', { name: 'Expand the examples panel' }).click()
+    await page.getByRole('button', { name: 'Expand the examples' }).click()
     await page.getByRole('tab', { name: 'FHIRPath' }).click()
 
     const reference = page.getByTestId('evaluate-reference')

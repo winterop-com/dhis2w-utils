@@ -65,7 +65,7 @@ from dhis2w_fhir.i18n import (
     name_translations,
     text_translations,
 )
-from dhis2w_fhir.names import code_or_uid, page_text, quote, quote_verbatim
+from dhis2w_fhir.names import code_or_uid, flatten_whitespace, page_text, quote, quote_verbatim
 from dhis2w_fhir.notes import (
     GenerateNoteCategory,
     aggregate_generate_note,
@@ -175,6 +175,7 @@ __all__ = [
     "question_code_system",
     "question_entity_level",
     "question_read_only",
+    "registration_subject",
     "enable_behavior_of",
     "search_context_declarations",
     "source_description",
@@ -992,13 +993,36 @@ def _attribute_option_combo_value_set(
     return None if identity is None else identity.value_set_name
 
 
+def registration_subject(type_name: str) -> str:
+    """One tracked entity type's own name as the sentence subject its registration form is described with.
+
+    A DHIS2 instance registers focus areas, households, commodities, and malaria entities as readily
+    as it registers people, so a form description that said "a person" would be describing an
+    instance nobody has. The type's own name is what the form is about, so the type's own name is
+    what the sentence says.
+
+    The casing is the instance's, minus the capital a list label puts on its first word: a name whose
+    remaining words are all lower case reads as a common noun mid-sentence ("Focus area" -> "a focus
+    area"), while a name carrying a capital of its own is a proper name the instance means ("Malaria
+    Entity" -> "a Malaria Entity"). The article follows the spelling that survives that.
+    """
+    name = flatten_whitespace(type_name)
+    if not name:
+        return "a subject"
+    if not any(character.isupper() for character in name[1:]):
+        name = name[0].lower() + name[1:]
+    article = "an" if name[0].lower() in "aeiou" else "a"
+    return f"{article} {name}"
+
+
 def source_description(source: QuestionnaireSourceIn, profile: FormKindProfile) -> str:
     """The prose one form's Questionnaire describes itself with, a program stage naming its program too."""
     opening = f"DHIS2 {profile.label} {source.name} ({source.uid})"
     if source.kind == "tracked-entity":
         return (
             f"{opening} as a registration form: the tracked entity attributes the type itself collects, "
-            "captured when a person is registered without being enrolled in any program."
+            f"captured when {registration_subject(source.name)} is registered without being enrolled in "
+            "any program."
         )
     if source.kind == "tracker":
         return (

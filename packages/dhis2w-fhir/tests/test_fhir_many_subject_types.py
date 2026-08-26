@@ -37,8 +37,14 @@ from dhis2w_fhir import (
 )
 from dhis2w_fhir.foundation.schemas import TrackerSubjectTypes
 from dhis2w_fhir.r4 import DEFAULT_SUBJECT_RESOURCE_TYPE
+from dhis2w_fhir.resources.questionnaires import registration_subject, source_description
 from dhis2w_fhir.resources.questionnaires.documents import build_data_dictionary_documents
-from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireItemIn, QuestionnaireSourceIn, form_subject_type
+from dhis2w_fhir.resources.questionnaires.schemas import (
+    FORM_KIND_PROFILES,
+    QuestionnaireItemIn,
+    QuestionnaireSourceIn,
+    form_subject_type,
+)
 from dhis2w_fhir.validation import build_code_validation
 from dhis2w_fhir.validation.schemas import MetadataCollectionIn, MetadataItemIn
 
@@ -202,3 +208,50 @@ def test_a_sweep_holding_no_tracked_entity_type_says_nothing() -> None:
     report = build_code_validation([], [MetadataCollectionIn(resource="dataElements", items=[])], GenerateConfig())
 
     assert [finding for finding in report.findings if finding.category == "unmapped-tracked-entity-type"] == []
+
+
+@pytest.mark.parametrize(
+    ("type_name", "subject"),
+    [
+        ("Person", "a person"),
+        ("Focus area", "a focus area"),
+        ("Cold-chain fridge", "a cold-chain fridge"),
+        ("Malaria Entity", "a Malaria Entity"),
+        ("Environmental site", "an environmental site"),
+        ("", "a subject"),
+    ],
+)
+def test_a_registration_subject_reads_in_the_type_s_own_words(type_name: str, subject: str) -> None:
+    """A name whose later words are lower case is a common noun; one carrying its own capital is a proper name."""
+    assert registration_subject(type_name) == subject
+
+
+@pytest.mark.parametrize(
+    ("uid", "sentence"),
+    [
+        (_PERSON_TYPE, "captured when a person is registered without being enrolled in any program."),
+        (_FRIDGE_TYPE, "captured when a cold-chain fridge is registered without being enrolled in any program."),
+        (_HERD_TYPE, "captured when a livestock herd is registered without being enrolled in any program."),
+        (_WATER_POINT_TYPE, "captured when a water point is registered without being enrolled in any program."),
+        (_SAMPLE_TYPE, "captured when a specimen batch is registered without being enrolled in any program."),
+    ],
+)
+def test_a_registration_form_describes_itself_in_the_type_s_own_words(uid: str, sentence: str) -> None:
+    """An instance registering fridges and water points is not registering people, and says so."""
+    assert source_description(_source(uid), FORM_KIND_PROFILES["tracked-entity"]).endswith(sentence)
+
+
+def test_the_emitted_questionnaire_carries_that_same_sentence() -> None:
+    """The description a consumer reads is the one the form builder wrote, not a generic person-shaped one."""
+    documents = build_questionnaire_documents(
+        _SOURCES,
+        _CONFIG,
+        _CANONICAL,
+        ig_status="draft",
+        option_set_plan=option_set_identities([], _CONFIG),
+        attribute_codes=AttributeCodeIndex(),
+    )
+    described = {questionnaire.id: questionnaire.description or "" for questionnaire in documents.questionnaires}
+
+    assert "captured when a water point is registered" in described[_WATER_POINT_TYPE]
+    assert "a person" not in described[_WATER_POINT_TYPE]

@@ -94,7 +94,7 @@ test.describe('the evaluate screen', () => {
         await expect(page.getByText('The server refused this evaluation')).toHaveCount(0)
     })
 
-    test('offers a preset built from this guide’s own resources, and runs it', async ({ page }) => {
+    test("offers a preset built from this guide's own resources, and runs it", async ({ page }) => {
         await page.goto('/#/evaluate')
 
         const examples = page.getByRole('combobox', { name: 'Example' })
@@ -122,7 +122,7 @@ test.describe('the evaluate screen', () => {
         await page.goto('/#/evaluate')
         await page.getByRole('combobox', { name: 'Context' }).click()
         await expect(page.getByRole('option', { name: 'A resource pasted below' })).toBeVisible()
-        await expect(page.getByRole('option', { name: 'A person this DHIS2 instance holds' })).toHaveCount(0)
+        await expect(page.getByRole('option', { name: 'A tracked entity this DHIS2 instance holds' })).toHaveCount(0)
     })
 
     test('colours the source rather than showing it as one run of plain text', async ({ page }) => {
@@ -141,7 +141,7 @@ test.describe('the evaluate screen', () => {
 
     test('holds a reference beside the editor, every language on its own tab', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
+        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         // Open with the screen, because the second thing a reader wonders is what else they could
         // have written, and the answer to that is a list rather than a search engine.
@@ -166,7 +166,7 @@ test.describe('the evaluate screen', () => {
 
     test('loads an example from the panel straight into the editor, and runs it', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
+        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         await page
             .getByTestId('evaluate-examples')
@@ -181,7 +181,7 @@ test.describe('the evaluate screen', () => {
 
     test('asks the household Bundle a question a single record could not answer', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
+        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         await page
             .getByTestId('evaluate-examples')
@@ -201,7 +201,7 @@ test.describe('the evaluate screen', () => {
 
     test('states the CQL reference this engine answers, refusals included', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
+        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()
@@ -219,17 +219,17 @@ test.describe('the evaluate screen', () => {
 
         // The editor already holds a runnable example, so the panel waits in its corner.
         await expect(page.getByTestId('evaluate-examples')).toHaveCount(0)
-        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
+        await page.getByRole('button', { name: 'Expand the examples' }).click()
         await expect(page.getByTestId('evaluate-examples')).toBeVisible()
         // The control belongs to the panel it acts on, not to the toolbar above the editor.
-        await page.getByRole('button', { name: 'Collapse the examples panel' }).click()
+        await page.getByRole('button', { name: 'Collapse the examples' }).click()
         await expect(page.getByTestId('evaluate-examples')).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Reference', exact: true })).toHaveCount(0)
     })
 
     test('runs a refusal example and shows the whole of what the engine said', async ({ page }) => {
         await page.goto('/#/evaluate')
-        await page.getByRole('button', { name: 'Expand the examples panel' }).click()
+        await page.getByRole('button', { name: 'Expand the examples' }).click()
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import type { Questionnaire } from '@/lib/fhir'
 import {
     APPEARANCE_GROUP,
-    COLLAPSE_SIDEBAR_LABEL,
-    EXPAND_SIDEBAR_LABEL,
+    COLLAPSE_NAVIGATION_LABEL,
+    EXPAND_NAVIGATION_LABEL,
     FORMS_GROUP,
     HELP_GROUP,
     MINIMUM_RECEIPT_PREFIX_LENGTH,
@@ -318,10 +318,10 @@ describe('the sidebar and the list of keys', () => {
     it('states the move the row would make, rather than where the sidebar stands', () => {
         // A row reading "Sidebar" leaves a reader to guess which way it goes.
         expect(labelsIn(paletteActions(input({ sidebarCollapsed: false })), VIEW_GROUP)).toEqual([
-            COLLAPSE_SIDEBAR_LABEL,
+            COLLAPSE_NAVIGATION_LABEL,
         ])
         expect(labelsIn(paletteActions(input({ sidebarCollapsed: true })), VIEW_GROUP)).toEqual([
-            EXPAND_SIDEBAR_LABEL,
+            EXPAND_NAVIGATION_LABEL,
         ])
     })
 

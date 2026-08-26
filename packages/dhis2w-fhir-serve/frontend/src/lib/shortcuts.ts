@@ -137,7 +137,7 @@ export function shortcuts(apple: boolean): Shortcut[] {
     const modifier = modifierKeyLabel(apple)
     return [
         { id: 'palette', action: 'Open the command palette', keys: [modifier, 'K'] },
-        { id: 'sidebar', action: 'Collapse or expand the sidebar', keys: [modifier, 'B'] },
+        { id: 'sidebar', action: 'Collapse or expand the navigation', keys: [modifier, 'B'] },
         { id: 'shortcuts', action: 'Open this list', keys: [SHORTCUTS_KEY] },
         { id: 'dismiss', action: 'Close a dialog, a menu, or the palette', keys: ['Esc'] },
         { id: 'choose', action: 'Open the row that has focus', keys: ['Enter'] },

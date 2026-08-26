@@ -227,7 +227,8 @@ export function RegisterNotServed({ resource }: { resource: string }) {
  *
  * `replace` on every keystroke, so typing an identifier value leaves one history entry rather than
  * one per character - Back goes to the page before this one, not to the search half-typed. The
- * narrowing writes the same way, so paging through types stacks no history either.
+ * narrowing pushes instead, because choosing a type is a discrete act and Back is the way out of
+ * it; so does opening a quick view, which is what makes Back shut one.
  */
 function RegisterBrowser({
     settings,
@@ -239,8 +240,14 @@ function RegisterBrowser({
 }) {
     const naming = useTrackedEntityNaming()
     const [parameters, setParameters] = useSearchParams()
+    // TYPING REPLACES, CHOOSING PUSHES. The search box writes a parameter per keystroke, and a
+    // history entry per character is a Back button that walks a word backwards; narrowing to a type
+    // or to an attribute is one discrete choice, and Back is the way back out of it.
     const setParameter = useCallback(
-        (name: string, next: string | null) => {
+        (name: string, next: string | null, discrete: boolean) => {
+            // A repeat is not a navigation: writing the value that is already in the address would
+            // stack a history entry Back has to step over before it moves anything.
+            if ((parameters.get(name) ?? '') === (next ?? '')) return
             setParameters(
                 (current) => {
                     const updated = new URLSearchParams(current)
@@ -248,29 +255,29 @@ function RegisterBrowser({
                     else updated.set(name, next)
                     return updated
                 },
-                { replace: true },
+                { replace: !discrete },
             )
         },
-        [setParameters],
+        [parameters, setParameters],
     )
     const typed = parameters.get(REGISTER_QUERY_PARAMETER) ?? ''
     const setTyped = useCallback(
         (next: string) => {
-            setParameter(REGISTER_QUERY_PARAMETER, next)
+            setParameter(REGISTER_QUERY_PARAMETER, next, false)
         },
         [setParameter],
     )
     const askedType = parameters.get(REGISTER_TYPE_PARAMETER)
     const setAskedType = useCallback(
         (next: string | null) => {
-            setParameter(REGISTER_TYPE_PARAMETER, next)
+            setParameter(REGISTER_TYPE_PARAMETER, next, true)
         },
         [setParameter],
     )
     const askedAttribute = parameters.get(REGISTER_ATTRIBUTE_PARAMETER)
     const setAskedAttribute = useCallback(
         (next: string | null) => {
-            setParameter(REGISTER_ATTRIBUTE_PARAMETER, next)
+            setParameter(REGISTER_ATTRIBUTE_PARAMETER, next, true)
         },
         [setParameter],
     )
@@ -404,7 +411,12 @@ function RegisterSection({
         openedValue !== null && openedValue.startsWith(openedPrefix)
             ? { resourceType: register.resource, trackedEntityUid: openedValue.slice(openedPrefix.length) }
             : NO_TRACKED_ENTITY_OPENED
+    // Opening pushes and shutting replaces, the same rule the receipts listing follows: a quick
+    // view is a place a reader went, so Back shuts it and leaves the search and the narrowing
+    // underneath standing.
     const writeOpened = (trackedEntityUid: string | null) => {
+        const wanted = trackedEntityUid === null ? '' : `${openedPrefix}${trackedEntityUid}`
+        if ((openParameters.get(REGISTER_OPEN_PARAMETER) ?? '') === wanted) return
         setOpenParameters(
             (current) => {
                 const written = new URLSearchParams(current)
@@ -412,7 +424,7 @@ function RegisterSection({
                 else written.set(REGISTER_OPEN_PARAMETER, `${openedPrefix}${trackedEntityUid}`)
                 return written
             },
-            { replace: true },
+            { replace: trackedEntityUid === null },
         )
     }
     const searchKey = useRegisterSearchKey(register.resource)
@@ -712,7 +724,7 @@ function AttributeValueFilter({
                         </PopoverTrigger>
                         <PopoverContent className="w-(--radix-popover-trigger-width) min-w-64 p-0" align="start">
                             <Command>
-                                <CommandInput placeholder="Search by name or uid" />
+                                <CommandInput placeholder="Search by name or UID" />
                                 <CommandList>
                                     <CommandEmpty>No attribute matches that search.</CommandEmpty>
                                     {attributes.map((attribute) => (
@@ -781,15 +793,17 @@ function AttributeValueFilter({
                 </div>
                 {/* The task this control exists for, so it wears the primary colour - the same rule
                     the Evaluate screen's run button follows. Clearing is the way back out and stays
-                    quiet: a screen with two filled buttons names neither as the thing to press. */}
-                <Button type="submit" size="sm" disabled={chosen === null || value === ''}>
+                    quiet: a screen with two filled buttons names neither as the thing to press.
+                    BOTH TAKE THE DEFAULT HEIGHT, which is the height of the controls they sit
+                    beside: a button four pixels shorter than the box next to it reads as sitting
+                    low on the row however carefully the row aligns their feet. */}
+                <Button type="submit" disabled={chosen === null || value === ''}>
                     Filter
                 </Button>
                 {selected !== null && (
                     <Button
                         type="button"
                         variant="ghost"
-                        size="sm"
                         onClick={() => {
                             setValue('')
                             onSelect(null)

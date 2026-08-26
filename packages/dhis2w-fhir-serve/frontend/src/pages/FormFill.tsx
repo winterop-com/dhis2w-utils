@@ -57,6 +57,7 @@ import {
     clearedHiddenAnswers,
     collectsIncidentDate,
     dateLabelsOf,
+    dateInputValue,
     dateTimeInputValue,
     dictionaryOfCodeSystems,
     entityLevelLinkIds,
@@ -398,19 +399,18 @@ export function FormFill() {
     }, [filling, questionnaire, questionnaireId, seed, seedStated, clearStatedDates])
 
     // How far through the form this is, published before the read has landed so the hook order does
-    // not depend on whether the server holds the form. `unansweredRequiredLinkIds` is asked again
-    // below for the Submit button's own note; both readings are of the same three arguments, so the
-    // bar and the note can never disagree about what is still waiting.
-    const stillWaiting = unansweredRequiredLinkIds(spec, answers, lockedQuestions.linkIds).length
+    // not depend on whether the server holds the form.
     const answered = spec.questionLinkIds.filter((linkId) => {
         const node = spec.byLinkId.get(linkId)
         return node !== undefined && isAnswered(node, answers)
     }).length
+    // ONE COUNT, NOT TWO. The action bar states what is still unanswered because Submit is what
+    // that count gates, and it sits directly above this bar - the same sentence in both places was
+    // one fact stacked on itself. So the bar keeps the progress and leaves the gate to the gate.
     useStatusLine(
         questionnaire === null
             ? null
             : `${formatCount(answered)} of ${countedNoun(spec.questionLinkIds.length, 'question')} answered`,
-        stillWaiting === 0 ? null : `${countedNoun(stillWaiting, 'required question')} unanswered`,
     )
 
     if (questionnaire === null) {
@@ -499,8 +499,24 @@ export function FormFill() {
                     existingSubject,
                 }),
             )
+            // The receipt is named, because a person who has just submitted six forms needs to
+            // know which one this was - and the name is the id the receipt is served under, which
+            // is also what the action opens.
+            const responseId = receipt.responseId
             toast.success('The server accepted this submission', {
-                description: `Stored as ${receipt.id ?? 'a new receipt'}.`,
+                description:
+                    responseId === null
+                        ? 'Stored as a new receipt.'
+                        : `Stored as receipt ${responseId}.`,
+                action:
+                    responseId === null
+                        ? undefined
+                        : {
+                              label: 'Open',
+                              onClick: () => {
+                                  navigate(`/responses/${responseId}`)
+                              },
+                          },
             })
             navigate('/responses')
         } catch (failure: unknown) {
@@ -624,10 +640,10 @@ export function FormFill() {
                     {enrolledAt !== null && envelope !== null && (
                         <EnrollmentContext
                             labels={dateLabels}
-                            enrollmentDate={enrollmentDate ?? dateTimeInputValue(enrolledAt)}
+                            enrollmentDate={enrollmentDate ?? dateInputValue(enrolledAt)}
                             incidentDate={
                                 asksIncidentDate && incidentAt !== null
-                                    ? (incidentDate ?? dateTimeInputValue(incidentAt))
+                                    ? (incidentDate ?? dateInputValue(incidentAt))
                                     : null
                             }
                             enrollment={trackerEnrollmentOf(envelope)}
@@ -673,7 +689,12 @@ export function FormFill() {
 
             {/* Sticky rather than fixed: it belongs to the form, so it scrolls with it on a
                 short one and pins itself over a long one. */}
-            <div className="bg-card sticky -bottom-6 z-10 mt-6 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 md:-mx-8 md:px-8">
+            {/* DOCKED THROUGH THE VERY END OF THE SCROLL. `bottom-0` holds the bar against the
+                foot of the scroll box while there is anything below it; `-mb-6` cancels the scroll
+                box's own bottom padding, so the bar's resting place in the flow is exactly where
+                sticky was holding it. Without that the last stretch of scrolling ended in a 24px
+                hop as the bar let go and dropped into a position 24px higher. */}
+            <div className="bg-card sticky bottom-0 z-10 mt-6 -mb-6 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 md:-mx-8 md:px-8">
                 <Button
                     type="submit"
                     disabled={
@@ -738,13 +759,15 @@ export function FormFill() {
                 <div className="text-muted-foreground grid gap-0.5 text-right text-xs">
                     {!receivesSubmissions && <p>{CAPTURE_OFF_NOTICE}</p>}
                     {missingAttributeOptionCombo && (
-                        <p>Choose what this submission reports for before submitting</p>
+                        <p>Choose an attribute option combination before submitting</p>
                     )}
                     {unfitReportingPeriod && (
                         <p>
                             {reportingPeriod.trim() === ''
                                 ? 'This submission reports for a period, and none is stated'
-                                : `${reportingPeriod} is not a ${periodType ?? 'DHIS2'} period`}
+                                : periodType === null
+                                  ? `${reportingPeriod} is not a period this form accepts`
+                                  : `${reportingPeriod} is not a ${periodType} period`}
                         </p>
                     )}
                     {breaches.length > 0 && (
@@ -789,8 +812,8 @@ function SeedField({ seed, onChange }: { seed: string; onChange: (seed: string) 
                 />
             </TooltipTrigger>
             <TooltipContent side="top">
-                Each fill draws fresh test data and shows the seed it drew. Type a seed to fill this
-                form with that draw's answers again.
+                Each fill generates fresh test data and shows the seed number behind it. Type a
+                seed number to get the same answers again.
             </TooltipContent>
         </Tooltip>
     )
@@ -866,12 +889,18 @@ function keepReportingUnitId(unitId: string): void {
 /**
  * One instant of the capture context, as a control over what the draft drew.
  *
- * WHAT AN EMPTY CONTROL MEANS. The value is the literal the browser's own `datetime-local` holds,
- * kept verbatim the way every answer control keeps its literal, and turned into an R4 `dateTime` at
+ * WHAT AN EMPTY CONTROL MEANS. The value is the literal the browser's own control holds, kept
+ * verbatim the way every answer control keeps its literal, and turned into an R4 `dateTime` at
  * submit by the same normaliser the form's own date questions use - which stamps the wall time as
  * stated rather than shifting it by whichever zone the operator's laptop is in. An emptied control
  * states nothing, and the submission carries the date the draft drew: every profile that has one of
  * these requires it, so "no date" is not a submission this server would take.
+ *
+ * A CONTROL ASKS FOR WHAT THE FACT ACTUALLY HAS. An enrollment begins on a day - DHIS2 keeps it as
+ * a date, the label says date, and the hint says date - so asking for a clock reading offers a
+ * precision nobody holds, and `$generate` filling it drew minutes and seconds a reader would take
+ * for a record of when something happened. An event is a different fact: it happened at a time, and
+ * that control keeps its clock.
  */
 function InstantField({
     controlId,
@@ -879,6 +908,7 @@ function InstantField({
     hint,
     value,
     onChange,
+    precision = 'instant',
 }: {
     controlId: string
     label: string
@@ -886,15 +916,18 @@ function InstantField({
     /** What the control shows: the stated literal, or the drafted instant it opens on. */
     value: string
     onChange: (value: string) => void
+    /** Whether this fact has a clock reading. A date-only control writes a date-only R4 dateTime. */
+    precision?: 'date' | 'instant'
 }) {
+    const dateOnly = precision === 'date'
     return (
         <div className="grid gap-2">
             <Label htmlFor={controlId}>{label}</Label>
             <p className="text-muted-foreground text-sm">{hint}</p>
             <Input
                 id={controlId}
-                type="datetime-local"
-                step={1}
+                type={dateOnly ? 'date' : 'datetime-local'}
+                step={dateOnly ? undefined : 1}
                 className="max-w-xs"
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
@@ -963,8 +996,8 @@ function ReportingPeriodControl({
             />
             <p className="text-muted-foreground text-xs">
                 {shape === null
-                    ? 'A period of another type is refused when this submission is sent, and the refusal names both types.'
-                    : `A ${periodType ?? ''} period is spelled like ${shape.example}. One of another type is refused when this submission is sent, and the refusal names both types.`}
+                    ? 'A period of any other type is refused when this submission is sent, and the refusal names both types.'
+                    : `A ${periodType ?? ''} period is spelled like ${shape.example}. A period of any other type is refused when this submission is sent, and the refusal names both types.`}
             </p>
         </div>
     )
@@ -1009,9 +1042,10 @@ function EnrollmentContext({
             <InstantField
                 controlId={ENROLLMENT_DATE_CONTROL_ID}
                 label={labels.enrollmentDate}
-                hint="The date this enrollment begins. DHIS2 files it under this date."
+                hint="The date this enrollment begins. This DHIS2 instance files it under this date."
                 value={enrollmentDate}
                 onChange={onEnrollmentDateChange}
+                precision="date"
             />
             {incidentDate !== null && (
                 <InstantField
@@ -1020,17 +1054,18 @@ function EnrollmentContext({
                     hint="The date of the incident this enrollment follows, as this program collects one."
                     value={incidentDate}
                     onChange={onIncidentDateChange}
+                    precision="date"
                 />
             )}
             {enrollment !== null && (
                 <dl className="text-sm">
                     {/* Not "Enrollment": the block around it is already headed that, and the fact
                         under it is one particular enrollment that does not exist yet. */}
-                    <dt className="text-muted-foreground text-xs">Enrollment this registration mints</dt>
+                    <dt className="text-muted-foreground text-xs">Enrollment identifier for this registration</dt>
                     <dd className="font-mono text-xs break-words">{enrollment}</dd>
                     <dd className="text-muted-foreground text-xs">
-                        The server drew this uid, and DHIS2 files the enrollment under it when the
-                        submission arrives.
+                        This server generated this UID, and this DHIS2 instance files the enrollment
+                        under it when the submission arrives.
                     </dd>
                 </dl>
             )}
@@ -1144,8 +1179,8 @@ function ProgramRules({ rules }: { rules: ProgramRule[] }) {
     return (
         <details className="rounded-lg border px-4 py-3">
             <summary className="cursor-pointer text-sm">
-                This DHIS2 instance enforces {rules.length} more {rules.length === 1 ? 'rule' : 'rules'} when the
-                submission is imported
+                This DHIS2 instance enforces {rules.length} further{' '}
+                {rules.length === 1 ? 'rule' : 'rules'} on import, beyond the ones this form checks
             </summary>
             <dl className="mt-3 grid gap-3">
                 {rules.map((rule) => (

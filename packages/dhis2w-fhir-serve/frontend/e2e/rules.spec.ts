@@ -99,7 +99,7 @@ test('a question its conditions close is not asked, and its answer goes with it'
 test('a form names the DHIS2 program rules its instance enforces after the submission leaves', async ({ page }) => {
     await openForm(page, STAGE_FORM)
 
-    const statement = page.getByText('This DHIS2 instance enforces 2 more rules when the submission is imported')
+    const statement = page.getByText('This DHIS2 instance enforces 2 further rules on import, beyond the ones this form checks')
     await expect(statement).toBeVisible()
 
     // Folded away by default: the names are what a person reads, and the DHIS2 expression behind

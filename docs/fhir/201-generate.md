@@ -370,9 +370,10 @@ resources carry them - so the notes report is the record of where the guide and
 the instance say different things:
 
 ```text
-note: the DHIS2 name '5 to < 15 years, Female' carries '<', which the IG
-publisher's build cannot survive; the guide publishes '5 to under 15 years,
-Female' and DHIS2 keeps the name it holds
+note: the DHIS2 name '5 to < 15 years, Female' carries a comparison the IG
+publisher's pages cannot carry as it stands; the guide publishes '5 to under
+15 years, Female', states '5 to < 15 years, Female' as a `dhis2-name`
+property, and DHIS2 keeps the name it holds
 
 note: the DHIS2 code 'IPT 1' carries a space, which the IG publisher's anchors
 and every URL downstream of them handle at their own discretion; the guide

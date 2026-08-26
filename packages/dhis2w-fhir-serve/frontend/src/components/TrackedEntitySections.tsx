@@ -61,13 +61,13 @@ export function TrackedEntitySections({
                 <div className="space-y-8">
                     <AttributeSection
                         heading="Identifier values"
-                        caption={`The values of the attributes DHIS2 declares unique, which are what name this ${words.one}.`}
+                        caption={`The values of the attributes this DHIS2 instance declares unique, which are what name this ${words.one}.`}
                         empty={`This DHIS2 instance holds no unique attribute value for this ${words.one}.`}
                         rows={identifierRows(person, naming)}
                     />
                     <AttributeSection
                         heading="Attribute values"
-                        caption={`Everything else this DHIS2 instance holds about this ${words.one}, as the string it sent.`}
+                        caption={`Everything else this DHIS2 instance holds about this ${words.one}, as the instance stores it.`}
                         empty={`This DHIS2 instance holds no other attribute value for this ${words.one}.`}
                         rows={attributeRows(person, naming)}
                     />

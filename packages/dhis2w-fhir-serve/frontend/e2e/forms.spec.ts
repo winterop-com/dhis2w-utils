@@ -28,7 +28,7 @@ test('the four capture models are sections, each saying what it is', async ({ pa
     await expect(page.getByText('Periodic reports for an organisation unit. No person involved.')).toBeVisible()
     await expect(page.getByText('Single events, recorded without registering a person.')).toBeVisible()
     await expect(
-        page.getByText('Registers a person in this DHIS2 instance without enrolling them in a program.'),
+        page.getByText('Registers a tracked entity in this DHIS2 instance without enrolling it in a program.'),
     ).toBeVisible()
 
     // Each form sits in its own model's section and nowhere else.

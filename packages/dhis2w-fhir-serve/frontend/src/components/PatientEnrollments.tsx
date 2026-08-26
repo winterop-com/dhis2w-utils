@@ -15,11 +15,11 @@ import { formatInstant } from '@/lib/spool'
  * two paraphrases in two components.
  */
 export const COMPLETED_ENROLLMENT_NOTE =
-    'DHIS2 accepts new events into a completed enrollment without complaint, so nothing downstream will question one.'
+    'This DHIS2 instance accepts new events into a completed enrollment, so a later capture against it is not refused.'
 
 /** The same fact where the enrollment is a choice, so the consequence lands on the person choosing. */
 export const COMPLETED_ENROLLMENT_CHOICE_NOTE =
-    'This enrollment is completed. DHIS2 accepts new events into a completed enrollment without complaint, so choosing it is deliberate.'
+    'This enrollment is completed. This DHIS2 instance accepts new events into a completed enrollment, so a later capture against it is not refused - choosing it is deliberate.'
 
 /**
  * The programs one person is already enrolled in, as this DHIS2 instance holds them.

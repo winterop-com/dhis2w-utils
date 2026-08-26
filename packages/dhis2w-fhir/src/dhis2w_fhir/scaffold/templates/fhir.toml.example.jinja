@@ -27,7 +27,7 @@ status = "{{ status }}"
 # Web-address stem of the DHIS2 identifiers every published entry carries. -> 301-generation#identifier_system_base
 identifier_system_base = "http://dhis2.org/fhir"
 # Whether a published concept's code is its DHIS2 id or its DHIS2 code; reaches option sets,
-# categories, and category option combos. `d2w fhir validate --code-source code` reports what
+# categories, and category option combinations. `d2w fhir validate --code-source code` reports what
 # switching would cost before you switch. -> 301-generation#concept_code_source
 concept_code_source = "id"
 # What a run does with a DHIS2 name carrying '<', which aborts the IG publisher's final pass,

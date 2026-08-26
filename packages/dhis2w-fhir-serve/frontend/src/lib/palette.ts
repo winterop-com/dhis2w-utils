@@ -302,7 +302,7 @@ function registerActions(register: string | null, query: string): PaletteAction[
             id: 'register:lookup',
             group: register,
             label: `Look up "${searchable}" in ${register}`,
-            hint: 'Opens the register with this identifier value searched for',
+            hint: 'Opens Tracked entities with this identifier value searched',
             kind: SEARCH_KIND,
             keywords: ['search', 'find', 'identifier', 'register'],
             identifier: null,
@@ -365,25 +365,25 @@ function appearanceActions(dark: boolean, current: ThemeName): PaletteAction[] {
 export const SWITCH_TO_DARK_LABEL = 'Switch to dark mode'
 export const SWITCH_TO_LIGHT_LABEL = 'Switch to light mode'
 
-/** What the two states of the sidebar are called, in the palette and in the shortcuts list alike. */
-export const COLLAPSE_SIDEBAR_LABEL = 'Collapse sidebar'
-export const EXPAND_SIDEBAR_LABEL = 'Expand sidebar'
+/** What the two states of the navigation are called, in the palette and in the shortcuts list alike. */
+export const COLLAPSE_NAVIGATION_LABEL = 'Collapse the navigation'
+export const EXPAND_NAVIGATION_LABEL = 'Expand the navigation'
 
 /**
- * The sidebar, stated as the move it would make rather than as where it stands.
+ * The navigation, stated as the move it would make rather than as where it stands.
  *
  * The row is the same chord the keyboard carries (Cmd+B, Ctrl+B), offered to a pointer - and the
- * label says which way it goes, because a row reading "Sidebar" would leave a reader to guess.
+ * label says which way it goes, because a row reading "Navigation" would leave a reader to guess.
  */
 function viewActions(collapsed: boolean): PaletteAction[] {
     return [
         {
             id: 'view:sidebar',
             group: VIEW_GROUP,
-            label: collapsed ? EXPAND_SIDEBAR_LABEL : COLLAPSE_SIDEBAR_LABEL,
-            hint: collapsed ? 'Puts the names back beside the icons' : 'Leaves the rail as icons',
+            label: collapsed ? EXPAND_NAVIGATION_LABEL : COLLAPSE_NAVIGATION_LABEL,
+            hint: collapsed ? 'Puts the names back beside the icons' : 'Leaves the navigation as icons',
             kind: VIEW_KIND,
-            keywords: ['sidebar', 'rail', 'collapse', 'expand', 'view'],
+            keywords: ['navigation', 'sidebar', 'rail', 'collapse', 'expand', 'view'],
             identifier: null,
             checked: false,
             effect: { kind: 'sidebar' },

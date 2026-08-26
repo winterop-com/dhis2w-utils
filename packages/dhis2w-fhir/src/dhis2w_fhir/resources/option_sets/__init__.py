@@ -8,8 +8,11 @@ questionnaire's `Canonical(...)` binding resolves against.
 
 Every concept carries both DHIS2 identifiers: whichever one is the concept
 code, the other rides along as a concept property (`dhis2-code` or
-`dhis2-id`). With `concept_code_source = "code"`, options whose code is not a
-valid FHIR code fall back to the UID with a note in the report.
+`dhis2-id`). `dhis2-code` is the DHIS2 code byte-true, whatever whitespace it
+holds - it is a property value rather than an identifier - and `dhis2-name`
+joins it wherever a substitute-posture run rewrote the display. With
+`concept_code_source = "code"`, options whose code is not a valid FHIR code
+fall back to the UID with a note in the report.
 
 Concept codes are unique within a set by construction: a first pass computes
 each option's desired code, a second assigns them in sortOrder and falls back
@@ -38,7 +41,13 @@ from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.coded import DHIS2_CODE_PROPERTY, DHIS2_ID_PROPERTY, code_substitutions
+from dhis2w_fhir.coded import (
+    DHIS2_CODE_PROPERTY,
+    DHIS2_ID_PROPERTY,
+    DHIS2_NAME_PROPERTY,
+    code_substitutions,
+    original_spelling_extensions,
+)
 from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_extension_url,
     attribute_value_extensions,
@@ -141,6 +150,7 @@ _ID_SUFFIX = "-vs"
 _PROPERTY_DECLARATIONS = (
     CodeSystemProperty(code=DHIS2_CODE_PROPERTY, description="DHIS2 option code.", type="string"),
     CodeSystemProperty(code=DHIS2_ID_PROPERTY, description="DHIS2 option UID.", type="code"),
+    CodeSystemProperty(code=DHIS2_NAME_PROPERTY, description="DHIS2 option name.", type="string"),
 )
 
 
@@ -515,6 +525,12 @@ def _concept_map_groups(
 ) -> list[ConceptMapGroup]:
     """The mapping groups of one set: the UID group always, the DHIS2-code group when any option has one.
 
+    The code group's target is the spelling the guide publishes - under the substitute posture, the
+    option code with its spaces hyphenated - because a target code is resolved inside the guide and
+    an R4 `code` cannot hold a doubled or trailing space. That is the published half of a documented
+    pair: the concept's `dhis2-code` property states the instance's spelling byte-true, this target
+    states the one the guide resolves by, and the two are read together.
+
     An option whose DHIS2 code is not a valid FHIR `code` cannot be a target code and is left out
     of the code group - the pair emitter already reports that code in a note when it is the concept
     code the set asked for.
@@ -615,7 +631,15 @@ def _narrative(
     attribute_codes: AttributeCodeIndex,
     extension_url: str,
 ) -> _OptionSetNarrative:
-    """The elements both halves share: both DHIS2 identifiers, the attribute values, the title, the state."""
+    """The elements both halves share: both DHIS2 identifiers, the attribute values, the title, the state.
+
+    The `option-set-code` identifier carries the spelling the guide publishes, which under the
+    substitute posture is the code with its spaces hyphenated - an identifier value is joined on and
+    slugged, so it takes the substituted spelling the rest of the guide resolves by. The instance's
+    own spelling is not lost to that: `original_spelling_extensions` states it as a `dhis2-code`
+    extension on the same URL the concept property declares, and states the DHIS2 name beside it
+    wherever the run rewrote the title too.
+    """
     code_kind = "option codes" if config.concept_code_source == "code" else "option UIDs"
     return _OptionSetNarrative(
         identifiers=[
@@ -626,7 +650,10 @@ def _narrative(
             ),
             *attribute_value_identifiers(option_set.attribute_values, attribute_codes, config.identifier_system_base),
         ],
-        extensions=attribute_value_extensions(option_set.attribute_values, attribute_codes, extension_url),
+        extensions=[
+            *original_spelling_extensions(systems.property_base, option_set),
+            *attribute_value_extensions(option_set.attribute_values, attribute_codes, extension_url),
+        ],
         title=flatten_whitespace(option_set.name),
         title_element=translated_element(name_translations(option_set.translations, config.locales)),
         description=flatten_whitespace(
@@ -708,10 +735,21 @@ def _concept_for(option: OptionIn, code: str, config: GenerateConfig) -> CodeSys
     """Build the concept for one member, carrying the complementary DHIS2 identifier as a property.
 
     Every concept carries the pair: in code mode the UID rides along as `dhis2-id`, in id mode
-    the DHIS2 code rides along as `dhis2-code` - falling back to the UID when there is no usable code.
-    A code-mode concept whose published code is a substitute-posture rewrite carries `dhis2-code`
-    too, stating the DHIS2 code byte-true, so a consumer joins the concept back to DHIS2 on the
-    spelling the instance holds rather than on the one the guide publishes.
+    the DHIS2 code rides along as `dhis2-code`. A code-mode concept whose published code is a
+    substitute-posture rewrite carries `dhis2-code` too, so a consumer joins the concept back to
+    DHIS2 on the spelling the instance holds rather than on the one the guide publishes.
+
+    `dhis2-code` is the DHIS2 code byte-true, whatever whitespace it holds. It is a property value
+    rather than an identifier - the R4 type is `string`, which takes a doubled space and a trailing
+    space alike - so a code the instance spells "SS-Suspicious  malignancy" is stated exactly that
+    way. The UID stands in only where DHIS2 holds no code at all, which is a fact about the object
+    rather than a defect in its spelling. The contract downstream is a documented pair: this
+    property carries the instance's spelling, and the ConceptMap's option-code target carries the
+    substituted one the posture publishes - the property is what a reader searches DHIS2 for, the
+    target is what resolves inside the guide.
+
+    `dhis2-name` joins them when the run rewrote the display, stating the DHIS2 name byte-true for
+    the same reason.
     """
     designations = [
         CodeSystemConceptDesignation(language=translation.locale, value=flatten_whitespace(translation.value))
@@ -722,9 +760,9 @@ def _concept_for(option: OptionIn, code: str, config: GenerateConfig) -> CodeSys
         if option.original_code is not None:
             carried.append(CodeSystemConceptProperty(code=DHIS2_CODE_PROPERTY, valueString=option.original_code))
     else:
-        carried = [
-            CodeSystemConceptProperty(code=DHIS2_CODE_PROPERTY, valueString=code_or_uid(option.dhis2_code, option.uid))
-        ]
+        carried = [CodeSystemConceptProperty(code=DHIS2_CODE_PROPERTY, valueString=option.dhis2_code or option.uid)]
+    if option.original_name is not None:
+        carried.append(CodeSystemConceptProperty(code=DHIS2_NAME_PROPERTY, valueString=option.original_name))
     return CodeSystemConcept(
         code=code,
         display=flatten_whitespace(option.name),

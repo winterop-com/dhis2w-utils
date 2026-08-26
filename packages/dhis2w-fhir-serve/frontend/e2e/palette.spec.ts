@@ -257,10 +257,14 @@ test('the header carries neither of them, so what is left on it is the page', as
     await expect(header.getByRole('button', { name: 'Theme' })).toHaveCount(0)
     await expect(header.getByRole('button', { name: /^Switch to (dark|light) mode/ })).toHaveCount(0)
 
-    // What the header does keep: the collapse control, the page's name, and the server light.
-    await expect(header.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible()
+    // What the header does keep: the page's name and the server light. The navigation's own
+    // toggle lives in the rail, at the one position it holds in both states.
+    await expect(header.getByRole('button', { name: 'Collapse the navigation' })).toHaveCount(0)
     await expect(header.locator('h1')).toHaveText('Overview')
     await expect(header.getByRole('button', { name: /Server status/ })).toBeVisible()
+    await expect(
+        page.getByRole('complementary').getByRole('button', { name: 'Collapse the navigation' }),
+    ).toBeVisible()
 })
 
 test('a theme chosen at the gear is painted, and is still painted after a reload', async ({ page }) => {
@@ -292,7 +296,7 @@ test('a theme chosen at the gear is painted, and is still painted after a reload
 
 test('the gear is still reachable once the rail is collapsed to icons', async ({ page }) => {
     await page.goto('/')
-    await page.getByRole('button', { name: 'Collapse sidebar' }).click()
+    await page.getByRole('button', { name: 'Collapse the navigation' }).click()
 
     const gear = page.getByRole('complementary').getByRole('button', { name: 'Settings' })
     await expect(gear).toBeVisible()
@@ -300,7 +304,7 @@ test('the gear is still reachable once the rail is collapsed to icons', async ({
     await expect(page.getByRole('menuitemradio', { name: /^Clinical/ })).toBeVisible()
 
     await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Expand sidebar' }).click()
+    await page.getByRole('button', { name: 'Expand the navigation' }).click()
 })
 
 test('? puts every key this app answers on screen, and typing a ? does not', async ({ page }) => {
@@ -311,7 +315,7 @@ test('? puts every key this app answers on screen, and typing a ? does not', asy
     await expect(dialog).toBeVisible()
     // The chord nobody discovers is the first row, which is the whole reason the list exists.
     await expect(dialog.getByText('Open the command palette')).toBeVisible()
-    await expect(dialog.getByText('Collapse or expand the sidebar')).toBeVisible()
+    await expect(dialog.getByText('Collapse or expand the navigation')).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
 

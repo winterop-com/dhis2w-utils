@@ -546,7 +546,7 @@ describe('a column headed off a declaration that reads like another one', () => 
 
     it('reads a category name only off a property published as a category axis', () => {
         expect(declaredColumnLabel('category-fMZEcRHuamy', 'DHIS2 category Sex.')).toBe('Sex')
-        expect(declaredColumnLabel('dhis2-id', 'DHIS2 category option UID.')).toBe('Id')
+        expect(declaredColumnLabel('dhis2-id', 'DHIS2 category option UID.')).toBe('ID')
     })
 
     it('heads a real combo vocabulary with both of its columns named', () => {

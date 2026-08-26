@@ -143,7 +143,7 @@ describe('the list itself', () => {
     it('states the sidebar chord and the key that opened the list', () => {
         const listed = shortcuts(true)
         expect(listed.find((shortcut) => shortcut.id === 'sidebar')?.action).toBe(
-            'Collapse or expand the sidebar',
+            'Collapse or expand the navigation',
         )
         expect(listed.find((shortcut) => shortcut.id === 'shortcuts')?.keys).toEqual([SHORTCUTS_KEY])
     })

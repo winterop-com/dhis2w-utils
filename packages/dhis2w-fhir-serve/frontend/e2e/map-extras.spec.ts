@@ -34,12 +34,13 @@ test('the legend names the three tiers in full, and each row explains itself', a
     await openMap(page, '/#/organisation-units')
 
     await expect(page.getByText('Selected organisation unit')).toBeVisible()
-    await expect(page.getByText('Below the selection')).toBeVisible()
+    await expect(page.getByText('Organisation units below it')).toBeVisible()
     await expect(page.getByText('Other organisation units')).toBeVisible()
-    // The tier names lean on the selection model; hovering a row states it in one plain sentence.
+    // The tier names lean on the selection model; hovering a row adds to what the row says
+    // rather than restating it in longer words.
     await expect(page.getByText('Other organisation units')).toHaveAttribute(
         'title',
-        'Organisation units this implementation guide publishes that are outside your selection.',
+        'Everything else this implementation guide publishes.',
     )
 })
 
@@ -77,7 +78,7 @@ test('the globe control switches projection in place, and the recenter fit works
     await expect
         .poll(() => settledZoom(map), { timeout: MAP_READY_TIMEOUT })
         .toBeLessThan(flatZoom - 0.5)
-    await page.getByRole('button', { name: 'Center on the selected organisation unit' }).click()
+    await page.getByRole('button', { name: 'Centre on the selected organisation unit' }).click()
     await expect
         .poll(() => settledZoom(map), { timeout: MAP_READY_TIMEOUT })
         .toBeCloseTo(flatZoom, 1)
@@ -147,7 +148,7 @@ test('a left-click on a boundary opens the popup, and Open is what selects', asy
     await expect(popup).toContainText('Level 1')
     await expect(popup).not.toContainText('level-1')
     // Sierra Leone holds the whole served subtree bar the detached orphan.
-    await expect(popup).toContainText('8 organisation units below')
+    await expect(popup).toContainText('8 organisation units sit below this one')
 
     // The click asked a question; it did not write a selection into the address.
     expect(page.url()).not.toContain('unit=')
@@ -293,13 +294,13 @@ test('the recenter control returns to the current framing, and says what it cent
     // A deep link to a unit this registry does not hold is the one state with no selection at
     // all - there the framing target is the whole registry, and the label says so.
     const map = await openMap(page, '/#/organisation-units?unit=NotPublished0')
-    await expect(page.getByRole('button', { name: 'Center on the organisation units' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Centre on the organisation units' })).toBeVisible()
 
     // With a selection the button recentres on it - wander off, then come back. Bo's fit sits
     // well above the registry framing the previous state left, so waiting for it to pass 7 is
     // what proves the new fit settled before its zoom is taken as the baseline.
     await page.goto('/#/organisation-units?unit=O6uvpzGd5pu')
-    const button = page.getByRole('button', { name: 'Center on the selected organisation unit' })
+    const button = page.getByRole('button', { name: 'Centre on the selected organisation unit' })
     await expect(button).toBeVisible()
     await expect
         .poll(() => settledZoom(map), { timeout: MAP_READY_TIMEOUT })

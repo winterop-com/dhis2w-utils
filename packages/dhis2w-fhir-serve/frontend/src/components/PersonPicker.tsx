@@ -25,7 +25,7 @@ const INSTANCE_PERSON_ID = 'person-source-instance'
  * rather than two components paraphrasing the same rule at each other.
  */
 export const EXISTING_PERSON_LOCK_REASON =
-    "This DHIS2 instance already holds this person's record, so the questions that write onto the person are read-only and cleared. An answer to one of them is refused when this submission reaches DHIS2 - change it on that person's own record there, or register a new person instead."
+    "This DHIS2 instance already holds this person's record, so the questions that would change it are read-only and cleared. An answer to one of them is refused on import - change it on the person's record in the instance, or register a new person instead."
 
 /** What each locked question says on its own, since the whole reason is stated once above. */
 export const EXISTING_PERSON_QUESTION_NOTE = 'Not asked for a person this DHIS2 instance already holds'

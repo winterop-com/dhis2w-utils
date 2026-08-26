@@ -38,6 +38,17 @@ export const CONCEPT_PAGE_SIZE = 200
  */
 export const TRANSLATE_QUESTION = 'What a code maps to in this DHIS2 instance'
 
+/**
+ * What a concept row is called to a screen reader: the action, named by the code it acts on.
+ *
+ * A row's accessible name is read before anything else on it, and the sheet it opens already carries
+ * the question as its own heading - so the row says what pressing it does rather than restating the
+ * heading in front of every code in the table.
+ */
+export function translateRowLabel(code: string): string {
+    return `Open the DHIS2 mapping for ${code}`
+}
+
 /** One property column a concept table shows: the concept property code, and how it is headed. */
 export interface ConceptPropertyColumn {
     code: string
@@ -176,6 +187,9 @@ export function propertyColumnLabel(code: string): string {
     // Stripped of its prefix, `dhis2-code` would head its column "Code" - the same word as the
     // concept-code column beside it, which tells a reader nothing about which code is whose.
     if (code === 'dhis2-code') return 'DHIS2 code'
+    // An identifier is spelled ID in prose and in a header; `id` is the machine spelling and stays
+    // on the wire, where the property code itself is.
+    if (code === 'dhis2-id') return 'ID'
     const bare = code.replace(/^dhis2-/, '').replaceAll('-', ' ').trim()
     return bare === '' ? code : bare.charAt(0).toUpperCase() + bare.slice(1)
 }
@@ -567,7 +581,7 @@ export const TERMINOLOGY_ORIGINS: { origin: TerminologyOrigin; title: string; ca
     {
         origin: 'option-set',
         title: 'Option sets',
-        caption: 'The DHIS2 option sets - what a coded question is answered from.',
+        caption: 'The option sets this DHIS2 instance declares - what a coded question is answered from.',
     },
     {
         origin: 'category',
@@ -578,17 +592,17 @@ export const TERMINOLOGY_ORIGINS: { origin: TerminologyOrigin; title: string; ca
         origin: 'dictionary',
         title: 'Data dictionary',
         caption:
-            'One registry each for what this DHIS2 instance declares: data elements, tracked entity attributes and types, category option combos, organisation unit levels.',
+            'One registry each for what this DHIS2 instance declares: data elements, tracked entity attributes and types, category option combinations, organisation unit levels.',
     },
     {
         origin: 'built-in',
         title: 'Built-in',
-        caption: 'Vocabularies DHIS2 hardcodes in the platform - fixed in code, the same on every instance.',
+        caption: 'Vocabularies the DHIS2 platform fixes in code - the same on every instance.',
     },
     {
         origin: 'other',
         title: 'Other vocabularies',
-        caption: 'Published outside the id conventions the shelves above are read from.',
+        caption: 'Published outside the identifier conventions the groups above are read from.',
     },
 ]
 

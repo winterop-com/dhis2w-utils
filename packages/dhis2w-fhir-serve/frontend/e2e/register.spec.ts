@@ -562,7 +562,7 @@ test.describe('a registration answering for a person the instance already holds'
         await expect(enrollments).toContainText('Antenatal care')
         await expect(enrollments).toContainText('Completed')
         await expect(
-            page.getByText('DHIS2 accepts new events into a completed enrollment without complaint'),
+            page.getByText('This DHIS2 instance accepts new events into a completed enrollment'),
         ).toBeVisible()
 
         await page.getByLabel('Household size').fill('4')
@@ -744,7 +744,7 @@ test.describe('the people this DHIS2 instance holds', () => {
 
         await page.goto(`/#/tracked-entities/Patient/${PERSON_UID}`)
         await expect(page.getByTestId('register-not-served')).toContainText(
-            'start it with `--live` to search the register',
+            'to search the register',
         )
     })
 
@@ -854,7 +854,7 @@ test.describe('the people this DHIS2 instance holds', () => {
         await expect(enrollments).toContainText('Antenatal care')
         await expect(enrollments).toContainText('Completed')
         await expect(
-            page.getByText('DHIS2 accepts new events into a completed enrollment without complaint'),
+            page.getByText('This DHIS2 instance accepts new events into a completed enrollment'),
         ).toBeVisible()
 
         // And what they have been through, which is the third thing this server answers about one
@@ -902,6 +902,37 @@ test.describe('the people this DHIS2 instance holds', () => {
         await expect(sheet).toHaveCount(0)
         await expect(page).toHaveURL(/#\/tracked-entities$/)
         await expect(row).toBeFocused()
+    })
+
+    test('the quick view carries the served document, as the receipt panel does', async ({ page }) => {
+        await serveRegisterSettings(page, { enabled: true, listing: true })
+        await serveALiveInstance(page)
+
+        await page.goto('/#/tracked-entities')
+        await page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID }).click()
+
+        // The document behind the reading, at the foot of the panel - the same control the receipt
+        // panel carries, named for the resource this register is answered from.
+        const sheet = page.getByTestId('tracked-entity-sheet')
+        await sheet.getByRole('button', { name: 'Raw Patient' }).click()
+        await expect(page.getByTestId('raw-patient')).toContainText('"resourceType": "Patient"')
+    })
+
+    test('Back shuts the quick view and leaves the listing where it was', async ({ page }) => {
+        await serveRegisterSettings(page, { enabled: true, listing: true })
+        await serveALiveInstance(page)
+
+        await page.goto('/#/tracked-entities')
+        await page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID }).click()
+        await expect(page).toHaveURL(/#\/tracked-entities\?open=Patient%3ATeiPerson01$/)
+
+        // Opening a quick view is a place a reader went, so the browser's own way back out of it
+        // works - and because the whole state is in the address, the listing comes back with it.
+        await page.goBack()
+
+        await expect(page.getByTestId('tracked-entity-sheet')).toHaveCount(0)
+        await expect(page).toHaveURL(/#\/tracked-entities$/)
+        await expect(page.getByTestId('patient-listing')).toContainText(NATIONAL_ID)
     })
 
     test('a keyboard user opens the same quick view, and it carries the way to the record', async ({

@@ -15,7 +15,7 @@ import { EvaluateReference } from '@/components/EvaluateReference'
 import { PageHeader } from '@/components/PageState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { RailToggle } from '@/components/RailToggle'
+import { RAIL_TOGGLE_GUTTER, RailToggle } from '@/components/RailToggle'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -121,6 +121,17 @@ function keepExamplesRailWidth(width: number): void {
 export function editorLanguage(language: EvaluationLanguage): EditorLanguage {
     if (language === 'elm') return 'json'
     return language === 'cql' ? 'cql' : 'fhirpath'
+}
+
+/**
+ * What the box is called, which is not the same thing in all three languages.
+ *
+ * A FHIRPath run is one expression; a CQL or ELM run is a library whose statements the server picks
+ * from. "Source" covers both by naming neither, and a reader who has just chosen FHIRPath is owed
+ * the word for what they are about to type.
+ */
+export function sourceLabel(language: EvaluationLanguage): string {
+    return language === 'fhirpath' ? 'Expression' : 'Library source'
 }
 
 /**
@@ -281,18 +292,28 @@ export function Evaluate() {
                 description="Run a FHIRPath expression, a CQL library, or a compiled ELM library against what this server serves. Pick an example to start with; every one of them runs as it stands."
             />
 
+            {/* THE EDITORS TAKE THE HEIGHT THE WINDOW HAS. An expression box is worth exactly as
+                many lines as it can show, and a fixed rectangle with half a screen of dead air
+                under it on a tall window is the shape this replaced - the same argument the
+                organisation units page makes about its map. So the row claims the leftover height,
+                the editor card is a column inside it, and the boxes grow into what is left. When an
+                answer arrives underneath, the card gives that height back down to its own minimum
+                and the page scrolls, which is what `min-h-0` on the chain is for. */}
             <div
                 className={cn(
-                    'grid items-start gap-6',
+                    'grid min-h-0 flex-1 gap-6',
                     examplesShown
                         ? 'lg:grid-cols-[minmax(0,1fr)_var(--examples-rail-width)]'
                         : 'lg:grid-cols-[minmax(0,1fr)_auto]',
                 )}
                 style={{ '--examples-rail-width': `${String(examplesWidth)}px` } as CSSProperties}
             >
-                <div className="min-w-0 space-y-6">
-                    <Card>
-                        <CardContent className="space-y-4 py-6">
+                <div className="flex min-h-0 min-w-0 flex-col gap-6">
+                    {/* `min-h` is the sensible minimum the editors need between them - two nine-rem
+                        boxes and the rows that name them. Below that the page scrolls rather than
+                        the card squeezing its own content out of sight. */}
+                    <Card className="flex min-h-[35rem] flex-1 flex-col">
+                        <CardContent className="flex min-h-0 flex-1 flex-col gap-4 py-6">
                             <div className="flex flex-wrap items-end gap-3">
                                 <div className="grid gap-1.5">
                                     <Label htmlFor="evaluate-language">Language</Label>
@@ -371,8 +392,10 @@ export function Evaluate() {
 
                             </div>
 
-                            <div className="grid gap-1.5">
-                                <Label id="evaluate-source-label">Source</Label>
+                            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+                                <Label id="evaluate-source-label" className="shrink-0">
+                                    {sourceLabel(form.language)}
+                                </Label>
                                 <CodeEditor
                                     value={form.source}
                                     onChange={(source) => setForm({ ...form, source })}
@@ -380,7 +403,9 @@ export function Evaluate() {
                                     labelId="evaluate-source-label"
                                     testId="evaluate-source"
                                     lineNumbersShown={form.language !== 'fhirpath'}
+                                    className="min-h-0 flex-1"
                                     minHeight="9rem"
+                                    maxHeight="none"
                                 />
                             </div>
 
@@ -474,13 +499,15 @@ function ExamplesPanel({
     // The shared RailToggle holds the corner; the sized placeholder is what keeps the collapsed
     // column as wide as the button, and the card's top stays level with the editor card's.
     return (
-        <aside aria-label="Examples" className="relative min-w-0 lg:sticky lg:top-6">
-            <RailToggle open={open} railName="the examples panel" onToggle={onToggle} />
+        // `self-start` keeps the rail its own height inside a row that now stretches, which is what
+        // leaves `sticky` something to do once an answer has made the page longer than the window.
+        <aside aria-label="Examples" className="relative min-w-0 self-start lg:sticky lg:top-6">
+            <RailToggle open={open} railName="the examples" onToggle={onToggle} />
             {open && (
                 <div
                     role="separator"
                     aria-orientation="vertical"
-                    aria-label="Resize the examples panel"
+                    aria-label="Resize the examples"
                     onPointerDown={beginResize}
                     className={cn(
                         'absolute inset-y-0 -left-3 z-10 hidden w-1.5 cursor-col-resize touch-none rounded-full lg:block',
@@ -496,7 +523,9 @@ function ExamplesPanel({
                     <CardContent className="flex min-h-0 flex-1 flex-col gap-1 py-6">{children}</CardContent>
                 </Card>
             ) : (
-                <div aria-hidden className="size-12" />
+                /* Exactly as wide as the control standing in it, so the collapsed rail is the
+                   button and not a gutter with a button loose in it. */
+                <div aria-hidden className={RAIL_TOGGLE_GUTTER} />
             )}
         </aside>
     )
@@ -521,7 +550,9 @@ function ContextPicker({
         onChange({ ...form, context: { ...context, kind, registerResource } })
 
     return (
-        <div className="space-y-3">
+        // The column grows only when it holds an editor: a resource id and a UID are one row each,
+        // and a picker stretched over the leftover height would be dead air with a select in it.
+        <div className={cn('flex flex-col gap-3', context.kind === 'inline' && 'min-h-0 flex-1')}>
             <div className="grid gap-1.5">
                 <Label htmlFor="evaluate-context">Context</Label>
                 <Select value={context.kind} onValueChange={(value) => setKind(value as EvaluationContextKind)}>
@@ -533,7 +564,7 @@ function ContextPicker({
                         <SelectItem value="stored">A resource from this guide</SelectItem>
                         {registerOffered && (
                             <SelectItem value="registered">
-                                A person this DHIS2 instance holds
+                                A tracked entity this DHIS2 instance holds
                             </SelectItem>
                         )}
                         <SelectItem value="none">No resource at all</SelectItem>
@@ -542,7 +573,7 @@ function ContextPicker({
             </div>
 
             {context.kind === 'inline' && (
-                <div className="grid gap-1.5">
+                <div className="flex min-h-0 flex-1 flex-col gap-1.5">
                     <Label id="evaluate-resource-label">Context resource</Label>
                     <CodeEditor
                         value={context.resource}
@@ -550,7 +581,9 @@ function ContextPicker({
                         language="json"
                         labelId="evaluate-resource-label"
                         testId="evaluate-context-resource"
+                        className="min-h-0 flex-1"
                         minHeight="9rem"
+                        maxHeight="none"
                     />
                 </div>
             )}
@@ -587,7 +620,7 @@ function ContextPicker({
 
             {context.kind === 'registered' && (
                 <div className="grid gap-1.5">
-                    <Label htmlFor="evaluate-tracked-entity">Tracked entity uid</Label>
+                    <Label htmlFor="evaluate-tracked-entity">Tracked entity UID</Label>
                     <Input
                         id="evaluate-tracked-entity"
                         className="w-56 font-mono"

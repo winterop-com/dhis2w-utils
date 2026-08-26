@@ -238,7 +238,7 @@ test('a wrong password is refused at the prompt, before anything is filled in', 
 
     // The refusal is on the panel, the fields are still there to try again with, and nothing was
     // kept - which is the whole point of asking before storing.
-    await expect(page.getByText('DHIS2 did not accept this username and password.')).toBeVisible()
+    await expect(page.getByText('This DHIS2 instance did not accept this username and password.')).toBeVisible()
     await expect(page.getByLabel('DHIS2 password')).toBeVisible()
     expect(await page.evaluate(() => sessionStorage.getItem('d2w-fhir-serve-authorization'))).toBeNull()
 
@@ -273,7 +273,7 @@ test('a credential this server refuses brings the prompt back, wherever the refu
     // The 401 the submission met is what asks again, and it says the credentials were not accepted.
     // The submission's own error path is what runs here - which it can only do because the server's
     // challenge names a scheme the browser hands back instead of intercepting.
-    await expect(page.getByText('DHIS2 did not accept this username and password.')).toBeVisible()
+    await expect(page.getByText('This DHIS2 instance did not accept this username and password.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
     expect(sent.at(-1)).toBe('Basic d3JvbmM6d3Jvbmc=')
 })

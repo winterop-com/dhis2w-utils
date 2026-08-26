@@ -90,6 +90,12 @@
        foot of `:root` from the surfaces a theme already paints. */
     --color-table-head: var(--table-head);
     --color-table-zebra: var(--table-zebra);
+    /* The editor's own three washes - the active line, the selection, and the
+       matching brace. Utilities so a theme that wants a different answer can
+       override the token rather than the editor. */
+    --color-editor-active-line: var(--editor-active-line);
+    --color-editor-selection: var(--editor-selection);
+    --color-editor-bracket: var(--editor-bracket);
     /* One --radius, and every step derived from it, so the whole surface
        rescales from a single number instead of drifting per component. */
     --radius-sm: calc(var(--radius) * 0.6);
@@ -157,9 +163,12 @@
     --sidebar-ring: oklch(0.52 0.12 240);
     /* The semantic set. `good` is the success green, `critical` the hue of a
        refusal the data has to answer for, `warning` the amber of one the guide
-       has to answer for, and `info` the identity blue: a fact that is neither
-       a success nor a problem, which is why it is also the colour of a receipt
-       resting on disk. `withdrawn` is not one of the four - nothing went wrong
+       has to answer for, and `info` a blue: a fact that is neither a success
+       nor a problem, which is why it is also the colour of a receipt resting on
+       disk. THE FOUR HUES ARE THE SAME FOUR IN EVERY THEME - a theme moves
+       their lightness and their chroma to suit its ground, never their family,
+       because a green chip means accepted and a blue one means waiting on every
+       screen this app has. `withdrawn` is not one of the four - nothing went wrong
        with a withdrawal and nothing is pending, it was taken back - so it keeps
        a muted violet of its own, off the failure axis entirely. */
     --good: oklch(0.6 0.14 155);
@@ -218,21 +227,41 @@
        a different kind of string, quiet enough to stay under the title.
 
        Derived rather than stated per theme, so Terminal's uids come out with a
-       phosphor cast and Paper's with an ink one, off the `--info` each of them
-       already paints. Spent by `.machine-identifier` at the foot of this file. */
-    --machine: color-mix(in oklab, var(--info) 48%, var(--foreground));
+       phosphor cast and Paper's with an ink one, off the IDENTITY each of them
+       already paints. The identity rather than `--info`, because a state colour
+       is a fact and has to mean the same thing in every theme - Terminal's
+       `--info` is the blue of a receipt waiting, exactly as Clinical's is, while
+       Terminal's identity is the phosphor green that makes its uids Terminal's.
+       Spent by `.machine-identifier` at the foot of this file. */
+    --machine: color-mix(in oklab, var(--primary) 48%, var(--foreground));
 
-    /* THE TWO TABLE GROUNDS. A header row is a filled band, not a bold line of
-       text floating on the card, and the body alternates underneath it so a
-       wide row can be tracked across without a finger on the screen. Both are
-       written off `--muted`, which is the one fill every theme already paints a
-       step off its card - darker than the card on a light ground, lighter than
-       it on a dark one - so a single derivation points the right way in ten
-       palettes rather than ten literals pointing the right way by hand. The
-       zebra is that same fill at seven tenths, because a stripe a reader
-       NOTICES is a stripe that has become a second header. */
-    --table-head: var(--muted);
-    --table-zebra: color-mix(in oklab, var(--muted) 92%, var(--card));
+    /* THE THREE TABLE TONES, AND THE ORDER IS THE WHOLE POINT. The table sits on
+       the card - `ui/table.tsx` paints that surface, so an unstriped row IS the
+       card - the zebra is one step off it, and the header band is two. Header,
+       zebra, card: three tones a reader can tell apart at a glance, in that
+       order on a light ground and mirrored on a dark one.
+
+       WRITTEN OFF `--border`, WHICH IS THE ONE TOKEN THAT POINTS THE RIGHT WAY
+       AND IS FAR ENOUGH AWAY. Every theme paints its border a real step off its
+       card - darker than the card on a light ground, lighter than it on a dark
+       one - so one derivation lands correctly in ten palettes. `--muted` points
+       the same way but sits within a few hundredths of the card in every theme,
+       which is how a header, a stripe and a card once came out as one surface
+       with two hairlines in it. The percentages are chosen so each adjacent pair
+       separates by at least six values of 255 in the tightest palette; the
+       computed guards in lib/theme.test.ts hold both the order and the gap. */
+    --table-head: color-mix(in oklab, var(--border) 29%, var(--card));
+    --table-zebra: color-mix(in oklab, var(--border) 14%, var(--card));
+
+    /* THE EDITOR'S THREE WASHES. The active line, the selection, and the brace
+       that matches the one under the caret. Derived rather than spelled inside
+       CodeMirrorEditor.tsx so the palette lives where every other palette in
+       this app lives, and so a theme whose accent fights its card - Paper, whose
+       card is cream and whose accent is an ink blue - can answer with a wash in
+       its own family instead of the editor learning about themes. */
+    --editor-active-line: color-mix(in oklab, var(--accent) 35%, transparent);
+    --editor-selection: color-mix(in oklab, var(--primary) 25%, transparent);
+    --editor-bracket: color-mix(in oklab, var(--primary) 22%, transparent);
 
     /* THE CAPTURE MODEL, AS FIVE HUES. A data set, an event program, a tracker
        registration, one of that program's stages, and a person-only
@@ -368,10 +397,10 @@
    identity spends, so the selected shape is never a stronger shade of the wash
    under it. That is what constrains the identity hues here - the semantic set
    already claims red, green, amber and violet, so an identity that wanted one
-   of those would have to take it from a state, and a state is a fact rather
-   than a decoration. Terminal is the one theme that pays that price knowingly:
-   its identity is the phosphor green, so its `--good` moves to a cyan and the
-   queue stays legible beside it.
+   of those has to sit beside it rather than take it, because a state is a fact
+   rather than a decoration. Terminal is the one theme that pays that price
+   knowingly: its identity is the phosphor green, so its green sits beside the
+   `good` green rather than replacing it, held apart by hue and by lightness.
 
    WHAT A THEME BLOCK DOES NOT CONTAIN. The derived layer at the foot of
    `:root` - the spool's lifecycle colours and the five capture-model tints -
@@ -548,6 +577,15 @@ html[data-theme='paper'] {
     --code-type: oklch(0.43 0.1 208);
     --code-property: oklch(0.4 0.1 258);
     --code-punctuation: oklch(0.5 0.02 75);
+    /* THE ONE PLACE PAPER ANSWERS THE DERIVED LAYER. Every other theme's accent
+       sits in the same family as its card, so the accent wash under the caret's
+       line reads as that card lit up. Here the card is cream and the accent is
+       an ink blue, and the same wash comes out a cool grey-green band across a
+       warm page. So the line the caret is on takes the theme's own amber, which
+       is what a mark on a page is made of. The selection and the matching brace
+       stay the ink blue: those are marks somebody made, not the page they were
+       made on, and the two must not become one wash. */
+    --editor-active-line: color-mix(in oklab, var(--warning) 9%, transparent);
 }
 
 html.dark[data-theme='paper'] {
@@ -599,6 +637,8 @@ html.dark[data-theme='paper'] {
     --code-type: oklch(0.81 0.1 208);
     --code-property: oklch(0.83 0.09 258);
     --code-punctuation: oklch(0.69 0.018 78);
+    /* The same answer on the dark ground, for the same reason. */
+    --editor-active-line: color-mix(in oklab, var(--warning) 9%, transparent);
 }
 
 /* CONTRAST - the widest separation this app has between text and the surface
@@ -719,12 +759,23 @@ html.dark[data-theme='contrast'] {
 
 /* TERMINAL - phosphor green, and a ground to match. The one theme with real
    personality in it, and the only one whose identity is not a blue: the green
-   is the point. That costs something and the cost is paid openly - `--good`
-   moves to a cyan, because a success chip in the identity's own green beside a
-   `received` chip in the identity's own green is one colour saying two things,
-   and `--info` is this theme's identity. `--code-string` moves to that cyan for the same
-   reason. The dark ground is the theme's home; the light one is the same
-   palette over a pale green wash, for a screen in daylight. */
+   is the point.
+
+   THE SEMANTIC SET IS NOT A THEME AXIS. `good` is a green and `info` is a blue
+   here exactly as they are in the other four, because a chip's colour is a fact
+   about a receipt rather than a decoration on a page: forwarded is the green of
+   something accepted and received is the blue of something waiting, and a reader
+   who learnt that on one theme must not have to learn it again on this one. The
+   identity is a separate token and stays the phosphor green - `--primary`,
+   `--ring`, and the accent are what carry it, which is also what gives this
+   theme's uids their cast, since `--machine` is derived from the identity.
+
+   The cost is that `--good` and `--primary` are both greens; they are held apart
+   by hue and by lightness, and a success chip never appears inside the one
+   actionable control on a screen. `--code-string` keeps the cyan it took, for
+   its own reason: the card is green, and a green string on it is no string at
+   all. The dark ground is the theme's home; the light one is the same palette
+   over a pale green wash, for a screen in daylight. */
 html[data-theme='terminal'] {
     --background: oklch(0.935 0.034 145);
     --foreground: oklch(0.15 0.055 150);
@@ -759,10 +810,10 @@ html[data-theme='terminal'] {
     --sidebar-accent-foreground: oklch(0.3 0.12 148);
     --sidebar-border: oklch(0.775 0.045 147);
     --sidebar-ring: oklch(0.45 0.15 148);
-    --good: oklch(0.5 0.12 210);
+    --good: oklch(0.52 0.13 152);
     --critical: oklch(0.5 0.19 27);
     --warning: oklch(0.58 0.14 72);
-    --info: oklch(0.47 0.15 148);
+    --info: oklch(0.5 0.13 250);
     --status-withdrawn: oklch(0.5 0.12 315);
     --code-keyword: oklch(0.42 0.16 305);
     --code-operator: oklch(0.45 0.12 30);
@@ -810,10 +861,10 @@ html.dark[data-theme='terminal'] {
     --sidebar-accent-foreground: oklch(0.87 0.15 148);
     --sidebar-border: oklch(0.41 0.06 150);
     --sidebar-ring: oklch(0.8 0.2 148);
-    --good: oklch(0.75 0.13 210);
+    --good: oklch(0.75 0.17 155);
     --critical: oklch(0.7 0.17 27);
     --warning: oklch(0.78 0.14 78);
-    --info: oklch(0.8 0.2 148);
+    --info: oklch(0.75 0.14 240);
     --status-withdrawn: oklch(0.75 0.12 315);
     --code-keyword: oklch(0.8 0.14 305);
     --code-operator: oklch(0.8 0.1 30);
@@ -1169,9 +1220,16 @@ html.dark[data-theme='terminal'] {
     }
 }
 
-/* Always-visible thin scrollbars, so a horizontally scrollable table advertises
-   that it scrolls instead of hiding the bar until the pointer arrives. Applied
-   to the wrappers around wide resource tables. */
+/* Thin scrollbars in the app's own tokens, so a bar a platform does draw is the
+   app's bar rather than the system's. Applied to the wrappers around wide
+   resource tables and to every panel that scrolls on its own.
+
+   THIS IS NOT AN AFFORDANCE ON ITS OWN, AND THE NAME OVERSTATES IT. A browser
+   that uses overlay scrollbars - which is every one of them on macOS, and what
+   the browser suite runs under - draws nothing at all until something is being
+   scrolled and reserves no width for it, and no combination of `overflow-y`,
+   `scrollbar-width` or `::-webkit-scrollbar` changes that. A box whose reader
+   has to be TOLD it scrolls wears `scroll-fade-bottom` as well. */
 @utility show-scrollbars {
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
@@ -1186,6 +1244,19 @@ html.dark[data-theme='terminal'] {
     &::-webkit-scrollbar-track {
         background: transparent;
     }
+}
+
+/* The one scroll affordance that does not depend on the platform drawing a bar:
+   the last stretch of a scrolling column fades out, so a line the box cuts reads
+   as more to come rather than as text that stops mid-stroke.
+
+   IT COSTS NOTHING WHEN THERE IS NOTHING TO SAY. The gradient fades the bottom
+   24px whether or not the box overflows, and a column that fits has 24px of
+   nothing there - so the rule needs no measurement and no state to be correct.
+   Pair it with a bottom padding on the box, or the fade starts inside the last
+   line rather than under it. */
+@utility scroll-fade-bottom {
+    mask-image: linear-gradient(to bottom, black calc(100% - 1.5rem), transparent);
 }
 
 /* Source colours, for the CodeMirror editors on the Evaluate screen and every

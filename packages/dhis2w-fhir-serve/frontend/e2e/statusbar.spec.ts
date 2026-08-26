@@ -66,3 +66,22 @@ test('the line belongs to the page on screen and not to the one before it', asyn
     await expect(bar(page)).toBeVisible()
     await expect(summary(page)).not.toContainText('concept maps')
 })
+
+test('a detail opened on an id this server holds nothing under states nothing', async ({ page }) => {
+    // The bug this covers: the same route with a new id keeps the component mounted, so the render
+    // between the address changing and the read starting still held the previous resource - and the
+    // count published in that render was stamped with the new address, which is what made a
+    // not-found page carry the last vocabulary's "Showing 11 of 11 concepts".
+    await page.goto('/#/terminology/CodeSystem/d2-os-OsSymptom01-cs')
+    await expect(summary(page)).toContainText(/Showing \d+ of \d+ concepts/)
+
+    // The hash is changed in place rather than reloaded: a reload mounts a fresh page, and the
+    // bug only exists on the route this app keeps mounted across an id change.
+    await page.evaluate(() => {
+        window.location.hash = '#/terminology/CodeSystem/d2-os-NoSuchThing'
+    })
+
+    await expect(page.getByText('This server has nothing under that ID')).toBeVisible()
+    await expect(bar(page)).toBeVisible()
+    await expect(summary(page)).toHaveText('')
+})

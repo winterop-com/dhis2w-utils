@@ -53,8 +53,8 @@ ConceptMap definition and names it.
 
 `rest.security` is declared in EVERY posture, `none` included. A conformance document that carries
 the element only where there is something to protect leaves a client unable to tell "this server
-authenticates nobody" from "this server did not say", and those are opposite facts. So the `none`
-posture gets a statement of its own, in words: this server serves every caller. `/metadata` itself is
+checks no credential" from "this server did not say", and those are opposite facts. So the `none`
+posture gets a statement of its own, in words. `/metadata` itself is
 never behind the check, whatever `[serve] auth_scope` says, because a client has to be able to read
 the posture it is expected to meet.
 
@@ -208,18 +208,20 @@ TAG_SEARCH_DOCUMENTATION = (
 #: What the `d2-attribute` filter means, and the one sentence about it that must never be dropped.
 #:
 #: A filter that looks like search and matches only exact values is a trap unless every declaration of
-#: it says which it is, so the equality sentence leads. The attributes themselves are named after it,
+#: it says which it is, so the equality sentence leads - stated plainly, since a conformance document
+#: is read as prose and a shouted clause reads as a warning label rather than as a fact. The
+#: attributes themselves are named after it,
 #: per register, by `_filter_documentation` - prose, because a searchParam's documentation is prose;
 #: `/uiconfig` carries the same set as values for a screen that has to draw a control over them.
 ATTRIBUTE_FILTER_DOCUMENTATION = (
     "The value of one tracked entity attribute, spelled `d2-attribute={trackedEntityAttributeUid}|"
-    "{value}`. IT MATCHES THAT VALUE EXACTLY - equality and nothing else: no prefix, no substring, no "
-    "range, no ordering, and case is ignored exactly as DHIS2's own `eq` ignores it. Repeat the "
-    "parameter to narrow further; two of them are the entities holding both values. A comma is part "
-    "of the value rather than a separator, because a DHIS2 attribute value may contain one. It "
+    "{value}`. It matches that value exactly - equality and nothing else: no prefix, no substring, no "
+    "range, no ordering, and case is ignored exactly as this instance's own `eq` ignores it. Repeat "
+    "the parameter to narrow further; two of them are the entities holding both values. A comma is "
+    "part of the value rather than a separator, because a DHIS2 attribute value may contain one. It "
     "narrows the listing, the identifier search, and the `_count=0` count alike, and it rides the "
     "`next` and `previous` links of a listing so a walk stays inside the filter it started in. "
-    "`identifier` is how you name somebody; this is how you ask which of them hold a value."
+    "`identifier` is how you name one entity; this is how you ask which of them hold a value."
 )
 
 #: What the `_content` search parameter means here, and the one thing it deliberately does not claim.
@@ -273,6 +275,17 @@ QUESTIONNAIRE_SEARCH_DOCUMENTATION = (
     "The canonical of the Questionnaire the stored responses answered. Matching is exact canonical "
     "equality: the value has to be the whole canonical the response carries, character for "
     "character, and no version suffix is stripped and no partial canonical matches."
+)
+
+#: What this installation says it is, one sentence per store mode. Each names the thing the process
+#: stands in front of, and both state the fact about the receipts that a client reading one needs.
+LIVE_IMPLEMENTATION_DESCRIPTION = (
+    "A FHIR capture facade over a live DHIS2 instance. What it stores are receipts of submissions as "
+    "they arrived, not a live view of what the instance now holds."
+)
+COMPILED_IMPLEMENTATION_DESCRIPTION = (
+    "A FHIR capture facade over a compiled implementation guide. What it stores are receipts of "
+    "submissions as they arrived, and no DHIS2 instance stands behind this process to read from."
 )
 
 #: What the QuestionnaireResponse entry states about the resources it holds.
@@ -331,8 +344,8 @@ JWT_ISSUER_EXTENSION_URL = "https://winterop-com.github.io/dhis2w-utils/fhir/Str
 
 #: What each posture says about itself. The `none` statement exists so an absence is never inferred.
 NO_AUTHENTICATION_DESCRIPTION = (
-    "This server authenticates nobody: every caller is served. It binds a loopback interface unless "
-    "the project it serves states `[serve] auth` in its fhir.toml."
+    "This server checks no credential. It listens on the loopback interface only, unless the project "
+    "it serves states [serve] auth in its fhir.toml."
 )
 TOKEN_AUTHENTICATION_DESCRIPTION = (
     "Send `Authorization: Bearer <token>`, with one of the tokens this deployment holds in the "
@@ -435,7 +448,6 @@ def build_server_capability(
     """State what this process serves: the capture contract, the read types the store holds, and the register."""
     canonical = project.config.ig.canonical
     names = FoundationNaming.from_naming(project.config.generate.naming)
-    store_mode = "live" if settings.live else "compiled"
     resources = [
         _response_resource(
             project,
@@ -456,7 +468,8 @@ def build_server_capability(
         kind="instance",
         description=(
             f"{project.config.ig.title} served as a FHIR capture facade: {store_summary.total} resources "
-            f"across {len(store_summary.counts_by_type)} types. `GET /spool` states how many responses "
+            f"in the store, served under the {len(resources)} resource types this statement declares. "
+            f"`GET /spool` states how many responses "
             f"are stored, which is a number that changes while this server runs. Beside the FHIR surface "
             f"this process also answers `POST /evaluate` (the same evaluation the declared `$evaluate` "
             f"operation answers, in this project's own JSON shape, with the line and column a parser "
@@ -466,12 +479,7 @@ def build_server_capability(
         ),
         instantiates=[f"{canonical}/CapabilityStatement/{names.capture_server_id}"],
         software=CapabilityStatementSoftware(name=SOFTWARE_NAME, version=server_version),
-        implementation=CapabilityStatementImplementation(
-            description=(
-                f"DHIS2 FHIR capture facade ({store_mode} store); stored QuestionnaireResponses are "
-                "submissions as received - receipts, not a live view of DHIS2 data"
-            )
-        ),
+        implementation=CapabilityStatementImplementation(description=_implementation_description(settings)),
         fhirVersion="4.0.1",
         format=["json"],
         rest=[
@@ -495,6 +503,19 @@ def build_server_capability(
             )
         ],
     )
+
+
+def _implementation_description(settings: ServeSettings) -> str:
+    """What this installation is, in the words of the mode it was started in.
+
+    The two modes are two different things rather than one thing with a flag on it: a live process
+    stands in front of a DHIS2 instance, and a compiled one stands in front of a build, so each says
+    what it is rather than sharing a sentence with a parenthesis in it. What they share is the fact
+    about the receipts, which is true of both and is what a client reading one back has to know.
+    """
+    if settings.live:
+        return LIVE_IMPLEMENTATION_DESCRIPTION
+    return COMPILED_IMPLEMENTATION_DESCRIPTION
 
 
 def _scope_description(posture: ServeAuth, scope: ServeAuthScope) -> str:

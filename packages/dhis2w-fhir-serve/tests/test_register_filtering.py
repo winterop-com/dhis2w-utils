@@ -558,7 +558,7 @@ def test_the_metadata_declares_the_filter_and_says_it_answers_equality_alone(
     documentation = declared.documentation or ""
 
     assert declared.type == "token"
-    assert "MATCHES THAT VALUE EXACTLY" in documentation
+    assert "It matches that value exactly - equality and nothing else" in documentation
     assert "case is ignored" in documentation
     assert f"Sex ({REGISTRATION_CODED_ATTRIBUTE})" in documentation
     assert SEX_VALUE_SET in documentation, "a coded attribute names the vocabulary its values come from"

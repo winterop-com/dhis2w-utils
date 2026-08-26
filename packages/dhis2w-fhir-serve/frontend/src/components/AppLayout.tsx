@@ -30,7 +30,7 @@ import { useSidebar } from '@/hooks/use-sidebar'
 import { StatusBarProvider } from '@/hooks/use-status-bar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { signInIsRequired, signOut, SIGN_OUT_LABEL } from '@/lib/auth'
-import { type PalettePage } from '@/lib/palette'
+import { COLLAPSE_NAVIGATION_LABEL, EXPAND_NAVIGATION_LABEL, type PalettePage } from '@/lib/palette'
 import { REGISTER_TITLE, registerTitle, trackedEntitySettings, type UiConfig } from '@/lib/uiconfig'
 import { cn, RESIZE_HANDLE_TINT } from '@/lib/utils'
 
@@ -279,7 +279,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
         // The provider is the shell's rather than a page's, because the bar it feeds is the shell's:
         // one line lives here, whichever page happens to be publishing it.
         <StatusBarProvider>
-            <div className="flex h-svh overflow-hidden">
+            {/* `relative` is what makes `overflow-hidden` above actually hold. A
+                clip only reaches an absolutely positioned descendant whose
+                containing block is inside it, and several form controls render a
+                hidden absolute twin for form participation - the Switch's
+                checkbox is one - which without a positioned ancestor measures
+                against the document itself. One of those below the fold on a
+                long form was enough to give `<html>` 54px of scroll on the form
+                route and on no other, which scrolled the whole shell away. */}
+            <div className="relative flex h-svh overflow-hidden">
                 <aside
                     ref={railRef}
                     className={cn(
@@ -289,26 +297,59 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     )}
                     style={!collapsed && railWidth !== null ? { width: railWidth } : undefined}
                 >
-                    {/* The wordmark is the way home, which is the convention every
-                        other app in a browser has already taught. */}
-                    <NavLink
-                        to="/"
-                        end
-                        aria-label="Capture overview"
+                    {/* THE TOGGLE HOLDS ONE POSITION, WHICH IS WHY IT IS HERE.
+                        In the page header it rode the header's left edge, and the header's left
+                        edge is the rail's right edge - so collapsing the rail threw the control
+                        that collapsed it 176px sideways, and the pointer that pressed it was
+                        nowhere near the one that puts it back. The rail's own left edge is the
+                        viewport's, in both states: `px-4` expanded and a 32px button centred in
+                        the 64px collapsed rail put it at exactly 16px either way. That is the same
+                        promise the right-hand rails keep - a toggle stays where it was pressed. */}
+                    <div
                         className={cn(
-                            'focus-visible:ring-ring/50 flex items-center gap-2 rounded-lg px-3 py-4 focus-visible:ring-[3px] focus-visible:outline-none',
-                            collapsed && 'justify-center px-0',
+                            'flex items-center gap-2 px-4 py-4',
+                            collapsed && 'flex-col gap-3',
                         )}
                     >
-                        <div className="bg-foreground text-background dark:bg-primary dark:text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                            <Stethoscope className="size-4" aria-hidden />
-                        </div>
-                        {labelsShown && (
-                            <span className="animate-in fade-in text-lg font-bold tracking-tight duration-150">
-                                Capture
-                            </span>
-                        )}
-                    </NavLink>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={toggle}
+                                    aria-label={collapsed ? EXPAND_NAVIGATION_LABEL : COLLAPSE_NAVIGATION_LABEL}
+                                    className="text-muted-foreground hover:text-foreground shrink-0"
+                                >
+                                    {collapsed ? (
+                                        <PanelLeftOpen className="size-4" />
+                                    ) : (
+                                        <PanelLeftClose className="size-4" />
+                                    )}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                                {collapsed ? EXPAND_NAVIGATION_LABEL : COLLAPSE_NAVIGATION_LABEL}
+                            </TooltipContent>
+                        </Tooltip>
+
+                        {/* The wordmark is the way home, which is the convention every
+                            other app in a browser has already taught. */}
+                        <NavLink
+                            to="/"
+                            end
+                            aria-label="Capture overview"
+                            className="focus-visible:ring-ring/50 flex items-center gap-2 rounded-lg focus-visible:ring-[3px] focus-visible:outline-none"
+                        >
+                            <div className="bg-foreground text-background dark:bg-primary dark:text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+                                <Stethoscope className="size-4" aria-hidden />
+                            </div>
+                            {labelsShown && (
+                                <span className="animate-in fade-in text-lg font-bold tracking-tight duration-150">
+                                    Capture
+                                </span>
+                            )}
+                        </NavLink>
+                    </div>
 
                     <nav className="flex flex-col gap-1 px-2 py-2">
                         {items.map((item) => {
@@ -419,31 +460,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
                         an opaque header costs nothing. */}
                     <header className="bg-sidebar sticky top-0 z-10 border-b">
                         <div className="flex items-center gap-2 px-4 py-2.5 md:px-6">
-                            {/* In the page header rather than the sidebar, so it
-                                keeps a fixed screen position instead of moving when
-                                clicked. This is the shadcn/ui convention. */}
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={toggle}
-                                        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                                        className="text-muted-foreground hover:text-foreground hidden md:inline-flex"
-                                    >
-                                        {collapsed ? (
-                                            <PanelLeftOpen className="size-4" />
-                                        ) : (
-                                            <PanelLeftClose className="size-4" />
-                                        )}
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="right">
-                                    {collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                                </TooltipContent>
-                            </Tooltip>
-
-
                             <h1 className="text-sm font-medium">{title}</h1>
 
                             <div className="flex-1" />

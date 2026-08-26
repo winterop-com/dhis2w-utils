@@ -28,6 +28,14 @@ if TYPE_CHECKING:
 #: The media type the GeoJSON Feature travels under inside the boundary attachment.
 BOUNDARY_CONTENT_TYPE = "application/geo+json"
 
+#: What every emitted Location says about itself. It says the one thing the resource does not already
+#: state elsewhere: that this place is a place, and that DHIS2 holds it as an organisation unit. The
+#: unit's name is the `name` element, its level is the level extension, and its UID is the first
+#: identifier - a description repeating all three would be furniture beside the elements a reader is
+#: already looking at. Every organisation unit is emitted as a Location, so there is no second
+#: variant to pick between: DHIS2 draws no physical/non-physical distinction on the unit.
+LOCATION_DESCRIPTION = "A physical location this DHIS2 instance holds as an organisation unit."
+
 
 def build_location(
     organisation_unit: OrganisationUnitIn,
@@ -48,10 +56,6 @@ def build_location(
     if organisation_unit.latitude is not None and organisation_unit.longitude is not None:
         position = LocationPosition(longitude=organisation_unit.longitude, latitude=organisation_unit.latitude)
     parent_uid = organisation_unit.parent_uid if organisation_unit.parent_uid in selected_uids else None
-    description = (
-        f"DHIS2 organisation unit {organisation_unit.name} ({uid}), "
-        f"level {organisation_unit.level} - physical location."
-    )
     return Location(
         id=stems.stem_for(uid),
         meta=Meta(profile=[urls.location_profile]),
@@ -64,7 +68,7 @@ def build_location(
         ],
         name=flatten_whitespace(organisation_unit.name),
         name_element=translated_element(name_translations(organisation_unit.translations, locales)),
-        description=flatten_whitespace(description),
+        description=LOCATION_DESCRIPTION,
         status="inactive" if organisation_unit.closed else "active",
         position=position,
         extension=_extensions(organisation_unit, urls, attribute_codes, extension_url),

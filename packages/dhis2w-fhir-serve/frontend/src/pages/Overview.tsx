@@ -218,7 +218,7 @@ function StatTile({
 
 /** What the fifth tile is called, and the line under its count. */
 const QUARANTINED_LABEL = 'Could not be read'
-const QUARANTINED_SUBTITLE = 'set aside without becoming a receipt'
+const QUARANTINED_SUBTITLE = 'This server could not read them'
 
 /**
  * The files the facade moved aside, as the fifth tile.
@@ -231,8 +231,11 @@ const QUARANTINED_SUBTITLE = 'set aside without becoming a receipt'
 function QuarantinedTile({ count }: { count: number }) {
     return (
         <Link
-            to="/responses?lifecycle=malformed"
-            aria-label={`${QUARANTINED_LABEL} ${String(count)} - ${QUARANTINED_SUBTITLE}. Open the files this server set aside.`}
+            // Plain `/responses`: the lifecycle filter there names the four receipt states, and a
+            // quarantined file is in none of them - it is listed in its own section at the top of
+            // that page, which is where this tile lands.
+            to="/responses"
+            aria-label={`${QUARANTINED_LABEL} ${String(count)} - ${QUARANTINED_SUBTITLE}. Open the responses, where these files are listed above the table.`}
             className="bg-card hover:bg-accent/40 focus-visible:ring-ring/50 block rounded-lg border p-4 transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
         >
             <span className="flex items-center gap-2">
@@ -258,7 +261,7 @@ function subtitleFor(
 ): string {
     if (lifecycle === 'received') return 'not yet sent to DHIS2'
     if (lifecycle === 'forwarded') return 'accepted by DHIS2'
-    if (lifecycle === 'withdrawn') return 'withdrawn from DHIS2 after it landed'
+    if (lifecycle === 'withdrawn') return 'taken back out of this DHIS2 instance'
     if (counts.rejected === 0 || cause === null) return 'refused by DHIS2'
     const message = cause.message === null ? null : generalisedCauseMessage(cause.message)
     // DHIS2's own words ride in quotes after the code, so the splice reads as a citation
@@ -334,9 +337,9 @@ function CaptureSection({
                 emptyMessage={
                     <>
                         This project publishes no Questionnaires, so there is nothing to capture
-                        against. Run <code className="font-mono">d2w fhir generate</code>, then{' '}
-                        <code className="font-mono">make sushi</code> to compile the implementation
-                        guide - or serve straight from the DHIS2 instance with{' '}
+                        against. They appear once the implementation guide has been generated and
+                        compiled: <code className="font-mono">d2w fhir generate</code> - or serve
+                        straight from the DHIS2 instance with{' '}
                         <code className="font-mono">--live</code>.
                     </>
                 }
@@ -412,7 +415,7 @@ function ServerIdentity({
         <section className="space-y-3">
             <SectionHeading
                 title="This server"
-                description="What this server says it is."
+                description="What this server offers."
             />
             <PageState
                 loading={checking && capability === null}

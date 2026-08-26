@@ -50,13 +50,15 @@ async def test_metadata_names_the_software_and_the_compiled_store(client: httpx.
     body = await _metadata(client)
 
     assert body["software"]["name"] == "d2w fhir serve"
-    assert "compiled store" in body["implementation"]["description"]
+    assert body["implementation"]["description"].startswith(
+        "A FHIR capture facade over a compiled implementation guide."
+    )
 
 
 async def test_metadata_says_stored_responses_are_receipts_not_live_data(client: httpx.AsyncClient) -> None:
     body = await _metadata(client)
 
-    assert "receipts, not a live view of DHIS2 data" in body["implementation"]["description"]
+    assert "receipts of submissions as they arrived" in body["implementation"]["description"]
     response_resource = _resource(body, "QuestionnaireResponse")
     assert response_resource["documentation"] == (
         "One response per request; stored responses are receipts of what was submitted"

@@ -414,6 +414,26 @@ function chromaOf({ a, b }: Oklab): number {
     return Math.sqrt(a * a + b * b)
 }
 
+/** Which way round the wheel a colour points, in degrees, which is the whole of what "hue" means. */
+function hueOf({ a, b }: Oklab): number {
+    const degrees = (Math.atan2(b, a) * 180) / Math.PI
+    return degrees < 0 ? degrees + 360 : degrees
+}
+
+/**
+ * A colour as the 0-255 value a screen would show it at, which is the unit a separation is argued in.
+ *
+ * The ladder's ratios answer "can this text be read"; the table's three tones answer a different
+ * question - "are these three fills telling themselves apart" - and the honest unit for that is the
+ * one a colour picker reads off the screenshot. Gamma-encoded from the same luminance the ratios use,
+ * so one arithmetic serves both.
+ */
+function greyValue(colour: Oklab): number {
+    const linear = luminance(colour)
+    const encoded = linear <= 0.0031308 ? 12.92 * linear : 1.055 * linear ** (1 / 2.4) - 0.055
+    return 255 * encoded
+}
+
 /**
  * One token's colour in one palette, following the two indirections index.css uses.
  *
@@ -513,6 +533,24 @@ describe('the neutral ladder', () => {
                 expect(zebra).toBeGreaterThan(1)
                 expect(zebra).toBeLessThan(head)
             })
+
+            it(`${theme.label} keeps its three table tones apart and in order on the ${mode} ground`, () => {
+                // THE TABLE IS A LADDER OF THREE AND THE ORDER IS PART OF THE MEANING. An unstriped
+                // row is the card, the stripe is one step off it, and the header band is two - so a
+                // reader tracking a wide row knows which line they are on, and knows the band at the
+                // top is not a row. The measured failure this pins is the one that had a header
+                // LIGHTER than the page under it and a stripe two values off the header: three
+                // tones that were, on the screen, one.
+                //
+                // Six values of 255 is the floor, in the unit a colour picker reads. It is small
+                // enough that the stripe stays quiet and large enough that it is a stripe at all.
+                const away = mode === 'light' ? -1 : 1
+                const card = greyValue(at('--card'))
+                const zebra = greyValue(at('--table-zebra'))
+                const head = greyValue(at('--table-head'))
+                expect((zebra - card) * away, 'the zebra is not far enough off the card').toBeGreaterThanOrEqual(6)
+                expect((head - zebra) * away, 'the header is not far enough off the zebra').toBeGreaterThanOrEqual(6)
+            })
         }
     }
 
@@ -530,6 +568,96 @@ describe('the neutral ladder', () => {
         const rule = css.slice(css.indexOf('.machine-identifier {'))
         expect(rule.slice(0, rule.indexOf('}'))).toContain('color: var(--machine)')
     })
+})
+
+/**
+ * THE LIFECYCLE IS FOUR HUES AND THEY MEAN THE SAME THING IN EVERY THEME.
+ *
+ * A chip's colour is a fact about a receipt, not a decoration on a page: green is a submission DHIS2
+ * accepted, blue is one resting on disk waiting to be sent, red is one DHIS2 refused, amber is one
+ * the translator would not convert. A reader learns that once, on whichever theme they happen to
+ * open, and every other theme has to honour it.
+ *
+ * THE FAILURE THIS PINS IS A REAL ONE AND IT WAS INVISIBLE UNTIL SOMEBODY SWITCHED THEMES. Terminal
+ * pointed `--info` at its own phosphor green and `--good` at a cyan, so on that theme alone Received
+ * wore green and Forwarded wore blue - the exact reverse of the other four, on the one screen where
+ * a reader is deciding whether a receipt has been sent.
+ *
+ * A THEME MAY MOVE A HUE, NOT ITS FAMILY. The bands below are wide - a theme's green may lean warm
+ * or cool - and they do not overlap, which is the whole assertion: whatever else a theme does, its
+ * forwarded chip is the green one and its received chip is not.
+ */
+describe('the lifecycle, as four hues', () => {
+    const css = indexCss
+
+    /** What one block declares, given the selector that opens it, as token to value. */
+    const declarationsUnder = (selector: string): Map<string, string> => {
+        const opened = css.indexOf(`${selector} {`)
+        expect(opened, `index.css declares no block for ${selector}`).toBeGreaterThan(-1)
+        const closed = css.indexOf('\n}', opened)
+        return new Map(
+            [...css.slice(opened, closed).matchAll(/^\s+(--[a-z0-9-]+):\s*([^;]+);/gm)].map((match) => [
+                match[1],
+                match[2].trim(),
+            ]),
+        )
+    }
+
+    const base = declarationsUnder(':root')
+
+    /** The two selectors a theme is painted under, as the light and dark palettes they resolve to. */
+    const groundsOf = (name: string): { mode: string; palette: Map<string, string> }[] => {
+        const light = name === DEFAULT_THEME_NAME ? ':root' : `html[data-theme='${name}']`
+        const dark = name === DEFAULT_THEME_NAME ? '.dark' : `html.dark[data-theme='${name}']`
+        return [
+            { mode: 'light', palette: new Map([...base, ...declarationsUnder(light)]) },
+            { mode: 'dark', palette: new Map([...base, ...declarationsUnder(dark)]) },
+        ]
+    }
+
+    /** The band of the wheel each state belongs to, in degrees, and none of them overlaps another. */
+    const BANDS: { token: string; state: string; from: number; to: number }[] = [
+        { token: '--status-rejected', state: 'red', from: 5, to: 50 },
+        { token: '--status-refused', state: 'amber', from: 55, to: 105 },
+        { token: '--status-forwarded', state: 'green', from: 125, to: 180 },
+        { token: '--status-received', state: 'blue', from: 200, to: 305 },
+    ]
+
+    for (const theme of THEMES) {
+        for (const { mode, palette } of groundsOf(theme.name)) {
+            const at = (token: string): Oklab => resolveToken(token, palette)
+
+            it(`${theme.label} paints each lifecycle state its own hue on the ${mode} ground`, () => {
+                for (const band of BANDS) {
+                    const hue = hueOf(at(band.token))
+                    expect(
+                        hue,
+                        `${band.token} should be ${band.state} here, and reads as hue ${hue.toFixed(0)}`,
+                    ).toBeGreaterThanOrEqual(band.from)
+                    expect(hue).toBeLessThanOrEqual(band.to)
+                }
+            })
+
+            it(`${theme.label} leaves forwarded the only green of the four on the ${mode} ground`, () => {
+                // The half of the rule that catches a swap rather than a drift: whatever a theme
+                // does with the rest of the wheel, exactly one of these four is the accepted green.
+                const green = BANDS.find((band) => band.state === 'green')
+                const inGreen = BANDS.filter((band) => {
+                    const hue = hueOf(at(band.token))
+                    return hue >= (green?.from ?? 0) && hue <= (green?.to ?? 0)
+                })
+                expect(inGreen.map((band) => band.token)).toEqual(['--status-forwarded'])
+            })
+
+            it(`${theme.label} says in-progress and completed what received and forwarded say on the ${mode} ground`, () => {
+                // The two QuestionnaireResponse statuses ride the same semantic set, so a response
+                // still being filled in is the waiting colour and a finished one is the accepted
+                // green - the same two hues the spool uses for the same two ideas.
+                expect(hueOf(at('--status-completed'))).toBeCloseTo(hueOf(at('--status-forwarded')), 5)
+                expect(hueOf(at('--status-in-progress'))).toBeCloseTo(hueOf(at('--status-refused')), 5)
+            })
+        }
+    }
 })
 
 /**

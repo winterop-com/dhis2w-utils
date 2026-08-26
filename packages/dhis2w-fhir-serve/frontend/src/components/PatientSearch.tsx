@@ -36,9 +36,9 @@ interface SearchWords {
 const IDENTIFIER_WORDS: SearchWords = {
     label: 'Identifier value',
     hint:
-        'Searches the identifier values this DHIS2 instance holds - the tracked entity uid, and the ' +
-        'values of the attributes DHIS2 declares unique. Not names: DHIS2 states no attribute that ' +
-        'means one, so this server serves none.',
+        'Searches the identifier values this DHIS2 instance holds - the tracked entity UID, and the ' +
+        'values of the attributes the instance declares unique. Not names: the instance states no ' +
+        'attribute that means a name, so no name search is offered.',
     empty: 'This DHIS2 instance holds nobody under that identifier value.',
 }
 

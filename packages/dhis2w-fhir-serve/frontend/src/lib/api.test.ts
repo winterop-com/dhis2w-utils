@@ -12,6 +12,7 @@ import {
     NOT_A_CAPABILITY_STATEMENT,
     outcomeMessage,
     readCapabilityStatement,
+    receiptIdOf,
     searchRegister,
     translateCode,
 } from '@/lib/api'
@@ -413,5 +414,32 @@ describe('a register narrowed to one tracked entity type', () => {
 
         expect(calls[0].url).toBe('/Patient?_count=25')
         expect(calls[1].url).toBe('/Patient?identifier=19850312-4471')
+    })
+})
+
+/**
+ * Where an accepted capture says its receipt is served from.
+ *
+ * The 201 body is an OperationOutcome, so the id is only ever in the `Location` header - and the
+ * toast that names the receipt is only honest while this reads that header the way R4 writes it.
+ */
+describe('the receipt id a create interaction states', () => {
+    it('takes the last path segment of the Location the server stated', () => {
+        expect(receiptIdOf('http://127.0.0.1:8000/QuestionnaireResponse/9be51a978d8d4ba98635ea4c817c6caa')).toBe(
+            '9be51a978d8d4ba98635ea4c817c6caa',
+        )
+    })
+
+    it('reads a relative Location the same way', () => {
+        expect(receiptIdOf('/QuestionnaireResponse/abc123')).toBe('abc123')
+    })
+
+    it('ignores a query or fragment riding after the id', () => {
+        expect(receiptIdOf('/QuestionnaireResponse/abc123?_format=json')).toBe('abc123')
+    })
+
+    it('says nothing where the server stated no Location at all', () => {
+        expect(receiptIdOf(null)).toBeNull()
+        expect(receiptIdOf('')).toBeNull()
     })
 })

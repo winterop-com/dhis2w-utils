@@ -65,16 +65,20 @@ export interface LifecycleHint {
 /** One line per state, for the filter tooltips and the empty-state prose. */
 export const LIFECYCLE_HINTS: Record<ResponseLifecycle, LifecycleHint> = {
     received: {
-        lead: 'Captured, not yet sent to DHIS2.',
+        lead: 'Captured, not yet sent to this DHIS2 instance. Sending it is a separate step:',
         command: 'd2w fhir forward',
-        tail: ' sends it.',
+        tail: '',
     },
-    forwarded: { lead: 'Translated, posted, and accepted by DHIS2.', command: null, tail: '' },
-    rejected: { lead: 'Posted and refused by DHIS2. The import report says why.', command: null, tail: '' },
+    forwarded: { lead: 'Translated, posted, and accepted by this DHIS2 instance.', command: null, tail: '' },
+    rejected: {
+        lead: 'Posted and refused by this DHIS2 instance. The import report says why.',
+        command: null,
+        tail: '',
+    },
     withdrawn: {
-        lead: 'Accepted by DHIS2, then withdrawn from it by',
+        lead: 'Accepted by this DHIS2 instance, then taken back out of it. The instance keeps the record, no longer active. Taking one back out:',
         command: 'd2w fhir withdraw',
-        tail: '. The instance keeps a hidden copy.',
+        tail: '',
     },
 }
 

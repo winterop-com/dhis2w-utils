@@ -651,7 +651,12 @@ chain in one command.
   what the capture path reads: a QuestionnaireResponse answering with the
   published code lowers to the DHIS2 code on the import payload. Under `refuse`
   and unset, every code reaches the guide byte-true. Every rewrite is a
-  `code-substitution` note, one per distinct DHIS2 code.
+  `code-substitution` note, one per distinct DHIS2 code. Names holding a
+  comparison are rewritten as wording - `<` reads "under", `>` reads "over",
+  both the character and the HTML entity spelling a DHIS2 instance can store -
+  with the same rewrite applied to NAME translations, and the instance's byte-true
+  spelling stated as a `dhis2-name` property beside the published display; every
+  such rewrite is a `name-substitution` note.
 
 ### Generate the IG source
 

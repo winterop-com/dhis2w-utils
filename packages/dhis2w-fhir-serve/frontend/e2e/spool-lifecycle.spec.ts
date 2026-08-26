@@ -183,7 +183,7 @@ test('the withdrawn tile says what happened rather than that something failed', 
 
     await expect(page.getByTestId('spool-withdrawn-count')).toHaveText('1')
     const tile = page.getByRole('link', { name: /^Withdrawn/ })
-    await expect(tile).toContainText('withdrawn from DHIS2 after it landed')
+    await expect(tile).toContainText('taken back out of this DHIS2 instance')
 })
 
 test('the withdrawn tile lands on the responses already filtered to withdrawals', async ({ page }) => {

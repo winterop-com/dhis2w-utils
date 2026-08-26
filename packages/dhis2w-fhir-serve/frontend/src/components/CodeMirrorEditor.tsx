@@ -87,7 +87,18 @@ const CODE_HIGHLIGHT = HighlightStyle.define([
     { tag: tags.invalid, class: 'tok-invalid' },
 ])
 
-/** The chrome: surfaces, the caret, the selection, and the matching-bracket mark, all in app tokens. */
+/**
+ * The chrome: surfaces, the caret, the selection, and the matching-bracket mark, all in app tokens.
+ *
+ * NOTHING IS MARKED UNTIL SOMEBODY IS IN THE BOX. CodeMirror keeps a caret position and a matching
+ * brace whether or not the editor has focus, so an untouched editor arrived with a band across its
+ * first line and a box round its first brace - two marks answering a caret nobody had placed, which
+ * on a page holding two editors read as one of them being active. Every mark that answers the caret
+ * is therefore drawn under `&.cm-focused`, and an unfocused editor is the source and nothing else.
+ *
+ * The three washes are `--editor-*` tokens rather than colours: see index.css, where they are
+ * derived - and where Paper overrides the one of them its cream card could not take.
+ */
 const EDITOR_THEME = EditorView.theme({
     '&': {
         backgroundColor: 'transparent',
@@ -107,18 +118,20 @@ const EDITOR_THEME = EditorView.theme({
         border: 'none',
         fontFamily: 'var(--font-mono)',
     },
-    '.cm-activeLine': { backgroundColor: 'color-mix(in oklch, var(--accent) 35%, transparent)' },
+    '.cm-activeLine': { backgroundColor: 'transparent' },
+    '&.cm-focused .cm-activeLine': { backgroundColor: 'var(--editor-active-line)' },
     '.cm-activeLineGutter': { backgroundColor: 'transparent' },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-        backgroundColor: 'color-mix(in oklch, var(--primary) 25%, transparent)',
+        backgroundColor: 'var(--editor-selection)',
     },
     '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--foreground)' },
-    '.cm-matchingBracket, &.cm-focused .cm-matchingBracket': {
-        backgroundColor: 'color-mix(in oklch, var(--primary) 22%, transparent)',
+    '.cm-matchingBracket, .cm-nonmatchingBracket': { backgroundColor: 'transparent', outline: 'none' },
+    '&.cm-focused .cm-matchingBracket': {
+        backgroundColor: 'var(--editor-bracket)',
         outline: 'none',
     },
-    '.cm-nonmatchingBracket, &.cm-focused .cm-nonmatchingBracket': {
-        backgroundColor: 'color-mix(in oklch, var(--destructive) 22%, transparent)',
+    '&.cm-focused .cm-nonmatchingBracket': {
+        backgroundColor: 'color-mix(in oklab, var(--destructive) 22%, transparent)',
     },
     '.cm-scroller': { overflow: 'auto', lineHeight: '1.6' },
 })

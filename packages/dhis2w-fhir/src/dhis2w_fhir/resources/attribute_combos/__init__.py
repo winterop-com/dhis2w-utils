@@ -31,7 +31,12 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_fhir.coded import DHIS2_CODE_PROPERTY, DHIS2_ID_PROPERTY, code_substitutions
+from dhis2w_fhir.coded import (
+    DHIS2_CODE_PROPERTY,
+    DHIS2_ID_PROPERTY,
+    DHIS2_NAME_PROPERTY,
+    code_substitutions,
+)
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import (
     FHIR_ID_MAX_LENGTH,
@@ -108,6 +113,7 @@ _ID_SUFFIX = "-vs"
 _PROPERTY_DECLARATIONS = (
     CodeSystemProperty(code=DHIS2_CODE_PROPERTY, description="DHIS2 category option combo code.", type="string"),
     CodeSystemProperty(code=DHIS2_ID_PROPERTY, description="DHIS2 category option combo UID.", type="code"),
+    CodeSystemProperty(code=DHIS2_NAME_PROPERTY, description="DHIS2 category option combo name.", type="string"),
 )
 
 

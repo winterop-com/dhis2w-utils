@@ -70,7 +70,7 @@ as a property, so no information is lost either way.
 
 **What it reaches.** Three kinds of published entry, all of them things your
 data is coded by: the options of an option set, the category options of a
-category, and the category option combos a disaggregated question's cells are
+category, and the category option combinations a disaggregated question's cells are
 labelled with. It does not touch how anything is *named* - that is
 [`naming.source`](#source) below, a separate decision.
 

@@ -39,6 +39,9 @@ class CaptureNaming(BaseModel):
 
     form_type_url: str
     period_url: str
+    period_type_url: str
+    """Extension url an aggregate form declares the DHIS2 period type its data set reports on."""
+
     organisation_unit_url: str
     organisation_unit_assignment_url: str
     attribute_option_combos_url: str
@@ -93,6 +96,7 @@ class CaptureNaming(BaseModel):
         return cls(
             form_type_url=_definition_url(canonical, names.form_type_extension_id),
             period_url=_definition_url(canonical, names.period_extension_id),
+            period_type_url=_definition_url(canonical, names.period_type_extension_id),
             organisation_unit_url=_definition_url(canonical, names.organisation_unit_extension_id),
             organisation_unit_assignment_url=_definition_url(
                 canonical, names.organisation_unit_assignment_extension_id

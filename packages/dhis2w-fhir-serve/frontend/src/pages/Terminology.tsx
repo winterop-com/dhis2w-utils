@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useRef, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronRight, Search } from 'lucide-react'
 
@@ -61,8 +61,25 @@ export function Terminology() {
     // opened a row and pressed Back gets the search they were reading back, and a listing narrowed
     // to one vocabulary can be handed to someone as it stands.
     const [searchParameters, setSearchParameters] = useSearchParams()
+    // The last parameter write asked for, and the address it was asked from - see `writeParameter`.
+    const asked = useRef<{ from: string; name: string; value: string } | null>(null)
     const query = searchParameters.get(TERMINOLOGY_FILTER_PARAMETER) ?? ''
-    const writeParameter = (name: string, next: string | null) => {
+    // TYPING REPLACES, CHOOSING PUSHES. A filter box writes a parameter per keystroke, and a
+    // history entry per character is a Back button that walks a word backwards; a tab is one
+    // discrete choice, and Back is what a reader expects to return them to the tab they left.
+    const writeParameter = (name: string, next: string | null, discrete: boolean) => {
+        // A REPEAT IS NOT A NAVIGATION. Radix fires a tab's change on the focus a click gives it and
+        // again on the click itself, so one press asks for the same tab twice - and a push per ask
+        // stacks two identical history entries, which is a Back button that does nothing the first
+        // time it is pressed. The address is checked first; the second ask arrives before React has
+        // re-rendered, so it is caught by the address it was asked from instead.
+        const wanted = next ?? ''
+        if ((searchParameters.get(name) ?? '') === wanted) return
+        const askedFrom = searchParameters.toString()
+        if (asked.current?.from === askedFrom && asked.current.name === name && asked.current.value === wanted) {
+            return
+        }
+        asked.current = { from: askedFrom, name, value: wanted }
         setSearchParameters(
             (current) => {
                 const written = new URLSearchParams(current)
@@ -70,18 +87,18 @@ export function Terminology() {
                 else written.set(name, next)
                 return written
             },
-            { replace: true },
+            { replace: !discrete },
         )
     }
     const setQuery = (next: string) => {
-        writeParameter(TERMINOLOGY_FILTER_PARAMETER, next)
+        writeParameter(TERMINOLOGY_FILTER_PARAMETER, next, false)
     }
     // Which resource type is on screen. Validated against the vocabulary rather than trusted, and
     // the default is spelled by absence so the plain address stays the plain listing.
     const askedType = searchParameters.get(TERMINOLOGY_TYPE_PARAMETER)
     const activeType: TerminologyType = TERMINOLOGY_TYPES.find((candidate) => candidate === askedType) ?? 'CodeSystem'
     const setActiveType = (next: TerminologyType) => {
-        writeParameter(TERMINOLOGY_TYPE_PARAMETER, next === 'CodeSystem' ? null : next)
+        writeParameter(TERMINOLOGY_TYPE_PARAMETER, next === 'CodeSystem' ? null : next, true)
     }
 
     const codeSystemRows = useMemo(
@@ -148,7 +165,7 @@ export function Terminology() {
             error: codeSystems.error,
             rows: codeSystemRows,
             matching: matchingCodeSystems,
-            emptyMessage: 'This project published no CodeSystems.',
+            emptyMessage: 'This project published no code systems.',
         },
         ValueSet: {
             label: 'Value sets',
@@ -157,7 +174,7 @@ export function Terminology() {
             error: valueSets.error,
             rows: valueSetRows,
             matching: matchingValueSets,
-            emptyMessage: 'This project published no ValueSets.',
+            emptyMessage: 'This project published no value sets.',
         },
         ConceptMap: {
             label: 'Concept maps',
@@ -168,10 +185,9 @@ export function Terminology() {
             matching: matchingConceptMaps,
             emptyMessage: (
                 <>
-                    This project published no ConceptMaps. Run{' '}
-                    <code className="font-mono">d2w fhir generate</code>, then{' '}
-                    <code className="font-mono">make sushi</code> to compile the option sets and
-                    categories the forms bind, then restart the server.
+                    No concept maps are published here. They appear once the project's terminology
+                    has been generated and compiled:{' '}
+                    <code className="font-mono">d2w fhir generate</code>
                 </>
             ),
         },
@@ -216,7 +232,7 @@ export function Terminology() {
                     />
                     <Input
                         className="pl-9"
-                        placeholder="Filter by title, id, or DHIS2 identifier"
+                        placeholder="Filter by title, ID, or DHIS2 identifier"
                         aria-label="Filter terminology"
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
@@ -385,7 +401,7 @@ function TerminologySection({
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Title</TableHead>
-                                <TableHead>Id</TableHead>
+                                <TableHead>ID</TableHead>
                                 <TableHead>DHIS2 identifiers</TableHead>
                                 <TableHead className="text-right">{countLabel}</TableHead>
                                 <TableHead className="w-8" aria-hidden />

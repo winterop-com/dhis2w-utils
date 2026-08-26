@@ -6,9 +6,13 @@ import { cn } from "@/lib/utils"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
+    // `bg-card` is what makes the three table tones a ladder rather than two
+    // bands floating on whatever happens to be behind them: an unstriped row is
+    // the card, the zebra is a step off it, and the header is two. A table
+    // already inside a Card gets the same surface it had.
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className="bg-card relative w-full overflow-x-auto"
     >
       <table
         data-slot="table"

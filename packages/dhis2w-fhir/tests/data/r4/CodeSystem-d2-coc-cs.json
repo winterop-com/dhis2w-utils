@@ -4,8 +4,8 @@
   "content": "complete",
   "name": "D2COC_CS",
   "id": "d2-coc-cs",
-  "title": "DHIS2 category option combos",
-  "description": "DHIS2 category option combos the generated questionnaires disaggregate by. Concept codes are DHIS2 category option combo UIDs.",
+  "title": "DHIS2 category option combinations",
+  "description": "DHIS2 category option combinations the generated questionnaires disaggregate by. Concept codes are DHIS2 category option combination UIDs.",
   "url": "http://localhost:8080/fhir/CodeSystem/d2-coc-cs",
   "concept": [
     {

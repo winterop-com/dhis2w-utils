@@ -2,6 +2,7 @@ import { OrgUnitPicker, useOrgUnitScope } from '@/components/OrgUnitPicker'
 import { Label } from '@/components/ui/label'
 import type { FormType } from '@/lib/fhir'
 import type { OrgUnitChoice } from '@/lib/orgunits'
+import { countedNoun, formatCount } from '@/lib/utils'
 
 /** The one control on a capture form whose id is fixed, so its label and its trigger find each other. */
 const CONTROL_ID = 'reporting-organisation-unit'
@@ -82,8 +83,8 @@ export function ReportingUnitPicker({
             {!scope.loading && scope.error === null && offered > 0 && (
                 <p className="text-muted-foreground text-xs">
                     {scope.restricted
-                        ? `${String(offered)} ${offered === 1 ? 'organisation unit is' : 'organisation units are'} assigned to this form. A capture outside the form's assigned organisation units is refused when it reaches DHIS2.`
-                        : `This form is assigned everywhere, so any of the ${String(offered)} published organisation units may report it.`}
+                        ? `${countedNoun(offered, 'organisation unit')} ${offered === 1 ? 'is' : 'are'} assigned to this form. A capture outside the form's assigned organisation units is refused when it reaches this DHIS2 instance.`
+                        : `This form is assigned everywhere, so any of the ${formatCount(offered)} published organisation units may report it.`}
                 </p>
             )}
             {keptUnitNotAdmitted && (
@@ -111,17 +112,17 @@ export function ReportingUnitPicker({
 function unitMeaning(formKind: FormType | null, declaresAttributeOptionCombo: boolean): string {
     if (formKind === 'aggregate') {
         return declaresAttributeOptionCombo
-            ? 'The organisation unit this submission reports from. It is context, not an answer - DHIS2 keys the whole submission by it, beside the period and the attribute option combo.'
-            : 'The organisation unit this submission reports from. It is context, not an answer - DHIS2 keys the whole submission by it, beside the period.'
+            ? 'The organisation unit this submission reports from. It is context, not an answer - this DHIS2 instance keys the whole submission by it, beside the period and the attribute option combination.'
+            : 'The organisation unit this submission reports from. It is context, not an answer - this DHIS2 instance keys the whole submission by it, beside the period.'
     }
     if (formKind === 'event' || formKind === 'tracker-event') {
-        return 'The organisation unit this event is recorded at. It is context, not an answer - DHIS2 stores the event against it.'
+        return 'The organisation unit this event is recorded at. It is context, not an answer - this DHIS2 instance stores the event against it.'
     }
     if (formKind === 'tracker') {
-        return 'The organisation unit this person is enrolled at. It is context, not an answer - DHIS2 files the enrollment under it.'
+        return 'The organisation unit this person is enrolled at. It is context, not an answer - this DHIS2 instance files the enrollment under it.'
     }
     if (formKind === 'tracked-entity') {
-        return 'The organisation unit this person is registered at. It is context, not an answer - DHIS2 files the person under it, and this form enrols them in no program.'
+        return 'The organisation unit this person is registered at. It is context, not an answer - this DHIS2 instance files the person under it, and this form enrols them in no program.'
     }
     return 'The organisation unit this submission reports from. It is context, not an answer.'
 }

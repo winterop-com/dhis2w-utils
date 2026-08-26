@@ -31,9 +31,9 @@ import { formIdentifier, formsByTitle, formTitle, formTypeOf, programOf, type Qu
  */
 export const TRACKED_ENTITY_FORM_SHELF = 'Tracked entity registration'
 
-/** What that shelf says the forms on it do, at one organisation unit. */
+/** What that shelf says the forms on it do, on the Forms page and in the organisation-units rail alike. */
 export const TRACKED_ENTITY_FORM_SHELF_NOTE =
-    'Registers a tracked entity here without enrolling it in a program.'
+    'Registers a tracked entity in this DHIS2 instance without enrolling it in a program.'
 
 /** One program's published capture surface: registration and stages together, or its one event form. */
 export interface ProgramGroup {

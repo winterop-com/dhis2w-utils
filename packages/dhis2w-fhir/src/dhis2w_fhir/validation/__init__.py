@@ -95,9 +95,11 @@ same name is rewritten for publication, the build survives, and the honest grade
 the finding states what the guide publishes and what DHIS2 keeps, rather than demanding a change
 nothing is waiting on.
 
-Only the findings a substitution actually settles move. A name carrying `>` or `&` stays a warning
-under either posture, because `substitute_build_aborting_text` rewrites `<` and nothing else, so
-the page is malformed either way. And `template-hostile-code` stays an error under either posture:
+Only the findings a substitution actually settles move. A name carrying `>` moves with the `<` names:
+the rewrite treats the two comparisons symmetrically, so a `>` name publishes as words too and the
+page is well-formed. A name carrying a bare `&` stays a warning under either posture, because
+nothing stands in that character's place and the page is malformed either way. And
+`template-hostile-code` stays an error under either posture:
 the code substituter rewrites a space in a code and never a `<`, so a `<`-carrying code reaches
 `_refuse_build_aborting_objects` and refuses the run whatever the posture says.
 """
@@ -430,14 +432,14 @@ def _template_hostile_grade(
 ) -> tuple[Literal["error", "warning", "info"], str]:
     """The severity and wording one hostile name carries under the posture this run grades under.
 
-    Under `substitute` the run is graded against the name the guide really publishes: with the `<`
-    rewritten away nothing aborts, so the finding is informational and states both spellings. A
-    character the rewrite does not touch keeps its own grade, because the published page is
-    malformed either way.
+    Under `substitute` the run is graded against the name the guide really publishes: with the
+    comparison rewritten away nothing aborts and nothing malforms, so the finding is informational
+    and states both spellings. A character the rewrite does not touch - a bare `&` - keeps its own
+    grade, because the published page is malformed either way.
     """
-    if not substituting or not build_aborting_name(name):
-        return _template_hostile_severity(character), _template_hostile_message(name, character)
     published = substitute_build_aborting_text(name)
+    if not substituting or published == name:
+        return _template_hostile_severity(character), _template_hostile_message(name, character)
     remaining = _template_hostile_character(published)
     if remaining is None:
         return "info", _substituted_name_message(name, published)

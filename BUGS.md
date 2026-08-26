@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-109 entries grouped by area. **Status tags** carry the result of the most
+111 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -141,6 +141,8 @@ filing.
 - [#105](#105-a-soft-deleted-tracked-entity-blocks-deletion-of-its-tracked-entity-type-and-no-tracker-query-will-show-the-row-that-is-blocking-it) — a soft-deleted tracked entity blocks its type's deletion and no query will show it
 - [#106](#106-get-apitrackertrackedentitiestrackedentitytype-answers-an-empty-page-for-a-type-no-accessible-program-tracks-however-many-entities-of-it-the-instance-holds) — a type no program tracks reads back as an empty register, silently
 - [#109](#109-filtertrackedentityattributeeqvalue-on-apitrackertrackedentities-matches-without-regard-to-case-so-eq-is-not-equality) — a tracked entity attribute `filter=...:eq:...` ignores case, so `eq` is not exact
+- [#110](#110-a-program-stage-can-exist-with-program-null) — a program stage can exist with `program: null`, so the flat stage count disagrees with the walk through programs
+- [#111](#111-metadata-name-fields-hold-pre-escaped-html-entities) — metadata `name` fields hold pre-escaped HTML entities (`&lt;`, `&gt;`) as stored text
 
 ### v43-specific
 
@@ -3296,6 +3298,54 @@ A live `PUT /api/dataValues/followup` with `{"dataElement":"...","period":"20240
 
 ---
 
+
+
+### 110. A program stage can exist with `program: null`
+
+**Observed on:** DHIS2 `2.43.2-SNAPSHOT` (`play.im.dhis2.org/dev-2-43`), login `admin/district`.
+
+**Repro:**
+
+```bash
+curl -su admin:district "https://play.im.dhis2.org/dev-2-43/api/programStages/VgsOuy9mXyZ.json?fields=id,name,program"
+```
+
+**Expected.** Every program stage belongs to a program - the API model requires `program` on
+create, and the Maintenance app offers no way to make one without it.
+
+**Actual.** `{"name":"Nearby household investigation","id":"VgsOuy9mXyZ"}` - no `program` field
+at all. `/api/programStages` counts 29 stages while only 28 are reachable through any program, so
+any consumer that joins stages through programs silently disagrees with the flat count.
+
+**Workaround applied in this repo:** none needed - the generator walks stages through their
+programs (`packages/dhis2w-fhir/src/dhis2w_fhir/resources/questionnaires/`), so the orphan is
+never published. Recorded because a stage count read off `/api/programStages` will not match what
+the guide serves, and that is the instance's inconsistency, not the projection's.
+
+
+### 111. Metadata `name` fields hold pre-escaped HTML entities
+
+**Observed on:** DHIS2 `2.43.2-SNAPSHOT` (`play.im.dhis2.org/dev-2-43`), login `admin/district`.
+
+**Repro:**
+
+```bash
+curl -su admin:district "https://play.im.dhis2.org/dev-2-43/api/categoryOptionCombos.json?filter=name:like:lt;&fields=id,name&pageSize=3"
+```
+
+**Expected.** A `name` field carries the name as text - `Fixed, <1y` - and any escaping is the
+consumer's business at render time.
+
+**Actual.** The stored value is the five-character sequence `&lt;` (and `&gt;` elsewhere):
+`"Fixed, &lt;1y"`, `"Mortality &lt; 5 years"`, option names like `"&gt;5km"`. The API returns
+pre-escaped markup inside a data field, so every consumer either double-escapes (rendering
+`&amp;lt;` to users) or has to know that this one field may arrive HTML-escaped.
+
+**Workaround applied in this repo:**
+`packages/dhis2w-fhir/src/dhis2w_fhir/validation/substitution.py` matches both spellings of each
+comparison - the character and the entity - so the substitute posture rewrites
+`"Mortality &lt; 5 years"` and `"Mortality < 5 years"` to the same published wording, with the
+stored spelling kept recoverable as the `dhis2-name` property.
 
 ## Security-audit-scanner findings (feat/security-audit-scanner)
 

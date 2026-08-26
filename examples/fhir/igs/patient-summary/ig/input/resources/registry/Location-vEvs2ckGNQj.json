@@ -17,7 +17,7 @@
     }
   ],
   "name": "Kasonko",
-  "description": "DHIS2 organisation unit Kasonko (vEvs2ckGNQj), level 3 - physical location.",
+  "description": "A physical location this DHIS2 instance holds as an organisation unit.",
   "status": "active",
   "position": {
     "longitude": -11.848096,
