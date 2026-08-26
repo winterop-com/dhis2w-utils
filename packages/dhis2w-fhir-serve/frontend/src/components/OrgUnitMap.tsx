@@ -836,7 +836,12 @@ function applyLayers(
 function registerInteractions(instance: MapLibreMap, handles: InteractionHandles): void {
     instance.on('click', (event) => {
         const hit = featureHitAt(instance, event.point)
-        if (hit === null) return
+        if (hit === null) {
+            // A click on nothing puts the popup away: open ground is the dismiss, the way
+            // clicking outside any card in this UI closes it.
+            handles.popup.current?.remove()
+            return
+        }
         const threshold = hit.kind === 'point' ? POINT_POPUP_MIN_ZOOM : BOUNDARY_POPUP_MIN_ZOOM
         if (instance.getZoom() < threshold) {
             instance.easeTo({ center: event.lngLat, zoom: instance.getZoom() + DRILL_ZOOM_STEP, duration: 400 })
