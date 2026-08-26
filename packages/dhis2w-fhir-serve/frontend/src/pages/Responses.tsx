@@ -224,7 +224,7 @@ export function Responses() {
                         </CardContent>
                     </Card>
                 ) : (
-                    <div className="show-scrollbars overflow-x-auto rounded-lg border">
+                    <div className="show-scrollbars overflow-x-auto md:overflow-x-visible rounded-lg border">
                         <Table>
                             <TableHeader>
                                 <TableRow>

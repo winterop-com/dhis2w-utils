@@ -277,7 +277,7 @@ function AnswersSection({
                         : 'This receipt carries no answers at all - an empty submission the validator accepted for its context alone.'}
                 </p>
             ) : (
-                <div className="show-scrollbars bg-card overflow-x-auto rounded-lg border">
+                <div className="show-scrollbars bg-card overflow-x-auto md:overflow-x-visible rounded-lg border">
                     <Table>
                         <TableHeader>
                             <TableRow>

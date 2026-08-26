@@ -884,7 +884,7 @@ function RegisterTable({
         <div className="space-y-2">
             {/* An entity can hold any number of attribute values and DHIS2 puts no length on one, so
                 the table scrolls inside its own container rather than pushing the page sideways. */}
-            <div className="show-scrollbars overflow-x-auto rounded-lg border" data-testid="patient-listing">
+            <div className="show-scrollbars overflow-x-auto md:overflow-x-visible rounded-lg border" data-testid="patient-listing">
                 <Table>
                     <TableHeader>
                         <TableRow>
