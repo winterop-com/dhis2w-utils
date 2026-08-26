@@ -164,12 +164,14 @@ nav:
           - Design: architecture/mcp-router.md
   - FHIR:
       - Overview: fhir/index.md
+      - Introduction: fhir/100-introduction.md
       - 101 - Understand:
           - Glossary: fhir/glossary.md
           - What and why: fhir/101-what-and-why.md
           - FHIR for DHIS2 people: fhir/101-fhir-concepts.md
           - Quickstart: fhir/101-quickstart.md
       - 201 - Operate a project:
+          - Run a secured facade: fhir/201-run-a-secured-facade.md
           - Check an instance with doctor: fhir/201-doctor.md
           - Set up a project: fhir/201-set-up-a-project.md
           - Validate an instance: fhir/201-validate.md

@@ -11,6 +11,13 @@ compiled project as a read-and-capture FHIR endpoint, and `forward` posts what
 that endpoint captured back into DHIS2. `doctor` runs that whole chain against
 one instance and reports what the instance breaks.
 
+Most projects need three things, in this order: a facade running, that facade
+pointed at a DHIS2 instance, and that facade accepting captures in the format
+the guide publishes. [Introduction](100-introduction.md) is those three steps on
+one page, with the command that does each and the link that owns it - read it
+first if you are new here. Everything else in this series is depth behind one of
+those steps, or one of the capabilities that sit beyond them.
+
 The series is graded: **101** pages explain and demonstrate, **201** pages
 operate a project day to day, **301** pages configure `fhir.toml`, **401**
 pages integrate against and extend what the project publishes, and **501**
@@ -29,13 +36,21 @@ not a menu - the pages build on each other left to right.
 
 | Your situation | Read, in this order |
 | --- | --- |
-| **You run a DHIS2 instance and want its forms available as FHIR** | [What `d2w fhir` is and why](101-what-and-why.md), [Quickstart](101-quickstart.md), then the 201 pages from [Check an instance with doctor](201-doctor.md) onward |
+| **You are new here and want the shape of it** | [Introduction](100-introduction.md), then whichever step you need depth on |
+| **You run a DHIS2 instance and want its forms available as FHIR** | [Introduction](100-introduction.md), [What `d2w fhir` is and why](101-what-and-why.md), [Quickstart](101-quickstart.md), then the 201 pages from [Check an instance with doctor](201-doctor.md) onward |
+| **You have to get a facade up on a real instance, reachable and forwarding** | [Run a secured facade on a real instance](201-run-a-secured-facade.md), following each step's link where you need the depth |
 | **You are deciding whether your ministry should publish a guide at all** | [What `d2w fhir` is and why](101-what-and-why.md), then the project-level design records: the [FHIR roadmap and review guide](design/roadmap.md), the [DHIS2 fidelity audit](design/dhis2-fidelity.md), and the [harmonization design](design/harmonization.md) |
 | **You integrate a system against a guide someone else published** | [Glossary](glossary.md), [FHIR for DHIS2 people](101-fhir-concepts.md), then the 401 pages from [The capture contract](401-capture-contract.md) |
 | **You configure what the guide contains** | [Quickstart](101-quickstart.md), [Validate the instance](201-validate.md), then the 301 pages from [The settings file](301-fhir-toml.md) |
 | **You operate a project that already exists** | [Check an instance with doctor](201-doctor.md), then the 201 pages in order |
 | **You are new to FHIR entirely** | [Glossary](glossary.md), [FHIR for DHIS2 people](101-fhir-concepts.md), [What `d2w fhir` is and why](101-what-and-why.md) |
 | **You want to compute over FHIR data - expressions, logic, quality measures** | [FHIRPath](501-fhirpath.md), [CQL](501-cql.md), [Quality measures](501-measures.md), then [The FHIR version binding](501-version-binding.md) |
+
+## Start here
+
+- [Introduction](100-introduction.md) - what a `d2w fhir` facade is, the three
+  steps that get you one, and the command that does each. The page to read
+  before any other.
 
 ## 101 - Understand
 
@@ -52,6 +67,9 @@ not a menu - the pages build on each other left to right.
 
 ## 201 - Operate a project
 
+- [Run a secured facade on a real instance](201-run-a-secured-facade.md) - the
+  eleven steps from nothing to a facade other machines call and a spool draining
+  into DHIS2, each one command deep, handing over to the pages below.
 - [Check an instance with doctor](201-doctor.md) - the whole chain against one
   instance, in one command, with one verdict. Run this first.
 - [Set up an IG project](201-set-up-a-project.md) - the scaffold, the pinned

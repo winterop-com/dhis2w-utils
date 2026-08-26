@@ -9,7 +9,7 @@ Everything here talks to DHIS2. Pick the surface you want to talk to it *through
 - **[Python client](client/index.md)** — async library for ETL scripts, embedded DHIS2 calls inside another service, and tests that need typed access. Pairs with the [Python library tutorial](client/tutorial.md).
 - **[`d2w` CLI](cli/index.md)** — terminal use, shell pipelines, CI / cron jobs, day-to-day admin. Pairs with the [CLI tutorial](cli/tutorial.md).
 - **[`dhis2w-mcp` MCP server](mcp/index.md)** — LLM-driven workflows (Claude Desktop, Claude Code, Cursor, Continue, Cline). Pairs with the [MCP tutorial](mcp/tutorial.md).
-- **[`d2w fhir`](fhir/index.md)** — publish an instance's metadata as a FHIR Implementation Guide, serve it as a capture endpoint, and forward what it captures back into DHIS2. Graded 101/201/301/401; new to FHIR, start at [FHIR for DHIS2 people](fhir/101-fhir-concepts.md).
+- **[`d2w fhir`](fhir/index.md)** — publish an instance's metadata as a FHIR Implementation Guide, serve it as a capture endpoint, and forward what it captures back into DHIS2. Graded 101/201/301/401/501; start at the [Introduction](fhir/100-introduction.md).
 - **[d2ql query language](query/index.md)** — a pipeline query and transform language over DHIS2 data, with no DHIS2 runtime dependency of its own.
 
 Whichever you pick:
