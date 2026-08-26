@@ -76,6 +76,9 @@ const PAIRS: [string, string, number][] = [
     ['primary', 'background', FLOORS.identity],
     ['accent-foreground', 'accent', FLOORS.accent],
     ['sidebar-accent-foreground', 'sidebar-accent', FLOORS.accent],
+    // The two states whose fills measure short as words: their ink variants are held to AA text.
+    ['good-ink', 'card', 4.5],
+    ['warning-ink', 'card', 4.5],
     ['status-received', 'card', FLOORS.status],
     ['status-forwarded', 'card', FLOORS.status],
     ['status-rejected', 'card', FLOORS.status],
@@ -287,14 +290,19 @@ test('the header carries neither of them, so what is left on it is the page', as
     await expect(header.getByRole('button', { name: 'Theme' })).toHaveCount(0)
     await expect(header.getByRole('button', { name: /^Switch to (dark|light) mode/ })).toHaveCount(0)
 
-    // What the header does keep: the page's name and the server light. The navigation's own
-    // toggle lives in the rail, at the one position it holds in both states.
+    // What the header does keep: the server light - and, only on a detail route, the section the
+    // page belongs to. On a section's own page the heading below already names it, so the bar
+    // naming it too would be one fact in two rows. The navigation's own toggle lives in the rail,
+    // at the one position it holds in both states.
     await expect(header.getByRole('button', { name: 'Collapse the navigation' })).toHaveCount(0)
-    await expect(header.locator('h1')).toHaveText('Overview')
+    await expect(header.locator('h1')).toHaveCount(0)
     await expect(header.getByRole('button', { name: /Server status/ })).toBeVisible()
     await expect(
         page.getByRole('complementary').getByRole('button', { name: 'Collapse the navigation' }),
     ).toBeVisible()
+
+    await page.goto('/#/responses/does-not-exist')
+    await expect(header.locator('h1')).toHaveText('Responses')
 })
 
 test('a theme chosen at the gear is painted, and is still painted after a reload', async ({ page }) => {

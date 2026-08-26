@@ -55,6 +55,10 @@
     --color-header-foreground: var(--header-foreground);
     --color-header-muted-foreground: var(--header-muted-foreground);
     --color-sidebar-wash: var(--sidebar-wash);
+    --color-good-ink: var(--good-ink);
+    --color-warning-ink: var(--warning-ink);
+    --color-status-forwarded-ink: var(--status-forwarded-ink);
+    --color-status-refused-ink: var(--status-refused-ink);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-accent: var(--sidebar-accent);
@@ -186,6 +190,8 @@
     --warning: oklch(0.65 0.13 75);
     --info: oklch(0.55 0.11 240);
     --status-withdrawn: oklch(0.52 0.09 305);
+    --good-ink: oklch(0.545 0.14 155.0);  /* measured 4.61:1 and 4.56:1 on this card */
+    --warning-ink: oklch(0.57 0.13 75.0);
     /* Source colours. Spent by the .tok-* rules at the foot of this file, which
        is where the argument for them is. */
     --code-keyword: oklch(0.46 0.15 300);
@@ -221,8 +227,12 @@
        the data. */
     --status-received: var(--info);
     --status-forwarded: var(--good);
+    /* The same states as small text: the fills are tuned for dots and washes, and measure short
+       of WCAG AA for words on a light card, so words take the measured ink variant instead. */
+    --status-forwarded-ink: var(--good-ink);
     --status-rejected: var(--critical);
     --status-refused: var(--warning);
+    --status-refused-ink: var(--warning-ink);
     --status-in-progress: var(--warning);
     --status-completed: var(--good);
 
@@ -370,6 +380,8 @@
     --warning: oklch(0.75 0.13 75);
     --info: oklch(0.72 0.14 240);
     --status-withdrawn: oklch(0.72 0.1 305);
+    --good-ink: var(--good);
+    --warning-ink: var(--warning);
     /* The same roles lifted for a dark ground: the hues are held and the
        lightness rises, so a keyword stays a keyword between themes rather than
        becoming a different colour that happens to be readable. */
@@ -481,6 +493,8 @@ html[data-theme='indigo'] {
     --warning: oklch(0.64 0.13 75);
     --info: oklch(0.52 0.13 262);
     --status-withdrawn: oklch(0.55 0.12 335);
+    --good-ink: oklch(0.535 0.14 158.0);  /* measured 4.58:1 and 4.58:1 on this card */
+    --warning-ink: oklch(0.56 0.13 75.0);
     --code-keyword: oklch(0.46 0.15 300);
     --code-operator: oklch(0.48 0.08 25);
     --code-string: oklch(0.45 0.12 150);
@@ -534,6 +548,8 @@ html.dark[data-theme='indigo'] {
     --warning: oklch(0.76 0.13 75);
     --info: oklch(0.73 0.13 262);
     --status-withdrawn: oklch(0.75 0.11 335);
+    --good-ink: var(--good);
+    --warning-ink: var(--warning);
     --code-keyword: oklch(0.78 0.13 300);
     --code-operator: oklch(0.78 0.08 25);
     --code-string: oklch(0.78 0.13 150);
@@ -591,6 +607,8 @@ html[data-theme='paper'] {
     --warning: oklch(0.62 0.13 70);
     --info: oklch(0.5 0.1 250);
     --status-withdrawn: oklch(0.5 0.09 310);
+    --good-ink: oklch(0.54 0.13 152.0);  /* measured 4.59:1 and 4.61:1 on this card */
+    --warning-ink: oklch(0.56 0.13 70.0);
     --code-keyword: oklch(0.46 0.15 300);
     --code-operator: oklch(0.48 0.08 25);
     --code-string: oklch(0.45 0.12 150);
@@ -644,6 +662,8 @@ html.dark[data-theme='paper'] {
     --warning: oklch(0.76 0.13 72);
     --info: oklch(0.73 0.1 252);
     --status-withdrawn: oklch(0.73 0.1 310);
+    --good-ink: var(--good);
+    --warning-ink: var(--warning);
     --code-keyword: oklch(0.78 0.13 300);
     --code-operator: oklch(0.78 0.08 25);
     --code-string: oklch(0.78 0.13 150);
@@ -701,6 +721,8 @@ html[data-theme='contrast'] {
     --warning: oklch(0.6 0.14 75);
     --info: oklch(0.49 0.15 262);
     --status-withdrawn: oklch(0.48 0.1 305);
+    --good-ink: oklch(0.545 0.15 152.0);  /* measured 4.59:1 and 4.56:1 on this card */
+    --warning-ink: oklch(0.57 0.14 75.0);
     --code-keyword: oklch(0.46 0.15 300);
     --code-operator: oklch(0.48 0.08 25);
     --code-string: oklch(0.45 0.12 150);
@@ -754,6 +776,8 @@ html.dark[data-theme='contrast'] {
     --warning: oklch(0.78 0.14 75);
     --info: oklch(0.75 0.14 262);
     --status-withdrawn: oklch(0.75 0.11 305);
+    --good-ink: var(--good);
+    --warning-ink: var(--warning);
     --code-keyword: oklch(0.78 0.13 300);
     --code-operator: oklch(0.78 0.08 25);
     --code-string: oklch(0.78 0.13 150);
@@ -811,6 +835,8 @@ html[data-theme='terminal'] {
     --warning: oklch(0.64 0.13 75);
     --info: oklch(0.52 0.1 230);
     --status-withdrawn: oklch(0.52 0.09 305);
+    --good-ink: oklch(0.53 0.15 162.0);  /* measured 4.56:1 and 4.6:1 on this card */
+    --warning-ink: oklch(0.56 0.13 75.0);
     --code-keyword: oklch(0.46 0.15 300);
     --code-operator: oklch(0.48 0.08 25);
     --code-string: oklch(0.45 0.12 150);
@@ -864,6 +890,8 @@ html.dark[data-theme='terminal'] {
     --warning: oklch(0.76 0.13 75);
     --info: oklch(0.72 0.11 230);
     --status-withdrawn: oklch(0.72 0.1 305);
+    --good-ink: var(--good);
+    --warning-ink: var(--warning);
     --code-keyword: oklch(0.78 0.13 300);
     --code-operator: oklch(0.78 0.08 25);
     --code-string: oklch(0.78 0.13 150);
@@ -922,6 +950,8 @@ html[data-theme='dhis2'] {
     --warning: oklch(0.63 0.13 75);
     --info: oklch(0.54 0.13 252);
     --status-withdrawn: oklch(0.52 0.09 305);
+    --good-ink: oklch(0.545 0.14 155.0);  /* measured 4.61:1 and 4.56:1 on this card */
+    --warning-ink: oklch(0.57 0.13 75.0);
     --code-keyword: oklch(0.46 0.15 300);
     --code-operator: oklch(0.48 0.08 25);
     --code-string: oklch(0.45 0.12 150);
@@ -975,6 +1005,8 @@ html.dark[data-theme='dhis2'] {
     --warning: oklch(0.75 0.13 75);
     --info: oklch(0.72 0.13 250);
     --status-withdrawn: oklch(0.72 0.1 305);
+    --good-ink: var(--good);
+    --warning-ink: var(--warning);
     --code-keyword: oklch(0.78 0.13 300);
     --code-operator: oklch(0.78 0.08 25);
     --code-string: oklch(0.78 0.13 150);
@@ -1033,6 +1065,8 @@ html[data-theme='fhir'] {
     --warning: oklch(0.63 0.12 82);
     --info: oklch(0.53 0.11 245);
     --status-withdrawn: oklch(0.52 0.09 305);
+    --good-ink: oklch(0.54 0.14 155.0);  /* measured 4.63:1 and 4.64:1 on this card */
+    --warning-ink: oklch(0.56 0.12 82.0);
     --code-keyword: oklch(0.46 0.15 300);
     --code-operator: oklch(0.48 0.08 25);
     --code-string: oklch(0.45 0.12 150);
@@ -1086,6 +1120,8 @@ html.dark[data-theme='fhir'] {
     --warning: oklch(0.76 0.12 85);
     --info: oklch(0.72 0.12 245);
     --status-withdrawn: oklch(0.72 0.1 305);
+    --good-ink: var(--good);
+    --warning-ink: var(--warning);
     --code-keyword: oklch(0.78 0.13 300);
     --code-operator: oklch(0.78 0.08 25);
     --code-string: oklch(0.78 0.13 150);

@@ -100,7 +100,7 @@ export const LIFECYCLE_TINTS: Record<ResponseLifecycle, { dot: string; badge: st
     },
     forwarded: {
         dot: 'bg-status-forwarded',
-        badge: 'border-status-forwarded/40 text-status-forwarded bg-status-forwarded/10',
+        badge: 'border-status-forwarded/40 text-status-forwarded-ink bg-status-forwarded/10',
     },
     rejected: {
         dot: 'bg-status-rejected',
