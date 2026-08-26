@@ -1497,12 +1497,6 @@ described, and the git history is where it was built. What is left:
   there before any block pair is written - grown token tweaks in a live facade
   are how a palette drifts.
 
-- **A proper settings dialog for the capture UI.** The gear today opens what
-  is in effect an appearance menu - theme and ground - wearing the Settings
-  name. Grow it into a real settings dialog: appearance, the keyboard
-  shortcuts, and whatever per-person preferences the app accrues, one dialog
-  with sections rather than a menu that is one chooser.
-
 - **The rest of the IPS document's sections.** `GET /Patient/{uid}/$summary`
   assembles the document, and one clinical section is mapped: Immunizations,
   through `[ips.sections.immunizations]`. Every further section arrives the same

@@ -27,7 +27,7 @@ import type {
 } from '@/lib/fhir'
 
 /** How many concepts one page of a code-system detail shows. */
-export const CONCEPT_PAGE_SIZE = 200
+export const CONCEPT_PAGE_SIZE = 50
 
 /**
  * The one sentence this UI states the `$translate` question in.

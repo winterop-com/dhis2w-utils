@@ -2333,8 +2333,10 @@ control per R4 item type.
   becomes a two-state tick for a question the served dictionary types
   `TRUE_ONLY`, since DHIS2 stores `"true"` or nothing for one and an offered No
   would be discarded at import.
-- **Numeric inputs bounded** by the `minValue` / `maxValue` extensions; native
-  `date` / `dateTime` / `time` inputs whose values are completed into R4
+- **Numeric inputs bounded** by the `minValue` / `maxValue` extensions, each a
+  text box a dozen characters wide with a numeric keypad and the digits set
+  right - never `<input type="number">`, which drops what it cannot parse;
+  native `date` / `dateTime` / `time` inputs whose values are completed into R4
   primitives on submit; Textarea for `text`; a Select for `choice` whose
   options are expanded by reading the bound ValueSet and the CodeSystem it
   composes; and a cmdk-backed searchable combobox for a `reference` question -
@@ -2342,6 +2344,22 @@ control per R4 item type.
   - writing `valueReference` through an answer slot of its own rather than
   through the text a keyboard writes.
 - **Repeating questions** with add and remove rows.
+- **A run of data elements cut by one set of category option combos renders as
+  one table** - the elements are the rows, the combos are the columns, the
+  answer is the cell where they meet - which is the shape DHIS2's own data
+  entry uses and the difference between a screen of 14 rows and one of 56
+  stacked questions. Each uid is on screen once, the column's in its header and
+  the element's beside its name; the categories the columns cut along are named
+  once above the table. An element cut differently opens its own table, and an
+  element whose cells are not numeric answers stays stacked. Every cell keeps
+  its own linkId and its place in document order, so a capture filled in
+  through the table is the QuestionnaireResponse the stacked drawing produced.
+- **A run of scalar questions flows into as many columns as the screen has room
+  for**, each control the width of the answer it takes - about sixty characters
+  for free text, its natural width for a date, a dozen for a count. A narrative
+  (`text`, which is what DHIS2's `LONG_TEXT` emits) keeps the full width on
+  purpose, and so does a question that takes several answers or carries
+  questions under it. A run renders as a table or as columns, never both.
 - **`enableWhen` evaluated with full R4 semantics**: the six comparison
   operators plus `exists`, `any` / `all` behaviour, a group's conditions
   cascading to everything beneath it, and a condition on an unanswered question
@@ -2466,10 +2484,11 @@ control per R4 item type.
   "Date first seen" reads that way on both surfaces. A stage form declaring
   `D2Repeatable` says so where the form describes itself and on its row in the
   forms listing. An item's `D2Description` renders as the question's help text
-  under its label and as a section's under its heading. A group of
-  disaggregated cells names the DHIS2 categories it is cut by, joined from the
-  served combo vocabulary's own property declarations in DHIS2's declared
-  order - nothing in this UI sorts a decomposition or a combo expansion.
+  under its label and as a section's under its heading. A table of
+  disaggregated cells names the DHIS2 categories its columns cut along, joined
+  from the served combo vocabulary's own property declarations in DHIS2's
+  declared order - nothing in this UI sorts a decomposition or a combo
+  expansion.
 - **A question the form marks `readOnly`** over an attribute the dictionary
   declares `generated` renders disabled with what will arrive stated ("DHIS2
   fills this in when the submission is imported, shaped `ANC-#######`"), is
@@ -2760,6 +2779,40 @@ an identifier search and a paged listing on one page, with a detail route at
   no attribute that means one, which is why the server spells the parameter
   `_content` rather than `name`.
 
+#### Playground
+
+- **`/playground`** sends one request to this server and shows exactly what
+  comes back: a method (`GET` or `POST`, the two the facade answers), a path
+  relative to the service base, query parameters as rows, and a JSON body in
+  the same CodeMirror editor the Evaluate screen writes expressions in. The
+  address the three add up to is printed under the builder, so what **Send**
+  would send is never a guess. Every request is same-origin, carries
+  `Accept: application/fhir+json`, and is signed with the credential this
+  browser already holds - there is one network path in this UI and this page
+  uses it.
+- **The presets are the CapabilityStatement read back as addresses**: one search
+  per resource type declaring a `search-type` interaction, the read-by-id shape,
+  and one row per declared operation - `$generate` on Questionnaire,
+  `$translate` on ConceptMap, `$evaluate` at the service base as a POST carrying
+  a runnable body. The page reads one Questionnaire and one mapped concept off
+  the server so those three rows answer on the first press instead of carrying a
+  `{id}`; where the guide publishes neither, the row says the placeholder has to
+  be replaced. Choosing a row fills the builder and never sends it.
+- **The answer is the status, the round trip, and the body** in the read-only
+  block the receipt and Server pages render JSON in. An `OperationOutcome`
+  arrives in that same block under the status the server gave it, because on
+  this facade a refusal is a resource saying why; a request nothing responded
+  to says so in its own words instead.
+- **Two ways out of the browser**: **Open in a new tab** takes a `GET` to its own
+  address with `_format=json` appended, and **Copy as curl** writes the current
+  request as a single-quoted command that survives a query string, a JSON body,
+  and an expression carrying its own quotes. Where this browser is signed in the
+  command names the `Authorization` header and its scheme with a placeholder in
+  place of the credential, so a command pasted into a ticket carries no secret.
+- **The last twenty requests this browser sent** - method, address, status -
+  kept in the browser's own storage behind guarded reads and writes, each row
+  putting the whole request back in the builder, query rows and body included.
+
 #### Server page and links out
 
 - **`/server`** renders `/metadata` in full: declared operations including
@@ -2820,12 +2873,22 @@ an identifier search and a paged listing on one page, with a detail route at
 
 #### Settings, and the keys
 
-- **One gear at the foot of the sidebar** holds both appearance controls - the
-  seven themes under **Theme**, the light or dark ground under **Mode** - and a
-  way into the list of shortcuts. The header keeps the collapse control, the
-  page's name, who is signed in, and the server light, and carries neither
-  appearance control. Collapsed to icons the gear stays where it is, with the
-  tooltip every rail entry has.
+- **One gear at the foot of the sidebar opens a settings dialog**, not a menu: a
+  section rail down the left, the selected section filling the right, and a
+  search box at the top of the rail that filters the rows of every section at
+  once and moves to the section holding the hit. **Appearance** carries the seven
+  themes under **Theme** and the light or dark ground under **Mode**;
+  **Keyboard shortcuts** carries the list `?` puts up. A choice applies the
+  instant it is made and the dialog stays open in front of it. The header keeps
+  the collapse control, the page's name, who is signed in, and the server light,
+  and carries no appearance control. Collapsed to icons the gear stays where it
+  is, with the tooltip every rail entry has; on a narrow screen the section rail
+  lies down into a strip above the pane.
+- **The rail is a tab list and the pane its panel**, so one tab stop reaches it,
+  the arrows walk it, and the section a reader is in is announced. The section
+  asked for is the one selected and its tab is what takes focus - `?` and the
+  palette's own row open the dialog on the keys, the gear opens it on the
+  appearance.
 - **`?` puts every key this app answers on screen**, matched on the character
   rather than on a physical key plus Shift, because a `?` is Shift and the slash
   on one layout and Shift and the plus on another. It never fires while an input,
@@ -2842,15 +2905,16 @@ an identifier search and a paged listing on one page, with a detail route at
 
 #### Themes
 
-- **Five designed themes, each complete on both grounds**: **Clinical** (the
+- **Seven designed themes, each complete on both grounds**: **Clinical** (the
   default - near-achromatic surfaces and one clinical blue), **Indigo** (deep
   blue surfaces under a violet identity), **Paper** (warm surfaces and an ink
-  blue), **Contrast** (the widest separation between text and its surface), and
-  **Terminal** (phosphor green, and a ground to match).
+  blue), **Contrast** (the widest separation between text and its surface),
+  **Terminal** (phosphor green, and a ground to match), **DHIS2** (steel-blue
+  chrome over the familiar gray), and **FHIR** (warm white under the flame).
 - **Theme and mode are two axes and stay two controls.** next-themes owns light
   or dark as a `dark` class; `lib/theme.ts` owns the theme as `data-theme` on the
-  same element. The settings gear carries the two under their own headings, and
-  the palette carries both on its Appearance shelf.
+  same element. The settings dialog's Appearance section carries the two under
+  their own headings, and the palette carries both on its Appearance shelf.
 - **Applied before the first paint** by an inline script in `index.html` reading
   the same `localStorage` key the module writes, so a reload never flashes one
   theme under another. The two copies of the theme-name list are kept in step by

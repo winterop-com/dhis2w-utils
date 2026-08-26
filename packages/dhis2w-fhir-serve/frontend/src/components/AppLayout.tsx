@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
+    Braces,
     ClipboardList,
     FlaskConical,
     Inbox,
@@ -105,6 +106,7 @@ export const NAV_ITEMS: NavItem[] = [
     { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
     { path: 'evaluate', label: 'Evaluate', hint: 'FHIRPath, CQL, and ELM', icon: FlaskConical },
+    { path: 'playground', label: 'Playground', hint: 'Try the FHIR API', icon: Braces },
     { path: 'server', label: 'Server', hint: 'What this server offers', icon: ServerCog },
 ]
 
@@ -212,18 +214,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
     // The rail is drawn from what this run offers; the header title reads the whole table, so a
     // detail route is still named by its section while the settings are still in flight.
     const items = offeredNavItems(config)
-    // A detail route (forms/:id, responses/:id, terminology/:type/:id) belongs to the section
-    // whose listing links to it, so the header names the section - the app name is only for a
-    // route no nav entry claims at all.
+    // The header speaks only when the page below it does not already lead with the same word. On a
+    // section's own page the heading under the bar names it, so the bar naming it too was one fact
+    // in two rows - the bar stays quiet there. On a detail route (forms/:id, responses/:id,
+    // terminology/:type/:id) the page names the thing, so the bar names the section it belongs to.
     // Named off the same list the rail is drawn from, so a page whose name depends on the server -
-        // the register - is headed by the name its own entry carries rather than by the table's default.
+    // the register - is headed by the name its own entry carries rather than by the table's default.
     const named = offeredNavItems(config)
-    const title =
-        named.find((item) => item.path === current)?.label ??
-        named.find((item) => item.path !== '' && current.startsWith(`${item.path}/`))?.label ??
-        NAV_ITEMS.find((item) => item.path === current)?.label ??
-        NAV_ITEMS.find((item) => item.path !== '' && current.startsWith(`${item.path}/`))?.label ??
-        'DHIS2 FHIR capture'
+    const onSectionPage =
+        named.some((item) => item.path === current) || NAV_ITEMS.some((item) => item.path === current)
+    const title = onSectionPage
+        ? null
+        : (named.find((item) => item.path !== '' && current.startsWith(`${item.path}/`))?.label ??
+          NAV_ITEMS.find((item) => item.path !== '' && current.startsWith(`${item.path}/`))?.label ??
+          'DHIS2 FHIR capture')
 
     // The mobile strip scrolls, but a cut-off label was the only hint that it
     // does. The fade is the affordance - and it must vanish once the end is
@@ -364,8 +368,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
                             // TooltipTrigger asChild, and Radix's Slot coerces a
                             // function className to its source-code string, which
                             // the browser then applies word by word as classes.
-                            // Routes are flat, so an exact match is enough.
-                            const isActive = current === item.path
+                            // A section stays lit anywhere inside it - a form
+                            // being filled is the Forms section, a receipt is
+                            // Responses - so a detail route matches its
+                            // section's prefix. The index route matches itself
+                            // alone, or it would light up under everything.
+                            const isActive =
+                                current === item.path ||
+                                (item.path !== '' && current.startsWith(`${item.path}/`))
 
                             const link = (
                                 <NavLink
@@ -381,7 +391,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                             'mx-auto flex size-10 items-center justify-center rounded-lg border-l-0 p-0',
                                         isActive
                                             ? 'border-sidebar-primary bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                                            : 'text-sidebar-muted-foreground hover:bg-sidebar-accent/40 hover:text-sidebar-foreground border-transparent',
+                                            : 'text-sidebar-muted-foreground hover:bg-sidebar-wash hover:text-sidebar-foreground border-transparent',
                                     )}
                                 >
                                     <Icon
@@ -430,7 +440,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     {/* The gear sits at the foot of the rail rather than in the header: the header
                         names the page, and how the app looks is not the page. Collapsed, it is an icon
                         with a tooltip, exactly as every entry above it is. */}
-                    <div className="border-t p-2">
+                    {/* Exactly the status bar's 46px, so the border above this row and the border
+                        above that bar are one line across the seam rather than two heights that
+                        miss each other by a few pixels. */}
+                    <div className="flex h-[46px] shrink-0 items-center border-t px-2">
                         <SettingsMenu
                             collapsed={!labelsShown}
                             onShowShortcuts={() => {
@@ -470,7 +483,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                         where they are; on a theme whose chrome matches its card, nothing changes. */}
                     <header className="bg-header text-header-foreground sticky top-0 z-10 border-b [--background:var(--header)] [--foreground:var(--header-foreground)] [--muted:var(--header-accent)] [--muted-foreground:var(--header-muted-foreground)] [--secondary:var(--header-accent)] [--secondary-foreground:var(--header-foreground)] [--accent:var(--header-accent)] [--accent-foreground:var(--header-foreground)]">
                         <div className="flex items-center gap-2 px-4 py-2.5 md:px-6">
-                            <h1 className="text-sm font-medium">{title}</h1>
+                            {title !== null && <h1 className="text-sm font-medium">{title}</h1>}
 
                             <div className="flex-1" />
 
@@ -524,9 +537,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                     <Button
                                         key={item.path}
                                         asChild
-                                        variant={item.path === current ? 'secondary' : 'ghost'}
+                                        variant={
+                                            current === item.path ||
+                                            (item.path !== '' && current.startsWith(`${item.path}/`))
+                                                ? 'secondary'
+                                                : 'ghost'
+                                        }
                                         size="sm"
-                                        className={cn(item.path === current && 'border-border font-semibold')}
+                                        className={cn(
+                                            (current === item.path ||
+                                                (item.path !== '' && current.startsWith(`${item.path}/`))) &&
+                                                'border-border font-semibold',
+                                        )}
                                     >
                                         <NavLink to={item.path === '' ? '/' : `/${item.path}`}>
                                             {item.label}
