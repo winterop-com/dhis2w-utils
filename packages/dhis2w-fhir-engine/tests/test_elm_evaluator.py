@@ -759,6 +759,84 @@ class TestELMExpressionVisitor:
             visitor.evaluate(node)
 
 
+class TestSchemaShapedCollectionNodes:
+    """The element names the ELM schema gives collection nodes, evaluated as written."""
+
+    @pytest.fixture
+    def visitor(self) -> Any:
+        return ELMExpressionVisitor(CQLContext())
+
+    @staticmethod
+    def _integers(*values: int) -> dict[str, Any]:
+        elements = [
+            {"type": "Literal", "valueType": "{urn:hl7-org:elm-types:r1}Integer", "value": str(value)}
+            for value in values
+        ]
+        return {"type": "List", "element": elements}
+
+    def test_first_reads_its_list_from_source(self, visitor: Any) -> None:
+        assert visitor.evaluate({"type": "First", "source": self._integers(1, 2, 3)}) == 1
+
+    def test_last_reads_its_list_from_source(self, visitor: Any) -> None:
+        assert visitor.evaluate({"type": "Last", "source": self._integers(1, 2, 3)}) == 3
+
+    def test_flatten_reads_its_list_from_operand(self, visitor: Any) -> None:
+        nested = {"type": "List", "element": [self._integers(1, 2), self._integers(3, 4)]}
+        assert visitor.evaluate({"type": "Flatten", "operand": nested}) == [1, 2, 3, 4]
+
+
+class TestFunctionDefinitionNodes:
+    """A FunctionDef body reaching its parameters through OperandRef."""
+
+    @staticmethod
+    def _doubling_library() -> dict[str, Any]:
+        integer_type = "{urn:hl7-org:elm-types:r1}Integer"
+        return {
+            "library": {
+                "identifier": {"id": "Functions", "version": "1.0"},
+                "schemaIdentifier": {"id": "urn:hl7-org:elm", "version": "r1"},
+                "statements": {
+                    "def": [
+                        {
+                            "name": "Doubled",
+                            "context": "Patient",
+                            "accessLevel": "Public",
+                            "type": "FunctionDef",
+                            "operand": [
+                                {
+                                    "name": "value",
+                                    "operandTypeSpecifier": {"type": "NamedTypeSpecifier", "name": integer_type},
+                                }
+                            ],
+                            "expression": {
+                                "type": "Multiply",
+                                "operand": [
+                                    {"type": "OperandRef", "name": "value"},
+                                    {"type": "Literal", "valueType": integer_type, "value": "2"},
+                                ],
+                            },
+                        },
+                        {
+                            "name": "Doubled Three",
+                            "context": "Patient",
+                            "accessLevel": "Public",
+                            "expression": {
+                                "type": "FunctionRef",
+                                "name": "Doubled",
+                                "operand": [{"type": "Literal", "valueType": integer_type, "value": "3"}],
+                            },
+                        },
+                    ]
+                },
+            }
+        }
+
+    def test_a_function_reference_binds_its_argument_to_the_operand(self) -> None:
+        evaluator = ELMEvaluator()
+        evaluator.load(self._doubling_library())
+        assert evaluator.evaluate_definition("Doubled Three") == 6
+
+
 class TestELMEvaluator:
     """Test the ELM evaluator."""
 

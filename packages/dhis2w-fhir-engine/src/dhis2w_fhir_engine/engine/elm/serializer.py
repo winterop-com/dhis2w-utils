@@ -32,7 +32,28 @@ from .models.library import ELMLibrary
 ELM_TYPE_PREFIX = "{urn:hl7-org:elm-types:r1}"
 
 #: The functions ELM models as an AggregateExpression, which carries its list under `source`.
-AGGREGATE_FUNCTIONS = frozenset({"Count", "Sum", "Avg", "Min", "Max"})
+AGGREGATE_FUNCTIONS = frozenset(
+    {
+        "Count",
+        "Sum",
+        "Avg",
+        "Min",
+        "Max",
+        "Median",
+        "Mode",
+        "Variance",
+        "PopulationVariance",
+        "StdDev",
+        "PopulationStdDev",
+        "AllTrue",
+        "AnyTrue",
+        "Product",
+        "GeometricMean",
+    }
+)
+
+#: The selectors that read one end of a list. ELM names their list `source` as an aggregate does.
+LIST_SELECTOR_FUNCTIONS = frozenset({"First", "Last"})
 
 
 def _elm_type(type_name: str) -> str:
@@ -95,19 +116,23 @@ class ELMSerializer(cqlVisitor):
         self._current_context: str = "Patient"
         self._alias_scopes: list[set[str]] = []
         self._let_scopes: list[set[str]] = []
+        self._operand_scopes: list[set[str]] = []
 
     # =========================================================================
     # Query Scope
     # =========================================================================
 
     def _reference_node(self, name: str) -> dict[str, Any]:
-        """The ELM reference a name resolves to: an alias, a query let, or a library definition."""
+        """The ELM reference a name resolves to: an alias, a query let, a function operand, or a definition."""
         for scope in reversed(self._alias_scopes):
             if name in scope:
                 return {"type": "AliasRef", "name": name}
         for scope in reversed(self._let_scopes):
             if name in scope:
                 return {"type": "QueryLetRef", "name": name}
+        for scope in reversed(self._operand_scopes):
+            if name in scope:
+                return {"type": "OperandRef", "name": name}
         return {"type": "ExpressionRef", "name": name}
 
     def serialize_library(self, source: str) -> dict[str, Any]:
@@ -453,11 +478,13 @@ class ELMSerializer(cqlVisitor):
         """Visit function definition."""
         name = self._get_identifier_text(ctx.identifierOrFunctionIdentifier())
 
-        operands = []
+        operands: list[dict[str, Any]] = []
+        parameter_names: set[str] = set()
         for operand in _child_contexts(ctx.operandDefinition()):
             param_name = self._get_identifier_text(operand.referentialIdentifier())
             param_type = operand.typeSpecifier().getText() if operand.typeSpecifier() else "Any"
             operands.append({"name": param_name, "operandTypeSpecifier": self._make_named_type_specifier(param_type)})
+            parameter_names.add(param_name)
 
         result: dict[str, Any] = {
             "name": name,
@@ -479,7 +506,13 @@ class ELMSerializer(cqlVisitor):
 
         body = ctx.functionBody()
         if body and body.expression():
-            result["expression"] = self._visit_node(body.expression())
+            # Inside the body a parameter name is an OperandRef, not a reference to a library
+            # definition, so the parameter names are in scope only while the body is serialized.
+            self._operand_scopes.append(parameter_names)
+            try:
+                result["expression"] = self._visit_node(body.expression())
+            finally:
+                self._operand_scopes.pop()
         else:
             result["external"] = True
 
@@ -971,8 +1004,6 @@ class ELMSerializer(cqlVisitor):
             "Length": "Length",
             "Upper": "Upper",
             "Lower": "Lower",
-            "First": "First",
-            "Last": "Last",
             "Count": "Count",
             "Sum": "Sum",
             "Avg": "Avg",
@@ -1031,7 +1062,6 @@ class ELMSerializer(cqlVisitor):
             "StartsWith": "StartsWith",
             "EndsWith": "EndsWith",
             "Matches": "Matches",
-            "IndexOf": "IndexOf",
             "Contains": "Contains",
             "In": "In",
             "Includes": "Includes",
@@ -1052,7 +1082,7 @@ class ELMSerializer(cqlVisitor):
         }
 
         # N-ary functions
-        nary_functions = {"Coalesce": "Coalesce", "Combine": "Combine"}
+        nary_functions = {"Coalesce": "Coalesce"}
 
         # Date/Time functions with special handling
         if name == "AgeInYears":
@@ -1099,6 +1129,20 @@ class ELMSerializer(cqlVisitor):
                 result["length"] = args[2]
             return result
 
+        # ELM names the list these two walk `source`, and its second argument by what it does there.
+        if name == "IndexOf":
+            return {
+                "type": "IndexOf",
+                "source": args[0] if args else None,
+                "element": args[1] if len(args) > 1 else None,
+            }
+
+        if name == "Combine":
+            combined: dict[str, Any] = {"type": "Combine", "source": args[0] if args else None}
+            if len(args) > 1:
+                combined["separator"] = args[1]
+            return combined
+
         if name == "Split":
             return {
                 "type": "Split",
@@ -1118,9 +1162,10 @@ class ELMSerializer(cqlVisitor):
         if name in ["Today", "Now", "TimeOfDay"]:
             return {"type": name}
 
-        # An ELM aggregate names the list it folds `source`, not `operand`, so a reader of the ELM
-        # finds the list where the schema says it is.
-        if name in AGGREGATE_FUNCTIONS:
+        # An ELM aggregate names the list it folds `source`, not `operand`, and a list selector names
+        # the list it picks from the same way, so a reader of the ELM finds the list where the schema
+        # says it is - and the evaluator, which reads `source`, finds it too.
+        if name in AGGREGATE_FUNCTIONS or name in LIST_SELECTOR_FUNCTIONS:
             return {"type": name, "source": args[0] if args else None}
 
         # Check function maps
@@ -1664,15 +1709,13 @@ class ELMSerializer(cqlVisitor):
     # =========================================================================
 
     def visitAggregateExpressionTerm(self, ctx: cqlParser.AggregateExpressionTermContext) -> dict[str, Any]:
-        """Visit aggregate expression term."""
-        source = self._visit_node(ctx.expression())
-        text = ctx.getText().lower()
+        """Visit `distinct x` or `flatten x`, whose keyword is the term's first child token."""
+        operand = self._visit_node(ctx.expression())
+        keyword = ctx.getChild(0).getText().lower()
 
-        if "distinct" in text:
-            return {"type": "Distinct", "operand": source}
-
-        # Handle other aggregate functions
-        return source
+        if keyword == "flatten":
+            return {"type": "Flatten", "operand": operand}
+        return {"type": "Distinct", "operand": operand}
 
     # =========================================================================
     # Existence Expressions

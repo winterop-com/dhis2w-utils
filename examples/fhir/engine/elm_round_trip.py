@@ -15,10 +15,12 @@ That makes ELM the interchange format, and it cuts both ways here:
 This example does both in one pass and compares the answers, which is the check that matters: the
 round trip is only worth anything if the numbers survive it. The compared set reaches past literals
 into a query with a where clause, an aggregate, a retrieve over the bundle, the calendar (dates,
-times, and an interval of dates), and both forms of `case`, because those are where a round trip
-stops being a formality: a date is four values in ELM rather than one string, and a `case` carries a
-list of when-clauses plus an else. What it still does not carry is printed at the end rather than
-left out of the comparison quietly.
+times, and an interval of dates), both forms of `case`, the list selectors `First` and `Last`,
+`flatten`, and a call to a function the library defines itself, because those are where a round trip
+stops being a formality: a date is four values in ELM rather than one string, a `case` carries a list
+of when-clauses plus an else, and a defined function only answers if the compiled body still knows
+which names are its parameters. What it still does not carry is printed at the end rather than left
+out of the comparison quietly.
 
 Usage:
     uv run python examples/fhir/engine/elm_round_trip.py
@@ -54,6 +56,15 @@ define "Nothing Recorded": null
 define "Is Nothing Recorded": "Nothing Recorded" is null
 define "Large Doses": "Dose Numbers" N where N > 1
 define "Dose Count": Count("Dose Numbers")
+define "First Dose": First("Dose Numbers")
+define "Last Dose": Last("Dose Numbers")
+define "Doses By Round": { { 1, 2 }, { 3 } }
+define "All Doses": flatten "Doses By Round"
+define "Dose Median": Median("Dose Numbers")
+define "Dose List": Combine({ '1', '2', '3' }, ', ')
+define function "Doubled"(dose Integer): dose * 2
+define "Doubled First Dose": "Doubled"(First("Dose Numbers"))
+define "Doubled Doses": "Dose Numbers" N return "Doubled"(N)
 define "Girls": [Patient] P where P.gender = 'female' return P.id
 define "Campaign Start": @2024-01-15
 define "Campaign Opened At": @2024-01-15T09:00:00
@@ -85,6 +96,13 @@ COMPARED_DEFINITIONS = (
     "Is Nothing Recorded",
     "Large Doses",
     "Dose Count",
+    "First Dose",
+    "Last Dose",
+    "All Doses",
+    "Dose Median",
+    "Dose List",
+    "Doubled First Dose",
+    "Doubled Doses",
     "Girls",
     "Campaign Start",
     "Campaign Opened At",
@@ -96,7 +114,12 @@ COMPARED_DEFINITIONS = (
 )
 
 #: What the round trip does not carry yet, kept out of the comparison rather than hidden from it.
-OPEN_GAPS = ("decimal division keeps CQL's eight-place precision but ELM's answer is unpadded",)
+OPEN_GAPS = (
+    "decimal division keeps CQL's eight-place precision but ELM's answer is unpadded",
+    "a statistical aggregate over an irrational result - StdDev, Variance, PopulationStdDev, "
+    "PopulationVariance, GeometricMean - answers a float from CQL and a Decimal from ELM, so the "
+    "two agree on the value and disagree on its type",
+)
 
 
 class RoundTripComparison(BaseModel):
