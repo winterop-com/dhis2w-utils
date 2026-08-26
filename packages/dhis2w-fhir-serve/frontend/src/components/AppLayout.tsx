@@ -550,7 +550,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                         data-testid="page-content"
                         className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-4 md:px-8"
                     >
-                        <div className="flex w-full flex-1 flex-col py-6">
+                        <div className="flex min-h-0 w-full flex-1 flex-col py-6">
                             {/* No page is drawn until the posture is known, for the reason above: a page
                                 that rendered first would fire its reads first. When the read that settles
                                 the posture cannot reach the server, this says so in the place the page
