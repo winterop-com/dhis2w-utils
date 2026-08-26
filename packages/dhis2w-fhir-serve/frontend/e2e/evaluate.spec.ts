@@ -196,7 +196,10 @@ test.describe('the evaluate screen', () => {
             .click()
 
         // The whole Bundle is pasted into the context box, not a reference to one held elsewhere.
-        await expect(page.getByTestId('evaluate-context-resource')).toContainText('Tadesse')
+        // Asserted on its opening lines: the box is a fixed-height viewport over a virtualising
+        // editor, so text deep in the document is not in the DOM until scrolled to.
+        await expect(page.getByTestId('evaluate-context-resource')).toContainText('"Bundle"')
+        await expect(page.getByTestId('evaluate-context-resource')).toContainText('Selam')
 
         await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
 
