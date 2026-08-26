@@ -59,6 +59,7 @@ __all__ = [
     "ConversionNaming",
     "ConversionNote",
     "ConversionNoteCategory",
+    "ConversionPayload",
     "ConversionRefusal",
     "ConversionRefusalCategory",
     "ConversionReport",
@@ -96,6 +97,11 @@ class ConversionTargetKind(StrEnum):
     #: The `/api/tracker` event a tracker program stage's response reports as, on its enrollment.
     TRACKER_EVENT = "tracker-event"
 
+
+#: The four wire shapes one translated response can become. A result carries exactly one of them, and
+#: its `ConversionTargetKind` names which - so a caller reads the payload off the kind rather than
+#: asking each field in turn whether it is the one that was set.
+ConversionPayload = DataValueSet | TrackerEvent | TrackerTrackedEntity | TrackerEnrollment
 
 #: The payload each DHIS2 form kind translates into - the one place the two vocabularies meet. The
 #: registration kind is the one entry a response can move off: a registration whose subject the
@@ -654,19 +660,37 @@ class ConversionResult(BaseModel):
         return bool(self.refusals)
 
     @property
-    def payload(self) -> DataValueSet | TrackerEvent | TrackerTrackedEntity | TrackerEnrollment | None:
-        """Whichever payload this translation produced, or None when the response was refused.
+    def payload(self) -> ConversionPayload | None:
+        """The payload `target_kind` names, or None when the response was refused.
 
         The four payload fields are mutually exclusive - the invariant the class docstring states -
-        so this is the accessor for a caller that wants the produced document without caring which
-        endpoint shape it is; the typed fields stay for the caller that does. `target_kind` alone
-        cannot answer it: a registration produces `tracked_entity` for a new subject and
-        `enrollment` for one the instance already holds, under the same kind.
+        and the target kind is what says which one carries the document, so this is the one place
+        that invariant is written down rather than re-derived at every call site. A registration
+        chooses between two kinds for that reason: `TRACKER` for the person this response mints,
+        with the enrollment nested inside it, and `TRACKER_ENROLLMENT` for the enrollment alone on a
+        person the instance already holds. The typed fields stay for the caller wanting one shape.
         """
-        for candidate in (self.data_value_set, self.event, self.tracked_entity, self.enrollment):
-            if candidate is not None:
-                return candidate
-        return None
+        match self.target_kind:
+            case ConversionTargetKind.DATA_VALUE_SET:
+                return self.data_value_set
+            case ConversionTargetKind.EVENT | ConversionTargetKind.TRACKER_EVENT:
+                return self.event
+            case ConversionTargetKind.TRACKED_ENTITY | ConversionTargetKind.TRACKER:
+                return self.tracked_entity
+            case ConversionTargetKind.TRACKER_ENROLLMENT:
+                return self.enrollment
+            case None:
+                return None
+
+    def payload_of[PayloadT: ConversionPayload](self, wire_shape: type[PayloadT]) -> PayloadT | None:
+        """This result's payload when its target kind produced the wire shape asked for, else None.
+
+        The narrowing accessor beside `payload`: a caller that only acts on aggregate envelopes asks
+        for `DataValueSet` and reads a typed answer, rather than testing a field that a tracker
+        result leaves unset for reasons of its own.
+        """
+        payload = self.payload
+        return payload if isinstance(payload, wire_shape) else None
 
 
 class ConversionReport(BaseModel):
@@ -693,19 +717,27 @@ class ConversionReport(BaseModel):
     @property
     def data_value_sets(self) -> tuple[DataValueSet, ...]:
         """Every aggregate envelope the batch produced, ready to post to `/api/dataValueSets`."""
-        return tuple(result.data_value_set for result in self.results if result.data_value_set is not None)
+        return self.payloads_of(DataValueSet)
 
     @property
     def events(self) -> tuple[TrackerEvent, ...]:
         """Every event the batch produced, ready to post to `/api/tracker`."""
-        return tuple(result.event for result in self.results if result.event is not None)
+        return self.payloads_of(TrackerEvent)
 
     @property
     def tracked_entities(self) -> tuple[TrackerTrackedEntity, ...]:
         """Every registration the batch produced, ready to post to `/api/tracker` before its events."""
-        return tuple(result.tracked_entity for result in self.results if result.tracked_entity is not None)
+        return self.payloads_of(TrackerTrackedEntity)
 
     @property
     def enrollments(self) -> tuple[TrackerEnrollment, ...]:
         """Every enrollment-only payload the batch produced, for the people the instance already holds."""
-        return tuple(result.enrollment for result in self.results if result.enrollment is not None)
+        return self.payloads_of(TrackerEnrollment)
+
+    def payloads_of[PayloadT: ConversionPayload](self, wire_shape: type[PayloadT]) -> tuple[PayloadT, ...]:
+        """Every payload of one wire shape the batch produced, in the order the responses were drained.
+
+        The four properties above are this method under the names a caller posts them by; a refused
+        response contributes nothing, because a refusal is the absence of a payload.
+        """
+        return tuple(payload for result in self.results if (payload := result.payload_of(wire_shape)) is not None)

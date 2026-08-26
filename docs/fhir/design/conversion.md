@@ -99,6 +99,11 @@ endpoint under that endpoint's own validate-only mode and moves nothing, and who
 `--import` commits and then files each receipt into `forwarded/` or `rejected/`. See
 [Forwarding captured responses](../201-forward.md).
 
+Every name those modules export is importable from `dhis2w_fhir` itself - the package's
+one stable import surface - so a caller writes `from dhis2w_fhir import translate_response`
+and never has to learn which module a symbol sits in; the `dhis2w_fhir.conversion` path
+answers the same objects.
+
 This code is the *reference implementation* the later contract is held against - the same
 role the FSH emitters played for the JSON builders, where golden parity kept two paths
 honest. The gate already exists in both directions:
