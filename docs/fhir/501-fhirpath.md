@@ -277,6 +277,40 @@ document says no*. Where the difference matters, ask `exists()` first.
 One evaluator can answer any number of expressions against any number of
 resources; nothing about it is bound to a document.
 
+## Run it against a served project
+
+Everything above evaluates a document you already hold. A running facade evaluates
+one it holds, which is the difference between checking an expression and asking a
+question of real data. `POST /evaluate` takes the expression and a context naming
+the one resource it may reach:
+
+```console
+$ curl -s -X POST http://127.0.0.1:8123/evaluate \
+    -H 'Content-Type: application/json' \
+    -d '{"language": "fhirpath", "source": "Questionnaire.item.item.count()",
+         "context": {"kind": "stored", "resource_type": "Questionnaire",
+                     "resource_id": "BfMAe6Itzgt"}}' | jq -c '.results[0].values'
+[31]
+```
+
+That is a DHIS2 data set's data elements counted without downloading the form. The
+three context kinds are the whole of what an expression can reach: `inline` is the
+document you posted, `stored` is one the served guide holds, and `registered` is one
+tracked entity read live out of DHIS2. There is no fourth kind, no file path, and no
+library directory.
+
+An expression that will not parse answers `200` with the line and the column the
+parser stopped on, never a `500` — a bad expression is a person's typing, not a
+server failure.
+
+| Run it | What it shows |
+| --- | --- |
+| [`examples/fhir/client/evaluate_stored_resource.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/evaluate_stored_resource.py) | The `stored` context: one form's sections, data elements and category-combination cells, each from one line, plus the 404 a resource nobody holds earns |
+| [`examples/fhir/client/evaluate_via_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/evaluate_via_facade.py) | The `inline` context, a CQL library beside it, and a parse failure keeping its position |
+| [`examples/fhir/cli/evaluate.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/evaluate.sh) | The same two addresses from curl, against a facade the script stands up itself |
+
+[Serve the guide](201-serve.md) is how the facade those talk to gets started.
+
 ## Where this goes next
 
 FHIRPath answers questions about *one document*. It cannot say "every child in the

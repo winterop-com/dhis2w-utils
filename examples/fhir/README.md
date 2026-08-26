@@ -36,6 +36,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`spool.sh`](cli/spool.sh) | `d2w fhir spool`, `requeue` — the capture queue, read and rewound offline | yes |
 | [`serve.sh`](cli/serve.sh) | `d2w fhir serve` — compile, serve, post a load set, read the receipts | no: docker compile, binds a port |
 | [`serve_auth_postures.sh`](cli/serve_auth_postures.sh) | `d2w fhir serve --auth` - the four postures: the bind refusal an absent key earns, `token`, `dhis2` read as the caller, `jwt` and its issuer | yes |
+| [`evaluate.sh`](cli/evaluate.sh) | `POST /evaluate` and `POST /$evaluate` over a served guide, from curl - the OperationDefinition the contract lives in, FHIRPath over a stored form, a parse failure answered 200, and the `Parameters` a CQL library comes back as | yes |
 | [`serve_projection_search.sh`](cli/serve_projection_search.sh) | `[serve.search] backend = "projection"` - `_content` and the as-of header from the synced copy, and the refusal without one | yes |
 | [`serve_attribute_filter.sh`](cli/serve_attribute_filter.sh) | `d2-attribute={attributeUid}\|{value}` - the register filtered by a value: what each register declares as filterable, equality forgiving only case, two filters ANDed, and the same records from both backends | yes |
 | [`serve_record.sh`](cli/serve_record.sh) | `GET /tracked-entities/{uid}/events` - one entity's own record as the responses its stage forms describe, one event on its own, and the `events` dial that withholds it | yes |
@@ -52,7 +53,7 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 
 ## [`client/`](client/README.md) — the Python library path
 
-Forty-one examples with [their own README](client/README.md), grouped into seven readings:
+Forty-eight examples with [their own README](client/README.md), grouped into nine readings:
 
 | Group | What it answers |
 | --- | --- |
@@ -60,7 +61,9 @@ Forty-one examples with [their own README](client/README.md), grouped into seven
 | Read a form | What does a published `Questionnaire` tell me before I fill anything? |
 | Convert to DHIS2 | What does my response become on the DHIS2 wire, and why would that be refused? |
 | Send and verify | How do I post it, and what comes back? |
+| Say who a person is | Which attribute is somebody's name, and what does the record say when nobody nominated one? |
 | Summarise a record | How do I read one person's record back out and assemble it into a FHIR document? |
+| Evaluate over a served guide | How do I ask a running facade a question in FHIRPath, CQL, or ELM — and what may that question reach? |
 | Drive the toolchain | Generating, serving, and draining from Python rather than the command line |
 | Embed the facade | How do I run the facade inside my own process — no server, no port, no UI? |
 
