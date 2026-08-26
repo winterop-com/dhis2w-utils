@@ -88,6 +88,29 @@ Reading one person's record back out of DHIS2 and assembling it into a FHIR docu
 | --- | --- |
 | [`ips_document.py`](ips_document.py) | An International Patient Summary assembled by hand: a nominated name, one mapped section of Observations, and the three required sections stating absence the way IPS v2.0.1 states it. The served surface is `$summary` - [`../cli/summary.sh`](../cli/summary.sh) walks it |
 
+## Evaluate over a served guide
+
+Asking a running facade a question in FHIRPath, CQL, or ELM. The evaluation engine
+(`dhis2w-fhir-engine`) has no DHIS2 in it and answers over FHIR-shaped data wherever that data came
+from; what these examples add is the facade underneath it, which is where the data is. An expression
+reaches exactly the resource the request names as its context and nothing else - `inline` is the
+document you posted, `stored` is one the served guide holds, and `registered` is one tracked entity
+read live out of DHIS2.
+
+Two addresses answer the same evaluation: `POST /evaluate` in this project's own JSON, where a parse
+failure keeps its line and column, and `POST /$evaluate` as the FHIR operation, where the answer is
+a `Parameters` resource. The engine's own examples, with no server at all, are in
+[`../engine/`](../engine/README.md).
+
+| File | Shows |
+| --- | --- |
+| [`evaluate_via_facade.py`](evaluate_via_facade.py) | Plain httpx against a running facade's `POST /evaluate`: one FHIRPath call, one CQL library, and one expression that will not parse - answered with the line and column, not a 500 |
+| [`evaluate_stored_resource.py`](evaluate_stored_resource.py) | The `stored` context: FHIRPath one-liners counting a DHIS2 data set's sections, data elements and category-combination cells off the served `Questionnaire`, and the 404 a resource nobody holds earns |
+| [`evaluate_registered_person.py`](evaluate_registered_person.py) | The `registered` context: a chart review of one tracked entity read live out of DHIS2, written as CQL from the guide's own published vocabulary, with the type code checked against the served `CodeSystem` |
+| [`evaluate_as_parameters.py`](evaluate_as_parameters.py) | The same evaluation through `POST /$evaluate`, the FHIR operation: one parameter per define, `part` entries where a define answered several values, an `OperationOutcome` part where one refused |
+| [`evaluate_operation_contract.py`](evaluate_operation_contract.py) | The operation discovered rather than documented: `/metadata` names it, `OperationDefinition/serve-evaluate` states its parameters and cardinalities, and a request built to that contract answers over a stored form |
+| [`evaluate_compiled_library.py`](evaluate_compiled_library.py) | ELM as the interchange format: one library compiled locally with `ELMSerializer` and run on the facade as JSON, compared define by define against its own source - and what the round trip does not carry yet, demonstrated |
+
 ## Drive the toolchain
 
 Generating, serving, and draining from Python, rather than from the command line.
@@ -96,8 +119,6 @@ Generating, serving, and draining from Python, rather than from the command line
 | --- | --- |
 | [`generate_ig.py`](generate_ig.py) | `load_project` + `resolve_generation_profile` + `generate_full`, and the `GenerateFullReport` consumed as a model rather than parsed as text |
 | [`consume_facade.py`](consume_facade.py) | Plain httpx against a running facade: `/metadata`, search, `$generate`, POST a capture, read the receipt, read `/spool` |
-| [`evaluate_via_facade.py`](evaluate_via_facade.py) | Plain httpx against a running facade's `POST /evaluate`: one FHIRPath call, one CQL library, and one expression that will not parse - answered with the line and column, not a 500 |
-| [`evaluate_as_parameters.py`](evaluate_as_parameters.py) | The same evaluation through `POST /$evaluate`, the FHIR operation: one parameter per define, `part` entries where a define answered several values, an `OperationOutcome` part where one refused |
 | [`forward_spool.py`](forward_spool.py) | `forward_responses` dry run, and the `ForwardReport` counts, per-receipt outcomes, and rejection reasons rolled up by cause |
 | [`minimal_facade.py`](minimal_facade.py) | Facade ladder, level one: one route that translates a capture, posts it to the endpoint its payload names, and hands back DHIS2's verdict under DHIS2's own status |
 | [`basic_facade.py`](basic_facade.py) | Facade ladder, level two: one client for the process in a FastAPI lifespan, settings resolved once at startup, `/health` off a cheap DHIS2 read, one log line per verdict |
