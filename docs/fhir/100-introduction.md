@@ -3,8 +3,10 @@
 **Who this is for:** anyone who has just heard that DHIS2 can speak FHIR and
 wants to know what that means, what it takes, and where to read next.
 
-**Before you start:** nothing. The three commands on this page are here so you
-can see the shape of the work, not so you can run them yet.
+**Before you start:** `uv tool install 'dhis2w-cli[serve]'` and Docker, if you
+want to run the commands on this page rather than read them. The `serve` extra
+is what puts `d2w fhir serve` on the machine, and Docker is what the scaffold's
+`make setup && make sushi` drives.
 
 **You will be able to:**
 
@@ -32,7 +34,8 @@ links to the page that owns it.
 
 Start from a template. `--template` scaffolds a project whose guide was already
 generated against a real DHIS2 instance, so there is nothing to point at and
-nothing to wait for - Docker is the whole dependency list.
+nothing to wait for - the CLI and Docker are the whole dependency list, and no
+DHIS2 instance is one of them.
 
 ```console
 $ d2w fhir init demo --template patient-summary
@@ -43,7 +46,7 @@ $ d2w fhir serve . --ui
 Success looks like a FHIR server answering `/metadata`, six Questionnaires and
 83 Locations behind it, and capture screens at `/`.
 
-![The Overview: the spool pulse, the quick-entry cards, and the server strip](../img/fhir/capture-ui-overview.png)
+![The Overview: the receipt counts one per lifecycle state, the served forms as cards that open them, and the strip naming the guide this server serves](../img/fhir/capture-ui-overview.png)
 
 `d2w fhir init --list-templates` names the others.
 [Start from a template](201-set-up-a-project.md#start-from-a-template) states
@@ -153,3 +156,6 @@ capability and the page that owns it.
   [What `d2w fhir` is and why](101-what-and-why.md).
 - Words carrying more meaning than you can place? [Glossary](glossary.md), then
   [FHIR for DHIS2 people](101-fhir-concepts.md).
+
+Next: [Quickstart: from nothing to a served IG](101-quickstart.md) - the same
+three steps with every command in them, run for real.

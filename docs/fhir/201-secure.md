@@ -62,11 +62,12 @@ anywhere else:
 
 ```
 error: `0.0.0.0` is not a loopback interface, and this project's fhir.toml states no
-[serve] auth. Write the posture down before serving the facade where other hosts can
-reach it - add one line under [serve] in fhir.toml: auth = "none" to serve every caller,
-auth = "token" to take a static bearer token out of D2W_FHIR_SERVE_TOKENS, or
-auth = "dhis2" to have every caller present the DHIS2 credentials this facade checks
-against the instance. --auth states the same thing for one run.
+`[serve] auth`. Write the posture down before serving the facade where other hosts can
+reach it - add one line under `[serve]` in fhir.toml: `auth = "none"` to serve every
+caller, `auth = "token"` to take a static bearer token out of `D2W_FHIR_SERVE_TOKENS`,
+`auth = "dhis2"` to have every caller present the DHIS2 credentials this facade checks
+against the instance, or `auth = "jwt"` to take a token from an OpenID Connect issuer
+named in `[serve.jwt] issuer`. `--auth` states the same thing for one run.
 ```
 
 `auth = "none"` written out passes that check, and the difference between the
