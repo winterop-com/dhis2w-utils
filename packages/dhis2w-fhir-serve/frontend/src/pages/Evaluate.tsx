@@ -44,7 +44,6 @@ import {
     diagnosticHeadline,
     evaluationRequest,
     genericExamples,
-    NO_CONTEXT,
     guidePresets,
     matchSummary,
     resultShape,
@@ -166,14 +165,14 @@ export function Evaluate() {
     const registerResource = trackedEntitySettings(config).registers[0]?.resource ?? 'Patient'
 
     const [served, setServed] = useState<ServedResource[]>([])
-    // THE EDITOR STARTS EMPTY. The page asks a question of what this server serves, and the
-    // question is the reader's - an expression already in the box on arrival is somebody else's,
-    // and running it teaches only that the button works. The examples wait one glance to the
+    // THE EXPRESSION STARTS EMPTY; THE CONTEXT DOES NOT. The question is the reader's - an
+    // expression already in the box on arrival is somebody else's, and running it teaches only
+    // that the button works. The simple example Patient stays in the context box, so the first
+    // expression written has something to answer over, and the examples wait one glance to the
     // right, each runnable as it stands.
     const [form, setForm] = useState<EvaluationForm>(() => ({
         ...genericExamples('fhirpath')[0].form,
         source: '',
-        context: NO_CONTEXT,
     }))
     // Which example is in the editor, read off the editor rather than remembered from the last
     // click: an example is what is in the box, not what was once put there, so the highlight
@@ -288,28 +287,23 @@ export function Evaluate() {
                 description="Run a FHIRPath expression, a CQL library, or a compiled ELM library against what this server serves. Write your own, or pick one of the examples beside the editor - every one of them runs as it stands."
             />
 
-            {/* THE EDITORS TAKE THE HEIGHT THE WINDOW HAS. An expression box is worth exactly as
-                many lines as it can show, and a fixed rectangle with half a screen of dead air
-                under it on a tall window is the shape this replaced - the same argument the
-                organisation units page makes about its map. So the row claims the leftover height,
-                the editor card is a column inside it, and the boxes grow into what is left. When an
-                answer arrives underneath, the card gives that height back down to its own minimum
-                and the page scrolls, which is what `min-h-0` on the chain is for. */}
+            {/* THE EDITORS HOLD THEIR SIZE. Loading an example, and an answer arriving
+                underneath, must move nothing: a screen that reflows between the click and the
+                result reads as jumping around, and the reader loses the line they were on. So
+                both boxes own a fixed height and scroll inside it - a long library or a pasted
+                Bundle scrolls in place, and the page below only ever grows downward. */}
             <div
                 className={cn(
-                    'grid min-h-0 flex-1 gap-6',
+                    'grid gap-6',
                     examplesShown
                         ? 'lg:grid-cols-[minmax(0,1fr)_var(--examples-rail-width)]'
                         : 'lg:grid-cols-[minmax(0,1fr)_auto]',
                 )}
                 style={{ '--examples-rail-width': `${String(examplesWidth)}px` } as CSSProperties}
             >
-                <div className="flex min-h-0 min-w-0 flex-col gap-6">
-                    {/* `min-h` is the sensible minimum the editors need between them - two nine-rem
-                        boxes and the rows that name them. Below that the page scrolls rather than
-                        the card squeezing its own content out of sight. */}
-                    <Card className="flex min-h-[35rem] flex-1 flex-col">
-                        <CardContent className="flex min-h-0 flex-1 flex-col gap-4 py-6">
+                <div className="flex min-w-0 flex-col gap-6">
+                    <Card className="flex flex-col">
+                        <CardContent className="flex flex-col gap-4 py-6">
                             <div className="flex flex-wrap items-end gap-3">
                                 <div className="grid gap-1.5">
                                     <Label htmlFor="evaluate-language">Language</Label>
@@ -361,7 +355,7 @@ export function Evaluate() {
 
                             </div>
 
-                            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+                            <div className="flex flex-col gap-1.5">
                                 <Label id="evaluate-source-label" className="shrink-0">
                                     {sourceLabel(form.language)}
                                 </Label>
@@ -372,9 +366,9 @@ export function Evaluate() {
                                     labelId="evaluate-source-label"
                                     testId="evaluate-source"
                                     lineNumbersShown={form.language !== 'fhirpath'}
-                                    className="min-h-0 flex-1"
-                                    minHeight="9rem"
-                                    maxHeight="none"
+                                    className="shrink-0"
+                                    minHeight="16rem"
+                                    maxHeight="16rem"
                                 />
                             </div>
 
@@ -542,7 +536,7 @@ function ContextPicker({
             </div>
 
             {context.kind === 'inline' && (
-                <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5">
                     <Label id="evaluate-resource-label">Context resource</Label>
                     <CodeEditor
                         value={context.resource}
@@ -550,9 +544,9 @@ function ContextPicker({
                         language="json"
                         labelId="evaluate-resource-label"
                         testId="evaluate-context-resource"
-                        className="min-h-0 flex-1"
-                        minHeight="9rem"
-                        maxHeight="none"
+                        className="shrink-0"
+                        minHeight="14rem"
+                        maxHeight="14rem"
                     />
                 </div>
             )}

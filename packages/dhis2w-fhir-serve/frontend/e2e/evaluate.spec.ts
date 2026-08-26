@@ -43,9 +43,11 @@ test.describe('the evaluate screen', () => {
     }) => {
         await page.goto('/#/evaluate')
 
-        // The editor is the reader's: nothing is in the box on arrival, the button says why it
-        // waits, and the examples panel is already open beside it.
+        // The expression is the reader's: nothing is in that box on arrival, the button says
+        // why it waits, and the examples panel is already open beside it. The context box is
+        // not empty - the simple example Patient waits there for the first expression.
         await expect(sourceEditor(page)).not.toContainText('Patient')
+        await expect(page.getByTestId('evaluate-context-resource')).toContainText('Lovelace')
         await expect(page.getByRole('button', { name: 'Evaluate', exact: true })).toBeDisabled()
         await expect(page.getByTestId('evaluate-examples')).toBeVisible()
 
