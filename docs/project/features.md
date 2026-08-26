@@ -526,11 +526,13 @@ chain in one command.
   checkout.
 
 - **A `uv` project.** `pyproject.toml` declares `dhis2w-cli` + `dhis2w-fhir` +
-  `dhis2w-fhir-serve`, all sourced from the repository on `main`, so the `d2w`
-  binary, the plugin behind `d2w fhir`, and the server behind `d2w fhir serve`
-  are one build. The committed `uv.lock` pins the toolchain every make target
-  drives through `uv run d2w`; a `.python-version` of `3.13` pins the
-  interpreter beside it.
+  `dhis2w-fhir-serve`, which resolve from PyPI as one release - each package's
+  dependency floors hold the `d2w` binary, the plugin behind `d2w fhir`, and the
+  server behind `d2w fhir serve` to the same version. The committed `uv.lock`
+  pins the exact one every make target drives through `uv run d2w`; a
+  `.python-version` of `3.13` pins the interpreter beside it. A commented
+  `[tool.uv.sources]` block in the same file is the opt-in for tracking the
+  repository's `main` branch instead.
 - **The rest of the tree.** `fhir.toml`, `sushi-config.yaml`, the Makefile, the
   Dockerfile, and a `.gitignore` covering `.venv/` and the generated
   `ig/input/resources/` but never the lock nor `ig/input/fsh/`. `load/` and
