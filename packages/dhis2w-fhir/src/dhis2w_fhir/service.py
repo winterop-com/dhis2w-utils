@@ -18,7 +18,14 @@ from dhis2w_client.errors import Dhis2ApiError
 
 # The v41 generated OAS tree carries no import-summary, import-conflict, or import-count module, so
 # the import-report shapes come from v42 on every major - they are the wire shape all three answer with.
-from dhis2w_client.generated.v42.oas import ImportConflict, ImportSummary, TrackerImportError, TrackerImportReport
+from dhis2w_client.generated.v42.oas import (
+    DataValueSet,
+    ImportConflict,
+    ImportSummary,
+    TrackerEvent,
+    TrackerImportError,
+    TrackerImportReport,
+)
 from dhis2w_client.v42.aggregate import CompleteDataSetRegistration, CompleteDataSetRegistrations
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile, resolve
@@ -4668,6 +4675,16 @@ _TRACKER_EVENTS_KEY = "events"
 _TRACKER_TRACKED_ENTITIES_KEY = "trackedEntities"
 _TRACKER_ENROLLMENTS_KEY = "enrollments"
 
+#: Which of those keys each `/api/tracker` target kind's payload rides under. The aggregate kind is
+#: absent because it posts to an endpoint of its own with no bundle around it at all.
+_TRACKER_KEYS_BY_TARGET_KIND: dict[ConversionTargetKind, str] = {
+    ConversionTargetKind.TRACKED_ENTITY: _TRACKER_TRACKED_ENTITIES_KEY,
+    ConversionTargetKind.TRACKER: _TRACKER_TRACKED_ENTITIES_KEY,
+    ConversionTargetKind.TRACKER_ENROLLMENT: _TRACKER_ENROLLMENTS_KEY,
+    ConversionTargetKind.EVENT: _TRACKER_EVENTS_KEY,
+    ConversionTargetKind.TRACKER_EVENT: _TRACKER_EVENTS_KEY,
+}
+
 #: What a dry run adds to an aggregate post. v42 spells validate-only on this endpoint as `dryRun`,
 #: and the import runs every rule it would run for real while committing nothing.
 _DATA_VALUE_SETS_DRY_RUN_PARAMS = {"dryRun": "true"}
@@ -5570,7 +5587,7 @@ def _forwarded_cell_index(layout: SpoolLayout, conversion: ConversionReport) -> 
     all - `forwarded/` is unbounded, and a tracker run has no reason to pay for a directory it cannot
     collide with. A drain that does carry one pays a single pass: see `dhis2w_fhir.overwrite`.
     """
-    if not any(result.data_value_set is not None for result in conversion.translated):
+    if not any(result.payload_of(DataValueSet) is not None for result in conversion.translated):
         return ForwardedCellIndex()
     return build_forwarded_cell_index(layout)
 
@@ -5728,7 +5745,8 @@ async def _post_translations(
     issues: list[ForwardFilingIssue] = []
     refused_at = _utc_instant()
     for posted, (entry, result) in enumerate(translated, start=1):
-        cells = aggregate_cells(result.data_value_set) if result.data_value_set is not None else ()
+        envelope = result.payload_of(DataValueSet)
+        cells = aggregate_cells(envelope) if envelope is not None else ()
         already_sent = overwrite_index.already_sent(cells)
         if already_sent and overwrites is OverwritePosture.REFUSE:
             overwritten[entry.response_id] = already_sent
@@ -5951,7 +5969,7 @@ async def _register_completeness(
     claims = [
         (entry, result)
         for entry, result in zip(spooled, conversion.results, strict=True)
-        if result.completeness is not None or (result.data_value_set is not None and not result.is_refused)
+        if result.completeness is not None or result.payload_of(DataValueSet) is not None
     ]
     outcomes: dict[str, ForwardCompletenessOutcome] = {}
     posted = 0
@@ -6042,25 +6060,18 @@ def _post_order(result: ConversionResult) -> int:
 
 async def _post_result(client: Dhis2Client, result: ConversionResult, *, dry_run: bool) -> ForwardImportOutcome:
     """Post one translated payload to the endpoint its target kind names, and project DHIS2's answer."""
-    if result.data_value_set is not None:
-        params = dict(_DATA_VALUE_SETS_DRY_RUN_PARAMS) if dry_run else {}
-        body = result.data_value_set.model_dump(by_alias=True, exclude_none=True, mode="json")
-        return _aggregate_import_outcome(await _post_body(client, _DATA_VALUE_SETS_PATH, body, params))
-    params = {**_TRACKER_PARAMS, **(_TRACKER_DRY_RUN_PARAMS if dry_run else {})}
-    if result.tracked_entity is not None:
-        registration = result.tracked_entity.model_dump(by_alias=True, exclude_none=True, mode="json")
-        body = {_TRACKER_TRACKED_ENTITIES_KEY: [registration]}
-        return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
-    if result.enrollment is not None:
-        enrolment = result.enrollment.model_dump(by_alias=True, exclude_none=True, mode="json")
-        body = {_TRACKER_ENROLLMENTS_KEY: [enrolment]}
-        return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
-    if result.event is not None:
-        body = {_TRACKER_EVENTS_KEY: [result.event.model_dump(by_alias=True, exclude_none=True, mode="json")]}
-        return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, body, params))
-    # The branches above cover every shape `ConversionResult.payload` can hold, so reaching here
-    # means the result carries no payload at all - the case the type system cannot exclude.
-    raise ValueError("a translated result carries no payload at all")
+    payload = result.payload
+    if payload is None or result.target_kind is None:
+        # `ConversionResult.payload` answers None for a refused response alone, and a refused response
+        # never reaches the posting loop - so this is the case the type system cannot exclude.
+        raise ValueError("a translated result carries no payload at all")
+    body = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
+    if result.target_kind is ConversionTargetKind.DATA_VALUE_SET:
+        aggregate_params = dict(_DATA_VALUE_SETS_DRY_RUN_PARAMS) if dry_run else {}
+        return _aggregate_import_outcome(await _post_body(client, _DATA_VALUE_SETS_PATH, body, aggregate_params))
+    tracker_params = {**_TRACKER_PARAMS, **(_TRACKER_DRY_RUN_PARAMS if dry_run else {})}
+    bundle = {_TRACKER_KEYS_BY_TARGET_KIND[result.target_kind]: [body]}
+    return _tracker_import_outcome(await _post_body(client, _TRACKER_PATH, bundle, tracker_params))
 
 
 async def _post_body(
@@ -6314,7 +6325,8 @@ def _is_unverifiable(
     event names is one a registration of the same run mints. An event naming an enrollment nobody in
     the run creates fails the last test and stays a rejection, which is the orphan the run must state.
     """
-    if result.event is None or result.event.enrollment not in minted_enrollments:
+    event = result.payload_of(TrackerEvent)
+    if event is None or event.enrollment not in minted_enrollments:
         return False
     error_codes = {issue.error_code for issue in imported.issues}
     return bool(error_codes) and all(code in _ABSENT_ENROLLMENT_ERROR_CODES for code in error_codes)

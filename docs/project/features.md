@@ -3492,6 +3492,7 @@ renders each module.
 | Validation, producing a report rather than rendering one | `validate_codes`, `resolve_validation_context`, `resolve_validation_scope`, `resolve_code_source`, `ValidationContext`, `display_code` |
 | The conformance runner | `run_doctor`, `DoctorOptions`, `DoctorReport`, `DoctorPhase`, `DoctorOutcome`, `DoctorPhaseResult`, `DoctorFinding`, `PhaseOutcome`, `CaptureOutcome`, `FamilyOutcome`, `resolve_doctor_profile`, `resolve_published_project`, `render_doctor_markdown`, `phase_evidence`, `generate_findings`, `drift_findings`, and the graders `grade`, `grade_capture`, `grade_forward`, `grade_oracle`, `grade_drift` |
 | Drift between a published guide and the instance | `detect_drift`, `read_published_guide`, `compare_organisation_units`, `compare_option_set`, `compare_form`, `registry_scope_line`, `DriftReport`, `DriftFinding`, `DriftSubject`, `DriftKind`, `PublishedGuide`, `PublishedForm`, `PublishedOptionSet`, `PublishedObject`, `InstanceForm`, `InstanceOptionSet`, `InstanceOption`, `InstanceObject`, `DRIFT_REMEDY` |
+| Translating a captured response into DHIS2 | The whole `dhis2w_fhir.conversion` surface, name for name: `translate_response`, `translate_responses`, `build_conversion_context`, `build_project_context`, `load_compiled_artifacts`, `ConversionContext`, `ConversionResult`, `ConversionReport`, `ConversionPayload`, `ConversionTargetKind`, `ConversionRefusal`, `ConversionNote`, and the rest |
 | Refusal records on the spool | `record_refusal`, `read_refusal_record`, `ForwardRefusalRecord`, `RefusalReason`, `SPOOL_RELATIVE_PATH`, `REFUSAL_RECORD_SUFFIX`, `QUARANTINE_REASON_SUFFIX`, `DRAIN_LOCK_FILE_NAME`, `ORPHAN_TEMPORARY_FILE_AGE_SECONDS` |
 | The profile a run resolves | `GenerationProfile`, `resolve_generation_profile` |
 
@@ -3510,6 +3511,10 @@ renders each module.
   `:::` directives out of `docs/fhir/api-dhis2w-fhir.md` and fails when a module
   the API reference renders exports a name the package does not, so the docs and
   the imports cannot drift apart quietly.
+  `test_fhir_conversion_surface.py` holds the conversion layer to the same claim
+  from the other side: every name `dhis2w_fhir.conversion` states it exports is
+  on the package root and is the same object, so a caller reads one import path
+  rather than guessing which names were re-exported and which were not.
 
 ### No MCP tools
 

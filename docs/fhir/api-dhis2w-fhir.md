@@ -183,6 +183,11 @@ a `TrackerEvent` for an event program or a tracker program stage. A response the
 cannot read whole answers with typed refusals naming the link id and the reason, never with a
 partial payload.
 
+A result carries exactly one payload and its `target_kind` names which, so `ConversionResult.payload`
+reads the document off the kind and `payload_of` narrows it to one wire shape. The batch form is
+`ConversionReport.payloads_of`, whose four named properties - `data_value_sets`, `events`,
+`tracked_entities`, `enrollments` - are the order a drain posts them in.
+
 `conversion.artifacts` is where a project's own files become those models: it reads the
 compiled `ig/fsh-generated/resources` merged with the predefined `ig/input/resources` tree -
 the same two trees `d2w fhir serve` serves - and `build_project_context` assembles the context

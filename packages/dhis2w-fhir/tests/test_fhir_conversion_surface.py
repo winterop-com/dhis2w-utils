@@ -6,7 +6,13 @@ import dhis2w_fhir
 from dhis2w_client.generated.v42.oas import DataValueSet, TrackerEnrollment, TrackerEvent, TrackerTrackedEntity
 from dhis2w_fhir import conversion
 from dhis2w_fhir.config import GenerateConfig
-from dhis2w_fhir.conversion import ConversionContext, ConversionNaming, ConversionResult, FormSpec
+from dhis2w_fhir.conversion import (
+    ConversionContext,
+    ConversionNaming,
+    ConversionReport,
+    ConversionResult,
+    FormSpec,
+)
 from dhis2w_fhir.conversion.schemas import ConversionRefusal, ConversionRefusalCategory, ConversionTargetKind
 
 _CANONICAL = "http://example.org/fhir"
@@ -55,17 +61,71 @@ def test_form_for_answers_none_for_nothing_named_and_nothing_served() -> None:
     assert context.form_for(f"{_CANONICAL}/Questionnaire/d2-ds-somewhere-else-q") is None
 
 
-def test_the_payload_accessor_answers_whichever_field_the_translation_set() -> None:
-    """One accessor for the produced document, whichever of the four exclusive fields carries it."""
-    data_value_set = DataValueSet()
-    event = TrackerEvent(program="PrGaaaaaaaa", orgUnit="Ouaaaaaaaaa")
-    tracked_entity = TrackerTrackedEntity(trackedEntityType="Tetaaaaaaaa", orgUnit="Ouaaaaaaaaa")
-    enrollment = TrackerEnrollment(program="PrGaaaaaaaa", orgUnit="Ouaaaaaaaaa")
+_DATA_VALUE_SET = DataValueSet()
+_EVENT = TrackerEvent(program="PrGaaaaaaaa", orgUnit="Ouaaaaaaaaa")
+_TRACKED_ENTITY = TrackerTrackedEntity(trackedEntityType="Tetaaaaaaaa", orgUnit="Ouaaaaaaaaa")
+_ENROLLMENT = TrackerEnrollment(program="PrGaaaaaaaa", orgUnit="Ouaaaaaaaaa")
 
-    assert ConversionResult(data_value_set=data_value_set).payload is data_value_set
-    assert ConversionResult(event=event).payload is event
-    assert ConversionResult(tracked_entity=tracked_entity).payload is tracked_entity
-    assert ConversionResult(enrollment=enrollment).payload is enrollment
+#: One result per target kind, each carrying the payload that kind names.
+_RESULTS_BY_TARGET_KIND = {
+    ConversionTargetKind.DATA_VALUE_SET: ConversionResult(
+        target_kind=ConversionTargetKind.DATA_VALUE_SET, data_value_set=_DATA_VALUE_SET
+    ),
+    ConversionTargetKind.EVENT: ConversionResult(target_kind=ConversionTargetKind.EVENT, event=_EVENT),
+    ConversionTargetKind.TRACKER_EVENT: ConversionResult(target_kind=ConversionTargetKind.TRACKER_EVENT, event=_EVENT),
+    ConversionTargetKind.TRACKED_ENTITY: ConversionResult(
+        target_kind=ConversionTargetKind.TRACKED_ENTITY, tracked_entity=_TRACKED_ENTITY
+    ),
+    ConversionTargetKind.TRACKER: ConversionResult(
+        target_kind=ConversionTargetKind.TRACKER, tracked_entity=_TRACKED_ENTITY
+    ),
+    ConversionTargetKind.TRACKER_ENROLLMENT: ConversionResult(
+        target_kind=ConversionTargetKind.TRACKER_ENROLLMENT, enrollment=_ENROLLMENT
+    ),
+}
+
+#: Which payload each target kind names, which is what the accessor is asserted to answer.
+_PAYLOADS_BY_TARGET_KIND = {
+    ConversionTargetKind.DATA_VALUE_SET: _DATA_VALUE_SET,
+    ConversionTargetKind.EVENT: _EVENT,
+    ConversionTargetKind.TRACKER_EVENT: _EVENT,
+    ConversionTargetKind.TRACKED_ENTITY: _TRACKED_ENTITY,
+    ConversionTargetKind.TRACKER: _TRACKED_ENTITY,
+    ConversionTargetKind.TRACKER_ENROLLMENT: _ENROLLMENT,
+}
+
+
+def test_every_target_kind_names_the_payload_the_accessor_answers() -> None:
+    """The accessor is keyed by target kind, and every kind the taxonomy declares has an answer."""
+    assert set(_PAYLOADS_BY_TARGET_KIND) == set(ConversionTargetKind)
+    for target_kind, payload in _PAYLOADS_BY_TARGET_KIND.items():
+        assert _RESULTS_BY_TARGET_KIND[target_kind].payload is payload, target_kind
+
+
+def test_the_two_registration_kinds_answer_the_payload_each_of_them_carries() -> None:
+    """A registration minting its person and one enrolling a person the instance holds are two kinds."""
+    assert _RESULTS_BY_TARGET_KIND[ConversionTargetKind.TRACKER].payload is _TRACKED_ENTITY
+    assert _RESULTS_BY_TARGET_KIND[ConversionTargetKind.TRACKER_ENROLLMENT].payload is _ENROLLMENT
+
+
+def test_the_narrowing_accessor_answers_only_the_wire_shape_asked_for() -> None:
+    """`payload_of` hands back the payload when it is that shape, and None for every other kind."""
+    aggregate = _RESULTS_BY_TARGET_KIND[ConversionTargetKind.DATA_VALUE_SET]
+
+    assert aggregate.payload_of(DataValueSet) is _DATA_VALUE_SET
+    assert aggregate.payload_of(TrackerEvent) is None
+    assert _RESULTS_BY_TARGET_KIND[ConversionTargetKind.TRACKER].payload_of(TrackerEnrollment) is None
+
+
+def test_the_batch_accessor_reads_one_wire_shape_in_the_order_the_responses_were_drained() -> None:
+    """The four posting properties are `payloads_of` under the names a caller posts them by."""
+    report = ConversionReport(results=tuple(_RESULTS_BY_TARGET_KIND.values()))
+
+    assert report.data_value_sets == (_DATA_VALUE_SET,)
+    assert report.events == (_EVENT, _EVENT)
+    assert report.tracked_entities == (_TRACKED_ENTITY, _TRACKED_ENTITY)
+    assert report.enrollments == (_ENROLLMENT,)
+    assert report.payloads_of(DataValueSet) == report.data_value_sets
 
 
 def test_a_refused_result_carries_no_payload() -> None:
@@ -82,3 +142,5 @@ def test_a_refused_result_carries_no_payload() -> None:
 
     assert refused.is_refused
     assert refused.payload is None
+    assert refused.payload_of(DataValueSet) is None
+    assert ConversionReport(results=(refused,)).payloads_of(DataValueSet) == ()
