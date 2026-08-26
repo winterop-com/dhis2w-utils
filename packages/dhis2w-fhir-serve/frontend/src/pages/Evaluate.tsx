@@ -239,14 +239,15 @@ export function Evaluate() {
         setRefusal(null)
     }, [])
 
-    const pickLanguage = useCallback(
-        (language: EvaluationLanguage) => {
-            // The example goes with the language: a CQL library left in the box under FHIRPath would
-            // be a parse error the reader did not ask for.
-            load(genericExamples(language)[0])
-        },
-        [load],
-    )
+    const pickLanguage = useCallback((language: EvaluationLanguage) => {
+        // The box is the reader's under every language: switching empties it rather than loading
+        // somebody else's example, because a source left behind would be a parse error and a
+        // source put in would not be theirs. The pasted context speaks no language and stays.
+        setForm((previous) => ({ ...previous, language, source: '', expressionName: '' }))
+        setLoaded({ id: '', source: '' })
+        setOutcome(null)
+        setRefusal(null)
+    }, [])
 
     const notReady = whyNotReady(form)
 

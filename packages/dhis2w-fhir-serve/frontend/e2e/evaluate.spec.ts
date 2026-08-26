@@ -65,15 +65,17 @@ test.describe('the evaluate screen', () => {
         await expect(answer.getByRole('cell', { name: 'Byron', exact: true })).toBeVisible()
     })
 
-    test('picks CQL, loads its own example, and answers one row per define', async ({ page }) => {
+    test('picks CQL, and a panel example answers one row per define', async ({ page }) => {
         await page.goto('/#/evaluate')
 
         await page.getByRole('combobox', { name: 'Language' }).click()
         await page.getByRole('option', { name: 'CQL' }).click()
 
-        // The example goes with the language - a FHIRPath expression left behind would be a parse
-        // error the reader did not ask for.
-        await expect(page.getByRole('combobox', { name: 'Example' })).toContainText(CQL_EXAMPLE)
+        // Switching language empties the box - a FHIRPath expression left behind would be a
+        // parse error, and an example put in would not be the reader's.
+        await expect(page.getByRole('button', { name: 'Evaluate', exact: true })).toBeDisabled()
+
+        await page.getByTestId('evaluate-examples').getByRole('button', { name: CQL_EXAMPLE }).click()
         await expect(sourceEditor(page)).toContainText('define People: [Patient]')
 
         await page.getByRole('button', { name: 'Evaluate', exact: true }).click()
@@ -104,11 +106,11 @@ test.describe('the evaluate screen', () => {
     test("offers a preset built from this guide's own resources, and runs it", async ({ page }) => {
         await page.goto('/#/evaluate')
 
-        const examples = page.getByRole('combobox', { name: 'Example' })
-        await examples.click()
         // The presets are found by what they ask rather than by which form the fixture happens to
         // publish first: which resource a guide holds is the guide's business, not this spec's.
-        const preset = page.getByRole('option', { name: /^Every question asked by / })
+        const preset = page
+            .getByTestId('evaluate-examples')
+            .getByRole('button', { name: /^Every question asked by / })
         await expect(preset.first()).toBeVisible()
         await preset.first().click()
 
