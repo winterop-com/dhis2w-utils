@@ -360,7 +360,10 @@ answers *into the form* rather than posting them - so you can change one
 field and submit that. The seed it drew lands in the **Seed** box beside the
 button; the same seed reproduces the same answers, so a form that misbehaved
 can be asked for again by typing that number back in. **Clear** empties it.
-**Submit** posts a `QuestionnaireResponse` and takes you to Responses.
+**Submit** posts a `QuestionnaireResponse` and takes you to Responses - and it
+refuses a form with nothing answered in it, because a response carrying no
+answer records nothing while reading back as a capture somebody made. A form
+that asks no questions says that instead.
 
 The context that submission carries - the reporting period, the tracked
 entity and enrollment on a tracker form - comes from `$generate` too: the
@@ -392,11 +395,13 @@ sit above the questions - both visible in the screenshot:
 
     **The unit you choose sticks for the browser tab**, so the next form opens
     reporting from it - a morning spent filing for one facility is one choice,
-    not one per form. The control says so under itself. It is a fact about
-    what you are doing right now rather than a setting: a fresh tab starts
-    fresh, which is also what makes two tabs open on two facilities something
-    you can do, and a browser that refuses storage simply keeps nothing and
-    opens each form on the server's own draw.
+    not one per form. The control says so under itself once there is a choice
+    to keep; before that it says what it is actually holding, which is the unit
+    the server drew out of the ones the form admits. It is a fact about what
+    you are doing right now rather than a setting: a fresh tab starts fresh,
+    which is also what makes two tabs open on two facilities something you can
+    do, and a browser that refuses storage simply keeps nothing and opens each
+    form on the server's own draw.
 - Beside it, for a data set on a non-default category combo, is the
   **attribute option combo** the whole submission is filed under. It opens
   *Not chosen* and blocks Submit until it has a value, because nothing derives
@@ -453,12 +458,17 @@ on the receipt rather than in one place out of two.
 ### Who a registration is about
 
 Both registration kinds - a tracker registration and a person-only form -
-carry a **Person** control beside the other envelope facts. It opens on
-**New person**, which mints an identity for somebody the instance has never
-seen, and that is the whole of what the control does on a server publishing no
-search over this form's register - a server serving a compiled guide publishes
-none - and the control says so rather than offering a search that would always
-fail.
+carry a subject control beside the other envelope facts, headed by the DHIS2
+tracked entity type the form registers: **Person** on a form generated from
+the person type, **Focus area** on one generated from a focus-area type. The
+type's own name is what every word in the panel is built from, because the
+FHIR resource the register is served as says nothing about what the subject
+is - a village published as `Patient` is not a person. It opens on **New
+person** (or **New focus area**), which mints an identity for a subject the
+instance has never seen, and that is the whole of what the control does on a
+server publishing no search over this form's register - a server serving a
+compiled guide publishes none - and the control says so rather than offering a
+search that would always fail.
 
 A **live** server publishes `GET /{RegisterType}?identifier=` per served
 register - the form's `subjectType` says which one its registrations land in,
@@ -755,9 +765,11 @@ began, and the organisation unit it sits at.
 
 - **Organisation units** is the reporting hierarchy, laid out like a GIS
   tool: on a wide viewport, three resizable panes - the hierarchy tree, the
-  map as the always-visible centre canvas, and an inspector rail that opens
-  when you pick an organisation unit (narrower viewports get two columns
-  with the same sections behind tabs). The rail opens with the selected
+  map as the always-visible centre canvas, and an inspector rail carrying
+  everything about the selection (narrower viewports get two columns with the
+  same sections behind tabs). The rail is open on arrival and folds away on
+  the control in its top corner; folded, it is a strip naming what it holds.
+  It opens with the selected
   unit's identity - name, level, identifiers, the clickable parent chain -
   and stacks its sections under it: **Data sets**, **Programs**, and
   **Tracked entity registration** are the forms reportable at that unit,
@@ -903,7 +915,10 @@ as addresses: `/metadata`, one search per resource type the CapabilityStatement
 says answers a search, the read-by-id shape, and one row per declared operation:
 `$generate` on Questionnaire, `$translate` on ConceptMap, and `$evaluate` at the
 service base. A guide that publishes no ConceptMaps declares no `$translate` and
-is offered no row for it. Three of the rows name a resource, and the page reads
+is offered no row for it. What every search row answers is stated once under the
+shelf heading rather than on each of them, because a run serving thirteen
+searchable types earns thirteen rows and one sentence copied thirteen times with
+a word changed is not thirteen facts. Three of the rows name a resource, and the page reads
 one of each off this server so they answer on the first press rather than
 carrying a `{id}` you have to fill in; where the guide publishes neither, the
 row says the placeholder has to be replaced. Choosing a row fills the builder

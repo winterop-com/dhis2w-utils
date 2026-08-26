@@ -379,6 +379,13 @@ test.describe('a form whose assignment narrows where it may be reported from', (
             ),
         ).toBeVisible()
 
+        // Answered before the unit is chosen, because this spec ends in a submission and Submit
+        // refuses a form nobody has answered. Filled first and picked after: a refill is the server
+        // proposing a whole submission, its unit included, so a fill after the choice would draw
+        // over it - and which unit reaches the receipt is the whole point of what follows.
+        await page.getByRole('button', { name: 'Fill with test data' }).click()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
+
         // Two of ten. The registry the organisation-units page browses is the same one this reads.
         await picker.click()
         await expect(page.getByRole('option')).toHaveCount(2)
@@ -420,6 +427,12 @@ test.describe('a form whose assignment narrows where it may be reported from', (
         const opened = page.waitForResponse((response) => response.url().includes('$generate'))
         await page.goto(`/#/forms/${SCOPED_FORM}`)
         await opened
+
+        // Answered first, for the same reason the searched walk answers first: this spec ends in a
+        // submission, Submit refuses an unanswered form, and a fill draws a fresh unit over
+        // whatever the picker holds - so it happens before anything is pinned.
+        await page.getByRole('button', { name: 'Fill with test data' }).click()
+        await expect(page.getByText('Filled with test data')).toBeVisible()
 
         // Pinned before browsing: the draw ranges over the whole assignment, and this spec's tree
         // assertions are about the shape around one known selection - the facility, whose ancestor

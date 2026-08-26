@@ -547,11 +547,13 @@ test.describe('a registration answering for a person the instance already holds'
         // The three questions DHIS2 writes onto the person are unanswerable, with the reason said.
         await expect(page.getByLabel('National id')).toBeDisabled()
         await expect(page.getByLabel('Date of birth')).toBeDisabled()
+        // The reason is written about the record rather than about a person, because the register
+        // decides the word and a project registering focus areas holds no people at all.
         await expect(
-            page.getByText("This DHIS2 instance already holds this person's record"),
+            page.getByText('This DHIS2 instance already holds this record'),
         ).toBeVisible()
         await expect(
-            page.getByText('Not asked for a person this DHIS2 instance already holds').first(),
+            page.getByText('Not asked for a record this DHIS2 instance already holds').first(),
         ).toBeVisible()
         // The one question the program asks that the type does not collect still is.
         await expect(page.getByLabel('Household size')).toBeEnabled()
