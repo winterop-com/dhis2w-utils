@@ -23,6 +23,8 @@ from dhis2w_fhir.spool import (
     SpoolState,
     drain_lock,
     move_to_forwarded,
+    move_to_received,
+    move_to_rejected,
     read_received_responses,
     read_refusal_record,
     read_spooled_receipts,
@@ -243,6 +245,23 @@ def test_the_move_that_drains_a_receipt_deletes_its_refusal_record(tmp_path: Pat
     received = layout.directory_for(SpoolState.RECEIVED)
     assert not (received / f"stuck-1{REFUSAL_RECORD_SUFFIX}").exists()
     assert (layout.directory_for(SpoolState.FORWARDED) / "stuck-1.json").is_file()
+
+
+def test_requeueing_a_receipt_clears_a_leftover_refusal_record(tmp_path: Path) -> None:
+    """A receipt entering the queue has been refused by no drain, so nothing beside it may say one did."""
+    layout = _queued_with_refusal(tmp_path, _refusal())
+    spooled = read_received_responses(layout).responses[0]
+    received = layout.directory_for(SpoolState.RECEIVED)
+    move_to_rejected(spooled, ForwardImportRecord(status="ERROR"))
+    # What a drain killed between the rename that files the receipt and the unlink that clears its
+    # marker leaves behind: a marker in `received/` naming a receipt that is no longer queued.
+    record_refusal(spooled, _refusal())
+
+    move_to_received(layout, "stuck-1")
+
+    assert (received / "stuck-1.json").is_file()
+    assert not (received / f"stuck-1{REFUSAL_RECORD_SUFFIX}").exists()
+    assert read_spooled_receipts(layout).receipts[0].refusal is None
 
 
 def test_the_spool_state_report_counts_the_refused_still_queued(tmp_path: Path) -> None:

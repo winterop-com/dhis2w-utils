@@ -501,6 +501,11 @@ def move_to_received(layout: SpoolLayout, response_id: str) -> Path:
     receipt nothing has yet asked about. The next drain writes a fresh report wherever the receipt
     lands - overwriting the stale one in place when the answer is the same, and leaving it behind as
     history when the receipt is accepted this time.
+
+    ANY REFUSAL RECORD IN `received/` GOES. This is the one way a receipt enters the queue from
+    another state, and a marker under its name there can only be a leftover - a drain killed between
+    the rename that filed the receipt and the unlink that cleared its marker. The receipt is entering
+    the queue with no drain having refused it, so nothing beside it may say one did.
     """
     source = layout.directory_for(SpoolState.REJECTED) / f"{response_id}.json"
     if not source.is_file():
@@ -509,6 +514,8 @@ def move_to_received(layout: SpoolLayout, response_id: str) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     destination = directory / source.name
     os.replace(source, destination)
+    marker = directory / f"{response_id}{REFUSAL_RECORD_SUFFIX}"
+    marker.unlink(missing_ok=True)
     _fsync_directory(directory)
     _fsync_directory(source.parent)
     return destination
