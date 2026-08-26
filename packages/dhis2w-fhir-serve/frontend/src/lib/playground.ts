@@ -95,12 +95,19 @@ export const JSON_FORMAT = 'json'
  * shorter thing rather than the true one. A path that already names a format keeps the one it names.
  */
 export function formatHref(origin: string, request: PlaygroundRequest): string {
-    const target = requestTarget(request)
-    const split = target.indexOf('?')
-    const path = split === -1 ? target : target.slice(0, split)
-    const query = new URLSearchParams(split === -1 ? '' : target.slice(split + 1))
-    if (!query.has(FORMAT_PARAMETER)) query.set(FORMAT_PARAMETER, JSON_FORMAT)
-    return `${origin}${path}?${query.toString()}`
+    // Parsed against the origin rather than concatenated onto it: the path is typed by whoever is
+    // at the keyboard, and a parse is what keeps a `//host` or an absolute URL from quietly leaving
+    // this server. A target the parser reads as any other origin degrades to the origin itself -
+    // a dead link teaches more safely than a live one pointing somewhere this page never named.
+    let parsed: URL
+    try {
+        parsed = new URL(requestTarget(request), origin)
+    } catch {
+        return origin
+    }
+    if (parsed.origin !== origin) return origin
+    if (!parsed.searchParams.has(FORMAT_PARAMETER)) parsed.searchParams.set(FORMAT_PARAMETER, JSON_FORMAT)
+    return parsed.href
 }
 
 /** What stands in the copied command where the credential would be - see this module's own note. */

@@ -4,18 +4,13 @@ import { AnswerControl } from '@/components/AnswerControl'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import {
-    disaggregationCells,
     enabledLinkIds,
-    formBlocks,
     groupCategoryAxes,
     TRUE_ONLY_VALUE_TYPE,
     type AnswerAction,
     type AnswerState,
-    type DisaggregationColumn,
-    type FormBlock,
     type QuestionnaireNode,
     type QuestionnaireSpec,
 } from '@/lib/questionnaire'
@@ -74,12 +69,6 @@ export function LockedQuestionsProvider({ locked, children }: { locked: LockedQu
  * capture context's own controls put theirs. A section's description reads under its heading. And a
  * group of disaggregated cells names the categories its cells are cut by, because "Fixed, <1y" is
  * the name of one corner of a grid and says nothing about which grid it is a corner of.
- *
- * THE SHAPE OF A RUN IS DECIDED BEFORE ANY ITEM IS DRAWN. `formBlocks` reads each level of the form
- * as a sequence of runs - a disaggregation table, a flow of scalar questions, or a single item - and
- * this component draws each run as what it is. The two wide shapes never meet: a run is a table or a
- * flow, never a table flowed into columns, because a table already uses the width it needs and
- * halving it would put two grids side by side for a reader to tell apart.
  */
 export function QuestionnaireForm({
     spec,
@@ -109,13 +98,16 @@ export function QuestionnaireForm({
                             )}
                         </CardHeader>
                         <CardContent className="grid gap-4">
-                            <FormBlocks
-                                spec={spec}
-                                linkIds={section.linkIds}
-                                answers={answers}
-                                enabled={enabled}
-                                dispatch={dispatch}
-                            />
+                            {section.linkIds.map((linkId) => (
+                                <QuestionnaireItemView
+                                    key={linkId}
+                                    spec={spec}
+                                    linkId={linkId}
+                                    answers={answers}
+                                    enabled={enabled}
+                                    dispatch={dispatch}
+                                />
+                            ))}
                         </CardContent>
                     </Card>
                 )
@@ -154,13 +146,16 @@ export function QuestionnaireItemView({
                     {node.code?.code !== undefined && <CodeBadge code={node.code.code} />}
                 </legend>
                 <GroupNotes spec={spec} groupLinkId={node.linkId} />
-                <FormBlocks
-                    spec={spec}
-                    linkIds={node.childLinkIds}
-                    answers={answers}
-                    enabled={enabled}
-                    dispatch={dispatch}
-                />
+                {node.childLinkIds.map((childLinkId) => (
+                    <QuestionnaireItemView
+                        key={childLinkId}
+                        spec={spec}
+                        linkId={childLinkId}
+                        answers={answers}
+                        enabled={enabled}
+                        dispatch={dispatch}
+                    />
+                ))}
             </fieldset>
         )
     }
@@ -208,189 +203,6 @@ export function QuestionnaireItemView({
     )
 }
 
-/** One level of a form, drawn run by run: a table, a flow of scalar questions, or a single item. */
-function FormBlocks({
-    spec,
-    linkIds,
-    answers,
-    enabled,
-    dispatch,
-}: {
-    spec: QuestionnaireSpec
-    /** The sibling items of this level, in document order. */
-    linkIds: readonly string[]
-    answers: AnswerState
-    enabled: ReadonlySet<string>
-    dispatch: Dispatch<AnswerAction>
-}) {
-    return (
-        <>
-            {formBlocks(spec, linkIds, enabled).map((block) =>
-                block.kind === 'disaggregation' ? (
-                    <DisaggregationTable
-                        key={block.key}
-                        spec={spec}
-                        block={block}
-                        answers={answers}
-                        enabled={enabled}
-                        dispatch={dispatch}
-                    />
-                ) : block.kind === 'scalars' ? (
-                    // AS MANY COLUMNS AS THE SCREEN HAS ROOM FOR, AND NO BREAKPOINT SAYING HOW MANY.
-                    // A question needs about twenty rems to hold its label, its uid and its control,
-                    // so that is what is asked for and the browser decides how many fit - which
-                    // makes the same form read as one column on a laptop split in two and as four
-                    // on a wide screen, without this file knowing either width.
-                    <div key={block.key} className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(20rem,1fr))]">
-                        {block.linkIds.map((linkId) => (
-                            <QuestionnaireItemView
-                                key={linkId}
-                                spec={spec}
-                                linkId={linkId}
-                                answers={answers}
-                                enabled={enabled}
-                                dispatch={dispatch}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <QuestionnaireItemView
-                        key={block.key}
-                        spec={spec}
-                        linkId={block.linkId}
-                        answers={answers}
-                        enabled={enabled}
-                        dispatch={dispatch}
-                    />
-                ),
-            )}
-        </>
-    )
-}
-
-/**
- * Several data elements cut the same way, as the table DHIS2 enters them in.
- *
- * ONE FACT, ONCE. Stacked, this run states its four category option combos fourteen times over,
- * each with its own label and its own uid chip - fifty-six labels for four facts. As a table the
- * combos are the header row, the data elements are the row labels, and every uid is still on screen
- * exactly once: the column's in its header, the element's beside its name. The categories the
- * columns cut along are named once above the table, because a combo's name is the corner of a grid
- * and never says which grid.
- *
- * THE CELLS ARE THE SAME QUESTIONS THEY WERE. Every input keeps its own linkId, its own answer slot
- * and its own reducer dispatch, so what a table produces and what a stack produced are the same
- * QuestionnaireResponse. Reading order is row by row, which is document order, so the keyboard walks
- * the form the way the form is written.
- *
- * WHAT EACH CELL IS NAMED. A cell's label is two words in a header row a screen reader has already
- * left, so each input carries the element and the combo as its own accessible name - "Malaria
- * (Deaths under 5 yrs) 0-11m" - which is the whole address of the value being typed.
- */
-function DisaggregationTable({
-    spec,
-    block,
-    answers,
-    enabled,
-    dispatch,
-}: {
-    spec: QuestionnaireSpec
-    block: Extract<FormBlock, { kind: 'disaggregation' }>
-    answers: AnswerState
-    enabled: ReadonlySet<string>
-    dispatch: Dispatch<AnswerAction>
-}) {
-    const locked = use(LockedQuestionsContext)
-    const axes = groupCategoryAxes(spec, block.groupLinkIds[0])
-    return (
-        <div className="grid gap-2">
-            {axes.length > 0 && (
-                <p className="text-muted-foreground text-xs">Disaggregated by {joinNames(axes)}</p>
-            )}
-            <div className="overflow-x-auto rounded-lg border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            {/* The corner names what the rows are, because a table whose first
-                                column has no heading asks the reader to work out what it holds. */}
-                            <TableHead scope="col">Data element</TableHead>
-                            {block.columns.map((column) => (
-                                <TableHead key={columnKey(column)} scope="col">
-                                    <span className="flex items-center gap-2">
-                                        <span>{column.label}</span>
-                                        {column.code !== null && <CodeBadge code={column.code} />}
-                                    </span>
-                                </TableHead>
-                            ))}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {block.groupLinkIds.map((groupLinkId) => {
-                            const group = spec.byLinkId.get(groupLinkId)
-                            const description = group?.description ?? null
-                            return (
-                                <TableRow key={groupLinkId}>
-                                    {/* The row label takes the slack, which is what keeps the
-                                        answer columns the width of the answers: a table is as wide
-                                        as its card, and with every column sharing the surplus a
-                                        three-digit count sat in a box wide enough for a sentence. */}
-                                    <TableHead
-                                        scope="row"
-                                        className="w-full min-w-48 py-2 align-top text-wrap whitespace-normal"
-                                    >
-                                        <span className="flex flex-wrap items-baseline gap-2">
-                                            <span>{group?.text ?? groupLinkId}</span>
-                                            {group?.code?.code !== undefined && (
-                                                <CodeBadge code={group.code.code} />
-                                            )}
-                                        </span>
-                                        {description !== null && (
-                                            <span className="text-muted-foreground block text-xs font-normal">
-                                                {description}
-                                            </span>
-                                        )}
-                                    </TableHead>
-                                    {disaggregationCells(spec, groupLinkId, enabled).map((cellLinkId) => {
-                                        const cell = spec.byLinkId.get(cellLinkId)
-                                        if (cell === undefined) return null
-                                        const cellLocked = locked.linkIds.has(cellLinkId)
-                                        return (
-                                            <TableCell key={cellLinkId} className="align-top">
-                                                <Label htmlFor={cellLinkId} className="sr-only">
-                                                    {group?.text ?? groupLinkId} {cell.text ?? cellLinkId}
-                                                </Label>
-                                                <AnswerControl
-                                                    node={cell}
-                                                    slots={answers[cellLinkId] ?? []}
-                                                    locked={cellLocked}
-                                                    controlClassName="w-24"
-                                                    dispatch={dispatch}
-                                                />
-                                                {cellLocked ? (
-                                                    <p className="text-muted-foreground mt-1 text-xs">
-                                                        {locked.note}
-                                                    </p>
-                                                ) : (
-                                                    <QuestionHint node={cell} className="mt-1" />
-                                                )}
-                                            </TableCell>
-                                        )
-                                    })}
-                                </TableRow>
-                            )
-                        })}
-                    </TableBody>
-                </Table>
-            </div>
-        </div>
-    )
-}
-
-/** A column's own key: the combo uid when it has one, and its label when the form codes it with none. */
-function columnKey(column: DisaggregationColumn): string {
-    return column.code ?? column.label
-}
-
 /** The DHIS2 uid a question carries, which is the string every other surface names it by. */
 function CodeBadge({ code, className }: { code: string; className?: string }) {
     return (
@@ -432,7 +244,7 @@ function joinNames(names: string[]): string {
 }
 
 /** What this question takes beyond its label: bounds, the two answers a tick has, repetition, read-only. */
-function QuestionHint({ node, className }: { node: QuestionnaireNode; className?: string }) {
+function QuestionHint({ node }: { node: QuestionnaireNode }) {
     const notes: string[] = []
     if (node.minimum !== null && node.maximum !== null) notes.push(`between ${node.minimum} and ${node.maximum}`)
     else if (node.minimum !== null) notes.push(`${node.minimum} or more`)
@@ -462,7 +274,7 @@ function QuestionHint({ node, className }: { node: QuestionnaireNode; className?
         notes.push('read only')
     }
     if (notes.length === 0) return null
-    return <p className={cn('text-muted-foreground text-xs', className)}>{notes.join(', ')}</p>
+    return <p className="text-muted-foreground text-xs">{notes.join(', ')}</p>
 }
 
 /** One Card's worth of the form: a top-level group, or a run of questions that sit outside one. */
@@ -480,11 +292,6 @@ interface RootSection {
  * collected into one Card between them, which preserves document order - a data set that states
  * two sections and then three loose totals reads as section, section, totals, not as three
  * cards of one question each.
- *
- * A DATA ELEMENT GROUP THAT IS A TABLE ROW IS NOT A SECTION. A data set with no sections states its
- * disaggregated elements at the top level, so fourteen elements would be fourteen Cards of four
- * questions each - the same run that reads as one table one level down. The partition runs first,
- * and a run that became a table is carried into the Card beside it rather than opening one per row.
  */
 function rootSections(spec: QuestionnaireSpec, enabled: ReadonlySet<string>): RootSection[] {
     const sections: RootSection[] = []
@@ -494,25 +301,15 @@ function rootSections(spec: QuestionnaireSpec, enabled: ReadonlySet<string>): Ro
         sections.push({ key: `loose-${loose[0]}`, groupLinkId: null, linkIds: loose })
         loose = []
     }
-    for (const block of formBlocks(spec, spec.rootLinkIds, enabled)) {
-        if (block.kind === 'item' && spec.byLinkId.get(block.linkId)?.type === 'group') {
+    for (const linkId of spec.rootLinkIds) {
+        if (!enabled.has(linkId)) continue
+        if (spec.byLinkId.get(linkId)?.type === 'group') {
             flushLoose()
-            sections.push({
-                key: block.linkId,
-                groupLinkId: block.linkId,
-                linkIds: spec.byLinkId.get(block.linkId)?.childLinkIds ?? [],
-            })
+            sections.push({ key: linkId, groupLinkId: linkId, linkIds: spec.byLinkId.get(linkId)?.childLinkIds ?? [] })
             continue
         }
-        loose.push(...blockLinkIds(block))
+        loose.push(linkId)
     }
     flushLoose()
     return sections
-}
-
-/** The items one run is made of, in document order - what a Card holding the run is drawn from. */
-function blockLinkIds(block: FormBlock): string[] {
-    if (block.kind === 'disaggregation') return block.groupLinkIds
-    if (block.kind === 'scalars') return block.linkIds
-    return [block.linkId]
 }

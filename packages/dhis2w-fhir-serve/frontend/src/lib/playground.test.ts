@@ -72,6 +72,23 @@ function request(parts: Partial<PlaygroundRequest>): PlaygroundRequest {
     return { method: 'GET', path: '/metadata', parameters: [], body: '', ...parts }
 }
 
+describe('formatHref holds the origin', () => {
+    const origin = 'http://localhost:8095'
+
+    it('degrades a protocol-relative path to the origin instead of leaving it', () => {
+        const request = { method: 'GET' as const, path: '//evil.example/x', parameters: [], body: '' }
+        expect(formatHref(origin, request)).toBe(origin)
+    })
+
+    it('reads a pasted absolute URL as a path on this origin, never as a destination', () => {
+        // requestTarget roots every typed path with a leading slash, so an absolute URL becomes an
+        // odd-looking but same-origin path rather than a link that leaves this server.
+        const request = { method: 'GET' as const, path: 'https://evil.example/x', parameters: [], body: '' }
+        expect(formatHref(origin, request).startsWith(`${origin}/`)).toBe(true)
+        expect(new URL(formatHref(origin, request)).origin).toBe(origin)
+    })
+})
+
 describe('the address a request adds up to', () => {
     it('is the path alone when no parameter has been filled in', () => {
         expect(requestTarget(request({ path: '/metadata' }))).toBe('/metadata')
