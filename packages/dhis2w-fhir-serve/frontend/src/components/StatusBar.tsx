@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useStatusBarLine } from '@/hooks/use-status-bar'
 
 /**
@@ -26,7 +27,20 @@ export function StatusBar() {
             className="bg-card text-muted-foreground flex h-[46px] shrink-0 items-center gap-6 border-t px-4 text-[13px] md:px-8"
         >
             <span data-testid="status-bar-summary" className="min-w-0 flex-1 truncate tabular-nums">
-                {line?.left ?? ''}
+                {line?.trail !== undefined && line.trail.length > 0
+                    ? line.trail.map((segment, position) => (
+                          <span key={`${segment.label}-${String(position)}`}>
+                              {position > 0 && <span aria-hidden> / </span>}
+                              {segment.to === null ? (
+                                  <span>{segment.label}</span>
+                              ) : (
+                                  <Link to={segment.to} className="interactive-link">
+                                      {segment.label}
+                                  </Link>
+                              )}
+                          </span>
+                      ))
+                    : (line?.left ?? '')}
             </span>
             {right !== null && right !== '' && (
                 <span data-testid="status-bar-note" className="min-w-0 shrink-0 truncate tabular-nums">

@@ -231,6 +231,17 @@ export function OrgUnits() {
               ? 'No organisation unit selected'
               : [...ancestorsOf(tree, selected.id).map((ancestor) => ancestor.name), selected.name].join(' / '),
         matchCount === null ? null : `${formatCount(matchCount)} matching`,
+        // The same path, walkable: every ancestor is a place the reader may want next, so each
+        // segment before the last selects it. The last is where they already are.
+        registry.loading || registry.error !== null || selected === null
+            ? undefined
+            : [
+                  ...ancestorsOf(tree, selected.id).map((ancestor) => ({
+                      label: ancestor.name,
+                      to: `/organisation-units?unit=${ancestor.id}`,
+                  })),
+                  { label: selected.name, to: null },
+              ],
     )
 
     const select = useCallback(
