@@ -23,9 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import {
     Select,
     SelectContent,
-    SelectGroup,
     SelectItem,
-    SelectLabel,
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
@@ -45,8 +43,8 @@ import {
     cellText,
     diagnosticHeadline,
     evaluationRequest,
-    exampleGroups,
     genericExamples,
+    NO_CONTEXT,
     guidePresets,
     matchSummary,
     resultShape,
@@ -168,27 +166,28 @@ export function Evaluate() {
     const registerResource = trackedEntitySettings(config).registers[0]?.resource ?? 'Patient'
 
     const [served, setServed] = useState<ServedResource[]>([])
-    const [form, setForm] = useState<EvaluationForm>(() => genericExamples('fhirpath')[0].form)
-    // Which example was loaded, and the source it came with.
-    //
-    // THE PICKER READS THE EDITOR RATHER THAN REMEMBERING THE LAST CLICK. An example is what is in
-    // the box, not what was once put there: a reader who loads "The given names on a Patient" and
-    // then writes their own expression is looking at their own work, and a picker still naming the
-    // example says the form is showing something it is not. So the name holds exactly as long as
-    // the source does, and typing over it - or typing it back - answers for itself.
-    const [loaded, setLoaded] = useState(() => {
-        const first = genericExamples('fhirpath')[0]
-        return { id: first.id, source: first.form.source }
-    })
-    const chosenExample = form.source === loaded.source ? loaded.id : ''
+    // THE EDITOR STARTS EMPTY. The page asks a question of what this server serves, and the
+    // question is the reader's - an expression already in the box on arrival is somebody else's,
+    // and running it teaches only that the button works. The examples wait one glance to the
+    // right, each runnable as it stands.
+    const [form, setForm] = useState<EvaluationForm>(() => ({
+        ...genericExamples('fhirpath')[0].form,
+        source: '',
+        context: NO_CONTEXT,
+    }))
+    // Which example is in the editor, read off the editor rather than remembered from the last
+    // click: an example is what is in the box, not what was once put there, so the highlight
+    // holds exactly as long as the source does and typing over it answers for itself.
+    const [loaded, setLoaded] = useState({ id: '', source: '' })
+    const chosenExample = loaded.id !== '' && form.source === loaded.source ? loaded.id : ''
     const [outcome, setOutcome] = useState<EvaluationOutcome | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [running, setRunning] = useState(false)
     // The panel choice lives for this mount of the page and nowhere else - deliberately plain
     // state, not storage, on the same argument the organisation units page makes about its
-    // inspector rail. It opens shut: the editor arrives loaded with a runnable example already,
-    // so the screen's first job needs no panel, and the corner control is where the list waits.
-    const [examplesShown, setExamplesShown] = useState(false)
+    // inspector rail. It opens open: the editor arrives empty, so the screen's first job is
+    // picking an example or writing an expression, and the list is where that starts.
+    const [examplesShown, setExamplesShown] = useState(true)
     // The rail's dragged width - a standing preference, unlike the open/shut choice above.
     const [examplesWidth, setExamplesWidth] = useState<number>(() => storedExamplesRailWidth())
 
@@ -221,9 +220,6 @@ export function Evaluate() {
         }
     }, [])
 
-    const generic = useMemo(() => genericExamples(form.language), [form.language])
-    const presets = useMemo(() => guidePresets(form.language, served), [form.language, served])
-    const offered = useMemo(() => [...generic, ...presets], [generic, presets])
 
     // The panel browses all three languages whatever the editor speaks; the current one leads.
     const examplesByLanguage = useMemo(
@@ -289,7 +285,7 @@ export function Evaluate() {
         <>
             <PageHeader
                 title="Evaluate"
-                description="Run a FHIRPath expression, a CQL library, or a compiled ELM library against what this server serves. Pick an example to start with; every one of them runs as it stands."
+                description="Run a FHIRPath expression, a CQL library, or a compiled ELM library against what this server serves. Write your own, or pick one of the examples beside the editor - every one of them runs as it stands."
             />
 
             {/* THE EDITORS TAKE THE HEIGHT THE WINDOW HAS. An expression box is worth exactly as
@@ -329,33 +325,6 @@ export function Evaluate() {
                                                 <SelectItem key={language.value} value={language.value}>
                                                     {language.label}
                                                 </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="grid gap-1.5">
-                                    <Label htmlFor="evaluate-example">Example</Label>
-                                    <Select
-                                        value={chosenExample}
-                                        onValueChange={(value) => {
-                                            const picked = offered.find((example) => example.id === value)
-                                            if (picked !== undefined) load(picked)
-                                        }}
-                                    >
-                                        <SelectTrigger id="evaluate-example" className="w-80">
-                                            <SelectValue placeholder="Pick an example" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {exampleGroups(offered).map((shelf) => (
-                                                <SelectGroup key={shelf.group}>
-                                                    <SelectLabel>{shelf.group}</SelectLabel>
-                                                    {shelf.examples.map((example) => (
-                                                        <SelectItem key={example.id} value={example.id}>
-                                                            {example.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectGroup>
                                             ))}
                                         </SelectContent>
                                     </Select>
