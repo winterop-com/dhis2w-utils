@@ -649,15 +649,17 @@ began, and the organisation unit it sits at.
   answers: pick FHIRPath, CQL, or a compiled ELM library, pick what it runs
   over - a resource pasted below, a resource from this guide, a person this
   DHIS2 instance holds, or nothing at all - and press **Evaluate**. It opens
-  with an example already loaded, because an empty box plus an empty context
-  is two blanks to fill before anything happens. An expression that does not
+  with an empty expression over a simple Patient context, and the examples
+  panel beside the editor loads one in a click. An expression that does not
   parse is an answer here rather than an error: the server reports the line
   and the column its parser stopped on, and the screen shows that line with a
   caret under the character. See [FHIRPath](501-fhirpath.md) and
   [CQL](501-cql.md) for the languages themselves.
-- **Server** renders `/metadata` in full: the declared operations, the
-  interactions and search parameters per resource type, and the store mode
-  this process is running in, with the conformance document itself behind a
+- **Server** renders `/metadata` in full: the declared operations, and per
+  resource type the interactions, the search parameter names, and the profile
+  count, with each type's row unfolding into the server's own prose - the
+  type's paragraph and every parameter's contract, a register's filterable
+  attributes as a table. The conformance document itself sits behind a
   **Raw CapabilityStatement** toggle - this document is the facade's whole
   contract, and the tables above it show the parts a browser needed. The
   header's reachability light and the

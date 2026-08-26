@@ -43,6 +43,23 @@ test('states the interactions and search parameters per resource type', async ({
     await expect(responses).toContainText('questionnaire')
 })
 
+test("a type's row unfolds into its parameters' contracts, and holds them back until asked", async ({ page }) => {
+    // The names are ambient and the prose waits: nine types each stating every
+    // parameter's paragraph was a page nobody could scan, so the paragraph is
+    // behind the type's own chevron.
+    await page.goto('/#/server')
+
+    const identifierContract = page.getByText('The DHIS2 identifiers the resource carries', { exact: false })
+    await expect(page.getByRole('button', { name: 'Questionnaire', exact: true })).toBeVisible()
+    await expect(identifierContract).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Questionnaire', exact: true }).click()
+    await expect(identifierContract.first()).toBeVisible()
+
+    await page.getByRole('button', { name: 'Questionnaire', exact: true }).click()
+    await expect(identifierContract).toHaveCount(0)
+})
+
 test('declares $translate on ConceptMap, the type whose URL answers it', async ({ page }) => {
     // The operation is conditional on the store: the fixture IG publishes the map the option-set
     // emitter writes, so the operation a client would use is answerable and is advertised. It rides
