@@ -936,6 +936,13 @@ interface FeatureHit {
 
 /** The shape under a cursor position: a point when one is near, else the topmost boundary. */
 function featureHitAt(instance: MapLibreMap, position: Point): FeatureHit | null {
+    // The gestures register on the map for its whole life, and a cursor is often over the canvas
+    // while the style is still loading - so a query before the layers exist is a normal moment,
+    // not a failure. Querying a layer the style does not hold fires the engine's error event,
+    // which would replace the whole panel with a message about a race that resolves itself.
+    if (instance.getLayer('unit-point') === undefined || instance.getLayer('boundary-fill') === undefined) {
+        return null
+    }
     const around: [PointLike, PointLike] = [
         [position.x - POINT_HIT_RADIUS, position.y - POINT_HIT_RADIUS],
         [position.x + POINT_HIT_RADIUS, position.y + POINT_HIT_RADIUS],
