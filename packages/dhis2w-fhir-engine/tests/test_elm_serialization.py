@@ -442,10 +442,11 @@ class TestExpressionShapes:
     ) -> None:
         assert serializer.serialize_expression(expression)["type"] == node_type
 
-    def test_combine_is_emitted_as_an_n_ary_call(self, serializer: ELMSerializer) -> None:
+    def test_combine_names_its_two_parts(self, serializer: ELMSerializer) -> None:
         elm = serializer.serialize_expression("Combine({'a'}, '-')")
         assert elm["type"] == "Combine"
-        assert len(elm["operand"]) == 2
+        assert elm["source"]["type"] == "List"
+        assert elm["separator"]["value"] == "-"
 
     def test_replace_matches_names_its_three_parts(self, serializer: ELMSerializer) -> None:
         elm = serializer.serialize_expression("ReplaceMatches('a1', '[0-9]', 'x')")
@@ -949,6 +950,89 @@ class TestRetrieveSerialization:
         ]
 
 
+class TestCollectionAndFunctionShapes:
+    """The ELM shapes the schema names for list selectors, `flatten`, and a user-defined function."""
+
+    @pytest.mark.parametrize("selector", ["First", "Last"])
+    def test_a_list_selector_names_its_list_source(self, selector: str) -> None:
+        source = f"library Test\ndefine Numbers: {{ 1, 2, 3 }}\ndefine Picked: {selector}(Numbers)"
+        expression = statement(serialize_to_elm(source), "Picked")["expression"]
+        assert expression == {"type": selector, "source": {"type": "ExpressionRef", "name": "Numbers"}}
+
+    def test_the_flatten_keyword_emits_a_flatten_node(self) -> None:
+        source = "library Test\ndefine Nested: { { 1 }, { 2 } }\ndefine Flat: flatten Nested"
+        expression = statement(serialize_to_elm(source), "Flat")["expression"]
+        assert expression == {"type": "Flatten", "operand": {"type": "ExpressionRef", "name": "Nested"}}
+
+    def test_the_distinct_keyword_still_emits_a_distinct_node(self) -> None:
+        source = "library Test\ndefine Numbers: { 1, 1, 2 }\ndefine Unique: distinct Numbers"
+        expression = statement(serialize_to_elm(source), "Unique")["expression"]
+        assert expression == {"type": "Distinct", "operand": {"type": "ExpressionRef", "name": "Numbers"}}
+
+    @pytest.mark.parametrize(
+        "aggregate",
+        [
+            "Count",
+            "Sum",
+            "Avg",
+            "Min",
+            "Max",
+            "Median",
+            "Mode",
+            "Variance",
+            "PopulationVariance",
+            "StdDev",
+            "PopulationStdDev",
+            "AllTrue",
+            "AnyTrue",
+            "Product",
+            "GeometricMean",
+        ],
+    )
+    def test_every_aggregate_names_its_list_source(self, aggregate: str) -> None:
+        source = f"library Test\ndefine Numbers: {{ 1, 2, 3 }}\ndefine Folded: {aggregate}(Numbers)"
+        expression = statement(serialize_to_elm(source), "Folded")["expression"]
+        assert expression == {"type": aggregate, "source": {"type": "ExpressionRef", "name": "Numbers"}}
+
+    def test_index_of_names_its_list_source_and_its_needle_element(self) -> None:
+        source = "library Test\ndefine Numbers: { 1, 2 }\ndefine Where: IndexOf(Numbers, 2)"
+        expression = statement(serialize_to_elm(source), "Where")["expression"]
+        assert expression == {
+            "type": "IndexOf",
+            "source": {"type": "ExpressionRef", "name": "Numbers"},
+            "element": {"type": "Literal", "valueType": f"{ELM_TYPE}Integer", "value": "2"},
+        }
+
+    def test_combine_without_a_separator_states_only_its_source(self) -> None:
+        source = "library Test\ndefine Parts: { 'a', 'b' }\ndefine Joined: Combine(Parts)"
+        expression = statement(serialize_to_elm(source), "Joined")["expression"]
+        assert expression == {"type": "Combine", "source": {"type": "ExpressionRef", "name": "Parts"}}
+
+    def test_a_function_body_refers_to_its_parameter_as_an_operand(self) -> None:
+        source = 'library Test\ndefine function "Doubled"(value Integer): value * 2'
+        expression = statement(serialize_to_elm(source), "Doubled")["expression"]
+        assert expression["operand"][0] == {"type": "OperandRef", "name": "value"}
+
+    def test_a_name_outside_the_function_stays_an_expression_reference(self) -> None:
+        source = 'library Test\ndefine Base: 2\ndefine function "Scaled"(value Integer): value * Base'
+        expression = statement(serialize_to_elm(source), "Scaled")["expression"]
+        assert expression["operand"] == [
+            {"type": "OperandRef", "name": "value"},
+            {"type": "ExpressionRef", "name": "Base"},
+        ]
+
+    def test_a_query_alias_inside_a_function_body_shadows_nothing_it_should_not(self) -> None:
+        source = (
+            "library Test\ndefine Numbers: { 1, 2 }\n"
+            'define function "Scaled"(factor Integer): Numbers N return N * factor'
+        )
+        expression = statement(serialize_to_elm(source), "Scaled")["expression"]
+        assert expression["return"]["expression"]["operand"] == [
+            {"type": "AliasRef", "name": "N"},
+            {"type": "OperandRef", "name": "factor"},
+        ]
+
+
 class TestJSONOutput:
     """JSON rendering and the module-level convenience functions."""
 
@@ -1097,6 +1181,86 @@ class TestLibraryRoundTrip:
 
         assert from_elm.evaluate_definition("Q") == [2, 3]
         assert from_elm.evaluate_definition("Q") == from_cql.evaluate_definition("Q")
+
+    @pytest.mark.parametrize(
+        ("expression", "expected"),
+        [
+            ("First({ 1, 2, 3 })", 1),
+            ("Last({ 1, 2, 3 })", 3),
+            ("First({})", None),
+            ("Last({})", None),
+            ("flatten { { 1, 2 }, { 3, 4 } }", [1, 2, 3, 4]),
+            ("distinct { 1, 1, 2 }", [1, 2]),
+            ("First(flatten { { 5, 6 }, { 7 } })", 5),
+            ("Last(distinct { 1, 2, 2 })", 2),
+            ("IndexOf({ 10, 20, 30 }, 20)", 1),
+            ("IndexOf({ 10, 20 }, 99)", -1),
+            ("IndexOf('Hello World', 'World')", 6),
+            ("Combine({ 'a', 'b' }, '-')", "a-b"),
+            ("Combine({ 'a', 'b' })", "ab"),
+            ("Median({ 1, 2, 3 })", 2),
+            ("Mode({ 1, 1, 2 })", 1),
+            ("AllTrue({ true, true })", True),
+            ("AnyTrue({ false, true })", True),
+            ("Product({ 2, 3, 4 })", 24),
+        ],
+    )
+    def test_a_collection_expression_answers_the_same_from_cql_and_from_elm(
+        self, expression: str, expected: Any
+    ) -> None:
+        source = f"library RoundTrip\ndefine Answer: {expression}"
+
+        from_cql = CQLEvaluator()
+        from_cql.compile(source)
+        from_elm = ELMEvaluator()
+        from_elm.load(serialize_to_elm_json(source))
+
+        assert from_elm.evaluate_definition("Answer") == expected
+        assert from_elm.evaluate_definition("Answer") == from_cql.evaluate_definition("Answer")
+
+    def test_a_defined_function_answers_the_same_from_cql_and_from_elm(self) -> None:
+        source = """
+            library RoundTrip
+            define function "Doubled"(value Integer): value * 2
+            define "Doubled Three": "Doubled"(3)
+        """
+
+        from_cql = CQLEvaluator()
+        from_cql.compile(source)
+        from_elm = ELMEvaluator()
+        from_elm.load(serialize_to_elm_json(source))
+
+        assert from_elm.evaluate_definition("Doubled Three") == 6
+        assert from_elm.evaluate_definition("Doubled Three") == from_cql.evaluate_definition("Doubled Three")
+
+    def test_list_selectors_flatten_and_a_defined_function_agree_across_the_round_trip(self) -> None:
+        source = """
+            library RoundTrip version '1.0'
+            define "Dose Numbers": { 1, 2, 3 }
+            define "First Dose": First("Dose Numbers")
+            define "Last Dose": Last("Dose Numbers")
+            define "Nested Doses": { { 1, 2 }, { 3, 4 } }
+            define "Flat Doses": flatten "Nested Doses"
+            define function "Doubled"(value Integer): value * 2
+            define "Doubled First": "Doubled"(First("Dose Numbers"))
+            define "Doubled Flat": "Dose Numbers" N return "Doubled"(N)
+        """
+        compared = ("First Dose", "Last Dose", "Flat Doses", "Doubled First", "Doubled Flat")
+
+        from_cql = CQLEvaluator()
+        from_cql.compile(source)
+        from_elm = ELMEvaluator()
+        from_elm.load(serialize_to_elm_json(source))
+
+        from_elm_answers = {name: from_elm.evaluate_definition(name) for name in compared}
+        assert from_elm_answers == {
+            "First Dose": 1,
+            "Last Dose": 3,
+            "Flat Doses": [1, 2, 3, 4],
+            "Doubled First": 2,
+            "Doubled Flat": [2, 4, 6],
+        }
+        assert from_elm_answers == {name: from_cql.evaluate_definition(name) for name in compared}
 
     def test_private_definitions_are_skipped_after_a_round_trip(self) -> None:
         source = """
