@@ -96,7 +96,8 @@ export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
  * Python side: this must stay equal to `/metadata`, `/spool`, `/uiconfig`, the
  * `/tracked-entities/{uid}/enrollments` listing, `/evaluate`, the two
  * `/terminology/*` reads, and `/cds-services`. The vite dev-server proxy in
- * vite.config.ts proxies the same list.
+ * vite.config.ts proxies the same list, plus the `/$evaluate` operation
+ * `SERVICE_BASE_OPERATION_PATTERN_SOURCE` lets through.
  *
  * The FHIR resource types are not in it, and cannot be. The read catch-all
  * answers `/{ResourceType}` for the types the store holds, and the register
@@ -131,16 +132,27 @@ export const WHOAMI_PATH = '/whoami'
 export const RESOURCE_TYPE_PATTERN_SOURCE = '[A-Z][A-Za-z]*'
 
 /**
+ * How FHIR spells an operation the service base answers: a `$`, then the operation's name.
+ *
+ * `POST /$evaluate` is the one this server mounts, ahead of the read catch-alls for the reason
+ * `dhis2w_fhir_serve.routes.evaluate_operation` states - `/{resource_type}` matches `/$evaluate`
+ * just as happily. A resource type's own operations need no rule of their own: they hang off a
+ * type, so `/ConceptMap/$translate` passes as a ConceptMap path already.
+ */
+export const SERVICE_BASE_OPERATION_PATTERN_SOURCE = String.raw`\$[a-z]+`
+
+/**
  * The guard itself.
  *
- * A path passes when it is exactly one of the fixed segments or a FHIR resource
- * type, or continues with `/` (a resource id, an operation) or `?` (a search).
+ * A path passes when it is exactly one of the fixed segments, a FHIR resource
+ * type, or a system-level operation, or continues with `/` (a resource id, an
+ * operation) or `?` (a search).
  * Everything the UI is served from - `/`, `/index.html`, `/assets/...` - is
  * lowercase and unlisted, which is what the guard is for: a request that would
  * otherwise be answered with the shell instead of with JSON.
  */
 export const GUARDED_PATH_PATTERN = new RegExp(
-    `^/(${[...GUARDED_PATH_SEGMENTS, RESOURCE_TYPE_PATTERN_SOURCE].join('|')})([/?]|$)`,
+    `^/(${[...GUARDED_PATH_SEGMENTS, RESOURCE_TYPE_PATTERN_SOURCE, SERVICE_BASE_OPERATION_PATTERN_SOURCE].join('|')})([/?]|$)`,
 )
 
 /** Where the API lives and what it is reached with; both have same-origin defaults. */

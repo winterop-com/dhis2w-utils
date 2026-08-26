@@ -30,6 +30,7 @@ const proxiedPaths = [
     '/whoami',
     '/tracked-entities',
     '/evaluate',
+    '/$evaluate',
     '/terminology',
     '/cds-services',
     '/Patient',
