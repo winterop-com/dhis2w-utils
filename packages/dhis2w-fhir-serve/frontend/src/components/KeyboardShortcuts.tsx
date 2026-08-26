@@ -1,56 +1,18 @@
-import { useMemo } from 'react'
-
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { Kbd, KbdGroup } from '@/components/ui/kbd'
-import { applePlatform, shortcuts, SHORTCUTS_DESCRIPTION, SHORTCUTS_TITLE } from '@/lib/shortcuts'
+import { SettingsDialog } from '@/components/SettingsDialog'
 
 /**
- * Every key this app answers, on screen.
+ * The way into the keys: the settings dialog, opened at the section that lists them.
  *
  * THE LIST EXISTS BECAUSE THE CHORDS DID NOT ANNOUNCE THEMSELVES. Cmd+K has opened the palette for
  * as long as there has been one, and the only thing that ever said so was a hint on one button -
- * which is to say most people never found it. `?` puts the whole list up, and the settings menu
- * carries a row into the same dialog for anybody who would never press a bare key to find out.
+ * which is to say most people never found it. `?` puts the list up, and the command palette carries
+ * a row to the same place for anybody who would never press a bare key to find out.
  *
- * WHAT IT IS AND IS NOT. Each row is what the press does in plain language, and the keys beside it
- * drawn as keys. No command names, no key names inside the sentence: a reader is being told what
- * happens, and the chord is the thing to the right of that.
- *
- * The keys are spelled for the keyboard in front of the reader - the command glyph on an Apple one,
- * the word Ctrl everywhere else - which is the same rule the palette button's own hint follows.
+ * ONE DIALOG, NOT TWO. The keys are a section of Settings rather than a dialog of their own: a
+ * person who opens the gear should meet everything this app lets them set, and a second overlay
+ * holding one list would be a second place to look. So this is the same `SettingsDialog` the gear
+ * opens, told which section the reader asked for - it scrolls there and hands its heading focus.
  */
 export function KeyboardShortcuts({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-    // The user agent does not change under a running tab, so this is read once rather than per row.
-    const rows = useMemo(() => shortcuts(applePlatform(navigator.userAgent)), [])
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="sm:max-w-md"
-                onCloseAutoFocus={(event) => {
-                    event.preventDefault()
-                }}
-            >
-                <DialogTitle>{SHORTCUTS_TITLE}</DialogTitle>
-                <DialogDescription>{SHORTCUTS_DESCRIPTION}</DialogDescription>
-                <dl className="grid gap-1">
-                    {rows.map((shortcut) => (
-                        <div
-                            key={shortcut.id}
-                            className="flex items-center justify-between gap-6 rounded-md px-2 py-1.5 odd:bg-muted/40"
-                        >
-                            <dt>{shortcut.action}</dt>
-                            <dd>
-                                <KbdGroup>
-                                    {shortcut.keys.map((key) => (
-                                        <Kbd key={key}>{key}</Kbd>
-                                    ))}
-                                </KbdGroup>
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
-            </DialogContent>
-        </Dialog>
-    )
+    return <SettingsDialog open={open} onOpenChange={onOpenChange} section="shortcuts" />
 }
