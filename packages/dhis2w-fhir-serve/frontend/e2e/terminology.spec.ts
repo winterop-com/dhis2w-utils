@@ -99,9 +99,10 @@ test('the listing filter reaches into the codes and names the system that holds 
     const owner = page.getByRole('row').filter({ hasText: 'd2-de-cs' })
     await expect(owner).toHaveCount(1)
     await expect(owner).toContainText('1 matching code')
-    // The shelf counter says how much of the shelf survived the filter, and shelves the filter
-    // emptied step aside rather than each stating an absence.
-    await expect(page.getByText(/^1 of \d+$/)).toBeVisible()
+    // The shelf counter says how much of the shelf survived the filter, in the noun of the tab it
+    // is on - a bare count under a shelf headed by a DHIS2 origin counts the wrong thing. Shelves
+    // the filter emptied step aside rather than each stating an absence.
+    await expect(page.getByText(/^1 of \d+ code systems$/)).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Option sets' })).toHaveCount(0)
 })
 

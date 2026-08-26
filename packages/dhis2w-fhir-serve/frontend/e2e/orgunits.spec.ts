@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 /**
  * The organisation-unit browser, against the registry the fixture project really publishes.
@@ -48,48 +48,61 @@ async function generateAndPost(request: APIRequestContext, questionnaireId: stri
     return location.split('/').pop() ?? ''
 }
 
+/**
+ * The tree pane, scoped away from the rail's own.
+ *
+ * The details rail opens on arrival with the selected unit's Children section in it, and that
+ * section is a mini tree of the same rows under the same names - so a unit name unscoped names two
+ * buttons on this page. Every assertion about the hierarchy pane says which pane it is about.
+ */
+const hierarchyPane = (page: Page) => page.getByTestId('hierarchy')
+
 test('the tree renders the roots and expands on demand', async ({ page }) => {
     await page.goto('/#/organisation-units')
+    const hierarchy = hierarchyPane(page)
 
     await expect(page.getByRole('heading', { name: 'Organisation units', level: 2 })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Sierra Leone', exact: true })).toBeVisible()
+    await expect(hierarchy.getByRole('button', { name: 'Sierra Leone', exact: true })).toBeVisible()
 
     // Adonkia CHP names a parent this project never published, so it is a root of its own.
-    await expect(page.getByRole('button', { name: 'Adonkia CHP', exact: true })).toBeVisible()
+    await expect(hierarchy.getByRole('button', { name: 'Adonkia CHP', exact: true })).toBeVisible()
     await expect(page.getByText('name a parent this project did not publish')).toBeVisible()
 
     // The registry also publishes the profile exemplar, which claims Sierra Leone's uid and hangs
     // off nothing. One unit, one row - not two roots with the same name.
-    await expect(page.getByRole('button', { name: 'Sierra Leone', exact: true })).toHaveCount(1)
+    await expect(hierarchy.getByRole('button', { name: 'Sierra Leone', exact: true })).toHaveCount(1)
     // Scoped to the page: the summary bar states the same count at the foot of the window.
     await expect(page.getByTestId('page-content').getByText('10 organisation units')).toBeVisible()
 
     // The page opens on the root selected and EXPANDED - the districts are on screen without a
     // click. Lazy expansion still holds below them: a district's own children stay unrendered.
-    await expect(page.getByRole('button', { name: 'Bo', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Bombali', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Ngelehun CHC', exact: true })).toHaveCount(0)
+    await expect(hierarchy.getByRole('button', { name: 'Bo', exact: true })).toBeVisible()
+    await expect(hierarchy.getByRole('button', { name: 'Bombali', exact: true })).toBeVisible()
+    await expect(hierarchy.getByRole('button', { name: 'Ngelehun CHC', exact: true })).toHaveCount(0)
 
     // Collapsing the root takes the districts off screen - expansion is still the reader's to undo.
-    await page.getByRole('button', { name: 'Collapse Sierra Leone' }).click()
-    await expect(page.getByRole('button', { name: 'Bo', exact: true })).toHaveCount(0)
+    await hierarchy.getByRole('button', { name: 'Collapse Sierra Leone' }).click()
+    await expect(hierarchy.getByRole('button', { name: 'Bo', exact: true })).toHaveCount(0)
 
-    await page.getByRole('button', { name: 'Expand Sierra Leone' }).click()
-    await expect(page.getByRole('button', { name: 'Bo', exact: true })).toBeVisible()
+    await hierarchy.getByRole('button', { name: 'Expand Sierra Leone' }).click()
+    await expect(hierarchy.getByRole('button', { name: 'Bo', exact: true })).toBeVisible()
 })
 
 test('the filter opens the ancestors of what it matches', async ({ page }) => {
     await page.goto('/#/organisation-units')
+    const hierarchy = hierarchyPane(page)
 
     await page.getByRole('textbox', { name: 'Filter organisation units' }).fill('Ngelehun')
 
     // Ngelehun sits three levels down; the districts above it are shown so it is not detached.
-    await expect(page.getByRole('button', { name: 'Ngelehun CHC', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Badjia', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Bombali', exact: true })).toHaveCount(0)
+    await expect(hierarchy.getByRole('button', { name: 'Ngelehun CHC', exact: true })).toBeVisible()
+    await expect(hierarchy.getByRole('button', { name: 'Badjia', exact: true })).toBeVisible()
+    // The filter is the tree pane's own, so what it excludes is excluded there - the rail's
+    // Children section goes on listing the selection's children whatever is typed here.
+    await expect(hierarchy.getByRole('button', { name: 'Bombali', exact: true })).toHaveCount(0)
 
     await page.getByRole('textbox', { name: 'Filter organisation units' }).fill('OU_BOMBALI')
-    await expect(page.getByRole('button', { name: 'Bombali', exact: true })).toBeVisible()
+    await expect(hierarchy.getByRole('button', { name: 'Bombali', exact: true })).toBeVisible()
 
     await page.getByRole('textbox', { name: 'Filter organisation units' }).fill('nothing matches this')
     await expect(page.getByText('No organisation unit matches that filter.')).toBeVisible()
@@ -118,8 +131,9 @@ test('the rail starts open, folds away on the toggle, and names itself while fol
 test('selecting a unit fills the inspector, and puts the unit in the address', async ({ page }) => {
     await page.goto('/#/organisation-units')
 
-    // The root arrives expanded, so Bo is one click away.
-    await page.getByRole('button', { name: 'Bo', exact: true }).click()
+    // The root arrives expanded, so Bo is one click away - in the tree pane, which is where a
+    // selection is made. The rail's Children section holds a row of the same name beside it.
+    await hierarchyPane(page).getByRole('button', { name: 'Bo', exact: true }).click()
 
     await expect(page).toHaveURL(/#\/organisation-units\?unit=O6uvpzGd5pu$/)
     await expect(page.getByRole('heading', { name: 'Bo', level: 3 })).toBeVisible()
