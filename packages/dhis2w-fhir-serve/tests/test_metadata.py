@@ -89,6 +89,8 @@ async def test_metadata_lists_only_the_read_types_the_store_holds(client: httpx.
         "Organization",
         "StructureDefinition",
         "ImplementationGuide",
+        # Held by every run, whatever the guide publishes: the facade's own $evaluate definition.
+        "OperationDefinition",
     ]
     assert "ValueSet" not in types
     assert "Location" not in types
@@ -111,10 +113,14 @@ async def test_metadata_declares_the_conformance_resources_the_guide_publishes(
 async def test_metadata_declares_no_conformance_type_the_store_does_not_hold(
     client: httpx.AsyncClient,
 ) -> None:
-    """The compiled fixture publishes no operation definition, so no entry claims one is readable."""
+    """A conformance type nothing holds is not declared - SearchParameter, which no run publishes.
+
+    OperationDefinition stopped being the example: the facade's own $evaluate definition rides
+    every store, so that type is now always held and always declared.
+    """
     types = _resource_types(await _metadata(client))
 
-    assert "OperationDefinition" not in types
+    assert "SearchParameter" not in types
 
 
 async def test_the_questionnaire_search_parameter_states_how_it_matches(client: httpx.AsyncClient) -> None:
