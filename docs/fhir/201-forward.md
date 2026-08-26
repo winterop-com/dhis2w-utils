@@ -446,6 +446,11 @@ last time that payload was posted, which is still true of that post and is the
 only record of what the receipt was requeued from. The next drain writes a
 fresh report wherever the receipt lands.
 
+A requeued receipt reads as one no drain has refused. Requeueing is the one way
+a receipt enters the queue from another state, so any `<id>.refusal.json` still
+sitting in `received/` under its name is a leftover - a drain killed between
+filing the receipt and clearing its marker - and the move deletes it.
+
 Like `d2w fhir spool`, this needs no DHIS2 connection: it is a rename inside
 the project directory.
 

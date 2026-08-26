@@ -353,8 +353,9 @@ carries are the ones that stopped it losing work quietly.
   `<id>.refusal.json` beside a receipt it refused and left queued - the drain's
   instant, an attempt count, and the reasons - so the listing and the Responses
   page tell a receipt every drain refuses from one no drain has touched. The
-  move that finally drains the receipt deletes the marker; a dry run writes
-  none.
+  move that finally drains the receipt deletes the marker, and so does the
+  requeue that brings a receipt back into the queue, since a receipt entering
+  the queue has been refused by no drain; a dry run writes none.
 - **Reads are paged**, on the cursor idiom the register uses, and run off the
   event loop.
 

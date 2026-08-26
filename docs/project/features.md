@@ -2120,7 +2120,8 @@ in phases that stop at the first level to find an error.
   drain's instant, an attempt count, and the reasons - and `/spool` rows and
   the Responses page state it, so a receipt every drain refuses reads
   differently from one no drain has touched. The move that finally drains the
-  receipt deletes the marker.
+  receipt deletes the marker, and so does `d2w fhir requeue` - a receipt
+  entering the queue has been refused by no drain.
 - **A capture is durable before it is acknowledged**: the temporary file is
   `fsync`ed, renamed, and the directory entry `fsync`ed too, so the 201
   promises a receipt that survives power loss rather than one that reached the
@@ -3361,9 +3362,11 @@ Two operator verbs sit beside the drain and touch no instance at all.
   `SpoolStateReport`.
 - **`d2w fhir requeue <id>... | --all-rejected`** renames refused receipts back
   into `received/` for the next drain, leaving the import report behind in
-  `rejected/` as the record of what DHIS2 last answered about that payload, and
-  refusing an id that is not there before anything moves - so a run of five
-  never leaves an operator working out which three it reached.
+  `rejected/` as the record of what DHIS2 last answered about that payload,
+  clearing any leftover `<id>.refusal.json` in `received/` so the requeued
+  receipt reads as one no drain has refused, and refusing an id that is not
+  there before anything moves - so a run of five never leaves an operator
+  working out which three it reached.
 - **`d2w fhir spool` states four states**, `withdrawn/` beside the three the
   drain files into.
 - **Neither opens a client nor needs a profile**, because every fact either
