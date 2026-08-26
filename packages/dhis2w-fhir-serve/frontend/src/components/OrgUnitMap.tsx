@@ -230,7 +230,7 @@ export interface OrgUnitMapProps {
      * so the caller can hand the same frozen empty array on every no-selection render: a change of
      * identity here is what re-frames the camera and closes the popup. */
     focusUnitIds: readonly string[]
-    /** Select one unit: where a right-click on a shape and the popup's Open action both land. */
+    /** Select one unit: where a right-click on a shape and the popup's Select action both land. */
     onSelect: (unitId: string) => void
 }
 
@@ -827,7 +827,7 @@ function applyLayers(
  * The two gestures, registered on the map once and for the life of it.
  *
  * LEFT-CLICK ASKS, RIGHT-CLICK MOVES. A left-click on any shape opens the popup naming its unit,
- * with Open as the deliberate step into it - unless the map is still too far out for the click to
+ * with Select as the deliberate step into it - unless the map is still too far out for the click to
  * have meant one shape, in which case it eases a step in toward the click instead: progressive
  * drill, popup once the features read. A right-click is the drill-down whatever the zoom, and
  * selects outright. Registered on the map rather than per layer so the gestures share one answer to
@@ -1040,14 +1040,14 @@ function popupElement(content: UnitPopupContent, onOpen: () => void): HTMLElemen
         line.textContent = `${identifier.label} ${identifier.value}`
         root.append(line)
     }
-    const open = document.createElement('button')
-    open.type = 'button'
-    open.dataset.testid = 'org-unit-map-popup-open'
-    open.className = 'interactive-link mt-1 block text-sm'
-    open.textContent = 'Open'
-    open.setAttribute('aria-label', 'Open this organisation unit')
-    open.addEventListener('click', onOpen)
-    root.append(open)
+    const select = document.createElement('button')
+    select.type = 'button'
+    select.dataset.testid = 'org-unit-map-popup-select'
+    select.className = 'interactive-link mt-1 block text-sm'
+    select.textContent = 'Select'
+    select.setAttribute('aria-label', 'Select this organisation unit')
+    select.addEventListener('click', onOpen)
+    root.append(select)
     return root
 }
 

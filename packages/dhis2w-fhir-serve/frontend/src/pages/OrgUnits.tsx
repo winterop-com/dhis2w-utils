@@ -231,8 +231,6 @@ export function OrgUnits() {
         (unitId: string) => {
             const next = new URLSearchParams(parameters)
             next.set(UNIT_PARAM, unitId)
-            // Picking the unit already picked is not going anywhere; it only opens the rail, which
-            // is what the two lines below do either way.
             // Push rather than replace: picking a unit is a discrete choice, and the whole screen -
             // the rail, the map's framing, the shelves - is derived from it, so Back is the way back
             // to the unit that was open before. A tree click is not typing; it is going somewhere.
@@ -244,6 +242,25 @@ export function OrgUnits() {
             railPanel.current?.expand()
         },
         [parameters, setParameters, railPanel],
+    )
+
+    // CLICKING THE SELECTED ROW AGAIN UNSELECTS. The tree row is a toggle, the way a filter chip
+    // is: the second click asks for the whole registry back - no unit in the address, the rail
+    // shut, the map framing everything. The map popup's Select stays plain select, because a
+    // person pressing a button that says Select means select, however the page currently stands.
+    const toggleSelect = useCallback(
+        (unitId: string) => {
+            if (selected?.id !== unitId) {
+                select(unitId)
+                return
+            }
+            const next = new URLSearchParams(parameters)
+            next.delete(UNIT_PARAM)
+            setParameters(next)
+            setRailOpen(false)
+            railPanel.current?.collapse()
+        },
+        [selected, select, parameters, setParameters, railPanel],
     )
 
     const expanded = useMemo(() => {
@@ -307,7 +324,7 @@ export function OrgUnits() {
                     selectedId={selected?.id ?? null}
                     expanded={expanded}
                     filtered={query.trim() === '' ? null : filtered}
-                    onSelect={select}
+                    onSelect={toggleSelect}
                 />
                 {tree.orphanCount > 0 && (
                     <p className="text-muted-foreground text-xs">
