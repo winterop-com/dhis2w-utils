@@ -178,21 +178,97 @@ as one column on a laptop split in two and as three or four on a wide screen.
 A narrative, a section, and a question that takes several answers each keep a
 line of their own.
 
-**A run of data elements cut the same way is one table.** An aggregate data
-set nests a question per category option combo under a group per data element,
-so fourteen elements cut by four age bands is fifty-six questions - and
-stacked, each with its own label, its own uid and its own row, that is a
-screen nobody reads to the bottom of. The elements share one ordered set of
-combos, which is what a header row states once: the data elements are the
-rows, the combos are the columns, the answer is the cell where they meet, and
-every uid is on screen exactly once - the column's in its header, the
-element's beside its name. It is the shape DHIS2's own data entry uses.
+**A run of data elements cut the same way is one block, and how wide the cut is
+decides its shape.** An aggregate data set nests a question per category option
+combo under a group per data element, so fourteen elements cut by four age bands
+is fifty-six questions - and stacked, each with its own label, its own uid and
+its own row, that is a screen nobody reads to the bottom of.
 
-An element cut differently opens its own table, and an element whose cells are
-coded, dated or narrative answers stays stacked - a table cell is a box a
-number fits in. Whichever shape a run is drawn in, the keyboard walks it in
-document order and every cell keeps its own linkId: a capture filled in
-through a table is the same QuestionnaireResponse the stack produced.
+*Up to four combos, the run is a table.* The elements share one ordered set of
+combos, which is what a header row states once: the data elements are the rows,
+the combos are the columns, and the answer is the cell where they meet. It is
+the shape DHIS2's own data entry uses. Each cell is a box a count fits in rather
+than a borderless slot, the rows are striped, and the table sits in a bordered
+box of its own.
+
+*Every row closes with what it currently adds up to.* A **Total** column, muted
+beside the boxes it sums, recomputed as they are typed in - the arithmetic a
+clerk was going to do on paper anyway, and how a 1370 typed where 137 was meant
+is caught at the desk rather than in a DHIS2 validation rule a fortnight later.
+None of it is submitted: a data set's own totals are DHIS2's to compute. A row
+nobody has typed in has no total, because a zero there would be a claim of zero
+made on behalf of whoever had not filled it in; a blank beside a figure counts
+as nothing rather than as zero; and a box holding something that is not a number
+leaves no figure at all, rather than a total that quietly disagrees with what is
+on screen. A run whose cells are not one element cut several ways - a section of
+plain numeric data elements reaches this shape too - is drawn without any total,
+because adding live births to bed nets is not a figure.
+
+*A cut over two categories is banded first.* Such a combo writes both categories
+into its name - `Female, under 15y` - and one table over all of them is wider
+than any screen. The category with fewer options becomes a band - a
+headed box per value, the value on the band - and the other stays the columns:
+Female's four ages, then Male's. At most six options become bands, and only
+where every band ends up with the same options of every remaining category; a cut over two large categories has no band form at all. The band is
+part of the table shape rather than an alternative to it, so eight combos that
+band into two fours are still a table - twice.
+
+**None of that reads the combo's name.** A DHIS2 admin can reorder the categories
+inside a category combo - gender then age one day, age then gender the next - and
+when they do, every combo in it is renamed and DHIS2 expands the cells in a
+different order. A screen that read `Female, under 15y` would band by gender one
+day and by age the next: the same data set drawn two entirely different ways. So
+the band is chosen from the *set* of categories the served combo vocabulary
+publishes for each combo - which category, which option, by uid - counting
+options and breaking a tie on the category's name. The bands and their rows are
+then put back in each category's own option order, which is the one ordering a
+reorder leaves alone, so `under 15y` still precedes `over 49y`. Two spellings of
+one cut are the same screen. A combo whose vocabulary has not been read yet, or
+which decomposes over a single category, simply has no band form.
+
+*Wider than four, the run is rows.* Each element gets a box of its own, its name
+on the band across the top, and one line per combo under it: the combo on the
+left, its box on the right. Nothing scrolls sideways at any width, which is the
+whole reason this shape exists. Past about ten lines they wrap into two column
+groups and past two dozen into three, so the band stays in view while the last
+box is reached. Under a facet band the lines carry only the category the band did
+not name, because a line reading `Female, Afghanistan` under a band reading
+*Female* states the gender twice. What the element currently adds up to reads on
+the right of its band - *Total 226* - over every line it has, filtered or not.
+
+*From thirty lines, the band gains two ways of getting to one of them.* A box
+that narrows the lines by name as you type - *Filter 96 Facility*, where the cut
+names a single category - and an *Unfilled only* tick that leaves the lines still
+waiting for a value. Both sit on the band they narrow, so the way to a line is
+never a screen above it, and every band of the run answers to what is typed into
+any of them. Both hide lines from the screen and do nothing else: a line that is
+hidden keeps its answer, and emptying the box brings every line back with its
+value in it.
+
+**One switch on each run overrides the ladder.** It sits on the run's own strip,
+beside what the run is cut by - one per run, never one per band - and says what
+pressing it does: *Show as rows* on a table, *Show as columns* on a list of rows.
+The choice is remembered per run in this browser, so a form reopened is drawn the
+way it was left, and a run nobody has an opinion about follows the ladder. A cut
+no arrangement makes a table of - more than a dozen columns however it is banded -
+offers no switch, because there is nothing to switch to.
+
+**No uids inside a run.** Every cell of a table belongs to a data element and a
+category option combo that both have one, and a chip on each would put fifty-six
+identifiers on a screen whose whole purpose is fifty-six numbers. The uids stay
+where somebody looking for one goes: the form's own heading, the API view, and
+the raw response.
+
+What every cell of the run accepts is stated once for the run, beside the
+categories it is cut by: *0 or more* under a table is one fact, not one fact per
+cell. Where the elements of a run differ, each cell states its own.
+
+An element cut differently opens its own run, and an element whose cells are
+coded, dated or narrative answers stays stacked - a table cell is a box a number
+fits in. Whichever shape a run is drawn in, the keyboard walks it in document
+order and every cell keeps its own linkId: a capture filled in as rows is the
+same QuestionnaireResponse the table produced, and so is one filled in under a
+filter.
 
 DHIS2 holds more about a form than R4 has elements for, and a generated form
 carries the rest as extensions the screen reads:
@@ -206,7 +282,9 @@ carries the rest as extensions the screen reads:
   which names one corner of a grid and never says which grid, so the axes are
   stated once. They are joined from the served combo vocabulary's own property
   declarations, in the order DHIS2 declares the category combo: nothing here
-  sorts a decomposition, or a combo expansion.
+  sorts a decomposition, or a combo expansion. This line is the one place a
+  reordered category combo still shows - it names the same categories the other
+  way round - while the shape the run is drawn in does not move.
 - **A stage form says whether it repeats** - *Repeats: each visit is its own
   record* - where the form describes itself, and on its row in the forms
   listing. A form declaring nothing states nothing.
@@ -326,13 +404,24 @@ sit above the questions - both visible in the screenshot:
   than a form waiting to be filled in.
 - On an aggregate form, the **Reporting period** the submission reports for is
   required too, and knows what to ask for: the form declares its data set's
-  DHIS2 period type, so the box opens with that shape as its placeholder and
-  the worked example beneath it. `Daily`, `Weekly`, `BiWeekly`, `Monthly`,
-  `BiMonthly`, `Quarterly`, `SixMonthly` and `Yearly` are checked in the
-  browser, so `july` is refused under the cursor rather than after a round
-  trip; the offset weeks (`2026WedW30`) and the financial years (`2026April`)
-  spell their offset into the identifier and are accepted as typed rather than
-  half-checked, and the server's refusal names both types.
+  DHIS2 period type, so the control offers recent periods *of that type* - the
+  current one and the twelve before it, or eight quarters, or five years - in
+  the words a person reports in, *July 2026*, with the identifier DHIS2 keys by
+  beside it. Most recent first; the control opens on the period the draft
+  states, which is the last complete one. `Daily`, `Weekly`, `Monthly`,
+  `BiMonthly`, `Quarterly`, `SixMonthly` and `Yearly` are counted back through
+  the calendar; a week is named by its ISO number and the Monday it opens on,
+  *Week 34, 2026 (starts Mon 17 Aug)*.
+- **Other period** takes any period at all. It opens the identifier box, with
+  the type's shape as the placeholder and the worked example beneath it - which
+  is what a figure corrected two years later is stated in, and what a period
+  type with no list arrives as. `BiWeekly`, the offset weeks (`2026WedW30`) and
+  the financial years (`2026April`) number themselves from an offset this UI
+  does not hold, so it offers no list of them rather than a list of periods
+  DHIS2 might not have. The shapes are still checked in the browser, so `july`
+  is refused under the cursor rather than after a round trip; a type with no
+  shape stated is accepted as typed and graded by the server, whose refusal
+  names both types.
 
 A tracker registration form shows a third block: the enrollment it is about to
 file - when it begins, the incident date when the program collects one, and

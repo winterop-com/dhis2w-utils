@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useEnrollmentOptions } from '@/hooks/use-enrollment-options'
 import { useFormOrgUnitScope } from '@/hooks/use-org-unit-scope'
@@ -73,6 +74,7 @@ import {
     periodShape,
     programRulesOf,
     questionCodeSystemIds,
+    recentPeriods,
     refilledAttributeOptionCombo,
     refilledEnrollment,
     refilledReportingUnit,
@@ -863,6 +865,7 @@ const VISIT_DATE_CONTROL_ID = 'capture-visit-date'
 const ENROLLMENT_DATE_CONTROL_ID = 'capture-enrollment-date'
 const INCIDENT_DATE_CONTROL_ID = 'capture-incident-date'
 const REPORTING_PERIOD_CONTROL_ID = 'capture-reporting-period'
+const REPORTING_PERIOD_CHOICE_ID = 'capture-reporting-period-choice'
 
 /** Where a chosen reporting organisation unit is kept: one browser tab, and no longer. */
 const KEPT_REPORTING_UNIT_KEY = 'dhis2w-capture-reporting-organisation-unit'
@@ -944,27 +947,40 @@ function InstantField({
     )
 }
 
+/** The choice at the foot of the period list, and what it says: any period at all, typed. */
+const OTHER_PERIOD_CHOICE = 'other-period'
+const OTHER_PERIOD_LABEL = 'Other period'
+
 /**
  * The DHIS2 period an aggregate submission reports for.
  *
- * A TEXT BOX AND NOT A CALENDAR, because a DHIS2 period is an identifier rather than a date:
- * `202607` is July 2026, `2026W30` is a week, `2026April` is a financial year opening in April. The
- * type is the data set's own and is stated rather than asked - a monthly data set reports monthly -
- * so what a person edits is which period of that type, and the placeholder is the worked example of
- * how to spell one.
+ * A LIST OF RECENT PERIODS, BECAUSE THAT IS WHAT ANYBODY REPORTS FOR. The type is the data set's own
+ * and is stated rather than asked - a monthly data set reports monthly - so the only open question is
+ * which July, and the answer is nearly always the month that just ended. The list counts back from
+ * today in the words a person reports in, *July 2026* rather than `202607`, and stores the identifier
+ * DHIS2 keys by. It is not a calendar: a period is an identifier, not a date range, and resolving one
+ * into days is DHIS2 period arithmetic the server owns.
+ *
+ * AND A WAY TO TYPE ANY OTHER ONE. Nothing about the list is a claim that the periods outside it are
+ * unreportable - a figure corrected two years later is a real submission - so *Other period* opens
+ * the identifier box, with the shape stated and checked exactly as it always was. The box also
+ * arrives on its own for a period type with no list at all (`WeeklyWednesday`, `2026April`), whose
+ * identifiers number themselves from an offset this UI does not hold: see `recentPeriods`. A period
+ * already stated that the list does not hold shows the box too, rather than being lost to a list it
+ * predates.
  *
  * REQUIRED, BECAUSE AN AGGREGATE SUBMISSION IS KEYED BY IT. The organisation unit, the period and the
  * attribute option combo are the three keys of every value a data set carries, and no period is not
- * one of them. Submit refuses an empty box for the same reason it refuses an unchosen combo: nothing
- * derives the answer, and posting a submission that cannot be keyed would be spending a round trip to
- * be told what the form already knows.
+ * one of them. Submit refuses an unstated period for the same reason it refuses an unchosen combo:
+ * nothing derives the answer, and posting a submission that cannot be keyed would be spending a round
+ * trip to be told what the form already knows. What the control opens on is the period the draft
+ * states, which is the last complete one.
  *
  * THE SHAPE IS CHECKED HERE, THE PERIOD IS NOT. `isWellShapedPeriod` knows what a monthly identifier
  * looks like and refuses `july` under the cursor; it knows nothing about which months exist or what
- * range one resolves to, and the types whose identifiers carry an offset (`2026WedW30`, `2026April`)
- * are accepted as typed rather than half-checked. A period of the wrong type still reaches the
- * server, whose refusal names the type the identifier parses as and the type the data set reports
- * for - which is a better answer than a client guess at what the operator meant.
+ * range one resolves to. A period of the wrong type still reaches the server, whose refusal names the
+ * type the identifier parses as and the type the data set reports for - which is a better answer than
+ * a client guess at what the operator meant.
  */
 function ReportingPeriodControl({
     periodType,
@@ -975,14 +991,21 @@ function ReportingPeriodControl({
     /** The DHIS2 period type the data set reports for, or null when nothing states one. */
     periodType: string | null
     iso: string
-    /** True when what the box holds is not a period this submission could be keyed by. */
+    /** True when what the control holds is not a period this submission could be keyed by. */
     unfit: boolean
     onChange: (iso: string) => void
 }) {
     const shape = periodShape(periodType)
+    // Counted back from today once per form rather than per keystroke. A page left open across
+    // midnight keeps the list it was opened with, which is the same list every type but Daily
+    // would draw again anyway - and the identifier box is what any period outside it is stated in.
+    const offered = useMemo(() => recentPeriods(periodType, new Date()), [periodType])
+    const [otherAsked, setOtherAsked] = useState(false)
+    const listed = offered.some((option) => option.iso === iso)
+    const typed = offered.length === 0 || otherAsked || (iso.trim() !== '' && !listed)
     return (
         <div className="bg-card text-card-foreground grid gap-2 rounded-lg border p-4">
-            <Label htmlFor={REPORTING_PERIOD_CONTROL_ID}>
+            <Label htmlFor={offered.length === 0 ? REPORTING_PERIOD_CONTROL_ID : REPORTING_PERIOD_CHOICE_ID}>
                 Reporting period
                 <span className="text-destructive" aria-hidden>
                     *
@@ -993,19 +1016,66 @@ function ReportingPeriodControl({
                     ? 'The period this submission reports for. DHIS2 keys the whole submission by it, beside the organisation unit.'
                     : `${periodType} period, as the data set reports. DHIS2 keys the whole submission by it, beside the organisation unit.`}
             </p>
-            <Input
-                id={REPORTING_PERIOD_CONTROL_ID}
-                className="max-w-xs font-mono"
-                value={iso}
-                required
-                aria-invalid={unfit}
-                placeholder={shape?.placeholder}
-                onChange={(event) => onChange(event.target.value)}
-            />
+            {offered.length > 0 && (
+                <Select
+                    value={typed ? OTHER_PERIOD_CHOICE : iso}
+                    onValueChange={(choice) => {
+                        if (choice === OTHER_PERIOD_CHOICE) {
+                            setOtherAsked(true)
+                            return
+                        }
+                        setOtherAsked(false)
+                        onChange(choice)
+                    }}
+                >
+                    <SelectTrigger
+                        id={REPORTING_PERIOD_CHOICE_ID}
+                        className="w-full max-w-xs"
+                        aria-invalid={unfit && !typed}
+                    >
+                        <SelectValue placeholder="Not chosen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {offered.map((option) => (
+                            <SelectItem key={option.iso} value={option.iso}>
+                                <span>{option.label}</span>
+                                {/* The identifier rides beside the words for the same reason a uid
+                                    rides beside a data element: it is what the receipt, the spool and
+                                    DHIS2 itself name this period by. */}
+                                <span className="machine-identifier text-[10px]">{option.iso}</span>
+                            </SelectItem>
+                        ))}
+                        <SelectItem value={OTHER_PERIOD_CHOICE}>{OTHER_PERIOD_LABEL}</SelectItem>
+                    </SelectContent>
+                </Select>
+            )}
+            {typed && (
+                <>
+                    {offered.length > 0 && (
+                        <Label
+                            htmlFor={REPORTING_PERIOD_CONTROL_ID}
+                            className="text-muted-foreground text-xs font-normal"
+                        >
+                            Period identifier
+                        </Label>
+                    )}
+                    <Input
+                        id={REPORTING_PERIOD_CONTROL_ID}
+                        className="max-w-xs font-mono"
+                        value={iso}
+                        required
+                        aria-invalid={unfit}
+                        placeholder={shape?.placeholder}
+                        onChange={(event) => onChange(event.target.value)}
+                    />
+                </>
+            )}
             <p className="text-muted-foreground text-xs">
-                {shape === null
-                    ? 'A period of any other type is refused when this submission is sent, and the refusal names both types.'
-                    : `A ${periodType ?? ''} period is spelled like ${shape.example}. A period of any other type is refused when this submission is sent, and the refusal names both types.`}
+                {typed
+                    ? shape === null
+                        ? 'A period of any other type is refused when this submission is sent, and the refusal names both types.'
+                        : `A ${periodType ?? ''} period is spelled like ${shape.example}. A period of any other type is refused when this submission is sent, and the refusal names both types.`
+                    : `Recent ${periodType ?? ''} periods, most recent first. ${OTHER_PERIOD_LABEL} takes any period identifier.`}
             </p>
         </div>
     )

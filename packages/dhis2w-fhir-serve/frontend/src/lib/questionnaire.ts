@@ -409,12 +409,13 @@ export interface QuestionnaireNode {
     /** The shape DHIS2 mints a generated value to, as `ANC-#######`, or null when none is published. */
     pattern: string | null
     /**
-     * The DHIS2 categories this question's category option combo decomposes over, named, in order.
+     * How this question's category option combo decomposes: category and chosen option, in order.
      *
-     * Empty on every question that is not a disaggregated cell. It is what lets the group above a
-     * run of cells say what its columns are cut by, which is the one thing "Fixed, <1y" does not say.
+     * Empty on every question that is not a disaggregated cell. It is what lets the group above a run
+     * of cells say what its columns are cut by - the one thing "Fixed, <1y" does not say - and what
+     * lets the run decide its shape without reading that name at all.
      */
-    categoryAxes: string[]
+    decomposition: CategoryChoice[]
     /**
      * Which DHIS2 level this question's answer is written at, or null when the form states none.
      *
@@ -512,17 +513,36 @@ export interface ConceptFacts {
     /** The shape DHIS2 mints a generated value to, as `ANC-#######`, or null when none is published. */
     pattern: string | null
     /**
-     * The DHIS2 categories this concept decomposes over, named, in the order the concept states them.
+     * How this concept decomposes: one entry per DHIS2 category, in the order the concept states them.
      *
      * Empty for every concept that is not a category option combo. A combo vocabulary declares one
      * property per category and carries the chosen option under it, and the category's own name is in
      * the declaration rather than in the property code - so this is the join of the two.
      */
-    categoryAxes: string[]
+    decomposition: CategoryChoice[]
+}
+
+/**
+ * One category of a combo's decomposition: which category, and which option this combo takes in it.
+ *
+ * THIS IS WHAT MAKES THE RENDERER SAFE AGAINST A REORDER. A DHIS2 admin can reorder the categories
+ * inside a category combo - gender then country one day, country then gender the next - and every
+ * combo's *name* is rebuilt from that order, so `Female, Afghanistan` becomes `Afghanistan, Female`
+ * and a renderer reading the name learns a different form. The decomposition does not move: the same
+ * combo still takes `Female` in Gender and `Afghanistan` in Country, whichever order they are listed
+ * in. So the shape of a run is decided from these and never from where a comma falls.
+ */
+export interface CategoryChoice {
+    /** The DHIS2 category's name - `Gender` - which is the dimension's identity here. */
+    axis: string
+    /** The chosen category option's uid, which is what a reorder cannot change. */
+    optionCode: string
+    /** What that option is called - `Female` - which is what a band or a row is labelled with. */
+    optionLabel: string
 }
 
 /** A concept the dictionaries say nothing about, which is also every concept before they are read. */
-export const NO_CONCEPT_FACTS: ConceptFacts = { valueType: null, generated: false, pattern: null, categoryAxes: [] }
+export const NO_CONCEPT_FACTS: ConceptFacts = { valueType: null, generated: false, pattern: null, decomposition: [] }
 
 /** What the served dictionaries state about the concepts one form's questions are coded in. */
 export interface QuestionDictionary {
@@ -559,10 +579,18 @@ export function dictionaryOfCodeSystems(codeSystems: CodeSystem[]): QuestionDict
                 generated: conceptPropertyValue(concept, GENERATED_CONCEPT_PROPERTY) === 'true',
                 pattern: conceptPropertyValue(concept, PATTERN_CONCEPT_PROPERTY),
                 // The concept's own order, never sorted: a combo decomposes in the order DHIS2
-                // declares its category combo, and that is the order its cells read in.
-                categoryAxes: (concept.property ?? []).flatMap((property) => {
-                    const named = categoryNames.get(property.code)
-                    return named === undefined ? [] : [named]
+                // declares its category combo, and that is the order its cells read in. What the
+                // renderer decides a shape from is the set of these, not their order - see
+                // `facetColumns` - so a reordered combo is the same decomposition listed differently.
+                decomposition: (concept.property ?? []).flatMap((property) => {
+                    const axis = categoryNames.get(property.code)
+                    if (axis === undefined) return []
+                    // The option rides as a Coding, which is the one place its uid is stated. A
+                    // property carrying no code still names a category the combo is cut by - worth
+                    // saying above the run - but says nothing about which option it takes, so it
+                    // arrives with an empty uid and `cutAxes` refuses to band a cut holding one.
+                    const optionCode = property.valueCoding?.code ?? ''
+                    return [{ axis, optionCode, optionLabel: property.valueCoding?.display ?? optionCode }]
                 }),
             })
         }
@@ -1498,6 +1526,14 @@ export interface DisaggregationColumn {
     label: string
     /** The combo uid, or null on a cell the form codes with nothing. */
     code: string | null
+    /**
+     * How the combo decomposes, or empty when the served vocabulary has not been read.
+     *
+     * The label above is a name and this is the structure behind it. Everything about the shape of a
+     * run is decided from here, because a name is rebuilt whenever an admin reorders the categories
+     * inside the combo and this is not.
+     */
+    decomposition: CategoryChoice[]
 }
 
 /**
@@ -1591,41 +1627,405 @@ export function formBlocks(
     return blocks
 }
 
-/** One first-dimension value's slice of a two-dimensional cut: its heading and its columns. */
+/** One value of a cut's facet axis: the heading it stands under, and the columns it holds. */
 export interface DisaggregationFacet {
+    /** The value of the faceted dimension - `Female` - which is stated once, above the rest. */
     heading: string
+    /** Where each of this facet's columns sits in the run's own column order. */
     indices: number[]
+    /** What each of those columns is called with the heading's own category taken out. */
     labels: string[]
+    /**
+     * Which DHIS2 category the headings come from - `Gender`.
+     *
+     * Named rather than positioned. The facet axis is whichever category has fewest options, and an
+     * instance is free to list it either side of its neighbours, so a caller that needs the category
+     * the rows are still cut by subtracts this one from the run's axes rather than counting commas.
+     */
+    axis: string
 }
 
 /**
- * The columns of a two-dimensional cut, sliced by their first dimension - or null when they are not one.
+ * The widest cut a grid draws by default: four combos.
  *
- * The split holds only when every label carries the same comma-spelled shape and every first-dimension
- * value repeats the same ordered suffixes, because a slice that dropped or reordered a column would be
- * a different form wearing the same heading. Fewer than eight columns stay one table: the split earns
- * its extra headings only where a single table would side-scroll.
+ * Four numeric columns plus the element names is a table that fits the card a form is drawn in, and
+ * the fifth column is where the card starts spending width it does not have. A wider cut is drawn
+ * vertically instead, because a data-entry surface that side-scrolls is one where the row label
+ * leaves the screen while the value is being typed.
  */
-export function splitByFirstDimension(columns: DisaggregationColumn[]): DisaggregationFacet[] | null {
-    if (columns.length < 8) return null
-    const facets: DisaggregationFacet[] = []
-    for (const [index, column] of columns.entries()) {
-        const split = column.label.indexOf(', ')
-        if (split === -1) return null
-        const head = column.label.slice(0, split)
-        const tail = column.label.slice(split + 2)
-        const facet = facets.find((candidate) => candidate.heading === head)
-        if (facet === undefined) {
-            facets.push({ heading: head, indices: [index], labels: [tail] })
-        } else {
-            facet.indices.push(index)
-            facet.labels.push(tail)
+export const WIDEST_GRID_CUT = 4
+
+/**
+ * The count from which a two-dimensional cut is worth splitting at all.
+ *
+ * Derived rather than chosen: the split exists to bring a cut back inside the width a grid draws, so
+ * it is offered exactly where a cut has left that width. A cut a grid already holds has nothing to be
+ * rescued from, and splitting it would spend two headings to save a column nobody was short of.
+ */
+export const SPLITTABLE_CUT = WIDEST_GRID_CUT + 1
+
+/**
+ * The most values a dimension can have and still be the one that becomes headings.
+ *
+ * A facet axis is read as headings down the page, so it works while there are a few of them and stops
+ * working when there are many: six bands is a form, and ninety-six is a scroll with no shape. A cut
+ * whose dimensions are both wider than this has no facet form and is drawn as one list of full labels.
+ */
+export const WIDEST_FACET_AXIS = 6
+
+/**
+ * The columns of a cut, banded along whichever DHIS2 category has fewest options.
+ *
+ * ORDER-PROOF BY CONSTRUCTION, WHICH IS THE WHOLE POINT. A DHIS2 admin can reorder the categories
+ * inside a category combo, and when they do, every combo in it is renamed - `Female, Afghanistan`
+ * becomes `Afghanistan, Female` - and DHIS2 expands the cells in a different order too. A renderer
+ * that read the names would band by gender one day and by country the next, which is the same data
+ * set drawn as two columns of a hundred and ninety-two or as a hundred and ninety-two of two. So
+ * nothing here reads a name: the band is chosen from the *set* of categories the decomposition
+ * states, by option count, with the category's own name breaking a tie. The same set gives the same
+ * answer whichever way round it is listed.
+ *
+ * AND THE ORDER WITHIN IT IS RECOVERED, NOT TAKEN. A reorder permutes the cells, so the bands and
+ * their rows are put back in each category's own option order - the order `cutAxes` meets them in,
+ * which is the one ordering a reorder leaves alone. That keeps `under 15y` before `over 49y` without
+ * this module sorting anything into an order DHIS2 never stated.
+ *
+ * WHAT IS REFUSED. A cut whose vocabulary has not been read, or that decomposes over one category
+ * only, because there is no second dimension to leave in the rows; a band axis with fewer than two
+ * options or more than `WIDEST_FACET_AXIS`; and a cut whose bands do not all hold the same options of
+ * every remaining category, because a band that dropped a column would be a different form wearing
+ * the same heading. A refused cut has no band form: its columns stay one flat list, and the
+ * orientation ladder decides whether that list is drawn across the page or down it.
+ */
+export function facetColumns(columns: DisaggregationColumn[]): DisaggregationFacet[] | null {
+    if (columns.length < SPLITTABLE_CUT) return null
+    const axes = cutAxes(columns)
+    if (axes.length < 2) return null
+    // Fewest options first, and the category's own name settles a tie - so two categories of the
+    // same size do not swap places between one visit and the next.
+    const banded = [...axes].sort(
+        (left, right) => left.options.length - right.options.length || left.axis.localeCompare(right.axis),
+    )[0]
+    if (banded.options.length < 2 || banded.options.length > WIDEST_FACET_AXIS) return null
+    // The categories left over are put in the same settled order for the same reason the band is
+    // chosen that way: with three or more of them, the order they were met in is the order DHIS2
+    // happened to list them, and a row label reading "Fixed, under 1y" must not become "under 1y,
+    // Fixed" because somebody rearranged a combo.
+    const rest = [...axes]
+        .filter((axis) => axis.axis !== banded.axis)
+        .sort((left, right) => left.options.length - right.options.length || left.axis.localeCompare(right.axis))
+
+    const facets: DisaggregationFacet[] = banded.options.map((option) => ({
+        heading: option.optionLabel,
+        indices: [],
+        labels: [],
+        axis: banded.axis,
+    }))
+    for (const [position, option] of banded.options.entries()) {
+        const held = columns
+            .map((column, index) => ({ column, index }))
+            .filter((each) => optionOf(each.column, banded.axis)?.optionCode === option.optionCode)
+        // Each band reads down the remaining categories in their own option order, which is what
+        // makes two spellings of one cut produce the same rows in the same places.
+        held.sort((left, right) => restRank(left.column, rest) - restRank(right.column, rest))
+        facets[position].indices = held.map((each) => each.index)
+        facets[position].labels = held.map((each) =>
+            rest.map((axis) => optionOf(each.column, axis.axis)?.optionLabel ?? '').join(', '),
+        )
+    }
+    if (facets.some((facet) => facet.indices.length === 0)) return null
+    const shape = facets[0].labels.join('\u001f')
+    if (facets.some((facet) => facet.labels.join('\u001f') !== shape)) return null
+    return facets
+}
+
+/** One category a run is cut by, with its options in the order the run first states them. */
+interface CutAxis {
+    axis: string
+    options: CategoryChoice[]
+}
+
+/**
+ * The categories a whole run decomposes over, each with its own options in first-seen order.
+ *
+ * First-seen rather than sorted, and it survives a reorder: DHIS2 expands a combo as a nested loop
+ * over its categories, so whichever category is outermost, each category's options are still met in
+ * that category's own order - Female before Male, `under 15y` before `over 49y`. A column missing a
+ * category the others state leaves the run undecidable, and an empty answer here refuses the band.
+ */
+function cutAxes(columns: readonly DisaggregationColumn[]): CutAxis[] {
+    const axes: CutAxis[] = []
+    for (const column of columns) {
+        if (column.decomposition.length === 0) return []
+        for (const choice of column.decomposition) {
+            // A category whose chosen option was never published leaves the cut undecidable: every
+            // column would band under the same nameless option, which is not a band, it is a lie.
+            if (choice.optionCode === '') return []
+            const known = axes.find((candidate) => candidate.axis === choice.axis)
+            if (known === undefined) {
+                axes.push({ axis: choice.axis, options: [choice] })
+                continue
+            }
+            if (!known.options.some((option) => option.optionCode === choice.optionCode)) {
+                known.options.push(choice)
+            }
         }
     }
-    if (facets.length < 2) return null
-    const shape = facets[0].labels.join('')
-    if (facets.some((facet) => facet.labels.join('') !== shape)) return null
-    return facets
+    // Every column has to state every category, or the cut is not a grid of these dimensions at all.
+    const complete = axes.every((axis) => columns.every((column) => optionOf(column, axis.axis) !== undefined))
+    return complete ? axes : []
+}
+
+/** Which option one column takes in one category, or undefined when it states none. */
+function optionOf(column: DisaggregationColumn, axis: string): CategoryChoice | undefined {
+    return column.decomposition.find((choice) => choice.axis === axis)
+}
+
+/** Where one column sorts among the categories a band did not take, read as a mixed-radix number. */
+function restRank(column: DisaggregationColumn, rest: readonly CutAxis[]): number {
+    let rank = 0
+    for (const axis of rest) {
+        const option = optionOf(column, axis.axis)
+        const place = option === undefined ? 0 : axis.options.findIndex((each) => each.optionCode === option.optionCode)
+        rank = rank * axis.options.length + Math.max(place, 0)
+    }
+    return rank
+}
+
+/**
+ * The shape one run of disaggregated data elements is drawn in.
+ *
+ * TWO SHAPES, AND THE RUN IS THE UNIT THAT HAS ONE. `grid` is the table DHIS2's own data entry
+ * draws - the elements are the rows, the combos are the columns - and it reads as one glance for as
+ * long as the columns fit the card. `vertical` is one block per element - the element's name as a
+ * band, and under it one row per combo - and it reads as a list that never scrolls sideways however
+ * many combos there are. Neither is better; which one a run wants is decided by how wide its cut is,
+ * and a person who disagrees says so with the switch on the run's own band.
+ */
+export type DisaggregationOrientation = 'grid' | 'vertical'
+
+/**
+ * The widest table this app will draw at all, however it is asked.
+ *
+ * Past a dozen numeric columns a grid is a horizontal scroll with a header row nobody can see beside
+ * the value they are typing, which is not a shape a person chose - it is one they got. A run whose
+ * grid form would be wider than this has no grid form, and its band offers no switch to one.
+ */
+export const WIDEST_DRAWABLE_GRID = 12
+
+/**
+ * The combo count from which a vertical run offers a filter box and an unfilled-only tick.
+ *
+ * A cut over thirty options is a list nobody scrolls to find one row in - a facility category with a
+ * hundred options is a real DHIS2 cut, not a hypothetical - so from here the band gains the two ways
+ * of getting to the row you want: name part of it, or ask for the ones still empty.
+ */
+export const FILTERED_CUT = 30
+
+/** The namespace a run's chosen shape is kept under, the run's first group uid following it. */
+export const ORIENTATION_STORAGE_KEY_PREFIX = 'd2w-fhir.disaggregation-orientation.'
+
+/**
+ * How wide the widest table of a run's grid form would be.
+ *
+ * The facet split is part of the grid form rather than an alternative to it, so a cut of eight
+ * columns that slices into two fours is four columns wide and not eight. A cut with no facet form is
+ * as wide as it is.
+ */
+export function widestGridTable(columns: DisaggregationColumn[]): number {
+    const facets = facetColumns(columns)
+    if (facets === null) return columns.length
+    return Math.max(...facets.map((facet) => facet.labels.length))
+}
+
+/**
+ * The shape a run is drawn in when nobody has said otherwise.
+ *
+ * THE LADDER, IN ONE LINE: a run is a grid while its widest table is four columns or fewer, and a
+ * list of rows once it is not.
+ *
+ * FACETS ARE PART OF THE GRID FORM. Eight combos spelled "Female, under 15y" slice into one table per
+ * gender, and two tables of four columns is four columns wide - so that run is a grid, drawn as the
+ * facets `facetColumns` finds. A cut of gender by country slices the same way and leaves a hundred
+ * and ninety-two columns inside each band, which is no rescue at all: that run is vertical, and the
+ * facets it found still shape it - see `comboRows`.
+ */
+export function defaultDisaggregationOrientation(columns: DisaggregationColumn[]): DisaggregationOrientation {
+    return widestGridTable(columns) <= WIDEST_GRID_CUT ? 'grid' : 'vertical'
+}
+
+/**
+ * Whether this run's band offers the switch between the two shapes.
+ *
+ * A CONTROL WITH ONE HONEST STATE IS NOT A CONTROL. Most wide cuts have a grid form that is merely
+ * not the default - eight columns is a table somebody may well prefer, and the switch is how they
+ * say so. A cut of gender by country has no grid form in any arrangement: a hundred and ninety-two
+ * numeric columns is not a table that was drawn and disliked, it is a table nothing can draw. So the
+ * run is drawn as rows, the band states no alternative, and nobody is offered a way to make the page
+ * worse.
+ */
+export function offersOrientationSwitch(columns: DisaggregationColumn[]): boolean {
+    return widestGridTable(columns) <= WIDEST_DRAWABLE_GRID
+}
+
+/** The other shape, which is what the switch on a run's band asks for. */
+export function otherOrientation(orientation: DisaggregationOrientation): DisaggregationOrientation {
+    return orientation === 'grid' ? 'vertical' : 'grid'
+}
+
+/**
+ * The shape this browser last chose for one run, or null when it has chosen none.
+ *
+ * Storage that refuses to be read is the same answer as storage holding nothing: the run is drawn in
+ * whatever the ladder says, and the choice simply does not survive the reload.
+ */
+export function storedDisaggregationOrientation(runKey: string): DisaggregationOrientation | null {
+    try {
+        const stored = localStorage.getItem(`${ORIENTATION_STORAGE_KEY_PREFIX}${runKey}`)
+        return stored === 'grid' || stored === 'vertical' ? stored : null
+    } catch {
+        return null
+    }
+}
+
+/** Keep one run's shape for the next time this form is opened. */
+export function rememberDisaggregationOrientation(runKey: string, orientation: DisaggregationOrientation): void {
+    try {
+        localStorage.setItem(`${ORIENTATION_STORAGE_KEY_PREFIX}${runKey}`, orientation)
+    } catch {
+        // A browser with storage denied still draws the run the way it was asked to, for as long as
+        // this document is open. Only surviving the reload is lost.
+    }
+}
+
+/** The shape a run opens in: what was chosen for it, and the ladder's answer when nothing was. */
+export function openedDisaggregationOrientation(
+    runKey: string,
+    columns: DisaggregationColumn[],
+): DisaggregationOrientation {
+    return storedDisaggregationOrientation(runKey) ?? defaultDisaggregationOrientation(columns)
+}
+
+/** One row of a vertical block: which column of the run it answers, and what it is called there. */
+export interface ComboRow {
+    /** The position in the run's own column order, which is what finds the cell. */
+    index: number
+    /** What the row is called where it is drawn. */
+    label: string
+}
+
+/**
+ * The rows one vertical block draws: the whole cut, or the slice one facet band has already narrowed.
+ *
+ * THE BAND DOES NOT SAY ITS FACT TWICE. Under a band reading "Female", a row labelled "Female,
+ * Afghanistan" states the gender for the ninety-sixth time on that screen - so inside a facet the
+ * rows carry only the dimension the band did not name. With no facet there is no band and no such
+ * saving, and each row carries the whole combo the form calls it by.
+ */
+export function comboRows(columns: DisaggregationColumn[], facet: DisaggregationFacet | null): ComboRow[] {
+    if (facet === null) return columns.map((column, index) => ({ index, label: column.label }))
+    return facet.indices.map((index, position) => ({ index, label: facet.labels[position] }))
+}
+
+/** Whether a block of this many rows offers the two ways of narrowing them. */
+export function offersComboFilter(rows: readonly ComboRow[]): boolean {
+    return rows.length >= FILTERED_CUT
+}
+
+/**
+ * Which DHIS2 category the rows of a block are cut by, or null when there is no single one to name.
+ *
+ * Inside a band it is the category the band did not take, found by name rather than by position - a
+ * cut by gender and country, banded by gender, has countries down the page whichever order the combo
+ * lists the two in. Outside a band it is the cut's own single category, and a cut over two categories
+ * drawn flat has no one name to give.
+ */
+export function rowAxisName(axes: readonly string[], facet: DisaggregationFacet | null): string | null {
+    if (facet === null) return axes.length === 1 ? axes[0] : null
+    const rest = axes.filter((axis) => axis !== facet.axis)
+    return rest.length === 1 ? rest[0] : null
+}
+
+/**
+ * What the filter box asks for, in the words of the cut it narrows.
+ *
+ * A block whose rows are cut by one named category says which one and how many of it there are,
+ * because "Filter 96 Facility" tells a reader what they are typing into and a bare box does not. A
+ * block whose vocabulary was never read has no name to offer, so it names what the rows are instead.
+ */
+export function comboFilterPlaceholder(rows: readonly ComboRow[], axisName: string | null): string {
+    return axisName === null ? 'Filter options' : `Filter ${String(rows.length)} ${axisName}`
+}
+
+/**
+ * What a decimal literal looks like, which is the only thing a total is willing to add.
+ *
+ * `Number` is a wider parser than a person typing counts means to reach: it reads `0x10` as sixteen,
+ * ` ` as zero and `Infinity` as a quantity. A total that added any of those would be a figure nobody
+ * could account for, so the literal has to look like a number before it is read as one.
+ */
+const DECIMAL_LITERAL = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/
+
+/**
+ * What the boxes of one row - or of one band - currently add up to, or null when they add to nothing.
+ *
+ * A CHECK FIGURE, NOT AN ANSWER. Nothing here is submitted: a data set's own totals are DHIS2's to
+ * compute, and this is the arithmetic the person filling the form was going to do on paper anyway -
+ * the one that catches a 1370 typed where 137 was meant. It recomputes from the literals the boxes
+ * hold, so it follows the typing rather than the submission.
+ *
+ * A BLANK IS NOTHING AND COUNTS AS NOTHING. A row of four boxes with two filled in totals the two,
+ * because the other two are unanswered rather than zero. A row where nothing has been typed at all
+ * has no total - `0` there would be a claim of zero cases made by the screen - and one holding
+ * something that is not a number has none either, because a total that quietly skipped `1.2.3` would
+ * be a figure that disagrees with what is on screen and says nothing about why.
+ */
+export function liveTotal(values: readonly string[]): number | null {
+    let total = 0
+    let counted = false
+    for (const value of values) {
+        const trimmed = value.trim()
+        if (trimmed === '') continue
+        if (!DECIMAL_LITERAL.test(trimmed)) return null
+        const parsed = Number(trimmed)
+        if (!Number.isFinite(parsed)) return null
+        total += parsed
+        counted = true
+    }
+    if (!counted) return null
+    // Binary floating point makes 0.1 + 0.2 read as 0.30000000000000004, which is a total nobody
+    // would write down. Whole numbers are exact and left alone; the rest are cut to the precision a
+    // person could have typed in the first place.
+    return Number.isInteger(total) ? total : Number(total.toFixed(6))
+}
+
+/** Whether one row label answers what was typed into the filter box - an empty box asks for all. */
+export function matchesComboFilter(label: string, query: string): boolean {
+    const wanted = query.trim().toLowerCase()
+    return wanted === '' || label.toLowerCase().includes(wanted)
+}
+
+/**
+ * Which rows of one block are on screen, given what the band's two controls are asking for.
+ *
+ * FILTERING IS A FACT ABOUT THE SCREEN AND NOTHING ELSE. What comes back is a subset of the same
+ * rows, so every combo the block holds keeps its own link id and its own answer whether it is drawn
+ * or not: emptying the box brings the same rows back with the same values in them, and a submission
+ * made under a filter carries exactly what a submission made under none would.
+ *
+ * `filled` answers whether the row at one column position already holds a value, which is the only
+ * thing the unfilled-only tick reads. It is a callback rather than a set because the caller holds the
+ * answers and this module holds the rule.
+ */
+export function visibleComboRows(
+    rows: readonly ComboRow[],
+    query: string,
+    unfilledOnly: boolean,
+    filled: (index: number) => boolean,
+): ComboRow[] {
+    return rows
+        .filter((row) => matchesComboFilter(row.label, query))
+        .filter((row) => !unfilledOnly || !filled(row.index))
 }
 
 /** The enabled cells of one group, in document order - the answers one table row holds. */
@@ -1662,7 +2062,11 @@ function disaggregationColumns(
         if (cell === undefined) return null
         if (!isNumericQuestion(cell) || !cell.fillable) return null
         if (cell.repeats || cell.childLinkIds.length > 0 || cell.description !== null) return null
-        columns.push({ label: cell.text ?? cell.linkId, code: cell.code?.code ?? null })
+        columns.push({
+            label: cell.text ?? cell.linkId,
+            code: cell.code?.code ?? null,
+            decomposition: cell.decomposition,
+        })
     }
     return columns
 }
@@ -1709,8 +2113,8 @@ function flowsIntoColumns(node: QuestionnaireNode): boolean {
 export function groupCategoryAxes(spec: QuestionnaireSpec, groupLinkId: string): string[] {
     const axes: string[] = []
     for (const childLinkId of spec.byLinkId.get(groupLinkId)?.childLinkIds ?? []) {
-        for (const axis of spec.byLinkId.get(childLinkId)?.categoryAxes ?? []) {
-            if (!axes.includes(axis)) axes.push(axis)
+        for (const choice of spec.byLinkId.get(childLinkId)?.decomposition ?? []) {
+            if (!axes.includes(choice.axis)) axes.push(choice.axis)
         }
     }
     return axes
@@ -1774,6 +2178,219 @@ export function isWellShapedPeriod(iso: string, periodType: string | null): bool
     if (trimmed === '') return false
     const shape = periodShape(periodType)
     return shape === null || shape.pattern.test(trimmed)
+}
+
+/** One period a person can pick: the identifier DHIS2 keys by, and what it is called on screen. */
+export interface PeriodOption {
+    /** The DHIS2 ISO period identifier - `202607` - which is what a submission carries. */
+    iso: string
+    /** The same period in the words a person reports in - `July 2026`. */
+    label: string
+}
+
+/** The months, spelled out, because a reporting period is read rather than parsed. */
+const MONTH_NAMES = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+] as const
+
+/** The months as a date carries them - `17 Aug` - where a full spelling would crowd the line. */
+const SHORT_MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
+
+/** Two digits, which is how DHIS2 spells a month and a day inside an identifier. */
+function twoDigits(value: number): string {
+    return String(value).padStart(2, '0')
+}
+
+/** One calendar day as a UTC instant, so stepping back a day is never a daylight-saving hour. */
+function utcDay(year: number, monthIndex: number, day: number): Date {
+    return new Date(Date.UTC(year, monthIndex, day))
+}
+
+/** The day `today` falls on, read off the browser's own calendar and held as a UTC instant. */
+function startOfDay(today: Date): Date {
+    return utcDay(today.getFullYear(), today.getMonth(), today.getDate())
+}
+
+/** One day some number of days before another. */
+function daysBefore(day: Date, count: number): Date {
+    return new Date(day.getTime() - count * 86_400_000)
+}
+
+/**
+ * Which ISO-8601 week a day falls in, and the week-year that week belongs to.
+ *
+ * The week-year is not always the calendar year: 1 January 2027 is a Friday, so it falls in the last
+ * week of 2026 and DHIS2 spells that period `2026W53`. Found the standard way - the Thursday of the
+ * week decides the year, and the week containing 4 January is week one.
+ */
+function isoWeekOf(day: Date): { weekYear: number; week: number } {
+    const thursday = new Date(day.getTime())
+    const mondayFirst = (day.getUTCDay() + 6) % 7
+    thursday.setUTCDate(thursday.getUTCDate() - mondayFirst + 3)
+    const firstThursday = utcDay(thursday.getUTCFullYear(), 0, 4)
+    firstThursday.setUTCDate(firstThursday.getUTCDate() - ((firstThursday.getUTCDay() + 6) % 7) + 3)
+    return {
+        weekYear: thursday.getUTCFullYear(),
+        week: 1 + Math.round((thursday.getTime() - firstThursday.getTime()) / (7 * 86_400_000)),
+    }
+}
+
+/** One family of DHIS2 periods: how many of them are offered, and which one sits a given step back. */
+interface PeriodFamily {
+    /** How many periods the control offers, the current one included. */
+    offered: number
+    /** The period `back` steps before the one today falls in. */
+    at: (today: Date, back: number) => PeriodOption
+}
+
+/** The period a month offset lands in, which is what every monthly, bimonthly and quarterly step is. */
+function monthsBefore(today: Date, months: number): { year: number; monthIndex: number } {
+    const absolute = today.getFullYear() * 12 + today.getMonth() - months
+    return { year: Math.floor(absolute / 12), monthIndex: ((absolute % 12) + 12) % 12 }
+}
+
+/**
+ * The period types whose recent periods this control can offer, and how it counts them back.
+ *
+ * SIX OF THE NINETEEN, AND THE REST KEEP THE BOX. A list of periods is a claim about which periods
+ * exist, so a type is here only where the arithmetic is the calendar's own and nothing is guessed:
+ * days, ISO weeks, months, two-month blocks, quarters, half-years and years. The offset weeks
+ * (`2026WedW30`), the two-week periods and the financial years (`2026April`) all number themselves
+ * from an offset this UI does not hold, and a list of them would be a list of periods a person could
+ * pick that DHIS2 does not have - worse than no list. Those types get the identifier box instead.
+ *
+ * HOW MANY ARE OFFERED IS HOW FAR BACK ANYBODY REPORTS. A month of figures filed late is filed a
+ * month or two late, not four years late, so a monthly data set offers this month and the twelve
+ * before it. Coarser types count in what they measure - eight quarters, five years - and a period
+ * older than the list is typed in, which is what the identifier box stays for.
+ */
+const PERIOD_FAMILIES: ReadonlyMap<string, PeriodFamily> = new Map<string, PeriodFamily>([
+    [
+        'Daily',
+        {
+            offered: 13,
+            at: (today, back) => {
+                const day = daysBefore(startOfDay(today), back)
+                return {
+                    iso: `${String(day.getUTCFullYear())}${twoDigits(day.getUTCMonth() + 1)}${twoDigits(day.getUTCDate())}`,
+                    label: `${String(day.getUTCDate())} ${MONTH_NAMES[day.getUTCMonth()]} ${String(day.getUTCFullYear())}`,
+                }
+            },
+        },
+    ],
+    [
+        'Weekly',
+        {
+            offered: 13,
+            at: (today, back) => {
+                const day = startOfDay(today)
+                const monday = daysBefore(day, ((day.getUTCDay() + 6) % 7) + back * 7)
+                const { weekYear, week } = isoWeekOf(monday)
+                // The week number alone names nothing a person recognises, so the Monday it opens on
+                // rides with it - which is also what makes a mis-numbered week visible rather than
+                // silently picked.
+                const starts = `Mon ${String(monday.getUTCDate())} ${SHORT_MONTH_NAMES[monday.getUTCMonth()]}`
+                return {
+                    iso: `${String(weekYear)}W${String(week)}`,
+                    label: `Week ${String(week)}, ${String(weekYear)} (starts ${starts})`,
+                }
+            },
+        },
+    ],
+    [
+        'Monthly',
+        {
+            offered: 13,
+            at: (today, back) => {
+                const { year, monthIndex } = monthsBefore(today, back)
+                return {
+                    iso: `${String(year)}${twoDigits(monthIndex + 1)}`,
+                    label: `${MONTH_NAMES[monthIndex]} ${String(year)}`,
+                }
+            },
+        },
+    ],
+    [
+        'BiMonthly',
+        {
+            offered: 9,
+            at: (today, back) => {
+                const current = monthsBefore(today, 0)
+                const { year, monthIndex } = monthsBefore(today, (current.monthIndex % 2) + back * 2)
+                return {
+                    iso: `${String(year)}${twoDigits(monthIndex + 1)}B`,
+                    label: `${MONTH_NAMES[monthIndex]} to ${MONTH_NAMES[monthIndex + 1]} ${String(year)}`,
+                }
+            },
+        },
+    ],
+    [
+        'Quarterly',
+        {
+            offered: 9,
+            at: (today, back) => {
+                const current = monthsBefore(today, 0)
+                const { year, monthIndex } = monthsBefore(today, (current.monthIndex % 3) + back * 3)
+                return {
+                    iso: `${String(year)}Q${String(monthIndex / 3 + 1)}`,
+                    label: `${MONTH_NAMES[monthIndex]} to ${MONTH_NAMES[monthIndex + 2]} ${String(year)}`,
+                }
+            },
+        },
+    ],
+    [
+        'SixMonthly',
+        {
+            offered: 9,
+            at: (today, back) => {
+                const current = monthsBefore(today, 0)
+                const { year, monthIndex } = monthsBefore(today, (current.monthIndex % 6) + back * 6)
+                return {
+                    iso: `${String(year)}S${String(monthIndex / 6 + 1)}`,
+                    label: `${MONTH_NAMES[monthIndex]} to ${MONTH_NAMES[monthIndex + 5]} ${String(year)}`,
+                }
+            },
+        },
+    ],
+    [
+        'Yearly',
+        {
+            offered: 6,
+            at: (today, back) => {
+                const year = today.getFullYear() - back;
+                return { iso: String(year), label: String(year) }
+            },
+        },
+    ],
+])
+
+/**
+ * The periods of one type a person is offered, most recent first, or none for a type with no list.
+ *
+ * THE CURRENT PERIOD IS FIRST AND IS NOT THE DEFAULT. A month is reported once it is over, so the
+ * month in progress is offered - somebody filing early, or correcting a figure mid-month, is doing
+ * something real - and the one the control opens on is the last complete one. See
+ * `previousCompletePeriod`.
+ *
+ * AN EMPTY LIST IS AN ANSWER. A type this cannot count back through offers no periods at all, and
+ * the control asks for the identifier instead: see `PERIOD_FAMILIES` for which types those are and
+ * why guessing at their numbering would be worse than asking.
+ */
+export function recentPeriods(periodType: string | null, today: Date): PeriodOption[] {
+    const family = periodType === null ? undefined : PERIOD_FAMILIES.get(periodType)
+    if (family === undefined) return []
+    return Array.from({ length: family.offered }, (_unused, back) => family.at(today, back))
 }
 
 /**
@@ -1940,7 +2557,7 @@ function readItem(
         valueType: facts.valueType,
         generated: facts.generated,
         pattern: facts.pattern,
-        categoryAxes: facts.categoryAxes,
+        decomposition: facts.decomposition,
         entityLevel: item.extension?.find(isEntityLevelExtension)?.valueBoolean ?? null,
         childLinkIds: [],
     }
