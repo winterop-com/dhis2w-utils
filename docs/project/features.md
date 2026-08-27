@@ -2959,13 +2959,28 @@ an identifier search and a paged listing on one page, with a detail route at
 - **Findings are shelved by severity first and DHIS2 collection second**, each
   row naming the object and its uid, the DHIS2 field at fault, the problem, and
   what the grade costs - the build stops, the published resource is degraded, or
-  the object is outside what this project publishes.
-- **Translation coverage is the analysis the command does not do.** The locales
-  in use are the union of the tags the selection's own translations carry, read
-  one bounded request per resource kind rather than one per object and with no
-  system-settings read; against that set the page states coverage per locale and
-  lists every object holding no name translation, and no form-name translation
-  where DHIS2 gives it a form name.
+  the object is outside what this project publishes. The problem is the
+  validator's sentence less the head it opens with: a terminal line has to name
+  its subject, and a row whose first two cells are the object and the field would
+  be saying it a third time.
+- **The page opens as a summary.** The severity counts and the per-locale
+  coverage meters are what a reader meets; every table under them is closed, and
+  each closed heading states its severity, its DHIS2 collection, and how many
+  rows are behind it. The one filter box narrows the findings and the translation
+  lists together and holds every section open while anything is typed.
+- **Translation coverage is the analysis the command does not do, and it is
+  coverage rather than deficiency.** The locales are the union of the tags the
+  selection's own translations carry, read one bounded request per resource kind
+  rather than one per object and with no system-settings read. Each locale is
+  told through whichever side of it is the shorter list: below half the
+  selection's translatable strings it is sparse and the page names the objects
+  that carry it, stating no absence at all; at or above half it is a majority
+  locale and the page names the objects nobody has written it for yet. An
+  English-main instance holding three Spanish translations reads as three Spanish
+  translations, not as thousands of missing ones.
+- **No absent translation is graded.** Nothing about a translation is a finding
+  or a warning anywhere on the page or in the payload - the severity tiles count
+  the validator's own grades, and the validator grades names and codes.
 - **Reporting only.** Nothing on the page writes to DHIS2 and nothing offers to;
   acting on a finding is a near-term roadmap item.
 

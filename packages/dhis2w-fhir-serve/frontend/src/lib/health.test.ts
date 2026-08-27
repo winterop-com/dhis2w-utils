@@ -5,17 +5,21 @@ import {
     coveragePercent,
     coverageRatio,
     coverageRatios,
+    findingMessage,
     groupByResourceType,
     isClean,
+    listedCount,
     matchingFindings,
-    matchingGaps,
+    matchingObjects,
+    matchingRatios,
     shelveFindings,
     EMPTY_METADATA_HEALTH,
+    type LocaleCarrier,
     type LocaleCoverage,
+    type LocaleUntranslated,
     type MetadataFinding,
     type MetadataHealth,
     type TranslationCoverage,
-    type TranslationGap,
 } from '@/lib/health'
 
 /**
@@ -43,20 +47,44 @@ function finding(overrides: Partial<MetadataFinding> = {}): MetadataFinding {
 }
 
 function coverage(overrides: Partial<TranslationCoverage> = {}): TranslationCoverage {
-    return { locales: [], object_count: 0, form_named_count: 0, per_locale: [], gaps: [], ...overrides }
+    return { locales: [], object_count: 0, form_named_count: 0, per_locale: [], ...overrides }
 }
 
-function locale(tag: string, nameCount: number, formNameCount = 0): LocaleCoverage {
-    return { locale: tag, name_count: nameCount, form_name_count: formNameCount }
+function locale(
+    tag: string,
+    nameCount: number,
+    formNameCount = 0,
+    overrides: Partial<LocaleCoverage> = {},
+): LocaleCoverage {
+    return {
+        locale: tag,
+        name_count: nameCount,
+        form_name_count: formNameCount,
+        standing: 'sparse',
+        carriers: [],
+        missing: [],
+        ...overrides,
+    }
 }
 
-function gap(overrides: Partial<TranslationGap> = {}): TranslationGap {
+function carrier(overrides: Partial<LocaleCarrier> = {}): LocaleCarrier {
     return {
         resource_type: 'dataElements',
         uid: 'DeAncVisit1',
         name: 'ANC 1st visit',
-        missing_name_locales: ['lo'],
-        missing_form_name_locales: [],
+        carries_name: true,
+        carries_form_name: false,
+        ...overrides,
+    }
+}
+
+function untranslated(overrides: Partial<LocaleUntranslated> = {}): LocaleUntranslated {
+    return {
+        resource_type: 'dataElements',
+        uid: 'DeAncVisit1',
+        name: 'ANC 1st visit',
+        name_untranslated: true,
+        form_name_untranslated: false,
         ...overrides,
     }
 }
@@ -71,20 +99,59 @@ describe('countOf', () => {
 })
 
 describe('isClean', () => {
-    it('is clean when there is no finding and no translation gap', () => {
+    it('is clean when nothing was found and nothing carries a translation', () => {
         expect(isClean(EMPTY_METADATA_HEALTH)).toBe(true)
     })
 
-    it('is not clean for a translation gap alone', () => {
+    it('has a page to show for a locale in use, which is a fact rather than a defect', () => {
         const health: MetadataHealth = {
             ...EMPTY_METADATA_HEALTH,
-            translations: coverage({ locales: ['lo'], gaps: [gap()] }),
+            translations: coverage({ locales: ['lo'], object_count: 4, per_locale: [locale('lo', 1)] }),
         }
         expect(isClean(health)).toBe(false)
     })
 
     it('is not clean for a finding alone', () => {
         expect(isClean({ ...EMPTY_METADATA_HEALTH, findings: [finding()] })).toBe(false)
+    })
+})
+
+describe('findingMessage', () => {
+    it('cuts the head the Object and Field columns already carry, and raises the sentence', () => {
+        const held = finding({
+            field: 'name',
+            name: 'CMC Post abortion related services',
+            category: 'template-hostile-name',
+            message:
+                "name CMC Post abortion related services contains '&' which the IG publisher template injects into HTML unescaped",
+        })
+        expect(findingMessage(held)).toBe(
+            "Contains '&' which the IG publisher template injects into HTML unescaped",
+        )
+    })
+
+    it('leaves a message that does not open with that exact head alone', () => {
+        const held = finding({
+            field: 'code',
+            message: 'code is not a valid FHIR code: code has leading whitespace',
+        })
+        expect(findingMessage(held)).toBe('code is not a valid FHIR code: code has leading whitespace')
+    })
+
+    it('leaves a form-name message alone where the form name differs from the object name', () => {
+        const held = finding({
+            field: 'form name',
+            name: 'Weight',
+            message: "form name Weight in kg contains '<' which the IG publisher template injects into HTML",
+        })
+        expect(findingMessage(held)).toBe(
+            "form name Weight in kg contains '<' which the IG publisher template injects into HTML",
+        )
+    })
+
+    it('leaves a message alone where the finding is about no field of the object', () => {
+        const held = finding({ field: null, message: 'attribute has no code; every extension omits it' })
+        expect(findingMessage(held)).toBe('attribute has no code; every extension omits it')
     })
 })
 
@@ -151,22 +218,61 @@ describe('matchingFindings', () => {
     })
 })
 
-describe('matchingGaps', () => {
-    it('narrows the gaps by the same two strings the findings are narrowed by', () => {
-        const gaps = [gap({ uid: 'DeAncVisit1' }), gap({ uid: 'OuClinic001', name: 'Ngelehun CHC' })]
-        expect(matchingGaps(gaps, 'clinic').map((held) => held.uid)).toEqual(['OuClinic001'])
-        expect(matchingGaps(gaps, '')).toHaveLength(2)
+describe('matchingObjects', () => {
+    it('narrows a translation list by the same two strings the findings are narrowed by', () => {
+        const carriers = [carrier({ uid: 'DeAncVisit1' }), carrier({ uid: 'OuClinic001', name: 'Ngelehun CHC' })]
+        expect(matchingObjects(carriers, 'clinic').map((held) => held.uid)).toEqual(['OuClinic001'])
+        expect(matchingObjects(carriers, '')).toHaveLength(2)
+    })
+})
+
+describe('matchingRatios', () => {
+    it('narrows the objects a locale lists and leaves its counts where they are', () => {
+        const held = coverage({
+            locales: ['es'],
+            object_count: 40,
+            per_locale: [
+                locale('es', 2, 0, {
+                    standing: 'sparse',
+                    carriers: [carrier({ uid: 'DeAncVisit1' }), carrier({ uid: 'OuClinic001', name: 'Ngelehun' })],
+                }),
+            ],
+        })
+        const [ratio] = matchingRatios(held, 'ngelehun')
+        expect(ratio.carriers.map((carried) => carried.uid)).toEqual(['OuClinic001'])
+        expect(ratio.covered).toBe(2)
+    })
+})
+
+describe('listedCount', () => {
+    it('counts the carriers of a sparse locale and the objects short of a majority one', () => {
+        const held = coverage({
+            locales: ['es', 'fr'],
+            object_count: 4,
+            per_locale: [
+                locale('es', 1, 0, { standing: 'sparse', carriers: [carrier()] }),
+                locale('fr', 3, 0, { standing: 'majority', missing: [untranslated(), untranslated({ uid: 'Ou1' })] }),
+            ],
+        })
+        const [sparse, majority] = coverageRatios(held).toSorted((left, right) =>
+            left.locale.localeCompare(right.locale),
+        )
+        expect(listedCount(sparse)).toBe(1)
+        expect(listedCount(majority)).toBe(2)
     })
 })
 
 describe('coverageRatio', () => {
     it('counts every translatable string, so a form name is a second string on one object', () => {
         const held = coverage({ object_count: 10, form_named_count: 4 })
-        expect(coverageRatio(held, locale('fr', 10, 4))).toEqual({
+        expect(coverageRatio(held, locale('fr', 10, 4, { standing: 'majority' }))).toEqual({
             locale: 'fr',
             covered: 14,
             total: 14,
             share: 1,
+            standing: 'majority',
+            carriers: [],
+            missing: [],
         })
     })
 
@@ -209,7 +315,8 @@ describe('coverageRatios', () => {
 
 describe('coveragePercent', () => {
     it('rounds to the whole percent a strip this size can carry', () => {
-        expect(coveragePercent({ locale: 'lo', covered: 1, total: 3, share: 1 / 3 })).toBe(33)
-        expect(coveragePercent({ locale: 'fr', covered: 2, total: 3, share: 2 / 3 })).toBe(67)
+        const held = { standing: 'sparse' as const, carriers: [], missing: [] }
+        expect(coveragePercent({ locale: 'lo', covered: 1, total: 3, share: 1 / 3, ...held })).toBe(33)
+        expect(coveragePercent({ locale: 'fr', covered: 2, total: 3, share: 2 / 3, ...held })).toBe(67)
     })
 })

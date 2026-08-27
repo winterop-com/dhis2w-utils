@@ -596,11 +596,19 @@ because that service takes none through its public surface.
 
 `GET /metadata-health` - what the DHIS2 instance behind a live run holds that the guide cannot carry
 cleanly. The findings are `d2w fhir validate`'s own, reread over the connection this process already
-holds, and the translation coverage beside them is this module's: which locales the selection is
-being maintained in, how much of it each covers, and which objects hold no translation the rest
-already have. `translation_coverage` is a pure function over the projected objects, so the
-arithmetic behind every number on the page answers with no server running. A run serving a compiled
-guide answers `available: false` with the reason in words rather than a refusal.
+holds, and the translation coverage beside them is this module's: which locales the selection
+carries translations in, how much of it each covers, and which objects are worth naming for it.
+
+Each locale is answered on whichever side of it is the shorter list. Below `MAJORITY_SHARE` of the
+selection's translatable strings a locale is `sparse` and carries `carriers` - the objects somebody
+wrote it on - with an empty `missing`; at or above it the locale is `majority` and carries `missing`
+- the objects nobody has written it for - with an empty `carriers`. Three stray Spanish translations
+on a three-thousand-object instance are three translations, not three thousand absences, and no
+absent translation is graded anywhere: the severities on this answer are the validator's own.
+
+`translation_coverage` is a pure function over the projected objects, so the arithmetic behind every
+number on the page answers with no server running. A run serving a compiled guide answers
+`available: false` with the reason in words rather than a refusal.
 
 ::: dhis2w_fhir_serve.health
 

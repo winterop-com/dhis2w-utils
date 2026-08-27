@@ -87,7 +87,36 @@ export interface FindingCounts {
     infos: number
 }
 
-/** How much of the selection one locale covers. */
+/** Whether a locale covers less than half the selection's translatable strings, or half or more. */
+export type LocaleStanding = 'sparse' | 'majority'
+
+/** One selected object that carries a translation in a locale little of the selection carries. */
+export interface LocaleCarrier {
+    resource_type: string
+    uid: string
+    name: string
+    /** Whether this object carries a name translation in this locale. */
+    carries_name: boolean
+    /** Whether this object has a DHIS2 form name and carries a form-name translation in this locale. */
+    carries_form_name: boolean
+}
+
+/** One selected object holding no translation in a locale most of the selection is translated into. */
+export interface LocaleUntranslated {
+    resource_type: string
+    uid: string
+    name: string
+    name_untranslated: boolean
+    form_name_untranslated: boolean
+}
+
+/**
+ * How much of the selection one locale covers, and which side of it the server listed.
+ *
+ * `standing` says which of the two lists carries anything: a sparse locale is told through the
+ * objects that carry it, a majority locale through the objects that do not. Neither list means
+ * something different depending on the other, which is why there are two of them.
+ */
 export interface LocaleCoverage {
     /** The BCP-47 tag, normalised from the Java locale DHIS2 stores - `pt_BR` arrives as `pt-BR`. */
     locale: string
@@ -95,15 +124,9 @@ export interface LocaleCoverage {
     name_count: number
     /** Selected objects that have a DHIS2 form name and carry a form-name translation in this locale. */
     form_name_count: number
-}
-
-/** One selected object, and the locales in use it holds no translation for. */
-export interface TranslationGap {
-    resource_type: string
-    uid: string
-    name: string
-    missing_name_locales: string[]
-    missing_form_name_locales: string[]
+    standing: LocaleStanding
+    carriers: LocaleCarrier[]
+    missing: LocaleUntranslated[]
 }
 
 /**
@@ -111,8 +134,7 @@ export interface TranslationGap {
  *
  * `locales` is the union of the tags the selection's own translations carry, which is what "in use
  * on this instance" means: an instance is being maintained in the languages somebody wrote into it.
- * Empty is an instance nobody has translated, which has no gaps either - a gap is a locale another
- * object already has and this one does not.
+ * Empty is an instance nobody has translated, which is one language and a whole state.
  */
 export interface TranslationCoverage {
     locales: string[]
@@ -120,7 +142,6 @@ export interface TranslationCoverage {
     /** Of those objects, how many DHIS2 gives a form name - the denominator the form-name counts read against. */
     form_named_count: number
     per_locale: LocaleCoverage[]
-    gaps: TranslationGap[]
 }
 
 /**
@@ -150,7 +171,7 @@ export const EMPTY_METADATA_HEALTH: MetadataHealth = {
     object_count: 0,
     counts: { errors: 0, warnings: 0, infos: 0 },
     findings: [],
-    translations: { locales: [], object_count: 0, form_named_count: 0, per_locale: [], gaps: [] },
+    translations: { locales: [], object_count: 0, form_named_count: 0, per_locale: [] },
 }
 
 /** How many findings one severity holds, off the counts the server stated. */
@@ -160,9 +181,43 @@ export function countOf(counts: FindingCounts, severity: FindingSeverity): numbe
     return counts.infos
 }
 
-/** Whether the run found nothing at all - no finding of any severity, and no translation gap. */
+/**
+ * Whether there is nothing on this run to put on a page.
+ *
+ * A finding of any severity is something to show. So is a locale in use, which is a fact about the
+ * instance rather than a defect in it - the coverage a reader came to see is worth a page even on an
+ * instance the validator had nothing to say about. Neither is an instance nobody has translated
+ * whose names and codes all pass, and that is the one state this answers true for.
+ */
 export function isClean(health: MetadataHealth): boolean {
-    return health.findings.length === 0 && health.translations.gaps.length === 0
+    return health.findings.length === 0 && health.translations.locales.length === 0
+}
+
+/** The one word the validator's `<field> <name> ...` shape continues with, which is what makes the cut safe. */
+const NAMED_SUBJECT_VERB = 'contains '
+
+/**
+ * One finding's message as a row reads it, with the head the row's own columns already carry cut.
+ *
+ * THE VALIDATOR WRITES FOR A TERMINAL, where a finding is one line and has to name its subject:
+ * `name CMC Post abortion related services - E&C/D&C contains '&' which the IG publisher ...`. A row
+ * has an Object column and a Field column, so that head is the row's first two cells said a third
+ * time, and it pushes the sentence a reader came for off the side of the table.
+ *
+ * THE CUT IS THE WHOLE SHAPE OR IT DOES NOT HAPPEN. It fires on the field label, the object's name,
+ * and the verb that shape always continues with - all three, exactly - and the verb is what keeps it
+ * honest: a data element named `Weight` whose form name is `Weight in kg` opens its finding with
+ * `form name Weight in kg contains ...`, and matching on the name alone would cut it to `in kg
+ * contains ...`. Anything the shape does not fit is rendered exactly as the validator wrote it, so a
+ * change of wording upstream costs a head on a row rather than a mangled sentence.
+ *
+ * The wire payload is untouched either way: this is what the cell shows, not what the run found.
+ */
+export function findingMessage(finding: MetadataFinding): string {
+    if (finding.field === null) return finding.message
+    const head = `${finding.field} ${finding.name} ${NAMED_SUBJECT_VERB}`
+    if (!finding.message.startsWith(head)) return finding.message
+    return `Contains ${finding.message.slice(head.length)}`
 }
 
 /**
@@ -174,12 +229,7 @@ export function isClean(health: MetadataHealth): boolean {
  * instance spelled the rest of it.
  */
 export function matchingFindings(findings: MetadataFinding[], query: string): MetadataFinding[] {
-    const wanted = query.trim().toLowerCase()
-    if (wanted === '') return findings
-    return findings.filter(
-        (finding) =>
-            finding.name.toLowerCase().includes(wanted) || finding.uid.toLowerCase().includes(wanted),
-    )
+    return matchingObjects(findings, query)
 }
 
 /** One object kind's findings, under the kind DHIS2 calls it. */
@@ -247,13 +297,31 @@ export interface CoverageRatio {
     total: number
     /** The share covered, 0 to 1, and 1 for a selection with nothing to translate. */
     share: number
+    standing: LocaleStanding
+    /** The objects that carry this locale, filled where it is sparse and empty where it is not. */
+    carriers: LocaleCarrier[]
+    /** The objects that do not, filled where it is a majority locale and empty where it is sparse. */
+    missing: LocaleUntranslated[]
 }
 
 /** One locale's covered-over-total, over every translatable string in the selection. */
 export function coverageRatio(coverage: TranslationCoverage, locale: LocaleCoverage): CoverageRatio {
     const total = coverage.object_count + coverage.form_named_count
     const covered = locale.name_count + locale.form_name_count
-    return { locale: locale.locale, covered, total, share: total === 0 ? 1 : covered / total }
+    return {
+        locale: locale.locale,
+        covered,
+        total,
+        share: total === 0 ? 1 : covered / total,
+        standing: locale.standing,
+        carriers: locale.carriers,
+        missing: locale.missing,
+    }
+}
+
+/** How many objects one locale's row lists - its carriers where it is sparse, the rest where it is not. */
+export function listedCount(ratio: CoverageRatio): number {
+    return ratio.standing === 'sparse' ? ratio.carriers.length : ratio.missing.length
 }
 
 /** Every locale's ratio, weakest first - the language somebody stopped translating leads the strip. */
@@ -268,17 +336,37 @@ export function coveragePercent(ratio: CoverageRatio): number {
     return Math.round(ratio.share * 100)
 }
 
+/** What either translation list is a list of: an object a reader can find by name or by uid. */
+export interface NamedObject {
+    uid: string
+    name: string
+}
+
 /**
- * The gaps one filter leaves, matched the way the findings are - by object name and by uid.
+ * The objects one filter leaves, matched the way the findings are - by object name and by uid.
  *
  * One filter box over the page rather than one per section: a reader looking for an object is
- * looking for it wherever it is, and a name that matched the findings and not the gaps would hide
- * half of what is known about it.
+ * looking for it wherever it is, and a name that matched the findings and not the translation lists
+ * would hide half of what is known about it.
  */
-export function matchingGaps(gaps: TranslationGap[], query: string): TranslationGap[] {
+export function matchingObjects<T extends NamedObject>(objects: T[], query: string): T[] {
     const wanted = query.trim().toLowerCase()
-    if (wanted === '') return gaps
-    return gaps.filter(
-        (gap) => gap.name.toLowerCase().includes(wanted) || gap.uid.toLowerCase().includes(wanted),
+    if (wanted === '') return objects
+    return objects.filter(
+        (object) => object.name.toLowerCase().includes(wanted) || object.uid.toLowerCase().includes(wanted),
     )
+}
+
+/**
+ * Every locale's ratio with the objects it lists narrowed to the filter, the counts left as they are.
+ *
+ * The counts are what the instance holds and a filter does not change them - a meter that moved when
+ * somebody typed would be answering a different question from the one it is labelled with.
+ */
+export function matchingRatios(coverage: TranslationCoverage, query: string): CoverageRatio[] {
+    return coverageRatios(coverage).map((ratio) => ({
+        ...ratio,
+        carriers: matchingObjects(ratio.carriers, query),
+        missing: matchingObjects(ratio.missing, query),
+    }))
 }

@@ -4,8 +4,8 @@ One read, two analyses. The findings are `d2w fhir validate`'s own, reread over 
 facade already holds, so a defect named here is named in the same words the report files carry: a
 name carrying a character the IG publisher cannot survive, a code no FHIR system will take, an
 object carrying no code at all. The translation coverage beside them is the endpoint's own: which
-locales this instance is being maintained in, how much of the selection each covers, and which
-objects hold no translation the rest already have.
+locales this instance carries translations in, how much of the selection each covers, and how each
+locale is read on the side of it that is the shorter list.
 
 Plain `application/json` rather than FHIR, on a lowercase hyphenated segment no resource type can
 collide with - there is no FHIR shape for "this DHIS2 name has a `<` in it".
@@ -30,9 +30,16 @@ import sys
 import httpx
 from _fixture import served_facade
 
-#: How many findings and gaps to print. The whole report can run to thousands of rows on a national
-#: instance, and an example is about the shape of the answer rather than about the volume of it.
+#: How many findings and objects to print. The whole report can run to thousands of rows on a
+#: national instance, and an example is about the shape of the answer rather than the volume of it.
 SHOWN = 5
+
+
+def spellings(name: bool, form_name: bool) -> str:
+    """Which of an object's two spellings one translation row is about, in DHIS2's own words."""
+    if name and form_name:
+        return "name and form name"
+    return "form name" if form_name else "name"
 
 
 async def main() -> None:
@@ -69,11 +76,19 @@ async def main() -> None:
     print(f"\nTranslations, over {total} translatable string(s):")
     for locale in translations["per_locale"]:
         covered = locale["name_count"] + locale["form_name_count"]
-        print(f"  {locale['locale']:8} {covered}/{total}")
-
-    for gap in translations["gaps"][:SHOWN]:
-        missing = ", ".join(gap["missing_name_locales"]) or "-"
-        print(f"  {gap['resource_type']}/{gap['uid']} {gap['name']}: no name written in {missing}")
+        print(f"\n  {locale['locale']:8} {covered}/{total}  ({locale['standing']})")
+        # Each locale is told through whichever side of it is the shorter list. A `sparse` locale -
+        # under half the selection - names the objects that carry it and states no absence at all; a
+        # `majority` locale names the objects nobody has written the translation for yet. An absent
+        # translation is a coverage fact either way, never a finding and never a severity.
+        if locale["standing"] == "sparse":
+            for carrier in locale["carriers"][:SHOWN]:
+                written = spellings(carrier["carries_name"], carrier["carries_form_name"])
+                print(f"    carries {written}: {carrier['resource_type']}/{carrier['uid']} {carrier['name']}")
+        else:
+            for row in locale["missing"][:SHOWN]:
+                short = spellings(row["name_untranslated"], row["form_name_untranslated"])
+                print(f"    not yet written, {short}: {row['resource_type']}/{row['uid']} {row['name']}")
 
 
 if __name__ == "__main__":

@@ -27,7 +27,6 @@ from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.health import (
     COMPILED_RUN_REASON,
     TranslatedObject,
-    TranslationCoverage,
     field_at_fault,
     translation_coverage,
 )
@@ -383,25 +382,36 @@ async def test_coverage_is_counted_per_locale(live_health_client: httpx.AsyncCli
     assert per_locale["fr-CA"]["form_name_count"] == 0
 
 
-async def test_an_object_short_of_a_translation_is_listed_as_a_gap(
+async def test_a_locale_few_objects_carry_states_the_objects_that_carry_it(
     live_health_client: httpx.AsyncClient,
 ) -> None:
-    """A gap is a locale another object already has and this one does not, per property."""
+    """Three translations out of a whole instance is a short list of carriers, not a wall of absence."""
     body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
-    gaps = {gap["uid"]: gap for gap in body["translations"]["gaps"]}
-    assert gaps[_HOSTILE_ELEMENT]["missing_name_locales"] == ["fr-CA", "lo"]
-    assert gaps[_HOSTILE_ELEMENT]["missing_form_name_locales"] == ["fr", "fr-CA", "lo"]
-    assert _CLEAN_ELEMENT not in gaps or gaps[_CLEAN_ELEMENT]["missing_name_locales"] == ["fr-CA"]
+    per_locale = {row["locale"]: row for row in body["translations"]["per_locale"]}
+    assert per_locale["fr"]["standing"] == "sparse"
+    assert per_locale["fr"]["missing"] == []
+    carriers = {carrier["uid"]: carrier for carrier in per_locale["fr"]["carriers"]}
+    assert set(carriers) == {_CLEAN_ELEMENT, _HOSTILE_ELEMENT}
+    assert carriers[_CLEAN_ELEMENT]["carries_form_name"] is True
+    assert carriers[_HOSTILE_ELEMENT]["carries_form_name"] is False
 
 
-async def test_an_object_with_no_form_name_is_never_short_of_a_form_name_translation(
+async def test_the_form_named_denominator_counts_only_objects_dhis2_gives_a_form_name(
     live_health_client: httpx.AsyncClient,
 ) -> None:
-    """Nothing to translate is not a gap - only an object DHIS2 gives a form name can be missing one."""
+    """Nothing to translate is nothing to be short of - a form name is a second string only where there is one."""
     body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
-    gaps = {gap["uid"]: gap for gap in body["translations"]["gaps"]}
-    assert gaps[_SPACED_CODE_ELEMENT]["missing_form_name_locales"] == []
     assert body["translations"]["form_named_count"] == 2
+
+
+async def test_no_absent_translation_is_graded_as_a_finding(live_health_client: httpx.AsyncClient) -> None:
+    """The severities are the validator's own, and the validator grades names and codes - never a translation."""
+    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    counted = body["counts"]["errors"] + body["counts"]["warnings"] + body["counts"]["infos"]
+    assert counted == len(body["findings"])
+    assert body["translations"]["locales"] != []
+    assert not any("translat" in finding["category"] for finding in body["findings"])
+    assert not any("translat" in finding["message"].lower() for finding in body["findings"])
 
 
 async def test_the_uiconfig_says_a_live_run_can_report_on_its_instance(
@@ -436,23 +446,64 @@ def _object(
     )
 
 
-def test_an_instance_nobody_has_translated_reports_no_locales_and_no_gaps() -> None:
+def test_an_instance_nobody_has_translated_reports_no_locales_at_all() -> None:
     """One language is a whole state, not a page of everything being missing."""
     coverage = translation_coverage([_object("Aaa11111111", names=set()), _object("Bbb11111111", names=set())])
-    assert coverage == TranslationCoverage(locales=[], object_count=2, form_named_count=0, per_locale=[], gaps=[])
+    assert coverage.locales == []
+    assert coverage.per_locale == []
+    assert coverage.object_count == 2
 
 
-def test_an_object_translated_into_every_locale_in_use_is_not_a_gap() -> None:
-    """A gap is an absence against what the rest of the selection has, so a complete object states nothing."""
+def test_a_locale_three_objects_out_of_many_carry_is_told_through_its_carriers() -> None:
+    """A stray translation is what three objects hold, not what the other thousand are short of."""
+    carried = [_object(f"Aaa1111111{index}", names={"es"}) for index in range(3)]
+    rest = [_object(f"Bbb1111111{index}", names={"en"}) for index in range(9)]
+    coverage = translation_coverage(carried + rest)
+    assert [item.standing for item in coverage.per_locale] == ["majority", "sparse"]
+    row = next(item for item in coverage.per_locale if item.locale == "es")
+    assert row.name_count == 3
+    assert [carrier.uid for carrier in row.carriers] == ["Aaa11111110", "Aaa11111111", "Aaa11111112"]
+    assert row.missing == []
+
+
+def test_a_locale_most_of_the_selection_carries_is_told_through_the_objects_short_of_it() -> None:
+    """Past half the selection, the shorter list is the objects nobody has written the translation for."""
     coverage = translation_coverage(
-        [_object("Aaa11111111", names={"fr", "lo"}), _object("Bbb11111111", names={"fr", "lo"})]
+        [
+            _object("Aaa11111111", names={"fr"}),
+            _object("Bbb11111111", names={"fr"}),
+            _object("Ccc11111111", names=set()),
+        ]
     )
-    assert coverage.locales == ["fr", "lo"]
-    assert coverage.gaps == []
+    row = coverage.per_locale[0]
+    assert row.standing == "majority"
+    assert row.carriers == []
+    assert [item.uid for item in row.missing] == ["Ccc11111111"]
+    assert row.missing[0].name_untranslated is True
+    assert row.missing[0].form_name_untranslated is False
 
 
-def test_gaps_are_ordered_by_resource_type_then_name() -> None:
-    """The list is read top to bottom, so it is ordered rather than left in the order DHIS2 answered."""
+def test_a_form_name_is_a_second_string_the_share_is_read_against() -> None:
+    """A locale holding every name and no form name has done half the work, which is the boundary itself."""
+    objects = [_object(f"Aaa1111111{index}", names={"lo"}, form_named=True) for index in range(4)]
+    row = translation_coverage(objects).per_locale[0]
+    assert row.standing == "majority"
+    assert [item.form_name_untranslated for item in row.missing] == [True, True, True, True]
+    assert [item.name_untranslated for item in row.missing] == [False, False, False, False]
+
+
+def test_an_object_with_no_form_name_is_never_short_of_a_form_name_translation() -> None:
+    """Nothing to translate is nothing to be short of, whichever side the locale is told through."""
+    coverage = translation_coverage(
+        [_object("Aaa11111111", names={"fr"}), _object("Bbb11111111", names={"fr"}, form_named=False)]
+    )
+    assert coverage.form_named_count == 0
+    assert coverage.per_locale[0].standing == "majority"
+    assert coverage.per_locale[0].missing == []
+
+
+def test_listed_objects_are_ordered_by_resource_type_then_name() -> None:
+    """Either list is read top to bottom, so it is ordered rather than left in the order DHIS2 answered."""
     coverage = translation_coverage(
         [
             _object("Ccc11111111", names={"fr"}),
@@ -460,4 +511,6 @@ def test_gaps_are_ordered_by_resource_type_then_name() -> None:
             _object("Bbb11111111", names={"fr", "lo"}),
         ]
     )
-    assert [gap.uid for gap in coverage.gaps] == ["Aaa11111111", "Ccc11111111"]
+    french = next(row for row in coverage.per_locale if row.locale == "fr")
+    assert french.standing == "majority"
+    assert [item.uid for item in french.missing] == ["Aaa11111111"]
