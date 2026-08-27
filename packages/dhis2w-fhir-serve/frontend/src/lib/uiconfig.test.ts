@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
     capturesSubmissions,
     DEFAULT_UI_CONFIG,
+    metadataHealthOffered,
     NO_REGISTER_OFFERED,
     PEOPLE_RESOURCE_TYPE,
     REGISTER_TITLE,
@@ -309,5 +310,31 @@ describe('the register a form registers into', () => {
 
     it('is the unnamed-type default where a run serves no register at all', () => {
         expect(registerResourceForSubjectType(undefined, NO_REGISTER_OFFERED)).toBe(PEOPLE_RESOURCE_TYPE)
+    })
+})
+
+/** A run stating only what it says about the metadata behind its guide. */
+const withHealth = (metadata_health: UiConfig['metadata_health']): UiConfig => ({
+    basemaps: [],
+    dhis2_base_url: null,
+    tracked_entities: null,
+    metadata_health,
+})
+
+describe('whether this run can report on the metadata behind its guide', () => {
+    it('offers the page when the server says it reaches an instance', () => {
+        expect(metadataHealthOffered(withHealth({ enabled: true }))).toBe(true)
+    })
+
+    it('offers nothing on a compiled run, which states the effective state rather than nothing', () => {
+        expect(metadataHealthOffered(withHealth({ enabled: false }))).toBe(false)
+    })
+
+    it('reads a server that stated nothing as a server with no instance behind it', () => {
+        // A live server always states the object, so silence is a read that failed or something in
+        // front of this server swallowing `/uiconfig` - and an entry offered on a guess would lead
+        // to a page with nothing on it.
+        expect(metadataHealthOffered(withHealth(null))).toBe(false)
+        expect(metadataHealthOffered(DEFAULT_UI_CONFIG)).toBe(false)
     })
 })

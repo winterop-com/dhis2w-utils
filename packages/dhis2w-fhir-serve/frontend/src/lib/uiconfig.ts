@@ -143,6 +143,29 @@ export interface AuthSettings {
     issuer?: string | null
 }
 
+/**
+ * Whether this run can report on the DHIS2 metadata behind the guide it serves.
+ *
+ * THE EFFECTIVE STATE, NOT THE CONFIGURED ONE, exactly as `tracked_entities` is: grading metadata
+ * needs an instance to grade, so a run reading a compiled guide off disk answers false and a run
+ * holding a connection answers true. The navigation asks this rather than following a link to find
+ * out - an entry that led to a page saying "there is nothing here" is worse than no entry.
+ *
+ * The page itself still answers on a compiled run, in words: somebody who followed a bookmark is
+ * told why there is nothing to report rather than shown a blank screen.
+ */
+export interface MetadataHealthSettings {
+    enabled: boolean
+}
+
+/** What a server stating nothing is read as: no instance behind it, so nothing to report on. */
+export const NO_METADATA_HEALTH_OFFERED: MetadataHealthSettings = { enabled: false }
+
+/** Whether this run offers the metadata health report, with silence read as offering none. */
+export function metadataHealthOffered(config: UiConfig): boolean {
+    return (config.metadata_health ?? NO_METADATA_HEALTH_OFFERED).enabled
+}
+
 /** What a server stating nothing is read as: it authenticates nobody, so no prompt is invented. */
 export const NO_AUTHENTICATION: AuthSettings = { posture: 'none', scope: 'write', issuer: null }
 
@@ -175,6 +198,8 @@ export interface UiConfig {
     basemaps: BasemapLayer[]
     dhis2_base_url: string | null
     tracked_entities?: TrackedEntitiesSettings | null
+    /** Whether this run reaches a DHIS2 instance and so has metadata to report the health of. */
+    metadata_health?: MetadataHealthSettings | null
 }
 
 /** What a server stating nothing is read as: no routes, so no listing and no register either. */

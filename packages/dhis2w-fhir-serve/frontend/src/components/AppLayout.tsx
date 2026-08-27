@@ -4,6 +4,7 @@ import {
     Braces,
     ClipboardList,
     FlaskConical,
+    HeartPulse,
     Inbox,
     LayoutDashboard,
     Library,
@@ -32,7 +33,13 @@ import { StatusBarProvider } from '@/hooks/use-status-bar'
 import { useUiConfig } from '@/hooks/use-ui-config'
 import { signInIsRequired, signOut, SIGN_OUT_LABEL } from '@/lib/auth'
 import { COLLAPSE_NAVIGATION_LABEL, EXPAND_NAVIGATION_LABEL, type PalettePage } from '@/lib/palette'
-import { REGISTER_TITLE, registerTitle, trackedEntitySettings, type UiConfig } from '@/lib/uiconfig'
+import {
+    metadataHealthOffered,
+    registerTitle,
+    trackedEntitySettings,
+    REGISTER_TITLE,
+    type UiConfig,
+} from '@/lib/uiconfig'
 import { cn, RESIZE_HANDLE_TINT } from '@/lib/utils'
 
 /** One entry in the sidebar rail: where it goes, what it is called, and what it is for. */
@@ -45,8 +52,8 @@ export interface NavItem {
     /**
      * True for a page this run offers only under a setting, which `/uiconfig` states.
      *
-     * Absent for the six pages every run serves: they answer from the guide this process loaded,
-     * so a bundle that shipped with the server can be certain they are there.
+     * Absent for every page that answers from the guide this process loaded: a bundle shipped with
+     * the server can be certain those are there.
      */
     offered?: (settings: UiConfig) => boolean
     /**
@@ -73,11 +80,11 @@ export const REGISTER_NAV_HINT = 'What this DHIS2 instance tracks'
  * can fill, through the people those forms are about and what came back, to the
  * terminology and the server behind all of it.
  *
- * A PAGE THAT IS NOT ALWAYS THERE STATES ITS OWN CONDITION, in `offered`. The
- * register is the first of those: its routes are mounted only by a run that
- * reaches a DHIS2 instance, and a rail entry leading to a page that answers a
- * refusal is worse than no entry - so the condition is asked before the entry is
- * drawn, rather than discovered by following it.
+ * A PAGE THAT IS NOT ALWAYS THERE STATES ITS OWN CONDITION, in `offered`. Two
+ * are that, and both for the same reason: the register and the metadata health
+ * report each need a DHIS2 instance behind this process, and a rail entry leading
+ * to a page that has nothing to show is worse than no entry - so the condition is
+ * asked before the entry is drawn, rather than discovered by following it.
  *
  * A PAGE THAT IS NOT ALWAYS THE SAME PAGE STATES ITS OWN NAME, in `naming`. The
  * register is the only one of those too: DHIS2 tracks whatever a project tracks,
@@ -105,6 +112,13 @@ export const NAV_ITEMS: NavItem[] = [
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
     { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
+    {
+        path: 'metadata-health',
+        label: 'Metadata health',
+        hint: 'Names, codes, and translations',
+        icon: HeartPulse,
+        offered: metadataHealthOffered,
+    },
     { path: 'evaluate', label: 'Evaluate', hint: 'FHIRPath, CQL, and ELM', icon: FlaskConical },
     { path: 'playground', label: 'Playground', hint: 'Try the FHIR API', icon: Braces },
     { path: 'server', label: 'Server', hint: 'What this server offers', icon: ServerCog },

@@ -919,33 +919,65 @@ async def validate_codes(
     open; with none, the profile opens one for the length of the call, under the sweep's own read
     ceiling rather than the client's ordinary one.
     """
-    effective_source = resolve_code_source(config, code_source)
-    effective_posture = resolve_hostile_names_posture(config, hostile_names)
     progress = _StepAnnouncer(reporter, VALIDATE_CODES_STEPS)
     progress.step("connecting")
-    async with _instance_connection(profile, client, timeout=_SWEEP_TIMEOUT_SECONDS) as client:
+    async with _instance_connection(profile, client, timeout=_SWEEP_TIMEOUT_SECONDS) as connection:
         progress.complete(profile.base_url)
-        progress.step("selection", "resolving the configured selection")
-        scope = await resolve_validation_scope(client, config)
-        progress.complete(_scope_summary(scope))
-        progress.step("instance sweep", "sweeping instance metadata (can take a minute on a large instance)")
-        raw = await client.get_raw("/api/metadata", params={"fields": _SWEEP_FIELDS, "defaults": "EXCLUDE"})
-        collections = _sweep_collections(raw)
-        object_count = sum(len(collection.items) for collection in collections)
-        progress.complete(f"{len(collections):,} collections, {object_count:,} objects")
-        progress.step("option sets", "reading option sets")
-        models = await client.resources.option_sets.list(
-            fields=_OPTION_SET_FIELDS,
-            order=["name:asc"],
-            paging=False,
-        )
-        progress.complete(f"{len(models):,} read")
-    progress.step("findings", "building report")
+        return await _validated_codes(connection, config, code_source, hostile_names, progress=progress)
+
+
+async def validate_instance_codes(
+    client: Dhis2Client,
+    config: GenerateConfig,
+    code_source: str | None = None,
+    hostile_names: HostileNamePosture | None = None,
+    *,
+    scope: ValidationScope | None = None,
+) -> FhirValidationReport:
+    """The analysis `d2w fhir validate` runs, over a connection the caller already holds open.
+
+    The same passes, the same graders, and the same severity grading as the command - what it drops
+    is the command's own furniture: no profile to open a connection from, no progress reporter, and
+    no report files. `d2w fhir serve`'s `/metadata-health` is the caller this exists for, and a
+    finding it answers with is a finding the command names in the same words.
+
+    `scope` is a selection the caller already resolved through `resolve_validation_scope`, which
+    saves resolving it twice where the caller needs the UID sets for something of its own; with none
+    the run resolves its own, exactly as the command does.
+    """
+    return await _validated_codes(client, config, code_source, hostile_names, scope=scope)
+
+
+async def _validated_codes(
+    client: Dhis2Client,
+    config: GenerateConfig,
+    code_source: str | None,
+    hostile_names: HostileNamePosture | None,
+    *,
+    scope: ValidationScope | None = None,
+    progress: _StepAnnouncer | None = None,
+) -> FhirValidationReport:
+    """Resolve the selection, sweep the instance, read the option sets, and grade what came back."""
+    announcer = progress if progress is not None else _StepAnnouncer()
+    effective_source = resolve_code_source(config, code_source)
+    effective_posture = resolve_hostile_names_posture(config, hostile_names)
+    announcer.step("selection", "resolving the configured selection")
+    resolved = scope if scope is not None else await resolve_validation_scope(client, config)
+    announcer.complete(_scope_summary(resolved))
+    announcer.step("instance sweep", "sweeping instance metadata (can take a minute on a large instance)")
+    raw = await client.get_raw("/api/metadata", params={"fields": _SWEEP_FIELDS, "defaults": "EXCLUDE"})
+    collections = _sweep_collections(raw)
+    object_count = sum(len(collection.items) for collection in collections)
+    announcer.complete(f"{len(collections):,} collections, {object_count:,} objects")
+    announcer.step("option sets", "reading option sets")
+    models = await client.resources.option_sets.list(fields=_OPTION_SET_FIELDS, order=["name:asc"], paging=False)
+    announcer.complete(f"{len(models):,} read")
+    announcer.step("findings", "building report")
     option_sets = [_option_set_input(model) for model in models]
     report = build_code_validation(
-        option_sets, collections, config, effective_source, scope=scope, hostile_names=effective_posture
+        option_sets, collections, config, effective_source, scope=resolved, hostile_names=effective_posture
     )
-    progress.complete(f"{len(report.findings):,} finding(s)")
+    announcer.complete(f"{len(report.findings):,} finding(s)")
     return report
 
 

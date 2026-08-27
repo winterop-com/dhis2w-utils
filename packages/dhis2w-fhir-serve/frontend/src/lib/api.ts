@@ -27,7 +27,7 @@
  * the guard. Everything else on this surface is answered from a store loaded
  * once at startup.
  *
- * FIVE PATHS HERE ARE NOT FHIR. `/spool` answers plain JSON, not
+ * SIX PATHS HERE ARE NOT FHIR. `/spool` answers plain JSON, not
  * `application/fhir+json`: it serves the receipt *envelopes* - when the facade
  * accepted each submission, which of its three lifecycle directories the file
  * now sits in, and what DHIS2 said when it refused one - and none of those are
@@ -51,7 +51,10 @@
  *
  * `/evaluate` is the fifth, and the same shape for a fifth reason: it answers
  * what a parser said about the character it stopped on, and FHIR has nowhere to
- * put a line and a column. `/terminology/*` and `/cds-services` are guarded
+ * put a line and a column. `/metadata-health` is the sixth: it reports on the
+ * DHIS2 metadata a guide was generated from, and FHIR has no shape for "this
+ * DHIS2 name has a `<` in it" and none at all for a translation that stops
+ * halfway. `/terminology/*` and `/cds-services` are guarded
  * beside it because this server claims them ahead of the static mount, whether
  * or not this bundle ever calls them - a guard that let a path through would be
  * a guard that let a typo land on the SPA shell.
@@ -65,6 +68,7 @@
  */
 
 import type { EvaluationOutcome } from '@/lib/evaluate'
+import type { MetadataHealth } from '@/lib/health'
 import {
     REGISTER_IDENTIFIER_SEARCH_PARAMETER,
     REGISTER_TAG_SEARCH_PARAMETER,
@@ -93,9 +97,12 @@ export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
  * Every lowercase path `d2w fhir serve` claims ahead of the UI mount.
  *
  * Kept as a list rather than only a regex so the set is greppable from the
- * Python side: this must stay equal to `/metadata`, `/spool`, `/uiconfig`, the
+ * Python side: this must stay equal to `/metadata`, `/metadata-health`,
+ * `/spool`, `/uiconfig`, the
  * `/tracked-entities/{uid}/enrollments` listing, `/evaluate`, the two
- * `/terminology/*` reads, and `/cds-services`. The vite dev-server proxy in
+ * `/terminology/*` reads, and `/cds-services`. A hyphen is not a path
+ * separator, so `/metadata-health` is a segment of its own and needs its own
+ * entry - `metadata` alone does not admit it. The vite dev-server proxy in
  * vite.config.ts proxies the same list, plus the `/$evaluate` operation
  * `SERVICE_BASE_OPERATION_PATTERN_SOURCE` lets through.
  *
@@ -109,6 +116,7 @@ export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
  */
 export const GUARDED_PATH_SEGMENTS = [
     'metadata',
+    'metadata-health',
     'spool',
     'uiconfig',
     'whoami',
@@ -646,6 +654,20 @@ export async function readTrackedEntityEnrollments(trackedEntityUid: string): Pr
  */
 export async function readUiConfig(): Promise<UiConfig> {
     return readJson<UiConfig>('/uiconfig')
+}
+
+/**
+ * What the DHIS2 instance behind a live run holds that the guide cannot carry cleanly.
+ *
+ * The `d2w fhir validate` analysis plus the translation coverage, in one read. Sent with
+ * `cache: 'no-store'`: this is an answer about the instance as it is now, and somebody who has just
+ * renamed an object in DHIS2 must not be shown the name they replaced.
+ *
+ * A compiled run answers 200 with `available: false` and the reason there is nothing to report, so
+ * a caller reads the body rather than catching - the page renders the server's own sentence.
+ */
+export async function readMetadataHealth(): Promise<MetadataHealth> {
+    return readJson<MetadataHealth>('/metadata-health', { cache: 'no-store' })
 }
 
 /**

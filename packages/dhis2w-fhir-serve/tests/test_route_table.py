@@ -123,6 +123,7 @@ def test_the_fhir_routers_carry_the_negotiation_and_the_facade_routers_do_not() 
         "/whoami",
         "/spool",
         "/uiconfig",
+        "/metadata-health",
         "/tracked-entities/{tracked_entity_uid}/enrollments",
         "/evaluate",
         "/terminology/validate-code",

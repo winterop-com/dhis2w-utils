@@ -447,14 +447,15 @@ identically either way. What needs live is the register.
 | `GET /{type}/$summary?identifier=` | the same document for the one person an identifier names |
 | `GET /spool` | every receipt with its lifecycle, counts, and import rollups |
 | `GET /uiconfig` | basemaps, the DHIS2 base URL, the register configuration |
+| `GET /metadata-health` | the validate findings over the served selection, plus its translation coverage |
 | `GET /tracked-entities/{uid}/enrollments` | one entity's program enrollments |
 | `GET /tracked-entities/{uid}/events` | one entity's record: a searchset of its events as QuestionnaireResponses |
 | `GET /tracked-entities/{uid}/events/{eventUid}` | one event of that record |
 
 Fixed paths mount before the read catch-alls and the UI shell mounts last, so a
-UI route never shadows a FHIR one. Every GET also answers HEAD. Three of these
-are deliberately **not** FHIR - `/spool`, `/uiconfig`, and the enrollment
-listing - because no R4 resource says what they say. Everything else, including
+UI route never shadows a FHIR one. Every GET also answers HEAD. Four of these
+are deliberately **not** FHIR - `/spool`, `/uiconfig`, `/metadata-health`, and
+the enrollment listing - because no R4 resource says what they say. Everything else, including
 every refusal and every 404, is FHIR: errors funnel to an `OperationOutcome`.
 
 `$generate` is a custom operation returning its resource directly rather than
@@ -625,8 +626,8 @@ TrackedEntityDetail.
 `linkId`-keyed reducer, the `enableWhen` predicate, and an item-type table
 transcribed from the Python conversion context, so the browser and the
 forwarder agree about what an answer element is. `lib/api.ts` guards every path
-against the served resource types plus `metadata`, `spool`, `uiconfig`, and
-`tracked-entities`, so a typo reaches no network. The frontend make targets sit
+against the served resource types plus `metadata`, `metadata-health`, `spool`,
+`uiconfig`, and `tracked-entities`, so a typo reaches no network. The frontend make targets sit
 outside `make lint` and `make test`; see [The capture
 UI](201-capture-ui.md).
 
@@ -758,8 +759,10 @@ register/                    index, surface, wire, listing, projection
 projection/                  base, schema, sqlite_store, sqlite_names,
                              dhis2_names, sync, serving, factory
 routes/                      capture, read, register, generate, translate,
-                             summary, spool, uiconfig, enrollments, context
+                             summary, spool, uiconfig, metadata_health,
+                             enrollments, context
 summary.py                   The doses one record holds, off the projection
+health.py                    The validate findings and translation coverage
 synthesize.py                $generate
 spool.py                     The write side of .serve/responses
 errors.py, log.py, ui.py     OperationOutcome handlers, logging, the UI mounts

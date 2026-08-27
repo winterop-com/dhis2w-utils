@@ -25,6 +25,7 @@ import tailwindcss from '@tailwindcss/vite'
 const target = process.env.VITE_SERVE_TARGET ?? 'http://127.0.0.1:8080'
 const proxiedPaths = [
     '/metadata',
+    '/metadata-health',
     '/spool',
     '/uiconfig',
     '/whoami',

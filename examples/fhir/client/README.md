@@ -119,6 +119,7 @@ Generating, serving, and draining from Python, rather than from the command line
 | --- | --- |
 | [`generate_ig.py`](generate_ig.py) | `load_project` + `resolve_generation_profile` + `generate_full`, and the `GenerateFullReport` consumed as a model rather than parsed as text |
 | [`consume_facade.py`](consume_facade.py) | Plain httpx against a running facade: `/metadata`, search, `$generate`, POST a capture, read the receipt, read `/spool` |
+| [`read_metadata_health.py`](read_metadata_health.py) | `GET /metadata-health` off a live facade: the `d2w fhir validate` findings with the DHIS2 field at fault and what each grade costs, plus how far the selection is translated per locale |
 | [`forward_spool.py`](forward_spool.py) | `forward_responses` dry run, and the `ForwardReport` counts, per-receipt outcomes, and rejection reasons rolled up by cause |
 | [`minimal_facade.py`](minimal_facade.py) | Facade ladder, level one: one route that translates a capture, posts it to the endpoint its payload names, and hands back DHIS2's verdict under DHIS2's own status |
 | [`basic_facade.py`](basic_facade.py) | Facade ladder, level two: one client for the process in a FastAPI lifespan, settings resolved once at startup, `/health` off a cheap DHIS2 read, one log line per verdict |
