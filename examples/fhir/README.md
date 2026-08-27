@@ -25,7 +25,8 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`init.sh`](cli/init.sh) | `d2w fhir init` — scaffold a project, offline, with the identity and selection dials | yes |
 | [`init_from_template.sh`](cli/init_from_template.sh) | `d2w fhir init --list-templates` / `--template` — scaffold from a guide already generated against an instance, so the project compiles and serves without reaching one | yes |
 | [`init_refresh.sh`](cli/init_refresh.sh) | `d2w fhir init --refresh` — update the scaffold-managed files without losing a line | yes |
-| [`generate.sh`](cli/generate.sh) | `d2w fhir generate` — the whole IG source from one pass over the instance | yes |
+| [`generate_full_run.sh`](cli/generate_full_run.sh) | `d2w fhir generate` — every target of the IG source off one pass over the instance | yes |
+| [`generate_json_report.sh`](cli/generate_json_report.sh) | `d2w --json fhir generate` — the typed `GenerateFullReport` on stdout, read with jq | yes |
 | [`generate_foundation.sh`](cli/generate_foundation.sh) | `d2w fhir generate foundation` — the instance-independent artifacts, no client opened | yes |
 | [`generate_option_sets.sh`](cli/generate_option_sets.sh) | `d2w fhir generate option-sets` — one named target alone | yes |
 | [`generate_stale_compile.sh`](cli/generate_stale_compile.sh) | `d2w fhir generate` — a run that rewrites a FSH source removes the compile of the sources before it | yes |
@@ -44,17 +45,19 @@ The compile step (`make setup && make sushi` inside a scaffolded project) needs 
 | [`summary.sh`](cli/summary.sh) | `GET /Patient/{uid}/$summary` - one person's International Patient Summary: the sections that state their own emptiness, the doses read off their own events, the identifier form, and the `[ips] enabled` dial that withholds the lot | yes |
 | [`registers_many_types.sh`](cli/registers_many_types.sh) | Many tracked entity types, two of them one `Device` register: the union, `_tag`, and the checklist for the types nobody typed | no: creates and removes tracked entity types, programmes, and entities |
 | [`corrections.sh`](cli/corrections.sh) | `[forward] corrections` / `withdrawals` - a marked submission refused at the capture door, then received | yes |
-| [`forward.sh`](cli/forward.sh) | `d2w fhir forward` — drain the spool into DHIS2: dry run, `--import`, the three states | no: docker compile, binds a port, `--import` writes to the instance |
-| [`forward_overwrites.sh`](cli/forward_overwrites.sh) | The two postures a drain takes towards a value already sent - `allow` names it, `refuse` queues the response | no: the same compile, port, and writes as `forward.sh` |
-| [`forward_completeness.sh`](cli/forward_completeness.sh) | Data set completeness: what a `completed` response registers | no: the same compile, port, and writes as `forward.sh` |
-| [`doctor.sh`](cli/doctor.sh) | `d2w fhir doctor` — the whole chain against one instance, one verdict | no: the chain includes the docker compile |
+| [`forward_dry_run.sh`](cli/forward_dry_run.sh) | `d2w fhir forward` — the default: DHIS2 judges every payload validate-only, nothing moves | no: docker compile, binds a port |
+| [`forward_import.sh`](cli/forward_import.sh) | `d2w fhir forward --import` — the committing drain, and the three states it files a receipt into | no: docker compile, binds a port, writes to the instance |
+| [`forward_overwrites.sh`](cli/forward_overwrites.sh) | The two postures a drain takes towards a value already sent - `allow` names it, `refuse` queues the response | no: the same compile, port, and writes as `forward_import.sh` |
+| [`forward_completeness.sh`](cli/forward_completeness.sh) | Data set completeness: what a `completed` response registers | no: the same compile, port, and writes as `forward_import.sh` |
+| [`doctor_probe.sh`](cli/doctor_probe.sh) | `d2w fhir doctor` — the whole chain against one instance over a small representative selection, one verdict | no: the chain includes the docker compile |
+| [`doctor_all_targets.sh`](cli/doctor_all_targets.sh) | `d2w fhir doctor --all-targets` — the same chain over every data set, every program, and every level | no: the same chain |
 | [`doctor_live_oracle.sh`](cli/doctor_live_oracle.sh) | `d2w fhir doctor --live` — the served output judged against the instance | no: the same chain |
 | [`doctor_report.sh`](cli/doctor_report.sh) | `d2w fhir doctor --workspace` — keep the workspace, hand over the report | no: the same chain |
 | [`doctor_json.sh`](cli/doctor_json.sh) | `d2w --json fhir doctor` — the typed report on stdout, for jq and CI | no: the same chain |
 
 ## [`client/`](client/README.md) — the Python library path
 
-Forty-eight examples with [their own README](client/README.md), grouped into nine readings:
+Fifty-four examples with [their own README](client/README.md), grouped into nine readings:
 
 | Group | What it answers |
 | --- | --- |

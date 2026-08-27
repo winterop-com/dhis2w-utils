@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # d2w fhir doctor — the drift phase: has the instance moved past the guide you published?
 # Needs the serve extra and docker for the compile phase; minutes per run, so
-# `make verify-examples` skips it for the same reasons it skips doctor.sh.
+# `make verify-examples` skips it for the same reasons it skips doctor_probe.sh.
 set -euo pipefail
 
 # The drift phase is the one phase whose subject is not the throwaway project doctor

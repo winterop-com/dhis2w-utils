@@ -2,7 +2,7 @@
 # d2w fhir withdraw — take back from DHIS2 the event a forwarded receipt landed.
 # Binds a port to fill the spool, and both its committing runs write to the instance: one
 # creates an event, the other deletes it. `make verify-examples` skips it for the same reasons
-# it skips forward.sh. Run it by hand, against an instance you are willing to write to.
+# it skips forward_import.sh. Run it by hand, against an instance you are willing to write to.
 set -euo pipefail
 
 PORT="${FHIR_WITHDRAW_PORT:-8129}"

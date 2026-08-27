@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# d2w fhir generate — the whole IG source from DHIS2 metadata, in one run.
+# d2w fhir generate — every target of the IG source off one pass over the instance.
 set -euo pipefail
 
 # A small project: one data set, one event program, one tracker program, the registry capped
@@ -43,12 +43,7 @@ d2w fhir generate
 ls ig/input/fsh
 ls ig/input/resources
 
-# --no-progress silences the stderr narration; --json puts the whole report on stdout with
-# stderr quiet, so a caller pipes it straight into jq.
-# d2w fhir generate --no-progress
-# d2w --json fhir generate > generate-report.json
-
-# Compile the emitted source with the scaffolded docker setup when you are ready to build:
-# make setup && make sushi
+# The scaffolded project compiles this source with `make setup && make sushi`, and
+# examples/fhir/cli/serve.sh is the compile and the facade in one script.
 
 cd .. && rm -rf demo-generate

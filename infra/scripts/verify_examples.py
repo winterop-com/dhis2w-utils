@@ -110,11 +110,13 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # alone is minutes on a cold docker image, and the script binds a
         # port — neither belongs in a batch pass.
         "fhir/cli/serve.sh",
-        # The same compile and the same bound port, and its committing run
-        # (`d2w fhir forward --import`) writes data values to the instance.
-        "fhir/cli/forward.sh",
+        # The same compile and the same bound port to fill the spool the drain
+        # reads. The dry run writes nothing to the instance; every other forward
+        # story commits, so `d2w fhir forward --import` writes data values.
+        "fhir/cli/forward_dry_run.sh",
+        "fhir/cli/forward_import.sh",
         # The overwrite and completeness stories carry the same compile, the
-        # same bound port, and the same committing writes as forward.sh.
+        # same bound port, and the same committing writes as forward_import.sh.
         "fhir/cli/forward_overwrites.sh",
         "fhir/cli/forward_completeness.sh",
         # The withdrawal story binds the same port and makes two committing writes
@@ -130,8 +132,10 @@ SKIP_BY_DEFAULT: frozenset[str] = frozenset(
         # `d2w fhir doctor` runs the whole chain — scaffold, generate,
         # dockerized compile, serve, capture, forward — in one command.
         # Minutes per run, for the same compile reason as its siblings.
-        "fhir/cli/doctor.sh",
-        # Each doctor story is its own run of that whole chain.
+        "fhir/cli/doctor_probe.sh",
+        # Each doctor story is its own run of that whole chain, and
+        # `--all-targets` runs it over every data set and every program.
+        "fhir/cli/doctor_all_targets.sh",
         "fhir/cli/doctor_live_oracle.sh",
         "fhir/cli/doctor_report.sh",
         "fhir/cli/doctor_json.sh",

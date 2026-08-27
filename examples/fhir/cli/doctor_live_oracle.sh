@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # d2w fhir doctor --live — the oracle: served resources deep-compared against the instance.
 # Needs the serve extra and docker for the compile phase; minutes per run, so
-# `make verify-examples` skips it for the same reasons it skips doctor.sh.
+# `make verify-examples` skips it for the same reasons it skips doctor_probe.sh.
 set -euo pipefail
 
 # --live adds the oracle: the phase doctor exists for. Every served DHIS2 UID is resolved

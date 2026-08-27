@@ -3836,8 +3836,9 @@ checks, and BUGS.md workaround drift detection. Available via CLI and MCP.
 One example tree, version-neutral: each example is a single copy that runs
 against DHIS2 v41, v42, and v43.
 
-- **`examples/fhir/`**: the `d2w fhir` surface in its own group - 25 CLI scripts
-  (init/generate/validate, serve, forward, doctor, spool, sync) and 43 Python
+- **`examples/fhir/`**: the `d2w fhir` surface in its own group - 36 CLI scripts,
+  one feature apiece (init/generate/validate, serve, forward, doctor, spool,
+  sync) and 43 Python
   library examples grouped as build a response, read a form, convert to DHIS2,
   send and verify, say who a person is, summarise a record, and drive the
   toolchain. Every library one runs in `make verify-examples`

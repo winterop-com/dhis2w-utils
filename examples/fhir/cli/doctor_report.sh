@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # d2w fhir doctor --workspace — keep the run's workspace and hand over its report.
 # Needs the serve extra and docker for the compile phase; minutes per run, so
-# `make verify-examples` skips it for the same reasons it skips doctor.sh.
+# `make verify-examples` skips it for the same reasons it skips doctor_probe.sh.
 set -euo pipefail
 
 # --workspace keeps what the run generated - the scaffolded project, the emitted FSH, the

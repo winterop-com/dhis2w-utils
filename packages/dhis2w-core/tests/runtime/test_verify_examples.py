@@ -38,7 +38,7 @@ def test_discover_examples_includes_the_fhir_group_on_every_major() -> None:
     """`examples/fhir/` is version-agnostic, so every major discovers it."""
     for version_key in ("v41", "v42", "v43"):
         discovered = {p.as_posix() for p in discover_examples(version_key)}
-        assert any(path.endswith("examples/fhir/cli/generate.sh") for path in discovered)
+        assert any(path.endswith("examples/fhir/cli/generate_full_run.sh") for path in discovered)
         assert any(path.endswith("examples/fhir/client/consume_facade.py") for path in discovered)
         assert any(path.endswith("examples/fhir/engine/measure_report.py") for path in discovered)
 
