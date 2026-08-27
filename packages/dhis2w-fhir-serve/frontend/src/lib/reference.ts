@@ -146,6 +146,8 @@ const FHIRPATH_REFERENCE: LanguageReference = {
                 { name: 'subsetOf / supersetOf', meaning: 'Whether one collection contains the other' },
                 { name: 'sort([keys])', meaning: 'Sort; a key written `-expression` sorts descending' },
                 { name: 'aggregate(expression [, start])', meaning: 'Fold the collection, with `$this` and `$total`' },
+                { name: 'sum() / avg()', meaning: 'The total / the mean of a numeric or Quantity collection, empty for an empty one' },
+                { name: 'min() / max()', meaning: 'The smallest / largest item, over numbers, quantities, strings, and dates' },
             ],
         },
         {

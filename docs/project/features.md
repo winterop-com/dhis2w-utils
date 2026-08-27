@@ -3681,6 +3681,12 @@ the evaluator.
 The package runs the official HL7 CQL and FHIRPath R4 compliance suites as part of
 its own test run.
 
+FHIRPath's aggregates are all four named functions beside the general `aggregate()`
+fold: `sum()`, `min()`, `max()` and `avg()`, over numbers, quantities, strings and
+dates as each accepts. An empty collection aggregates to the empty collection
+rather than to zero, and a collection mixing kinds is refused with a message naming
+both. See [FHIRPath](../fhir/501-fhirpath.md#totalling-a-collection).
+
 It ships the console script `d2w-fhir-engine` with `fhirpath`, `cql`, and `elm`
 sub-apps over the same engine. Every command taking `--data` reads it by one rule:
 a Bundle becomes the data source retrieves read, any other resource becomes the

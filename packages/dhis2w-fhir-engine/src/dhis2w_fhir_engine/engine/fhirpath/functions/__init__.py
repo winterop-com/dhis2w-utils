@@ -2,6 +2,7 @@
 
 # Import all function modules to trigger registration
 from . import (
+    aggregates,
     boolean,
     collections,
     comparison,
@@ -16,6 +17,7 @@ from . import (
 )
 
 __all__ = [
+    "aggregates",
     "existence",
     "filtering",
     "subsetting",

@@ -10,7 +10,10 @@ fails.
 Marked `@pytest.mark.contract` so it runs in a dedicated CI job
 (`.github/workflows/contract.yml`) and not as part of `make test`.
 The play instances are public; the only failure mode tied to network
-is an instance being down — those skip rather than fail.
+is an instance being down — those skip rather than fail. A connection
+dropped mid-request (play redeploys nightly) gets exactly one re-attempt
+and says so in the warnings summary; see
+`_once_more_if_the_connection_drops`.
 
 Coverage is exhaustive, not curated: the parametrize list is generated at
 collection time from every `client.resources.<name>` accessor that supports
@@ -22,8 +25,9 @@ run gives a full pass / skip / fail overview across the whole resource surface.
 
 from __future__ import annotations
 
+import asyncio
 import warnings
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -34,6 +38,44 @@ from dhis2w_client.errors import Dhis2ApiError
 
 class UndeclaredFieldWarning(UserWarning):
     """A live row carried fields the generated model doesn't declare (additive drift)."""
+
+
+class DroppedConnectionRetryWarning(UserWarning):
+    """A live call was re-attempted once because the connection dropped mid-request."""
+
+
+_DROPPED_CONNECTION_ERRORS = (httpx.RemoteProtocolError, httpx.ConnectError)
+"""What play's nightly redeploy looks like from here: a socket that closes before the response starts."""
+
+_RETRY_DELAY_SECONDS = 2.0
+"""Long enough for a redeployed instance to finish swapping its listener, short enough to be free."""
+
+
+async def _once_more_if_the_connection_drops[T](label: str, call: Callable[[], Awaitable[T]]) -> T:
+    """Run one live call, re-attempting it exactly once if the connection drops before a response.
+
+    play.im.dhis2.org redeploys nightly, and a run that overlaps the swap loses whichever request was
+    in flight - a different one each time, so a 202-test job reds on something unrelated to any model.
+    One re-attempt covers that; a second failure raises exactly as it would with no retry at all.
+
+    Only transport-level drops are re-attempted. A `pydantic.ValidationError` - the drift this suite
+    exists to catch - propagates out of the first attempt untouched, as does any `Dhis2ApiError`.
+    """
+    try:
+        return await call()
+    except _DROPPED_CONNECTION_ERRORS as dropped:
+        warnings.warn(
+            f"`{label}` lost its connection ({type(dropped).__name__}: {dropped}); re-attempting once "
+            f"after {_RETRY_DELAY_SECONDS}s",
+            DroppedConnectionRetryWarning,
+            stacklevel=2,
+        )
+        await asyncio.sleep(_RETRY_DELAY_SECONDS)
+        return await call()
+
+
+async def _no_sleep(seconds: float) -> None:
+    """Stand in for `asyncio.sleep` so the retry harness's own tests cost no wall clock."""
 
 
 def _listable_resource_accessors(version_key: str) -> list[str]:
@@ -77,12 +119,13 @@ async def _make_client(url: str) -> AsyncIterator[Dhis2Client]:
 
     Network-level failures and gateway outage statuses (502/503/504) skip;
     any other API error status fails, since it points at the endpoint rather
-    than the instance being down.
+    than the instance being down. A connection dropped mid-handshake gets one
+    re-attempt before that skip decides anything.
     """
     client = Dhis2Client(url, auth=BasicAuth(username="admin", password="district"), allow_version_fallback=True)
     try:
         try:
-            await client.connect()
+            await _once_more_if_the_connection_drops(f"connect {url}", client.connect)
         except httpx.HTTPError as exc:
             pytest.skip(f"play instance {url} unreachable: {exc}")
         except Dhis2ApiError as exc:
@@ -156,7 +199,9 @@ async def _assert_resource_validates(client: Dhis2Client, accessor_name: str) ->
         pytest.skip(f"client.resources has no `{accessor_name}` attribute on this DHIS2 version")
 
     try:
-        rows = await accessor.list(page_size=1, fields="*")
+        rows = await _once_more_if_the_connection_drops(
+            f"list {accessor_name}", lambda: accessor.list(page_size=1, fields="*")
+        )
     except Dhis2ApiError as exc:
         pytest.skip(f"`{accessor_name}` not listable on this instance: HTTP {exc.status_code}")
     if not rows:
@@ -171,10 +216,87 @@ async def _assert_resource_validates(client: Dhis2Client, accessor_name: str) ->
     if not sample_id:
         pytest.skip(f"first `{accessor_name}` row had no id")
     try:
-        fetched = await accessor.get(sample_id, fields="*")
+        fetched = await _once_more_if_the_connection_drops(
+            f"get {accessor_name}/{sample_id}", lambda: accessor.get(sample_id, fields="*")
+        )
     except Dhis2ApiError as exc:
         pytest.skip(f"GET `{accessor_name}/{sample_id}` returned HTTP {exc.status_code}")
     assert fetched is not None, f"GET /api/.../{sample_id} returned None"
+
+
+# ---------------------------------------------------------------------------
+# The retry harness itself. These four need no network and carry no `contract`
+# marker, so `make test` keeps the retry's bounds honest on every run.
+# ---------------------------------------------------------------------------
+
+
+async def test_retry_helper_returns_the_first_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A call that answers is not re-attempted, and nothing is warned about."""
+    monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+    attempts: list[int] = []
+
+    async def call() -> str:
+        attempts.append(1)
+        return "answered"
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert await _once_more_if_the_connection_drops("probe", call) == "answered"
+    assert len(attempts) == 1
+    assert [w for w in caught if issubclass(w.category, DroppedConnectionRetryWarning)] == []
+
+
+@pytest.mark.parametrize("error_type", _DROPPED_CONNECTION_ERRORS)
+async def test_retry_helper_re_attempts_one_dropped_connection(
+    monkeypatch: pytest.MonkeyPatch, error_type: type[Exception]
+) -> None:
+    """One dropped connection costs one re-attempt and one warning naming what was retried."""
+    monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+    attempts: list[int] = []
+
+    async def call() -> str:
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise error_type("Server disconnected without sending a response")
+        return "answered"
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert await _once_more_if_the_connection_drops("list dataElements", call) == "answered"
+    assert len(attempts) == 2
+    retried = [w for w in caught if issubclass(w.category, DroppedConnectionRetryWarning)]
+    assert len(retried) == 1
+    assert "list dataElements" in str(retried[0].message)
+
+
+async def test_retry_helper_stops_after_one_re_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A second drop surfaces exactly as it would with no retry at all."""
+    monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+    attempts: list[int] = []
+
+    async def call() -> str:
+        attempts.append(1)
+        raise httpx.RemoteProtocolError("Server disconnected without sending a response")
+
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        with pytest.raises(httpx.RemoteProtocolError):
+            await _once_more_if_the_connection_drops("list dataElements", call)
+    assert len(attempts) == 2
+
+
+async def test_retry_helper_never_re_attempts_a_failed_assertion(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Schema drift and every other non-transport failure raise out of the first attempt."""
+    monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+    attempts: list[int] = []
+
+    async def call() -> str:
+        attempts.append(1)
+        raise AssertionError("the generated model did not parse this row")
+
+    with pytest.raises(AssertionError):
+        await _once_more_if_the_connection_drops("list dataElements", call)
+    assert len(attempts) == 1
 
 
 @pytest.mark.contract
@@ -270,7 +392,10 @@ async def _query_one_tracker_row(client: Dhis2Client, endpoint: str, program_uid
     """
     params = {"program": program_uid, "orgUnit": _TRACKER_ROOT_OU, "ouMode": "DESCENDANTS", "pageSize": "1"}
     try:
-        raw = await client.get_raw(f"/api/tracker/{endpoint}", params=params)
+        raw = await _once_more_if_the_connection_drops(
+            f"/api/tracker/{endpoint} for program {program_uid}",
+            lambda: client.get_raw(f"/api/tracker/{endpoint}", params=params),
+        )
     except Dhis2ApiError as error:
         if error.status_code == 403:
             return None
@@ -295,7 +420,10 @@ async def _fetch_first_tracker_row(client: Dhis2Client, endpoint: str) -> Any:
     row = await _query_one_tracker_row(client, endpoint, _TRACKER_PROGRAM_UID)
     if row is not None:
         return row
-    raw_programs = await client.get_raw("/api/programs", params={"fields": "id,programType", "paging": "false"})
+    raw_programs = await _once_more_if_the_connection_drops(
+        "/api/programs",
+        lambda: client.get_raw("/api/programs", params={"fields": "id,programType", "paging": "false"}),
+    )
     programs = raw_programs.get("programs") or []
     # Event programs (WITHOUT_REGISTRATION) are likeliest to carry event rows in
     # the seed, so probe them before with-registration programs to minimise calls.

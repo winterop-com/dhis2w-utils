@@ -68,7 +68,10 @@ across three of them, two weights. Those counts are small enough to check the en
 eye, which is the point — an example that reports 3 of 4 lets you find the fourth child yourself.
 
 [`clinic.json`](clinic.json) is that same Bundle written out, for the command line — the `d2w-fhir-engine`
-sub-apps read files, not Python modules. [`coverage.cql`](coverage.cql) counts children and asks
+sub-apps read files, not Python modules. JSON carries no comment line, so the pointer lives here:
+`packages/dhis2w-fhir-engine/tests/test_example_clinic_bundle.py` holds `clinic.json` byte for byte
+equal to `clinic_bundle()`, and re-rendering the file is the whole fix when it fails.
+[`coverage.cql`](coverage.cql) counts children and asks
 whether any dose was recorded; [`measles-coverage.cql`](measles-coverage.cql) is the quality measure,
 one definition per population. Both are the libraries the guide's command-line transcripts run.
 

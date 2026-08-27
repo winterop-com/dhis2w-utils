@@ -1,4 +1,4 @@
-"""Ask a whole Bundle a question with FHIRPath: pick a type out of it, filter it, and count.
+"""Ask a whole Bundle a question with FHIRPath: pick a type out of it, filter it, count it, total it.
 
 A Bundle is the shape a FHIR server hands back a set of resources in, and it is what
 `d2w fhir serve --live` builds out of a DHIS2 cohort. Every resource sits under `entry.resource`,
@@ -39,6 +39,22 @@ BUNDLE_EXPRESSIONS: tuple[tuple[str, str], ...] = (
     (
         "Bundle.entry.resource.ofType(Observation).valueQuantity.value",
         "every weight recorded, in the unit the Observation states",
+    ),
+    (
+        "Bundle.entry.resource.ofType(Observation).valueQuantity.value.sum()",
+        "what do those weights come to together?",
+    ),
+    (
+        "Bundle.entry.resource.ofType(Observation).valueQuantity.value.avg()",
+        "and what is the average weight? (a decimal, always)",
+    ),
+    (
+        "Bundle.entry.resource.ofType(Patient).birthDate.min()",
+        "the earliest birth date in the Bundle - the oldest child",
+    ),
+    (
+        "Bundle.entry.resource.ofType(Patient).multipleBirthInteger.sum()",
+        "an element nobody recorded totals to the empty collection, not to zero",
     ),
     (
         "Bundle.entry.resource.ofType(Patient).where(gender = 'female').name.family",
