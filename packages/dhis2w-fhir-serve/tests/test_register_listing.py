@@ -514,8 +514,9 @@ async def test_the_surface_switched_off_refuses_every_route_it_covers(
     for response, named in zip(responses, ["Patient", "Patient", "Patient", "enrollments"], strict=True):
         assert response.json()["issue"][0]["code"] == "not-supported"
         assert response.json()["issue"][0]["diagnostics"] == (
-            f"`{named}` is not served here: this project sets `[serve.tracked_entities] enabled` to false; "
-            "set it true in fhir.toml and serve again to search or list the register"
+            f"`{named}` is not served here: this project's fhir.toml turns the register off, with "
+            "`[serve.tracked_entities] enabled` set to false. Set that key to true and serve again to "
+            "search or list the register."
         )
     assert not tracker.called
 

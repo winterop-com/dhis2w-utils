@@ -23,10 +23,10 @@ from dhis2w_core.profile import resolve_profile
 from dhis2w_fhir import HostileNamePosture, InitOptions, OptionIn, OptionSetIn, load_project, service
 from dhis2w_fhir.hostile_names import HostileNameGate, HostileRewrite
 from dhis2w_fhir.i18n import TranslationIn
-from dhis2w_fhir.notes import GenerateNoteCategory
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory
 from dhis2w_fhir.validation import build_aborting_name
 from dhis2w_fhir.validation.artifacts import check_publishable_artifacts
-from dhis2w_fhir.validation.substitution import substitute_build_aborting_text
+from dhis2w_fhir.validation.substitution import first_control_character, substitute_build_aborting_text
 
 _HOST = "https://dhis2.example"
 
@@ -77,10 +77,50 @@ def test_a_rewritten_name_always_passes_the_build_gate(name: str) -> None:
     assert build_aborting_name(substitute_build_aborting_text(name)) is False
 
 
-def test_a_name_carrying_no_comparison_is_returned_byte_true() -> None:
-    """Only a comparison is rewritten - everything else is published exactly as DHIS2 states it."""
-    for name in ("R&D bednets", "Child Health, Female", "Bo District", "Fixed 1y"):
+def test_a_name_carrying_no_comparison_and_no_control_character_is_returned_byte_true() -> None:
+    """Only a comparison and a control character are rewritten - everything else is published as DHIS2 states it."""
+    for name in ("R&D bednets", "Child Health, Female", "Bo District", "Fixed 1y", "Two  spaces"):
         assert substitute_build_aborting_text(name) == name
+
+
+@pytest.mark.parametrize(
+    ("name", "published"),
+    [
+        ("Malaria\tcases", "Malaria cases"),
+        ("Under\n5 years", "Under 5 years"),
+        ("Fixed\rrate", "Fixed rate"),
+        ("Malaria\x01cases", "Malaria cases"),
+        ("A\x0b\x0cB", "A B"),
+        ("\x01Leading", "Leading"),
+        ("Trailing\x01", "Trailing"),
+        ("Under \x01 5", "Under 5"),
+        ("5 to\t< 15 years", "5 to under 15 years"),
+    ],
+)
+def test_a_control_character_reads_as_the_space_it_stood_in(name: str, published: str) -> None:
+    """A control character stands for no words, so the rewrite collapses it rather than spelling it out."""
+    assert substitute_build_aborting_text(name) == published
+
+
+@pytest.mark.parametrize("code_point", range(0x20))
+def test_the_rewrite_leaves_no_control_character_behind(code_point: int) -> None:
+    """The postcondition for the other half of the gate: whatever goes in, no C0 control comes out."""
+    published = substitute_build_aborting_text(f"Malaria{chr(code_point)}cases")
+    assert published == "Malaria cases"
+    assert first_control_character(published) is None
+
+
+def test_a_control_carrying_name_is_rewritten_by_the_gate_and_noted_as_one() -> None:
+    """The note says which of the two rewrites the name took, rather than claiming a comparison it has none of."""
+    gate = HostileNameGate(HostileNamePosture.SUBSTITUTE)
+    notes: list[GenerateNote] = []
+    screened = gate.screen([OptionSetIn(uid="Os1aaaaaaaa", name="Malaria\x01cases", options=[])], notes)
+
+    assert screened[0].name == "Malaria cases"
+    assert len(notes) == 1
+    assert notes[0].category is GenerateNoteCategory.NAME_SUBSTITUTION
+    assert "carries a control character the published guide cannot carry as it stands" in notes[0].message
+    assert "'Malaria\\x01cases'" in notes[0].message
 
 
 @pytest.mark.parametrize(

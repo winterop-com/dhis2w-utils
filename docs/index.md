@@ -59,11 +59,13 @@ The generated [MCP reference](mcp-reference.md) currently reports around 318 too
 | Route (`/api/routes` integration proxies) | `d2w route` | 7 | [Auth schemes](api/auth-schemes.md) |
 | Maintenance (tasks, cache, cleanup, data integrity, validation, predictors) | `d2w maintenance` | 15 | [Maintenance plugin](architecture/maintenance-plugin.md) |
 | Files (documents + file resources) | `d2w files` | 5 | [Files plugin](architecture/files-plugin.md) |
+| Data store (namespaces, keys, get / set / delete, delete-namespace, the shared store and the per-user one) | `d2w datastore` | 5 | [Data store](api/datastore.md) |
 | Messaging (`/api/messageConversations` + ticket-workflow fields) | `d2w messaging` | 11 | [Messaging plugin](architecture/messaging-plugin.md) |
 | User admin (users, groups, roles, sharing) | `d2w user` + `d2w user group` + `d2w user role` | 16 | [User plugin](architecture/user-plugin.md) / [User groups + roles](architecture/user-groups-and-roles.md) |
 | Customize (login page / logos / CSS / system settings) | `d2w customize` | 7 | [Customize plugin](architecture/customize-plugin.md) |
 | Apps (`/api/apps` + `/api/appHub` + snapshot/restore) | `d2w apps` | 13 | [Apps API](api/apps.md) |
 | Doctor (BUGS tripwires + integrity checks + metadata health) | `d2w doctor` | 4 | [Doctor plugin](architecture/doctor-plugin.md) |
+| Security posture (settings, authorities, audit, report) | `d2w security` | 3 | [Security plugin](architecture/security-plugin.md) |
 | Dev (codegen, uid, pat, oauth2 client, sample fixtures) | `d2w dev` | — (dev-only) | [Codegen](codegen.md) |
 | Browser automation (Playwright-driven PAT mint, screenshots, OIDC login) | `d2w browser` | — (runs out-of-process) | [Browser automation](architecture/browser.md) |
 | FHIR (init / validate / generate / serve / forward / withdraw / doctor) | `d2w fhir` | — (CLI and its own HTTP facade) | [`d2w fhir`](fhir/index.md) |

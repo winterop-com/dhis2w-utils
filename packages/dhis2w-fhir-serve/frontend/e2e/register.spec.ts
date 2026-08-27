@@ -737,7 +737,7 @@ test.describe('the people this DHIS2 instance holds', () => {
         await page.goto('/#/tracked-entities')
         await expect(page).toHaveURL(/#\/tracked-entities$/)
         await expect(page.getByTestId('register-not-served')).toContainText(
-            'this process serves a compiled implementation guide',
+            'This facade serves a compiled implementation guide',
         )
     })
 
@@ -746,7 +746,7 @@ test.describe('the people this DHIS2 instance holds', () => {
 
         await page.goto(`/#/tracked-entities/Patient/${PERSON_UID}`)
         await expect(page.getByTestId('register-not-served')).toContainText(
-            'to search the register',
+            'holds no register to search',
         )
     })
 

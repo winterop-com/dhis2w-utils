@@ -42,15 +42,18 @@ if TYPE_CHECKING:
 #: "not supported" would leave somebody looking for a setting that does not exist.
 COMPILED_RUN_REASON = (
     "This server is reading a compiled implementation guide from disk, so there is no DHIS2 instance "
-    "behind it to check. Start the server with --live to read the instance this guide was generated "
+    "behind it to check. Run `d2w fhir serve --live` to read the instance this guide was generated "
     "from."
 )
 
+#: The categories that can be about either of an object's two name spellings, which
+#: `_FIELD_LABELS_BY_MESSAGE_PREFIX` tells apart by reading the head of the finding's own message.
+_NAME_CATEGORIES = frozenset({"template-hostile-name", "control-character-name"})
+
 #: The DHIS2 field each finding category is about, so a row says which spelling to go and change.
-#: `template-hostile-name` is the one category that can be about either of two fields, and
-#: `_FIELD_LABELS_BY_MESSAGE_PREFIX` is what tells them apart.
 FIELD_BY_CATEGORY: dict[str, str] = {
     "template-hostile-name": "name",
+    "control-character-name": "name",
     "template-hostile-code": "code",
     "invalid-code": "code",
     "missing-code": "code",
@@ -270,7 +273,7 @@ def health_finding(finding: ValidationFinding) -> MetadataHealthFinding:
 
 def field_at_fault(finding: ValidationFinding) -> str | None:
     """Which DHIS2 field one finding is about, or None where the category is about no field of the object."""
-    if finding.category == "template-hostile-name":
+    if finding.category in _NAME_CATEGORIES:
         return next(
             (label for label in _FIELD_LABELS_BY_MESSAGE_PREFIX if finding.message.startswith(f"{label} ")),
             "name",

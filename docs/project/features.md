@@ -1411,8 +1411,9 @@ posting at a running facade.
 ### Validate the instance
 
 `d2w fhir validate` checks an instance's codes for FHIR-safety: an
-instance-wide `/api/metadata` sweep applying both the R4 code check and the
-`template-hostile-name` check to every object in every collection it returns,
+instance-wide `/api/metadata` sweep applying the R4 code check, the
+`template-hostile-name` check, and the `control-character-name` check to every
+object in every collection it returns,
 graded against the emission scope the run resolves from the same selection
 semantics `generate` uses.
 
@@ -1442,7 +1443,23 @@ semantics `generate` uses.
   the same three on the six collections whose codes become identifier values
   (`optionSets`, `categories`, `organisationUnits`, `dataSets`, `programs`,
   `programStages`).
-- **Both are graded the same way**: an error for an in-scope `<`, a warning for
+- **`control-character-name`** fires in either code mode on any name or form
+  name holding a C0 control character (U+0000 through U+001F), which SUSHI
+  carries byte-true from the FSH into the compiled resource. Tab, newline, and
+  carriage return are the whole of what XML 1.0 admits below U+0020 - and what
+  the R4 `string` value regex names - so those are warnings: the published pages
+  collapse them while the FSH `Title:` has already flattened them, and one object
+  states its name two ways. Every other C0 control has no XML form at all, not
+  even a numeric character reference, and the IG publisher writes an XML
+  rendering of every resource beside the JSON one, so those are errors. The
+  message names the character in words (*a tab character*, *the control
+  character `\x01`*) and `display_code` prints it as an escape rather than
+  letting an invisible byte reach the page as nothing. Under `"substitute"` the
+  rewrite collapses every control character to the space it stood in, so the
+  finding is `info` and names both spellings. It is a category of its own, not a
+  `template-hostile-name`: no HTML template is what breaks, and a
+  `control-character-name` error does not refuse a generate run.
+- **Both hostile-character checks are graded the same way**: an error for an in-scope `<`, a warning for
   an in-scope `>` / `&`, and `info` for either out of scope - because a name
   and an identifier value alike land in HTML the publisher writes unescaped and
   then strict-parses, so an aborted build is what a `<` costs on either surface
@@ -2774,10 +2791,10 @@ an identifier search and a paged listing on one page, with a detail route at
   and no entry is drawn.
 - **A link to a register this run does not serve is answered where it was
   opened.** The address states one card carrying the server's own refusal, read
-  off `GET /{resource}` - *this process serves a compiled implementation guide;
-  start it with `--live` to search the register*, or the `fhir.toml` setting a
-  project turned the register off with - which are two different things to do
-  about it. Neither the listing nor the record silently exchanges the address
+  off `GET /{resource}` - *this facade serves a compiled implementation guide,
+  so it holds no register to search; run `d2w fhir serve --live` to search
+  one*, or the `fhir.toml` key a project turned the register off with, which it
+  names - two different things to do about it. Neither the listing nor the record silently exchanges the address
   for the overview.
 - **The words follow the tracked entity types, never the FHIR resource.** A
   guide maps whatever a project tracks onto whatever resource fits, and

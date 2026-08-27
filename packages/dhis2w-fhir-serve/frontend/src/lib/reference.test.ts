@@ -217,7 +217,8 @@ describe('the settings server prose names', () => {
     })
 
     it('leaves a key the server already marked exactly as it marked it', () => {
-        const stated = 'this project sets `[serve.tracked_entities] enabled` to false'
+        const stated =
+            "this project's fhir.toml turns the register off, with `[serve.tracked_entities] enabled` set to false"
         expect(markConfigurationKeys(stated)).toBe(stated)
     })
 

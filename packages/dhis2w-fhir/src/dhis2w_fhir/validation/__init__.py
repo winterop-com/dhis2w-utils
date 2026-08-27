@@ -28,6 +28,17 @@ for the same reason: `<` opens a tag, so the publisher's re-parse of the page it
 wrote fails and `make build` exits non-zero, while `>` and `&` cost a malformed page
 the build survives.
 
+A second name check reads the C0 control characters a real instance carries
+(`control-character-name`). SUSHI carries one byte-true from the FSH it compiles into the
+resource JSON, so the character reaches the published guide whatever the toolchain does.
+Tab, newline, and carriage return are the whole of what XML 1.0 admits below U+0020 - and
+what the R4 `string` value regex names - so those are warnings: the published pages collapse
+them while the FSH `Title:` has already flattened them, and one object states its name two
+ways. Every other C0 control has no XML form at all, not even a numeric character reference,
+and the publisher writes an XML rendering of every resource beside the JSON one, so those
+are errors. It is a category of its own rather than a `template-hostile-name`: no HTML
+template is what breaks, and `<` alone is what the generate refusal gates on.
+
 ## What the deep passes do not repeat, and why
 
 The deep passes cover what the sweep structurally cannot: the objects it excludes
@@ -142,7 +153,12 @@ from dhis2w_fhir.validation.schemas import (
     ValidationFinding,
     ValidationScope,
 )
-from dhis2w_fhir.validation.substitution import substitute_build_aborting_text
+from dhis2w_fhir.validation.substitution import (
+    XML_EXPRESSIBLE_CONTROL_CHARACTERS,
+    control_character_name,
+    first_control_character,
+    substitute_build_aborting_text,
+)
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig
@@ -206,6 +222,13 @@ _UNMAPPED_TRACKED_ENTITY_TYPE_CATEGORY = "unmapped-tracked-entity-type"
 #: malformed page. Generation escapes the page metadata it controls, but the resource's own
 #: `title` / `name` elements stay byte-true DHIS2 data - which is the surface that stays broken.
 _TEMPLATE_HOSTILE_CHARACTERS = ("<", ">", "&")
+
+#: What a name carrying a C0 control character is reported under. It is a category of its own rather
+#: than a `template-hostile-name`, because it is a different defect judged on different evidence: an
+#: HTML template injecting the character is not what breaks, and `<` alone is what the generate-time
+#: refusal in `service.py` gates on. Grading a control character under that name would claim a gate
+#: it does not have.
+_CONTROL_CHARACTER_CATEGORY = "control-character-name"
 
 #: The swept collections whose objects emit a resource carrying the DHIS2 code as an identifier value -
 #: option sets and categories on both halves of their CodeSystem/ValueSet pair, organisation units on both
@@ -286,6 +309,10 @@ def build_code_validation(
         findings.extend(
             _rescoped(finding, set_in_scope)
             for finding in _template_hostile_option_findings(option_set, config.locales, substituting=substituting)
+        )
+        findings.extend(
+            _rescoped(finding, set_in_scope)
+            for finding in _control_character_option_findings(option_set, config.locales, substituting=substituting)
         )
     findings.extend(_stem_findings(collections, config, scope))
     object_count = 0
@@ -458,6 +485,117 @@ def _template_hostile_grade(
         return "info", _substituted_name_message(name, published, field_label)
     substituted = _substituted_name_message(name, published, field_label)
     return "warning", f"{substituted}; {_survivable_character_clause(remaining)}"
+
+
+def _control_character_severity(character: str) -> Literal["error", "warning"]:
+    """The grade a control character carries in a name: build-blocking unless XML can express it.
+
+    The IG publisher writes an XML rendering of every resource beside the JSON one. Tab, newline,
+    and carriage return are the whole of what XML 1.0 admits below U+0020, and the R4 `string`
+    value regex names the same three - so those three reach the published guide and cost only what
+    they render as. Every other C0 control has no XML form at all, not even a numeric character
+    reference, so the rendering the publisher writes cannot be read back and the build exits
+    non-zero - which is what `error` means here.
+    """
+    return "warning" if character in XML_EXPRESSIBLE_CONTROL_CHARACTERS else "error"
+
+
+def _control_character_message(name: str, character: str, field_label: str = _NAME_FIELD_LABEL) -> str:
+    """Say which control character a name carries, in words, and what it costs the guide."""
+    consequence = (
+        "so the published pages collapse it to a space while the FSH title the guide writes has already "
+        "flattened it, and one object states its name two ways"
+        if character in XML_EXPRESSIBLE_CONTROL_CHARACTERS
+        else "so `make build` fails: XML 1.0 can express no such character, not even as a numeric character "
+        "reference, and the publisher writes an XML rendering of every resource beside the JSON one"
+    )
+    return (
+        f"{field_label} {display_code(name)} contains {control_character_name(character)}, which SUSHI carries "
+        f"byte-true into the compiled resource, {consequence}; change the {field_label} in DHIS2"
+    )
+
+
+def _substituted_control_character_message(name: str, published: str, field_label: str = _NAME_FIELD_LABEL) -> str:
+    """Say what the guide publishes in one control-carrying name's place, and what DHIS2 keeps."""
+    return (
+        f"published as {published!r} - every control character reads as the space it stood in and the "
+        f'whitespace around it collapses (hostile_names = "substitute"); DHIS2 keeps {name!r}'
+    )
+
+
+def _control_character_grade(
+    name: str, character: str, *, substituting: bool, field_label: str = _NAME_FIELD_LABEL
+) -> tuple[Literal["error", "warning", "info"], str]:
+    """The severity and wording one control-carrying name takes under the posture this run grades under.
+
+    The rewrite consumes every control character there is, so under `substitute` the published name
+    always carries none and the finding is informational, stating both spellings.
+    """
+    published = substitute_build_aborting_text(name)
+    if not substituting:
+        return _control_character_severity(character), _control_character_message(name, character, field_label)
+    return "info", _substituted_control_character_message(name, published, field_label)
+
+
+def _control_character_finding(
+    resource_type: str, uid: str, name: str, code: str | None, *, substituting: bool
+) -> ValidationFinding | None:
+    """Flag one object whose name carries a C0 control character a real instance can hold."""
+    character = first_control_character(name)
+    if character is None:
+        return None
+    severity, message = _control_character_grade(name, character, substituting=substituting)
+    return ValidationFinding(
+        severity=severity,
+        category=_CONTROL_CHARACTER_CATEGORY,
+        resource_type=resource_type,
+        uid=uid,
+        name=name,
+        code=code,
+        message=message,
+    )
+
+
+def _control_character_form_name_finding(
+    resource_type: str, uid: str, name: str, form_name: str | None, code: str | None, *, substituting: bool
+) -> ValidationFinding | None:
+    """Flag one question object whose DHIS2 form name carries a control character.
+
+    A form name becomes the `text` of every question asking the object, so it lands on the same
+    published element the name does and costs the same build. The finding still names the object
+    under its DHIS2 name, because that is what a reader searches the instance for.
+    """
+    if form_name is None or resource_type not in _FORM_NAME_COLLECTIONS:
+        return None
+    character = first_control_character(form_name)
+    if character is None:
+        return None
+    severity, message = _control_character_grade(
+        form_name, character, substituting=substituting, field_label=_FORM_NAME_FIELD_LABEL
+    )
+    return ValidationFinding(
+        severity=severity,
+        category=_CONTROL_CHARACTER_CATEGORY,
+        resource_type=resource_type,
+        uid=uid,
+        name=name,
+        code=code,
+        message=message,
+    )
+
+
+def _control_character_option_findings(
+    option_set: OptionSetIn, locales: list[str], *, substituting: bool
+) -> list[ValidationFinding]:
+    """Flag the option names the sweep cannot see - options are excluded from it, and land in page tables."""
+    findings: list[ValidationFinding] = []
+    for option in sorted(option_set.options, key=lambda item: item.uid):
+        character = first_control_character(option.name)
+        if character is None:
+            continue
+        severity, message = _control_character_grade(option.name, character, substituting=substituting)
+        findings.append(_option_finding(option_set, option, severity, _CONTROL_CHARACTER_CATEGORY, message, locales))
+    return findings
 
 
 def _template_hostile_finding(
@@ -653,6 +791,14 @@ def _collection_findings(
         )
         if hostile_code is not None:
             findings.append(hostile_code)
+        control = _control_character_finding(collection.resource, item.uid, name, item.code, substituting=substituting)
+        if control is not None:
+            findings.append(_rescoped(control, in_scope))
+        control_form_name = _control_character_form_name_finding(
+            collection.resource, item.uid, name, item.form_name, item.code, substituting=substituting
+        )
+        if control_form_name is not None:
+            findings.append(_rescoped(control_form_name, in_scope))
         if item.code is None:
             if collection.resource == _CODE_REQUIRED_COLLECTION:
                 findings.append(

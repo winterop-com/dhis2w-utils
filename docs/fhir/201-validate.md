@@ -218,7 +218,34 @@ publishes that name rewritten and the finding is informational -
 `>` and `&` cost a malformed page the build survives, so they are warnings
 under either posture.
 
-Its sibling `template-hostile-code` grades the same three characters the same
+A second name check reads the other thing a real instance carries and a page
+cannot show: `control-character-name`, raised on any name holding a C0 control
+character (U+0000 through U+001F). SUSHI carries one byte-true from the FSH it
+compiles into the resource JSON, so the character reaches the published guide
+whatever the toolchain does with it. **Tab, newline, and carriage return** are
+the whole of what XML 1.0 admits below U+0020 - and the R4 `string` value regex
+`[ \r\n\t\S]+` names the same three - so those reach the guide and cost only
+what they render as: the pages collapse them to a space, the FSH `Title:` the
+guide writes has already flattened them, and one object ends up stating its
+name two ways. Those are **warnings**. **Every other C0 control character** has
+no XML form at all, not even a numeric character reference, and the IG
+publisher writes an XML rendering of every resource beside the JSON one - so
+the guide has no readable rendering of that name and the build ends. Those are
+**errors**. The message names the character in words - *a tab character*, *a
+null character*, *the control character `\x01`* - and the reports print it as
+an escape rather than letting an invisible byte reach the page as nothing.
+
+Under `hostile_names = "substitute"` every control character is rewritten away:
+each one reads as the space it stood in and the whitespace around it collapses,
+which is what the FSH path already does to a name, so the resource element and
+the page furniture state one spelling instead of two. The finding is then
+informational and names both spellings. `control-character-name` is a category
+of its own rather than a `template-hostile-name` because it is a different
+defect on different evidence - no HTML template is what breaks - and because
+`<` alone is what the generate refusal gates on. A `control-character-name`
+error does not refuse a generate run.
+
+`template-hostile-name`'s sibling `template-hostile-code` grades the same three characters the same
 way, on the collections whose codes become identifier values (`optionSets`,
 `categories`, `organisationUnits`, `dataSets`, `programs`,
 `programStages`). The publisher writes identifier values into a table cell
