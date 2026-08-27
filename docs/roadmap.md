@@ -93,7 +93,7 @@ The four-PR typing sweep (#71-#74) plus the codegen discriminator synthesis (#76
 
 ### Seed fixture
 
-The committed e2e dump (`infra/v42/dump.sql.gz`) mirrors DHIS2 Play's Sierra Leone immunization demo with workspace-local additions: 1332 org units with GeoJSON geometries, 67 data elements, 3 indicators, 3 programs (Child Programme + Antenatal = tracker; Supervision visit = event), 2 datasets, 3 dashboards, 23 visualizations built programmatically via `VisualizationSpec` + 1 `EventVisualization` for the supervision program attached to the Immunization data dashboard, 8 maps built via `MapSpec`, 188k aggregate data values, 500 tracker entities each carrying a minted Unique ID, 12 sample supervision events covering 2024 monthly, 6 program rules + 10 program indicators. Workspace fixtures layered on top (`infra/scripts/seed/workspace_fixtures.py`): `SNOMED_CODE` attribute, `VACCINE_TYPE` option set with 5 fixed-UID options, 3 SqlViews (VIEW / QUERY / MATERIALIZED_VIEW), 2 BCG predictors + PredictorGroup + 2 output DEs, 2 BCG validation rules + ValidationRuleGroup, 4 named OrganisationUnitLevel records (Country / Province / District / Facility), 1 LegendSet (`LsDoseBand1`) attached to the Measles + Penta-1 monthly column charts. `make refresh-and-verify` wipes the stack, rebuilds the dump, runs every non-interactive example end-to-end, and reports a pass/fail summary as the regression gate. Skipped examples are the ones that need a real browser session (OIDC-login flows including the Playwright-driven variant), out-of-process screenshots, very long-running analytics jobs, or external network deps — the make target prints the per-run count.
+The committed e2e dump (`infra/v42/dump.sql.gz`) mirrors DHIS2 Play's Sierra Leone immunization demo with workspace-local additions: 1332 org units with GeoJSON geometries, 67 data elements, 3 indicators, 3 programs (Child Programme + Antenatal = tracker; Supervision visit = event), 2 datasets, 3 dashboards, 23 visualizations built programmatically via `VisualizationSpec` + 1 `EventVisualization` for the supervision program attached to the Immunization data dashboard, 8 maps built via `MapSpec`, 188k aggregate data values, 500 tracker entities each carrying a minted Unique ID, 12 sample supervision events covering 2024 monthly, 6 program rules + 10 program indicators. Workspace fixtures layered on top (`infra/scripts/seed/workspace_fixtures.py`): `SNOMED_CODE` attribute, `VACCINE_TYPE` option set with 5 fixed-UID options, 3 SqlViews (VIEW / QUERY / MATERIALIZED_VIEW), 2 BCG predictors + PredictorGroup + 2 output DEs, 2 BCG validation rules + ValidationRuleGroup, 4 named OrganisationUnitLevel records (Country / Province / District / Facility), 1 LegendSet (`LsDoseBand1`) attached to the Measles + Penta-1 monthly column charts. `make refresh-and-verify` wipes the stack, rebuilds the dump, seeds the tokens, refreshes the analytics tables the analytics examples read, runs every non-interactive example end-to-end, and reports a pass/fail summary as the regression gate. Skipped examples are the ones that need a real browser session (OIDC-login flows including the Playwright-driven variant), out-of-process screenshots, very long-running analytics jobs, external network deps, or an environment variable this machine does not carry — the make target prints the per-run count and each skip states its own reason.
 
 ### CI
 
@@ -296,9 +296,9 @@ The natural next direction is one of:
   authenticate against. Loopback-by-default is the current mitigation and it is a demo
   posture, not a deployment one. Needs a scope decision first: a gate on the write path, or
   OAuth2 against the same identity provider the client already speaks.
-- **The examples quality wave.** A handful of non-FHIR examples still show several
-  features at once where the rule is one apiece, and eight failures are fixture or
-  environment gaps rather than code.
+- **The examples quality wave.** A handful of examples still show several features at
+  once where the rule is one apiece: the three long `d2w fhir` command-line scripts, and
+  a set of the non-FHIR ones.
 - **Pick one of the two remaining strategic options** below and commit to a multi-PR body of
   work (data approval workflow, or audit log reader).
 - **Promote a medium-term tactical item** (client cold-open latency, the A4 filter-DSL / URL
