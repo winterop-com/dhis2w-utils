@@ -1,4 +1,4 @@
-"""`GET /tracked-entities/{uid}/events`: the wire read it holds DHIS2 to, and the record it answers.
+"""`GET /facade/tracked-entities/{uid}/events`: the wire read it holds DHIS2 to, and the record it answers.
 
 Mocked (respx); no live stack. The store is the compiled capture fixture, whose stage form
 `PsAncVisit1` is the very Questionnaire a served event is projected through, and the DHIS2 client is
@@ -186,7 +186,7 @@ async def test_the_record_is_one_entity_scoped_read_naming_no_program(record_cli
     """
     read = _record_route(_event("EvAncVis001"))
 
-    response = await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")
+    response = await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")
 
     assert response.status_code == 200
     assert len(read.calls) == 1
@@ -202,7 +202,7 @@ async def test_one_event_is_served_as_the_response_its_stage_form_describes(
     """The document is the capture contract's own: the stage's questionnaire, the person, the values."""
     _record_route(_event("EvAncVis001"))
 
-    body = (await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")).json()
+    body = (await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")).json()
     [response] = _matches(body)
 
     assert body["resourceType"] == "Bundle"
@@ -230,7 +230,7 @@ async def test_the_document_carries_the_enrollment_and_the_reporting_unit(
     """The two facts a stage response's own profile requires beside the person, as its extensions."""
     _record_route(_event("EvAncVis001"))
 
-    body = (await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")).json()
+    body = (await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")).json()
     extensions = {extension["url"]: extension for extension in _matches(body)[0]["extension"]}
 
     assert extensions[_ORGANISATION_UNIT_EXTENSION]["valueReference"] == {"reference": f"Location/{_ORG_UNIT_UID}"}
@@ -251,7 +251,7 @@ async def test_the_record_is_newest_first_whatever_order_the_instance_answered_i
         _event("EvAncVis003", occurred_at="2026-07-25T08:00:00.000"),
     )
 
-    body = (await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")).json()
+    body = (await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")).json()
 
     assert [response["id"] for response in _matches(body)] == ["EvAncVis001", "EvAncVis003", "EvAncVis002"]
 
@@ -264,7 +264,7 @@ async def test_a_page_is_a_slice_of_the_record_and_the_links_walk_it(record_clie
         _event("EvAncVis003", occurred_at="2026-07-25T07:00:00.000"),
     )
 
-    first = (await record_client.get(f"/tracked-entities/{_PERSON_UID}/events?_count=2")).json()
+    first = (await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events?_count=2")).json()
     second = (await record_client.get(_link(first, "next") or "")).json()
     back = (await record_client.get(_link(second, "previous") or "")).json()
 
@@ -280,7 +280,7 @@ async def test_count_zero_asks_how_long_the_record_is(record_client: httpx.Async
     """R4's request for the total alone: how many events the entity holds, and none of them."""
     _record_route(_event("EvAncVis001"), _event("EvAncVis002"))
 
-    body = (await record_client.get(f"/tracked-entities/{_PERSON_UID}/events?_count=0")).json()
+    body = (await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events?_count=0")).json()
 
     assert body["total"] == 2
     assert "entry" not in body
@@ -290,7 +290,7 @@ async def test_a_count_above_the_limit_is_served_the_limit(record_client: httpx.
     """A page is bounded by `[serve.tracked_entities] page_size_limit`, clamped rather than refused."""
     _record_route(*[_event(f"EvAncVis{index:03d}") for index in range(1, 4)])
 
-    body = (await record_client.get(f"/tracked-entities/{_PERSON_UID}/events?_count=5000")).json()
+    body = (await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events?_count=5000")).json()
 
     assert body["total"] == 3
     assert _parameters(_link(body, "self") or "")["_count"] == "100"
@@ -300,7 +300,7 @@ async def test_a_parameter_this_surface_cannot_apply_is_refused(record_client: h
     """Ignoring one would answer a narrower question with the whole record."""
     _record_route(_event("EvAncVis001"))
 
-    response = await record_client.get(f"/tracked-entities/{_PERSON_UID}/events?programStage={_STAGE_UID}")
+    response = await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events?programStage={_STAGE_UID}")
 
     assert response.status_code == 400
     assert response.json()["issue"][0]["code"] == "invalid"
@@ -313,7 +313,7 @@ async def test_an_event_of_an_unpublished_stage_is_stated_rather_than_dropped(
     """It counts in the total, carries no document, and the searchset says which stage it was of."""
     _record_route(_event("EvOther0001", stage_uid="PsUnknown01"), _event("EvAncVis001"))
 
-    body = (await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")).json()
+    body = (await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")).json()
     outcomes = [entry["resource"] for entry in body["entry"] if entry["search"]["mode"] == "outcome"]
 
     assert body["total"] == 2
@@ -332,7 +332,7 @@ async def test_an_event_missing_a_required_fact_claims_no_profile(record_client:
     """
     _record_route(_event("EvAncVis001", occurred_at=None), _event("EvAncVis002"))
 
-    body = (await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")).json()
+    body = (await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")).json()
     undated = next(response for response in _matches(body) if response["id"] == "EvAncVis001")
 
     assert [response["id"] for response in _matches(body)] == ["EvAncVis002", "EvAncVis001"]
@@ -344,12 +344,12 @@ async def test_one_event_is_read_under_the_entity_whose_record_it_is(record_clie
     """The URL a page's entry names answers that one document, and an event of nobody here is a 404."""
     _record_route(_event("EvAncVis001"))
 
-    body = (await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")).json()
+    body = (await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")).json()
     entry_url = body["entry"][0]["fullUrl"]
     read = await record_client.get(entry_url)
-    missing = await record_client.get(f"/tracked-entities/{_PERSON_UID}/events/EvAncVis999")
+    missing = await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events/EvAncVis999")
 
-    assert entry_url == f"{_BASE_URL}/tracked-entities/{_PERSON_UID}/events/EvAncVis001"
+    assert entry_url == f"{_BASE_URL}/facade/tracked-entities/{_PERSON_UID}/events/EvAncVis001"
     assert read.status_code == 200
     assert read.json()["id"] == "EvAncVis001"
     assert missing.status_code == 404
@@ -359,7 +359,7 @@ async def test_a_tracked_entity_the_instance_does_not_hold_is_a_404(record_clien
     """The refusal names what was not found - the person - rather than the surface it was asked of."""
     respx.get(_TRACKED_ENTITY_URL).mock(return_value=httpx.Response(404, json={"message": "not found"}))
 
-    response = await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")
+    response = await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")
 
     assert response.status_code == 404
     assert response.json()["issue"][0]["diagnostics"] == f"no tracked entity with id `{_PERSON_UID}` is served here"
@@ -372,7 +372,7 @@ async def test_a_project_serving_identity_alone_refuses_the_record_and_names_the
     """`[serve.tracked_entities] events = false` is a decision the refusal states in the operator's words."""
     read = _record_route(_event("EvAncVis001"))
 
-    response = await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")
+    response = await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")
 
     assert response.status_code == 404
     assert response.json()["issue"][0]["code"] == "not-supported"
@@ -383,7 +383,7 @@ async def test_a_project_serving_identity_alone_refuses_the_record_and_names_the
 @pytest.mark.parametrize("tracked_entities", [TrackedEntitiesConfig(enabled=False)])
 async def test_a_project_serving_no_register_serves_no_record_either(record_client: httpx.AsyncClient) -> None:
     """One line takes the register away, and the record is part of the register."""
-    response = await record_client.get(f"/tracked-entities/{_PERSON_UID}/events")
+    response = await record_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")
 
     assert response.status_code == 404
     assert "`[serve.tracked_entities] enabled`" in response.json()["issue"][0]["diagnostics"]
@@ -391,7 +391,7 @@ async def test_a_project_serving_no_register_serves_no_record_either(record_clie
 
 async def test_a_compiled_run_answers_that_it_has_no_instance_to_read(compiled_client: httpx.AsyncClient) -> None:
     """A compiled guide has nothing to answer about, and says so rather than answering an empty record."""
-    response = await compiled_client.get(f"/tracked-entities/{_PERSON_UID}/events")
+    response = await compiled_client.get(f"/facade/tracked-entities/{_PERSON_UID}/events")
 
     assert response.status_code == 404
     assert response.json()["issue"][0]["code"] == "not-supported"
@@ -421,4 +421,4 @@ def test_the_capability_statement_states_where_a_record_is_read(
         resource.documentation or "" for rest in statement.rest or [] for resource in rest.resource or []
     )
 
-    assert ("/tracked-entities/{uid}/events" in documentation) is declared
+    assert ("/facade/tracked-entities/{uid}/events" in documentation) is declared

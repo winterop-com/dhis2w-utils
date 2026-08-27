@@ -1,4 +1,4 @@
-"""`GET /spool`: the receipt envelopes with their lifecycle, re-read from disk on every request.
+"""`GET /facade/spool`: the receipt envelopes with their lifecycle, re-read from disk on every request.
 
 Three things are under test that nothing else covers. First, that the listing is a *live* view: the
 forwarder moves files between the spool's four directories while this server runs, so a listing
@@ -68,7 +68,7 @@ async def bare_client(bare_app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
 
 async def test_spool_lists_every_receipt_newest_first(client: httpx.AsyncClient) -> None:
     """The listing is the whole spool in received order, as plain JSON rather than a Bundle."""
-    response = await client.get("/spool")
+    response = await client.get("/facade/spool")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith(JSON_MEDIA_TYPE)
@@ -80,7 +80,7 @@ async def test_spool_lists_every_receipt_newest_first(client: httpx.AsyncClient)
 
 async def test_the_listing_states_the_form_the_receipt_answered(client: httpx.AsyncClient) -> None:
     """A row carries the canonical and the id it ends in, so a UI can join it to the form's title."""
-    body = (await client.get("/spool")).json()
+    body = (await client.get("/facade/spool")).json()
 
     row = next(row for row in body["responses"] if row["response_id"] == "receipt-newest")
     assert row["questionnaire"].endswith("/Questionnaire/d2-pr-anc-visit-q")
@@ -96,13 +96,13 @@ async def test_the_listing_re_reads_the_directory_on_every_request(
     This is the whole reason the spool holds no index. `d2w fhir forward` is another process, and
     it renames files under this one.
     """
-    before = (await client.get("/spool")).json()
+    before = (await client.get("/facade/spool")).json()
     assert before["counts"] == {"received": 3, "forwarded": 0, "rejected": 0, "withdrawn": 0, "malformed": 0}
 
     drain(compiled_project, "receipt-oldest", ResponseLifecycle.FORWARDED)
     drain(compiled_project, "receipt-middle", ResponseLifecycle.REJECTED)
 
-    after = (await client.get("/spool")).json()
+    after = (await client.get("/facade/spool")).json()
     assert after["counts"] == {"received": 1, "forwarded": 1, "rejected": 1, "withdrawn": 0, "malformed": 0}
     assert {row["response_id"]: row["lifecycle"] for row in after["responses"]} == {
         "receipt-newest": "received",
@@ -128,7 +128,7 @@ async def test_a_rejection_carries_what_dhis2_said(client: httpx.AsyncClient, co
         ),
     )
 
-    body = (await client.get("/spool")).json()
+    body = (await client.get("/facade/spool")).json()
 
     row = next(row for row in body["responses"] if row["response_id"] == "receipt-middle")
     assert row["lifecycle"] == "rejected"
@@ -141,7 +141,7 @@ async def test_a_rejection_carries_what_dhis2_said(client: httpx.AsyncClient, co
 
 async def test_a_received_receipt_carries_no_rejection(client: httpx.AsyncClient) -> None:
     """Only a rejection has a report; every other row states none rather than an empty one."""
-    body = (await client.get("/spool")).json()
+    body = (await client.get("/facade/spool")).json()
 
     assert all(row["rejection"] is None for row in body["responses"])
 
@@ -166,7 +166,7 @@ async def test_a_translator_refused_receipt_says_so(client: httpx.AsyncClient, c
         ),
     )
 
-    body = (await client.get("/spool")).json()
+    body = (await client.get("/facade/spool")).json()
 
     row = next(row for row in body["responses"] if row["response_id"] == "receipt-newest")
     assert row["lifecycle"] == "received"
@@ -181,7 +181,7 @@ async def test_a_translator_refused_receipt_says_so(client: httpx.AsyncClient, c
 
 async def test_a_receipt_no_drain_has_refused_states_no_refusal(client: httpx.AsyncClient) -> None:
     """Nothing beside the receipt means nothing stated - absence stays distinguishable from refusal."""
-    body = (await client.get("/spool")).json()
+    body = (await client.get("/facade/spool")).json()
 
     assert all(row["refusal"] is None for row in body["responses"])
 
@@ -201,7 +201,7 @@ async def test_a_withdrawn_receipt_is_counted_in_the_fourth_state(
     """`d2w fhir withdraw` files a receipt under `withdrawn/`, and the listing names that state."""
     drain(compiled_project, "receipt-oldest", ResponseLifecycle.WITHDRAWN)
 
-    body = (await client.get("/spool")).json()
+    body = (await client.get("/facade/spool")).json()
 
     assert body["counts"] == {"received": 2, "forwarded": 0, "rejected": 0, "withdrawn": 1, "malformed": 0}
     row = next(row for row in body["responses"] if row["response_id"] == "receipt-oldest")
@@ -226,7 +226,7 @@ async def test_a_withdrawn_row_carries_what_dhis2_answered_the_delete(
         ),
     )
 
-    body = (await client.get("/spool")).json()
+    body = (await client.get("/facade/spool")).json()
 
     row = next(row for row in body["responses"] if row["response_id"] == "receipt-oldest")
     assert row["withdrawal"]["withdrawn_at"] == "2026-08-18T08:30:00Z"
@@ -244,7 +244,7 @@ async def test_a_withdrawn_receipt_with_no_record_is_still_listed(
     """The state is the directory, so a receipt whose record is missing still reads as withdrawn."""
     drain(compiled_project, "receipt-oldest", ResponseLifecycle.WITHDRAWN)
 
-    body = (await client.get("/spool")).json()
+    body = (await client.get("/facade/spool")).json()
 
     row = next(row for row in body["responses"] if row["response_id"] == "receipt-oldest")
     assert row["lifecycle"] == "withdrawn"
@@ -272,7 +272,7 @@ async def test_a_rejection_with_an_unreadable_report_is_still_listed(
     directory = ResponseSpool.at(compiled_project.project_root).directory_for(ResponseLifecycle.REJECTED)
     (directory / f"receipt-middle{IMPORT_REPORT_SUFFIX}").write_text("{not json", encoding="utf-8")
 
-    body = (await client.get("/spool")).json()
+    body = (await client.get("/facade/spool")).json()
 
     row = next(row for row in body["responses"] if row["response_id"] == "receipt-middle")
     assert row["lifecycle"] == "rejected"
@@ -281,22 +281,22 @@ async def test_a_rejection_with_an_unreadable_report_is_still_listed(
 
 async def test_an_empty_spool_lists_nothing(bare_client: httpx.AsyncClient) -> None:
     """A project nothing has been captured into answers an empty listing, not a refusal."""
-    body = (await bare_client.get("/spool")).json()
+    body = (await bare_client.get("/facade/spool")).json()
 
     assert body == {
         "total": 0,
         "counts": {"received": 0, "forwarded": 0, "rejected": 0, "withdrawn": 0, "malformed": 0},
         "responses": [],
         "malformed": [],
-        "self_url": "http://serve.test/spool?_count=50&page=bzBuMA",
+        "self_url": "http://serve.test/facade/spool?_count=50&page=bzBuMA",
         "previous_url": None,
         "next_url": None,
     }
 
 
 async def test_the_read_catch_all_does_not_claim_the_listing(client: httpx.AsyncClient) -> None:
-    """`/spool` is a fixed path mounted ahead of `/{resource_type}`, which would refuse it as a type."""
-    response = await client.get("/spool")
+    """`/facade/spool` is a fixed path mounted ahead of `/{resource_type}`, which would refuse it as a type."""
+    response = await client.get("/facade/spool")
 
     assert "resourceType" not in response.json()
 
@@ -331,7 +331,7 @@ async def test_the_capture_context_is_derived_from_the_stored_resource(
     )
     assert posted.status_code == 201
 
-    body = (await capture_client.get("/spool")).json()
+    body = (await capture_client.get("/facade/spool")).json()
 
     assert body["total"] == 1
     row = body["responses"][0]
@@ -354,7 +354,7 @@ async def test_an_aggregate_row_states_its_reporting_period(
     )
     assert posted.status_code == 201
 
-    row = (await capture_client.get("/spool")).json()["responses"][0]
+    row = (await capture_client.get("/facade/spool")).json()["responses"][0]
 
     assert row["form_kind"] == "aggregate"
     assert row["period"] == "202607"

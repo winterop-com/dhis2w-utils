@@ -27,7 +27,7 @@ async function openForm(page: Page, questionnaireId: string): Promise<void> {
 
 /** How many receipts this project's spool holds right now. */
 async function spoolTotal(request: APIRequestContext): Promise<number> {
-    const listing = await request.get('/spool', { headers: { Accept: 'application/json' } })
+    const listing = await request.get('/facade/spool', { headers: { Accept: 'application/json' } })
     expect(listing.status(), await listing.text()).toBe(200)
     const body = (await listing.json()) as { total: number }
     return body.total

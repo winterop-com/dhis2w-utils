@@ -99,7 +99,7 @@ export interface PaletteInput {
     pages: PalettePage[]
     /** Every Questionnaire this server publishes, as the Forms page reads them. */
     forms: Questionnaire[]
-    /** The receipts this server holds, newest first, as `GET /spool` lists them. */
+    /** The receipts this server holds, newest first, as `GET /facade/spool` lists them. */
     receipts: SpoolResponseSummary[]
     /** What is typed in the box: it decides the receipt rows and whether a register lookup is offered. */
     query: string

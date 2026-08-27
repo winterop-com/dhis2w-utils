@@ -150,7 +150,7 @@ function registerQueryPath(
  *
  * THE ONLY PAGE IN THIS APP THAT READS A DATABASE. Every other screen answers from the guide this
  * server loaded at startup; this one asks the DHIS2 instance at request time, which is why it exists
- * exactly when the server says it does. `/uiconfig` states three things and all three are honoured
+ * exactly when the server says it does. `/facade/uiconfig` states three things and all three are honoured
  * here: a run that reaches no instance answers this address with the reason it serves no register,
  * a deployment that publishes the search but declines the listing gets the box without the table -
  * because paging through an instance's whole set of tracked entities is a heavier thing to offer
@@ -394,7 +394,7 @@ function RegisterBrowser({
  *
  * ONE RESOURCE IS ONE REGISTER OVER THE UNION OF THE TRACKED ENTITY TYPES THE PUBLISHED MAP TAKES
  * ONTO IT, and a register over several of them offers the choice between them. The chips are the
- * server's own declaration - `/uiconfig` states the types riding each register, `/metadata` documents
+ * server's own declaration - `/facade/uiconfig` states the types riding each register, `/metadata` documents
  * the same set under the `_tag` parameter that narrows to one - so a register serving one type has
  * nothing to choose between and keeps the page it always had.
  *
@@ -404,7 +404,7 @@ function RegisterBrowser({
  *
  * SO DOES THE ATTRIBUTE VALUE FILTER, which is the second thing this register can be asked about:
  * `d2-attribute={uid}|{value}` is which of these hold a given value, where the box above is who is
- * named by one. `/uiconfig` states the attributes it answers over, and both controls ride the
+ * named by one. `/facade/uiconfig` states the attributes it answers over, and both controls ride the
  * address so a narrowed register is a link that can be sent.
  *
  * A ROW OPENS IN A SHEET OVER THIS SECTION rather than at another address. Reading a register is a
@@ -688,7 +688,7 @@ export const ATTRIBUTE_FILTER_EXACT_NOTE =
  * substring, no range - so a person typing half a district's name gets nobody, and a control that let
  * them find that out by themselves would be a control that lies by omission.
  *
- * THE ATTRIBUTES ARE THE SERVER'S OWN DECLARATION. `/uiconfig` states which attributes this register
+ * THE ATTRIBUTES ARE THE SERVER'S OWN DECLARATION. `/facade/uiconfig` states which attributes this register
  * answers `d2-attribute` over, what DHIS2 says their values are, and the vocabulary a coded one draws
  * from - so a value bound to a DHIS2 option set is chosen from the published ValueSet rather than
  * typed, and everything else is typed into a control shaped by the value type.

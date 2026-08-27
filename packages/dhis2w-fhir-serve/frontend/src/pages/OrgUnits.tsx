@@ -128,7 +128,7 @@ function useThreePane(): boolean {
  * The reporting hierarchy: where a capture can happen, and which forms may happen there.
  *
  * THREE READS AND THE SPOOL, ONE PAGE. `GET /Location` is the registry, `GET /Questionnaire` the
- * forms, `GET /List` the assignment artifacts, and `GET /spool` the receipts - and only the first
+ * forms, `GET /List` the assignment artifacts, and `GET /facade/spool` the receipts - and only the first
  * of them is required for this page to be useful. The tree and the map render off the registry
  * alone; every other section states its own absence.
  *
@@ -1319,7 +1319,7 @@ function FormRow({
  * The receipts this server holds for captures at this unit - the events half of the inspector.
  *
  * THE JOIN IS THE LISTING'S OWN FIELD. Every spool receipt states the DHIS2 organisation unit its
- * capture happened at, so this is a filter over data the page's `GET /spool` already carries - no
+ * capture happened at, so this is a filter over data the page's `GET /facade/spool` already carries - no
  * per-receipt fetch. The subtree count rides the same filter over the tree fold.
  *
  * THE SCOPE IS STATED, NOT IMPLIED. These are captures THIS SERVER received. What DHIS2 itself
@@ -1475,7 +1475,7 @@ function MapPanel({
     loading: boolean
     onSelect: (unitId: string) => void
     basemaps: BasemapLayer[]
-    /** True until `GET /uiconfig` has answered - the map is built once, against settled settings. */
+    /** True until `GET /facade/uiconfig` has answered - the map is built once, against settled settings. */
     settingsLoading: boolean
 }) {
     const descendantUnitIds = useMemo(

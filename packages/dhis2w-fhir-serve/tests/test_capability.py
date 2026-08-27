@@ -68,7 +68,7 @@ def test_capability_reports_the_store_and_points_at_the_spool_for_the_queue(comp
 
     assert capability.description is not None
     assert "24 resources in the store" in capability.description
-    assert "`GET /spool` states how many responses are stored" in capability.description
+    assert "`GET /facade/spool` states how many responses are stored" in capability.description
     assert "stored responses at startup" not in capability.description
 
 

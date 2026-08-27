@@ -579,12 +579,12 @@ is why `[generate.naming] source = "code"` can refuse a run.
 : In DHIS2, a verb - `d2w tracker register` creates a tracked entity. In this
 toolkit, also a noun: *the register* is the served surface over the tracked
 entities an instance holds. The served surface is never called "patients", and
-its path is `/tracked-entities/{uid}/enrollments`, because what it holds is not
+its path is `/facade/tracked-entities/{uid}/enrollments`, because what it holds is not
 always people.
 
 **record**
 : In this toolkit, one tracked entity's events over time, served at
-`/tracked-entities/{uid}/events` - each event as the `QuestionnaireResponse` its
+`/facade/tracked-entities/{uid}/events` - each event as the `QuestionnaireResponse` its
 programme stage's published form describes. A *record* is what DHIS2 holds now; a
 *receipt* is what a client once submitted, and the two are different documents at
 different addresses even though both are QuestionnaireResponses.

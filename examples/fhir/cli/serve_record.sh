@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GET /tracked-entities/{uid}/events — one tracked entity's own record, read from the instance.
+# GET /facade/tracked-entities/{uid}/events — one tracked entity's own record, read from the instance.
 # Needs the serve extra: `pip install 'dhis2w-cli[serve]'` or `uv add dhis2w-fhir-serve`.
 # The facade runs `--live`, so there is no SUSHI compile and no docker; nothing here writes to DHIS2.
 set -euo pipefail
@@ -61,7 +61,7 @@ start_facade
 curl -s "${BASE}/Patient?_count=30" >register.json
 PERSON=""
 for candidate in $(jq -r '.entry[]?.resource.id' register.json); do
-    curl -s "${BASE}/tracked-entities/${candidate}/events" >candidate.json
+    curl -s "${BASE}/facade/tracked-entities/${candidate}/events" >candidate.json
     [ "$(jq -r '.total' candidate.json)" != "0" ] || continue
     [ -n "$PERSON" ] || PERSON="$candidate"
     if [ "$(jq -r '[.. | objects | select(has("linkId") and has("answer"))] | length' candidate.json)" != "0" ]; then
@@ -72,11 +72,11 @@ done
 [ -n "$PERSON" ] || { echo "no person on this page of the register has an event yet" >&2; exit 1; }
 
 # How long the record is, without building a page of it. R4's own `_count=0`.
-echo "events in the record: $(curl -s "${BASE}/tracked-entities/${PERSON}/events?_count=0" | jq -r '.total')"
+echo "events in the record: $(curl -s "${BASE}/facade/tracked-entities/${PERSON}/events?_count=0" | jq -r '.total')"
 
 # The record itself, newest first. Each entry is one event: which form it answers, when it happened,
 # and the URL that one document is served at.
-curl -s "${BASE}/tracked-entities/${PERSON}/events" >record.json
+curl -s "${BASE}/facade/tracked-entities/${PERSON}/events" >record.json
 jq -r '.entry[]? | select(.search.mode == "match")
        | "event  " + .resource.id
          + "  form " + (.resource.questionnaire | split("/") | last)
@@ -105,7 +105,7 @@ jq -r '"subject  " + (.subject.type // "no type") + " " + (.subject.identifier.v
 
 # `_count` and `page` walk the record; anything else is refused rather than ignored, because a
 # parameter this server cannot apply, ignored, answers a narrower question with the whole record.
-echo "programStage:  $(curl -s -o refusal.json -w '%{http_code}' "${BASE}/tracked-entities/${PERSON}/events?programStage=A03MvHHogjR")"
+echo "programStage:  $(curl -s -o refusal.json -w '%{http_code}' "${BASE}/facade/tracked-entities/${PERSON}/events?programStage=A03MvHHogjR")"
 jq -r '.issue[].diagnostics' refusal.json
 
 stop_facade
@@ -118,7 +118,7 @@ cat >>fhir.toml <<'TOML'
 events = false
 TOML
 start_facade
-echo "events = false: $(curl -s -o disabled.json -w '%{http_code}' "${BASE}/tracked-entities/${PERSON}/events")"
+echo "events = false: $(curl -s -o disabled.json -w '%{http_code}' "${BASE}/facade/tracked-entities/${PERSON}/events")"
 jq -r '.issue[].diagnostics' disabled.json
 echo "the register:   $(curl -s -o /dev/null -w '%{http_code}' "${BASE}/Patient/${PERSON}")"
 stop_facade

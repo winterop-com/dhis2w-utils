@@ -68,7 +68,7 @@ class ServeSettings(BaseModel):
 
     `auth` is who this facade serves and `auth_scope` is how much of it the posture covers. Both are
     resolved values rather than the table read back, because a flag may state either - and the
-    posture's NAME is the one part of it that crosses to a browser, through `/uiconfig`. No token, no
+    posture's NAME is the one part of it that crosses to a browser, through `/facade/uiconfig`. No token, no
     password, and no header ever reaches these settings: `dhis2w_fhir_serve.auth.AuthState` holds what
     a check needs, on the application, for exactly that reason.
 
@@ -221,7 +221,7 @@ class ServeInvocation(BaseModel):
     The address is here rather than on `ServeSettings` because it is what the process binds and not
     what the app serves - the factory reads the settings and never asks where the socket is. The
     resolved profile is here for the sharper reason: it carries the credentials the store connects
-    with, and the settings are handed to the app and read out again by `/uiconfig`, so a profile on
+    with, and the settings are handed to the app and read out again by `/facade/uiconfig`, so a profile on
     them would be a credential one HTTP response away from a browser. What the screens are entitled
     to - the instance's address - is on the settings as `dhis2_base_url`, and the name and the origin
     stay here, where the command that resolved them can say which profile it used.

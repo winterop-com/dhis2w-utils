@@ -62,7 +62,7 @@ field for a token headed with the issuer it has to come from. The posture is
 read off `/metadata`, which is the one address open in every scope.
 
 **What is typed is checked before it is kept.** Submitting asks the server
-`GET /whoami` with those credentials, and nothing is stored until the server
+`GET /facade/whoami` with those credentials, and nothing is stored until the server
 names the caller. A wrong password is refused at the prompt - *DHIS2 did not
 accept this username and password.* - with the fields still there to try
 again with, and a server that could not be reached says so instead, because
@@ -105,7 +105,7 @@ The root route answers one question: what is the state of capture right now.
 
 ![The Overview: the receipt counts one per lifecycle state, the served forms as cards that open them, and the strip naming the guide this server serves](../img/fhir/capture-ui-overview.png)
 
-**Receipts** is the spool's counts off `GET /spool` - `Received`,
+**Receipts** is the spool's counts off `GET /facade/spool` - `Received`,
 `Forwarded`, `Rejected`, `Withdrawn`, and, when the spool holds files it could
 not read, `Quarantined` - with `Received` set large because it is the one that
 is a task: it is the queue [`d2w fhir forward`](201-forward.md) drains. Each count is a link into the
@@ -703,7 +703,7 @@ between them.** A row of chips above the table - **All**, then one per type,
 under the name the instance holds for it - narrows the table, the search box,
 and the address alike: choosing **Fridge** sends `_tag=<uid>` on both reads and
 puts `?type=<uid>` in the address, so a narrowed register is a link somebody can
-be sent. The chips come from the server's own declaration: `/uiconfig` states
+be sent. The chips come from the server's own declaration: `/facade/uiconfig` states
 the types riding each register and `/metadata` documents the same set under the
 `_tag` parameter that narrows to one of them
 ([Consume the FHIR API](401-consume-the-fhir-api.md)). A register serving one

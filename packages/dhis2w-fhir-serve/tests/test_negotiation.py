@@ -85,7 +85,7 @@ async def test_the_service_base_refusal_negotiates_too(client: httpx.AsyncClient
     assert response.status_code == 406
 
 
-@pytest.mark.parametrize("path", ["/spool", "/uiconfig"])
+@pytest.mark.parametrize("path", ["/facade/spool", "/facade/uiconfig"])
 async def test_the_non_fhir_endpoints_do_not_negotiate(client: httpx.AsyncClient, path: str) -> None:
     """These answer plain JSON about this facade rather than resources out of it, so there is nothing to refuse."""
     response = await client.get(path, headers={"Accept": FHIR_XML})

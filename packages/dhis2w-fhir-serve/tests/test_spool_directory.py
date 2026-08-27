@@ -98,7 +98,7 @@ async def test_the_spool_listing_reads_the_directory_the_project_named(
     async with _client(app) as http:
         posted = await http.post("/QuestionnaireResponse", json=aggregate_response, headers={"content-type": FHIR_JSON})
         assert posted.status_code == 201, posted.text
-        body = (await http.get("/spool")).json()
+        body = (await http.get("/facade/spool")).json()
 
     assert body["total"] == 1
     assert body["counts"]["received"] == 1

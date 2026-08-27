@@ -3,7 +3,7 @@
 Each module owns its schemas; this module is the one stable import surface over them, so
 `from dhis2w_fhir_serve import ResourceStore` keeps working however the internals are arranged.
 
-What is deliberately NOT here is the capture UI. `dhis2w_fhir_serve.ui` and the `/uiconfig` document
+What is deliberately NOT here is the capture UI. `dhis2w_fhir_serve.ui` and the `/facade/uiconfig` document
 exist so the built React bundle can work, they are reached by running the server with
 `settings.ui`, and `create_app` is the only thing that mounts them. `UiBundleMissingError` is the
 one exception: `create_app` raises it while building, so a caller of `create_app` has to be able to
@@ -198,7 +198,20 @@ from dhis2w_fhir_serve.register.wire import (
     poll_tracked_entities,
     search_tracked_entities,
 )
-from dhis2w_fhir_serve.routes import ServeRouters, accept_head_wherever_get_is_served, register_routes, serve_routers
+from dhis2w_fhir_serve.routes import (
+    FACADE_API_TITLE,
+    FACADE_DOCUMENTATION_PATH,
+    FACADE_MOUNT_PATH,
+    FACADE_OPENAPI_PATH,
+    ServeRouters,
+    accept_head_wherever_get_is_served,
+    api_routes,
+    build_facade_api,
+    describe_each_read_once,
+    facade_operation_id,
+    register_routes,
+    serve_routers,
+)
 from dhis2w_fhir_serve.routes.cds import (
     CDS_SERVICE_PATH,
     CDS_SERVICES_PATH,
@@ -321,7 +334,15 @@ from dhis2w_fhir_serve.terminology import (
 from dhis2w_fhir_serve.ui import UiBundleMissingError
 
 __all__ = [
+    "FACADE_API_TITLE",
+    "FACADE_DOCUMENTATION_PATH",
+    "FACADE_MOUNT_PATH",
+    "FACADE_OPENAPI_PATH",
     "accept_head_wherever_get_is_served",
+    "api_routes",
+    "build_facade_api",
+    "describe_each_read_once",
+    "facade_operation_id",
     "AmbiguousCodingError",
     "as_of",
     "as_of_entry",

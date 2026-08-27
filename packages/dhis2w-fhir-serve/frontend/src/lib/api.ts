@@ -10,54 +10,38 @@
  * added without passing the guard.
  *
  * WHAT THE GUARD IS. `d2w fhir serve` mounts its FHIR routes at the root - there
- * is no /fhir or /api prefix - and then mounts the built UI at "/" *after* them,
- * so anything the FHIR routers do not claim falls through to the SPA shell. That
- * is exactly the arrangement in which a mistyped path returns 200 text/html and
- * a caller spends an afternoon on "why is my Bundle a string". The guard is the
- * router table of `dhis2w_fhir_serve.routes` written down: /metadata and /spool,
- * plus the seven read types and QuestionnaireResponse the catch-alls answer for -
- * ConceptMap being both a read type and the one the type-level $translate hangs
- * off. Anything else is a programming error and is refused here rather than by
- * the server.
+ * is no /fhir prefix - and then mounts the built UI at "/" *after* them, so
+ * anything the routers do not claim falls through to the SPA shell. That is
+ * exactly the arrangement in which a mistyped path returns 200 text/html and a
+ * caller spends an afternoon on "why is my Bundle a string". The guard is the
+ * router table of `dhis2w_fhir_serve.routes` written down, and that table has
+ * three families at the root: /metadata and the resource types the read
+ * catch-alls answer for (ConceptMap being both a read type and the one the
+ * type-level $translate hangs off), /cds-services, and the /facade mount.
+ * Anything else is a programming error and is refused here rather than by the
+ * server.
  *
- * TWO OF THE GUARDED PREFIXES ANSWER FROM DHIS2 RATHER THAN FROM THE STORE.
- * The register's own resource types and `/tracked-entities/{uid}/enrollments`
- * are mounted only by a live process, and a compiled one refuses both by saying
- * so - which is a refusal a caller reads and renders, not a path that escaped
- * the guard. Everything else on this surface is answered from a store loaded
- * once at startup.
+ * TWO SURFACES, TWO PREFIXES. The root is FHIR's, and its contract is the
+ * CapabilityStatement at /metadata. Everything this server answers about
+ * *itself* - the receipts, the settings it was started with, who it decided the
+ * caller is, the evaluator, the vocabularies, the register listings it reads
+ * from DHIS2 - is a different API under `/facade`, with its own OpenAPI document
+ * at `/facade/openapi.json`. `FACADE_BASE_PATH` is that prefix and every read
+ * below composes it rather than spelling it, so the mount is stated once.
+ * `dhis2w_fhir_serve.routes.spool` argues why those answers are not FHIR.
  *
- * SIX PATHS HERE ARE NOT FHIR. `/spool` answers plain JSON, not
- * `application/fhir+json`: it serves the receipt *envelopes* - when the facade
- * accepted each submission, which of its three lifecycle directories the file
- * now sits in, and what DHIS2 said when it refused one - and none of those are
- * QuestionnaireResponse elements. `/uiconfig` is the second, and answers the
- * handful of run-time settings this UI has to act on - today the map's tile
- * template, which is a property of how the process was started rather than of
- * anything the guide published. `/tracked-entities/{uid}/enrollments` is the third, and
- * lowercase for the same reason `/spool` is: whether a DHIS2 enrollment is an
- * `EpisodeOfCare` or a `CarePlan` is an open decision, and answering a picker's
- * feed as a FHIR resource would settle it by accident.
- * `dhis2w_fhir_serve.routes.spool` argues the shape in full, and
- * `routes.uiconfig` and `routes.enrollments` inherit it. All three still go
- * through this guard, because the reason for the guard is the SPA fallback, and
- * that applies to every path alike.
+ * /cds-services is the third family and is at the root beside FHIR rather than
+ * under the mount, because CDS Hooks fixes discovery at {base}/cds-services the
+ * way FHIR fixes {base}/metadata. Nothing in this bundle calls it; it is guarded
+ * because this server claims it ahead of the static mount, and a guard that let
+ * a path through would be a guard that let a typo land on the SPA shell.
  *
- * `/whoami` is the fourth, and the one path here that is about the caller rather
- * than about anything served: it answers who this server just decided the caller
- * is, and it is what the sign-in panel asks before it holds on to a credential.
- * A server in the `none` posture serves no such path at all, which is why nothing
- * outside the panel reaches for it.
- *
- * `/evaluate` is the fifth, and the same shape for a fifth reason: it answers
- * what a parser said about the character it stopped on, and FHIR has nowhere to
- * put a line and a column. `/metadata-health` is the sixth: it reports on the
- * DHIS2 metadata a guide was generated from, and FHIR has no shape for "this
- * DHIS2 name has a `<` in it" and none at all for a translation that stops
- * halfway. `/terminology/*` and `/cds-services` are guarded
- * beside it because this server claims them ahead of the static mount, whether
- * or not this bundle ever calls them - a guard that let a path through would be
- * a guard that let a typo land on the SPA shell.
+ * SOME OF WHAT IS GUARDED ANSWERS FROM DHIS2 RATHER THAN FROM THE STORE.
+ * The register's own resource types at the root, and the tracked entity
+ * listings under the mount, are answered only by a live process; a compiled one
+ * refuses them by saying so - which is a refusal a caller reads and renders, not
+ * a path that escaped the guard. Everything else on this surface is answered
+ * from a store loaded once at startup.
  *
  * WHY NO QUERY LIBRARY. There is no react-query, swr, or zustand in this app on
  * purpose. The server answers whole Bundles off a store loaded once at startup,
@@ -94,16 +78,22 @@ import type { UiConfig } from '@/lib/uiconfig'
 export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
 
 /**
+ * Where this server's own API is mounted, beside the FHIR base URL.
+ *
+ * The Python side spells the same string in `dhis2w_fhir_serve.routes`, where it
+ * is the path a FastAPI sub-application is mounted at. Every read of that API
+ * below composes this constant, so the prefix is written down once.
+ */
+export const FACADE_BASE_PATH = '/facade'
+
+/**
  * Every lowercase path `d2w fhir serve` claims ahead of the UI mount.
  *
  * Kept as a list rather than only a regex so the set is greppable from the
- * Python side: this must stay equal to `/metadata`, `/metadata-health`,
- * `/spool`, `/uiconfig`, the
- * `/tracked-entities/{uid}/enrollments` listing, `/evaluate`, the two
- * `/terminology/*` reads, and `/cds-services`. A hyphen is not a path
- * separator, so `/metadata-health` is a segment of its own and needs its own
- * entry - `metadata` alone does not admit it. The vite dev-server proxy in
- * vite.config.ts proxies the same list, plus the `/$evaluate` operation
+ * Python side: this must stay equal to `/metadata`, `/cds-services`, and the
+ * `/facade` mount. Three segments is the whole of it, because everything this
+ * server answers about itself is inside the third one. The vite dev-server proxy
+ * in vite.config.ts proxies the same list, plus the `/$evaluate` operation
  * `SERVICE_BASE_OPERATION_PATTERN_SOURCE` lets through.
  *
  * The FHIR resource types are not in it, and cannot be. The read catch-all
@@ -114,27 +104,17 @@ export const FHIR_JSON_MEDIA_TYPE = 'application/fhir+json'
  * and a type this server does not serve comes back as its own OperationOutcome
  * saying so, which is a better answer than a client-side refusal guessing.
  */
-export const GUARDED_PATH_SEGMENTS = [
-    'metadata',
-    'metadata-health',
-    'spool',
-    'uiconfig',
-    'whoami',
-    'tracked-entities',
-    'evaluate',
-    'terminology',
-    'cds-services',
-] as const
+export const GUARDED_PATH_SEGMENTS = ['metadata', 'cds-services', 'facade'] as const
 
 /**
  * Where the server names whoever is calling, which is how a credential is checked before it is kept.
  *
- * A fixed path rather than something discovered off `/metadata` or `/uiconfig`: this bundle is
- * served same-origin by the very process that answers it, so the two are one deployment and there is
- * nothing for a discovery step to resolve. The Python side spells the same string in
- * `dhis2w_fhir_serve.routes.whoami`.
+ * A fixed path rather than something discovered off `/metadata` or the settings document: this
+ * bundle is served same-origin by the very process that answers it, so the two are one deployment
+ * and there is nothing for a discovery step to resolve. The Python side spells the same string in
+ * `dhis2w_fhir_serve.routes.whoami`, relative to the mount.
  */
-export const WHOAMI_PATH = '/whoami'
+export const WHOAMI_PATH = `${FACADE_BASE_PATH}/whoami`
 
 /** How FHIR spells a resource type: an initial capital, then letters, and nothing else. */
 export const RESOURCE_TYPE_PATTERN_SOURCE = '[A-Z][A-Za-z]*'
@@ -588,7 +568,7 @@ async function readRegisterBundle(
  * this server mints it and this server reads it, and a caller that took it apart would be deciding
  * how the instance is paged. Null asks for the first page, which is the state a browser opens in.
  *
- * A deployment can publish the search and decline the listing, so callers ask `/uiconfig` first and
+ * A deployment can publish the search and decline the listing, so callers ask `/facade/uiconfig` first and
  * never offer the table at all in that case.
  *
  * A named tracked entity type rides every page of the walk, not only its first: the token locates a
@@ -636,14 +616,13 @@ export async function readRegisteredEntity(resource: string, trackedEntityUid: s
  * what a project tracks is its own business - a listing spelt `/patients/` would be a lie the moment
  * a type is published as something other than a person.
  *
- * Sent with `cache: 'no-store'`, like `/spool` and for the same class of reason: this is an answer
- * about the DHIS2 instance at this moment, and somebody enrolled in a program a minute ago must not
- * be reported as not enrolled because a cached answer was still warm.
+ * Sent with `cache: 'no-store'`, like the receipts listing and for the same class of reason: this is
+ * an answer about the DHIS2 instance at this moment, and somebody enrolled in a program a minute ago
+ * must not be reported as not enrolled because a cached answer was still warm.
  */
 export async function readTrackedEntityEnrollments(trackedEntityUid: string): Promise<PatientEnrollments> {
-    return readJson<PatientEnrollments>(`/tracked-entities/${encodeURIComponent(trackedEntityUid)}/enrollments`, {
-        cache: 'no-store',
-    })
+    const path = `${FACADE_BASE_PATH}/tracked-entities/${encodeURIComponent(trackedEntityUid)}/enrollments`
+    return readJson<PatientEnrollments>(path, { cache: 'no-store' })
 }
 
 /**
@@ -653,7 +632,7 @@ export async function readTrackedEntityEnrollments(trackedEntityUid: string): Pr
  * the process starts, so a server that changed its mind about them would have restarted.
  */
 export async function readUiConfig(): Promise<UiConfig> {
-    return readJson<UiConfig>('/uiconfig')
+    return readJson<UiConfig>(`${FACADE_BASE_PATH}/uiconfig`)
 }
 
 /**
@@ -667,7 +646,7 @@ export async function readUiConfig(): Promise<UiConfig> {
  * a caller reads the body rather than catching - the page renders the server's own sentence.
  */
 export async function readMetadataHealth(): Promise<MetadataHealth> {
-    return readJson<MetadataHealth>('/metadata-health', { cache: 'no-store' })
+    return readJson<MetadataHealth>(`${FACADE_BASE_PATH}/metadata-health`, { cache: 'no-store' })
 }
 
 /**
@@ -682,7 +661,7 @@ export async function readMetadataHealth(): Promise<MetadataHealth> {
  * does not hold, a register it does not publish - which arrives as an OperationOutcome.
  */
 export async function evaluateExpression(request: Record<string, unknown>): Promise<EvaluationOutcome> {
-    return readJson<EvaluationOutcome>('/evaluate', {
+    return readJson<EvaluationOutcome>(`${FACADE_BASE_PATH}/evaluate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
@@ -699,7 +678,7 @@ const SPOOL_PAGE_SIZE = 500
  * forward` run in another terminal shows up on the next call with nothing
  * restarted. That is what makes a reload button on the Responses page honest.
  *
- * WHY THIS FOLLOWS LINKS. `/spool` is paged, so one request is one page of the
+ * WHY THIS FOLLOWS LINKS. The listing is paged, so one request is one page of the
  * receipts. The Responses page filters and sorts across the whole spool, so it
  * needs the whole spool, and the honest way to get it is to follow the `next`
  * link the server hands out rather than to compose a page parameter of our own -
@@ -712,7 +691,8 @@ const SPOOL_PAGE_SIZE = 500
  * changes without anything in the browser having done something.
  */
 export async function readSpool(): Promise<SpoolListing> {
-    const first = await readJson<SpoolListing>(`/spool?_count=${SPOOL_PAGE_SIZE}`, { cache: 'no-store' })
+    const path = `${FACADE_BASE_PATH}/spool?_count=${SPOOL_PAGE_SIZE}`
+    const first = await readJson<SpoolListing>(path, { cache: 'no-store' })
     const responses = [...first.responses]
     let next = first.next_url
     while (next !== null && next !== undefined) {

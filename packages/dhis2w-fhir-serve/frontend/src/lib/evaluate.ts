@@ -1,5 +1,5 @@
 /**
- * What `POST /evaluate` takes and answers, and the worked examples the screen opens with.
+ * What `POST /facade/evaluate` takes and answers, and the worked examples the screen opens with.
  *
  * The Python side is `dhis2w_fhir_serve.routes.evaluate` and `dhis2w_fhir_serve.evaluation`, and the
  * interfaces here are its models field for field, in the wire's own spelling.

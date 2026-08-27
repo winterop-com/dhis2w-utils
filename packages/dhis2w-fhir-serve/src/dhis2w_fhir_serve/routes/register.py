@@ -64,7 +64,7 @@ one occurrence is one attribute and one value, occurrences narrow, and IT ANSWER
 NOTHING ELSE. It narrows the listing, the identifier search, the `_content` search, and the
 `_count=0` count alike, under either backend, and it rides the listing's `next` and `previous` links
 the way `_tag` does. Which attributes a register filters on is what its types' own published forms
-ask, declared per register at `/metadata` and at `/uiconfig`; an attribute the request names and this
+ask, declared per register at `/metadata` and at `/facade/uiconfig`; an attribute the request names and this
 register does not filter on is a 400 naming the ones it does. `dhis2w_fhir_serve.register.filtering`
 argues every part of that, including why there is no config dial narrowing the set.
 

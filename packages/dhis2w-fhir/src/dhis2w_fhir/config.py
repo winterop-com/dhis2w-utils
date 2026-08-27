@@ -630,7 +630,7 @@ class ServeConfig(BaseModel):
     published form that happens to answer with a draft, and writes nothing here.
 
     THE RECEIPTS STAY READABLE WITH CAPTURE OFF. `read` and `search-type` on QuestionnaireResponse
-    are untouched by this dial, and so is `GET /spool`. The receipts a project already holds are as
+    are untouched by this dial, and so is `GET /facade/spool`. The receipts a project already holds are as
     true as they were, and a server that stopped answering for them would make every id it handed
     out at capture time expire on the day somebody edited one line of this file. Only `create` goes.
 

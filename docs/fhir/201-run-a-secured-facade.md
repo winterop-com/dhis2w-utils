@@ -169,7 +169,7 @@ $ uv run d2w fhir serve --auth token --host 0.0.0.0 --port 8091
 `--auth-scope` decides how much is behind the credential: `write` gates
 submissions only, `all` gates everything but `/metadata`.
 
-**Success:** `GET /whoami` names the caller, and an uncredentialed
+**Success:** `GET /facade/whoami` names the caller, and an uncredentialed
 `POST /QuestionnaireResponse` is refused.
 
 **Depth:** [Secure the facade](201-secure.md).

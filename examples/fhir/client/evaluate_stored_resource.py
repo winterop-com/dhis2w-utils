@@ -83,7 +83,7 @@ async def main() -> None:
         # asked, and the facade says so with the type and the id it was given.
         print()
         refused = await client.post(
-            "/evaluate",
+            "/facade/evaluate",
             json={
                 "language": "fhirpath",
                 "source": "Questionnaire.title",
@@ -98,7 +98,7 @@ async def main() -> None:
 async def evaluate(client: httpx.AsyncClient, expression: str, resource_id: str) -> dict[str, Any]:
     """One FHIRPath expression over one resource the served guide already holds."""
     answered = await client.post(
-        "/evaluate",
+        "/facade/evaluate",
         json={
             "language": "fhirpath",
             "source": expression,

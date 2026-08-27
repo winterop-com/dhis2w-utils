@@ -209,7 +209,7 @@ class AuthState(BaseModel):
     and hide the restart the deployment actually needs.
 
     THEY ARE NOT ON `ServeSettings`, and that is the whole reason this model exists. The settings are
-    handed to the app and read back out by `/uiconfig`, so a secret on them would be a secret one
+    handed to the app and read back out by `/facade/uiconfig`, so a secret on them would be a secret one
     HTTP response away from a browser. What crosses to the browser is the posture's name.
     """
 
@@ -222,7 +222,7 @@ class AuthState(BaseModel):
     """The `jwt` posture's issuer and its published keys, opened while the server started.
 
     It holds public keys and no secret, which is what makes it the exception to the paragraph above:
-    there is nothing on it a `/uiconfig` response could leak. It is here rather than fetched per
+    there is nothing on it a `/facade/uiconfig` response could leak. It is here rather than fetched per
     request because reading an identity provider's JWKS on every call would put that provider in the
     path of every read - see `dhis2w_fhir_serve.oidc`.
     """

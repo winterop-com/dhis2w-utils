@@ -114,7 +114,7 @@ async function fillFromSeed(page: Page, seed: number): Promise<void> {
 // A compiled guide has no DHIS2 instance behind it, so the fixture project
 // states `tracked_entities.enabled = false` and the app correctly offers no
 // register at all. The page is still a page of this UI, so the shots below put
-// a live instance in front of the browser and nothing else: `/uiconfig` says a
+// a live instance in front of the browser and nothing else: `/facade/uiconfig` says a
 // register is served, `/metadata` gains the Patient entry a live run adds, and
 // `/Patient` answers the projection. Everything else on screen is the real
 // server. The people are this producer's own fixture, and deliberately the same
@@ -176,7 +176,7 @@ const SECOND_PATIENT = {
 
 const PEOPLE = [PATIENT, SECOND_PATIENT]
 
-/** What one person is enrolled in, as `GET /tracked-entities/{uid}/enrollments` answers it. */
+/** What one person is enrolled in, as `GET /facade/tracked-entities/{uid}/enrollments` answers it. */
 const ENROLLMENTS = {
     tracked_entity_uid: PERSON_UID,
     enrollments: [
@@ -203,12 +203,12 @@ const ENROLLMENTS = {
     ],
 }
 
-/** What one person has been through, as `GET /tracked-entities/{uid}/events` answers it. */
+/** What one person has been through, as `GET /facade/tracked-entities/{uid}/events` answers it. */
 const EVENTS = {
     resourceType: 'Bundle',
     type: 'searchset',
     total: 1,
-    link: [{ relation: 'self', url: `/tracked-entities/${PERSON_UID}/events?_count=20` }],
+    link: [{ relation: 'self', url: `/facade/tracked-entities/${PERSON_UID}/events?_count=20` }],
     entry: [
         {
             resource: {

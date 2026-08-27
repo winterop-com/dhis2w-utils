@@ -131,7 +131,7 @@ def test_the_reference_renders_no_module_that_exists_for_the_browser() -> None:
 
 
 def test_no_name_that_exists_for_the_capture_ui_is_published() -> None:
-    """R8's list, checked by name: the mounts, the static files, and the `/uiconfig` document all stay off."""
+    """R8's list, checked by name: the mounts, the static files, and the `/facade/uiconfig` document all stay off."""
     published = set(dhis2w_fhir_serve.__all__)
 
     assert [name for name in WITHDRAWN_UI_NAMES if name in published] == []

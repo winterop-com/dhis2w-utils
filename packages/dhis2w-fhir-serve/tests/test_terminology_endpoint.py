@@ -1,4 +1,4 @@
-"""`GET /terminology/lookup` and `GET /terminology/validate-code`, against the guide's real vocabularies.
+"""`GET /facade/terminology/lookup` and `GET /facade/terminology/validate-code`, against the guide's real vocabularies.
 
 Checked against the golden project rather than against a hand-written CodeSystem, because the whole
 claim is about what `d2w fhir generate` actually publishes: a data-dictionary system whose concepts
@@ -25,7 +25,7 @@ NARROWED_VALUE_SET = "http://example.org/fhir/ValueSet/narrowed"
 async def test_a_lookup_answers_the_display_and_the_properties(capture_client: httpx.AsyncClient) -> None:
     """What the endpoint is for: a code, said in words, with what the guide states about it."""
     answered = await capture_client.get(
-        "/terminology/lookup", params={"system": DATA_ELEMENT_SYSTEM, "code": DATA_ELEMENT_CODE}
+        "/facade/terminology/lookup", params={"system": DATA_ELEMENT_SYSTEM, "code": DATA_ELEMENT_CODE}
     )
 
     assert answered.status_code == 200
@@ -42,7 +42,7 @@ async def test_a_code_the_guide_does_not_publish_is_a_miss_with_a_reason(
 ) -> None:
     """200 with `found` false, on `$translate`'s posture: the question was well formed, this is its answer."""
     answered = await capture_client.get(
-        "/terminology/lookup", params={"system": DATA_ELEMENT_SYSTEM, "code": "NoSuchCode"}
+        "/facade/terminology/lookup", params={"system": DATA_ELEMENT_SYSTEM, "code": "NoSuchCode"}
     )
 
     assert answered.status_code == 200
@@ -55,7 +55,7 @@ async def test_a_vocabulary_this_server_does_not_serve_says_so_in_those_words(
 ) -> None:
     """The honesty this surface exists to keep: it serves one project's codes and says so, never guesses."""
     answered = await capture_client.get(
-        "/terminology/lookup", params={"system": "http://snomed.info/sct", "code": "260385009"}
+        "/facade/terminology/lookup", params={"system": "http://snomed.info/sct", "code": "260385009"}
     )
 
     assert answered.json()["found"] is False
@@ -67,7 +67,7 @@ async def test_a_code_is_validated_against_a_value_set_that_includes_its_system_
 ) -> None:
     """The generated shape: an include naming a system and enumerating nothing means every code of it."""
     answered = await capture_client.get(
-        "/terminology/validate-code",
+        "/facade/terminology/validate-code",
         params={"valueset": DATA_ELEMENT_VALUE_SET, "system": DATA_ELEMENT_SYSTEM, "code": DATA_ELEMENT_CODE},
     )
 
@@ -79,7 +79,7 @@ async def test_a_code_is_validated_against_a_value_set_that_includes_its_system_
 async def test_a_code_outside_the_included_system_is_false(capture_client: httpx.AsyncClient) -> None:
     """False is an answer too, and carries the reason rather than an empty body."""
     answered = await capture_client.get(
-        "/terminology/validate-code",
+        "/facade/terminology/validate-code",
         params={"valueset": DATA_ELEMENT_VALUE_SET, "system": DATA_ELEMENT_SYSTEM, "code": "NoSuchCode"},
     )
 
@@ -90,7 +90,7 @@ async def test_a_code_outside_the_included_system_is_false(capture_client: httpx
 async def test_a_value_set_this_server_publishes_none_of_is_named(capture_client: httpx.AsyncClient) -> None:
     """A canonical the guide never published is stated as unpublished, not as a code that failed."""
     answered = await capture_client.get(
-        "/terminology/validate-code",
+        "/facade/terminology/validate-code",
         params={"valueset": "http://example.org/fhir/ValueSet/nothing", "code": DATA_ELEMENT_CODE},
     )
 
@@ -103,7 +103,7 @@ async def test_a_system_alone_asks_the_weaker_question_this_server_can_still_ans
 ) -> None:
     """Naming no value set asks whether the guide publishes the code at all, which is a real question."""
     answered = await capture_client.get(
-        "/terminology/validate-code", params={"system": DATA_ELEMENT_SYSTEM, "code": DATA_ELEMENT_CODE}
+        "/facade/terminology/validate-code", params={"system": DATA_ELEMENT_SYSTEM, "code": DATA_ELEMENT_CODE}
     )
 
     assert answered.json()["result"] is True
@@ -112,7 +112,7 @@ async def test_a_system_alone_asks_the_weaker_question_this_server_can_still_ans
 
 async def test_naming_neither_a_system_nor_a_value_set_is_refused(capture_client: httpx.AsyncClient) -> None:
     """A check with nothing to check against would answer false about every code there is, so it is refused."""
-    answered = await capture_client.get("/terminology/validate-code", params={"code": DATA_ELEMENT_CODE})
+    answered = await capture_client.get("/facade/terminology/validate-code", params={"code": DATA_ELEMENT_CODE})
 
     assert answered.status_code == 400
     assert answered.json()["resourceType"] == "OperationOutcome"

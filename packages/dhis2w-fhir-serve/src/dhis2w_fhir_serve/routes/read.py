@@ -22,7 +22,7 @@ module is imported inside the handlers because it imports the search grammar bel
 A receipt is answered whatever lifecycle state it is in. `d2w fhir forward` renames a drained
 receipt into `forwarded/` or `rejected/`, and a read that started 404-ing at that moment would
 expire the id a client was handed at capture time on a schedule nothing told it about. Which state
-a receipt is in is not a QuestionnaireResponse element, so it is not stated here; `GET /spool`
+a receipt is in is not a QuestionnaireResponse element, so it is not stated here; `GET /facade/spool`
 answers that, along with the rest of the receipt envelope.
 
 Search over the store is lenient in FHIR's own sense: an unrecognised parameter is ignored rather

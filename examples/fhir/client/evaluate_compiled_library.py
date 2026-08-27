@@ -145,7 +145,7 @@ async def main() -> None:
 async def evaluate(client: httpx.AsyncClient, language: str, source: str, resource_id: str) -> dict[str, Any]:
     """One library in one language over one resource the served guide already holds."""
     answered_by = await client.post(
-        "/evaluate",
+        "/facade/evaluate",
         json={
             "language": language,
             "source": source,

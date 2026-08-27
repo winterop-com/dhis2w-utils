@@ -47,7 +47,7 @@ mapped clinical section may be built at all, and in what order the three phases 
 It is a decision document rather than a plan of record - the recommendation in section 9
 is a recommendation, and section 10 says which parts of it were taken. It rests
 throughout on **the record the facade serves**: a summary is a projection of a record,
-and `GET /tracked-entities/{uid}/events` is where that record is read - one entity's
+and `GET /facade/tracked-entities/{uid}/events` is where that record is read - one entity's
 events, each as the response its programme stage's published form describes
 (section 3).
 
@@ -156,7 +156,7 @@ and a paged listing, all gated by `[serve.tracked_entities]` (`config.py`,
 `NoPublishedSubjectTypeError`.
 
 **The history surface is what an IPS section reads from, and it is served.**
-`GET /tracked-entities/{uid}/events` answers one entity's own events - every event of
+`GET /facade/tracked-entities/{uid}/events` answers one entity's own events - every event of
 every enrollment it holds, newest first - each as the `QuestionnaireResponse` its
 programme stage's published form describes: the stage's canonical as `questionnaire`,
 the entity as `subject`, the enrollment and the reporting unit as extensions, the
@@ -521,7 +521,7 @@ questions because the question is what a reader needs in order to weigh the answ
 - [FHIR roadmap and review guide](roadmap.md) - the IPS item in 9.3, which this page
   narrows.
 - [Consume the FHIR API](../401-consume-the-fhir-api.md) - the record at
-  `/tracked-entities/{uid}/events`, which is what a section is fed from.
+  `/facade/tracked-entities/{uid}/events`, which is what a section is fed from.
 - [The enrollment resource](enrollment-resource.md) - decision 5.2, whose recommended
   `EpisodeOfCare` is the shape a summary's episodes would hang off.
 - [DHIS2 fidelity audit](dhis2-fidelity.md) - what the guide carries about a data

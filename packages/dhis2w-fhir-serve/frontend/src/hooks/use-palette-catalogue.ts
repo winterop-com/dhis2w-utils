@@ -21,7 +21,7 @@ let formsRead = false
  *
  * NOTHING IS READ UNTIL THE PALETTE IS OPENED. These two reads exist so a person can type four
  * characters and land on a form; making them on every page load would put a `/Questionnaire` search
- * and a `/spool` walk behind every navigation in the app, for a feature most page views never use.
+ * and a `/facade/spool` walk behind every navigation in the app, for a feature most page views never use.
  * So the hook takes `enabled` and does nothing until it goes true - which is the moment the dialog
  * mounts.
  *

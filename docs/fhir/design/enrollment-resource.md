@@ -44,10 +44,11 @@ transaction Bundle, which is a different project.
 So what is left is **the read side**: whether, when a FHIR client asks this project's
 server what programs a person is in, the answer is a resource of a standard type or the
 typed JSON listing that answers today at
-`GET /tracked-entities/{uid}/enrollments`. That listing exists in exactly this shape
+`GET /facade/tracked-entities/{uid}/enrollments`. That listing exists in exactly this shape
 because of this open decision - it says so in its own module docstring - and it is
-deliberately on a lowercase path no FHIR resource type can collide with, so the day a
-resource lands nothing has to be un-published.
+deliberately under the facade's own API rather than on the FHIR surface, where no
+resource type can collide with it, so the day a resource lands nothing has to be
+un-published.
 
 **One consequence worth stating plainly before the analysis starts:** because the capture
 leg is unaffected, this decision is cheap to make and cheap to reverse. It is not
@@ -257,7 +258,7 @@ collapses two facts into one and loses the ability to state either precisely.
 
 Publish no enrollment resource. The enrollment stays what it is today: an identifier under
 `{base}/id/tracker-enrollment`, carried on `D2TrackerEnrollment` in the capture contract,
-and served as typed JSON from `GET /tracked-entities/{uid}/enrollments`.
+and served as typed JSON from `GET /facade/tracked-entities/{uid}/enrollments`.
 
 Two sub-variants exist and both are worse than the plain version.
 
@@ -422,8 +423,8 @@ The reasoning, laid bare:
    *the resource where the subject is a `Patient`, the typed listing everywhere else* - is
    the rule the Patient surface already follows, and it inherits R6's widening for free the
    day this project moves.
-5. **Nothing has to be un-published to get there.** The listing lives on a lowercase path
-   precisely so a resource can land beside it. Both can be served: the listing is what the
+5. **Nothing has to be un-published to get there.** The listing lives under the facade's
+   own API, off the FHIR surface entirely, precisely so a resource can land beside it. Both can be served: the listing is what the
    picker uses and it is the only answer for a non-`Patient` subject; `EpisodeOfCare` is
    what a FHIR client uses.
 

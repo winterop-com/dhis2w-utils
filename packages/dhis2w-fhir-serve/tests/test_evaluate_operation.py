@@ -1,4 +1,4 @@
-"""`POST /$evaluate`: the same evaluation as `/evaluate`, said as the `Parameters` a FHIR client reads.
+"""`POST /$evaluate`: the same evaluation as `/facade/evaluate`, said as the `Parameters` a FHIR client reads.
 
 The claims worth pinning are the ones a client depends on. One parameter per define, named by the
 define. A single answer rides the parameter itself - `value[x]` for a primitive, `resource` for a
@@ -279,7 +279,7 @@ async def test_a_register_context_says_this_process_holds_no_instance(client: ht
 
 
 async def test_the_plain_json_body_answers_the_same_parameters(client: httpx.AsyncClient) -> None:
-    """Parameters in is canonical, and the `/evaluate` body is read too: same evaluation, same answer."""
+    """Parameters in is canonical, and the `/facade/evaluate` body is read too: same evaluation, same answer."""
     as_parameters = await client.post(
         EVALUATE_OPERATION_PATH,
         json=_ask("cql", LIBRARY, context=_inline(BUNDLE)),
@@ -296,7 +296,7 @@ async def test_the_plain_json_body_answers_the_same_parameters(client: httpx.Asy
 async def test_the_json_answer_is_the_project_s_own_shape_and_this_one_is_not(client: httpx.AsyncClient) -> None:
     """Two addresses, two shapes: the UI's endpoint keeps its rows, and this one answers a resource."""
     rows = await client.post(
-        "/evaluate",
+        "/facade/evaluate",
         json={
             "language": "fhirpath",
             "source": "Patient.birthDate",
@@ -387,7 +387,7 @@ async def test_a_body_that_is_neither_shape_says_which_two_it_takes(client: http
     assert answered.status_code == 400
     diagnostics = answered.json()["issue"][0]["diagnostics"]
     assert "Parameters resource" in diagnostics
-    assert "/evaluate" in diagnostics
+    assert "/facade/evaluate" in diagnostics
 
 
 async def test_the_operation_is_declared_at_the_server_level_slot(client: httpx.AsyncClient) -> None:

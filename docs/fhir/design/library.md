@@ -63,7 +63,7 @@ Stated as three claims a reviewer can hold a change against:
    things they add on top - a terminal, an exit code, a report path, a port - are theirs
    alone.
 3. **The capture UI is not a library concern.** The React bundle, `ui.py`, `static/`,
-   and the `/uiconfig` document that feeds them belong to `dhis2w-fhir-serve` and are
+   and the `/facade/uiconfig` document that feeds them belong to `dhis2w-fhir-serve` and are
    reached by running it. An embedding application that wants screens builds its own or
    runs the facade; there is no half-way export of a mount, a bundle path, or a shell.
 
@@ -117,7 +117,7 @@ questions.
 | **Serve** - synthesize a response | `generate_response`, `draw_seed`, `resolve_period_type`, `DateWindow`, `GENERATED_STATUS`, `MAXIMUM_SEED`, `DEFAULT_PERIOD_TYPE` - re-exported | Seed parsing from a query string or a body (`routes/generate.py:73`, `:81`, `:110`) | Unchanged | `LIBRARY` |
 | **Serve** - conformance | `build_server_capability` (`capability.py:160`) and `build_metadata_body` (`metadata.py:32`) - both re-exported | Nothing beyond the route | Unchanged | `LIBRARY` |
 | **Serve** - errors and logging | `ServeError` and its nine subclasses, `outcome`, `register_error_handlers`, `FHIR_JSON_MEDIA_TYPE`, `RequestLogMiddleware`, `configure_logging` - all re-exported | Nothing | Unchanged. An embedding application needs `register_error_handlers` or every typed refusal becomes a 500, so this being published already is load-bearing | `LIBRARY` |
-| **The capture UI** | `STATIC_DIRECTORY`, `UiStaticFiles`, `mount_ui_assets`, `mount_ui_shell`, `ui_bundle_present`, `UiBundleMissingError` are re-exported today; `/uiconfig` and its models likewise | The bundle itself, the mount order (`ui.py:3-25`), and the shell catch-all | **Withdrawn from the library surface**, not extended. Section 3.5 | `NATIVE TO SERVE` |
+| **The capture UI** | `STATIC_DIRECTORY`, `UiStaticFiles`, `mount_ui_assets`, `mount_ui_shell`, `ui_bundle_present`, `UiBundleMissingError` are re-exported today; `/facade/uiconfig` and its models likewise | The bundle itself, the mount order (`ui.py:3-25`), and the shell catch-all | **Withdrawn from the library surface**, not extended. Section 3.5 | `NATIVE TO SERVE` |
 | **`d2w ql`** - the query engine | The cleanest surface in the audit. `parse` -> `QueryEngine(library, binder)` -> `await run_terminal()` is a three-line in-process run, all three names in `dhis2w_ql.__all__`, and the package declares one dependency - pydantic - with a note that it holds no DHIS2 or FHIR import (`packages/dhis2w-ql/pyproject.toml:17-23`). `ResourceBinder` and `DataSource` are runtime-checkable protocols of two and three methods (`engine/datasource.py:14-46`), and `InMemoryBinder` proves them offline. Sandboxing is a caller's argument, twice (`allow_local_files`, `allow_file_io`) | The DHIS2 binding is not in `dhis2w-ql` at all: `Dhis2DataSource`, `AnalyticsDataSource`, `AggregateDataSource`, `Dhis2Binder` (`dhis2w_core/v42/plugins/query/datasource.py:37-206`) and `run_query` / `explain_query` / `evaluate_path` (`.../query/service.py:34`, `:61`, `:103`) live in the version plugin tree, triplicated across v41 / v42 / v43, so an importing caller picks a major the engine itself is neutral about. `Dhis2Binder` takes a `Profile` and each fetch opens its own connection. `CountableSource` (`engine/datasource.py:27`) is public and in neither `__all__`, so a source with a native count cannot import the protocol it implements. Every one of the eighty-odd `examples/d2ql/*.d2ql` files runs through the command; there is no Python example of the engine | A `Dhis2Client`-backed binder, `CountableSource` on the surface, and one Python example beside the `.d2ql` corpus. The binder is a small class - the engine never learns what a source is (`engine/datasource.py:1-5`). See the reading reserved in section 6 | `LIBRARY` (engine) / `MODULE-ONLY` (the DHIS2 binding) |
 
 ### 2.3 What the table says, in six findings
@@ -330,13 +330,13 @@ Concretely:
   `StaticFiles` mounts with an order requirement that only makes sense inside the
   facade's own router table (`ui.py:3-25`), and handing them to an application that has
   its own static story is an invitation to a white page.
-- `/uiconfig` is the one edge case worth naming. It is a route, it is mounted with the
-  facade routers, and it exists so the screens can be told what this run serves. It stays
+- `/facade/uiconfig` is the one edge case worth naming. It is a route, it is mounted with
+  the facade routers, and it exists so the screens can be told what this run serves. It stays
   a served route and stays off the library surface: `UiConfig`, `BasemapLayer`,
   `RegisterUiConfig`, `RegisteredTypeUiConfig`, `TrackedEntitiesUiConfig`,
   `basemap_layers`, and `public_instance_url` come off `__all__` with the rest of the UI.
   An application that wants a screens document builds one from `ServeContext`, which
-  holds every fact `/uiconfig` reads.
+  holds every fact `/facade/uiconfig` reads.
 - `UiBundleMissingError` is the exception. It is a refusal `create_app` raises while
   building, and an embedder calling `create_app` needs to be able to catch it, so it
   stays exported.
@@ -394,7 +394,7 @@ paths - and so the `owned_prefix` rule that keeps one target's sync from deletin
 another's files is stated in one place a caller can see.
 
 **R8 - The UI comes off the serve package's surface.** The six UI names and the seven
-`/uiconfig` names leave `__all__`; `UiBundleMissingError` stays. This is the only
+`/facade/uiconfig` names leave `__all__`; `UiBundleMissingError` stays. This is the only
 recommendation that makes the surface smaller, and it is what makes the doctrine's
 exception legible rather than a sentence in a design paper.
 

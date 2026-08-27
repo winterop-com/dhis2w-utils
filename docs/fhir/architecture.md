@@ -437,6 +437,9 @@ identically either way. What needs live is the register.
 
 ### The routes
 
+One process, two APIs. The base URL is FHIR's, and the CapabilityStatement at
+`/metadata` is the whole of its contract:
+
 | Route | Answers |
 | --- | --- |
 | `GET /metadata` | the `kind = #instance` CapabilityStatement, pre-rendered at startup |
@@ -447,18 +450,45 @@ identically either way. What needs live is the register.
 | `GET /ConceptMap/$translate` | a published coding back to its DHIS2 identifiers |
 | `GET /{type}/{id}/$summary` | one person's International Patient Summary, as a document Bundle |
 | `GET /{type}/$summary?identifier=` | the same document for the one person an identifier names |
-| `GET /spool` | every receipt with its lifecycle, counts, and import rollups |
-| `GET /uiconfig` | basemaps, the DHIS2 base URL, the register configuration |
-| `GET /metadata-health` | the validate findings over the served selection, plus its translation coverage |
-| `GET /tracked-entities/{uid}/enrollments` | one entity's program enrollments |
-| `GET /tracked-entities/{uid}/events` | one entity's record: a searchset of its events as QuestionnaireResponses |
-| `GET /tracked-entities/{uid}/events/{eventUid}` | one event of that record |
+| `POST /$evaluate` | an evaluation as a `Parameters` resource, the operation `OperationDefinition/serve-evaluate` states |
+
+Everything the facade answers about **itself** is the other API, served under
+`/facade` as an application of its own with its own OpenAPI document at
+`/facade/openapi.json` and an interactive page at `/facade/docs`:
+
+| Route | Answers |
+| --- | --- |
+| `GET /facade/whoami` | who this server decided the caller is, under the posture that decided it |
+| `GET /facade/spool` | every receipt with its lifecycle, counts, and import rollups |
+| `GET /facade/uiconfig` | basemaps, the DHIS2 base URL, the register configuration |
+| `GET /facade/metadata-health` | the validate findings over the served selection, plus its translation coverage |
+| `POST /facade/evaluate` | the same evaluation as `$evaluate`, answered as this facade's own JSON |
+| `GET /facade/terminology/lookup` | one code's display and its properties, out of a published CodeSystem |
+| `GET /facade/terminology/validate-code` | whether a code is in a published ValueSet |
+| `GET /facade/tracked-entities/{uid}/enrollments` | one entity's program enrollments |
+| `GET /facade/tracked-entities/{uid}/events` | one entity's record: a searchset of its events as QuestionnaireResponses |
+| `GET /facade/tracked-entities/{uid}/events/{eventUid}` | one event of that record |
+
+Those answers are deliberately **not** FHIR - no R4 resource says what a
+receipt's lifecycle, a run's settings, or a metadata finding says - which is why
+they are a separate API with a contract of their own rather than lowercase paths
+lodged among the resource types. The record is the one that answers
+`application/fhir+json` anyway: a Bundle of QuestionnaireResponses is a FHIR
+document however it was asked for, and it is under the mount because FHIR
+declares no interaction at that address. `/facade/openapi.json` and the page
+beside it are open under every `auth_scope`, for the reason `/metadata` is: a
+contract nobody may read is a contract nobody can meet.
+
+`GET /cds-services` and `POST /cds-services/{id}` are a third family and they sit
+at the base URL beside FHIR, because CDS Hooks fixes discovery at
+`{base}/cds-services` exactly as FHIR fixes `{base}/metadata`. A specification's
+path is not ours to move.
 
 Fixed paths mount before the read catch-alls and the UI shell mounts last, so a
-UI route never shadows a FHIR one. Every GET also answers HEAD. Four of these
-are deliberately **not** FHIR - `/spool`, `/uiconfig`, `/metadata-health`, and
-the enrollment listing - because no R4 resource says what they say. Everything else, including
-every refusal and every 404, is FHIR: errors funnel to an `OperationOutcome`.
+UI route never shadows a FHIR one. Every GET also answers HEAD. Everything on the
+FHIR surface, including every refusal and every 404, is FHIR: errors funnel to an
+`OperationOutcome` - and so do the refusals under the mount, so one client reads
+one refusal shape whichever API it met.
 
 `$generate` is a custom operation returning its resource directly rather than
 wrapped in `Parameters`, and it is deliberately not SDC's `$populate`, which
@@ -522,7 +552,7 @@ it opens a third way into DHIS2.
   `[ips.sections.immunizations]` naming the stages and the dose data elements is
   the instance's own statement or there is nothing to carry.
 - **The doses are read in `dhis2w_fhir_serve.summary`**, through the very
-  `RecordProjection` that `GET /tracked-entities/{uid}/events` runs on, so a
+  `RecordProjection` that `GET /facade/tracked-entities/{uid}/events` runs on, so a
   value can never be typed one way in the record and another inside a summary. A
   mapped stage the guide publishes no form for contributes no dose and is named
   in the section's own narrative.

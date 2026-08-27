@@ -46,7 +46,7 @@ export function PatientEnrollmentList({
     state: PatientEnrollmentsState
     /** The person these enrollments belong to; with a base url, each row links into Capture. */
     trackedEntityUid?: string | null
-    /** The DHIS2 instance's address, as `/uiconfig` states it, or null when the run resolved none. */
+    /** The DHIS2 instance's address, as `/facade/uiconfig` states it, or null when the run resolved none. */
     dhis2BaseUrl?: string | null
 }) {
     if (state.loading) {

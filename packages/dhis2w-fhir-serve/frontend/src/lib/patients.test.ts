@@ -516,7 +516,7 @@ describe('how old a register answer says it is', () => {
 /**
  * Narrowing one register to one of the tracked entity types it is served over.
  *
- * THE CHOICES ARE THE SERVER'S OWN DECLARATION. `/uiconfig` states the types riding each register
+ * THE CHOICES ARE THE SERVER'S OWN DECLARATION. `/facade/uiconfig` states the types riding each register
  * and the name the published map holds for each; `/metadata` documents the same set under the `_tag`
  * parameter that narrows to one of them. Nothing here reads a row to find out what a register serves,
  * because a page holding no fridges today would then offer no way to ask for one.

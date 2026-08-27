@@ -1,5 +1,5 @@
 /**
- * What `GET /metadata-health` answers: what the DHIS2 instance behind this run holds that the guide
+ * What `GET /facade/metadata-health` answers: what the DHIS2 instance behind this run holds that the guide
  * cannot carry cleanly, and how far the selection is translated.
  *
  * Not FHIR. There is no FHIR shape for "this DHIS2 name has a `<` in it" and none at all for a

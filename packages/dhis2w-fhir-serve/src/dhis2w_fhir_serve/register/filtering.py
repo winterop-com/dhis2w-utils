@@ -14,7 +14,7 @@ hold.
 substring, no range, no `:missing`, no ordering. `d2-attribute=cejWyOfXge6|Female` finds whoever
 holds exactly that value under exactly that attribute. A filter that looks like search and matches
 only exact values is a trap unless it says which it is, so `/metadata` says it in the search
-parameter's documentation, `/uiconfig` says it beside the attributes it declares, and the serving
+parameter's documentation, `/facade/uiconfig` says it beside the attributes it declares, and the serving
 guide says it in prose. A caller wanting "starts with" wants `_content`, which is the substring
 search a projection-served register answers.
 

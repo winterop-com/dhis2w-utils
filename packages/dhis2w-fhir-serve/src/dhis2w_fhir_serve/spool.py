@@ -23,7 +23,7 @@ parse per receipt, which is a rounding error against a facade that serves one pr
 
 ONE BAD FILE COSTS ONE ROW, NOT THE LISTING. A file that will not parse is moved to `malformed/`
 with its reason written beside it, and the read carries on with everything else. The loud-not-silent
-principle is kept by reporting rather than by refusing: `GET /spool` counts what is in quarantine and
+principle is kept by reporting rather than by refusing: `GET /facade/spool` counts what is in quarantine and
 names each file with the error that put it there, which is strictly more than a 500 over the whole
 listing ever told anyone. A directory this process cannot read at all is a different failure, and
 still raises `UnreadableReceiptError`.

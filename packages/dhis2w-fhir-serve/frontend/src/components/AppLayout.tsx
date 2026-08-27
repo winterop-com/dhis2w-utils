@@ -50,7 +50,7 @@ export interface NavItem {
     hint: string
     icon: typeof ClipboardList
     /**
-     * True for a page this run offers only under a setting, which `/uiconfig` states.
+     * True for a page this run offers only under a setting, which `/facade/uiconfig` states.
      *
      * Absent for every page that answers from the guide this process loaded: a bundle shipped with
      * the server can be certain those are there.
@@ -64,6 +64,14 @@ export interface NavItem {
      * so a run serving one type is led to by that name, and a run serving several by the register.
      */
     naming?: (settings: UiConfig) => { label: string; hint: string }
+    /**
+     * The entry this one sits under, by its path, for a page that is part of another section.
+     *
+     * Absent for every top-level entry. A child is drawn indented under its parent, which keeps its
+     * own row and its own destination - the nesting says the two pages are about the same thing, not
+     * that one of them opens the other.
+     */
+    parent?: string
 }
 
 /** What the register entry says it leads to, whichever of the instance's own names it wears. */
@@ -79,9 +87,16 @@ export const REGISTER_NAV_HINT = 'What this DHIS2 instance tracks'
  * answers, then the order of the capture loop itself - from the forms a client
  * can fill, through the people those forms are about and what came back, to the
  * terminology under all of it. What comes after that is about the server rather
- * than about capture - an expression run against it, its API tried by hand, its
- * contract, and last the health of the DHIS2 metadata behind it, which is the
- * diagnostic a person opens when one of the pages above reads wrong.
+ * than about capture - an expression run against it, its API tried by hand, and
+ * its contract.
+ *
+ * A PAGE ABOUT ANOTHER PAGE'S SUBJECT SITS UNDER IT, in `parent`. Metadata
+ * health is the only one: it reports on the DHIS2 instance this server stands in
+ * front of, which is what the Server page is about, so it is drawn indented
+ * under Server rather than as a section of its own. Both rows stay - the nesting
+ * says the two pages share a subject, not that one opens the other - and the
+ * command palette lists them alike, because somebody typing a page's name is not
+ * navigating a tree.
  *
  * A PAGE THAT IS NOT ALWAYS THERE STATES ITS OWN CONDITION, in `offered`. Two
  * are that, and both for the same reason: the register and the metadata health
@@ -124,6 +139,7 @@ export const NAV_ITEMS: NavItem[] = [
         hint: 'Names, codes, and translations',
         icon: HeartPulse,
         offered: metadataHealthOffered,
+        parent: 'server',
     },
 ]
 
@@ -404,6 +420,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
                                         // than an overlay - it survives collapsed
                                         // mode and gives asymmetric rounding free.
                                         'flex items-start gap-3 rounded-r-lg rounded-l-[4px] border-l-[3px] px-3 py-2 text-left text-sm transition-colors',
+                                        // A child entry is inset from its parent, which is the
+                                        // whole of what says it belongs to it. Collapsed there is
+                                        // no room to inset into, and the tooltip carries the name
+                                        // instead - the rail is a strip of icons there, and an
+                                        // indented icon would read as one that missed its column.
+                                        item.parent !== undefined && !collapsed && 'ml-5',
                                         collapsed &&
                                             'mx-auto flex size-10 items-center justify-center rounded-lg border-l-0 p-0',
                                         isActive

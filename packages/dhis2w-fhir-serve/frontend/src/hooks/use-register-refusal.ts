@@ -15,7 +15,7 @@ import type { OperationOutcome } from '@/lib/fhir'
  * of its own or, worse, sending a reader somewhere else without a word.
  *
  * A REFUSAL IS THE EXPECTED ANSWER HERE, which is why nothing about this read is an error. The read
- * is only ever made on a run whose `/uiconfig` already said the register is not served; what is
+ * is only ever made on a run whose `/facade/uiconfig` already said the register is not served; what is
  * being asked for is the reason, and a run that answers something other than a refusal simply has
  * none to state.
  */

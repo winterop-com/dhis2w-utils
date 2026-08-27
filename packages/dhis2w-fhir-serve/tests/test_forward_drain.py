@@ -8,7 +8,7 @@ share, and neither test would notice.
 So this one runs the real thing on both sides. A facade captures two submissions; the real
 `forward_responses` drains that spool against a respx-mocked instance that takes one payload and
 refuses the other with a body harvested off a live 2.42; then the same still-running facade is asked
-for `/spool`, and what it answers has to be what the forwarder actually left on disk - the two
+for `/facade/spool`, and what it answers has to be what the forwarder actually left on disk - the two
 lifecycles, the rejection rolled up out of the report beside the refused receipt, and the import
 counts off the report beside the accepted one.
 """
@@ -129,10 +129,10 @@ async def test_forward_drain_is_visible_to_the_running_facade(
     aggregate_response: dict[str, Any],
     event_response: dict[str, Any],
 ) -> None:
-    """A real drain's renames and sidecars are what the still-running facade answers `/spool` with."""
+    """A real drain's renames and sidecars are what the still-running facade answers `/facade/spool` with."""
     aggregate_id = await _capture(capture_client, aggregate_response)
     event_id = await _capture(capture_client, event_response)
-    before = _rows((await capture_client.get("/spool")).json())
+    before = _rows((await capture_client.get("/facade/spool")).json())
     assert {identifier: row["lifecycle"] for identifier, row in before.items()} == {
         aggregate_id: "received",
         event_id: "received",
@@ -146,7 +146,7 @@ async def test_forward_drain_is_visible_to_the_running_facade(
     assert [outcome.response_id for outcome in report.rejected] == [aggregate_id]
     assert report.stopped is None
 
-    listing = (await capture_client.get("/spool")).json()
+    listing = (await capture_client.get("/facade/spool")).json()
     rows = _rows(listing)
 
     # The facade re-read the directory the forwarder moved the files into, without restarting.
@@ -212,7 +212,7 @@ async def test_a_receipt_the_drain_never_reached_is_still_offered_as_pending(
     # The aggregate envelope posts first, so the tracker endpoint was never reached at all.
     assert tracker.call_count == 0
 
-    listing = (await capture_client.get("/spool")).json()
+    listing = (await capture_client.get("/facade/spool")).json()
     assert listing["counts"] == {"received": 2, "forwarded": 0, "rejected": 0, "withdrawn": 0, "malformed": 0}
     rows = _rows(listing)
     assert rows[aggregate_id]["lifecycle"] == "received"

@@ -28,7 +28,7 @@ export function MaintenanceLink({
     subject,
     className,
 }: {
-    /** The DHIS2 instance's address, as `/uiconfig` states it, or null when the run resolved none. */
+    /** The DHIS2 instance's address, as `/facade/uiconfig` states it, or null when the run resolved none. */
     baseUrl: string | null
     object: MaintenanceObject
     /** The object's DHIS2 uid - the same uid this page is already showing. */

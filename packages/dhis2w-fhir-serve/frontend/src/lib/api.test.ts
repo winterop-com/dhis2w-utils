@@ -83,7 +83,19 @@ describe('the guarded-path pattern', () => {
             '/Patient/TeiPerson01',
             '/Specimen?identifier=LAB-0001',
             '/Specimen/TeiSample01',
-            '/tracked-entities/TeiPerson01/enrollments',
+            // The facade's own API, all of it under one mount.
+            '/facade/openapi.json',
+            '/facade/docs',
+            '/facade/spool?_count=50',
+            '/facade/uiconfig',
+            '/facade/whoami',
+            '/facade/metadata-health',
+            '/facade/evaluate',
+            '/facade/terminology/lookup?system=x&code=y',
+            '/facade/tracked-entities/TeiPerson01/enrollments',
+            '/facade/tracked-entities/TeiPerson01/events?_count=20',
+            // CDS Hooks fixes its own discovery path at the base URL, beside FHIR.
+            '/cds-services',
         ]
         for (const path of served) {
             expect(GUARDED_PATH_PATTERN.test(path), path).toBe(true)
@@ -98,6 +110,11 @@ describe('the guarded-path pattern', () => {
             '/api/dataValueSets',
             '/fhir/Questionnaire',
             '/metadataX',
+            // The operational API is under its mount and nowhere else, so the base URL is FHIR's.
+            '/spool',
+            '/uiconfig',
+            '/whoami',
+            '/tracked-entities/TeiPerson01/enrollments',
             'Questionnaire',
             'https://elsewhere.example/Questionnaire',
         ]
@@ -169,7 +186,7 @@ describe('checkCredential', () => {
 
         const checked = await checkCredential(basicAuthorization('clerk', 'secret'))
 
-        expect(calls[0].url).toBe('/whoami')
+        expect(calls[0].url).toBe('/facade/whoami')
         expect(new Headers(calls[0].init.headers).get('Authorization')).toBe(basicAuthorization('clerk', 'secret'))
         expect(checked).toEqual({ outcome: 'accepted', username: 'clerk' })
     })

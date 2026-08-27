@@ -1,9 +1,9 @@
 """Ask a running facade's `$evaluate` operation for an evaluation, and read the `Parameters` it answers.
 
-`POST [base]/$evaluate` is the FHIR-native sibling of `POST /evaluate`. Same three languages, same
+`POST [base]/$evaluate` is the FHIR-native sibling of `POST /facade/evaluate`. Same three languages, same
 three contexts, same engine - the difference is the answer: a `Parameters` resource with one
 parameter per define, named by the define, which a FHIR client reads without learning a shape this
-project invented. `/evaluate` answers this project's own JSON and is what the capture UI reads;
+project invented. `/facade/evaluate` answers this project's own JSON and is what the capture UI reads;
 `examples/fhir/client/evaluate_via_facade.py` is that endpoint.
 
 What this file shows is how to read the answer, which is four rules and no more:
@@ -86,7 +86,7 @@ async def main() -> None:
             print(f"  {parameter['name']}: {said(parameter)}")
 
         # 3. An expression that matches nothing. FHIR has no empty collection, so the answer carries
-        #    no parameter at all - `POST /evaluate` is where "matched nothing" stays a stated row.
+        #    no parameter at all - `POST /facade/evaluate` is where "matched nothing" stays a stated row.
         answered = await evaluate(client, ask("fhirpath", "Patient.telecom.value", context=inline(PATIENT)))
         print(f"  an expression that matched nothing: {len(answered.get('parameter', []))} parameter(s)")
 

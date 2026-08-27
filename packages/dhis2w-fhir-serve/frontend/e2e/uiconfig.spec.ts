@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 
 /**
- * The two things `/uiconfig` decides: which basemap layers the map offers, and which DHIS2 instance
+ * The two things `/facade/uiconfig` decides: which basemap layers the map offers, and which DHIS2 instance
  * the screens link identities into.
  *
- * WHY THIS ONE FILE FULFILS `/uiconfig` RATHER THAN READING IT. Every other spec in this suite runs
+ * WHY THIS ONE FILE FULFILS `/facade/uiconfig` RATHER THAN READING IT. Every other spec in this suite runs
  * against the real `d2w fhir serve --ui`, and it stays that way here for everything except this one
- * endpoint. `/uiconfig` is the whole of what "how was this process started" means to the browser -
+ * endpoint. `/facade/uiconfig` is the whole of what "how was this process started" means to the browser -
  * a project's configured layers, and whether the machine running the server resolved a profile at
  * all. The suite drives ONE server process, so a spec proving the layer switch and a spec proving
  * the no-instance case cannot both be true of the same started process; and whether a developer's
@@ -27,7 +27,7 @@ const PIXEL = Buffer.from(
     'base64',
 )
 
-/** The layers the fulfilled `/uiconfig` offers - two, so "the first one opens" is a real claim. */
+/** The layers the fulfilled `/facade/uiconfig` offers - two, so "the first one opens" is a real claim. */
 const STREETS = { name: 'Streets', url: 'https://streets.test/{z}/{x}/{y}.png', attribution: null }
 const AERIAL = { name: 'Aerial', url: 'https://aerial.test/{z}/{x}/{y}.png', attribution: null }
 
@@ -40,7 +40,7 @@ const MAP_READY_TIMEOUT = 15_000
 /** The form the capture-posture cases open, which is the aggregate one the fixture publishes. */
 const AGGREGATE_FORM = 'BfMAe6Itzgt'
 
-/** Serve one `/uiconfig` answer, and a pixel for any tile the layers in it ask for. */
+/** Serve one `/facade/uiconfig` answer, and a pixel for any tile the layers in it ask for. */
 async function serveSettings(
     page: Page,
     settings: { basemaps: typeof STREETS[]; dhis2_base_url: string | null; capture?: boolean },

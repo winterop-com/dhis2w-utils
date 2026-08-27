@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test'
  * The Evaluate screen, driven end to end against the real `d2w fhir serve --ui`.
  *
  * ONE WALK, AND IT IS THE ONE THE SCREEN EXISTS FOR: pick a language, pick the example that comes
- * with it, press Evaluate, read the answer. Nothing here is fulfilled - `POST /evaluate` is answered
+ * with it, press Evaluate, read the answer. Nothing here is fulfilled - `POST /facade/evaluate` is answered
  * by the real server over the real fixture guide, because the whole claim of the generic examples is
  * that they run as they stand against any served guide, and a mocked response would prove that of a
  * fixture of itself rather than of the endpoint.

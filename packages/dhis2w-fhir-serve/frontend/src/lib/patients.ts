@@ -5,7 +5,7 @@
  * the DHIS2 instance rather than from what the project published, and they answer over every tracked
  * entity type the project's forms register: `GET /{resourceType}` pages through what the instance
  * holds, `GET /{resourceType}?identifier=` finds the one whose card is in front of you,
- * `GET /{resourceType}/{uid}` opens one, and `GET /tracked-entities/{uid}/enrollments` states what it
+ * `GET /{resourceType}/{uid}` opens one, and `GET /facade/tracked-entities/{uid}/enrollments` states what it
  * is enrolled in. This module is the reading half of all four - the projection unpacked into rows,
  * one page of the listing read off the Bundle's own links, the enrollment listing narrowed to one
  * program, and the joins that turn DHIS2 uids into the names the guide published for them - and it
@@ -245,7 +245,7 @@ export const REGISTER_ATTRIBUTE_PARAMETER = 'attribute'
  *
  * `d2-attribute={trackedEntityAttributeUid}|{value}`, and it MATCHES THE VALUE EXACTLY - equality
  * and nothing else, case ignored the way DHIS2's own `eq` ignores it. `/metadata` documents the
- * grammar and the attributes it answers over; `/uiconfig` states the same attributes as values a
+ * grammar and the attributes it answers over; `/facade/uiconfig` states the same attributes as values a
  * control can be drawn from. It narrows the listing and the identifier search alike and rides the
  * paging links, so a walk stays inside the filter it started in.
  */
@@ -517,7 +517,7 @@ export interface RegisterTypeChoice {
  * The types one register can be narrowed to, in the order the server declared them.
  *
  * ONE FHIR RESOURCE IS ONE REGISTER OVER THE UNION OF ITS TRACKED ENTITY TYPES, and this is that
- * union read off the server's own declaration: `/uiconfig` states the types riding each register and
+ * union read off the server's own declaration: `/facade/uiconfig` states the types riding each register and
  * the name the published map holds for each, and `/metadata` documents the same set under the `_tag`
  * parameter that narrows to one of them. So the filter offers exactly what the server said it serves,
  * named as the instance names it - "Person", "Fridge" - rather than as the resource projecting it.
@@ -659,7 +659,7 @@ export function registerAttributeValue(entity: PatientProjection, attributeUid: 
     return entity.attributeValues.find((value) => value.attributeUid === attributeUid)?.value ?? null
 }
 
-/** One enrollment of one tracked entity, as `GET /tracked-entities/{uid}/enrollments` states it, field for field. */
+/** One enrollment of one tracked entity, as `GET /facade/tracked-entities/{uid}/enrollments` states it, field for field. */
 export interface PatientEnrollment {
     enrollment_uid: string
     program_uid: string

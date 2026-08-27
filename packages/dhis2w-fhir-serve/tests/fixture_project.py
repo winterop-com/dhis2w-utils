@@ -75,7 +75,7 @@ max_level = 0
 # tile.openstreetmap.org would be asserting on somebody else's uptime - and would make a test
 # suite that is meant to be offline talk to the internet. The layers-on path is covered by the
 # vitest cases over the style fork and by the e2e spec that states its own layers over
-# `/uiconfig`, whose tiles are fulfilled in the browser and never fetched.
+# `/facade/uiconfig`, whose tiles are fulfilled in the browser and never fetched.
 basemaps = []
 """
 

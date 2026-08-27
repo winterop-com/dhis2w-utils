@@ -20,7 +20,7 @@ import {
 /**
  * The pure half of the Responses page.
  *
- * The listing shapes are what `GET /spool` sends, so these fixtures are written
+ * The listing shapes are what `GET /facade/spool` sends, so these fixtures are written
  * in the wire's own snake_case: a rename here and nowhere else is exactly the
  * bug this file is meant to catch.
  */

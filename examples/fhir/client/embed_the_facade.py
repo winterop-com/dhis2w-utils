@@ -17,6 +17,13 @@ The store is built `live=True`, off the DHIS2 instance, because the shared examp
 never run SUSHI: a compiled `ig/fsh-generated/resources` is the other store and this project holds
 none. An embedder serving a compiled guide passes `live=False` and needs no instance at all.
 
+`create_app` mounts TWO surfaces, and this program reads both. The base URL is FHIR's, and
+`/metadata` is its contract. This facade's own API - the receipts, the settings, the caller, the
+evaluator, the vocabularies, the register listings - is mounted at `/facade`, and its contract is the
+OpenAPI document at `/facade/openapi.json`. The factory makes that mount itself; an application
+assembling the groups by hand chooses where the second one goes, which is what
+`embed_in_fastapi.py` shows.
+
 Usage:
     uv run python examples/fhir/client/embed_the_facade.py [PROJECT_DIRECTORY]
 
@@ -31,7 +38,7 @@ from pathlib import Path
 import httpx
 from _fixture import example_project
 from _runner import run_example
-from dhis2w_fhir_serve import ServeSettings, create_app
+from dhis2w_fhir_serve import FACADE_MOUNT_PATH, ServeSettings, create_app
 
 FHIR_JSON = "application/fhir+json"
 
@@ -63,6 +70,15 @@ async def main() -> None:
             for entry in bundle.get("entry", []):
                 resource = entry["resource"]
                 print(f"  {resource['id']:16} {resource.get('title', '-')}")
+
+            # The other surface, mounted by the same factory: its contract is an OpenAPI document
+            # rather than a CapabilityStatement, and it is read with plain JSON rather than FHIR's.
+            contract = (
+                (await client.get(f"{FACADE_MOUNT_PATH}/openapi.json", headers={"Accept": "application/json"}))
+                .raise_for_status()
+                .json()
+            )
+            print(f"{contract['info']['title']}: {len(contract['paths'])} operations at {FACADE_MOUNT_PATH}")
 
     # The lifespan has unwound: the store is released and the live client the facade held is closed.
     print("facade closed - no port was ever bound")

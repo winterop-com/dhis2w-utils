@@ -39,7 +39,7 @@ interface ListingPlace {
  *
  * WHY THE RESOURCE IS AN ARGUMENT. The register is one page per resource the published map names,
  * because DHIS2 tracks whatever a project tracks and a section that mixed people with samples would
- * be paging two different things through one cursor. `/uiconfig` states the resources; each section
+ * be paging two different things through one cursor. `/facade/uiconfig` states the resources; each section
  * on screen holds one of these.
  *
  * WHY THE TYPE IS ANOTHER. One resource is one register over the union of the tracked entity types

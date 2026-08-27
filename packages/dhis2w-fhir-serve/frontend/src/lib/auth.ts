@@ -4,7 +4,7 @@
  * WHERE THE POSTURE COMES FROM. `/metadata` is the only document that is open under every posture -
  * a server that refused to say how to authenticate to it would be one nobody could authenticate to -
  * so the shell reads `rest.security` off the CapabilityStatement, and never learns the posture from
- * a document it might be refused. `/uiconfig` carries the same fact under `auth.posture` for a
+ * a document it might be refused. `/facade/uiconfig` carries the same fact under `auth.posture` for a
  * caller that is already through the door, and the Server page reads it from there.
  *
  * WHAT DECIDES WHICH PROMPT. `security.service` is R4's own way of naming schemes. The DHIS2 posture
@@ -28,7 +28,7 @@
  * this is a per-tab store rather than a durable one. The alternative is a token exchange the DHIS2
  * instance behind this facade cannot yet offer (BUGS.md 96).
  *
- * NOTHING IS STORED UNTIL THE SERVER HAS NAMED THE CALLER. The panel asks `GET /whoami` with what
+ * NOTHING IS STORED UNTIL THE SERVER HAS NAMED THE CALLER. The panel asks `GET /facade/whoami` with what
  * was typed, and only an answer naming somebody reaches `signIn`. Storing first and finding out
  * later is what a scope of `write` makes unbearable: every read is open, so the first thing that
  * would have refused a wrong password is a submission somebody spent minutes filling in. The
@@ -36,10 +36,10 @@
  * the same rule the receipts follow.
  */
 
-/** The four postures this server can be in, as `/uiconfig` and this module spell them. */
+/** The four postures this server can be in, as `/facade/uiconfig` and this module spell them. */
 export type AuthPosture = 'none' | 'token' | 'dhis2' | 'jwt'
 
-/** How much of the surface the posture covers, as `/uiconfig` spells it. */
+/** How much of the surface the posture covers, as `/facade/uiconfig` spells it. */
 export type AuthScope = 'write' | 'all'
 
 /** R4's own code system for the schemes a `rest.security` may name, and the two codes this server uses. */
@@ -62,7 +62,7 @@ export const CREDENTIAL_STORAGE_KEY = 'd2w-fhir-serve-authorization'
 export const IDENTITY_STORAGE_KEY = 'd2w-fhir-serve-identity'
 
 /**
- * What `GET /whoami` answers a caller this server accepts.
+ * What `GET /facade/whoami` answers a caller this server accepts.
  *
  * The server's own words for who it just decided the caller is. `username` is the DHIS2 username
  * under the DHIS2 posture and the claim the server read out of the token under the JWT one; it is

@@ -1,5 +1,14 @@
 """`GET /cds-services` and `POST /cds-services/{id}` - CDS Hooks, one service wide.
 
+IT IS AT THE BASE URL AND IT IS NOT FHIR, WHICH IS THE ONE THING TO SAY FIRST. Everything else this
+facade answers in plain JSON about itself - the receipts, the settings, the evaluator, the
+vocabularies - is served under `/facade`, and this is not, because the path is not ours. CDS Hooks
+fixes discovery at `{base}/cds-services` exactly as FHIR fixes `{base}/metadata`: an EHR configured
+with this server's base URL asks for that path and no other, and a specification's path is not a
+thing an implementation may move. So the base URL carries three families - FHIR's, CDS Hooks', and
+the `/facade` mount - and two of the three are somebody else's specification.
+`dhis2w_fhir_serve.routes` states the mounting.
+
 WHAT IS HERE. The discovery document CDS Hooks defines, listing exactly one service, and that
 service's invocation endpoint. The service evaluates a CQL library over the resources the hook
 prefetched and answers one card per define that had something to say. That is the whole of it: there
@@ -204,8 +213,8 @@ async def discover_services(request: Request) -> CdsDiscovery:
 async def invoke_service(request: Request, service_id: str, invocation: CdsHookRequest) -> CdsHookResponse:
     """Run the named service's library over what the hook prefetched, and answer the cards it produced.
 
-    The evaluation runs off the event loop for the reason `POST /evaluate` runs off it: parsing a
-    grammar and walking a tree is blocking work a facade must not do inline.
+    The evaluation runs off the event loop for the reason `POST /facade/evaluate` runs off it: parsing
+    a grammar and walking a tree is blocking work a facade must not do inline.
     """
     if service_id != CQL_LIBRARY_SERVICE_ID:
         raise NotFoundError("cds-services", service_id)

@@ -44,10 +44,17 @@ logger = logging.getLogger(LOGGER_NAME)
 def create_app(settings: ServeSettings) -> FastAPI:
     """Build the FHIR facade for one project, loading nothing until the lifespan runs.
 
-    Docs and the OpenAPI document are switched off: this is a FHIR endpoint, and its contract is
-    the CapabilityStatement at `/metadata`, not an OpenAPI schema. The two routes it serves are
-    catch-alls over `application/fhir+json` bodies, which an OpenAPI document could only
-    misdescribe as untyped JSON on a path variable.
+    THE APPLICATION THIS RETURNS PUBLISHES NO OPENAPI DOCUMENT, and that is about the base URL rather
+    than about the process. The base URL is a FHIR endpoint, its contract is the CapabilityStatement
+    at `/metadata`, and the two routes it mostly serves are catch-alls over `application/fhir+json`
+    bodies that an OpenAPI document could only misdescribe as untyped JSON on a path variable.
+
+    The facade's OWN API - the receipts, the settings, the caller, the evaluator, the vocabularies,
+    the register listings - is a different contract and gets a document of its own: `register_routes`
+    mounts it as an application at `/facade`, with its OpenAPI at `/facade/openapi.json` and the
+    interactive page at `/facade/docs`. The mounted application shares this one's `state`, so the
+    runtime the lifespan attaches here is the runtime its handlers read. `dhis2w_fhir_serve.routes`
+    states the whole arrangement.
 
     `settings.ui` adds the built capture UI as a static mount at `/`, after every FHIR route.
     A missing bundle raises here, while the app is being built, so `--ui` on a checkout that has

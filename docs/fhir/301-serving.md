@@ -66,7 +66,7 @@ Two things to know before the options:
   whoever asked.
 
 - **Give the facade profile the rights the guide needs and no more**, in every
-  posture. The startup store build, the instance address `/uiconfig` hands the
+  posture. The startup store build, the instance address `/facade/uiconfig` hands the
   capture screens, and `d2w fhir forward`'s drain all run as that profile in
   every posture, because none of them acts on behalf of a caller. And DHIS2
   skips its tracker ownership and access-level model outright for a superuser,
@@ -250,7 +250,7 @@ may ask and nothing more: a live run reads DHIS2 as the profile the server was
 started with, so what any caller sees is that profile's rights rather than their
 own. `dhis2` decides both. Every register read it answers - the tracked entity
 read, identifier search, the listing and its counts, the enrollment listing, and
-the registered context of `/evaluate` and `$evaluate` - is sent to DHIS2 carrying
+the registered context of `/facade/evaluate` and `$evaluate` - is sent to DHIS2 carrying
 the caller's own
 `Authorization` header, so DHIS2's sharing, organisation unit scopes, ownership,
 and access levels answer per caller, and this server applies no rule of its own.
@@ -270,7 +270,7 @@ through the same brief cache the guarded addresses use.
 is on and the DHIS2 instance trusts the same issuer. Where it is off - the
 default - the register is not served at all rather than served as the facade.
 
-The startup store build, the instance address `/uiconfig` hands the screens, and
+The startup store build, the instance address `/facade/uiconfig` hands the screens, and
 `d2w fhir forward`'s drain stay on the facade's own profile in every posture,
 because none of them acts on behalf of a caller - so give that profile the
 rights the guide needs and no more. See the notes above the options.
@@ -360,7 +360,7 @@ forward_bearer = true
 **Default:** `false` - **If you leave it out:** the register is not served. A
 read of it answers 501 with an OperationOutcome naming both halves that would
 make it answerable, and everything else this server does - the published guide,
-the received responses, `$generate`, `/evaluate`, `$evaluate`, the terminology
+the received responses, `$generate`, `/facade/evaluate`, `$evaluate`, the terminology
 reads - is served exactly as it always was.
 
 ```text
@@ -411,7 +411,7 @@ load is a sign-in page nobody can use.
 **Default:** `"write"` - **If you leave it out:** credentials are asked for on
 `POST /QuestionnaireResponse` and nowhere else. That is the one address this
 facade changes anything at; every other POST it serves writes nothing -
-`$generate` drafts a response from a published form, `/evaluate` and `$evaluate`
+`$generate` drafts a response from a published form, `/facade/evaluate` and `$evaluate`
 run an expression over what is served, and a CDS Hooks call answers cards.
 
 Under [`auth = "dhis2"`](#auth) the register is the exception to that, and not
@@ -675,9 +675,9 @@ questions about the instance's tracked entities that no other run can answer:
   has no identifier to type.
 - *"Which programmes is this record in?"* - the enrollment list the capture
   screens' pickers choose from, at
-  `/tracked-entities/{uid}/enrollments`.
+  `/facade/tracked-entities/{uid}/enrollments`.
 - *"What has happened to this one?"* - the record: every event of that entity's
-  enrollments, at `/tracked-entities/{uid}/events`, each one served as the
+  enrollments, at `/facade/tracked-entities/{uid}/events`, each one served as the
   response its programme stage's own published form describes.
 - *"What should a clinician be handed about this person?"* - the patient
   summary, at `/Patient/{uid}/$summary`, where a project has said which
@@ -867,7 +867,7 @@ the surface the listing is part of.
 
 **In plain words.** Whether "what has happened to this person" is a question
 this server answers. On - the default - one tracked entity's own events come
-back at `GET /tracked-entities/{uid}/events`, each as the response its programme
+back at `GET /facade/tracked-entities/{uid}/events`, each as the response its programme
 stage's published form describes: when it happened, which form it answers, and
 every value that was recorded, with the codes this guide publishes for them. Off,
 the register still says who somebody is, and their record is refused.
@@ -1131,7 +1131,7 @@ eleven-character DHIS2 id that nobody guesses:
   on each register's entry, with each attribute's name, the DHIS2 value type of
   its values, and - where DHIS2 binds the attribute to an option set - the
   canonical of the published ValueSet its values come from.
-- `/uiconfig` carries the same set as values rather than prose, under
+- `/facade/uiconfig` carries the same set as values rather than prose, under
   `tracked_entities.registers[].filter_attributes[]`, which is what lets a screen
   draw a select over a coded attribute's published values and a text box over
   everything else. Each entry also names, under `types[]`, the tracked entity
@@ -1344,7 +1344,7 @@ choosing which.
 **It is a projection of two answers this server already gives.** The subject is
 the very record `GET /Patient/{uid}` hands back, with the nominated name and sex
 on it; the clinical entries come out of the same reading of the events
-`/tracked-entities/{uid}/events` serves. Nothing is read a third way, and every
+`/facade/tracked-entities/{uid}/events` serves. Nothing is read a third way, and every
 read stays scoped to the one person it is about.
 
 **Two things have to be said before it carries anything.**

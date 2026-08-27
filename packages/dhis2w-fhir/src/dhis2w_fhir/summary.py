@@ -165,7 +165,7 @@ class RecordedDose(BaseModel):
 
     Read off the record the facade already serves rather than off DHIS2 a second way: the caller
     projects one tracked entity's events through the very machinery
-    `GET /tracked-entities/{uid}/events` answers with, and hands the doses in it here. `display` is
+    `GET /facade/tracked-entities/{uid}/events` answers with, and hands the doses in it here. `display` is
     the data element's name as the guide publishes it, and `dose_number` is the value DHIS2 stored
     where that value names a dose - `Dose 2`, `IPT 1` - and nothing where the value is a plain
     statement that the dose was given.

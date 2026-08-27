@@ -22,7 +22,7 @@ import {
 /**
  * Which pages this run offers and what they are called, decided in one place.
  *
- * WHY THIS IS WORTH A TEST OF ITS OWN. Every other setting `/uiconfig` carries changes how a page
+ * WHY THIS IS WORTH A TEST OF ITS OWN. Every other setting `/facade/uiconfig` carries changes how a page
  * renders; this one decides whether a page is reachable at all and which subject it is about, and
  * the failures it guards against are a navigation entry that leads somewhere answering a refusal
  * and a screen calling a specimen batch a person. A live server always states the object - a
@@ -284,7 +284,7 @@ describe('whether this server takes what a form was filled in with', () => {
  * happens to be right there. It is wrong everywhere else, and the failure it produces is a search
  * control that never appears on a run that would have answered a search perfectly well.
  */
-/** The served set of a run, in the shape `/uiconfig` states it. */
+/** The served set of a run, in the shape `/facade/uiconfig` states it. */
 const serving = (...resources: string[]): TrackedEntitiesSettings => ({
     enabled: resources.length > 0,
     listing: true,
@@ -332,7 +332,7 @@ describe('whether this run can report on the metadata behind its guide', () => {
 
     it('reads a server that stated nothing as a server with no instance behind it', () => {
         // A live server always states the object, so silence is a read that failed or something in
-        // front of this server swallowing `/uiconfig` - and an entry offered on a guess would lead
+        // front of this server swallowing `/facade/uiconfig` - and an entry offered on a guess would lead
         // to a page with nothing on it.
         expect(metadataHealthOffered(withHealth(null))).toBe(false)
         expect(metadataHealthOffered(DEFAULT_UI_CONFIG)).toBe(false)

@@ -11,18 +11,22 @@ the one operation whose URL is the service base's: it runs over whichever resour
 as its context, so no resource type owns it. A client following this document reaches
 `[base]/$evaluate` and is answered there.
 
-The facade surfaces that are not FHIR at all - `POST /evaluate`'s own JSON shape, the terminology
-reads, and the CDS Hooks discovery - are named in the `description` rather than declared, exactly as
-`GET /spool` is. A CapabilityStatement describes the FHIR interface, and a slot pointing at
-`[base]/terminology/lookup` would be naming a path FHIR has no interaction for. The sentence is what
-a person reading the conformance document needs; the paths themselves are what a client calls.
+The facade surfaces that are not FHIR at all are named in the `description` rather than declared, and
+they now live at an address that says so: the facade's own API is mounted at `[base]/facade` and
+publishes its own OpenAPI document at `[base]/facade/openapi.json`, which is where the receipts
+listing, this project's own JSON evaluation shape, the terminology reads, and the tracked entity
+record are described in full. The CDS Hooks discovery is the exception that stays at `[base]`, since
+that specification fixes its path exactly as FHIR fixes this one. A CapabilityStatement describes the
+FHIR interface, and a slot pointing at `[base]/facade/terminology/lookup` would be naming a path FHIR
+has no interaction for. The sentence is what a person reading the conformance document needs; the
+OpenAPI document is what a client of that surface reads.
 
 The QuestionnaireResponse entry is the one that says what the facade is: responses are received
 and stored as receipts. Reading one back returns the submission as it arrived, never a live view
 of what DHIS2 now holds.
 
 Where a live run serves the record, that entry says the other half too: what DHIS2 now holds about one
-tracked entity is read at `/tracked-entities/{uid}/events`, in the same shape and under the same
+tracked entity is read at `/facade/tracked-entities/{uid}/events`, in the same shape and under the same
 profiles. It is stated in the documentation rather than declared as an interaction because it is not
 one - the address is the tracked entity's, and `read` and `search-type` on this type are the receipts.
 The register's own entries carry the pointer as well, so a client that found somebody learns where
@@ -244,7 +248,7 @@ TAG_SEARCH_DOCUMENTATION = (
 #: is read as prose and a shouted clause reads as a warning label rather than as a fact. The
 #: attributes themselves are named after it,
 #: per register, by `_filter_documentation` - prose, because a searchParam's documentation is prose;
-#: `/uiconfig` carries the same set as values for a screen that has to draw a control over them.
+#: `/facade/uiconfig` carries the same set as values for a screen that has to draw a control over them.
 ATTRIBUTE_FILTER_DOCUMENTATION = (
     "The value of one tracked entity attribute, spelled `d2-attribute={trackedEntityAttributeUid}|"
     "{value}`. It matches that value exactly - equality and nothing else: no prefix, no substring, no "
@@ -290,7 +294,7 @@ SUMMARY_DOCUMENTATION = (
 
 #: What a register entry adds where the record is served: where to read what happened to one of them.
 REGISTER_RECORD_DOCUMENTATION = (
-    "What one of them has been through is read at `GET /tracked-entities/{uid}/events`, as one "
+    "What one of them has been through is read at `GET /facade/tracked-entities/{uid}/events`, as one "
     "QuestionnaireResponse per event of their enrollments."
 )
 
@@ -336,10 +340,10 @@ RESPONSE_VIEWER_DOCUMENTATION = "Stored responses are receipts of what was submi
 #: interaction because it is not one: `read` and `search-type` on this entry are the receipts.
 RECORD_DOCUMENTATION = (
     "What the instance holds about one tracked entity now is a different read, at "
-    "`GET /tracked-entities/{uid}/events`: every event of that entity's enrollments, newest first, each "
+    "`GET /facade/tracked-entities/{uid}/events`: every event of that entity's enrollments, newest first, each "
     "as the response the program stage's own published form describes, and each read from DHIS2 at "
     "request time under the authorization of whoever asked. `_count` and `page` walk it, and one event "
-    "is read at `GET /tracked-entities/{uid}/events/{eventUid}`."
+    "is read at `GET /facade/tracked-entities/{uid}/events/{eventUid}`."
 )
 
 _REST_DOCUMENTATION = (
@@ -501,12 +505,12 @@ def build_server_capability(
         description=(
             f"{project.config.ig.title} served as a FHIR capture facade: {store_summary.total} resources "
             f"in the store, served under the {len(resources)} resource types this statement declares. "
-            f"`GET /spool` states how many responses "
+            f"`GET /facade/spool` states how many responses "
             f"are stored, which is a number that changes while this server runs. Beside the FHIR surface "
-            f"this process also answers `POST /evaluate` (the same evaluation the declared `$evaluate` "
+            f"this process also answers `POST /facade/evaluate` (the same evaluation the declared `$evaluate` "
             f"operation answers, in this project's own JSON shape, with the line and column a parser "
             f"stopped on), "
-            f"`GET /terminology/validate-code` and `GET /terminology/lookup` (this guide's own "
+            f"`GET /facade/terminology/validate-code` and `GET /facade/terminology/lookup` (this guide's own "
             f"vocabularies, not a terminology server), and `GET /cds-services` (CDS Hooks, one service)."
         ),
         instantiates=[f"{canonical}/CapabilityStatement/{names.capture_server_id}"],
