@@ -2,7 +2,7 @@
 # d2w fhir forward — the two postures a drain takes towards a value already sent.
 # Needs the serve extra, docker for the SUSHI compile, a bound port, and its `--import` runs
 # write data values to the instance. `make verify-examples` skips it for the same reasons it
-# skips forward.sh. Run it by hand, against an instance you are willing to write to.
+# skips forward_import.sh. Run it by hand, against an instance you are willing to write to.
 set -euo pipefail
 
 PORT="${FHIR_FORWARD_PORT:-8124}"

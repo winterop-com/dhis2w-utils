@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # d2w --json fhir doctor — the typed DoctorReport on stdout, for jq and for CI.
 # Needs the serve extra and docker for the compile phase; minutes per run, so
-# `make verify-examples` skips it for the same reasons it skips doctor.sh.
+# `make verify-examples` skips it for the same reasons it skips doctor_probe.sh.
 set -euo pipefail
 
 # --json carries the typed DoctorReport on stdout while the narration stays on stderr, so a

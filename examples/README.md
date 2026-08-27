@@ -23,11 +23,12 @@ toolchain" - if you are integrating against a guide.
 | File | Shows |
 | --- | --- |
 | [`fhir/cli/init.sh`](fhir/cli/init.sh) | `d2w fhir init` - scaffold a dockerized SUSHI IG project, offline |
-| [`fhir/cli/generate.sh`](fhir/cli/generate.sh) | `d2w fhir generate` - the whole IG source from one pass over the instance |
+| [`fhir/cli/generate_full_run.sh`](fhir/cli/generate_full_run.sh) | `d2w fhir generate` - every target of the IG source off one pass over the instance |
 | [`fhir/cli/validate.sh`](fhir/cli/validate.sh) | `d2w fhir validate` - the FHIR-safety gate over an instance's codes and names |
 | [`fhir/cli/serve.sh`](fhir/cli/serve.sh) | `d2w fhir serve` - compile the guide, serve it, post a load set, read the receipts back |
-| [`fhir/cli/forward.sh`](fhir/cli/forward.sh) | `d2w fhir forward` - drain the capture spool into DHIS2, dry run first |
-| [`fhir/cli/doctor.sh`](fhir/cli/doctor.sh) | `d2w fhir doctor` - the whole chain against one instance, one verdict |
+| [`fhir/cli/forward_dry_run.sh`](fhir/cli/forward_dry_run.sh) | `d2w fhir forward` - drain the capture spool into DHIS2, with DHIS2 judging and nothing written |
+| [`fhir/cli/forward_import.sh`](fhir/cli/forward_import.sh) | `d2w fhir forward --import` - the committing drain, and the three states it files a receipt into |
+| [`fhir/cli/doctor_probe.sh`](fhir/cli/doctor_probe.sh) | `d2w fhir doctor` - the whole chain against one instance, one verdict |
 | [`fhir/cli/spool.sh`](fhir/cli/spool.sh) | `d2w fhir spool` + `requeue` - read the capture queue and put a refused receipt back in it |
 | [`fhir/client/build_aggregate_response.py`](fhir/client/build_aggregate_response.py) | The minimal aggregate capture - a data set's numbers for one period at one organisation unit |
 | [`fhir/client/build_registration_response.py`](fhir/client/build_registration_response.py) | Registering a person and enrolling them, minting both DHIS2 UIDs client-side |

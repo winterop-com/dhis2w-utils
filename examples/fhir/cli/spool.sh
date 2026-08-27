@@ -89,6 +89,6 @@ d2w fhir requeue --all-rejected || true
 d2w fhir requeue queued-1 || true
 
 # From here, `d2w fhir forward --import` posts the requeued receipts again - see
-# examples/fhir/cli/forward.sh for the drain itself.
+# examples/fhir/cli/forward_import.sh for the drain itself.
 
 cd .. && rm -rf spool-demo

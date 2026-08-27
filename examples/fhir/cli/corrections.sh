@@ -108,7 +108,7 @@ stop_facade
 # Three receipts queued - the ordinary one and the two marked ones. Where they go next is the other
 # half of each dial: `d2w fhir forward` lands a correction on the corrected receipt's own DHIS2
 # identity rather than as a second record, and `d2w fhir withdraw` reads `withdrawals` and deletes
-# what a receipt landed. See examples/fhir/cli/forward.sh and examples/fhir/cli/withdraw.sh.
+# what a receipt landed. See examples/fhir/cli/forward_import.sh and examples/fhir/cli/withdraw.sh.
 d2w fhir spool --details
 
 cd .. && rm -rf demo-corrections
