@@ -26,7 +26,7 @@ Examples that need `DHIS2_OAUTH_*` env (the OIDC flow) say so in their docstring
 
 - `dhis2w_client.Dhis2Client(url, auth)` — the top-level async client (v42-typed). Runtime dispatch swaps accessors to v41 / v43 when connected to those servers; static typing sees the v42 shape.
 - `dhis2w_core.client_context.open_client(profile)` — profile-aware context manager. Most examples use this, and it needs no version pin at all.
-- `dhis2w_core.v42.plugins.<name>.service.*` — service-layer functions for operations that have a typed CLI/MCP surface (metadata import/diff/patch, user admin, …). See `metadata_export_import.py` / `metadata_diff.py` / `metadata_patch.py` for the pattern.
+- `dhis2w_core.v42.plugins.<name>.service.*` — service-layer functions for operations that have a typed CLI/MCP surface (metadata import/diff/patch, user admin, …). See `metadata_export.py` / `metadata_diff.py` / `metadata_patch.py` for the pattern.
 
 See the [client library tutorial](../../docs/client/tutorial.md) for a narrative walkthrough of the main entry points.
 

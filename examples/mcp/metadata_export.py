@@ -1,7 +1,13 @@
-"""MCP-driven metadata export + import — same round-trip as the CLI, through tools.
+"""Export a metadata bundle through the MCP `metadata_export` tool.
+
+The tool writes the bundle to disk and returns a `{resource: count}` summary, so
+a large export never flows through the MCP payload — the agent gets the shape of
+what it pulled and a path to hand to the next step.
 
 Usage:
-    uv run python examples/mcp/metadata_export_import.py
+    uv run python examples/mcp/metadata_export.py
+
+Env: DHIS2_URL + DHIS2_PAT (or DHIS2_PROFILE).
 """
 
 from __future__ import annotations
@@ -15,13 +21,11 @@ from fastmcp import Client
 
 
 async def main() -> None:
-    """Drive `metadata_export` + `metadata_import` MCP tools."""
+    """Export a narrow slice to a file and read the summary the tool answers with."""
     async with Client(build_server()) as client:
         with TemporaryDirectory() as tmp:
             bundle_path = str(Path(tmp) / "bundle.json")
 
-            # Export writes to disk so the bundle doesn't flow through the MCP
-            # payload for big exports — return value is a {resource: count} summary.
             summary = await client.call_tool(
                 "metadata_export",
                 {
@@ -33,17 +37,15 @@ async def main() -> None:
             payload = summary.structured_content or {}
             print(f"exported to {payload.get('_path')}")
             for key, value in payload.items():
-                if key.startswith("_"):
+                if key.startswith("_") or not isinstance(value, int):
                     continue
                 print(f"  {key}: {value}")
 
-            # Dry-run import — DHIS2 validates + preheats without committing.
-            report = await client.call_tool(
-                "metadata_import",
-                {"bundle_path": bundle_path, "dry_run": True},
-            )
-            body = report.structured_content or {}
-            print(f"\nimport status: {body.get('status') or body.get('httpStatus')}")
+            # A narrow slice leaves references pointing at objects it did not pull,
+            # and the tool names them rather than letting the bundle fail on import.
+            dangling = payload.get("dangling_references") or {}
+            for item in dangling.get("items", []):
+                print(f"  dangling {item['field_name']} -> {len(item['missing_uids'])} uid(s) not in the bundle")
 
 
 if __name__ == "__main__":

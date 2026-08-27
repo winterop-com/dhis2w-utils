@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Metadata inspection + UID generation.
+# `d2w metadata list` — page through any metadata collection.
+#
+# Opens with `d2w metadata type list` because that answers the question every
+# other line here depends on: which resource names this instance accepts.
 set -euo pipefail
 
 # What DHIS2 metadata types does this instance expose?
 d2w metadata type list
 
-# --- List -----------------------------------------------------------------
 # Default 50 rows, server-side page 1. `list` is also aliased as `ls`.
 d2w metadata list dataElements --page-size 10
 
@@ -30,15 +32,3 @@ d2w metadata list organisationUnits \
 # --all streams every server-side page (paging=true + page=1,2,...).
 # Useful for dumping a full catalog without knowing the total count upfront.
 d2w --json metadata list indicators --all --fields ":identifiable" | jq 'length as $n | "\($n) indicators"'
-
-# --- Get ------------------------------------------------------------------
-# Fetch one seeded data element by UID.
-d2w metadata get dataElements fClA2Erf6IO
-
-# Fetch the Sierra Leone root OU.
-d2w metadata get organisationUnits ImspTQPwCqd
-
-# --- UIDs ------------------------------------------------------------------
-# Generate fresh DHIS2 UIDs (11-char) via the dev tools — handy when scripting metadata creation.
-d2w dev uid
-d2w dev uid -n 5

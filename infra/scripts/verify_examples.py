@@ -203,8 +203,8 @@ SKIP_WHEN_ENVIRONMENT_MISSING: dict[str, tuple[str, ...]] = {
 }
 
 DEFAULT_PROFILE = "local_basic"
-# 300s headroom: some scripts (`options.sh`, `metadata_list_get.sh`,
-# `metadata_export_import.sh`) run fine idle but balloon past 180s under
+# 300s headroom: some scripts (`options.sh`, `metadata_list.sh`,
+# `metadata_export.sh`) run fine idle but balloon past 180s under
 # post-refresh load — analytics table rebuilds + a fully-seeded Sierra
 # Leone catalog mean list + export calls are not free. Override with
 # `--timeout` when a specific run needs tighter or looser bounds.

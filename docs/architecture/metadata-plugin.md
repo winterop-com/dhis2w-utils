@@ -568,8 +568,8 @@ async with Dhis2Client(url, auth) as client:
 
 MCP tools: `metadata_export` + `metadata_import`. Both accept a
 `bundle_path` on disk so multi-megabyte bundles don't flow through the MCP
-channel. See `examples/mcp/metadata_export_import.py` for the tool-call
-form.
+channel. See `examples/mcp/metadata_export.py` and
+`examples/mcp/metadata_import.py` for the tool-call form.
 
 ## Diff — preview before importing
 

@@ -250,7 +250,8 @@ Listing goes through the generic metadata surface — `d2w metadata list visuali
 
 - `examples/client/viz_create_basic.py` — simplest spec → create → show.
 - `examples/client/viz_multiline_by_province.py` — multi-line time-series with one line per district, with an analytics-probe sanity check up front.
-- `examples/client/viz_pivot_and_kpi.py` — pivot table + SINGLE_VALUE tile on the same data set, showing the two default placements side-by-side.
+- `examples/client/viz_pivot_table.py` — a PIVOT_TABLE and the placement it defaults to: organisation units down the side, periods across the top, the data element in a filter.
+- `examples/client/viz_single_value.py` — a SINGLE_VALUE KPI tile, and why everything but the data element becomes a filter.
 - `examples/client/viz_clone_and_modify.py` — clone an existing chart, rename, verify the clone survives deletion of the source.
 - `examples/client/dashboard_compose.py` — build a dashboard from scratch with typed `DashboardSlot`s for side-by-side KPI tiles above a full-width line chart.
 
