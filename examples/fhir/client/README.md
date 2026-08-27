@@ -72,6 +72,21 @@ Posting a response at a running facade, and reading what comes back.
 | [`read_register_as_yourself.py`](read_register_as_yourself.py) | A facade under `auth = "dhis2"`: the register read under the caller's own DHIS2 authorization, and the 401 a read with no credential gets |
 | [`register_any_type.py`](register_any_type.py) | Every register a facade serves, walked off `/metadata` with no resource type written down - the type names behind each one, and the tag each resource carries |
 
+## The typed client
+
+`FacadeClient` from `dhis2w_fhir` is the same facade as the group above, with the contract handed to
+you rather than reconstructed: no request built by hand, no header spelled twice, no status code
+compared against a constant. Every method answers a model, and every refusal arrives as a
+`FacadeError` carrying the `OperationOutcome` the facade stated its reason in.
+
+| File | Shows |
+| --- | --- |
+| [`send_with_the_client.py`](send_with_the_client.py) | The write half: `$generate` a draft, `submit_response` it, read the `CaptureReceipt` id off the `Location` header and the warnings off the body, read the receipt back typed |
+| [`search_with_the_client.py`](search_with_the_client.py) | The read half: `canonical_resource_types` off `/metadata`, a typed `ResourceQuery` against the forms and against the register, and `resolve` turning a canonical into the resource that holds it |
+| [`evaluate_with_the_client.py`](evaluate_with_the_client.py) | `evaluate` with the typed contexts: `InlineResourceContext.over` a draft that is stored nowhere, `StoredResourceContext` over a form the facade holds, and the diagnostic an unparseable expression is answered with rather than raised on |
+| [`authenticate_with_the_client.py`](authenticate_with_the_client.py) | `BearerToken` against a facade of its own started with `--auth token`: the open reads, the 401 with no credential, the 401 with the wrong one, and the receipt the right one earns |
+| [`handle_refusals_with_the_client.py`](handle_refusals_with_the_client.py) | `FacadeError` read typed: the 404 a resource nobody holds raises and the 422 a response answering an unpublished form raises, both through `status_code`, `issues`, and `diagnostics` |
+
 ## Say who a person is
 
 Which tracked entity attribute means a name, a birth date, a sex, and what a reading of one produces.

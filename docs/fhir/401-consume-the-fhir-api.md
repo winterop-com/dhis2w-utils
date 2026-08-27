@@ -34,7 +34,16 @@ lives in: `/metadata`, the reads and the searches, `$generate`, the post and its
 receipt, and an evaluation. `$translate`, `$summary`, the tracked-entity
 endpoints, `/spool`, and `/uiconfig` are addresses a caller asks for itself.
 [`examples/fhir/client/send_with_the_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/send_with_the_client.py)
-is the same submit-and-read-back loop with no request built by hand.
+is the same submit-and-read-back loop with no request built by hand, and four
+files beside it take the rest of that client one at a time:
+[`search_with_the_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/search_with_the_client.py)
+for discovery, search, and canonical resolution,
+[`evaluate_with_the_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/evaluate_with_the_client.py)
+for the two evaluation contexts,
+[`authenticate_with_the_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/authenticate_with_the_client.py)
+for the credential a guarded facade takes, and
+[`handle_refusals_with_the_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/handle_refusals_with_the_client.py)
+for reading a refusal off `FacadeError` rather than out of a parsed body.
 
 **Every endpoint on this page answers the same way with no server running.**
 [Embed the facade](401-embed-the-facade.md) builds the application in your own
