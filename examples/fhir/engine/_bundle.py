@@ -8,6 +8,9 @@ expression says here is what it would say against real output.
 Four children, three of whom were vaccinated, two of whom were weighed. Those counts are what the
 measure example scores and what the retrieve example narrows, so a reader can check the engine's
 answer against the entries below by eye.
+
+`clinic.json` beside this file is `clinic_bundle()` written out for the command line, and
+`packages/dhis2w-fhir-engine/tests/test_example_clinic_bundle.py` holds the two byte for byte equal.
 """
 
 from __future__ import annotations

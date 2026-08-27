@@ -190,6 +190,44 @@ rule holds with no exceptions, which is why `unwrap_primitives` and
 a date, not a string". `@2024-01-01T00:00:00` is a dateTime. This matters as soon
 as you compare an element to a reporting period boundary.
 
+### Totalling a collection
+
+`count()` says how many. Four functions beside it say how much. Take a path that
+has selected the three numbers `3`, `4` and `11`:
+
+| Called on it | Answers | What it is for |
+| --- | --- | --- |
+| `sum()` | `[18]` | the total |
+| `min()` | `[3]` | the smallest |
+| `max()` | `[11]` | the largest |
+| `avg()` | `[Decimal('6')]` | the mean, always a decimal |
+
+Three rules govern all four, and each is worth knowing before it surprises you.
+
+**An empty collection totals to the empty collection**, not to zero.
+`QuestionnaireResponse.item.answer.valueInteger.sum()` on a form nobody filled in
+answers `[]` - *nothing was recorded* - which is a different answer from `[0]`,
+*zero was recorded*. That distinction is the same one `evaluate_boolean` draws
+between `None` and `False` below, and it is the one that matters when a total
+becomes a reported figure.
+
+**A collection has to hold one kind of thing.** Whole numbers and decimals mix
+freely, because FHIRPath reads a whole number as a decimal wherever it needs to.
+A number beside a string, a boolean, or a quantity does not: the expression is
+refused with a message naming both kinds, rather than answering something
+arbitrary.
+
+**Quantities keep their unit.** `sum()` and `avg()` add, and adding needs one
+unit - `(1 'mg' | 2 'mg').sum()` answers `3 'mg'`, and a collection carrying both
+milligrams and centimetres is refused. `min()` and `max()` compare rather than
+add, and comparison converts between compatible units, so
+`(1 'g' | 1 'mg').min()` answers `1 'mg'`.
+
+`aggregate()` sits under the same heading of the specification and does the
+general case - it folds a collection with an expression of your own, reading
+`$this` and `$total` on each step. The four above are the folds people actually
+write, spelled out.
+
 ## Navigating a Bundle
 
 A `Bundle` is the shape a FHIR server hands back a set of resources in. Every
@@ -223,6 +261,9 @@ down to a field on the resources it selected:
 | How many measles doses? | `Bundle.entry.resource.ofType(Immunization).where(vaccineCode.coding.code = '836383007').count()` | `[2]` |
 | Who got them? | `Bundle.entry.resource.ofType(Immunization).where(vaccineCode.coding.code = '836383007').patient.reference` | `['Patient/child-1', 'Patient/child-2']` |
 | Every recorded weight | `Bundle.entry.resource.ofType(Observation).valueQuantity.value` | `[9200, 8100]` |
+| Those weights together | `Bundle.entry.resource.ofType(Observation).valueQuantity.value.sum()` | `[17300]` |
+| The average weight | `Bundle.entry.resource.ofType(Observation).valueQuantity.value.avg()` | `[Decimal('8650')]` |
+| The oldest child's birth date | `Bundle.entry.resource.ofType(Patient).birthDate.min()` | `['2023-02-11']` |
 | Family names of the girls | `Bundle.entry.resource.ofType(Patient).where(gender = 'female').name.family` | `['Kamara', 'Sesay', 'Koroma']` |
 | Born after a cut-off | `Bundle.entry.resource.ofType(Patient).where(birthDate > @2023-06-01).id` | `['child-3', 'child-4']` |
 
